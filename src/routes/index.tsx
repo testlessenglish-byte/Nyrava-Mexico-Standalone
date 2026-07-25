@@ -175,10 +175,11 @@ function Landing() {
       {/* Experience Nyrava — live case demos */}
       <section id="product" className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
 
-        <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">EXPERIENCE NYRAVA</div>
+        <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">{t("home.demos.tag")}</div>
         <h2 className="mb-8 max-w-2xl font-display text-2xl font-semibold leading-tight md:text-3xl">
-          See a complete case analysis before you upload a single document.
+          {t("home.demos.title")}
         </h2>
+
 
         {demosLoading && (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
