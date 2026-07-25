@@ -707,6 +707,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          message_language: string | null
           metadata: Json | null
           role: string
           user_id: string
@@ -717,6 +718,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          message_language?: string | null
           metadata?: Json | null
           role: string
           user_id: string
@@ -727,6 +729,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          message_language?: string | null
           metadata?: Json | null
           role?: string
           user_id?: string
@@ -1627,6 +1630,7 @@ export type Database = {
           archived_at: string | null
           attack_surface: Json
           cancel_requested: boolean
+          case_language: string | null
           case_type: string | null
           completed_at: string | null
           contradiction_at: string | null
@@ -1649,6 +1653,7 @@ export type Database = {
           progress: number
           queued_at: string | null
           report_at: string | null
+          report_language: string
           scored_at: string | null
           shared_brief: Json | null
           shared_brief_at: string | null
@@ -1673,6 +1678,7 @@ export type Database = {
           archived_at?: string | null
           attack_surface?: Json
           cancel_requested?: boolean
+          case_language?: string | null
           case_type?: string | null
           completed_at?: string | null
           contradiction_at?: string | null
@@ -1695,6 +1701,7 @@ export type Database = {
           progress?: number
           queued_at?: string | null
           report_at?: string | null
+          report_language?: string
           scored_at?: string | null
           shared_brief?: Json | null
           shared_brief_at?: string | null
@@ -1719,6 +1726,7 @@ export type Database = {
           archived_at?: string | null
           attack_surface?: Json
           cancel_requested?: boolean
+          case_language?: string | null
           case_type?: string | null
           completed_at?: string | null
           contradiction_at?: string | null
@@ -1741,6 +1749,7 @@ export type Database = {
           progress?: number
           queued_at?: string | null
           report_at?: string | null
+          report_language?: string
           scored_at?: string | null
           shared_brief?: Json | null
           shared_brief_at?: string | null
@@ -3605,6 +3614,7 @@ export type Database = {
           id: string
           is_blocked: boolean
           locale: string
+          preferred_language: string
           updated_at: string
         }
         Insert: {
@@ -3617,6 +3627,7 @@ export type Database = {
           id: string
           is_blocked?: boolean
           locale?: string
+          preferred_language?: string
           updated_at?: string
         }
         Update: {
@@ -3629,6 +3640,7 @@ export type Database = {
           id?: string
           is_blocked?: boolean
           locale?: string
+          preferred_language?: string
           updated_at?: string
         }
         Relationships: []
@@ -3707,6 +3719,7 @@ export type Database = {
           facts: string | null
           findings_count: number | null
           full_report: Json
+          generated_language: string
           id: string
           investigator_summary: string | null
           missing_evidence_report: Json | null
@@ -3746,6 +3759,7 @@ export type Database = {
           facts?: string | null
           findings_count?: number | null
           full_report?: Json
+          generated_language?: string
           id?: string
           investigator_summary?: string | null
           missing_evidence_report?: Json | null
@@ -3785,6 +3799,7 @@ export type Database = {
           facts?: string | null
           findings_count?: number | null
           full_report?: Json
+          generated_language?: string
           id?: string
           investigator_summary?: string | null
           missing_evidence_report?: Json | null
