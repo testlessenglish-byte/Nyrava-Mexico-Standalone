@@ -2,9 +2,16 @@
 // hardcoded stage list, no timestamp fallbacks. Every panel that shows
 // pipeline status renders identically because they all consume the same
 // hook.
+//
+// Labels and statuses are jurisdiction-aware: stage names come from the
+// Mexican pipeline profile for the case's materia (src/lib/execution/mx-pipeline)
+// and are rendered through i18n, and stages that are not legally relevant for
+// that materia are not shown at all.
 import type { Database } from "@/integrations/supabase/types";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import type { StageState } from "@/lib/execution/canonical";
+import { isStageRelevantForCaseType, stageLabelKey, statusLabelKey } from "@/lib/execution/mx-pipeline";
+import { useI18n } from "@/i18n";
 
 function tone(state: StageState) {
   switch (state) {
@@ -18,34 +25,23 @@ function tone(state: StageState) {
   }
 }
 
-function label(state: StageState) {
-  switch (state) {
-    case "complete": return "Complete";
-    case "running":  return "Running";
-    case "failed":   return "Failed";
-    case "blocked":  return "Blocked";
-    case "waiting":  return "Waiting";
-    case "skipped":  return "Skipped";
-    default:         return "Locked";
-  }
-}
-
 type Case = Database["public"]["Tables"]["cases"]["Row"];
 
 export function PipelineStatusGrid({ caseRow }: { caseRow: Case; runs?: unknown }) {
+  const { t } = useI18n();
   const { stages } = useCaseExecution(caseRow.id);
-  // Hide the parallel multi-agent stage from the primary pipeline grid.
-  const displayStages = stages.filter((s) => s.key !== "multi_agent");
+  const caseType = (caseRow as { case_type?: string | null }).case_type ?? null;
+  // Hide the parallel multi-agent stage from the primary pipeline grid, plus
+  // any stage that isn't legally relevant for this materia.
+  const displayStages = stages.filter((s) => s.key !== "multi_agent" && isStageRelevantForCaseType(caseType, s.key));
 
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Pipeline Status
+          {t("pipeline.grid.title")}
         </h2>
-        <span className="text-xs text-muted-foreground">
-          Canonical execution state.
-        </span>
+        <span className="text-xs text-muted-foreground">{t("pipeline.grid.subtitle")}</span>
       </div>
       <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {displayStages.map((s, i) => (
@@ -57,9 +53,9 @@ export function PipelineStatusGrid({ caseRow }: { caseRow: Case; runs?: unknown 
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[10px] font-semibold tabular-nums">
                 {i + 1}
               </span>
-              <span className="font-medium">{s.label}</span>
+              <span className="font-medium">{t(stageLabelKey(s.key, caseType))}</span>
             </span>
-            <span className="text-xs uppercase tracking-wide">{label(s.state)}</span>
+            <span className="text-xs uppercase tracking-wide">{t(statusLabelKey(s.state))}</span>
           </li>
         ))}
       </ol>
