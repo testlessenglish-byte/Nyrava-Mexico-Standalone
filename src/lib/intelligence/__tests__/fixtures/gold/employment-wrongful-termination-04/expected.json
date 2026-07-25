@@ -1,0 +1,57 @@
+{
+  "entities": [
+    { "id": "ent-plaintiff-okafor", "type": "person", "name": "Ada Okafor", "role": "plaintiff" },
+    { "id": "ent-defendant-meridian", "type": "org", "name": "Meridian Health Systems", "role": "defendant" },
+    { "id": "ent-mgr-hines", "type": "person", "name": "David Hines", "role": "direct manager" },
+    { "id": "ent-hr-park", "type": "person", "name": "Elena Park", "role": "HR Business Partner" }
+  ],
+  "timeline": [
+    { "id": "tl-1", "date_iso": "2023-06-01T00:00:00Z", "event": "Okafor hired as Sr. Analyst", "source_document_id": "doc-offer-letter" },
+    { "id": "tl-2", "date_iso": "2024-12-10T00:00:00Z", "event": "Annual review — 'Exceeds Expectations', 4/5 rating", "source_document_id": "doc-perf-reviews" },
+    { "id": "tl-3", "date_iso": "2025-01-22T15:40:00Z", "event": "Okafor internal complaint re: patient-data handling", "source_document_id": "doc-hr-emails" },
+    { "id": "tl-4", "date_iso": "2025-02-03T09:12:00Z", "event": "Hines Slack: 'she's becoming a problem, we need to move on'", "source_document_id": "doc-slack-export" },
+    { "id": "tl-5", "date_iso": "2025-02-14T00:00:00Z", "event": "Termination memo — cites 'ongoing performance issues'", "source_document_id": "doc-termination-memo" }
+  ],
+  "evidence_map": [
+    { "id": "ev-1", "document_id": "doc-perf-reviews", "page": 2, "description": "Dec 2024 review — Exceeds Expectations, no PIP", "classification": "documentary" },
+    { "id": "ev-2", "document_id": "doc-slack-export", "page": 8, "description": "Hines message re: moving on 12 days after complaint", "classification": "communication" },
+    { "id": "ev-3", "document_id": "doc-termination-memo", "page": 1, "description": "Termination memo citing performance grounds", "classification": "documentary" }
+  ],
+  "findings": [
+    { "id": "f-1", "category": "contradiction", "title": "Performance review contradicts termination rationale", "description": "Dec 2024 review = Exceeds Expectations; Feb 2025 termination cites 'ongoing performance issues'.", "source_document_id": "doc-perf-reviews", "source_page": 2, "source_quote": "Exceeds Expectations — recommend retention and advancement", "evidence_refs": ["ev-1"] },
+    { "id": "f-2", "category": "contradiction", "title": "Termination memo cites performance despite recent positive review", "description": "See f-1.", "source_document_id": "doc-termination-memo", "source_page": 1, "source_quote": "ongoing performance issues over the past year", "evidence_refs": ["ev-3"] },
+    { "id": "f-3", "category": "discovery_gap", "title": "No intervening PIP or write-up produced", "description": "Between Dec review and Feb termination, no formal corrective action produced.", "source_document_id": "doc-hr-emails", "source_page": 1, "source_quote": "no PIP on file", "requested_from": "Meridian HR", "evidence_refs": ["ev-1"] },
+    { "id": "f-4", "category": "risk", "title": "Retaliation temporal proximity", "description": "23 days between protected complaint and termination decision.", "source_document_id": "doc-slack-export", "source_page": 8, "source_quote": "she's becoming a problem, we need to move on", "evidence_refs": ["ev-2"] },
+    { "id": "f-5", "category": "motion", "title": "Motion to Compel HR investigation files", "description": "Files re: patient-data complaint intake and investigation.", "source_document_id": "doc-hr-emails", "source_page": 1, "source_quote": "complaint intake #25-004", "evidence_refs": ["ev-2"] },
+    { "id": "f-6", "category": "theory", "title": "Retaliation for protected activity", "description": "Timing + inconsistent performance rationale + manager Slack support retaliation theory.", "source_document_id": "doc-slack-export", "source_page": 8, "source_quote": "she's becoming a problem, we need to move on", "evidence_refs": ["ev-1", "ev-2", "ev-3"] }
+  ],
+  "contradictions": [
+    { "id": "c-1", "finding_a_id": "f-1", "finding_b_id": "f-2", "description": "Positive review contradicts termination's performance rationale." }
+  ],
+  "discovery_gaps": [
+    { "id": "dg-1", "category": "personnel", "description": "No PIP or written warning produced between Dec review and Feb termination.", "requested_from": "Meridian HR" }
+  ],
+  "constitutional": [],
+  "brady": [],
+  "chain_of_custody": [],
+  "motions": [
+    { "id": "mo-1", "title": "Motion to Compel HR investigation files", "basis": "Complaint intake and investigation records go to retaliation.", "likelihood": "high" }
+  ],
+  "risks": [
+    { "id": "r-1", "category": "temporal_proximity", "description": "23-day gap between complaint and termination.", "severity": "high" }
+  ],
+  "theories": [
+    { "id": "th-1", "label": "Retaliation for protected activity", "support": ["f-1", "f-2", "f-4", "f-6"], "strength": "strong" }
+  ],
+  "report_sections": [
+    { "key": "case_summary", "title": "Case Summary", "required": true },
+    { "key": "timeline", "title": "Timeline of Events", "required": true },
+    { "key": "entities", "title": "Key Entities", "required": true },
+    { "key": "evidence_map", "title": "Evidence Map", "required": true },
+    { "key": "findings", "title": "Findings", "required": true },
+    { "key": "motions", "title": "Motion Opportunities", "required": true },
+    { "key": "risks", "title": "Risk Assessment", "required": true },
+    { "key": "theories", "title": "Case Theories", "required": true },
+    { "key": "citations_audit", "title": "Citation Audit", "required": true }
+  ]
+}

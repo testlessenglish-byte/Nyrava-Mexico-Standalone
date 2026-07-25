@@ -1,0 +1,63 @@
+{
+  "entities": [
+    { "id": "ent-def-kessler", "type": "person", "name": "Aaron Kessler", "role": "defendant" },
+    { "id": "ent-vic-holt", "type": "person", "name": "Priya Holt", "role": "victim/homeowner" },
+    { "id": "ent-wit-nguyen", "type": "person", "name": "Tara Nguyen", "role": "neighbor witness" },
+    { "id": "ent-wit-diaz", "type": "person", "name": "Robert Diaz", "role": "neighbor witness" },
+    { "id": "ent-off-brady", "type": "person", "name": "Officer Sean Brady", "role": "arresting officer" }
+  ],
+  "timeline": [
+    { "id": "tl-1", "date_iso": "2025-05-02T02:14:00Z", "event": "Doorbell camera activated by motion", "source_document_id": "doc-doorbell-cam" },
+    { "id": "tl-2", "date_iso": "2025-05-02T02:18:00Z", "event": "Nguyen 911 call — 'tall man in dark clothing'", "source_document_id": "doc-neighbor-a" },
+    { "id": "tl-3", "date_iso": "2025-05-02T02:35:00Z", "event": "Diaz 911 call — 'short man, hooded sweatshirt'", "source_document_id": "doc-neighbor-b" },
+    { "id": "tl-4", "date_iso": "2025-05-02T03:02:00Z", "event": "Officers arrive; Kessler detained two blocks away", "source_document_id": "doc-police-report" },
+    { "id": "tl-5", "date_iso": "2025-05-02T09:40:00Z", "event": "Fingerprints lifted from window frame", "source_document_id": "doc-fingerprint" },
+    { "id": "tl-6", "date_iso": "2025-05-02T14:20:00Z", "event": "Search warrant issued for Kessler's residence", "source_document_id": "doc-warrant" }
+  ],
+  "evidence_map": [
+    { "id": "ev-1", "document_id": "doc-doorbell-cam", "page": 1, "description": "1080p doorbell footage 02:14:03-02:14:41", "classification": "surveillance" },
+    { "id": "ev-2", "document_id": "doc-fingerprint", "page": 1, "description": "Latent print from window frame — 12-point match to defendant", "classification": "physical" },
+    { "id": "ev-3", "document_id": "doc-warrant", "page": 2, "description": "Warrant scope: 'residence and outbuildings' — did not include vehicle", "classification": "documentary" }
+  ],
+  "findings": [
+    { "id": "f-1", "category": "contradiction", "title": "Nguyen height/build description", "description": "'Tall man in dark clothing' vs Diaz 'short man in hooded sweatshirt'.", "source_document_id": "doc-neighbor-a", "source_page": 1, "source_quote": "he was tall, dressed in dark clothing", "evidence_refs": ["ev-1"] },
+    { "id": "f-2", "category": "contradiction", "title": "Diaz height/build description", "description": "See f-1.", "source_document_id": "doc-neighbor-b", "source_page": 1, "source_quote": "shorter guy, hoodie pulled up", "evidence_refs": ["ev-1"] },
+    { "id": "f-3", "category": "constitutional", "title": "Vehicle search exceeded warrant scope", "description": "Warrant covered residence and outbuildings only. Vehicle search yielded stolen property.", "source_document_id": "doc-warrant", "source_page": 2, "source_quote": "residence and outbuildings at 412 Alder St", "evidence_refs": ["ev-3"] },
+    { "id": "f-4", "category": "discovery_gap", "title": "Missing full doorbell footage window", "description": "Only 38 seconds produced; original device stores 5 minutes rolling.", "source_document_id": "doc-doorbell-cam", "source_page": 1, "source_quote": "clip: 02:14:03-02:14:41", "evidence_refs": ["ev-1"] },
+    { "id": "f-5", "category": "motion", "title": "Motion to Suppress vehicle-search fruits", "description": "Search exceeded warrant scope.", "source_document_id": "doc-warrant", "source_page": 2, "source_quote": "residence and outbuildings at 412 Alder St", "evidence_refs": ["ev-3"] },
+    { "id": "f-6", "category": "risk", "title": "Fingerprint match is strongest State evidence", "description": "12-point match on window frame ties defendant to entry point.", "source_document_id": "doc-fingerprint", "source_page": 1, "source_quote": "twelve-point match to reference sample K-1", "evidence_refs": ["ev-2"] },
+    { "id": "f-7", "category": "theory", "title": "Innocent presence via prior lawful visit", "description": "If defense can show prior lawful entry, fingerprint loses probative weight.", "source_document_id": "doc-fingerprint", "source_page": 1, "source_quote": "twelve-point match to reference sample K-1", "evidence_refs": ["ev-2"] }
+  ],
+  "contradictions": [
+    { "id": "c-1", "finding_a_id": "f-1", "finding_b_id": "f-2", "description": "Neighbor witnesses give incompatible build/clothing descriptions." }
+  ],
+  "discovery_gaps": [
+    { "id": "dg-1", "category": "surveillance", "description": "Full 5-minute rolling doorbell footage window not produced.", "requested_from": "State" }
+  ],
+  "constitutional": [
+    { "id": "co-1", "amendment": "Fourth", "issue": "Vehicle search exceeded warrant scope.", "severity": "high" }
+  ],
+  "brady": [],
+  "chain_of_custody": [],
+  "motions": [
+    { "id": "mo-1", "title": "Motion to Suppress vehicle-search fruits", "basis": "Fourth Amendment — search exceeded warrant scope.", "likelihood": "high" }
+  ],
+  "risks": [
+    { "id": "r-1", "category": "physical_evidence", "description": "Fingerprint match is compelling for jury.", "severity": "high" }
+  ],
+  "theories": [
+    { "id": "th-1", "label": "Misidentification + innocent presence", "support": ["f-1", "f-2", "f-7"], "strength": "moderate" }
+  ],
+  "report_sections": [
+    { "key": "case_summary", "title": "Case Summary", "required": true },
+    { "key": "timeline", "title": "Timeline of Events", "required": true },
+    { "key": "entities", "title": "Key Entities", "required": true },
+    { "key": "evidence_map", "title": "Evidence Map", "required": true },
+    { "key": "findings", "title": "Findings", "required": true },
+    { "key": "constitutional_issues", "title": "Constitutional Issues", "required": true },
+    { "key": "motions", "title": "Motion Opportunities", "required": true },
+    { "key": "risks", "title": "Risk Assessment", "required": true },
+    { "key": "theories", "title": "Case Theories", "required": true },
+    { "key": "citations_audit", "title": "Citation Audit", "required": true }
+  ]
+}

@@ -1,0 +1,140 @@
+{
+  "entities": [
+    { "id": "ent-vantage", "type": "org", "name": "Vantage Robotics, Inc.", "role": "plaintiff / client" },
+    { "id": "ent-coastal", "type": "org", "name": "Coastal Fulfillment Partners LLC", "role": "defendant / vendor" },
+    { "id": "ent-vantage-counsel", "type": "person", "name": "Priya Nandakumar", "role": "Vantage in-house counsel" },
+    { "id": "ent-coastal-ops-dir", "type": "person", "name": "Derek Ashby", "role": "Coastal Director of Operations" },
+    { "id": "ent-third-party-claimant", "type": "org", "name": "Merrow Retail Group", "role": "third-party claimant (downstream customer)" }
+  ],
+  "timeline": [
+    { "id": "tl-1", "date_iso": "2024-09-01T00:00:00Z", "event": "Master Services Agreement executed between Vantage and Coastal", "source_document_id": "doc-services-agreement" },
+    { "id": "tl-2", "date_iso": "2025-01-15T00:00:00Z", "event": "Statement of Work #2 executed, expanding fulfillment volume 3x", "source_document_id": "doc-sow-2" },
+    { "id": "tl-3", "date_iso": "2025-02-03T10:14:00Z", "event": "Ashby internal email: 'we are already over capacity at the Norfolk facility, we should flag this before SOW 2 volume hits'", "source_document_id": "doc-internal-ops-email" },
+    { "id": "tl-4", "date_iso": "2025-02-10T00:00:00Z", "event": "Coastal certificate of insurance delivered to Vantage, representing full coverage limits in effect", "source_document_id": "doc-coi-cert" },
+    { "id": "tl-5", "date_iso": "2025-03-04T00:00:00Z", "event": "Fire at Coastal's Norfolk warehouse damages inventory awaiting fulfillment", "source_document_id": "doc-force-majeure-notice" },
+    { "id": "tl-6", "date_iso": "2025-03-06T00:00:00Z", "event": "Coastal issues formal force majeure notice to Vantage, citing the fire as an unforeseeable event excusing performance", "source_document_id": "doc-force-majeure-notice" },
+    { "id": "tl-7", "date_iso": "2025-03-21T00:00:00Z", "event": "Merrow Retail Group sends demand letter to Vantage over delayed shipments traced to the Coastal facility", "source_document_id": "doc-third-party-demand-letter" }
+  ],
+  "evidence_map": [
+    { "id": "ev-1", "document_id": "doc-services-agreement", "page": 6, "description": "Section 9 indemnification clause — Coastal to indemnify Vantage for third-party claims arising from Coastal's performance", "classification": "documentary" },
+    { "id": "ev-2", "document_id": "doc-services-agreement", "page": 7, "description": "Section 11 limitation of liability — caps Coastal's aggregate liability at 12 months' fees paid, with carve-out for indemnification obligations", "classification": "documentary" },
+    { "id": "ev-3", "document_id": "doc-internal-ops-email", "page": 1, "description": "Ashby email acknowledging capacity shortfall three weeks before the fire and before SOW 2 volume increase took effect", "classification": "communication" },
+    { "id": "ev-4", "document_id": "doc-force-majeure-notice", "page": 1, "description": "Coastal's force majeure notice characterizing the fire as the sole cause of nonperformance", "classification": "documentary" },
+    { "id": "ev-5", "document_id": "doc-coi-cert", "page": 1, "description": "Certificate of insurance representing coverage limits that do not match the policy Coastal actually held at the time of the fire", "classification": "documentary" }
+  ],
+  "findings": [
+    {
+      "id": "f-1",
+      "category": "contradiction",
+      "title": "Force majeure notice omits known pre-existing capacity shortfall",
+      "description": "Coastal's force majeure notice attributes nonperformance solely to the fire, but an internal email three weeks earlier shows Coastal already knew it was over capacity independent of the fire.",
+      "source_document_id": "doc-force-majeure-notice",
+      "source_page": 1,
+      "source_quote": "an unforeseeable event beyond Coastal's reasonable control",
+      "evidence_refs": ["ev-3", "ev-4"]
+    },
+    {
+      "id": "f-2",
+      "category": "contradiction",
+      "title": "Internal email contradicts force majeure causation theory",
+      "description": "See f-1. Ashby's internal email is the source of the contradiction.",
+      "source_document_id": "doc-internal-ops-email",
+      "source_page": 1,
+      "source_quote": "we are already over capacity at the Norfolk facility",
+      "evidence_refs": ["ev-3"]
+    },
+    {
+      "id": "f-3",
+      "category": "discovery_gap",
+      "title": "Missing Coastal capacity-planning records for SOW 2 onboarding",
+      "description": "No production yet of Coastal's internal capacity assessments or staffing plans covering the period between SOW 2 execution and the fire.",
+      "source_document_id": "doc-internal-ops-email",
+      "source_page": 1,
+      "source_quote": "we should flag this before SOW 2 volume hits",
+      "requested_from": "Coastal",
+      "evidence_refs": ["ev-3"]
+    },
+    {
+      "id": "f-4",
+      "category": "discovery_gap",
+      "title": "Discrepancy between represented and actual insurance coverage",
+      "description": "The certificate of insurance Coastal delivered appears inconsistent with its actual policy limits at the time of loss; underlying policy documents have not been produced.",
+      "source_document_id": "doc-coi-cert",
+      "source_page": 1,
+      "source_quote": "coverage limits in effect",
+      "requested_from": "Coastal",
+      "evidence_refs": ["ev-5"]
+    },
+    {
+      "id": "f-5",
+      "category": "motion",
+      "title": "Motion for partial summary judgment defeating the force majeure defense",
+      "description": "Internal email evidence that the shortfall predated and was independent of the fire supports defeating force majeure as a matter of law on the causation element.",
+      "source_document_id": "doc-internal-ops-email",
+      "source_page": 1,
+      "source_quote": "already over capacity",
+      "evidence_refs": ["ev-3", "ev-4"]
+    },
+    {
+      "id": "f-6",
+      "category": "risk",
+      "title": "Limitation-of-liability cap may not reach the indemnification claim",
+      "description": "Section 11's carve-out for indemnification obligations means Coastal's liability cap likely does not shield it from the Merrow third-party claim routed through Section 9.",
+      "source_document_id": "doc-services-agreement",
+      "source_page": 7,
+      "source_quote": "with carve-out for indemnification obligations",
+      "evidence_refs": ["ev-1", "ev-2"]
+    },
+    {
+      "id": "f-7",
+      "category": "risk",
+      "title": "Third-party indemnification exposure from Merrow demand letter",
+      "description": "The Merrow demand letter creates a live indemnification trigger under Section 9 that should be tendered to Coastal promptly to preserve the claim and any related insurance rights.",
+      "source_document_id": "doc-third-party-demand-letter",
+      "source_page": 1,
+      "source_quote": "delayed shipments traced to the Coastal facility",
+      "evidence_refs": ["ev-1"]
+    },
+    {
+      "id": "f-8",
+      "category": "theory",
+      "title": "Known-shortfall theory defeats force majeure and supports breach",
+      "description": "The combination of the pre-fire capacity email and the subsequent force majeure notice supports a theory that Coastal's nonperformance was a foreseeable, self-inflicted breach rather than an excused event.",
+      "source_document_id": "doc-internal-ops-email",
+      "source_page": 1,
+      "source_quote": "we should flag this before SOW 2 volume hits",
+      "evidence_refs": ["ev-3", "ev-4"]
+    }
+  ],
+  "contradictions": [
+    { "id": "c-1", "finding_a_id": "f-1", "finding_b_id": "f-2", "description": "Coastal's force majeure notice is contradicted by its own internal email acknowledging a pre-existing, non-fire-related capacity shortfall." }
+  ],
+  "discovery_gaps": [
+    { "id": "dg-1", "category": "business_records", "description": "Coastal capacity-planning and staffing records for the SOW 2 onboarding period not produced.", "requested_from": "Coastal" },
+    { "id": "dg-2", "category": "insurance_records", "description": "Underlying insurance policy documents to verify the certificate of insurance's represented limits.", "requested_from": "Coastal" }
+  ],
+  "constitutional": [],
+  "brady": [],
+  "chain_of_custody": [],
+  "motions": [
+    { "id": "mo-1", "title": "Motion for Partial Summary Judgment defeating force majeure defense", "basis": "Internal email establishes the shortfall predated and was independent of the fire, defeating causation.", "likelihood": "medium" }
+  ],
+  "risks": [
+    { "id": "r-1", "category": "indemnification", "description": "Limitation-of-liability cap likely does not reach the indemnification carve-out for the Merrow third-party claim.", "severity": "high" },
+    { "id": "r-2", "category": "insurance", "description": "Certificate of insurance may misrepresent actual coverage in effect at time of loss.", "severity": "medium" }
+  ],
+  "theories": [
+    { "id": "th-1", "label": "Known pre-existing shortfall defeats force majeure", "support": ["f-1", "f-2", "f-5", "f-8"], "strength": "strong" }
+  ],
+  "report_sections": [
+    { "key": "case_summary", "title": "Case Summary", "required": true },
+    { "key": "timeline", "title": "Timeline of Events", "required": true },
+    { "key": "entities", "title": "Key Entities", "required": true },
+    { "key": "evidence_map", "title": "Evidence Map", "required": true },
+    { "key": "findings", "title": "Findings", "required": true },
+    { "key": "motions", "title": "Motion Opportunities", "required": true },
+    { "key": "risks", "title": "Risk Assessment", "required": true },
+    { "key": "theories", "title": "Case Theories", "required": true },
+    { "key": "citations_audit", "title": "Citation Audit", "required": true }
+  ]
+}

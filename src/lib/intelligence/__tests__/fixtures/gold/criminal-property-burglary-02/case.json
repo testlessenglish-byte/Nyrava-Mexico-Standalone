@@ -1,0 +1,9 @@
+{
+  "id": "gold-02-burglary",
+  "slug": "criminal-property-burglary-02",
+  "practice_area": "criminal_property",
+  "title": "State v. Kessler — Residential burglary (fictional)",
+  "description": "Night burglary of residence. Two neighbor witnesses give conflicting descriptions; surveillance and fingerprint evidence; challenge to search warrant scope.",
+  "document_ids": ["doc-police-report", "doc-neighbor-a", "doc-neighbor-b", "doc-doorbell-cam", "doc-fingerprint", "doc-warrant"],
+  "entity_ids": ["ent-def-kessler", "ent-vic-holt", "ent-wit-nguyen", "ent-wit-diaz", "ent-off-brady"]
+}

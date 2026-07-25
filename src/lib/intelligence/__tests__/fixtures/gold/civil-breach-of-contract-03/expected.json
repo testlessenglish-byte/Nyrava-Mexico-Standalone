@@ -1,0 +1,58 @@
+{
+  "entities": [
+    { "id": "ent-arden", "type": "org", "name": "Arden Systems, Inc.", "role": "plaintiff" },
+    { "id": "ent-halberd", "type": "org", "name": "Halberd Manufacturing LLC", "role": "defendant" },
+    { "id": "ent-arden-vp", "type": "person", "name": "Naomi Chen", "role": "Arden VP Ops" },
+    { "id": "ent-halberd-ops", "type": "person", "name": "Greg Fielding", "role": "Halberd Ops Director" }
+  ],
+  "timeline": [
+    { "id": "tl-1", "date_iso": "2024-11-04T00:00:00Z", "event": "Supply agreement executed", "source_document_id": "doc-supply-agreement" },
+    { "id": "tl-2", "date_iso": "2025-01-08T14:22:00Z", "event": "Chen email: 'confirm Q1 delivery windows'", "source_document_id": "doc-email-chain-jan" },
+    { "id": "tl-3", "date_iso": "2025-01-08T16:03:00Z", "event": "Fielding email reply: 'Q1 firm, March 15 latest'", "source_document_id": "doc-email-chain-jan" },
+    { "id": "tl-4", "date_iso": "2025-02-11T09:12:00Z", "event": "Halberd internal memo: 'March 15 unachievable; targeting April'", "source_document_id": "doc-internal-memo" },
+    { "id": "tl-5", "date_iso": "2025-02-14T11:00:00Z", "event": "Fielding email to Chen: 'still on track for March 15'", "source_document_id": "doc-email-chain-feb" },
+    { "id": "tl-6", "date_iso": "2025-04-02T00:00:00Z", "event": "Delivery received — April 2, 18 days late", "source_document_id": "doc-supply-agreement" }
+  ],
+  "evidence_map": [
+    { "id": "ev-1", "document_id": "doc-supply-agreement", "page": 4, "description": "Section 3.2 delivery schedule and liquidated damages clause", "classification": "documentary" },
+    { "id": "ev-2", "document_id": "doc-internal-memo", "page": 1, "description": "Internal Halberd memo acknowledging deadline impossible", "classification": "documentary" },
+    { "id": "ev-3", "document_id": "doc-email-chain-feb", "page": 2, "description": "Feb 14 email reaffirming March 15 delivery to plaintiff", "classification": "communication" }
+  ],
+  "findings": [
+    { "id": "f-1", "category": "contradiction", "title": "Fielding external assurance conflicts with internal memo", "description": "Feb 14 email says 'on track'; Feb 11 internal memo says 'unachievable'.", "source_document_id": "doc-email-chain-feb", "source_page": 2, "source_quote": "still on track for March 15", "evidence_refs": ["ev-2", "ev-3"] },
+    { "id": "f-2", "category": "contradiction", "title": "Internal memo directly contradicts external assurance", "description": "See f-1.", "source_document_id": "doc-internal-memo", "source_page": 1, "source_quote": "March 15 unachievable; targeting April", "evidence_refs": ["ev-2"] },
+    { "id": "f-3", "category": "discovery_gap", "title": "Missing Halberd production logs Jan-Feb", "description": "Production capacity records for the disputed period not produced.", "source_document_id": "doc-internal-memo", "source_page": 1, "source_quote": "production capacity down 22% since December", "requested_from": "Halberd", "evidence_refs": ["ev-2"] },
+    { "id": "f-4", "category": "motion", "title": "Motion for Partial Summary Judgment on breach", "description": "Contract, external assurance, and internal memo together establish breach and knowledge.", "source_document_id": "doc-supply-agreement", "source_page": 4, "source_quote": "delivery on or before March 15, 2025", "evidence_refs": ["ev-1", "ev-2", "ev-3"] },
+    { "id": "f-5", "category": "risk", "title": "Liquidated damages clause enforceability", "description": "Clause may be scrutinized as penalty.", "source_document_id": "doc-supply-agreement", "source_page": 4, "source_quote": "$5,000 per day of delay as liquidated damages", "evidence_refs": ["ev-1"] },
+    { "id": "f-6", "category": "theory", "title": "Anticipatory breach known to defendant", "description": "Internal memo shows defendant knew breach was inevitable.", "source_document_id": "doc-internal-memo", "source_page": 1, "source_quote": "March 15 unachievable; targeting April", "evidence_refs": ["ev-2"] }
+  ],
+  "contradictions": [
+    { "id": "c-1", "finding_a_id": "f-1", "finding_b_id": "f-2", "description": "Defendant's external representation contradicted by internal memo." }
+  ],
+  "discovery_gaps": [
+    { "id": "dg-1", "category": "business_records", "description": "Halberd production logs Jan-Feb 2025 not produced.", "requested_from": "Halberd" }
+  ],
+  "constitutional": [],
+  "brady": [],
+  "chain_of_custody": [],
+  "motions": [
+    { "id": "mo-1", "title": "Motion for Partial Summary Judgment on breach", "basis": "Contract + internal memo + external assurance establish breach.", "likelihood": "medium" }
+  ],
+  "risks": [
+    { "id": "r-1", "category": "damages", "description": "Liquidated damages clause enforceability.", "severity": "medium" }
+  ],
+  "theories": [
+    { "id": "th-1", "label": "Anticipatory breach with knowledge", "support": ["f-1", "f-2", "f-6"], "strength": "strong" }
+  ],
+  "report_sections": [
+    { "key": "case_summary", "title": "Case Summary", "required": true },
+    { "key": "timeline", "title": "Timeline of Events", "required": true },
+    { "key": "entities", "title": "Key Entities", "required": true },
+    { "key": "evidence_map", "title": "Evidence Map", "required": true },
+    { "key": "findings", "title": "Findings", "required": true },
+    { "key": "motions", "title": "Motion Opportunities", "required": true },
+    { "key": "risks", "title": "Risk Assessment", "required": true },
+    { "key": "theories", "title": "Case Theories", "required": true },
+    { "key": "citations_audit", "title": "Citation Audit", "required": true }
+  ]
+}

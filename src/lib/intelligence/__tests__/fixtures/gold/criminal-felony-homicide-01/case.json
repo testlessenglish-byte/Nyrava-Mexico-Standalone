@@ -1,0 +1,9 @@
+{
+  "id": "gold-01-homicide",
+  "slug": "criminal-felony-homicide-01",
+  "practice_area": "criminal_felony",
+  "title": "State v. Marlow — Second-degree homicide (fictional)",
+  "description": "Fatal shooting outside a warehouse. Two eyewitnesses, surveillance footage, ballistics, and a jailhouse informant. Brady material re: informant's cooperation deal.",
+  "document_ids": ["doc-arrest-report", "doc-witness-a", "doc-witness-b", "doc-surveillance-log", "doc-ballistics", "doc-informant-file", "doc-autopsy"],
+  "entity_ids": ["ent-def-marlow", "ent-vic-rowan", "ent-wit-alvarez", "ent-wit-park", "ent-inf-hines", "ent-det-cho"]
+}

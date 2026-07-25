@@ -1,0 +1,60 @@
+{
+  "entities": [
+    { "id": "ent-plaintiff-reyes", "type": "person", "name": "Maria Reyes", "role": "plaintiff" },
+    { "id": "ent-defendant-palmer", "type": "person", "name": "James Palmer", "role": "driver / defendant" },
+    { "id": "ent-defendant-interstate", "type": "org", "name": "Interstate Freight Co.", "role": "employer / defendant" },
+    { "id": "ent-expert-mercer", "type": "person", "name": "Dr. Helen Mercer", "role": "accident reconstruction expert" },
+    { "id": "ent-off-tan", "type": "person", "name": "Officer Kevin Tan", "role": "reporting officer" }
+  ],
+  "timeline": [
+    { "id": "tl-1", "date_iso": "2025-04-06T07:42:00Z", "event": "Collision at I-95 mile 118", "source_document_id": "doc-accident-report" },
+    { "id": "tl-2", "date_iso": "2025-04-06T08:20:00Z", "event": "Reyes transported to St. Marks ER", "source_document_id": "doc-er-records" },
+    { "id": "tl-3", "date_iso": "2025-04-06T09:15:00Z", "event": "Palmer post-accident statement — 'stopped 8 hours prior'", "source_document_id": "doc-accident-report" },
+    { "id": "tl-4", "date_iso": "2025-04-07T13:00:00Z", "event": "Interstate driver log shows Palmer 11 hours on-duty", "source_document_id": "doc-driver-log" },
+    { "id": "tl-5", "date_iso": "2025-04-14T00:00:00Z", "event": "MRI — herniated disc L4/L5", "source_document_id": "doc-mri-report" },
+    { "id": "tl-6", "date_iso": "2025-05-20T00:00:00Z", "event": "Expert accident-reconstruction report served", "source_document_id": "doc-expert-recon" }
+  ],
+  "evidence_map": [
+    { "id": "ev-1", "document_id": "doc-accident-report", "page": 3, "description": "Officer diagram + skid measurements", "classification": "documentary" },
+    { "id": "ev-2", "document_id": "doc-driver-log", "page": 1, "description": "ELD log — 11 hours on-duty pre-crash", "classification": "documentary" },
+    { "id": "ev-3", "document_id": "doc-mri-report", "page": 2, "description": "L4/L5 herniation, acute onset", "classification": "medical" },
+    { "id": "ev-4", "document_id": "doc-expert-recon", "page": 12, "description": "Speed at impact 62mph in 45mph zone", "classification": "expert" }
+  ],
+  "findings": [
+    { "id": "f-1", "category": "contradiction", "title": "Palmer's rest claim vs ELD log", "description": "Palmer told officer he had rested 8 hours; ELD shows 11 hours on-duty.", "source_document_id": "doc-accident-report", "source_page": 4, "source_quote": "stopped for eight hours the night before", "evidence_refs": ["ev-2"] },
+    { "id": "f-2", "category": "contradiction", "title": "ELD log contradicts driver rest statement", "description": "See f-1.", "source_document_id": "doc-driver-log", "source_page": 1, "source_quote": "on-duty: 11h 04m as of crash time", "evidence_refs": ["ev-2"] },
+    { "id": "f-3", "category": "discovery_gap", "title": "Missing dispatch communications", "description": "Interstate dispatch records for 24 hours preceding crash not produced.", "source_document_id": "doc-driver-log", "source_page": 3, "source_quote": "see dispatch ticket #INT-88221", "requested_from": "Interstate Freight", "evidence_refs": ["ev-2"] },
+    { "id": "f-4", "category": "motion", "title": "Motion to Compel Interstate dispatch logs", "description": "Dispatch records go to hours-of-service and negligent supervision.", "source_document_id": "doc-driver-log", "source_page": 3, "source_quote": "see dispatch ticket #INT-88221", "evidence_refs": ["ev-2"] },
+    { "id": "f-5", "category": "risk", "title": "Preexisting back condition may affect damages", "description": "Reyes has 2022 chiropractic notes referencing lumbar pain.", "source_document_id": "doc-mri-report", "source_page": 4, "source_quote": "prior lumbar strain 2022, resolved", "evidence_refs": ["ev-3"] },
+    { "id": "f-6", "category": "theory", "title": "Negligence + negligent supervision (respondeat superior)", "description": "Driver fatigue and speed + employer HOS violations support both direct and vicarious liability.", "source_document_id": "doc-expert-recon", "source_page": 12, "source_quote": "speed at impact 62mph in a 45mph zone", "evidence_refs": ["ev-2", "ev-4"] }
+  ],
+  "contradictions": [
+    { "id": "c-1", "finding_a_id": "f-1", "finding_b_id": "f-2", "description": "Driver's rest statement contradicted by ELD log." }
+  ],
+  "discovery_gaps": [
+    { "id": "dg-1", "category": "business_records", "description": "Interstate dispatch records for 24h pre-crash not produced.", "requested_from": "Interstate Freight" }
+  ],
+  "constitutional": [],
+  "brady": [],
+  "chain_of_custody": [],
+  "motions": [
+    { "id": "mo-1", "title": "Motion to Compel Interstate dispatch logs", "basis": "Dispatch records probative of HOS and supervision negligence.", "likelihood": "high" }
+  ],
+  "risks": [
+    { "id": "r-1", "category": "damages_causation", "description": "Prior lumbar strain may complicate causation.", "severity": "medium" }
+  ],
+  "theories": [
+    { "id": "th-1", "label": "Driver negligence + negligent supervision", "support": ["f-1", "f-2", "f-6"], "strength": "strong" }
+  ],
+  "report_sections": [
+    { "key": "case_summary", "title": "Case Summary", "required": true },
+    { "key": "timeline", "title": "Timeline of Events", "required": true },
+    { "key": "entities", "title": "Key Entities", "required": true },
+    { "key": "evidence_map", "title": "Evidence Map", "required": true },
+    { "key": "findings", "title": "Findings", "required": true },
+    { "key": "motions", "title": "Motion Opportunities", "required": true },
+    { "key": "risks", "title": "Risk Assessment", "required": true },
+    { "key": "theories", "title": "Case Theories", "required": true },
+    { "key": "citations_audit", "title": "Citation Audit", "required": true }
+  ]
+}

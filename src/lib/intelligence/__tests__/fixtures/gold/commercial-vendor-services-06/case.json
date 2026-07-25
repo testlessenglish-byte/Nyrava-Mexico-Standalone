@@ -1,0 +1,16 @@
+{
+  "id": "gold-06-commercial",
+  "slug": "commercial-vendor-services-06",
+  "practice_area": "commercial",
+  "title": "Vantage Robotics, Inc. v. Coastal Fulfillment Partners LLC (fictional)",
+  "description": "Commercial services agreement dispute. Vendor invokes force majeure after a warehouse fire, but internal emails show the vendor knew of a pre-existing capacity shortfall weeks before the fire and represented full capacity anyway. Indemnification and limitation-of-liability clauses are in tension over a resulting third-party claim.",
+  "document_ids": [
+    "doc-services-agreement",
+    "doc-sow-2",
+    "doc-force-majeure-notice",
+    "doc-internal-ops-email",
+    "doc-coi-cert",
+    "doc-third-party-demand-letter"
+  ],
+  "entity_ids": ["ent-vantage", "ent-coastal", "ent-vantage-counsel", "ent-coastal-ops-dir", "ent-third-party-claimant"]
+}
