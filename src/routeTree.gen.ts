@@ -21,6 +21,7 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMattersRouteImport } from './routes/_authenticated/matters'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedMattersIdRouteImport } from './routes/_authenticated/matters.$id'
+import { Route as AuthenticatedAdminTestCasesRouteImport } from './routes/_authenticated/admin.test-cases'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -81,6 +82,12 @@ const AuthenticatedMattersIdRoute = AuthenticatedMattersIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AuthenticatedMattersRoute,
 } as any)
+const AuthenticatedAdminTestCasesRoute =
+  AuthenticatedAdminTestCasesRouteImport.update({
+    id: '/admin/test-cases',
+    path: '/admin/test-cases',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/matters': typeof AuthenticatedMattersRouteWithChildren
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
   '/matters/$id': typeof AuthenticatedMattersIdRoute
 }
 export interface FileRoutesByTo {
@@ -106,6 +114,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/matters': typeof AuthenticatedMattersRouteWithChildren
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
   '/matters/$id': typeof AuthenticatedMattersIdRoute
 }
 export interface FileRoutesById {
@@ -121,6 +130,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/matters': typeof AuthenticatedMattersRouteWithChildren
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
   '/_authenticated/matters/$id': typeof AuthenticatedMattersIdRoute
 }
 export interface FileRouteTypes {
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/matters'
     | '/onboarding'
+    | '/admin/test-cases'
     | '/matters/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/matters'
     | '/onboarding'
+    | '/admin/test-cases'
     | '/matters/$id'
   id:
     | '__root__'
@@ -163,6 +175,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/matters'
     | '/_authenticated/onboarding'
+    | '/_authenticated/admin/test-cases'
     | '/_authenticated/matters/$id'
   fileRoutesById: FileRoutesById
 }
@@ -263,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMattersIdRouteImport
       parentRoute: typeof AuthenticatedMattersRoute
     }
+    '/_authenticated/admin/test-cases': {
+      id: '/_authenticated/admin/test-cases'
+      path: '/admin/test-cases'
+      fullPath: '/admin/test-cases'
+      preLoaderRoute: typeof AuthenticatedAdminTestCasesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -281,12 +301,14 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedMattersRoute: typeof AuthenticatedMattersRouteWithChildren
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedAdminTestCasesRoute: typeof AuthenticatedAdminTestCasesRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedMattersRoute: AuthenticatedMattersRouteWithChildren,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedAdminTestCasesRoute: AuthenticatedAdminTestCasesRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
