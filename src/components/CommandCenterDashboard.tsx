@@ -33,6 +33,7 @@ import {
   type ReportLike,
 } from "@/lib/intelligence/canonical";
 import { useI18n } from "@/i18n";
+import { localizeActivityMessage } from "@/lib/activity-i18n";
 import { engineLabelKey, isStageRelevantForCaseType, stageKeyForEngine, statusLabelKey } from "@/lib/execution/mx-pipeline";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { COMMAND_CENTER_ENGINES } from "@/lib/execution/canonical";
@@ -135,7 +136,7 @@ export function CommandCenterDashboard({
   onOpenChat,
   onOpenVoice,
 }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { runs: engineRows, latestByEngine, progress: execProgress, isRunning } = useCaseExecution(caseId);
   // Jurisdiction-aware radar: hide engines that aren't legally relevant for
   // this materia (e.g. witness intelligence in an amparo).
@@ -515,7 +516,7 @@ export function CommandCenterDashboard({
           )}
           <div className="flex-1">
             <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-400">
-              <span>Overall Progress</span>
+              <span>{t("pipeline.overallProgress")}</span>
               <span className="tabular-nums text-cyan-300">{progressPct}%</span>
             </div>
             <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
@@ -537,9 +538,9 @@ export function CommandCenterDashboard({
           <MessageCircle className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-white">Talk to this case</div>
+          <div className="text-sm font-semibold text-white">{t("caseWorkspace.talk.title")}</div>
           <div className="text-xs text-cyan-300/70">
-            Ask questions. Get Nyrava Intelligence answers with evidence citations.
+            {t("caseWorkspace.talk.subtitle")}
           </div>
         </div>
         {onOpenVoice && (
@@ -557,7 +558,7 @@ export function CommandCenterDashboard({
               }
             }}
             className="hidden sm:grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-cyan-400/40 bg-cyan-400/10 text-cyan-200 transition hover:bg-cyan-400/20"
-            title="Voice mode"
+            title={t("caseWorkspace.voiceMode")}
           >
             <Mic className="h-4 w-4" />
           </span>
@@ -569,7 +570,7 @@ export function CommandCenterDashboard({
       <div className="rounded-2xl border border-slate-700/40 bg-slate-950/50 p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-white">{t("pipeline.activity.recent")}</h3>
-          <span className="text-[10px] uppercase tracking-wider text-slate-500">live feed</span>
+          <span className="text-[10px] uppercase tracking-wider text-slate-500">{t("pipeline.activity.liveFeed")}</span>
         </div>
         <ul className="mt-3 divide-y divide-slate-800/60">
           {events.length === 0 && (
@@ -582,7 +583,9 @@ export function CommandCenterDashboard({
                   ev.level === "error" ? "bg-red-400" : ev.level === "warn" ? "bg-amber-300" : "bg-cyan-300"
                 }`}
               />
-              <span className="min-w-0 flex-1 truncate text-slate-200">{ev.message}</span>
+              <span className="min-w-0 flex-1 truncate text-slate-200">
+                {localizeActivityMessage(ev.message, ev.stage, caseType, t, locale)}
+              </span>
               <span className="text-[11px] tabular-nums text-slate-500">{relTime(ev.created_at)}</span>
             </li>
           ))}
