@@ -34,18 +34,27 @@ ALWAYS use Mexican terminology: Ministerio Público, Fiscalía, imputado, carpet
 Ground every analysis in Mexican sources: CPEUM, CNPP, Federal Penal Code, state codes, LFT, Ley de Amparo, SCJN jurisprudencia. If an authority cannot be verified from provided context, mark it "verified": false. Respond in English but preserve Mexican legal proper names in Spanish.`;
 
 export function mexicoLock(locale: "es" | "en"): string {
-  // TODO (Phase 21 — bilingual system): every current caller in
-  // engines.server.ts, litigation.server.ts, chat.server.ts,
-  // motion-draft.server.ts, and shared-brief.server.ts hardcodes
-  // mexicoLock("es") — added during Phase 8 wiring, before the bilingual
-  // requirement (Phase 21) was specified. This function already supports
-  // "en" correctly; what's missing is threading the actual locale through:
-  //   case.report_language (added in migration 20260725130000) should flow
-  //   into each engine call → each engine's systemInstruction builder →
-  //   this function's argument, replacing the hardcoded "es".
-  // Deliberately not doing this as a blind find-replace across ~3000 lines
-  // of engine code with no way to compile-check it here — that's a real
-  // refactor across many call sites, not a one-line fix. Tracked, not
-  // forgotten.
   return locale === "en" ? MEXICO_LOCK_EN : MEXICO_LOCK_ES;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MinimalDb = { from: (table: string) => any };
+
+/**
+ * Resolve the language to reason/write in for a given case — Phase 21
+ * (bilingual system). Reads cases.report_language (added in migration
+ * 20260725130000_bilingual_language_fields.sql); falls back to "es" if
+ * unset, matching src/i18n's DEFAULT_LOCALE and the platform's primary
+ * language. Every engine call site already has `db` and `caseId` in scope,
+ * so this is called internally at each mexicoLock() call rather than
+ * threading a new parameter through every function signature and caller.
+ */
+export async function getReportLocale(db: MinimalDb, caseId: string): Promise<"es" | "en"> {
+  try {
+    const { data } = await db.from("cases").select("report_language").eq("id", caseId).maybeSingle();
+    const lang = (data as { report_language?: string } | null)?.report_language;
+    return lang === "en" ? "en" : "es";
+  } catch {
+    return "es";
+  }
 }

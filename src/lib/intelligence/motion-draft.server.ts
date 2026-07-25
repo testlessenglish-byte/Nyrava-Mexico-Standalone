@@ -15,7 +15,7 @@
 // to its own table (case_motion_drafts) so a later automatic rerun of the
 // batch work-product engine can never silently delete it.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mexicoLock } from "@/lib/mexico-lock";
+import { mexicoLock, getReportLocale } from "@/lib/mexico-lock";
 import type { Database } from "@/integrations/supabase/types";
 import { callGroq, parseJsonLoose } from "../groq.server";
 import { buildContext, logUsage } from "./engines.server";
@@ -146,7 +146,7 @@ export async function draftSingleMotion(args: {
     userId,
     model: MODEL,
     systemInstruction:
-      mexicoLock("es") + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
       'You draft attorney-ready legal motions. ABSOLUTE RULES: (1) Every concrete figure (dollar amount, percentage, date) MUST appear verbatim in the provided CASE CORPUS; if not present, say \'insufficient evidence\' instead. (2) NEVER reference a document filename that is not in the KNOWN DOCUMENTS list. (3) NEVER invent facts, quotes, exhibits, or case holdings. (4) NEVER cite a case name or citation that is not explicitly given to you in AVAILABLE CASE LAW — if that list is empty, cite zero cases. (5) Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". (6) Output STRICT JSON only.',
     userContent: `${caseFrame}
 

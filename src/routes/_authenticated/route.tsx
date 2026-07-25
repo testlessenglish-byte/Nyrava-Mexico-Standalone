@@ -34,6 +34,7 @@ import { useAlerts } from "@/hooks/useAlerts";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { BackButton } from "@/components/BackButton";
 import { UserMenu } from "@/components/UserMenu";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export const Route = createFileRoute("/_authenticated")({
   head: () => ({
@@ -211,6 +212,7 @@ function AppLayout() {
               </span>
             )}
           </Link>
+          <LanguageSwitcher variant="header" />
           <UserMenu initials={initials} displayName={displayName} email={email} isAdmin={!!adminInfo?.isAdmin} />
         </div>
       </header>
@@ -439,7 +441,8 @@ function AppLayout() {
                 </span>
               )}
             </Link>
-            <UserMenu initials={initials} displayName={displayName} email={email} isAdmin={!!adminInfo?.isAdmin} />
+            <LanguageSwitcher variant="header" />
+          <UserMenu initials={initials} displayName={displayName} email={email} isAdmin={!!adminInfo?.isAdmin} />
           </div>
         </header>
 

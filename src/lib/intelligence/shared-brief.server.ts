@@ -6,7 +6,7 @@
 // from this brief instead of re-processing the full corpus, dramatically
 // reducing token consumption and cost.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mexicoLock } from "@/lib/mexico-lock";
+import { mexicoLock, getReportLocale } from "@/lib/mexico-lock";
 import type { Database } from "@/integrations/supabase/types";
 import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "../groq.server";
 
@@ -97,7 +97,7 @@ export async function getOrBuildSharedBrief(args: SharedBriefArgs): Promise<Shar
     apiKeys,
     model: GROQ_DEFAULT_MODEL,
     systemInstruction:
-      mexicoLock("es") + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
       "You are the master analyst. Read the full case corpus once and produce a compact, structured brief that downstream agents will reuse. " +
       "Extract entities, parties, timeline, key facts, legal issues, evidence inventory, and contradictions. " +
       "Be precise; ground every item in the documents. Output STRICT JSON only.",

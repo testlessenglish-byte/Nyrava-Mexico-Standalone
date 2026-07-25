@@ -2,7 +2,7 @@
 // All engines read from the cached SharedBrief (single master extraction)
 // instead of reprocessing the full corpus, dramatically reducing tokens.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mexicoLock } from "@/lib/mexico-lock";
+import { mexicoLock, getReportLocale } from "@/lib/mexico-lock";
 import type { Database } from "@/integrations/supabase/types";
 import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "../groq.server";
 import { getOrBuildSharedBrief, briefToPrompt } from "./shared-brief.server";
@@ -189,7 +189,7 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
         apiKeys,
         model: MODEL,
         systemInstruction:
-          mexicoLock("es") + "\n\n" +
+          mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
           `You are a neutral senior litigation analyst examining a case from the ${perspective.toUpperCase()} perspective. ` +
           `Your job is to reveal the strongest case this side can build, the weaknesses they must address, ` +
           `what the opposing side will argue, and how those arguments can be countered. ` +
@@ -427,7 +427,7 @@ export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; use
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock("es") + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
       "You are a forensic evidence analyst. Using the shared case brief, classify every piece of evidence by its role in the case. " +
       "Also identify evidence that SHOULD exist given the fact pattern but is missing. " +
       "Use confidence labels: confirmed | likely | possible | unknown. " +
@@ -755,7 +755,7 @@ export async function runStrategyEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock("es") + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
       `You are the head of strategy for the ${perspective.toUpperCase()} side. ` +
       `Produce a prioritized strategy: rank motions by realistic chance of success (High/Moderate/Low with rationale), ` +
       `list what the opposing side will argue and how to counter each, ` +
@@ -1097,7 +1097,7 @@ export async function runLitigationStrategyCenterEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock("es") + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
       "You are lead trial counsel synthesizing everything already known about this case into a single strategic " +
       "briefing. You are NOT generating new theories, evidence, or witnesses — you are synthesizing what has " +
       "already been produced and gated by other analysis. Only name a witness if their name appears verbatim in " +
