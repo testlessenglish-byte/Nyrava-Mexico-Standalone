@@ -104,6 +104,23 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               </Link>
             );
           })}
+          {ADMIN_NAV.length > 0 && (
+            <>
+              <div className="mt-4 px-3 pb-1 font-mono text-[9px] uppercase tracking-[0.22em] text-primary/70">
+                Admin
+              </div>
+              {ADMIN_NAV.map((n) => (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  activeProps={{ className: "bg-primary/10 text-primary" }}
+                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-background/60 hover:text-foreground"
+                >
+                  <n.icon className="h-4 w-4" /> {n.label}
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
         <div className="mt-auto space-y-2 p-3">
           <div className="flex justify-end">
