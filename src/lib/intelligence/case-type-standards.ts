@@ -544,6 +544,36 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
     drafting_notes:
       "Classify the specific asset or service under the correct regulatory regime (money transmission, securities, commodities, EFTA) before asserting a violation — these are independent, not interchangeable, analyses. Do NOT assume custodial status or non-custodial status from marketing language alone; reconcile against the corpus's technical/architecture documents. Do NOT apply Howey conclusorily — walk through each element against the corpus facts. Do NOT fabricate on-chain data, license status, or regulator correspondence not present in the corpus.",
   },
+
+  amparo: {
+    label: "Juicio de Amparo",
+    controlling_standards:
+      "El juicio de amparo (Arts. 103 y 107 CPEUM; Ley de Amparo) protege contra actos de autoridad que violen derechos humanos reconocidos en la Constitución o en tratados internacionales, o que invadan la esfera de competencia federal/estatal. Amparo INDIRECTO procede ante Juez de Distrito contra actos de autoridad distintos de sentencias definitivas (o excepcionalmente contra estas). Amparo DIRECTO procede ante Tribunal Colegiado de Circuito contra sentencias definitivas, laudos o resoluciones que ponen fin al juicio. Rige el PRINCIPIO DE DEFINITIVIDAD: deben agotarse los recursos ordinarios antes de acudir al amparo, salvo las excepciones previstas en la Ley de Amparo. El quejoso debe acreditar interés jurídico (derecho subjetivo) o, desde la reforma de 2013, interés legítimo (afectación real y actual derivada de una situación jurídica especial).",
+    key_cases: [
+      "Art. 61 Ley de Amparo — causales de improcedencia: identificar cuál aplica antes de admitir o analizar el fondo",
+      "Art. 79 Ley de Amparo — suplencia de la queja deficiente: obligatoria en materia penal (favor del inculpado), laboral (favor del trabajador), agraria (favor de núcleos de población ejidal/comunal), y en favor de menores, incapaces, y cuando el acto reclamado se funde en normas declaradas inconstitucionales por jurisprudencia de la SCJN",
+      "Arts. 125–157 Ley de Amparo — suspensión del acto reclamado (provisional y definitiva): analizar apariencia del buen derecho y no afectación al interés social",
+      "Jurisprudencia SCJN sobre interés legítimo (reforma constitucional de 2013 y Ley de Amparo vigente) — distinguir de interés jurídico tradicional",
+    ],
+    canonical_motions: [
+      "Demanda de amparo indirecto",
+      "Demanda de amparo directo",
+      "Incidente de suspensión (provisional y/o definitiva)",
+      "Recurso de revisión",
+      "Recurso de queja",
+      "Ampliación de demanda (cuando proceda)",
+    ],
+    evidentiary_rules: [
+      "El acto reclamado debe estar plenamente identificado: autoridad responsable, fecha, y forma en que se tuvo conocimiento — la falta de precisión es causal frecuente de improcedencia",
+      "Los conceptos de violación deben vincular cada acto reclamado con el derecho humano o garantía específicamente violada — no basta una afirmación genérica de inconstitucionalidad",
+      "Copias certificadas de constancias del expediente de origen (cuando exista juicio natural) son la prueba primaria; el amparo directo se resuelve sobre el expediente del juicio de origen, no admite generalmente pruebas nuevas",
+      "Verificar oportunidad: el plazo general es de 15 días hábiles desde que se tuvo conocimiento del acto reclamado (con plazos especiales para ciertas materias — penal, expropiación, normas generales)",
+    ],
+    damages_or_remedies:
+      "El amparo NO otorga daños compensatorios como remedio principal — su efecto es la concesión (amparo y protección de la Justicia Federal), que restituye al quejoso en el goce del derecho violado, obligando a la autoridad responsable a dejar sin efectos el acto reclamado y, en su caso, a actuar conforme a los lineamientos de la ejecutoria. La reparación de daños derivada de responsabilidad del Estado se tramita por vía distinta (responsabilidad patrimonial del Estado), no dentro del propio juicio de amparo.",
+    drafting_notes:
+      "Verificar PRIMERO la procedencia (Art. 61) y la definitividad antes de analizar el fondo — un amparo improcedente se sobresee sin importar qué tan sólidos sean los conceptos de violación. Distinguir con precisión amparo directo de indirecto según la naturaleza del acto reclamado. Identificar si aplica suplencia de la queja obligatoria (Art. 79) antes de calificar los conceptos de violación como insuficientes. NUNCA inventes tesis, jurisprudencias, números de registro, o expedientes que no aparezcan en el corpus — si una autoridad no puede verificarse contra el contexto proporcionado, márcala como no verificada en lugar de presentarla como cita firme.",
+  },
 };
 
 /**

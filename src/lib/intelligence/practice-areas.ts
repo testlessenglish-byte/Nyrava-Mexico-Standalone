@@ -30,7 +30,8 @@ export type PracticeArea =
   | "estate"
   | "securities"
   | "banking"
-  | "fintech";
+  | "fintech"
+  | "amparo";
 
 // ---------------------------------------------------------------------------
 // Section + Tab registries (unchanged shape, retained for export/UI)
@@ -225,6 +226,23 @@ const PRACTICE_SECTIONS: Record<PracticeArea, string[]> = {
     "risk",
     "perspectives",
   ],
+  // Amparo — constitutional review of an acto de autoridad. Narrow by
+  // nature (record-based review, not a fresh evidentiary trial), so no
+  // "discovery" or "cross_exam" by default; "constitutional" carries the
+  // core analysis (acto reclamado, garantías violadas, suplencia de la
+  // queja). Widens automatically via cross-domain activation if the
+  // underlying act itself involves an unrelated substantive area (e.g. an
+  // amparo challenging a labor-board ruling also touches employment law).
+  amparo: [
+    "constitutional",
+    "theories",
+    "opportunities",
+    "strategy_synthesis",
+    "recommendations",
+    "scorecard",
+    "risk",
+    "perspectives",
+  ],
 };
 
 export const UNIVERSAL_TABS = new Set<string>([
@@ -260,6 +278,7 @@ const PRACTICE_TABS: Record<PracticeArea, string[]> = {
   securities: ["perspectives", "strategy", "theories", "opportunities", "trial", "scorecard"],
   banking: ["perspectives", "strategy", "theories", "opportunities", "scorecard"],
   fintech: ["perspectives", "strategy", "theories", "opportunities", "scorecard"],
+  amparo: ["perspectives", "strategy", "theories", "opportunities", "scorecard"],
 };
 
 // ---------------------------------------------------------------------------
@@ -362,6 +381,7 @@ const PRACTICE_ENGINES: Record<PracticeArea, string[]> = {
   securities: ["trial_prep", "cross_examination"],
   banking: ["trial_prep"],
   fintech: [],
+  amparo: ["constitutional_compliance", "procedural_violations"],
 };
 
 // ---------------------------------------------------------------------------
@@ -1008,6 +1028,23 @@ const PRACTICE_FINDING_MODULES: Record<PracticeArea, string[]> = {
     "fintech_discovery",
     "fintech_motion",
   ],
+  // Amparo-specific finding tags: procedencia/improcedencia analysis,
+  // the challenged act and responsible authority, suspension, and
+  // suplencia de la queja (the court's duty to supplement deficient
+  // pleading in favor of the quejoso in certain matters — labor, agrarian,
+  // criminal defendants, minors).
+  amparo: [
+    "acto_reclamado",
+    "autoridad_responsable",
+    "conceptos_de_violacion",
+    "procedencia",
+    "improcedencia",
+    "suspension",
+    "suplencia_de_la_queja",
+    "violacion_derechos_humanos",
+    "interes_juridico",
+    "interes_legitimo",
+  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -1181,6 +1218,13 @@ const PRACTICE_MOTION_TYPES: Record<PracticeArea, string[]> = {
     "preliminary_injunction",
     "class_certification",
     "discovery",
+  ],
+  // Not US "motions" — the actual filing types in an amparo proceeding.
+  amparo: [
+    "demanda_de_amparo",
+    "incidente_de_suspension",
+    "recurso_de_revision",
+    "recurso_de_queja",
   ],
 };
 
@@ -1382,6 +1426,10 @@ const PRACTICE_BLOCKED_TERMS: Record<PracticeArea, string[]> = {
     "title vii",
     "eeoc",
   ],
+  // Amparo is a narrow constitutional-review proceeding — block scope
+  // creep into unrelated substantive civil-law domains that shouldn't
+  // appear unless a real cross-domain activation widens the analysis.
+  amparo: ["pensión alimenticia", "divorcio", "herencia", "contrato mercantil", "despido injustificado"],
 };
 
 // ---------------------------------------------------------------------------
@@ -1414,6 +1462,7 @@ const FORBIDDEN_REPORT_FIELDS: Record<PracticeArea, string[]> = {
   securities: ["constitutional_issues", "constitutional_issues_struct"],
   banking: ["constitutional_issues", "constitutional_issues_struct", "cross_examination"],
   fintech: ["constitutional_issues", "constitutional_issues_struct", "cross_examination"],
+  amparo: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -1678,6 +1727,7 @@ export const PRACTICE_AREA_LABELS: Record<PracticeArea, string> = {
   securities: "Securities Law",
   banking: "Banking Law",
   fintech: "Financial Technology (FinTech)",
+  amparo: "Juicio de Amparo",
 };
 
 // ---------------------------------------------------------------------------
@@ -1733,6 +1783,10 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
       { value: "criminal", label: "Criminal" },
       { value: "civil_rights", label: "Civil rights (§1983)" },
     ],
+  },
+  {
+    group: "Constitucional",
+    options: [{ value: "amparo", label: "Juicio de Amparo" }],
   },
 ];
 
