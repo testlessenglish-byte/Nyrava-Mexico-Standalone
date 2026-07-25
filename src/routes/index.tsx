@@ -190,7 +190,7 @@ function Landing() {
         )}
 
         {!demosLoading && (!demoCases || demoCases.length === 0) && (
-          <div className="panel p-8 text-sm text-muted-foreground">Demo cases are coming soon.</div>
+          <div className="panel p-8 text-sm text-muted-foreground">{t("home.demos.empty")}</div>
         )}
 
         {!demosLoading && demoCases && demoCases.length > 0 && (
