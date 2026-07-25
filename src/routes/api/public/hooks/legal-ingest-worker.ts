@@ -22,6 +22,7 @@ function workerTrace(event: string, extra: Record<string, unknown> = {}) {
 export const Route = createFileRoute("/api/public/hooks/legal-ingest-worker")({
   server: {
     handlers: {
+      GET: async () => new Response("Method Not Allowed", { status: 405 }),
       POST: async ({ request }) => {
         const provided = request.headers.get("x-worker-secret");
         if (!provided) {

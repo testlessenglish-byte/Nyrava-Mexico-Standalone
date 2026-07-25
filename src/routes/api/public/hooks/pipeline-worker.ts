@@ -70,6 +70,7 @@ async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
 export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
   server: {
     handlers: {
+      GET: async () => new Response("Method Not Allowed", { status: 405 }),
       POST: async ({ request }) => {
         const provided = request.headers.get("x-worker-secret");
         if (!provided) {
