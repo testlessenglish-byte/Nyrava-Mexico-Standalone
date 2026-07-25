@@ -46,6 +46,22 @@ function format(template: string, params?: Record<string, string | number>): str
   return template.replace(/\{(\w+)\}/g, (_, k) => (params[k] != null ? String(params[k]) : `{${k}}`));
 }
 
+/**
+ * Dev-only missing-key diagnostics. Warns once per key/locale pair so the
+ * console stays readable. The production fallback chain is untouched.
+ */
+const warnedKeys = new Set<string>();
+function warnMissingKey(key: string, locale: Locale, hasFallback: boolean) {
+  const id = `${locale}:${key}`;
+  if (warnedKeys.has(id)) return;
+  warnedKeys.add(id);
+  console.warn(
+    `[i18n] Missing "${locale}" translation for key "${key}"` +
+      (hasFallback ? ` — falling back to "${DEFAULT_LOCALE}".` : " — no fallback, rendering the raw key."),
+  );
+}
+
+
 type I18nCtx = {
   locale: Locale;
   setLocale: (l: Locale) => void;
