@@ -334,6 +334,17 @@ const ES_FRAGMENTS: Array<[RegExp, string]> = [
     "La ingesta incluy\u00f3 $1 documento(s) fuente y produjo $2 hallazgo(s) verificado(s).",
   ],
   [/\bEngine v/g, "Motor v"],
+  [/\bStatus: /g, "Estado: "],
+  [/\bLimited Analysis\b/g, "An\u00e1lisis limitado"],
+  [/\bScores Suppressed\b/g, "Puntajes suprimidos"],
+  [/\bRecommendations Suppressed\b/g, "Recomendaciones suprimidas"],
+  [/\bScores Enabled\b/g, "Puntajes habilitados"],
+  [/\bRecommendations Enabled\b/g, "Recomendaciones habilitadas"],
+  [/\bGenerated Findings:/g, "Hallazgos generados:"],
+  [/\bVerified Findings:/g, "Hallazgos verificados:"],
+  [/\bRendered Findings:/g, "Hallazgos incluidos:"],
+  [/\bDocuments:/g, "Documentos:"],
+  [/\bComplete\b/g, "Completo"],
   [/\bPriority\b/g, "Prioridad"],
 ];
 
