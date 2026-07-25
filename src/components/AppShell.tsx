@@ -20,7 +20,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
 
   const NAV = [
     { to: "/dashboard" as const, label: t("sidebar.dashboard"), icon: LayoutDashboard, disabled: false },
-    { to: "/matters" as const, label: t("sidebar.matters"), icon: Briefcase, disabled: false },
+    { to: "/cases" as const, label: t("sidebar.matters"), icon: Briefcase, disabled: false },
     { to: "/people", label: t("sidebar.people"), icon: Users, disabled: true },
     { to: "/library", label: t("sidebar.library"), icon: FileText, disabled: true },
     { to: "/settings", label: t("sidebar.settings"), icon: Settings, disabled: true },
