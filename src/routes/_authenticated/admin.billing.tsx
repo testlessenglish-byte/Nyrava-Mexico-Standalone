@@ -71,9 +71,9 @@ function toDraft(p: BillingPlanRow): Draft {
   };
   return {
     id: p.id,
-    key: p.key,
-    label: p.label,
-    tagline: p.tagline,
+    key: p.key ?? "",
+    label: p.label ?? "",
+    tagline: p.tagline ?? "",
     featuresText: feats.join("\n"),
     price_cents: p.price_cents,
     currency: p.currency,
