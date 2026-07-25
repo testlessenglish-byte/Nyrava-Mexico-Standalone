@@ -1041,7 +1041,7 @@ export async function runTrialPrepEngine(args: {
   apiKeys?: string[];
 }) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
-  await setCase(db, caseId, { status_message: "Generating trial prep and jury simulation", progress: 80 });
+  await setCase(db, caseId, { status_message: "Generando preparación para audiencia/juicio oral", progress: 80 });
 
   const ctx = await buildContext(db, caseId);
   if (!ctx.corpus) throw new Error("No extracted documents.");
@@ -1052,18 +1052,33 @@ export async function runTrialPrepEngine(args: {
   const activeDomains = await getActiveDomains(db, caseId);
   const isCriminal = isCriminalEffective(caseType, activeDomains);
 
+  // MEXICO (sistema penal acusatorio, CNPP): there is NO jury in ordinary
+  // criminal proceedings — guilt is decided by a Tribunal de Enjuiciamiento
+  // (bench). So the criminal branch estimates the real procedural outcomes:
+  // vinculación a proceso, sentencia condenatoria/absolutoria, procedimiento
+  // abreviado / acuerdo reparatorio, and success on recursos.
   const juryMetricsSchema = isCriminal
-    ? `  "jury_conviction_pct": number (0-100),
-  "jury_acquittal_pct": number (0-100),
-  "jury_appeal_pct": number (0-100),`
+    ? `  "vinculacion_proceso_pct": number (0-100),
+  "sentencia_condenatoria_pct": number (0-100),
+  "sentencia_absolutoria_pct": number (0-100),
+  "procedimiento_abreviado_pct": number (0-100),
+  "recurso_exito_pct": number (0-100),`
     : `  "plaintiff_success_pct": number (0-100),
   "defense_success_pct": number (0-100),
   "settlement_probability_pct": number (0-100),
   "comparative_fault_estimate_pct": number (0-100),`;
 
   const caseFrame = isCriminal
-    ? `This is a CRIMINAL matter (case_type=${caseType}). Use criminal jury metrics: conviction / acquittal / appeal probabilities.`
-    : `This is a CIVIL matter (case_type=${caseType}). NEVER produce conviction, acquittal, or criminal verdict probabilities. Use civil metrics ONLY. Use civil terminology only (liability, damages, comparative fault, settlement, credibility, discovery).`;
+    ? `Este es un asunto PENAL mexicano (case_type=${caseType}), regido por el CNPP y el sistema penal acusatorio.
+PROHIBIDO ABSOLUTAMENTE: jurado, jury, "jury selection", "voir dire", simulación de jurado, "conviction by jury", plea bargain, indictment, prosecutor, felony, misdemeanor, discovery.
+La culpabilidad la determina un Tribunal de Enjuiciamiento (juzgamiento colegiado/unitario), no un jurado.
+Usa exclusivamente métricas y terminología del proceso penal acusatorio:
+- vinculacion_proceso_pct: probabilidad de auto de vinculación a proceso (art. 316 CNPP) con los datos de prueba actuales.
+- sentencia_condenatoria_pct / sentencia_absolutoria_pct: probabilidad de sentencia condenatoria o absolutoria ante el Tribunal de Enjuiciamiento (deben sumar aproximadamente 100).
+- procedimiento_abreviado_pct: probabilidad de que el asunto se resuelva por procedimiento abreviado, acuerdo reparatorio o suspensión condicional.
+- recurso_exito_pct: probabilidad de éxito en apelación o amparo directo.
+El campo "jury_concerns" se reinterpreta como riesgos de percepción ante el juez de control y el Tribunal de Enjuiciamiento (NO menciones jurado). Las "likely_objections" son objeciones en audiencia oral conforme al CNPP.`
+    : `Este es un asunto CIVIL/no penal (case_type=${caseType}) en jurisdicción mexicana. NUNCA produzcas probabilidades de condena, absolución ni veredicto penal, y nunca menciones jurado. Usa solo métricas civiles y terminología mexicana (responsabilidad, daños y perjuicios, daño moral, culpa concurrente, convenio, valoración probatoria, audiencia).`;
 
   const r = await callGroq({
     apiKey,
@@ -1071,7 +1086,9 @@ export async function runTrialPrepEngine(args: {
     model: MODEL,
     systemInstruction:
       mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
-      "You are a senior trial lawyer and jury consultant. Produce trial themes, witness order, exhibit order, likely objections, risks/strengths, and a jury simulation with outcome probabilities appropriate to the case type. " +
+      (isCriminal
+        ? "Eres un litigante penal mexicano de alto nivel (defensa/asesoría jurídica) experto en el sistema penal acusatorio y el CNPP. Produce teoría del caso, orden de testigos, orden de prueba material, objeciones probables en audiencia, riesgos/fortalezas y una estimación de resultados ante el juez de control y el Tribunal de Enjuiciamiento. Jamás menciones jurado ni instituciones del common law. "
+        : "Eres un litigante mexicano de alto nivel. Produce ejes de alegatos, orden de testigos, orden de pruebas, objeciones probables en audiencia, riesgos/fortalezas y una estimación de resultados apropiada a la materia. Jamás menciones jurado. ") +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
       "Output STRICT JSON only.",
     userContent: `${caseFrame}
@@ -1087,6 +1104,10 @@ Return STRICT JSON:
   "trial_strengths": string[],
   "jury_concerns": string[],
 ${juryMetricsSchema}
+  "most_persuasive_evidence": string[],
+  "most_damaging_evidence": string[]
+}
+
   "most_persuasive_evidence": string[],
   "most_damaging_evidence": string[]
 }
