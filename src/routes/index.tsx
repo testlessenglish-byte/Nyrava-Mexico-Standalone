@@ -66,13 +66,14 @@ export const Route = createFileRoute("/")({
 });
 
 const NAV = [
-  { label: "PRODUCT", href: "#product" },
-  { label: "SECURITY", to: "/security" },
-  { label: "TRANSPARENCY", to: "/ai-transparency" },
-  { label: "HELP", to: "/help" },
+  { key: "home.nav.product", href: "#product" },
+  { key: "home.nav.security", to: "/security" },
+  { key: "home.nav.transparency", to: "/ai-transparency" },
+  { key: "home.nav.help", to: "/help" },
 ] as const;
 
 function Landing() {
+  const { t } = useI18n();
   const [signedIn, setSignedIn] = useState(false);
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
@@ -94,19 +95,19 @@ function Landing() {
             {NAV.map((n) =>
               "to" in n ? (
                 <Link
-                  key={n.label}
+                  key={n.key}
                   to={n.to}
                   className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
                 >
-                  {n.label}
+                  {t(n.key)}
                 </Link>
               ) : (
                 <a
-                  key={n.label}
+                  key={n.key}
                   href={n.href}
                   className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
                 >
-                  {n.label}
+                  {t(n.key)}
                 </a>
               ),
             )}
@@ -117,17 +118,18 @@ function Landing() {
               to="/auth"
               className="rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground hover:bg-card"
             >
-              SIGN IN
+              {t("home.cta.signIn")}
             </Link>
             <Link
               to="/auth"
               className="rounded-md border border-primary/60 bg-primary/15 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary hover:bg-primary/25"
               style={{ boxShadow: "var(--shadow-glow-cyan)" }}
             >
-              {signedIn ? "LAUNCH PLATFORM" : "LAUNCH PLATFORM"}
+              {t("home.cta.launchPlatform")}
             </Link>
           </div>
         </div>
+
       </header>
 
       <main>
