@@ -14,6 +14,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const navigate = useNavigate();
   const router = useRouter();
   const { user } = useSession();
+  const { isSuperAdmin, isAdmin } = useRoles();
   const { t } = useI18n();
   const memberships = useQuery({ queryKey: ["memberships"], queryFn: fetchMyMemberships });
 
@@ -24,6 +25,10 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
     { to: "/library", label: t("sidebar.library"), icon: FileText, disabled: true },
     { to: "/settings", label: t("sidebar.settings"), icon: Settings, disabled: true },
   ];
+
+  const ADMIN_NAV = (isAdmin || isSuperAdmin)
+    ? [{ to: "/admin/test-cases" as const, label: "Test Cases", icon: FlaskConical }]
+    : [];
 
   useEffect(() => {
     if (!memberships.data) return;
