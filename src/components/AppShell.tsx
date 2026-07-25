@@ -1,6 +1,6 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Briefcase, FlaskConical, LayoutDashboard, LogOut, Scale, Settings, ShieldCheck, Users, FileText } from "lucide-react";
+import { Briefcase, FlaskConical, LayoutDashboard, LogOut, Scale, Settings, ShieldCheck, Trash2, Users, FileText } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { NyravaLogo } from "@/components/NyravaLogo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
