@@ -27,8 +27,14 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   ];
 
   const ADMIN_NAV = (isAdmin || isSuperAdmin)
-    ? [{ to: "/admin/test-cases" as const, label: "Test Cases", icon: FlaskConical }]
+    ? [
+        { to: "/admin/test-cases" as const, label: t("sidebar.admin.testCases"), icon: FlaskConical },
+        ...(isSuperAdmin
+          ? [{ to: "/admin/reset" as const, label: t("sidebar.admin.reset"), icon: Trash2 }]
+          : []),
+      ]
     : [];
+
 
   useEffect(() => {
     if (!memberships.data) return;
