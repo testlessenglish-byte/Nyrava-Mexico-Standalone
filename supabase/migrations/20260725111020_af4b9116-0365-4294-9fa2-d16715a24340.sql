@@ -1,0 +1,1 @@
+ALTER TABLE public.case_scores ENABLE ROW LEVEL SECURITY;

@@ -2526,6 +2526,38 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_authority_versions: {
+        Row: {
+          archived_at: string
+          authority_id: string
+          body: string | null
+          id: string
+          metadata: Json
+        }
+        Insert: {
+          archived_at?: string
+          authority_id: string
+          body?: string | null
+          id?: string
+          metadata?: Json
+        }
+        Update: {
+          archived_at?: string
+          authority_id?: string
+          body?: string | null
+          id?: string
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_authority_versions_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_citations: {
         Row: {
           authority_id: string
@@ -2567,6 +2599,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      legal_ingest_runs: {
+        Row: {
+          connector_code: string
+          created_at: string
+          documents_fetched: number
+          documents_stored: number
+          documents_versioned: number
+          ended_at: string | null
+          errors: Json
+          id: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          connector_code: string
+          created_at?: string
+          documents_fetched?: number
+          documents_stored?: number
+          documents_versioned?: number
+          ended_at?: string | null
+          errors?: Json
+          id?: string
+          started_at: string
+          status: string
+        }
+        Update: {
+          connector_code?: string
+          created_at?: string
+          documents_fetched?: number
+          documents_stored?: number
+          documents_versioned?: number
+          ended_at?: string | null
+          errors?: Json
+          id?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
       }
       legal_profiles: {
         Row: {
