@@ -42,9 +42,9 @@ const SMOKE_CASES: Array<{
   practiceArea: string;
   expect: { minTimeline: number; minFindings: number; expectContradictions: boolean };
 }> = [
-  { practiceArea: "criminal",       expect: { minTimeline: 2, minFindings: 3, expectContradictions: true } },
-  { practiceArea: "employment",     expect: { minTimeline: 2, minFindings: 3, expectContradictions: true } },
-  { practiceArea: "general_civil",  expect: { minTimeline: 2, minFindings: 2, expectContradictions: false } },
+  { practiceArea: "penal",    expect: { minTimeline: 2, minFindings: 3, expectContradictions: true } },
+  { practiceArea: "laboral",  expect: { minTimeline: 2, minFindings: 3, expectContradictions: true } },
+  { practiceArea: "civil",    expect: { minTimeline: 2, minFindings: 2, expectContradictions: false } },
 ];
 
 // Generous — real LLM calls plus persistence. Individual it() gets its own timeout below.
