@@ -158,6 +158,9 @@ const STAGE_KEY_ALIASES: Record<string, string> = {
   report_generator: "report",
   theory: "theories",
   opportunity: "opportunities",
+  jurisdiction: "jurisdiction_intel",
+  legal_qa_gate: "legal_qa",
+  procedural: "procedural_compliance",
 };
 
 export function stageKeyForEngine(engineOrStage: string): string | null {

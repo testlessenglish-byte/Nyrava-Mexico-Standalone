@@ -309,6 +309,11 @@ export const UNIVERSAL_ENGINES = new Set<string>([
   "report_validator",
   "analyzers",
   "agents",
+  // México: jurisdiction resolution, procedural-compliance checklist and the
+  // legal quality-control gate apply to every materia without exception.
+  "jurisdiction_intel",
+  "procedural_compliance",
+  "legal_qa",
 ]);
 
 // Engines that ONLY run for specific practice areas. Listed here so we can

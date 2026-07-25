@@ -1739,10 +1739,13 @@ export type Database = {
           hallucination_report: Json | null
           id: string
           jurisdiction: string | null
+          jurisdiction_profile: Json | null
+          legal_qa_report: Json | null
           name: string
           next_stage: string | null
           opportunities_at: string | null
           perspectives_at: string | null
+          procedural_compliance: Json | null
           progress: number
           queued_at: string | null
           report_at: string | null
@@ -1788,10 +1791,13 @@ export type Database = {
           hallucination_report?: Json | null
           id?: string
           jurisdiction?: string | null
+          jurisdiction_profile?: Json | null
+          legal_qa_report?: Json | null
           name: string
           next_stage?: string | null
           opportunities_at?: string | null
           perspectives_at?: string | null
+          procedural_compliance?: Json | null
           progress?: number
           queued_at?: string | null
           report_at?: string | null
@@ -1837,10 +1843,13 @@ export type Database = {
           hallucination_report?: Json | null
           id?: string
           jurisdiction?: string | null
+          jurisdiction_profile?: Json | null
+          legal_qa_report?: Json | null
           name?: string
           next_stage?: string | null
           opportunities_at?: string | null
           perspectives_at?: string | null
+          procedural_compliance?: Json | null
           progress?: number
           queued_at?: string | null
           report_at?: string | null

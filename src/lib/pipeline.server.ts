@@ -422,6 +422,46 @@ async function _runPipelineForCase(
     agents: { run: () => pipe.runAgents(baseArgs), stage: "agents" },
     analyzers: { run: () => pipe.runAnalyzers(baseArgs), stage: "analyzers" },
     scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
+    jurisdiction_intel: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
+          const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
+          const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+          return { value, stats: { generated: 1, accepted: 1, rows_written: 1, db_write_confirmed: true } };
+        }),
+    },
+    procedural_compliance: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "procedural_compliance" }, async () => {
+          const { runProceduralCompliance } = await import("@/lib/intelligence/procedural-compliance.server");
+          const value = await runProceduralCompliance({ db: supabase, caseId, userId });
+          return {
+            value,
+            stats: {
+              generated: value.evaluated,
+              accepted: value.satisfied,
+              rows_written: value.findings_written,
+              db_write_confirmed: true,
+            },
+          };
+        }),
+    },
+    legal_qa: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
+          const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+          const value = await runLegalQaGate({ db: supabase, caseId });
+          return {
+            value,
+            stats: {
+              generated: value.checked_fields,
+              accepted: value.checked_fields - value.warnings.length,
+              rows_written: value.remediated_fields,
+              db_write_confirmed: true,
+            },
+          };
+        }),
+    },
     report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {

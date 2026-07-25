@@ -58,9 +58,9 @@ describe("canonical execution architecture", () => {
     }
   });
 
-  it("classifies exactly extraction/analyzers/agents/scoring as blocking (report_generator excluded — it's the gate consumer)", () => {
+  it("classifies exactly extraction/analyzers/agents/jurisdiction_intel/scoring/legal_qa as blocking (report_generator excluded — it's the gate consumer)", () => {
     expect([...REPORT_BLOCKING_ENGINES].sort()).toEqual(
-      ["extraction", "analyzers", "agents", "scoring"].sort(),
+      ["extraction", "analyzers", "agents", "jurisdiction_intel", "scoring", "legal_qa"].sort(),
     );
     expect(REPORT_BLOCKING_ENGINES).not.toContain("report_generator");
     expect(REPORT_ENRICHING_ENGINES.length).toBeGreaterThan(0);
