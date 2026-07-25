@@ -66,6 +66,19 @@ const NAME_TO_STAGE: Record<string, string> = {
   "generate report": "report",
 };
 
+/**
+ * Names the worker emits that have no canonical stage row (they belong to
+ * sub-steps or UI-only surfaces). Mapped straight to a display key.
+ */
+const NAME_TO_KEY: Record<string, string> = {
+  "attack surface": "caseTab.attack",
+  "attack surface analysis": "caseTab.attack",
+  "motion center": "nav.motionIntelligence",
+  "motion intelligence": "nav.motionIntelligence",
+  "scorecard": "caseTab.scorecard",
+  "evidence explorer": "nav.evidenceExplorer",
+};
+
 /** Verb suffixes, longest-first so "checkpointed — will resume…" wins. */
 const VERBS: Array<{ re: RegExp; key: string }> = [
   { re: /\s+checkpointed\s+—\s+will resume on next worker tick\.?$/i, key: "pipeline.event.checkpointedResume" },
@@ -91,6 +104,8 @@ function resolveStageLabel(
     .replace(/\s*\(\d+\s+agents?\)\s*$/i, "")
     .replace(/\s+review$/i, "")
     .trim();
+  const direct = NAME_TO_KEY[cleaned.toLowerCase()] ?? NAME_TO_KEY[rawName.trim().toLowerCase()];
+  if (direct) return t(direct);
   const stageKey =
     NAME_TO_STAGE[cleaned.toLowerCase()] ??
     NAME_TO_STAGE[rawName.trim().toLowerCase()] ??
