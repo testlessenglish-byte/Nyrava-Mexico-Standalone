@@ -12,12 +12,33 @@ import {
   Packer,
   Paragraph,
   HeadingLevel,
-  TextRun,
+  TextRun as DocxTextRun,
   AlignmentType,
   BorderStyle,
   ShadingType,
   PageBreak,
 } from "docx";
+import { rt, setReportTemplateLocale, resolveReportLocale } from "./report-i18n";
+
+/**
+ * Locale-aware TextRun. Every DOCX run of template text passes through the
+ * report template translator, so headers/labels render in the same language
+ * as the AI narrative (see src/lib/report-i18n.ts). Strings that are not
+ * template phrases (case names, quotes, AI prose) pass through untouched.
+ */
+class TextRun extends DocxTextRun {
+  constructor(options: ConstructorParameters<typeof DocxTextRun>[0]) {
+    if (typeof options === "string") {
+      super(rt(options));
+    } else if (options && typeof (options as { text?: unknown }).text === "string") {
+      const o = options as { text: string };
+      super({ ...options, text: rt(o.text) } as ConstructorParameters<typeof DocxTextRun>[0]);
+    } else {
+      super(options);
+    }
+  }
+}
+
 import { classifyClaim, CLAIM_LABEL } from "@/lib/intelligence/claim-class";
 import {
   paritySignature,
@@ -467,14 +488,17 @@ class PdfBuilder {
     // Wrap doc.text so EVERY string the PDF emits (including autoTable cells,
     // footers, splitTextToSize output) is ASCII-safe. This is the canonical
     // fix for the "£(" rendering bug — Unicode math symbols never reach the
-    // Latin-1 Helvetica font.
+    // Latin-1 Helvetica font. The same wrapper also runs the report template
+    // translator (rt), so section headers, table headers, labels and page
+    // stamps render in the report's language instead of hardcoded English.
+    const prep = (s: string) => pdfSafe(rt(s));
     const origText = this.doc.text.bind(this.doc);
     (this.doc as unknown as { text: (...a: unknown[]) => unknown }).text = (text: unknown, ...rest: unknown[]) => {
       const safe =
         typeof text === "string"
-          ? pdfSafe(text)
+          ? prep(text)
           : Array.isArray(text)
-            ? text.map((t) => (typeof t === "string" ? pdfSafe(t) : t))
+            ? text.map((t) => (typeof t === "string" ? prep(t) : t))
             : text;
       return (origText as unknown as (...a: unknown[]) => unknown)(safe, ...rest);
     };
@@ -483,9 +507,12 @@ class PdfBuilder {
       text: unknown,
       ...rest: unknown[]
     ) => {
-      const safe = typeof text === "string" ? pdfSafe(text) : text;
+      // Translate before measuring — otherwise wrapping/height math is done
+      // against the English string and drifts from what is drawn.
+      const safe = typeof text === "string" ? prep(text) : text;
       return (origSplit as unknown as (...a: unknown[]) => unknown)(safe, ...rest);
     };
+
   }
 
   ensureSpace(needed: number) {
@@ -4158,8 +4185,13 @@ export function downloadPdf(data: CaseExportData, name: string, opts?: { citatio
   // run before buildSectionPlan/computeRenderQueue — several sections'
   // `available()` checks call reportText(), which now runs through the
   // citation processor as a side effect.
+  // Single-language guarantee: the whole template renders in the language the
+  // report's AI content was generated in (reports.generated_language, falling
+  // back to cases.report_language for rows written before that column).
+  setReportTemplateLocale(resolveReportLocale(data.report, data.case));
   initCitationContext(data, opts?.citationMode ?? "attorney");
   primeCitationFootnotes(data);
+
 
   const b = new PdfBuilder(name);
   const reportRow = (data.report ?? {}) as Record<string, unknown>;
@@ -4248,8 +4280,11 @@ export function downloadPdf(data: CaseExportData, name: string, opts?: { citatio
 
 // DOCX uses the SAME section plan, in the SAME order, gated by the SAME mode.
 export async function downloadDocx(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
+  // Same single-language rule as downloadPdf.
+  setReportTemplateLocale(resolveReportLocale(data.report, data.case));
   initCitationContext(data, opts?.citationMode ?? "attorney");
   primeCitationFootnotes(data);
+
 
   const c = asObj(data.case);
   const reportRow = (data.report ?? {}) as Record<string, unknown>;

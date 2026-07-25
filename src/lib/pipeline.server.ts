@@ -5561,6 +5561,12 @@ ${paginationTail}`;
   const reportRow: any = {
     case_id: caseId,
     user_id: userId,
+    // Stamp the language this report's content was generated in, so exports
+    // (PDF/DOCX) render their template in the same language and historical
+    // reports keep their original language if the case preference changes.
+    generated_language: await getReportLocale(db, caseId),
+
+
 
     attorney_summary: pick("attorney_summary"),
     evidence_summary: pick("evidence_summary"),
