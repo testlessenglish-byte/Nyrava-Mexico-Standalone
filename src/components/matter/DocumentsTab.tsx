@@ -177,7 +177,7 @@ export function DocumentsTab({ matterId, orgId }: { matterId: string; orgId: str
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right">
-                      {j && j.status !== "completed" && d.processing_status !== "analyzed" && (
+                      {j && j.status !== "analyzed" && d.processing_status !== "analyzed" && (
                         <button
                           onClick={() => runJob.mutate(j.id)}
                           disabled={runJob.isPending}
