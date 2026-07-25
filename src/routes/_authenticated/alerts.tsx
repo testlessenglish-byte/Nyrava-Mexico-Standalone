@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useAlerts } from "@/hooks/useAlerts";
 import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
 
-export const Route = createFileRoute("/_app/alerts")({
+export const Route = createFileRoute("/_authenticated/alerts")({
   head: () => ({ meta: [{ title: "Alerts & Briefings — Nyrava" }] }),
   component: AlertsPage,
 });

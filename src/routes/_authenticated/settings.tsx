@@ -30,7 +30,7 @@ import {
   ArrowDown,
   Power,
 } from "lucide-react";
-export const Route = createFileRoute("/_app/settings")({
+export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — Nyrava" }] }),
   component: SettingsPage,
 });

@@ -14,7 +14,7 @@ import {
   User, Mail, Lock, Mic, Bell, Bot, History, Save, Loader2, Volume2, PlayCircle,
 } from "lucide-react";
 
-export const Route = createFileRoute("/_app/account")({
+export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({ meta: [{ title: "Account — Nyrava" }] }),
   component: AccountPage,
 });

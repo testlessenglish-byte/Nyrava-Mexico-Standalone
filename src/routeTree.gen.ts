@@ -9,20 +9,83 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TrustRouteImport } from './routes/trust'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SecurityRouteImport } from './routes/security'
+import { Route as RoadmapRouteImport } from './routes/roadmap'
+import { Route as ResponsibleAiRouteImport } from './routes/responsible-ai'
+import { Route as ResourcesRouteImport } from './routes/resources'
+import { Route as ReleaseNotesRouteImport } from './routes/release-notes'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as LearningCenterRouteImport } from './routes/learning-center'
+import { Route as HowItWorksRouteImport } from './routes/how-it-works'
+import { Route as HelpRouteImport } from './routes/help'
+import { Route as DpaRouteImport } from './routes/dpa'
+import { Route as DmcaRouteImport } from './routes/dmca'
+import { Route as DataControlRouteImport } from './routes/data-control'
+import { Route as CopyrightRouteImport } from './routes/copyright'
+import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as ConfidentialityRouteImport } from './routes/confidentiality'
+import { Route as BetaTermsRouteImport } from './routes/beta-terms'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AiTransparencyRouteImport } from './routes/ai-transparency'
+import { Route as AccessibilityRouteImport } from './routes/accessibility'
+import { Route as AcceptableUseRouteImport } from './routes/acceptable-use'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProductSlugRouteImport } from './routes/product.$slug'
+import { Route as HelpUploadingRouteImport } from './routes/help.uploading'
+import { Route as HelpReportsRouteImport } from './routes/help.reports'
+import { Route as HelpFirstCaseRouteImport } from './routes/help.first-case'
+import { Route as HelpApiKeysRouteImport } from './routes/help.api-keys'
+import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
+import { Route as AuthenticatedWitnessRouteImport } from './routes/_authenticated/witness'
+import { Route as AuthenticatedTimelineRouteImport } from './routes/_authenticated/timeline'
+import { Route as AuthenticatedTalkRouteImport } from './routes/_authenticated/talk'
+import { Route as AuthenticatedStrategyRouteImport } from './routes/_authenticated/strategy'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedSecurityDashboardRouteImport } from './routes/_authenticated/security-dashboard'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/new'
+import { Route as AuthenticatedMotionRouteImport } from './routes/_authenticated/motion'
 import { Route as AuthenticatedMattersRouteImport } from './routes/_authenticated/matters'
+import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated/health'
+import { Route as AuthenticatedEvidenceRouteImport } from './routes/_authenticated/evidence'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
+import { Route as AuthenticatedAiKeysRouteImport } from './routes/_authenticated/ai-keys'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
+import { Route as ApiVoiceTranscribeRouteImport } from './routes/api/voice/transcribe'
+import { Route as ApiVoiceSpeakRouteImport } from './routes/api/voice/speak'
 import { Route as AuthenticatedMattersIdRouteImport } from './routes/_authenticated/matters.$id'
+import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminTestCasesRouteImport } from './routes/_authenticated/admin.test-cases'
+import { Route as AuthenticatedAdminTeamRouteImport } from './routes/_authenticated/admin.team'
+import { Route as AuthenticatedAdminPipelineLedgerRouteImport } from './routes/_authenticated/admin.pipeline-ledger'
+import { Route as AuthenticatedAdminDemoCasesRouteImport } from './routes/_authenticated/admin.demo-cases'
+import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin.billing'
+import { Route as AuthenticatedAdminBetaRouteImport } from './routes/_authenticated/admin.beta'
+import { Route as AuthenticatedAdminAiProvidersRouteImport } from './routes/_authenticated/admin.ai-providers'
+import { Route as ApiPublicHooksStripeWebhookRouteImport } from './routes/api/public/hooks/stripe-webhook'
+import { Route as ApiPublicHooksPipelineWorkerRouteImport } from './routes/api/public/hooks/pipeline-worker'
 
+const TrustRoute = TrustRouteImport.update({
+  id: '/trust',
+  path: '/trust',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -31,6 +94,31 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const SecurityRoute = SecurityRouteImport.update({
   id: '/security',
   path: '/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoadmapRoute = RoadmapRouteImport.update({
+  id: '/roadmap',
+  path: '/roadmap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResponsibleAiRoute = ResponsibleAiRouteImport.update({
+  id: '/responsible-ai',
+  path: '/responsible-ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResourcesRoute = ResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReleaseNotesRoute = ReleaseNotesRouteImport.update({
+  id: '/release-notes',
+  path: '/release-notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlatformRoute = PlatformRouteImport.update({
@@ -43,14 +131,84 @@ const ModulesRoute = ModulesRouteImport.update({
   path: '/modules',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LearningCenterRoute = LearningCenterRouteImport.update({
+  id: '/learning-center',
+  path: '/learning-center',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HowItWorksRoute = HowItWorksRouteImport.update({
+  id: '/how-it-works',
+  path: '/how-it-works',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DpaRoute = DpaRouteImport.update({
+  id: '/dpa',
+  path: '/dpa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DmcaRoute = DmcaRouteImport.update({
+  id: '/dmca',
+  path: '/dmca',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DataControlRoute = DataControlRouteImport.update({
+  id: '/data-control',
+  path: '/data-control',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CopyrightRoute = CopyrightRouteImport.update({
+  id: '/copyright',
+  path: '/copyright',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfidentialityRoute = ConfidentialityRouteImport.update({
+  id: '/confidentiality',
+  path: '/confidentiality',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BetaTermsRoute = BetaTermsRouteImport.update({
+  id: '/beta-terms',
+  path: '/beta-terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiTransparencyRoute = AiTransparencyRouteImport.update({
+  id: '/ai-transparency',
+  path: '/ai-transparency',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccessibilityRoute = AccessibilityRouteImport.update({
+  id: '/accessibility',
+  path: '/accessibility',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AcceptableUseRoute = AcceptableUseRouteImport.update({
+  id: '/acceptable-use',
+  path: '/acceptable-use',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -62,9 +220,85 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductSlugRoute = ProductSlugRouteImport.update({
+  id: '/product/$slug',
+  path: '/product/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpUploadingRoute = HelpUploadingRouteImport.update({
+  id: '/uploading',
+  path: '/uploading',
+  getParentRoute: () => HelpRoute,
+} as any)
+const HelpReportsRoute = HelpReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => HelpRoute,
+} as any)
+const HelpFirstCaseRoute = HelpFirstCaseRouteImport.update({
+  id: '/first-case',
+  path: '/first-case',
+  getParentRoute: () => HelpRoute,
+} as any)
+const HelpApiKeysRoute = HelpApiKeysRouteImport.update({
+  id: '/api-keys',
+  path: '/api-keys',
+  getParentRoute: () => HelpRoute,
+} as any)
+const DemoSlugRoute = DemoSlugRouteImport.update({
+  id: '/demo/$slug',
+  path: '/demo/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedWitnessRoute = AuthenticatedWitnessRouteImport.update({
+  id: '/witness',
+  path: '/witness',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTimelineRoute = AuthenticatedTimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTalkRoute = AuthenticatedTalkRouteImport.update({
+  id: '/talk',
+  path: '/talk',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedStrategyRoute = AuthenticatedStrategyRouteImport.update({
+  id: '/strategy',
+  path: '/strategy',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSecurityDashboardRoute =
+  AuthenticatedSecurityDashboardRouteImport.update({
+    id: '/security-dashboard',
+    path: '/security-dashboard',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedNewRoute = AuthenticatedNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMotionRoute = AuthenticatedMotionRouteImport.update({
+  id: '/motion',
+  path: '/motion',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedMattersRoute = AuthenticatedMattersRouteImport.update({
@@ -72,126 +306,576 @@ const AuthenticatedMattersRoute = AuthenticatedMattersRouteImport.update({
   path: '/matters',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedHealthRoute = AuthenticatedHealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedEvidenceRoute = AuthenticatedEvidenceRouteImport.update({
+  id: '/evidence',
+  path: '/evidence',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAiKeysRoute = AuthenticatedAiKeysRouteImport.update({
+  id: '/ai-keys',
+  path: '/ai-keys',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiVoiceTranscribeRoute = ApiVoiceTranscribeRouteImport.update({
+  id: '/api/voice/transcribe',
+  path: '/api/voice/transcribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceSpeakRoute = ApiVoiceSpeakRouteImport.update({
+  id: '/api/voice/speak',
+  path: '/api/voice/speak',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedMattersIdRoute = AuthenticatedMattersIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => AuthenticatedMattersRoute,
 } as any)
+const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminTestCasesRoute =
   AuthenticatedAdminTestCasesRouteImport.update({
-    id: '/admin/test-cases',
-    path: '/admin/test-cases',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    id: '/test-cases',
+    path: '/test-cases',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminTeamRoute = AuthenticatedAdminTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminPipelineLedgerRoute =
+  AuthenticatedAdminPipelineLedgerRouteImport.update({
+    id: '/pipeline-ledger',
+    path: '/pipeline-ledger',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminDemoCasesRoute =
+  AuthenticatedAdminDemoCasesRouteImport.update({
+    id: '/demo-cases',
+    path: '/demo-cases',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminBillingRoute =
+  AuthenticatedAdminBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminBetaRoute = AuthenticatedAdminBetaRouteImport.update({
+  id: '/beta',
+  path: '/beta',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminAiProvidersRoute =
+  AuthenticatedAdminAiProvidersRouteImport.update({
+    id: '/ai-providers',
+    path: '/ai-providers',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const ApiPublicHooksStripeWebhookRoute =
+  ApiPublicHooksStripeWebhookRouteImport.update({
+    id: '/api/public/hooks/stripe-webhook',
+    path: '/api/public/hooks/stripe-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksPipelineWorkerRoute =
+  ApiPublicHooksPipelineWorkerRouteImport.update({
+    id: '/api/public/hooks/pipeline-worker',
+    path: '/api/public/hooks/pipeline-worker',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/acceptable-use': typeof AcceptableUseRoute
+  '/accessibility': typeof AccessibilityRoute
+  '/ai-transparency': typeof AiTransparencyRoute
   '/auth': typeof AuthRoute
+  '/beta-terms': typeof BetaTermsRoute
+  '/confidentiality': typeof ConfidentialityRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/copyright': typeof CopyrightRoute
+  '/data-control': typeof DataControlRoute
+  '/dmca': typeof DmcaRoute
+  '/dpa': typeof DpaRoute
+  '/help': typeof HelpRouteWithChildren
+  '/how-it-works': typeof HowItWorksRoute
+  '/learning-center': typeof LearningCenterRoute
   '/modules': typeof ModulesRoute
   '/platform': typeof PlatformRoute
+  '/privacy': typeof PrivacyRoute
+  '/release-notes': typeof ReleaseNotesRoute
+  '/resources': typeof ResourcesRoute
+  '/responsible-ai': typeof ResponsibleAiRoute
+  '/roadmap': typeof RoadmapRoute
   '/security': typeof SecurityRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
+  '/account': typeof AuthenticatedAccountRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/ai-keys': typeof AuthenticatedAiKeysRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/evidence': typeof AuthenticatedEvidenceRoute
+  '/health': typeof AuthenticatedHealthRoute
   '/matters': typeof AuthenticatedMattersRouteWithChildren
+  '/motion': typeof AuthenticatedMotionRoute
+  '/new': typeof AuthenticatedNewRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/strategy': typeof AuthenticatedStrategyRoute
+  '/talk': typeof AuthenticatedTalkRoute
+  '/timeline': typeof AuthenticatedTimelineRoute
+  '/witness': typeof AuthenticatedWitnessRoute
+  '/demo/$slug': typeof DemoSlugRoute
+  '/help/api-keys': typeof HelpApiKeysRoute
+  '/help/first-case': typeof HelpFirstCaseRoute
+  '/help/reports': typeof HelpReportsRoute
+  '/help/uploading': typeof HelpUploadingRoute
+  '/product/$slug': typeof ProductSlugRoute
+  '/admin/ai-providers': typeof AuthenticatedAdminAiProvidersRoute
+  '/admin/beta': typeof AuthenticatedAdminBetaRoute
+  '/admin/billing': typeof AuthenticatedAdminBillingRoute
+  '/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
+  '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/matters/$id': typeof AuthenticatedMattersIdRoute
+  '/api/voice/speak': typeof ApiVoiceSpeakRoute
+  '/api/voice/transcribe': typeof ApiVoiceTranscribeRoute
+  '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
+  '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/acceptable-use': typeof AcceptableUseRoute
+  '/accessibility': typeof AccessibilityRoute
+  '/ai-transparency': typeof AiTransparencyRoute
   '/auth': typeof AuthRoute
+  '/beta-terms': typeof BetaTermsRoute
+  '/confidentiality': typeof ConfidentialityRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/copyright': typeof CopyrightRoute
+  '/data-control': typeof DataControlRoute
+  '/dmca': typeof DmcaRoute
+  '/dpa': typeof DpaRoute
+  '/help': typeof HelpRouteWithChildren
+  '/how-it-works': typeof HowItWorksRoute
+  '/learning-center': typeof LearningCenterRoute
   '/modules': typeof ModulesRoute
   '/platform': typeof PlatformRoute
+  '/privacy': typeof PrivacyRoute
+  '/release-notes': typeof ReleaseNotesRoute
+  '/resources': typeof ResourcesRoute
+  '/responsible-ai': typeof ResponsibleAiRoute
+  '/roadmap': typeof RoadmapRoute
   '/security': typeof SecurityRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
+  '/account': typeof AuthenticatedAccountRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/ai-keys': typeof AuthenticatedAiKeysRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/evidence': typeof AuthenticatedEvidenceRoute
+  '/health': typeof AuthenticatedHealthRoute
   '/matters': typeof AuthenticatedMattersRouteWithChildren
+  '/motion': typeof AuthenticatedMotionRoute
+  '/new': typeof AuthenticatedNewRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/strategy': typeof AuthenticatedStrategyRoute
+  '/talk': typeof AuthenticatedTalkRoute
+  '/timeline': typeof AuthenticatedTimelineRoute
+  '/witness': typeof AuthenticatedWitnessRoute
+  '/demo/$slug': typeof DemoSlugRoute
+  '/help/api-keys': typeof HelpApiKeysRoute
+  '/help/first-case': typeof HelpFirstCaseRoute
+  '/help/reports': typeof HelpReportsRoute
+  '/help/uploading': typeof HelpUploadingRoute
+  '/product/$slug': typeof ProductSlugRoute
+  '/admin/ai-providers': typeof AuthenticatedAdminAiProvidersRoute
+  '/admin/beta': typeof AuthenticatedAdminBetaRoute
+  '/admin/billing': typeof AuthenticatedAdminBillingRoute
+  '/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
+  '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/matters/$id': typeof AuthenticatedMattersIdRoute
+  '/api/voice/speak': typeof ApiVoiceSpeakRoute
+  '/api/voice/transcribe': typeof ApiVoiceTranscribeRoute
+  '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
+  '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/about': typeof AboutRoute
+  '/acceptable-use': typeof AcceptableUseRoute
+  '/accessibility': typeof AccessibilityRoute
+  '/ai-transparency': typeof AiTransparencyRoute
   '/auth': typeof AuthRoute
+  '/beta-terms': typeof BetaTermsRoute
+  '/confidentiality': typeof ConfidentialityRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/copyright': typeof CopyrightRoute
+  '/data-control': typeof DataControlRoute
+  '/dmca': typeof DmcaRoute
+  '/dpa': typeof DpaRoute
+  '/help': typeof HelpRouteWithChildren
+  '/how-it-works': typeof HowItWorksRoute
+  '/learning-center': typeof LearningCenterRoute
   '/modules': typeof ModulesRoute
   '/platform': typeof PlatformRoute
+  '/privacy': typeof PrivacyRoute
+  '/release-notes': typeof ReleaseNotesRoute
+  '/resources': typeof ResourcesRoute
+  '/responsible-ai': typeof ResponsibleAiRoute
+  '/roadmap': typeof RoadmapRoute
   '/security': typeof SecurityRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
+  '/_authenticated/account': typeof AuthenticatedAccountRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/ai-keys': typeof AuthenticatedAiKeysRoute
+  '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/evidence': typeof AuthenticatedEvidenceRoute
+  '/_authenticated/health': typeof AuthenticatedHealthRoute
   '/_authenticated/matters': typeof AuthenticatedMattersRouteWithChildren
+  '/_authenticated/motion': typeof AuthenticatedMotionRoute
+  '/_authenticated/new': typeof AuthenticatedNewRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
+  '/_authenticated/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/strategy': typeof AuthenticatedStrategyRoute
+  '/_authenticated/talk': typeof AuthenticatedTalkRoute
+  '/_authenticated/timeline': typeof AuthenticatedTimelineRoute
+  '/_authenticated/witness': typeof AuthenticatedWitnessRoute
+  '/demo/$slug': typeof DemoSlugRoute
+  '/help/api-keys': typeof HelpApiKeysRoute
+  '/help/first-case': typeof HelpFirstCaseRoute
+  '/help/reports': typeof HelpReportsRoute
+  '/help/uploading': typeof HelpUploadingRoute
+  '/product/$slug': typeof ProductSlugRoute
+  '/_authenticated/admin/ai-providers': typeof AuthenticatedAdminAiProvidersRoute
+  '/_authenticated/admin/beta': typeof AuthenticatedAdminBetaRoute
+  '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
+  '/_authenticated/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/_authenticated/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
+  '/_authenticated/admin/team': typeof AuthenticatedAdminTeamRoute
   '/_authenticated/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/matters/$id': typeof AuthenticatedMattersIdRoute
+  '/api/voice/speak': typeof ApiVoiceSpeakRoute
+  '/api/voice/transcribe': typeof ApiVoiceTranscribeRoute
+  '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
+  '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
+    | '/acceptable-use'
+    | '/accessibility'
+    | '/ai-transparency'
     | '/auth'
+    | '/beta-terms'
+    | '/confidentiality'
     | '/contact'
+    | '/cookies'
+    | '/copyright'
+    | '/data-control'
+    | '/dmca'
+    | '/dpa'
+    | '/help'
+    | '/how-it-works'
+    | '/learning-center'
     | '/modules'
     | '/platform'
+    | '/privacy'
+    | '/release-notes'
+    | '/resources'
+    | '/responsible-ai'
+    | '/roadmap'
     | '/security'
     | '/sitemap.xml'
+    | '/terms'
+    | '/trust'
+    | '/account'
+    | '/admin'
+    | '/ai-keys'
+    | '/alerts'
     | '/dashboard'
+    | '/evidence'
+    | '/health'
     | '/matters'
+    | '/motion'
+    | '/new'
     | '/onboarding'
+    | '/reports'
+    | '/security-dashboard'
+    | '/settings'
+    | '/strategy'
+    | '/talk'
+    | '/timeline'
+    | '/witness'
+    | '/demo/$slug'
+    | '/help/api-keys'
+    | '/help/first-case'
+    | '/help/reports'
+    | '/help/uploading'
+    | '/product/$slug'
+    | '/admin/ai-providers'
+    | '/admin/beta'
+    | '/admin/billing'
+    | '/admin/demo-cases'
+    | '/admin/pipeline-ledger'
+    | '/admin/team'
     | '/admin/test-cases'
+    | '/admin/users'
     | '/matters/$id'
+    | '/api/voice/speak'
+    | '/api/voice/transcribe'
+    | '/api/public/hooks/pipeline-worker'
+    | '/api/public/hooks/stripe-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
+    | '/acceptable-use'
+    | '/accessibility'
+    | '/ai-transparency'
     | '/auth'
+    | '/beta-terms'
+    | '/confidentiality'
     | '/contact'
+    | '/cookies'
+    | '/copyright'
+    | '/data-control'
+    | '/dmca'
+    | '/dpa'
+    | '/help'
+    | '/how-it-works'
+    | '/learning-center'
     | '/modules'
     | '/platform'
+    | '/privacy'
+    | '/release-notes'
+    | '/resources'
+    | '/responsible-ai'
+    | '/roadmap'
     | '/security'
     | '/sitemap.xml'
+    | '/terms'
+    | '/trust'
+    | '/account'
+    | '/admin'
+    | '/ai-keys'
+    | '/alerts'
     | '/dashboard'
+    | '/evidence'
+    | '/health'
     | '/matters'
+    | '/motion'
+    | '/new'
     | '/onboarding'
+    | '/reports'
+    | '/security-dashboard'
+    | '/settings'
+    | '/strategy'
+    | '/talk'
+    | '/timeline'
+    | '/witness'
+    | '/demo/$slug'
+    | '/help/api-keys'
+    | '/help/first-case'
+    | '/help/reports'
+    | '/help/uploading'
+    | '/product/$slug'
+    | '/admin/ai-providers'
+    | '/admin/beta'
+    | '/admin/billing'
+    | '/admin/demo-cases'
+    | '/admin/pipeline-ledger'
+    | '/admin/team'
     | '/admin/test-cases'
+    | '/admin/users'
     | '/matters/$id'
+    | '/api/voice/speak'
+    | '/api/voice/transcribe'
+    | '/api/public/hooks/pipeline-worker'
+    | '/api/public/hooks/stripe-webhook'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/about'
+    | '/acceptable-use'
+    | '/accessibility'
+    | '/ai-transparency'
     | '/auth'
+    | '/beta-terms'
+    | '/confidentiality'
     | '/contact'
+    | '/cookies'
+    | '/copyright'
+    | '/data-control'
+    | '/dmca'
+    | '/dpa'
+    | '/help'
+    | '/how-it-works'
+    | '/learning-center'
     | '/modules'
     | '/platform'
+    | '/privacy'
+    | '/release-notes'
+    | '/resources'
+    | '/responsible-ai'
+    | '/roadmap'
     | '/security'
     | '/sitemap.xml'
+    | '/terms'
+    | '/trust'
+    | '/_authenticated/account'
+    | '/_authenticated/admin'
+    | '/_authenticated/ai-keys'
+    | '/_authenticated/alerts'
     | '/_authenticated/dashboard'
+    | '/_authenticated/evidence'
+    | '/_authenticated/health'
     | '/_authenticated/matters'
+    | '/_authenticated/motion'
+    | '/_authenticated/new'
     | '/_authenticated/onboarding'
+    | '/_authenticated/reports'
+    | '/_authenticated/security-dashboard'
+    | '/_authenticated/settings'
+    | '/_authenticated/strategy'
+    | '/_authenticated/talk'
+    | '/_authenticated/timeline'
+    | '/_authenticated/witness'
+    | '/demo/$slug'
+    | '/help/api-keys'
+    | '/help/first-case'
+    | '/help/reports'
+    | '/help/uploading'
+    | '/product/$slug'
+    | '/_authenticated/admin/ai-providers'
+    | '/_authenticated/admin/beta'
+    | '/_authenticated/admin/billing'
+    | '/_authenticated/admin/demo-cases'
+    | '/_authenticated/admin/pipeline-ledger'
+    | '/_authenticated/admin/team'
     | '/_authenticated/admin/test-cases'
+    | '/_authenticated/admin/users'
     | '/_authenticated/matters/$id'
+    | '/api/voice/speak'
+    | '/api/voice/transcribe'
+    | '/api/public/hooks/pipeline-worker'
+    | '/api/public/hooks/stripe-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AboutRoute: typeof AboutRoute
+  AcceptableUseRoute: typeof AcceptableUseRoute
+  AccessibilityRoute: typeof AccessibilityRoute
+  AiTransparencyRoute: typeof AiTransparencyRoute
   AuthRoute: typeof AuthRoute
+  BetaTermsRoute: typeof BetaTermsRoute
+  ConfidentialityRoute: typeof ConfidentialityRoute
   ContactRoute: typeof ContactRoute
+  CookiesRoute: typeof CookiesRoute
+  CopyrightRoute: typeof CopyrightRoute
+  DataControlRoute: typeof DataControlRoute
+  DmcaRoute: typeof DmcaRoute
+  DpaRoute: typeof DpaRoute
+  HelpRoute: typeof HelpRouteWithChildren
+  HowItWorksRoute: typeof HowItWorksRoute
+  LearningCenterRoute: typeof LearningCenterRoute
   ModulesRoute: typeof ModulesRoute
   PlatformRoute: typeof PlatformRoute
+  PrivacyRoute: typeof PrivacyRoute
+  ReleaseNotesRoute: typeof ReleaseNotesRoute
+  ResourcesRoute: typeof ResourcesRoute
+  ResponsibleAiRoute: typeof ResponsibleAiRoute
+  RoadmapRoute: typeof RoadmapRoute
   SecurityRoute: typeof SecurityRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  TermsRoute: typeof TermsRoute
+  TrustRoute: typeof TrustRoute
+  DemoSlugRoute: typeof DemoSlugRoute
+  ProductSlugRoute: typeof ProductSlugRoute
+  ApiVoiceSpeakRoute: typeof ApiVoiceSpeakRoute
+  ApiVoiceTranscribeRoute: typeof ApiVoiceTranscribeRoute
+  ApiPublicHooksPipelineWorkerRoute: typeof ApiPublicHooksPipelineWorkerRoute
+  ApiPublicHooksStripeWebhookRoute: typeof ApiPublicHooksStripeWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/trust': {
+      id: '/trust'
+      path: '/trust'
+      fullPath: '/trust'
+      preLoaderRoute: typeof TrustRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -204,6 +888,41 @@ declare module '@tanstack/react-router' {
       path: '/security'
       fullPath: '/security'
       preLoaderRoute: typeof SecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roadmap': {
+      id: '/roadmap'
+      path: '/roadmap'
+      fullPath: '/roadmap'
+      preLoaderRoute: typeof RoadmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/responsible-ai': {
+      id: '/responsible-ai'
+      path: '/responsible-ai'
+      fullPath: '/responsible-ai'
+      preLoaderRoute: typeof ResponsibleAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resources': {
+      id: '/resources'
+      path: '/resources'
+      fullPath: '/resources'
+      preLoaderRoute: typeof ResourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/release-notes': {
+      id: '/release-notes'
+      path: '/release-notes'
+      fullPath: '/release-notes'
+      preLoaderRoute: typeof ReleaseNotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/platform': {
@@ -220,6 +939,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModulesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/learning-center': {
+      id: '/learning-center'
+      path: '/learning-center'
+      fullPath: '/learning-center'
+      preLoaderRoute: typeof LearningCenterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/how-it-works': {
+      id: '/how-it-works'
+      path: '/how-it-works'
+      fullPath: '/how-it-works'
+      preLoaderRoute: typeof HowItWorksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dpa': {
+      id: '/dpa'
+      path: '/dpa'
+      fullPath: '/dpa'
+      preLoaderRoute: typeof DpaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dmca': {
+      id: '/dmca'
+      path: '/dmca'
+      fullPath: '/dmca'
+      preLoaderRoute: typeof DmcaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/data-control': {
+      id: '/data-control'
+      path: '/data-control'
+      fullPath: '/data-control'
+      preLoaderRoute: typeof DataControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/copyright': {
+      id: '/copyright'
+      path: '/copyright'
+      fullPath: '/copyright'
+      preLoaderRoute: typeof CopyrightRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
       id: '/contact'
       path: '/contact'
@@ -227,11 +1002,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/confidentiality': {
+      id: '/confidentiality'
+      path: '/confidentiality'
+      fullPath: '/confidentiality'
+      preLoaderRoute: typeof ConfidentialityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/beta-terms': {
+      id: '/beta-terms'
+      path: '/beta-terms'
+      fullPath: '/beta-terms'
+      preLoaderRoute: typeof BetaTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-transparency': {
+      id: '/ai-transparency'
+      path: '/ai-transparency'
+      fullPath: '/ai-transparency'
+      preLoaderRoute: typeof AiTransparencyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accessibility': {
+      id: '/accessibility'
+      path: '/accessibility'
+      fullPath: '/accessibility'
+      preLoaderRoute: typeof AccessibilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/acceptable-use': {
+      id: '/acceptable-use'
+      path: '/acceptable-use'
+      fullPath: '/acceptable-use'
+      preLoaderRoute: typeof AcceptableUseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -248,11 +1065,116 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/product/$slug': {
+      id: '/product/$slug'
+      path: '/product/$slug'
+      fullPath: '/product/$slug'
+      preLoaderRoute: typeof ProductSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help/uploading': {
+      id: '/help/uploading'
+      path: '/uploading'
+      fullPath: '/help/uploading'
+      preLoaderRoute: typeof HelpUploadingRouteImport
+      parentRoute: typeof HelpRoute
+    }
+    '/help/reports': {
+      id: '/help/reports'
+      path: '/reports'
+      fullPath: '/help/reports'
+      preLoaderRoute: typeof HelpReportsRouteImport
+      parentRoute: typeof HelpRoute
+    }
+    '/help/first-case': {
+      id: '/help/first-case'
+      path: '/first-case'
+      fullPath: '/help/first-case'
+      preLoaderRoute: typeof HelpFirstCaseRouteImport
+      parentRoute: typeof HelpRoute
+    }
+    '/help/api-keys': {
+      id: '/help/api-keys'
+      path: '/api-keys'
+      fullPath: '/help/api-keys'
+      preLoaderRoute: typeof HelpApiKeysRouteImport
+      parentRoute: typeof HelpRoute
+    }
+    '/demo/$slug': {
+      id: '/demo/$slug'
+      path: '/demo/$slug'
+      fullPath: '/demo/$slug'
+      preLoaderRoute: typeof DemoSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/witness': {
+      id: '/_authenticated/witness'
+      path: '/witness'
+      fullPath: '/witness'
+      preLoaderRoute: typeof AuthenticatedWitnessRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/timeline': {
+      id: '/_authenticated/timeline'
+      path: '/timeline'
+      fullPath: '/timeline'
+      preLoaderRoute: typeof AuthenticatedTimelineRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/talk': {
+      id: '/_authenticated/talk'
+      path: '/talk'
+      fullPath: '/talk'
+      preLoaderRoute: typeof AuthenticatedTalkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/strategy': {
+      id: '/_authenticated/strategy'
+      path: '/strategy'
+      fullPath: '/strategy'
+      preLoaderRoute: typeof AuthenticatedStrategyRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/security-dashboard': {
+      id: '/_authenticated/security-dashboard'
+      path: '/security-dashboard'
+      fullPath: '/security-dashboard'
+      preLoaderRoute: typeof AuthenticatedSecurityDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/new': {
+      id: '/_authenticated/new'
+      path: '/new'
+      fullPath: '/new'
+      preLoaderRoute: typeof AuthenticatedNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/motion': {
+      id: '/_authenticated/motion'
+      path: '/motion'
+      fullPath: '/motion'
+      preLoaderRoute: typeof AuthenticatedMotionRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/matters': {
@@ -262,12 +1184,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMattersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/health': {
+      id: '/_authenticated/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof AuthenticatedHealthRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/evidence': {
+      id: '/_authenticated/evidence'
+      path: '/evidence'
+      fullPath: '/evidence'
+      preLoaderRoute: typeof AuthenticatedEvidenceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/alerts': {
+      id: '/_authenticated/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedAlertsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ai-keys': {
+      id: '/_authenticated/ai-keys'
+      path: '/ai-keys'
+      fullPath: '/ai-keys'
+      preLoaderRoute: typeof AuthenticatedAiKeysRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/account': {
+      id: '/_authenticated/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedAccountRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/voice/transcribe': {
+      id: '/api/voice/transcribe'
+      path: '/api/voice/transcribe'
+      fullPath: '/api/voice/transcribe'
+      preLoaderRoute: typeof ApiVoiceTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice/speak': {
+      id: '/api/voice/speak'
+      path: '/api/voice/speak'
+      fullPath: '/api/voice/speak'
+      preLoaderRoute: typeof ApiVoiceSpeakRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/matters/$id': {
       id: '/_authenticated/matters/$id'
@@ -276,15 +1254,103 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMattersIdRouteImport
       parentRoute: typeof AuthenticatedMattersRoute
     }
+    '/_authenticated/admin/users': {
+      id: '/_authenticated/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/test-cases': {
       id: '/_authenticated/admin/test-cases'
-      path: '/admin/test-cases'
+      path: '/test-cases'
       fullPath: '/admin/test-cases'
       preLoaderRoute: typeof AuthenticatedAdminTestCasesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/team': {
+      id: '/_authenticated/admin/team'
+      path: '/team'
+      fullPath: '/admin/team'
+      preLoaderRoute: typeof AuthenticatedAdminTeamRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/pipeline-ledger': {
+      id: '/_authenticated/admin/pipeline-ledger'
+      path: '/pipeline-ledger'
+      fullPath: '/admin/pipeline-ledger'
+      preLoaderRoute: typeof AuthenticatedAdminPipelineLedgerRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/demo-cases': {
+      id: '/_authenticated/admin/demo-cases'
+      path: '/demo-cases'
+      fullPath: '/admin/demo-cases'
+      preLoaderRoute: typeof AuthenticatedAdminDemoCasesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/billing': {
+      id: '/_authenticated/admin/billing'
+      path: '/billing'
+      fullPath: '/admin/billing'
+      preLoaderRoute: typeof AuthenticatedAdminBillingRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/beta': {
+      id: '/_authenticated/admin/beta'
+      path: '/beta'
+      fullPath: '/admin/beta'
+      preLoaderRoute: typeof AuthenticatedAdminBetaRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/ai-providers': {
+      id: '/_authenticated/admin/ai-providers'
+      path: '/ai-providers'
+      fullPath: '/admin/ai-providers'
+      preLoaderRoute: typeof AuthenticatedAdminAiProvidersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/public/hooks/stripe-webhook': {
+      id: '/api/public/hooks/stripe-webhook'
+      path: '/api/public/hooks/stripe-webhook'
+      fullPath: '/api/public/hooks/stripe-webhook'
+      preLoaderRoute: typeof ApiPublicHooksStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/pipeline-worker': {
+      id: '/api/public/hooks/pipeline-worker'
+      path: '/api/public/hooks/pipeline-worker'
+      fullPath: '/api/public/hooks/pipeline-worker'
+      preLoaderRoute: typeof ApiPublicHooksPipelineWorkerRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
+
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAiProvidersRoute: typeof AuthenticatedAdminAiProvidersRoute
+  AuthenticatedAdminBetaRoute: typeof AuthenticatedAdminBetaRoute
+  AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
+  AuthenticatedAdminDemoCasesRoute: typeof AuthenticatedAdminDemoCasesRoute
+  AuthenticatedAdminPipelineLedgerRoute: typeof AuthenticatedAdminPipelineLedgerRoute
+  AuthenticatedAdminTeamRoute: typeof AuthenticatedAdminTeamRoute
+  AuthenticatedAdminTestCasesRoute: typeof AuthenticatedAdminTestCasesRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAiProvidersRoute: AuthenticatedAdminAiProvidersRoute,
+  AuthenticatedAdminBetaRoute: AuthenticatedAdminBetaRoute,
+  AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
+  AuthenticatedAdminDemoCasesRoute: AuthenticatedAdminDemoCasesRoute,
+  AuthenticatedAdminPipelineLedgerRoute: AuthenticatedAdminPipelineLedgerRoute,
+  AuthenticatedAdminTeamRoute: AuthenticatedAdminTeamRoute,
+  AuthenticatedAdminTestCasesRoute: AuthenticatedAdminTestCasesRoute,
+  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
 interface AuthenticatedMattersRouteChildren {
   AuthenticatedMattersIdRoute: typeof AuthenticatedMattersIdRoute
@@ -298,31 +1364,102 @@ const AuthenticatedMattersRouteWithChildren =
   AuthenticatedMattersRoute._addFileChildren(AuthenticatedMattersRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedAiKeysRoute: typeof AuthenticatedAiKeysRoute
+  AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEvidenceRoute: typeof AuthenticatedEvidenceRoute
+  AuthenticatedHealthRoute: typeof AuthenticatedHealthRoute
   AuthenticatedMattersRoute: typeof AuthenticatedMattersRouteWithChildren
+  AuthenticatedMotionRoute: typeof AuthenticatedMotionRoute
+  AuthenticatedNewRoute: typeof AuthenticatedNewRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
-  AuthenticatedAdminTestCasesRoute: typeof AuthenticatedAdminTestCasesRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
+  AuthenticatedSecurityDashboardRoute: typeof AuthenticatedSecurityDashboardRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedStrategyRoute: typeof AuthenticatedStrategyRoute
+  AuthenticatedTalkRoute: typeof AuthenticatedTalkRoute
+  AuthenticatedTimelineRoute: typeof AuthenticatedTimelineRoute
+  AuthenticatedWitnessRoute: typeof AuthenticatedWitnessRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAccountRoute: AuthenticatedAccountRoute,
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedAiKeysRoute: AuthenticatedAiKeysRoute,
+  AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEvidenceRoute: AuthenticatedEvidenceRoute,
+  AuthenticatedHealthRoute: AuthenticatedHealthRoute,
   AuthenticatedMattersRoute: AuthenticatedMattersRouteWithChildren,
+  AuthenticatedMotionRoute: AuthenticatedMotionRoute,
+  AuthenticatedNewRoute: AuthenticatedNewRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
-  AuthenticatedAdminTestCasesRoute: AuthenticatedAdminTestCasesRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
+  AuthenticatedSecurityDashboardRoute: AuthenticatedSecurityDashboardRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedStrategyRoute: AuthenticatedStrategyRoute,
+  AuthenticatedTalkRoute: AuthenticatedTalkRoute,
+  AuthenticatedTimelineRoute: AuthenticatedTimelineRoute,
+  AuthenticatedWitnessRoute: AuthenticatedWitnessRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface HelpRouteChildren {
+  HelpApiKeysRoute: typeof HelpApiKeysRoute
+  HelpFirstCaseRoute: typeof HelpFirstCaseRoute
+  HelpReportsRoute: typeof HelpReportsRoute
+  HelpUploadingRoute: typeof HelpUploadingRoute
+}
+
+const HelpRouteChildren: HelpRouteChildren = {
+  HelpApiKeysRoute: HelpApiKeysRoute,
+  HelpFirstCaseRoute: HelpFirstCaseRoute,
+  HelpReportsRoute: HelpReportsRoute,
+  HelpUploadingRoute: HelpUploadingRoute,
+}
+
+const HelpRouteWithChildren = HelpRoute._addFileChildren(HelpRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AboutRoute: AboutRoute,
+  AcceptableUseRoute: AcceptableUseRoute,
+  AccessibilityRoute: AccessibilityRoute,
+  AiTransparencyRoute: AiTransparencyRoute,
   AuthRoute: AuthRoute,
+  BetaTermsRoute: BetaTermsRoute,
+  ConfidentialityRoute: ConfidentialityRoute,
   ContactRoute: ContactRoute,
+  CookiesRoute: CookiesRoute,
+  CopyrightRoute: CopyrightRoute,
+  DataControlRoute: DataControlRoute,
+  DmcaRoute: DmcaRoute,
+  DpaRoute: DpaRoute,
+  HelpRoute: HelpRouteWithChildren,
+  HowItWorksRoute: HowItWorksRoute,
+  LearningCenterRoute: LearningCenterRoute,
   ModulesRoute: ModulesRoute,
   PlatformRoute: PlatformRoute,
+  PrivacyRoute: PrivacyRoute,
+  ReleaseNotesRoute: ReleaseNotesRoute,
+  ResourcesRoute: ResourcesRoute,
+  ResponsibleAiRoute: ResponsibleAiRoute,
+  RoadmapRoute: RoadmapRoute,
   SecurityRoute: SecurityRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  TermsRoute: TermsRoute,
+  TrustRoute: TrustRoute,
+  DemoSlugRoute: DemoSlugRoute,
+  ProductSlugRoute: ProductSlugRoute,
+  ApiVoiceSpeakRoute: ApiVoiceSpeakRoute,
+  ApiVoiceTranscribeRoute: ApiVoiceTranscribeRoute,
+  ApiPublicHooksPipelineWorkerRoute: ApiPublicHooksPipelineWorkerRoute,
+  ApiPublicHooksStripeWebhookRoute: ApiPublicHooksStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

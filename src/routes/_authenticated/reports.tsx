@@ -11,7 +11,7 @@ import { downloadJson, downloadPdf, downloadDocx, type CaseExportData } from "@/
 import { toast } from "sonner";
 import { LegalMemorandumPanel, type LegalMemorandum } from "@/components/LegalMemorandumPanel";
 
-export const Route = createFileRoute("/_app/reports")({
+export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "Reports — Nyrava" }] }),
   component: ReportsPage,
 });

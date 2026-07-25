@@ -21,7 +21,7 @@ import { ShieldCheck, ChevronLeft, Loader2, Building2, Briefcase, User as UserIc
 import { useState } from "react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_app/admin/team")({
+export const Route = createFileRoute("/_authenticated/admin/team")({
   head: () => ({ meta: [{ title: "Team & Seats — Nyrava" }] }),
   component: TeamPage,
 });

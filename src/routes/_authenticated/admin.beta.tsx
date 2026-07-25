@@ -16,7 +16,7 @@ import {
   adminCancelBetaInvite,
 } from "@/lib/billing.functions";
 
-export const Route = createFileRoute("/_app/admin/beta")({
+export const Route = createFileRoute("/_authenticated/admin/beta")({
   head: () => ({ meta: [{ title: "Beta testers — Admin" }] }),
   component: AdminBetaPage,
 });

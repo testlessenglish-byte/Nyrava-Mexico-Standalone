@@ -7,7 +7,7 @@ import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
 
-export const Route = createFileRoute("/_app/timeline")({
+export const Route = createFileRoute("/_authenticated/timeline")({
   head: () => ({ meta: [{ title: "Timeline Builder — Nyrava" }] }),
   component: TimelinePage,
 });

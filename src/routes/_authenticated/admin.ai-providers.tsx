@@ -9,7 +9,7 @@ import {
 } from "@/lib/ai-admin.functions";
 import { ShieldCheck, ArrowUp, ArrowDown, Plus, Trash2, Power, Activity, KeyRound, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
-export const Route = createFileRoute("/_app/admin/ai-providers")({
+export const Route = createFileRoute("/_authenticated/admin/ai-providers")({
   head: () => ({ meta: [{ title: "AI Providers — Nyrava" }] }),
   component: AIProvidersPage,
 });

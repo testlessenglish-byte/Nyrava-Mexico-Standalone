@@ -14,7 +14,7 @@ import { buildSupportingAuthority } from "@/lib/intelligence/authority";
 import { SupportingAuthorityCard } from "@/components/SupportingAuthorityCard";
 import { CaseDetailPanel, type CaseDetailContext } from "@/components/CaseDetailPanel";
 
-export const Route = createFileRoute("/_app/motion")({
+export const Route = createFileRoute("/_authenticated/motion")({
   head: () => ({ meta: [{ title: "Motion Center — Nyrava" }] }),
   component: MotionPage,
 });

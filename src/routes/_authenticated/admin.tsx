@@ -32,7 +32,7 @@ import {
   UserPlus,
 } from "lucide-react";
 
-export const Route = createFileRoute("/_app/admin")({
+export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Nyrava" }] }),
   component: AdminPage,
 });

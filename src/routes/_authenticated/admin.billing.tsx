@@ -33,7 +33,7 @@ import {
 } from "@/lib/billing-plans.functions";
 import { adminGetStripeConfigStatus, adminListWebhookEvents } from "@/lib/billing.functions";
 
-export const Route = createFileRoute("/_app/admin/billing")({
+export const Route = createFileRoute("/_authenticated/admin/billing")({
   head: () => ({ meta: [{ title: "Billing plans — Admin" }] }),
   component: AdminBillingPage,
 });

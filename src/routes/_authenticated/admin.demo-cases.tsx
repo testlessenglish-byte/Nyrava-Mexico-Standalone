@@ -37,7 +37,7 @@ import {
 } from "@/lib/demo-cases.functions";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 
-export const Route = createFileRoute("/_app/admin/demo-cases")({
+export const Route = createFileRoute("/_authenticated/admin/demo-cases")({
   head: () => ({ meta: [{ title: "Demo cases — Admin" }] }),
   component: AdminDemoCasesPage,
 });

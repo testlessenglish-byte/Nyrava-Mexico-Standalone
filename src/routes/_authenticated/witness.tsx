@@ -7,7 +7,7 @@ import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
 
-export const Route = createFileRoute("/_app/witness")({
+export const Route = createFileRoute("/_authenticated/witness")({
   head: () => ({ meta: [{ title: "Witness Intelligence — Nyrava" }] }),
   component: WitnessPage,
 });

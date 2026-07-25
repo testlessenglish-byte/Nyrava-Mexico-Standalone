@@ -9,7 +9,7 @@ import { ShieldCheck, ChevronLeft, Loader2, Crown, Building2, Briefcase, User as
 import { useState } from "react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_app/admin/users")({
+export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Users & Roles — Nyrava" }] }),
   component: AdminUsersPage,
 });

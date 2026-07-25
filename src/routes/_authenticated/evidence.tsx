@@ -8,7 +8,7 @@ import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
 import { EvidenceCitation } from "@/components/modules/EvidenceCitation";
 
-export const Route = createFileRoute("/_app/evidence")({
+export const Route = createFileRoute("/_authenticated/evidence")({
   head: () => ({ meta: [{ title: "Evidence Explorer — Nyrava" }] }),
   component: EvidencePage,
 });

@@ -5,7 +5,7 @@ import { pipelineLedger } from "@/lib/cases.functions";
 import { useState, useMemo } from "react";
 import { Activity, ChevronLeft, RefreshCw, Filter, CheckCircle2, XCircle, MinusCircle, SkipForward } from "lucide-react";
 
-export const Route = createFileRoute("/_app/admin/pipeline-ledger")({
+export const Route = createFileRoute("/_authenticated/admin/pipeline-ledger")({
   head: () => ({ meta: [{ title: "Pipeline Ledger — Admin — Nyrava" }] }),
   errorComponent: ({ error, reset }) => {
     const router = useRouter();

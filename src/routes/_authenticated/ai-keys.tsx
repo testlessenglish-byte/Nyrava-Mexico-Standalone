@@ -3,7 +3,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { IntelligenceProviders } from "@/components/IntelligenceProviders";
 
-export const Route = createFileRoute("/_app/ai-keys")({
+export const Route = createFileRoute("/_authenticated/ai-keys")({
   head: () => ({ meta: [{ title: "Intelligence Providers — Nyrava" }] }),
   component: IntelligenceProvidersPage,
 });

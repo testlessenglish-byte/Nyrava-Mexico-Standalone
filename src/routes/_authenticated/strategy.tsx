@@ -8,7 +8,7 @@ import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty, SuppressedNotice } from "@/components/modules/SuppressedNotice";
 import { isDeterministicFallback } from "@/lib/intelligence/canonical";
 
-export const Route = createFileRoute("/_app/strategy")({
+export const Route = createFileRoute("/_authenticated/strategy")({
   head: () => ({ meta: [{ title: "Strategy Center — Nyrava" }] }),
   component: StrategyPage,
 });

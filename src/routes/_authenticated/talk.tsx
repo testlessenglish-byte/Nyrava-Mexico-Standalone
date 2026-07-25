@@ -7,7 +7,7 @@ import { CaseChatPanel } from "@/components/CaseChatPanel";
 import { VoiceCompanion } from "@/components/VoiceCompanion";
 import { MessageSquare, Plus, FolderOpen, ChevronDown, Mic } from "lucide-react";
 
-export const Route = createFileRoute("/_app/talk")({
+export const Route = createFileRoute("/_authenticated/talk")({
   head: () => ({ meta: [{ title: "Talk To Cases — Nyrava" }] }),
   component: TalkPage,
 });

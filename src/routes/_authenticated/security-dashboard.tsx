@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { getSecurityOverview } from "@/lib/security-dashboard.functions";
 
-export const Route = createFileRoute("/_app/security-dashboard")({
+export const Route = createFileRoute("/_authenticated/security-dashboard")({
   head: () => ({
     meta: [
       { title: "Security Dashboard — Nyrava" },

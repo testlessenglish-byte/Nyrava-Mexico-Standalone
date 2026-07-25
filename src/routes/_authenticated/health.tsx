@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAiHealth, runFailoverTest, listAiCooldowns, clearAiCooldowns } from "@/lib/cases.functions";
 import { CheckCircle2, XCircle, RefreshCw, Activity, Database, Cpu, PlayCircle, AlertTriangle } from "lucide-react";
 
-export const Route = createFileRoute("/_app/health")({
+export const Route = createFileRoute("/_authenticated/health")({
   component: HealthPage,
   head: () => ({ meta: [{ title: "System Health · Nyrava" }] }),
 });

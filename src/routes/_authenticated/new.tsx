@@ -8,7 +8,7 @@ import { Upload, FileText, X, KeyRound } from "lucide-react";
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
 
-export const Route = createFileRoute("/_app/new")({
+export const Route = createFileRoute("/_authenticated/new")({
   head: () => ({ meta: [{ title: "New case — Nyrava" }] }),
   component: NewCasePage,
 });
