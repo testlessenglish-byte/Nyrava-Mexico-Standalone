@@ -135,7 +135,16 @@ export function CommandCenterDashboard({
   onOpenChat,
   onOpenVoice,
 }: Props) {
+  const { t } = useI18n();
   const { runs: engineRows, latestByEngine, progress: execProgress, isRunning } = useCaseExecution(caseId);
+  // Jurisdiction-aware radar: hide engines that aren't legally relevant for
+  // this materia (e.g. witness intelligence in an amparo).
+  const caseType = (caseRow?.case_type as string | undefined) ?? null;
+  const visibleNodes = NODES.filter((n) => {
+    const key = stageKeyForEngine(n.labelEngine);
+    return !key || isStageRelevantForCaseType(caseType, key);
+  });
+  const bottomNode = visibleNodes.length > 6 ? visibleNodes[6] : null;
   const [events, setEvents] = useState<EventRow[]>([]);
   const wasRunningRef = useRef(false);
 
@@ -300,7 +309,7 @@ export function CommandCenterDashboard({
       <div className="rounded-2xl border border-cyan-400/15 bg-slate-950/60 p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">Analysis Command Center</h3>
+            <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
             <p className="text-xs text-cyan-300/70">
               Real-time intelligence build · {completedEngines}/{totalEngines} pipeline stages complete
               {agentSummary.loaded > 0 && (
@@ -319,11 +328,12 @@ export function CommandCenterDashboard({
         <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_minmax(260px,360px)_1fr] items-center">
           {/* LEFT chips */}
           <div className="hidden lg:flex flex-col gap-3">
-            {NODES.slice(0, 3).map((n) => (
+            {visibleNodes.slice(0, 3).map((n) => (
               <EngineChip
                 key={n.key}
                 node={n}
                 status={rollupStatus(pickLatest(latestByEngine, n.matches))}
+                caseType={caseType}
                 align="left"
               />
             ))}
@@ -467,11 +477,12 @@ export function CommandCenterDashboard({
 
           {/* RIGHT chips */}
           <div className="hidden lg:flex flex-col gap-3">
-            {NODES.slice(3, 6).map((n) => (
+            {visibleNodes.slice(3, 6).map((n) => (
               <EngineChip
                 key={n.key}
                 node={n}
                 status={rollupStatus(pickLatest(latestByEngine, n.matches))}
+                caseType={caseType}
                 align="right"
               />
             ))}
@@ -479,11 +490,12 @@ export function CommandCenterDashboard({
 
           {/* Mobile chips */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:hidden col-span-full">
-            {NODES.map((n) => (
+            {visibleNodes.map((n) => (
               <EngineChip
                 key={n.key}
                 node={n}
                 status={rollupStatus(pickLatest(latestByEngine, n.matches))}
+                caseType={caseType}
                 align="left"
               />
             ))}
@@ -492,12 +504,15 @@ export function CommandCenterDashboard({
 
         {/* Bottom evidence chip + overall progress */}
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <EngineChip
-            node={NODES[6]}
-            status={rollupStatus(pickLatest(latestByEngine, NODES[6].matches))}
-            align="left"
-            className="sm:w-auto"
-          />
+          {bottomNode && (
+            <EngineChip
+              node={bottomNode}
+              status={rollupStatus(pickLatest(latestByEngine, bottomNode.matches))}
+              align="left"
+              className="sm:w-auto"
+              caseType={caseType}
+            />
+          )}
           <div className="flex-1">
             <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-400">
               <span>Overall Progress</span>
