@@ -960,6 +960,7 @@ function DashboardTab({
   theories: TheorySummary[];
   witnesses: unknown[];
 }) {
+  const { t } = useI18n();
   const sorted = [...findings].sort((a, b) => sevRank(b.severity) - sevRank(a.severity) || b.confidence - a.confidence);
   const top = sorted.slice(0, 5);
   const risks = sorted.filter((f) => f.severity === "critical" || f.severity === "high").slice(0, 8);
@@ -971,15 +972,15 @@ function DashboardTab({
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Total findings" value={findings.length} />
+        <StatTile label={t("dash.tile.totalFindings")} value={findings.length} />
         <StatTile
-          label="Critical / High"
+          label={t("dash.tile.criticalHigh")}
           value={findings.filter((f) => sevRank(f.severity) >= 3).length}
           accent="destructive"
         />
-        <StatTile label="Witnesses profiled" value={witnesses.length} />
+        <StatTile label={t("dash.tile.witnesses")} value={witnesses.length} />
         <StatTile
-          label="Defense opportunities"
+          label={t("dash.tile.defenseOpportunities")}
           value={opportunities.filter((o) => o.side === "defense").length}
           accent="success"
         />
@@ -995,15 +996,15 @@ function DashboardTab({
           const isCrim = ct === "criminal" || ct === "civil_rights";
           return (
             <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-semibold">Case Health</h3>
+              <h3 className="text-sm font-semibold">{t("dash.caseHealth")}</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <BigMetric label="Overall confidence" v={score.overall_confidence} />
-                <BigMetric label="Case quality" v={score.case_quality} />
+                <BigMetric label={t("dash.metric.overallConfidence")} v={score.overall_confidence} />
+                <BigMetric label={t("dash.metric.caseQuality")} v={score.case_quality} />
                 {isCrim ? (
-                  <BigMetric label="Conviction risk" v={score.conviction_risk} inverse />
+                  <BigMetric label={t("dash.metric.convictionRisk")} v={score.conviction_risk} inverse />
                 ) : (
                   <BigMetric
-                    label="Litigation risk"
+                    label={t("dash.metric.litigationRisk")}
                     v={(score as Record<string, unknown>).litigation_risk as number | null}
                     inverse
                   />
@@ -1027,35 +1028,35 @@ function DashboardTab({
           return (
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-sm font-semibold">
-                {isCrim2 ? "Estimación de resultado (Tribunal de Enjuiciamiento)" : "Estimación de resultado"}
+                {isCrim2 ? t("dash.outcome.penal") : t("dash.outcome")}
               </h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-4">
                 {isCrim2 ? (
                   <>
-                    <BigMetric label="Vinculación a proceso %" v={pm.vinculacion_proceso_pct ?? null} />
+                    <BigMetric label={t("dash.metric.vinculacion")} v={pm.vinculacion_proceso_pct ?? null} />
                     <BigMetric
-                      label="Sentencia condenatoria %"
+                      label={t("dash.metric.condenatoria")}
                       v={pm.sentencia_condenatoria_pct ?? trialPrep.jury_conviction_pct}
                     />
                     <BigMetric
-                      label="Sentencia absolutoria %"
+                      label={t("dash.metric.absolutoria")}
                       v={pm.sentencia_absolutoria_pct ?? trialPrep.jury_acquittal_pct}
                     />
                     <BigMetric
-                      label="Procedimiento abreviado %"
+                      label={t("dash.metric.abreviado")}
                       v={pm.procedimiento_abreviado_pct ?? trialPrep.jury_settlement_pct}
                     />
                   </>
 
                 ) : (
                   <>
-                    <BigMetric label="Plaintiff success %" v={cm.plaintiff_success_pct ?? null} />
-                    <BigMetric label="Defense success %" v={cm.defense_success_pct ?? null} />
+                    <BigMetric label={t("dash.metric.actorSuccess")} v={cm.plaintiff_success_pct ?? null} />
+                    <BigMetric label={t("dash.metric.defenseSuccess")} v={cm.defense_success_pct ?? null} />
                     <BigMetric
-                      label="Settlement %"
+                      label={t("dash.metric.settlement")}
                       v={cm.settlement_probability_pct ?? trialPrep.jury_settlement_pct}
                     />
-                    <BigMetric label="Comparative fault %" v={cm.comparative_fault_estimate_pct ?? null} />
+                    <BigMetric label={t("dash.metric.comparativeFault")} v={cm.comparative_fault_estimate_pct ?? null} />
                   </>
                 )}
               </div>
@@ -1063,21 +1064,24 @@ function DashboardTab({
           );
         })()}
 
-      <DashboardList title="Most important findings" items={top} empty="No findings yet — run analyzers and agents." />
-      <DashboardList title="Highest risk issues" items={risks} empty="No critical/high risks identified." />
-      <DashboardList title="Strongest defense levers" items={strengths} empty="No strengths surfaced yet." />
-      <DashboardList title="Missing evidence / discovery gaps" items={weak} empty="No gaps identified." />
+      <DashboardList title={t("dash.list.top")} items={top} empty={t("dash.list.top.empty")} />
+      <DashboardList title={t("dash.list.risks")} items={risks} empty={t("dash.list.risks.empty")} />
+      <DashboardList title={t("dash.list.strengths")} items={strengths} empty={t("dash.list.strengths.empty")} />
+      <DashboardList title={t("dash.list.gaps")} items={weak} empty={t("dash.list.gaps.empty")} />
 
       {theories.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold">Competing theories</h3>
+          <h3 className="text-sm font-semibold">{t("dash.theories")}</h3>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {theories.map((t) => (
-              <div key={t.id} className="rounded-lg border border-border p-3">
-                <div className="text-xs font-semibold uppercase tracking-wider text-accent">{t.theory_type}</div>
-                <p className="mt-1 text-sm text-foreground/90">{t.narrative}</p>
+            {theories.map((th) => (
+              <div key={th.id} className="rounded-lg border border-border p-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-accent">{th.theory_type}</div>
+                <p className="mt-1 text-sm text-foreground/90">{th.narrative}</p>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  Confidence {Math.round((t.confidence ?? 0) * 100)}% · Risk: {t.risk ?? "—"}
+                  {t("dash.theories.meta", {
+                    pct: Math.round((th.confidence ?? 0) * 100),
+                    risk: th.risk ?? "—",
+                  })}
                 </div>
               </div>
             ))}
