@@ -15,7 +15,6 @@
   "common.language.es": "Español",
   "common.language.en": "English",
   "common.tagline": "Legal Intelligence OS",
-
   "nav.platform": "PLATFORM",
   "nav.modules": "MODULES",
   "nav.security": "SECURITY",
@@ -23,7 +22,6 @@
   "nav.signIn": "SIGN IN",
   "nav.requestAccess": "REQUEST ACCESS",
   "nav.openWorkspace": "OPEN WORKSPACE",
-
   "sidebar.dashboard": "Dashboard",
   "sidebar.matters": "Matters",
   "sidebar.people": "People",
@@ -32,7 +30,6 @@
   "sidebar.organization": "Organization",
   "sidebar.secureSession": "Secure session",
   "sidebar.signOut": "Sign out",
-
   "landing.title.badge": "México Edition · Closed program",
   "landing.title.line1": "Legal intelligence",
   "landing.title.line2": "for the Mexican legal system.",
@@ -56,7 +53,6 @@
   "landing.cta.big.line1": "The operating system for",
   "landing.cta.big.line2": "legal professionals in Mexico.",
   "landing.cta.big.body": "Not a chat assistant. A professional-grade legal intelligence platform for firms, litigators and institutions.",
-
   "module.legal.name": "Legal Intelligence",
   "module.legal.desc": "Statutory analysis, SCJN jurisprudencia, applicable authority.",
   "module.case.name": "Case Intelligence",
@@ -73,7 +69,6 @@
   "module.contract.desc": "Review, clauses, deadlines and compliance.",
   "module.research.name": "Research",
   "module.research.desc": "Federal and state law, SCJN, Judiciary, DOF, procedural codes.",
-
   "source.federalLegislation": "Federal Legislation",
   "source.stateLegislation": "State Legislation",
   "source.scjn": "SCJN · Jurisprudencia",
@@ -83,7 +78,6 @@
   "source.constReforms": "Constitutional Reforms",
   "source.dof": "Diario Oficial de la Federación",
   "source.procCodes": "Procedural Codes",
-
   "platform.head.title": "Platform · Nyrava Intelligence México",
   "platform.head.desc": "Legal intelligence architecture: document processing, entity extraction, relationships and per-matter workspace.",
   "platform.tag": "Architecture",
@@ -102,14 +96,12 @@
   "platform.step.intel.desc": "Issues, contradictions, arguments, risks, timeline.",
   "platform.step.product.name": "Work Product",
   "platform.step.product.desc": "Memoranda, briefs, summaries, reports and attorney work product.",
-
   "modules.head.title": "Intelligence Modules · Nyrava México",
   "modules.head.desc": "Legal, Case, Evidence, Witness, Timeline, Litigation, Contract and Research — the eight modules of Nyrava Intelligence México.",
   "modules.tag": "Modules",
   "modules.title.line1": "Eight modules.",
   "modules.title.line2": " One model.",
   "modules.body": "Each module works independently and contributes to the matter's global intelligence model.",
-
   "modules.legal.features": "Statutory analysis|Jurisprudencia research|Legal reasoning|Citation recommendations|Applicable authority analysis",
   "modules.case.features": "Case summaries|Issue identification|Fact extraction|Relationship mapping|Case organization",
   "modules.evidence.features": "Classification|Evidence relationships|Missing evidence detection|Contradictory evidence|Probative strength analysis",
@@ -118,7 +110,6 @@
   "modules.litigation.features": "Procedural issues|Strategic observations|Potential arguments|Risk analysis|Strengths and weaknesses",
   "modules.contract.features": "Contract review|Clause extraction|Risk identification|Deadline tracking|Compliance review",
   "modules.research.features": "Federal Legislation|State Legislation|SCJN|Federal and State Judiciary|DOF and procedural codes",
-
   "security.head.title": "Security · Nyrava Intelligence México",
   "security.head.desc": "Government-grade security: encryption, per-tenant isolation, RLS, auditing and confidentiality for Mexican law firms.",
   "security.tag": "Security",
@@ -137,7 +128,6 @@
   "security.pillar.confidentiality.desc": "Compliance with attorney-client privilege and LFPDPPP data protection.",
   "security.pillar.audit.name": "Continuous auditing",
   "security.pillar.audit.desc": "Immutable activity log and periodic reviews.",
-
   "contact.head.title": "Contact · Nyrava Intelligence México",
   "contact.head.desc": "Contact the Nyrava Intelligence México team — closed program for law firms and legal institutions.",
   "contact.tag": "Contact",
@@ -147,7 +137,6 @@
   "contact.email": "Email",
   "contact.location": "Location",
   "contact.location.value": "Mexico City · CDMX",
-
   "footer.about": "Legal Intelligence Platform for the Mexican legal system. A unified environment to organize, analyze and develop legal matters end to end.",
   "footer.version": "México Edition · v0.1",
   "footer.section.platform": "Platform",
@@ -160,7 +149,6 @@
   "footer.link.contact": "Contact",
   "footer.copyright": "All rights reserved.",
   "footer.location": "CDMX · MEXICO",
-
   "auth.head.title": "Sign in · Nyrava Intelligence México",
   "auth.head.desc": "Access Nyrava Intelligence México — Legal Intelligence OS for the Mexican legal system.",
   "auth.signIn.title": "Sign in",
@@ -177,7 +165,6 @@
   "auth.submit.signUp": "Create account",
   "auth.toggle.toSignUp": "No account? Sign up",
   "auth.toggle.toSignIn": "Already have an account? Sign in",
-
   "onboarding.head.title": "Set up organization · Nyrava México",
   "onboarding.title": "Set up your organization",
   "onboarding.body": "Each firm or practice is an isolated space with its own matters, people and records.",
@@ -185,7 +172,6 @@
   "onboarding.field.placeholder": "e.g. García & Asociados",
   "onboarding.submit": "Create organization",
   "onboarding.error.notAuth": "Not authenticated",
-
   "dashboard.head.title": "Dashboard · Nyrava México",
   "dashboard.title": "Intelligence dashboard",
   "dashboard.stat.total": "Total matters",
@@ -196,7 +182,6 @@
   "dashboard.recent.empty": "No matters yet.",
   "dashboard.recent.createFirst": "Create the first matter",
   "dashboard.recent.noClient": "no client",
-
   "matters.head.title": "Matters · Nyrava México",
   "matters.title": "Legal matters",
   "matters.subtitle": "General matter-management system — litigation, contracts, advisory, compliance and more.",
@@ -209,7 +194,6 @@
   "matters.field.jurisdiction.placeholder": "CDMX, Federal, Jalisco…",
   "matters.field.status": "Status",
   "matters.empty": "No matters yet.",
-
   "matter.head.title": "Matter · Nyrava México",
   "matter.back": "Back to matters",
   "matter.default.title": "Matter",
@@ -232,7 +216,6 @@
   "matter.row.description": "Description",
   "matter.noDescription": "No description.",
   "matter.tab.placeholder": "This module will be available in the next phase. Schema and permissions are already in place.",
-
   "matter.type.litigation": "Litigation",
   "matter.type.criminal": "Criminal",
   "matter.type.civil": "Civil",
@@ -248,18 +231,57 @@
   "matter.type.advisory": "Advisory",
   "matter.type.compliance": "Compliance",
   "matter.type.transaction": "Transactional",
-
   "matter.status.intake": "Intake",
   "matter.status.active": "Active",
   "matter.status.on_hold": "On hold",
   "matter.status.closed": "Closed",
   "matter.status.archived": "Archived",
-
   "error.404.title": "Page not found",
   "error.404.body": "The page you're looking for doesn't exist or has been moved.",
   "error.404.home": "Go home",
   "error.generic.title": "This page didn't load",
   "error.generic.body": "Something went wrong on our end. You can try refreshing or head back home.",
   "error.retry": "Try again",
-  "error.home": "Go home"
+  "error.home": "Go home",
+  "docs.title": "Matter documents",
+  "docs.subtitle": "Upload files: they are processed, classified, and turned into knowledge.",
+  "docs.upload": "Upload files",
+  "docs.uploading": "Uploading…",
+  "docs.empty": "No documents yet. Upload the first one to start the pipeline.",
+  "docs.retry": "Retry",
+  "docs.col.title": "Title",
+  "docs.col.kind": "Kind",
+  "docs.col.status": "Status",
+  "docs.col.progress": "Progress",
+  "docs.col.actions": "Actions",
+  "intel.title": "Nyrava Intelligence",
+  "intel.subtitle": "Modular engines that turn documents into structured matter knowledge.",
+  "intel.engine": "Engine",
+  "intel.run": "Run",
+  "intel.kb.title": "Matter knowledge base",
+  "intel.kb.items": "items",
+  "intel.kb.relations": "relations",
+  "intel.kb.empty": "No knowledge yet. Run an engine to populate the base.",
+  "intel.graph.title": "Relationships (graph)",
+  "intel.runs.title": "Run history",
+  "intel.runs.empty": "No runs recorded.",
+  "engine.case": "Case Intelligence",
+  "engine.case.desc": "Summary, facts, parties, dates, timeline, and issues.",
+  "engine.legal": "Legal Intelligence",
+  "engine.legal.desc": "Legal topics and relevant authorities (no fabrication).",
+  "engine.evidence": "Evidence Intelligence",
+  "engine.evidence.desc": "Evidence, contradictions, and missing-evidence detection.",
+  "kind.summary": "Summary",
+  "kind.fact": "Facts",
+  "kind.issue": "Legal issues",
+  "kind.party": "Parties",
+  "kind.entity": "Entities",
+  "kind.date": "Dates",
+  "kind.timeline_event": "Timeline",
+  "kind.evidence": "Evidence",
+  "kind.authority": "Authorities",
+  "kind.contradiction": "Contradictions",
+  "kind.recommendation": "Recommendations",
+  "kind.citation": "Citations",
+  "kind.risk": "Risks"
 }
