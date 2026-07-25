@@ -1,0 +1,1 @@
+ALTER TABLE public.agent_findings ENABLE ROW LEVEL SECURITY;
