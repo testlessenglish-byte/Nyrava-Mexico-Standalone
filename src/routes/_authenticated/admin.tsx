@@ -145,6 +145,12 @@ function AdminDashboard() {
           >
             <FlaskConical className="h-3.5 w-3.5" /> Demo Cases →
           </Link>
+          <Link
+            to="/admin/legal-coverage"
+            className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary hover:bg-primary/20 flex items-center gap-1.5"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" /> Cobertura Legal MX →
+          </Link>
         </div>
       </div>
 
