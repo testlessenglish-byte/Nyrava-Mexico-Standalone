@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo } from "react";
 import { listCases } from "@/lib/cases.functions";
 import { PipelineStatusGrid } from "@/components/PipelineStatusGrid";
+import { useI18n } from "@/i18n";
 import {
   FileText,
   FileSearch,
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 const RUNNING = new Set(["extracting", "analyzing", "agents_running", "scoring", "reporting", "intelligence_running"]);
 
 function DashboardPage() {
+  const { t } = useI18n();
   const fetchCases = useServerFn(listCases);
   const { data, isLoading } = useQuery({
     queryKey: ["cases"],
@@ -40,18 +42,10 @@ function DashboardPage() {
   const featured = cases.find((c) => c.status === "complete") ?? cases[0];
   const activeCount = cases.filter((c) => RUNNING.has(c.status)).length;
   const completeCount = cases.filter((c) => c.status === "complete").length;
-  // Previously this counted FAILED cases and mislabeled that as
-  // "High-Priority Findings" — an entirely different concept. The real
-  // number is the sum of critical/high case_findings across all cases,
-  // now joined in by listCases().
   const highPriorityCount = useMemo(
     () => cases.reduce((sum, c) => sum + ((c as { high_priority_findings?: number }).high_priority_findings ?? 0), 0),
     [cases],
   );
-  // Aggregate portfolio totals for the Intelligence Summary row. These
-  // were previously hardcoded to the literal string "—" regardless of
-  // how many cases had actually finished analysis — now summed from the
-  // same joined data every other widget reads.
   const witnessTotal = useMemo(
     () => cases.reduce((sum, c) => sum + ((c as { witness_count?: number }).witness_count ?? 0), 0),
     [cases],
@@ -67,81 +61,95 @@ function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 md:px-8 md:py-6">
-      {/* KPI Row */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiChip icon={<FileText className="h-4 w-4" />} value={cases.length} label="Active Cases" tone="primary" />
+        <KpiChip
+          icon={<FileText className="h-4 w-4" />}
+          value={cases.length}
+          label={t("dashboard.kpi.activeCases")}
+          tone="primary"
+        />
         <KpiChip
           icon={<Activity className="h-4 w-4" />}
           value={completeCount}
-          label="Analyses Complete"
+          label={t("dashboard.kpi.analysesComplete")}
           tone="success"
         />
         <KpiChip
           icon={<AlertTriangle className="h-4 w-4" />}
           value={highPriorityCount}
-          label="High-Priority Findings"
+          label={t("dashboard.kpi.highPriorityFindings")}
           tone="danger"
         />
       </div>
 
-      {/* Featured Case */}
       {isLoading ? (
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">
-          Loading your cases…
+          {t("dashboard.loadingCases")}
         </div>
       ) : featured ? (
         <FeaturedCaseCard caseRow={featured} />
       ) : (
         <div className="rounded-xl border border-dashed border-border bg-card/60 p-10 text-center">
           <Sparkles className="mx-auto h-10 w-10 text-primary" />
-          <h2 className="mt-4 text-lg font-semibold">Welcome to Nyrava</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Upload your first case to unlock the intelligence pipeline.
-          </p>
+          <h2 className="mt-4 text-lg font-semibold">{t("dashboard.welcome.title")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("dashboard.welcome.subtitle")}</p>
           <Link
             to="/new"
             className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            <Plus className="h-4 w-4" /> Analyze New Case
+            <Plus className="h-4 w-4" /> {t("dashboard.welcome.cta")}
           </Link>
         </div>
       )}
 
-      {/* Intelligence Summary */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <StatTile icon={<FileText className="h-5 w-5" />} value={cases.length} label="Cases" tone="primary" />
-        <StatTile icon={<FileSearch className="h-5 w-5" />} value={completeCount} label="Analyzed" tone="success" />
-        <StatTile icon={<Users className="h-5 w-5" />} value={witnessTotal} label="Witnesses" tone="accent" />
+        <StatTile
+          icon={<FileText className="h-5 w-5" />}
+          value={cases.length}
+          label={t("dashboard.stat.cases")}
+          tone="primary"
+        />
+        <StatTile
+          icon={<FileSearch className="h-5 w-5" />}
+          value={completeCount}
+          label={t("dashboard.stat.analyzed")}
+          tone="success"
+        />
+        <StatTile
+          icon={<Users className="h-5 w-5" />}
+          value={witnessTotal}
+          label={t("dashboard.stat.witnesses")}
+          tone="accent"
+        />
         <StatTile
           icon={<AlertTriangle className="h-5 w-5" />}
           value={contradictionTotal}
-          label="Contradictions"
+          label={t("dashboard.stat.contradictions")}
           tone="warning"
         />
         <StatTile
           icon={<HelpCircle className="h-5 w-5" />}
           value={discoveryGapTotal}
-          label="Discovery Gaps"
+          label={t("dashboard.stat.discoveryGaps")}
           tone="accent"
         />
       </div>
 
-      {/* Command Center + Talk + Activity */}
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-5">
           {featured ? (
             <div className="rounded-xl border border-border bg-card/60 p-5">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h2 className="text-base font-semibold">Analysis Command Center</h2>
-                  <p className="text-xs text-primary">Real-time intelligence build</p>
+                  <h2 className="text-base font-semibold">{t("dashboard.commandCenter.title")}</h2>
+                  <p className="text-xs text-primary">{t("dashboard.commandCenter.subtitle")}</p>
                 </div>
                 <Link
                   to="/cases/$caseId"
                   params={{ caseId: featured.id }}
                   className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                 >
-                  Open case <ChevronRight className="h-3 w-3" />
+                  {t("dashboard.commandCenter.openCase")} <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -159,10 +167,8 @@ function DashboardPage() {
                   <MessageSquare className="h-5 w-5" />
                 </span>
                 <div>
-                  <div className="text-sm font-semibold text-primary">TALK TO YOUR CASES</div>
-                  <div className="text-xs text-muted-foreground">
-                    Ask questions. Get Nyrava Intelligence answers with evidence citations.
-                  </div>
+                  <div className="text-sm font-semibold text-primary">{t("dashboard.talk.title")}</div>
+                  <div className="text-xs text-muted-foreground">{t("dashboard.talk.subtitle")}</div>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-primary" />
@@ -173,13 +179,15 @@ function DashboardPage() {
         <div className="space-y-5">
           <div className="rounded-xl border border-border bg-card/60 p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent Activity</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("dashboard.recentActivity.title")}
+              </h2>
               <Link to="/cases" className="text-xs text-primary hover:underline">
-                View all
+                {t("common.viewAll")}
               </Link>
             </div>
             {cases.length === 0 ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">Activity will appear here as cases run.</p>
+              <p className="py-6 text-center text-xs text-muted-foreground">{t("dashboard.recentActivity.empty")}</p>
             ) : (
               <ul className="space-y-3">
                 {cases.slice(0, 5).map((c) => (
@@ -193,7 +201,7 @@ function DashboardPage() {
                       <span className="ml-2 text-muted-foreground">{c.status_message ?? c.status}</span>
                     </Link>
                     <span className="shrink-0 text-muted-foreground">
-                      <Clock className="inline h-3 w-3" /> {timeAgo(c.completed_at ?? c.created_at)}
+                      <Clock className="inline h-3 w-3" /> {timeAgo(c.completed_at ?? c.created_at, t)}
                     </span>
                   </li>
                 ))}
@@ -207,11 +215,11 @@ function DashboardPage() {
                 <AlertTriangle className="h-5 w-5 text-warning" />
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-bold uppercase tracking-wider text-warning">
-                    {activeCount} case{activeCount === 1 ? "" : "s"} processing
+                    {t(activeCount === 1 ? "dashboard.processing.singular" : "dashboard.processing.plural", {
+                      count: activeCount,
+                    })}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Intelligence pipeline is running. Results unlock as each stage completes.
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t("dashboard.processing.subtitle")}</p>
                 </div>
               </div>
             </div>
@@ -219,12 +227,11 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <QuickAction to="/new" icon={<Plus className="h-5 w-5" />} label="New Case" />
-        <QuickAction to="/reports" icon={<FileText className="h-5 w-5" />} label="Reports" />
-        <QuickAction to="/strategy" icon={<Target className="h-5 w-5" />} label="Strategy" />
-        <QuickAction to="/alerts" icon={<Bell className="h-5 w-5" />} label="Alerts" />
+        <QuickAction to="/new" icon={<Plus className="h-5 w-5" />} label={t("dashboard.quickActions.newCase")} />
+        <QuickAction to="/reports" icon={<FileText className="h-5 w-5" />} label={t("dashboard.quickActions.reports")} />
+        <QuickAction to="/strategy" icon={<Target className="h-5 w-5" />} label={t("dashboard.quickActions.strategy")} />
+        <QuickAction to="/alerts" icon={<Bell className="h-5 w-5" />} label={t("dashboard.quickActions.alerts")} />
       </div>
     </div>
   );
@@ -307,6 +314,7 @@ function QuickAction({
 }
 
 function FeaturedCaseCard({ caseRow }: { caseRow: NonNullable<ReturnType<typeof useMemoFeatured>> }) {
+  const { t } = useI18n();
   const score = (caseRow as { score?: number | null }).score ?? null;
   const isComplete = caseRow.status === "complete";
   const tone =
@@ -321,20 +329,22 @@ function FeaturedCaseCard({ caseRow }: { caseRow: NonNullable<ReturnType<typeof 
     <div className="rounded-xl border border-border bg-card/60 p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Featured Case</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("dashboard.featured.title")}
+          </div>
           <h2 className="mt-1 truncate text-xl font-semibold md:text-2xl">{caseRow.name}</h2>
           <div className="mt-1 text-xs text-muted-foreground">{caseRow.status_message ?? caseRow.status}</div>
         </div>
         <div className="flex items-center gap-6">
           <div className="text-center">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Case Score</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              {t("dashboard.featured.score")}
+            </div>
             {!isComplete ? (
-              // Never show a bare "—" while the pipeline is still running —
-              // that reads as "nothing here" rather than "still working".
-              <div className="text-sm font-medium text-muted-foreground">Calculating…</div>
+              <div className="text-sm font-medium text-muted-foreground">{t("dashboard.featured.calculating")}</div>
             ) : (
               <>
-                <div className={`text-4xl font-bold ${tone}`}>{score ?? "—"}</div>
+                <div className={`text-4xl font-bold ${tone}`}>{score ?? t("common.dash")}</div>
                 <div className="text-[10px] text-muted-foreground">/ 100</div>
               </>
             )}
@@ -344,7 +354,7 @@ function FeaturedCaseCard({ caseRow }: { caseRow: NonNullable<ReturnType<typeof 
             params={{ caseId: caseRow.id }}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            View Case <ChevronRight className="h-4 w-4" />
+            {t("dashboard.featured.viewCase")} <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
       </div>
@@ -352,7 +362,6 @@ function FeaturedCaseCard({ caseRow }: { caseRow: NonNullable<ReturnType<typeof 
   );
 }
 
-// Type helper for FeaturedCaseCard prop inference
 function useMemoFeatured() {
   return null as unknown as {
     id: string;
@@ -363,13 +372,13 @@ function useMemoFeatured() {
   };
 }
 
-function timeAgo(iso: string | null) {
-  if (!iso) return "—";
+function timeAgo(iso: string | null, t: (key: string, params?: Record<string, string | number>) => string) {
+  if (!iso) return t("common.dash");
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return t("dashboard.timeAgo.justNow");
+  if (m < 60) return t("dashboard.timeAgo.minutes", { m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t("dashboard.timeAgo.hours", { h });
+  return t("dashboard.timeAgo.days", { d: Math.floor(h / 24) });
 }
