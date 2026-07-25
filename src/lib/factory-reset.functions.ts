@@ -149,12 +149,5 @@ export const factoryResetCaseData = createServerFn({ method: "POST" })
     );
     if (error) throw new Error(`[FactoryReset] database reset failed: ${error.message}`);
 
-    // 3) Reclaim space / refresh planner stats so search & list queries are
-    //    fast again on the now-empty tables.
-    await supabaseAdmin.rpc("admin_factory_reset_case_data" as any, {} as any).then(
-      () => undefined,
-      () => undefined,
-    );
-
     return { deletedRows: (deleted ?? {}) as Record<string, number>, deletedFiles: storage };
   });
