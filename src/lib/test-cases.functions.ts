@@ -48,7 +48,8 @@ type Generated = {
   legal_framework: string[];
 };
 
-const AREA_TO_MATTER_TYPE: Record<(typeof AREAS)[number], string> = {
+const AREA_TO_MATTER_TYPE: Record<(typeof AREAS)[number],
+  "criminal"|"constitutional"|"civil"|"labor"|"family"|"commercial"|"tax"|"administrative"> = {
   penal: "criminal",
   amparo: "constitutional",
   civil: "civil",
