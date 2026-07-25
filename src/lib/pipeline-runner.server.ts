@@ -220,6 +220,82 @@ async function _runPipelineForCase(
     agents: { run: () => pipe.runAgents(baseArgs), stage: "agents" },
     analyzers: { run: () => pipe.runAnalyzers(baseArgs), stage: "analyzers" },
     scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
+    // Inteligencia de Jurisdicción — deterministic resolution of país/estado/
+    // fuero/materia and the codes that govern the matter.
+    jurisdiction_intel: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
+          const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
+          const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+          return {
+            value,
+            stats: {
+              generated: 1,
+              accepted: 1,
+              rows_written: 1,
+              db_write_confirmed: true,
+              meta: {
+                source: "deterministic",
+                materia: value.materia,
+                fuero: value.fuero,
+                state: value.state?.name ?? null,
+                state_source: value.state_source,
+              },
+            },
+          };
+        }),
+    },
+    // Análisis de Cumplimiento Procesal — materia checklist over the corpus.
+    procedural_compliance: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "procedural_compliance" }, async () => {
+          const { runProceduralCompliance } = await import("@/lib/intelligence/procedural-compliance.server");
+          const value = await runProceduralCompliance({ db: supabase, caseId, userId });
+          return {
+            value,
+            stats: {
+              generated: value.evaluated,
+              accepted: value.satisfied,
+              rejected: value.evaluated - value.satisfied,
+              rows_written: value.findings_written,
+              db_write_confirmed: true,
+              meta: {
+                source: "deterministic",
+                materia: value.materia,
+                score: value.score,
+                missing_required: value.missing_required,
+              },
+            },
+          };
+        }),
+    },
+    // Control de Calidad Jurídica — terminal gate before the report. Throws
+    // when a blocking violation survives remediation, which fails this stage
+    // and blocks `report` (its dependent).
+    legal_qa: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
+          const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+          const value = await runLegalQaGate({ db: supabase, caseId });
+          return {
+            value,
+            stats: {
+              generated: value.checked_fields,
+              accepted: value.checked_fields - value.warnings.length,
+              rejected: value.warnings.length,
+              rows_written: value.remediated_fields,
+              db_write_confirmed: true,
+              meta: {
+                source: "deterministic",
+                materia: value.materia,
+                locale: value.locale,
+                remediated_fields: value.remediated_fields,
+                warnings: value.warnings.length,
+              },
+            },
+          };
+        }),
+    },
     report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {
