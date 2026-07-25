@@ -174,8 +174,10 @@ const VALID_TABS = new Set<Tab>([
 ]);
 
 function Workspace() {
+  const { t } = useI18n();
   const { caseId } = Route.useParams();
   const qc = useQueryClient();
+
   const [tab, setTab] = useState<Tab>(() => {
     // One-shot handoff from Talk To Cases: after pushing a chat answer into
     // the report, it stashes the tab to land on (e.g. "report") here rather
