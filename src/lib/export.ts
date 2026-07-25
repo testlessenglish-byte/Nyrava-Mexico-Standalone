@@ -1,0 +1,4433 @@
+// Client-side download helpers for case exports.
+//
+// `downloadPdf` produces an attorney-grade litigation work product: cover,
+// executive summary, deterministic scorecard, evidence map, contradictions,
+// constitutional analysis, witness intelligence, theories, strategy, audit
+// trail, and source appendix. Raw JSON is never exposed to the user — every
+// internal structure is rendered as readable prose, tables, or callouts.
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import {
+  Document,
+  Packer,
+  Paragraph,
+  HeadingLevel,
+  TextRun,
+  AlignmentType,
+  BorderStyle,
+  ShadingType,
+  PageBreak,
+} from "docx";
+import { classifyClaim, CLAIM_LABEL } from "@/lib/intelligence/claim-class";
+import {
+  paritySignature,
+  getEssState,
+  getEnginesSummary,
+  getReportMode,
+  getFindingCounters,
+  getScores,
+  getAgentSummary,
+  validateAgentSummary,
+  type ReportMode,
+} from "@/lib/intelligence/canonical";
+import { getApplicableSections, normalizePracticeArea } from "@/lib/intelligence/practice-areas";
+// Same derivation module the in-app Report tab uses
+// (src/components/LitigationImpactDashboard.tsx) — single source of truth
+// so the PDF/DOCX export and the live report can never disagree about
+// what a card says or which cards exist for a given case.
+import { buildLitigationImpactDashboard, type ImpactCard } from "@/lib/intelligence/litigation-impact";
+
+// Report Engine v1.0 — frozen release identifier surfaced on every PDF footer.
+// The structure, section order, and scoring formulas are locked; only bug
+// fixes, factual accuracy, citation, and formatting improvements are allowed.
+// See docs/RELEASE-REPORT-ENGINE-v1.0.md and docs/FREEZE.md.
+export const NYRAVA_REPORT_VERSION = "1.0.0";
+
+// Matches the cyan used in the site's icon/wordmark lockup (lovable.dev
+// homepage header), sampled directly from the brand mark. Used only for
+// the logo mark and its subtitle so the report opens on the same brand
+// identity as the site, without re-theming the rest of the report's
+// established navy/gold system.
+const BRAND_CYAN: [number, number, number] = [43, 191, 199];
+
+// Legal-mode flag controls whether the export labels itself "Attorney Work
+// Product". When false (default), the report renders as a neutral analytical
+// document with no privileged-work-product framing.
+const LEGAL_MODE: boolean =
+  ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_LEGAL_MODE ?? "false").toLowerCase() ===
+  "true";
+
+// PDF-safe text scrubber. jsPDF's bundled Helvetica is a WinAnsi (Latin-1)
+// font; characters like Σ, ×, ≥, → render as garbage glyphs (e.g. "£("). We
+// normalise to ASCII equivalents so reports never display corrupted math.
+function pdfSafe(s: string): string {
+  if (!s) return s;
+  return (
+    s
+      .replace(/Σ/g, "sum")
+      .replace(/×/g, "x")
+      .replace(/÷/g, "/")
+      .replace(/≥/g, ">=")
+      .replace(/≤/g, "<=")
+      .replace(/≠/g, "!=")
+      .replace(/→/g, "->")
+      .replace(/←/g, "<-")
+      .replace(/–|—/g, "-")
+      .replace(/“|”/g, '"')
+      .replace(/‘|’/g, "'")
+      .replace(/•/g, "*")
+      .replace(/·/g, "-")
+      // Normalize every other Unicode hyphen/dash/minus variant (hyphen
+      // U+2010, non-breaking hyphen U+2011, figure dash U+2012, horizontal
+      // bar U+2015, minus sign U+2212, etc.) to a plain ASCII hyphen BEFORE
+      // the catch-all strip below deletes them. These aren't covered by the
+      // em/en-dash replace above, so LLM prose using them for compound
+      // terms — "chain‑of‑custody", "body‑camera", "three‑minute" — had the
+      // separator character deleted outright with no replacement, silently
+      // gluing the words into "chainofcustody", "bodycamera", "threeminute"
+      // throughout the report.
+      .replace(/[\u2010-\u2015\u2212]/g, "-")
+      // Drop any remaining non-Latin1 codepoints so jsPDF never emits the
+      // currency-glyph fallback that produced the "£(" bug.
+      .replace(/[^\x00-\xFF]/g, "")
+  );
+}
+
+// Map a finding's text + evidence presence into the canonical PDF badge.
+function classifyFindingForPdf(text: string, hasEvidence: boolean): string {
+  const cls = classifyClaim(text, hasEvidence ? "fact" : null);
+  return CLAIM_LABEL[cls];
+}
+
+// Defensive scrubber for malformed inline citations in upstream free-text
+// prose (e.g. r.score_breakdown, r.executive_summary). A valid citation is
+// always "[DOC <number> p.<number>]". Some report-writer passes have been
+// observed to interpolate a qualitative label (e.g. "well-supported") into
+// the document-id slot instead of an actual doc number, producing text like
+// "...an appeal risk of well-supported [DOC well-supported p.2]." instead of
+// "...an appeal risk of well-supported [DOC 1 p.2]." This is a pipeline bug
+// upstream of export.ts (wherever that prose string is generated), not an
+// export-layer bug — but export.ts is the last place that can guarantee a
+// broken citation never reaches a printed PDF, so it is scrubbed here as a
+// safety net. This is generic pattern-matching (any "[DOC <non-numeric>...]"
+// citation), not hardcoded to this case or this specific label.
+function scrubMalformedCitations(s: string): string {
+  if (!s) return s;
+  return (
+    s
+      // Drop only the invalid bracket itself — a citation whose "doc id" slot
+      // does not start with a digit (e.g. "[DOC well-supported p.2]"). The
+      // word(s) preceding the bracket are left untouched, since they are the
+      // actual intended content (e.g. "well-supported" describing the appeal
+      // risk) — only the bogus citation attached to them is malformed.
+      .replace(/\s*\[DOC\s+(?!\d)[^\]]*\]/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .replace(/\s+([.,;:])/g, "$1")
+      .trim()
+  );
+}
+
+// ===== Citation presentation =========================================
+//
+// Report prose (executive summary, facts, risk analysis, etc.) is generated
+// with inline pinpoint citations like "[DOC 6 p.2; DOC 52 p.1]" so the
+// hallucination-verification pass upstream can check every claim against a
+// real source. That format is exactly right for verification and exactly
+// wrong for a document an attorney is meant to read — "DOC 6" means nothing
+// to them, and a citation bracket every sentence breaks the memorandum voice
+// the rest of the report is trying for. This section resolves those
+// brackets against the actual document titles and renders them either as
+// numbered footnotes (attorney mode, default) collected into an "Evidence
+// Sources" appendix, or as inline human-readable citations naming the real
+// document and page (audit mode) — never as raw "DOC N".
+
+export type CitationMode = "attorney" | "audit";
+
+type CitationFootnote = { n: number; label: string };
+
+// Ambient per-export state. Export functions are synchronous, single-user,
+// and never re-entrant/interleaved (downloadPdf/downloadDocx each run start
+// to finish before another export can begin), so a module-level context —
+// the same ambient pattern already used for AI user scope elsewhere in this
+// codebase — is safe here and avoids threading a context object through
+// every one of the ~30 render functions that touch report prose.
+let _citationMode: CitationMode = "attorney";
+let _docTitleMap: Map<number, string> = new Map();
+let _docTitleByUuid: Map<string, string> = new Map();
+let _footnotes: CitationFootnote[] = [];
+let _footnoteByKey: Map<string, number> = new Map();
+
+/** "04_Search_Warrant_Affidavit.txt" -> "Search Warrant Affidavit" */
+function humanizeDocTitle(filename: string): string {
+  const base = filename.replace(/\.[a-z0-9]{1,6}$/i, "");
+  const stripped = base.replace(/^\d+[_\-\s]*/, "");
+  const words = (stripped || base).replace(/[_\-]+/g, " ").trim();
+  return words || filename;
+}
+
+/** DOC N (1-indexed, same ordering used everywhere upstream: documents sorted by created_at) -> human title. */
+function buildDocTitleMap(data: CaseExportData): Map<number, string> {
+  const map = new Map<number, string>();
+  data.documents.forEach((d, i) => {
+    const name = asStr(d.filename);
+    if (name) map.set(i + 1, humanizeDocTitle(name));
+  });
+  return map;
+}
+
+// Findings/evidence-intelligence rows carry a raw `document_id`/`doc_id` —
+// the documents table's UUID primary key — as their pointer back to the
+// source file, not the sequential "DOC N" index used in generated prose.
+// Several render call sites fell back to printing that UUID directly (e.g.
+// "Evidence: ... — a46fe542-88bf-4607-8d8b-d3e043aefded") whenever a
+// human-readable filename wasn't already present on the row. Build the
+// UUID -> title map once here so every such fallback resolves to the real
+// document name instead of an opaque internal id.
+function buildDocTitleByUuid(data: CaseExportData): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const d of data.documents) {
+    const id = asStr(d.id);
+    const name = asStr(d.filename);
+    if (id && name) map.set(id, humanizeDocTitle(name));
+  }
+  return map;
+}
+
+/** Call once per export, before any section availability check or render runs. */
+function initCitationContext(data: CaseExportData, mode: CitationMode): void {
+  _citationMode = mode;
+  _docTitleMap = buildDocTitleMap(data);
+  _docTitleByUuid = buildDocTitleByUuid(data);
+  _footnotes = [];
+  _footnoteByKey = new Map();
+}
+
+function resolveDocTitle(docN: unknown): string | null {
+  const n = Number(docN);
+  if (!Number.isFinite(n)) return null;
+  return _docTitleMap.get(n) ?? null;
+}
+
+/** Resolves a raw documents-table UUID to its human title. Never returns the UUID itself. */
+function resolveDocTitleByUuid(id: unknown): string | null {
+  const s = asStr(id);
+  if (!s) return null;
+  return _docTitleByUuid.get(s) ?? null;
+}
+
+/** Human label for a single (doc_n, page) pair used by structured citation objects — replaces raw "DOC N p.M". */
+function citeLabel(docN: unknown, page: unknown): string {
+  const title = resolveDocTitle(docN);
+  const pg = asStr(page);
+  const name = title ?? `Document ${asStr(docN)}`;
+  return pg ? `${name}, p.${pg}` : name;
+}
+
+// Matches a full inline citation bracket: "[DOC 6 p.2; DOC 52 p.1]",
+// "[DOC 17 p.1, DOC 19 p.1]", or a page-less "[DOC 5]" — both `,` and `;`
+// separators appear in generated prose. Also tolerates a leaked
+// "[DOC 6 p.1: \"verbatim quote\"]" variant — the model is instructed not to
+// embed quotes inside the bracket (see MANDATORY CITATION RULE in
+// pipeline.server.ts), but when it does anyway, this still needs to match
+// the whole bracket so the embedded quote gets stripped here rather than
+// silently passing through into the printed report (this is exactly what
+// was inflating report length: the old regex didn't match this variant at
+// all, so the bracket — quote included — fell straight through untouched).
+const QUOTED_SUFFIX = /(?:\s*:\s*["“][^"”]{0,400}?["”])?/.source;
+const CITATION_BRACKET = new RegExp(
+  `\\[\\s*DOC\\s+\\d+(?:\\s*p\\.\\s*\\d+)?${QUOTED_SUFFIX}(?:\\s*[,;]\\s*DOC\\s+\\d+(?:\\s*p\\.\\s*\\d+)?${QUOTED_SUFFIX})*\\s*\\]`,
+  "gi",
+);
+const CITATION_PAIR = /DOC\s+(\d+)(?:\s*p\.\s*(\d+))?/gi;
+
+/** Registers (or reuses) a footnote for this exact set of doc/page refs and returns its number. */
+function footnoteFor(refs: Array<{ docN: string; page: string }>): number {
+  const key = refs.map((r) => `${r.docN}:${r.page}`).join("|");
+  const existing = _footnoteByKey.get(key);
+  if (existing) return existing;
+  const label = refs.map((r) => citeLabel(r.docN, r.page || undefined)).join("; ");
+  const n = _footnotes.length + 1;
+  _footnotes.push({ n, label });
+  _footnoteByKey.set(key, n);
+  return n;
+}
+
+/**
+ * Scrubs malformed citation artifacts, then transforms every valid inline
+ * "[DOC N p.M]" bracket according to the active citation mode:
+ *  - attorney (default): brackets are removed from the sentence and replaced
+ *    with a numbered footnote marker; the resolved document title + page is
+ *    collected into the shared footnote list for the Evidence Sources
+ *    appendix.
+ *  - audit: brackets are kept inline but rewritten to name the real document
+ *    and page instead of an internal "DOC N" id.
+ * This is the single funnel every prose-rendering call site should use in
+ * place of the old bare scrubMalformedCitations.
+ */
+function processProseCitations(raw: string): string {
+  const scrubbed = scrubMalformedCitations(raw);
+  if (!scrubbed) return scrubbed;
+  return scrubbed.replace(CITATION_BRACKET, (bracket) => {
+    const refs: Array<{ docN: string; page: string }> = [];
+    let m: RegExpExecArray | null;
+    CITATION_PAIR.lastIndex = 0;
+    while ((m = CITATION_PAIR.exec(bracket))) refs.push({ docN: m[1], page: m[2] ?? "" });
+    if (!refs.length) return "";
+    if (_citationMode === "audit") {
+      return `[${refs.map((r) => citeLabel(r.docN, r.page || undefined)).join("; ")}]`;
+    }
+    const n = footnoteFor(refs);
+    return `[${n}]`;
+  });
+}
+
+/**
+ * Runs every prose field that can carry inline citations through
+ * processProseCitations once, purely for its footnote-collection side
+ * effect, before the section plan/render queue is built. Without this,
+ * whether the "Evidence Sources" section belongs in the queue would depend
+ * on render order (some sections' `available()` checks call reportText and
+ * would populate footnotes as a side effect during queue computation; others,
+ * like the executive summary, only touch reportText during the later render
+ * pass) — a real ordering hazard. Running every key up front makes footnote
+ * population complete and order-independent before anything downstream
+ * decides what to render. Safe to call multiple times: footnote assignment
+ * is idempotent (deduped by exact doc/page set).
+ */
+function primeCitationFootnotes(data: CaseExportData): void {
+  const r = asObj(data.report);
+  const keys = [
+    "executive_summary",
+    "attorney_summary",
+    "case_overview",
+    "facts",
+    "timeline_summary",
+    "discovery_analysis",
+    "missing_evidence_report",
+    "risk_analysis",
+    "score_breakdown",
+    "recommendations",
+  ];
+  for (const k of keys) processProseCitations(asStr(r[k]));
+}
+
+export interface CaseExportData {
+  case: Record<string, unknown> | null;
+  documents: Array<Record<string, unknown>>;
+  analysis: Record<string, unknown> | null;
+  agents: Array<Record<string, unknown>>;
+  score: Record<string, unknown> | null;
+  report: Record<string, unknown> | null;
+  findings?: Array<Record<string, unknown>>;
+  theories?: Array<Record<string, unknown>>;
+  opportunities?: Array<Record<string, unknown>>;
+  witnesses?: Array<Record<string, unknown>>;
+  trial_prep?: Record<string, unknown> | null;
+  work_product?: Array<Record<string, unknown>>;
+  perspectives?: Array<Record<string, unknown>>;
+  evidence_intel?: Array<Record<string, unknown>>;
+  strategy?: Array<Record<string, unknown>>;
+  strategy_center?: Record<string, unknown> | null;
+  agent_logs?: Array<Record<string, unknown>>;
+}
+
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function downloadJson(data: CaseExportData, name: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  saveBlob(blob, `${slug(name)}.json`);
+}
+
+// ===== PDF builder helpers ============================================
+type Pdf = jsPDF & { lastAutoTable?: { finalY: number } };
+
+const PRIMARY: [number, number, number] = [15, 23, 42]; // slate-900 (navy)
+const ACCENT: [number, number, number] = [161, 98, 7]; // amber-700 (brass/gold — brighter than the old muddy brown)
+const MUTED: [number, number, number] = [100, 116, 139]; // slate-500
+const SUCCESS: [number, number, number] = [21, 128, 61]; // green-700
+const DANGER: [number, number, number] = [185, 28, 28]; // red-700
+const CARD_BG: [number, number, number] = [248, 250, 252]; // slate-50 — stat card fill
+const CARD_BORDER: [number, number, number] = [226, 232, 240]; // slate-200 — stat card border
+
+// Generic (non-case-type-specific) severity-tier grouping used to give
+// Key Findings a visual hierarchy — critical items read as clearly more
+// urgent than a minor discrepancy, instead of a flat list where every
+// finding gets equal visual weight regardless of severity. Buckets are
+// deliberately generic ("Critical" / "High-Priority" / etc.) rather than
+// domain labels like "Constitutional Issues", because this report type
+// runs across criminal, civil, family, employment, and other case types —
+// a fixed domain-specific taxonomy would be wrong for most of them.
+const SEVERITY_TIERS: Array<{ key: string; label: string; color: [number, number, number] }> = [
+  { key: "critical", label: "Critical Issues", color: DANGER },
+  { key: "high", label: "High-Priority Issues", color: [217, 119, 6] },
+  { key: "medium", label: "Moderate Issues", color: ACCENT },
+  { key: "low_info", label: "Minor & Administrative Issues", color: SUCCESS },
+];
+
+function severityTierKey(sev: string): string {
+  const s = (sev || "").trim().toLowerCase();
+  if (s === "critical") return "critical";
+  if (s === "high") return "high";
+  if (s === "medium") return "medium";
+  return "low_info"; // low, info, unrecognized
+}
+
+// Confidence, expressed as a word instead of forcing the reader to parse
+// a raw 0–1 decimal against an unstated scale.
+function confidenceLabel(confidence: number): string {
+  if (confidence >= 0.8) return "High";
+  if (confidence >= 0.5) return "Medium";
+  return "Low";
+}
+
+// "Evidence strength" is a distinct signal from model confidence: it asks
+// how much of the case corpus actually backs the finding (source count),
+// not just how sure the classifier was. A finding can carry high model
+// confidence off a single document (still fragile — one bad document
+// away from falling apart) or be backed by several independent sources
+// (much harder to dislodge at a hearing). Combining both avoids either
+// number overstating reliability on its own.
+function evidenceStrengthLabel(
+  confidence: number,
+  sourceCount: number,
+): { label: string; color: [number, number, number] } {
+  if (confidence >= 0.85 && sourceCount >= 2) return { label: "Strong", color: SUCCESS };
+  if (confidence >= 0.6 && sourceCount >= 1) return { label: "Moderate", color: ACCENT };
+  return { label: "Limited", color: DANGER };
+}
+
+// Distinct source documents actually cited in a finding's evidence_refs —
+// used both for the "Sources" count and to size evidence strength. Falls
+// back to counting refs themselves when no document identifier is present
+// on a ref (better an approximate count than a missing one).
+function findingSourceCount(refs: Array<Record<string, unknown>>): number {
+  if (!refs.length) return 0;
+  const ids = new Set(
+    refs.map((r) => asStr(r.document_id ?? r.doc_id ?? r.filename ?? r.doc_n) || Math.random().toString()),
+  );
+  return ids.size;
+}
+const NAVY_TINT: [number, number, number] = [30, 41, 59]; // slate-800 — banner gradient shade
+const SILVER: [number, number, number] = [186, 194, 204]; // steel-gray outer ring, matches the shield icon's metallic bevel
+const SHIELD_DARK: [number, number, number] = [10, 14, 22]; // near-black shield plate behind the "N"
+// Height reserved at the top of every page after the cover for the
+// compact branded header (see PdfBuilder.header()). Every addPage() call
+// only ever produces a continuation page (page 1 exists before any
+// addPage() call), so content on those pages is laid out starting below
+// this reserved band, and header() paints into that same band as a
+// post-pass over every page — the same pattern footer() already uses.
+const CONTINUATION_HEADER_H = 46;
+
+function asStr(v: unknown, fallback = ""): string {
+  if (v === null || v === undefined) return fallback;
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return fallback;
+}
+function asArr(v: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [];
+}
+function asObj(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+// Every canonical.ts helper (getScores, getAgentSummary, getEssState, etc.)
+// takes the raw `reports` row. Centralize that extraction so every call
+// site reads the exact same object — no per-function re-derivation.
+function getReportRow(data: CaseExportData): Record<string, unknown> {
+  return (data.report ?? {}) as Record<string, unknown>;
+}
+
+class PdfBuilder {
+  doc: Pdf;
+  // 0.75 inch margins (54pt) per professional memorandum standard.
+  margin = 54;
+  pageW: number;
+  pageH: number;
+  y: number;
+  caseName: string;
+  // Track whether we've rendered ANY body content yet. Only the cover
+  // page forces a hard break; after that, sections flow naturally.
+  private firstSectionRendered = false;
+
+  constructor(caseName: string) {
+    this.doc = new jsPDF({ unit: "pt", format: "letter" }) as Pdf;
+    this.pageW = this.doc.internal.pageSize.getWidth();
+    this.pageH = this.doc.internal.pageSize.getHeight();
+    this.y = this.margin;
+    this.caseName = caseName;
+    // Wrap doc.text so EVERY string the PDF emits (including autoTable cells,
+    // footers, splitTextToSize output) is ASCII-safe. This is the canonical
+    // fix for the "£(" rendering bug — Unicode math symbols never reach the
+    // Latin-1 Helvetica font.
+    const origText = this.doc.text.bind(this.doc);
+    (this.doc as unknown as { text: (...a: unknown[]) => unknown }).text = (text: unknown, ...rest: unknown[]) => {
+      const safe =
+        typeof text === "string"
+          ? pdfSafe(text)
+          : Array.isArray(text)
+            ? text.map((t) => (typeof t === "string" ? pdfSafe(t) : t))
+            : text;
+      return (origText as unknown as (...a: unknown[]) => unknown)(safe, ...rest);
+    };
+    const origSplit = this.doc.splitTextToSize.bind(this.doc);
+    (this.doc as unknown as { splitTextToSize: (...a: unknown[]) => unknown }).splitTextToSize = (
+      text: unknown,
+      ...rest: unknown[]
+    ) => {
+      const safe = typeof text === "string" ? pdfSafe(text) : text;
+      return (origSplit as unknown as (...a: unknown[]) => unknown)(safe, ...rest);
+    };
+  }
+
+  ensureSpace(needed: number) {
+    if (this.y + needed > this.pageH - this.margin - 24) {
+      this.doc.addPage();
+      this.y = this.margin + CONTINUATION_HEADER_H;
+    }
+  }
+
+  hr() {
+    this.ensureSpace(12);
+    this.doc.setDrawColor(...MUTED);
+    this.doc.setLineWidth(0.5);
+    this.doc.line(this.margin, this.y, this.pageW - this.margin, this.y);
+    this.y += 8;
+  }
+
+  /**
+   * Measures how many points a block of `text()` calls will take without
+   * drawing anything — used by call sites that need to decide whether a
+   * whole block (a footer note, a card, a list item) fits in the space
+   * remaining BEFORE committing to draw any part of it. Mirrors the exact
+   * font/size/width math `text()` uses so the estimate never drifts from
+   * what actually gets rendered.
+   */
+  measureTextHeight(value: string, size = 10.5, gap = 0): number {
+    if (!value) return 0;
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(size);
+    const lines = this.doc.splitTextToSize(value, this.pageW - this.margin * 2) as string[];
+    return lines.length * (size * 1.55) + gap;
+  }
+
+  // Rounded-square "N" mark matching the site's header icon: a dark
+  // square with a thin cyan border and a bold letterform inside, rather
+  // than a standalone geometric shape. (cx, cy) is the icon's center;
+  // r is roughly the half-height of the square.
+  logoMark(cx: number, cy: number, r: number) {
+    const size = r * 2;
+    const x = cx - r;
+    const y = cy - r;
+    this.doc.setFillColor(...NAVY_TINT);
+    this.doc.roundedRect(x, y, size, size, r * 0.3, r * 0.3, "F");
+    this.doc.setDrawColor(...BRAND_CYAN);
+    this.doc.setLineWidth(1);
+    this.doc.roundedRect(x, y, size, size, r * 0.3, r * 0.3, "S");
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(r * 1.5);
+    this.doc.setTextColor(255, 255, 255);
+    this.doc.text("N", cx, cy + r * 0.5, { align: "center" });
+  }
+
+  // True shield mark matching the app's logo exactly (see
+  // components/TrustBadge.tsx's <path d="M32 4 L58 10 Q60 10.6 60 12.6 ...">,
+  // viewBox 64x72) — reproduced here with jsPDF line/curve primitives
+  // (there's no image asset to embed) instead of the old nested-roundedRect
+  // approximation, which read as a plain rounded square rather than an
+  // actual shield outline. (cx, cy) is the shield's center; `h` is its
+  // full height; width follows the source viewBox's 64:72 aspect ratio.
+  private fillShield(x0: number, y0: number, w: number, h: number, style: "F" | "FD" | "S") {
+    const sx = w / 64;
+    const sy = h / 72;
+    const toX = (vx: number) => x0 + vx * sx;
+    const toY = (vy: number) => y0 + vy * sy;
+
+    let cur: [number, number] = [toX(32), toY(4)];
+    const start = cur;
+    const segs: number[][] = [];
+
+    const lineTo = (vx: number, vy: number) => {
+      const p: [number, number] = [toX(vx), toY(vy)];
+      segs.push([p[0] - cur[0], p[1] - cur[1]]);
+      cur = p;
+    };
+    // SVG Q (quadratic) → cubic control points via the standard 2/3 rule,
+    // since jsPDF's lines() only draws cubic bezier segments.
+    const quadTo = (qvx: number, qvy: number, evx: number, evy: number) => {
+      const q: [number, number] = [toX(qvx), toY(qvy)];
+      const e: [number, number] = [toX(evx), toY(evy)];
+      const c1: [number, number] = [cur[0] + (2 / 3) * (q[0] - cur[0]), cur[1] + (2 / 3) * (q[1] - cur[1])];
+      const c2: [number, number] = [e[0] + (2 / 3) * (q[0] - e[0]), e[1] + (2 / 3) * (q[1] - e[1])];
+      segs.push([c1[0] - cur[0], c1[1] - cur[1], c2[0] - cur[0], c2[1] - cur[1], e[0] - cur[0], e[1] - cur[1]]);
+      cur = e;
+    };
+    const curveTo = (c1vx: number, c1vy: number, c2vx: number, c2vy: number, evx: number, evy: number) => {
+      const c1: [number, number] = [toX(c1vx), toY(c1vy)];
+      const c2: [number, number] = [toX(c2vx), toY(c2vy)];
+      const e: [number, number] = [toX(evx), toY(evy)];
+      segs.push([c1[0] - cur[0], c1[1] - cur[1], c2[0] - cur[0], c2[1] - cur[1], e[0] - cur[0], e[1] - cur[1]]);
+      cur = e;
+    };
+
+    lineTo(58, 10);
+    quadTo(60, 10.6, 60, 12.6);
+    lineTo(60, 34);
+    curveTo(60, 50, 48, 60, 32, 68);
+    curveTo(16, 60, 4, 50, 4, 34);
+    lineTo(4, 12.6);
+    quadTo(4, 10.6, 6, 10);
+
+    this.doc.lines(segs, start[0], start[1], [1, 1], style, true);
+  }
+
+  trustBadge(cx: number, cy: number, h: number) {
+    const w = h * (64 / 72);
+    const x0 = cx - w / 2;
+    const y0 = cy - h / 2;
+
+    this.doc.setFillColor(...SHIELD_DARK);
+    this.doc.setDrawColor(...SILVER);
+    this.doc.setLineWidth(Math.max(0.5, h * 0.045));
+    this.fillShield(x0, y0, w, h, "FD");
+
+    // Illuminated "N".
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(h * 0.42);
+    this.doc.setTextColor(...BRAND_CYAN);
+    this.doc.text("N", cx, cy + h * 0.12, { align: "center" });
+  }
+
+  // Full-bleed navy banner across the top of the cover page, with the
+  // wordmark + report label reversed out in white/gold. Kept for legacy
+  // callers; the primary cover now uses premiumCover().
+  coverBanner(height: number) {
+    this.doc.setFillColor(...PRIMARY);
+    this.doc.rect(0, 0, this.pageW, height, "F");
+    this.doc.setFillColor(...NAVY_TINT);
+    this.doc.rect(0, height - 10, this.pageW, 10, "F");
+    this.logoMark(this.margin + 14, height / 2 - 6, 15);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(22);
+    this.doc.setTextColor(255, 255, 255);
+    this.doc.text("NYRAVA", this.margin + 40, height / 2 - 2);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(...BRAND_CYAN);
+    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", this.margin + 40, height / 2 + 14);
+    this.y = height + 40;
+  }
+
+  // Full-page premium cover: dark bleed, centered trust badge, wordmark,
+  // case title in a serif face, work-product tag, and a footer metadata
+  // bar. Caller must pageBreak() before rendering anything else.
+  premiumCover(opts: { caseName: string; description?: string; engineVersion?: string; matterId?: string }) {
+    const { pageW, pageH, margin } = this;
+    // Full-bleed navy background
+    this.doc.setFillColor(...PRIMARY);
+    this.doc.rect(0, 0, pageW, pageH, "F");
+    // Deeper tint bands top and bottom for depth
+    this.doc.setFillColor(...NAVY_TINT);
+    this.doc.rect(0, 0, pageW, 6, "F");
+    this.doc.rect(0, pageH - 6, pageW, 6, "F");
+    // Gold hairlines framing the composition
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(0.8);
+    this.doc.line(margin, 92, pageW - margin, 92);
+    this.doc.line(margin, pageH - 150, pageW - margin, pageH - 150);
+
+    // Wordmark at top-left
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(14);
+    this.doc.setTextColor(255, 255, 255);
+    this.doc.text("NYRAVA", margin, 60);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(7.5);
+    this.doc.setTextColor(...BRAND_CYAN);
+    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", margin, 76);
+
+    if (opts.engineVersion) {
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(...BRAND_CYAN);
+      this.doc.text(`ENGINE ${opts.engineVersion}`, pageW - margin, 60, { align: "right" });
+    }
+
+    // Trust badge centered in upper third
+    this.trustBadge(pageW / 2, pageH * 0.3, 128);
+
+    // Eyebrow label
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(...ACCENT);
+    this.doc.text("C A S E   I N T E L L I G E N C E   R E P O R T", pageW / 2, pageH * 0.3 + 100, { align: "center" });
+
+    // Case title (serif via Times for editorial gravitas)
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(30);
+    this.doc.setTextColor(255, 255, 255);
+    const titleLines = this.doc.splitTextToSize(opts.caseName || "Untitled Case", pageW - margin * 2 - 40) as string[];
+    let ty = pageH * 0.52;
+    for (const line of titleLines.slice(0, 3)) {
+      this.doc.text(line, pageW / 2, ty, { align: "center" });
+      ty += 34;
+    }
+    // Gold rule under title
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(1.2);
+    this.doc.line(pageW / 2 - 42, ty + 2, pageW / 2 + 42, ty + 2);
+    ty += 24;
+
+    if (opts.description) {
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(11);
+      this.doc.setTextColor(200, 210, 220);
+      const descLines = this.doc.splitTextToSize(opts.description, pageW - margin * 2 - 80) as string[];
+      for (const line of descLines.slice(0, 4)) {
+        this.doc.text(line, pageW / 2, ty, { align: "center" });
+        ty += 15;
+      }
+    }
+
+    // Attorney Work Product pill
+    const tagY = pageH - 178;
+    const tagText = "ATTORNEY WORK PRODUCT  ·  PRIVILEGED & CONFIDENTIAL";
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(9);
+    const tagW = this.doc.getTextWidth(tagText) + 26;
+    const tagH = 22;
+    const tagX = (pageW - tagW) / 2;
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(0.8);
+    this.doc.roundedRect(tagX, tagY - tagH + 6, tagW, tagH, 4, 4, "S");
+    this.doc.setTextColor(...ACCENT);
+    this.doc.text(tagText, pageW / 2, tagY, { align: "center" });
+
+    // Metadata columns
+    const footTop = pageH - 118;
+    const col = (label: string, value: string, x: number, align: "left" | "center" | "right" = "left") => {
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(7.5);
+      this.doc.setTextColor(...BRAND_CYAN);
+      this.doc.text(label.toUpperCase(), x, footTop, { align });
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(10);
+      this.doc.setTextColor(255, 255, 255);
+      this.doc.text(value, x, footTop + 14, { align });
+    };
+    col("Generated", new Date().toLocaleString(), margin);
+    if (opts.matterId) col("Matter ID", opts.matterId, pageW / 2, "center");
+    col("Classification", "Confidential", pageW - margin, "right");
+
+    // Bottom tagline
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(8);
+    this.doc.setTextColor(...BRAND_CYAN);
+    this.doc.text(
+      "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.",
+      pageW / 2,
+      pageH - 42,
+      { align: "center" },
+    );
+  }
+
+  // Grid of compact stat cards (replaces the old plain label/value rows on
+  // the cover). `cols` per row; each card gets a bold value + small caption.
+  statCards(items: Array<{ label: string; value: string; color?: [number, number, number] }>, cols = 3) {
+    const gap = 14;
+    const w = (this.pageW - this.margin * 2 - gap * (cols - 1)) / cols;
+    const h = 46;
+    const padX = 12;
+    const rows = Math.ceil(items.length / cols);
+    for (let row = 0; row < rows; row++) {
+      this.ensureSpace(h);
+      for (let col = 0; col < cols; col++) {
+        const i = row * cols + col;
+        if (i >= items.length) break;
+        const x = this.margin + col * (w + gap);
+        const yy = this.y;
+        const item = items[i];
+        // Compact card: whisper-light border, no fill, small color dot
+        // in the corner. Value font auto-shrinks so long labels like
+        // "Below Average - 50/100" always fit within the card width.
+        this.doc.setDrawColor(230, 233, 238);
+        this.doc.setLineWidth(0.5);
+        this.doc.roundedRect(x, yy, w, h, 4, 4, "S");
+        this.doc.setFillColor(...(item.color ?? ACCENT));
+        this.doc.circle(x + w - 9, yy + 9, 2.4, "F");
+        // Label — clip to leave clear room for the dot.
+        this.doc.setFont("helvetica", "bold");
+        this.doc.setFontSize(7);
+        this.doc.setTextColor(...MUTED);
+        const labelMaxW = w - padX * 2 - 10;
+        const labelLine =
+          (this.doc.splitTextToSize(item.label.toUpperCase(), labelMaxW) as string[])[0] ?? "";
+        this.doc.text(labelLine, x + padX, yy + 16);
+        // Value — shrink font-size until it fits the card width.
+        const valueMaxW = w - padX * 2;
+        this.doc.setFont("helvetica", "bold");
+        this.doc.setTextColor(...PRIMARY);
+        let vSize = 14;
+        this.doc.setFontSize(vSize);
+        while (vSize > 8 && this.doc.getTextWidth(item.value) > valueMaxW) {
+          vSize -= 0.5;
+          this.doc.setFontSize(vSize);
+        }
+        let valueText = item.value;
+        if (this.doc.getTextWidth(valueText) > valueMaxW) {
+          while (valueText.length > 3 && this.doc.getTextWidth(valueText + "…") > valueMaxW) {
+            valueText = valueText.slice(0, -1);
+          }
+          valueText += "…";
+        }
+        this.doc.text(valueText, x + padX, yy + 36);
+      }
+      this.y += h + gap;
+    }
+  }
+
+
+  // Maps a severity word to the shared color language used across the
+  // report: red=critical, amber=high, gold=medium, green=low/info,
+  // slate=unknown. Reused by badges, table cells, and score bars so
+  // severity always reads the same color no matter which widget shows it.
+  severityColor(sev: string): [number, number, number] {
+    const s = (sev || "").trim().toLowerCase();
+    if (s === "critical") return DANGER;
+    if (s === "high") return [217, 119, 6]; // amber-600
+    if (s === "medium") return ACCENT;
+    if (s === "low" || s === "info") return SUCCESS;
+    return MUTED;
+  }
+
+  // Small filled pill. `align: "right"` anchors the box's right edge to x
+  // (used to hang a severity/confidence pill off the right margin next to
+  // a heading). Returns the pill width in case the caller wants to lay
+  // out something else beside it.
+  pill(text: string, x: number, y: number, color: [number, number, number], align: "left" | "right" = "left"): number {
+    if (!text) return 0;
+    const label = text.toUpperCase();
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(7.5);
+    const tw = this.doc.getTextWidth(label);
+    const padX = 6;
+    const w = tw + padX * 2;
+    const h = 13;
+    const boxX = align === "right" ? x - w : x;
+    this.doc.setFillColor(...color);
+    this.doc.roundedRect(boxX, y - h + 3, w, h, 3, 3, "F");
+    this.doc.setTextColor(255, 255, 255);
+    this.doc.text(label, boxX + padX, y - 3);
+    return w;
+  }
+
+  // Mini horizontal score bar, color-coded green/gold/red by value. Used
+  // in the scorecard so dimension scores read visually instead of forcing
+  // the reader to parse "0 / 100" as plain text nine times in a row.
+  scoreBar(x: number, y: number, w: number, value: number, max = 100) {
+    // Thin, minimalist progress bar — the numeric score is the focal
+    // point; the bar is a subtle visual aid. Light track + rounded fill
+    // reads as premium editorial rather than dashboard widget.
+    const h = 3;
+    const pct = Math.max(0, Math.min(1, value / max));
+    this.doc.setFillColor(236, 239, 243);
+    this.doc.roundedRect(x, y + 3, w, h, h / 2, h / 2, "F");
+    const color = value >= 60 ? SUCCESS : value >= 35 ? ACCENT : DANGER;
+    const filled = Math.max(w * pct, pct > 0 ? 4 : 0);
+    if (filled > 0) {
+      this.doc.setFillColor(...color);
+      this.doc.roundedRect(x, y + 3, filled, h, h / 2, h / 2, "F");
+    }
+  }
+
+  // A single scannable dimension row: label + bar + numeric score, colored
+  // to match. Replaces a bare "Dimension  Score  Baseline  Δ" text line.
+  // `invert` affects ONLY the bar fill and color, never the printed number.
+  // Some dimensions (bias, credibility risk) are "good" when LOW, so a
+  // caller can pass invert=true to make a full/green bar mean "favorable"
+  // for that witness. The number shown must always be the true score —
+  // the same value shown in the summary table above — or the detail card
+  // silently contradicts the table it's directly below.
+  dimensionRow(label: string, value: number, opts: { invert?: boolean } = {}) {
+    this.ensureSpace(24);
+    const barX = this.margin + 165;
+    const barW = this.pageW - this.margin - barX - 40;
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(10);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text(label, this.margin, this.y);
+    const displayValue = opts.invert ? 100 - value : value;
+    this.scoreBar(barX, this.y - 6, barW, displayValue);
+    const color = displayValue >= 60 ? SUCCESS : displayValue >= 35 ? ACCENT : DANGER;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(10);
+    this.doc.setTextColor(...color);
+    this.doc.text(`${Math.round(value)}`, barX + barW + 8, this.y);
+    this.y += 20;
+  }
+
+
+  // Thin divider used between repeated entries (findings, witnesses) to
+  // give visual separation without the cost of a fully boxed card.
+  divider() {
+    this.ensureSpace(14);
+    this.y += 8;
+    this.doc.setDrawColor(232, 235, 240);
+    this.doc.setLineWidth(0.4);
+    this.doc.line(this.margin, this.y, this.pageW - this.margin, this.y);
+    this.y += 16;
+  }
+
+  text(value: string, opts: { size?: number; bold?: boolean; color?: [number, number, number]; gap?: number } = {}) {
+    const size = opts.size ?? 10.5;
+    // Generous leading (~1.55) so body copy reads like an editorial
+    // briefing rather than a data table. Paragraph gaps are proportional
+    // and slightly larger, adding real breathing room between paragraphs.
+    const lineH = size * 1.55;
+    this.doc.setFont("helvetica", opts.bold ? "bold" : "normal");
+    this.doc.setFontSize(size);
+    this.doc.setTextColor(...(opts.color ?? PRIMARY));
+    const paragraphs = value.split(/\n\s*\n/);
+    for (let p = 0; p < paragraphs.length; p++) {
+      const para = paragraphs[p];
+      const lines = this.doc.splitTextToSize(para, this.pageW - this.margin * 2) as string[];
+      for (const line of lines) {
+        this.ensureSpace(lineH);
+        this.doc.text(line, this.margin, this.y);
+        this.y += lineH;
+      }
+      if (p < paragraphs.length - 1) this.y += lineH * 0.75;
+    }
+    if (opts.gap) this.y += opts.gap;
+  }
+
+  // Force a hard page break. Used ONLY between the cover and the TOC so
+  // section headings flow naturally across pages instead of always
+  // starting a new sheet (which left half-empty pages everywhere).
+  pageBreak() {
+    this.doc.addPage();
+    this.y = this.margin + CONTINUATION_HEADER_H;
+  }
+
+  h1(label: string) {
+    // Generous top spacing gives each section true separation and
+    // signals executive-briefing hierarchy. A slim gold rule underneath
+    // the heading replaces the old fat tab for a quieter, more premium
+    // look.
+    if (this.firstSectionRendered) {
+      this.y += 34;
+    }
+    this.firstSectionRendered = true;
+    this.ensureSpace(120);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(19);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text(label, this.margin, this.y);
+    this.y += 8;
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(1.2);
+    this.doc.line(this.margin, this.y, this.margin + 36, this.y);
+    this.y += 22;
+  }
+
+  h2(label: string) {
+    // Quiet subsection header: uppercase small-caps label with a hairline
+    // rule beneath it, no filled tinted bar. Reads as editorial, not as
+    // a boxed dashboard card.
+    this.ensureSpace(90);
+    this.y += 16;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(10);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text(label.toUpperCase(), this.margin, this.y);
+    this.y += 6;
+    this.doc.setDrawColor(230, 233, 238);
+    this.doc.setLineWidth(0.5);
+    this.doc.line(this.margin, this.y, this.pageW - this.margin, this.y);
+    this.y += 16;
+  }
+
+  // Same quiet subsection header as h2(), but with a small colored dot
+  // beside the label to signal severity tier at a glance.
+  h2Tier(label: string, color: [number, number, number]) {
+    this.ensureSpace(90);
+    this.y += 16;
+    this.doc.setFillColor(...color);
+    this.doc.circle(this.margin + 3, this.y - 3, 2.8, "F");
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(10);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text(label.toUpperCase(), this.margin + 12, this.y);
+    this.y += 6;
+    this.doc.setDrawColor(230, 233, 238);
+    this.doc.setLineWidth(0.5);
+    this.doc.line(this.margin, this.y, this.pageW - this.margin, this.y);
+    this.y += 16;
+  }
+
+  h3(label: string) {
+    // Reserve the heading's own height PLUS room for at least a few lines
+    // of body content after it — otherwise a subheading can be the very
+    // last thing on a page with nothing beneath it (an orphaned heading).
+    this.ensureSpace(84);
+    this.y += 4;
+    this.text(label, { size: 11.5, bold: true, color: ACCENT, gap: 4 });
+  }
+
+  // Compact horizontal score presentation used in Executive Summary and
+  // Risk Analysis — the SAME numbers already displayed as large radial
+  // gauges on the cover page, but rendered here as a slim card strip
+  // (label + numeric value + mini bar) so the reader isn't hit with a
+  // second big-graphic repeat of the same figures one page later.
+  compactScoreStrip(items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>) {
+    if (!items.length) return;
+    const h = 38;
+    this.ensureSpace(h + 18);
+    const gap = 16;
+    const cols = items.length;
+    const w = (this.pageW - this.margin * 2 - gap * (cols - 1)) / cols;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const x = this.margin + i * (w + gap);
+      const y = this.y;
+      const max = item.max ?? 100;
+      // Airy card: hairline border only, small color dot, no fill.
+      this.doc.setDrawColor(230, 233, 238);
+      this.doc.setLineWidth(0.5);
+      this.doc.roundedRect(x, y, w, h, 4, 4, "S");
+      this.doc.setFillColor(...item.color);
+      this.doc.circle(x + w - 10, y + 10, 2.2, "F");
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(7);
+      this.doc.setTextColor(...MUTED);
+      this.doc.text(item.label.toUpperCase(), x + 12, y + 14);
+      const valueLabel = `${Math.round(item.value)}`;
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(14);
+      this.doc.setTextColor(...PRIMARY);
+      this.doc.text(valueLabel, x + 12, y + 30);
+      const valueW = this.doc.getTextWidth(valueLabel);
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(7.5);
+      this.doc.setTextColor(...MUTED);
+      this.doc.text(`/ ${max}`, x + 12 + valueW + 4, y + 30);
+      const barX = x + 12 + valueW + 22;
+      const barW = x + w - 20 - barX;
+      if (barW > 24) {
+        this.scoreBar(barX, y + 24, barW, item.value, max);
+      }
+    }
+    this.y += h + 18;
+  }
+
+  label(label: string, value: string) {
+    this.ensureSpace(16);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(...MUTED);
+    this.doc.text(label.toUpperCase(), this.margin, this.y);
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(10.5);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text(value, this.margin + 110, this.y);
+    this.y += 14;
+  }
+
+  callout(label: string, value: string, color: [number, number, number] = ACCENT) {
+    this.ensureSpace(52);
+    const x = this.margin;
+    const w = this.pageW - this.margin * 2;
+    // Quiet callout: no border, subtle fill, thin colored left rule.
+    this.doc.setFillColor(249, 250, 252);
+    this.doc.roundedRect(x, this.y, w, 40, 3, 3, "F");
+    this.doc.setFillColor(...color);
+    this.doc.rect(x, this.y, 2.5, 40, "F");
+    this.doc.setTextColor(...color);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(8);
+    this.doc.text(label.toUpperCase(), x + 14, this.y + 15);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(11);
+    this.doc.text(value, x + 14, this.y + 31);
+    this.y += 52;
+  }
+
+  // Headline meter — large number, small caption, thin progress bar.
+  // Refined for premium feel: hairline border only, generous internal
+  // whitespace, minimal bar height. The score is the focal point.
+  meter(x: number, y: number, w: number, label: string, value: number, max: number, color: [number, number, number]) {
+    const h = 60;
+    this.doc.setDrawColor(230, 233, 238);
+    this.doc.setLineWidth(0.5);
+    this.doc.roundedRect(x, y, w, h, 4, 4, "S");
+    this.doc.setFillColor(...color);
+    this.doc.circle(x + w - 12, y + 12, 2.5, "F");
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(8);
+    this.doc.setTextColor(...MUTED);
+    this.doc.text(label.toUpperCase(), x + 14, y + 16);
+    const valueLabel = `${Math.round(value)}`;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(22);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text(valueLabel, x + 14, y + 40);
+    const valueW = this.doc.getTextWidth(valueLabel);
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(...MUTED);
+    this.doc.text(`/ ${max}`, x + 14 + valueW + 5, y + 40);
+    // Thin bar along the bottom of the card.
+    const barX = x + 14;
+    const barW = w - 28;
+    const barY = y + h - 12;
+    const barH = 3;
+    this.doc.setFillColor(236, 239, 243);
+    this.doc.roundedRect(barX, barY, barW, barH, barH / 2, barH / 2, "F");
+    const pct = Math.max(0, Math.min(1, value / max));
+    const filled = Math.max(barW * pct, pct > 0 ? 4 : 0);
+    if (filled > 0) {
+      this.doc.setFillColor(...color);
+      this.doc.roundedRect(barX, barY, filled, barH, barH / 2, barH / 2, "F");
+    }
+  }
+
+  // Side-by-side pair (or trio, etc.) of large meters for headline scores.
+  // Used on the Executive Summary in place of the old plain-text callout
+  // boxes for Case Strength / Risk Score — these are the two most
+  // important numbers in the report and merit real graphical treatment
+  // rather than a bare label/value line.
+  meterPair(items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>) {
+    if (!items.length) return;
+    const h = 60;
+    this.ensureSpace(h + 20);
+    const gap = 16;
+    const cols = items.length;
+    const w = (this.pageW - this.margin * 2 - gap * (cols - 1)) / cols;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const x = this.margin + i * (w + gap);
+      this.meter(x, this.y, w, item.label, item.value, item.max ?? 100, item.color);
+    }
+    this.y += h + 20;
+  }
+
+  // Traffic-light coloring shared by every score-bearing widget (scoreBar,
+  // meter, gauge). `invert=true` is for metrics where LOW is good (e.g.
+  // risk score), so a red ring always means "bad" regardless of which
+  // direction the underlying number runs.
+  scoreColor(value: number, invert = false): [number, number, number] {
+    const v = invert ? 100 - value : value;
+    return v >= 60 ? SUCCESS : v >= 35 ? ACCENT : DANGER;
+  }
+
+  // Donut-style radial gauge: a filled pie sector (drawn as a triangle fan
+  // from the center, since jsPDF has no native arc-fill primitive) with a
+  // white circle punched out of the middle, and the value printed in the
+  // hole. This is the "risk wheel" / circular gauge treatment — a real
+  // graphical gauge, not a stat card — for the one or two numbers on the
+  // report that deserve to be unmissable in the first few seconds.
+  radialGauge(
+    cx: number,
+    cy: number,
+    r: number,
+    value: number,
+    max: number,
+    color: [number, number, number],
+    label: string,
+  ) {
+    const pct = Math.max(0, Math.min(1, value / max));
+    // Background track.
+    this.doc.setFillColor(...CARD_BORDER);
+    this.doc.circle(cx, cy, r, "F");
+    // Filled sector, drawn as a fan of thin triangles from the center,
+    // starting at 12 o'clock and sweeping clockwise.
+    if (pct > 0) {
+      const start = -Math.PI / 2;
+      const total = pct * Math.PI * 2;
+      const steps = Math.max(1, Math.ceil((total / (Math.PI * 2)) * 90));
+      this.doc.setFillColor(...color);
+      let prevX = cx + r * Math.cos(start);
+      let prevY = cy + r * Math.sin(start);
+      for (let i = 1; i <= steps; i++) {
+        const a = start + (total * i) / steps;
+        const x = cx + r * Math.cos(a);
+        const y = cy + r * Math.sin(a);
+        this.doc.triangle(cx, cy, prevX, prevY, x, y, "F");
+        prevX = x;
+        prevY = y;
+      }
+    }
+    // Donut hole + center readout. Larger hole = thinner ring (premium
+    // editorial gauge, not a heavy dashboard donut).
+    this.doc.setFillColor(255, 255, 255);
+    this.doc.circle(cx, cy, r * 0.82, "F");
+    const valueLabel = `${Math.round(value)}`;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(Math.round(r * 0.78));
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text(valueLabel, cx, cy + r * 0.22, { align: "center" });
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(Math.max(6.5, Math.round(r * 0.2)));
+    this.doc.setTextColor(...MUTED);
+    this.doc.text(`/ ${max}`, cx, cy + r * 0.5, { align: "center" });
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(8);
+    this.doc.setTextColor(...MUTED);
+    this.doc.text(label.toUpperCase(), cx, cy + r + 16, { align: "center" });
+  }
+
+  // Row of side-by-side radial gauges — the circular counterpart to
+  // meterPair(), used on the new Executive Intelligence Dashboard page.
+  gaugeRow(items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>, radius = 28) {
+    if (!items.length) return;
+    const rowH = radius * 2 + 36;
+    this.ensureSpace(rowH + 12);
+    const gap = 28;
+    const cols = items.length;
+    const cellW = (this.pageW - this.margin * 2 - gap * (cols - 1)) / cols;
+    const cy = this.y + radius + 4;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const cx = this.margin + i * (cellW + gap) + cellW / 2;
+      this.radialGauge(cx, cy, radius, item.value, item.max ?? 100, item.color, item.label);
+    }
+    this.y += rowH + 8;
+  }
+
+
+  // Full-width colored status banner (e.g. "HIGH RISK — Defense
+  // Advantage"). This is the thing meant to land in the first few seconds
+  // of opening the report, before the reader parses a single sentence.
+  statusBanner(headline: string, subline: string, color: [number, number, number]) {
+    // Refined tinted banner — subdued surface with a colored left rule and
+    // dark text, rather than a full saturated red slab. Reads as an
+    // executive alert, not a warning label.
+    const h = 40;
+    this.ensureSpace(h + 18);
+    const x = this.margin;
+    const w = this.pageW - this.margin * 2;
+    // Very soft tint of the accent color (mix ~10% into white).
+    const tint: [number, number, number] = [
+      Math.round(color[0] * 0.08 + 255 * 0.92),
+      Math.round(color[1] * 0.08 + 255 * 0.92),
+      Math.round(color[2] * 0.08 + 255 * 0.92),
+    ];
+    this.doc.setFillColor(...tint);
+    this.doc.roundedRect(x, this.y, w, h, 5, 5, "F");
+    // Colored left rule
+    this.doc.setFillColor(...color);
+    this.doc.roundedRect(x, this.y, 3, h, 1.5, 1.5, "F");
+    // Small solid dot as the "icon"
+    this.doc.setFillColor(...color);
+    this.doc.circle(x + 18, this.y + h / 2, 3.2, "F");
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(11);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text(headline.toUpperCase(), x + 30, this.y + h / 2 - 2);
+    if (subline) {
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(9);
+      this.doc.setTextColor(...MUTED);
+      this.doc.text(subline, x + 30, this.y + h / 2 + 11);
+    }
+    this.y += h + 22;
+  }
+
+
+  // One compact scannable row for a "Top Findings" preview — a colored
+  // severity dot, the title, and a right-aligned severity/confidence pill.
+  // Deliberately terse (title only, no description) since its job is a
+  // 3-second scan, not the full write-up — that lives in Key Findings.
+  findingChip(severity: string, title: string, confidence: number) {
+    this.ensureSpace(26);
+    const color = this.severityColor(severity);
+    this.doc.setFillColor(...color);
+    this.doc.circle(this.margin + 4, this.y - 3, 2.6, "F");
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(10);
+    this.doc.setTextColor(...PRIMARY);
+    const maxW = this.pageW - this.margin * 2 - 130;
+    const titleLine = (this.doc.splitTextToSize(title, maxW) as string[])[0] ?? "";
+    this.doc.text(titleLine, this.margin + 14, this.y);
+    this.pill(`${severity} · ${Math.round(confidence * 100)}%`, this.pageW - this.margin, this.y + 1, color, "right");
+    // Hairline separator between findings.
+    this.doc.setDrawColor(236, 239, 243);
+    this.doc.setLineWidth(0.4);
+    this.doc.line(this.margin, this.y + 8, this.pageW - this.margin, this.y + 8);
+    this.y += 22;
+  }
+
+
+  table(
+    head: string[][],
+    body: (string | number)[][],
+    opts: {
+      // Column index -> jspdf-autotable column style (e.g. { cellWidth: 90 }).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      columnStyles?: Record<number, any>;
+      emphasizeColIdx?: number; // rendered bold (e.g. a "Document" column)
+      mutedColIdx?: number; // rendered muted/italic (e.g. a "Quote" column)
+    } = {},
+  ) {
+    if (body.length === 0) return;
+    this.ensureSpace(40);
+    const headerRow = head[0] ?? [];
+    const sevColIdx = headerRow.findIndex((hh) => /severity/i.test(hh));
+    const scoreColIdx = headerRow.findIndex((hh) => /^score$/i.test(hh.trim()));
+    autoTable(this.doc, {
+      head,
+      body,
+      startY: this.y,
+      // Reserve the same top/bottom bands on every page a table might
+      // spill onto — including pages autoTable creates on its own mid-
+      // table, which don't otherwise know about the branded continuation
+      // header or the footer page-stamp painted in a later post-pass.
+      // Without this, a long table (e.g. the citation appendix) could
+      // print its header row or a data row directly underneath where
+      // header()/footer() draw afterward, producing an overlap.
+      margin: {
+        top: this.margin + CONTINUATION_HEADER_H + 4,
+        left: this.margin,
+        right: this.margin,
+        bottom: this.margin + 26,
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: { top: 7, right: 7, bottom: 7, left: 7 },
+        textColor: [...PRIMARY] as [number, number, number],
+        overflow: "linebreak",
+        lineColor: [...CARD_BORDER] as [number, number, number],
+        lineWidth: 0.5,
+      },
+      headStyles: {
+        fillColor: [...PRIMARY] as [number, number, number],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 9,
+        cellPadding: { top: 8, right: 7, bottom: 8, left: 7 },
+      },
+      // Slightly more visible zebra striping than the previous near-white
+      // tint, for easier row tracking across wide tables.
+      alternateRowStyles: { fillColor: [241, 245, 249] as [number, number, number] },
+      columnStyles: opts.columnStyles,
+      theme: "grid",
+      // Color-code Severity and Score columns wherever a table has them,
+      // so risk reads visually (red/amber/gold/green) instead of forcing
+      // the reader to parse every cell as plain black text. Uppercase
+      // header labels for the same enterprise typographic voice used by
+      // every pill/label elsewhere in the report.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      didParseCell: (d: any) => {
+        if (d.section === "head") {
+          d.cell.text = d.cell.text.map((t: string) => t.toUpperCase());
+          return;
+        }
+        if (d.section !== "body") return;
+        if (sevColIdx >= 0 && d.column.index === sevColIdx) {
+          d.cell.styles.textColor = this.severityColor(String(d.cell.raw ?? ""));
+          d.cell.styles.fontStyle = "bold";
+        }
+        if (scoreColIdx >= 0 && d.column.index === scoreColIdx) {
+          const m = String(d.cell.raw ?? "").match(/-?\d+(\.\d+)?/);
+          if (m) {
+            const n = parseFloat(m[0]);
+            d.cell.styles.textColor = n >= 60 ? SUCCESS : n >= 35 ? ACCENT : DANGER;
+            d.cell.styles.fontStyle = "bold";
+          }
+        }
+        if (opts.emphasizeColIdx != null && d.column.index === opts.emphasizeColIdx) {
+          d.cell.styles.fontStyle = "bold";
+          d.cell.styles.textColor = [...PRIMARY] as [number, number, number];
+        }
+        if (opts.mutedColIdx != null && d.column.index === opts.mutedColIdx) {
+          d.cell.styles.fontStyle = "italic";
+          d.cell.styles.textColor = [...MUTED] as [number, number, number];
+        }
+      },
+    } as unknown as Parameters<typeof autoTable>[1]);
+    this.y = (this.doc.lastAutoTable?.finalY ?? this.y) + 14;
+  }
+
+  bullets(items: string[]) {
+    for (const it of items.filter(Boolean)) {
+      this.ensureSpace(14);
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(10.5);
+      this.doc.setTextColor(...PRIMARY);
+      const lines = this.doc.splitTextToSize(`•  ${it}`, this.pageW - this.margin * 2 - 12) as string[];
+      for (const line of lines) {
+        this.ensureSpace(14);
+        this.doc.text(line, this.margin + 6, this.y);
+        this.y += 13;
+      }
+    }
+  }
+
+  // Compact branded header painted on every page after the cover. This is
+  // deliberately a post-pass over already-rendered pages (same pattern as
+  // footer()) rather than something drawn inline during content layout —
+  // it needs the final page count for "i / N", and painting it last means
+  // it can never be pushed down or split by content that ran long. Every
+  // continuation page already reserves CONTINUATION_HEADER_H of top space
+  // (see ensureSpace/pageBreak), so this never overlaps body content.
+  header() {
+    const pageCount = this.doc.getNumberOfPages();
+    const h = CONTINUATION_HEADER_H;
+    for (let i = 2; i <= pageCount; i++) {
+      this.doc.setPage(i);
+
+      // White band across the reserved top area (defensive — guards
+      // against any stray content drawn too high) plus the logo mark,
+      // wordmark, case name / page count, and a two-tone divider that
+      // echoes the cover banner's navy + accent treatment.
+      this.doc.setFillColor(255, 255, 255);
+      this.doc.rect(0, 0, this.pageW, h, "F");
+
+      // Trust-badge shield (matches the site favicon / app icon) instead
+      // of the old plain navy square, so every interior page carries the
+      // same brand mark as the cover and the browser tab.
+      const markSize = 18;
+      const markX = this.margin;
+      const markY = 9;
+      this.trustBadge(markX + markSize / 2, markY + markSize / 2, markSize);
+
+      const textX = markX + markSize + 8;
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(10);
+      this.doc.setTextColor(...PRIMARY);
+      this.doc.text("NYRAVA", textX, markY + 7.5);
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(6);
+      this.doc.setTextColor(...BRAND_CYAN);
+      this.doc.text("LEGAL INTELLIGENCE OS", textX, markY + 15);
+
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(8.5);
+      this.doc.setTextColor(...MUTED);
+      const rightLabel = `${this.caseName}   ·   ${i} / ${pageCount}`;
+      const fitted =
+        (this.doc.splitTextToSize(rightLabel, this.pageW - this.margin * 2 - 110) as string[])[0] ?? rightLabel;
+      this.doc.text(fitted, this.pageW - this.margin, markY + 11, { align: "right" });
+
+      this.doc.setDrawColor(...ACCENT);
+      this.doc.setLineWidth(1.5);
+      this.doc.line(this.margin, h - 1, this.pageW - this.margin, h - 1);
+      this.doc.setDrawColor(...CARD_BORDER);
+      this.doc.setLineWidth(0.5);
+      this.doc.line(this.margin, h + 2, this.pageW - this.margin, h + 2);
+    }
+  }
+
+  footer(meta: { parity: string; ess: string; generatedAt: string } | null) {
+    const pageCount = this.doc.getNumberOfPages();
+    const pageLabelW = 70; // reserved width for the right-aligned "Page i / N"
+    for (let i = 1; i <= pageCount; i++) {
+      this.doc.setPage(i);
+      // The compact header (drawn separately, see header() above) already
+      // carries a brand rule at the top of every interior page, so the old
+      // duplicate top strip that used to live here has been removed —
+      // this loop now only draws the bottom footer text.
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(...MUTED);
+      // Bound-checked the same way header()'s right-hand label already is:
+      // a long case name must never be allowed to grow into the reserved
+      // "Page i / N" zone on the right.
+      const brandLine = `Nyrava Legal Intelligence  ·  nyrava.com  ·  ${this.caseName}`;
+      const brandMaxW = this.pageW - this.margin * 2 - pageLabelW;
+      const brandFitted = (this.doc.splitTextToSize(brandLine, brandMaxW) as string[])[0] ?? brandLine;
+      this.doc.text(brandFitted, this.margin, this.pageH - 30);
+      this.doc.text(`Page ${i} / ${pageCount}`, this.pageW - this.margin, this.pageH - 30, { align: "right" });
+      if (LEGAL_MODE)
+        this.doc.text("Confidential Attorney Work Product", this.pageW / 2, this.pageH - 30, { align: "center" });
+      if (meta && _citationMode === "audit") {
+        this.doc.setFontSize(7);
+        const stamp = `parity ${meta.parity}  ·  ESS ${meta.ess}  ·  ${meta.generatedAt}  ·  NYRAVA v${NYRAVA_REPORT_VERSION}`;
+        this.doc.text(stamp, this.pageW / 2, this.pageH - 18, { align: "center" });
+      }
+    }
+  }
+
+  // Full closing page appended after all report content: mark, domain,
+  // engine version/timestamp, and a standing disclaimer that this is
+  // AI-assisted analysis requiring attorney verification before filing —
+  // the same caution already flagged per-draft in Attorney Work Product
+  // ("EVIDENCE VERIFICATION FAILED — DO NOT FILE AS-IS"), stated once,
+  // plainly, in a place a reader will find even if they skip straight to
+  // the end. Not part of the section plan/TOC — this is closing branding,
+  // not a numbered analytical section, so it deliberately sits outside
+  // the TOC/parity machinery entirely.
+  closingPage(meta: { generatedAt: string }) {
+    this.pageBreak();
+    const cx = this.pageW / 2;
+    let yy = this.pageH / 2 - 90;
+    this.trustBadge(cx, yy, 40);
+    yy += 40;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(16);
+    this.doc.setTextColor(...PRIMARY);
+    this.doc.text("NYRAVA", cx, yy, { align: "center" });
+    yy += 16;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(8.5);
+    this.doc.setTextColor(...ACCENT);
+    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", cx, yy, { align: "center" });
+    yy += 14;
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(10);
+    this.doc.setTextColor(...MUTED);
+    this.doc.text("nyrava.com", cx, yy, { align: "center" });
+    yy += 22;
+    this.doc.setDrawColor(...CARD_BORDER);
+    this.doc.setLineWidth(0.75);
+    this.doc.line(cx - 60, yy, cx + 60, yy);
+    yy += 20;
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(8.5);
+    this.doc.setTextColor(...MUTED);
+    const generatedLabel = new Date(meta.generatedAt).toLocaleString();
+    this.doc.text(`Generated ${generatedLabel}  ·  Engine v${NYRAVA_REPORT_VERSION}`, cx, yy, { align: "center" });
+    yy += 34;
+    // Standing disclaimer, boxed for visual weight commensurate with what
+    // it's saying — this should not read as fine print.
+    const boxW = this.pageW - this.margin * 2 - 60;
+    const boxX = cx - boxW / 2;
+    const disclaimer =
+      "This report was generated using Nyrava Intelligence\u2122 and is intended to support\u2014not replace\u2014professional legal judgment. Attorneys remain responsible for reviewing and verifying all findings, citations, scores, legal analysis, and drafted work product against the official source record before filing or relying upon this report.";
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(9);
+    const lines = this.doc.splitTextToSize(disclaimer, boxW - 24) as string[];
+    const boxH = lines.length * 13 + 20;
+    this.doc.setFillColor(248, 250, 252);
+    this.doc.setDrawColor(...CARD_BORDER);
+    this.doc.setLineWidth(0.75);
+    this.doc.roundedRect(boxX, yy, boxW, boxH, 5, 5, "FD");
+    this.doc.setTextColor(...PRIMARY);
+    let ly = yy + 16;
+    for (const line of lines) {
+      this.doc.text(line, cx, ly, { align: "center" });
+      ly += 13;
+    }
+  }
+
+  save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null) {
+    this.header();
+    this.footer(meta);
+    this.doc.save(filename);
+  }
+}
+
+// ===== Section renderers ==============================================
+
+function renderCover(
+  b: PdfBuilder,
+  data: CaseExportData,
+  mode: ReportMode,
+  counters: { generated: number; verified: number; rendered: number },
+): boolean {
+  const c = asObj(data.case);
+  const r = asObj(data.report);
+
+  // --- Page 1: premium full-bleed cover with TrustBadge ---
+  b.premiumCover({
+    caseName: asStr(c.name, "Untitled Case"),
+    description: asStr(c.description) || undefined,
+    engineVersion: asStr(r.intelligence_version) || undefined,
+    matterId: asStr(c.id).slice(0, 8).toUpperCase() || undefined,
+  });
+
+  // --- Page 2: executive dashboard (banner, gauges, findings, cards) ---
+  b.pageBreak();
+
+  // Section eyebrow so the dashboard reads as its own page, not orphaned
+  // content following the cover.
+  b.doc.setFont("helvetica", "bold");
+  b.doc.setFontSize(9);
+  b.doc.setTextColor(...ACCENT);
+  b.doc.text("E X E C U T I V E   D A S H B O A R D", b.margin, b.y);
+  b.y += 18;
+  b.text(asStr(c.name, "Untitled Case"), { size: 20, bold: true, color: PRIMARY, gap: 4 });
+  b.doc.setDrawColor(...ACCENT);
+  b.doc.setLineWidth(1.5);
+  b.doc.line(b.margin, b.y, b.margin + 60, b.y);
+  b.y += 14;
+
+  // === Executive Intelligence Dashboard ===
+  const scores = getScores(getReportRow(data));
+  const hasScores = mode !== "LIMITED" && typeof scores.strength === "number" && typeof scores.risk === "number";
+
+  if (hasScores) {
+    const strength = scores.strength as number;
+    const risk = scores.risk as number;
+
+    const scoreObj = asObj(data.score);
+    const breakdowns = asObj(scoreObj.dimension_breakdowns);
+    const fullReport = asObj(r.full_report);
+    const caseType = asStr(fullReport.case_type) || asStr(breakdowns.case_type) || "general_civil";
+    const isCriminal = caseType === "criminal" || caseType === "civil_rights";
+
+    const riskLevel = risk >= 60 ? "High Risk" : risk >= 35 ? "Moderate Risk" : "Low Risk";
+    const advantage = isCriminal ? (strength < 50 ? "Defense Advantage" : "Prosecution Advantage") : "";
+    const headline = advantage ? `${riskLevel} — ${advantage}` : riskLevel;
+    const strengthCaption = isCriminal
+      ? `Case strength ${strength} / 100 (prosecution's case; lower favors the defense)  ·  Risk score ${risk} / 100`
+      : `Case strength ${strength} / 100  ·  Risk score ${risk} / 100`;
+    b.statusBanner(headline, strengthCaption, b.scoreColor(risk, true));
+
+    b.gaugeRow([
+      { label: "Case Strength", value: strength, color: b.scoreColor(strength) },
+      { label: "Risk Score", value: risk, color: b.scoreColor(risk, true) },
+    ]);
+  }
+
+  const findings = data.findings ?? [];
+  if (findings.length) {
+    const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 } as Record<string, number>;
+    const top = [...findings]
+      .sort((fa, fb) => (order[asStr(fa.severity)] ?? 9) - (order[asStr(fb.severity)] ?? 9))
+      .slice(0, 5);
+    b.h2("Top Findings");
+    for (const f of top) b.findingChip(asStr(f.severity), asStr(f.title), Number(f.confidence ?? 0));
+    b.y += 14;
+  }
+
+
+  const agentSummary = getAgentSummary(getReportRow(data));
+  const cards: Array<{ label: string; value: string; color?: [number, number, number] }> = [];
+  if (mode === "LIMITED") {
+    cards.push({ label: "Status", value: "Limited", color: DANGER });
+    cards.push({ label: "Scores", value: "Suppressed", color: MUTED });
+    cards.push({ label: "Recommendations", value: "Suppressed", color: MUTED });
+  }
+  cards.push({ label: "Documents Analyzed", value: String(data.documents.length) });
+  cards.push({ label: "Findings", value: String(counters.rendered) });
+  const constitutionalCount = asArr(r.constitutional_issues_struct).length;
+  if (constitutionalCount > 0)
+    cards.push({ label: "Constitutional Issues", value: String(constitutionalCount), color: DANGER });
+  const missingCount = asArr(r.missing_evidence_struct).length;
+  if (missingCount > 0) cards.push({ label: "Missing Evidence", value: String(missingCount), color: ACCENT });
+  if (agentSummary.loaded > 0) {
+    cards.push({
+      label: "Agents Producing Output",
+      value: `${agentSummary.producingOutput} / ${agentSummary.loaded}`,
+    });
+  }
+  if (r.intelligence_version) cards.push({ label: "Engine Version", value: asStr(r.intelligence_version) });
+
+  b.statCards(cards, 5);
+
+  // Cover metadata now lives on page 1; caller pageBreaks into the TOC.
+  return false;
+}
+
+function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) {
+  const r = asObj(data.report);
+  b.h1("Executive Summary");
+  if (mode === "LIMITED") {
+    const docCount = data.documents.length;
+    const findingCount = (data.findings ?? []).length;
+    b.text(
+      "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations. " +
+        `The intake included ${docCount} source document${docCount === 1 ? "" : "s"} and produced ${findingCount} verified finding${findingCount === 1 ? "" : "s"}. ` +
+        "An evidence-grounded narrative is rendered below for every section in which the corpus supplied sufficient verbatim material. Sections that would otherwise rely on inferred legal theories — quantitative scorecards, motion drafting, theory selection, and prioritized recommendations — have been withheld so that no claim in this report rests on speculation.",
+      { size: 11, gap: 8 },
+    );
+    b.text(
+      "To upgrade this matter to a full analysis, supply additional primary sources: pleadings, discovery responses, deposition transcripts, contemporaneous correspondence, contracts and amendments, expert reports, and any documentary evidence referenced in the existing record. Each additional verified source increases the ESS score, unlocks deterministic scoring, and enables the engine to draft motion outlines with supporting citations.",
+      { size: 11, gap: 8 },
+    );
+    b.text(
+      "Every finding rendered in this report has been validated against the source corpus and is safe to rely on. The suppressions below are conservative by design — they protect the work product from hallucinated legal conclusions while preserving the verified factual record.",
+      { size: 11, gap: 8 },
+    );
+    return;
+  }
+  const exec = processProseCitations(asStr(r.executive_summary) || asStr(r.attorney_summary));
+  if (exec) b.text(exec, { size: 11, gap: 8 });
+
+  // Read scores through canonical.ts, not the raw row. getScores() also
+  // honors ESS suppression, which r.case_strength_score alone does not.
+  // Uses gaugeRow — the SAME circular gauge widget the cover page uses for
+  // these identical two numbers — rather than the flatter meterPair bars.
+  // Showing Case Strength / Risk Score as a bar chart here and a radial
+  // gauge one page earlier was the exact "different sections feel like
+  // separate documents" problem: same numbers, two different chart types,
+  // one page apart.
+  const scores = getScores(getReportRow(data));
+  const gauges: Array<{ label: string; value: number; color: [number, number, number] }> = [];
+  if (typeof scores.strength === "number")
+    gauges.push({ label: "Case Strength", value: scores.strength, color: b.scoreColor(scores.strength) });
+  if (typeof scores.risk === "number")
+    gauges.push({ label: "Risk Score", value: scores.risk, color: b.scoreColor(scores.risk, true) });
+  // Compact horizontal strip — the cover page already renders these same
+  // numbers as prominent radial gauges. Repeating a second large radial
+  // widget one page later was pure visual repetition; the compact strip
+  // keeps the numbers visible without the duplication.
+  b.compactScoreStrip(gauges);
+
+  const ce = processProseCitations(asStr(r.score_breakdown));
+  if (ce && typeof scores.strength === "number") {
+    // score_breakdown is free-text prose written by an earlier scoring pass
+    // and is not guaranteed to stay in sync with case_strength_score if the
+    // deterministic scorecard is ever recalculated without a full narrative
+    // regeneration. Guard against rendering a stale number (e.g. the report
+    // showing "Case Strength: 60/100" and this prose separately saying
+    // "the case score is 35") by refusing to print the prose verbatim if it
+    // contains a different score than the live value.
+    const mentionedScores = ce.match(/\bscore (?:is|of)\s+(\d{1,3})\b/i);
+    const staleMismatch = mentionedScores && Number(mentionedScores[1]) !== scores.strength;
+    if (staleMismatch) {
+      b.h2("Score reasoning");
+      b.text(
+        `Case strength is ${scores.strength} / 100. (Narrative reasoning for this score was not regenerated after ` +
+          "the most recent scorecard update and has been withheld to avoid displaying a stale figure.)",
+        { color: MUTED },
+      );
+    } else {
+      b.h2("Score reasoning");
+      b.text(ce);
+    }
+  } else if (ce) {
+    b.h2("Score reasoning");
+    b.text(ce);
+  }
+}
+
+// The "money page." Ranked motions, immediate next actions, top strategic
+// priorities, and generated-work-product readiness — the handful of things
+// an attorney would actually act on today — pulled to the front of the
+// report, ahead of the detailed analysis that supports them. Everything
+// shown here is drawn verbatim from data that already exists elsewhere in
+// the report (Strategic Opportunities, Strategy Synthesis, Attorney Work
+// Product); this page never invents a number those sections don't have.
+// Shared by renderRecommendedMotions and renderActionCenter's "Generated
+// Work Product" list: the set of work-product rows eligible to be shown as
+// "ready," honoring the same ESS motions-suppression gate as everywhere else.
+function eligibleWorkProduct(data: CaseExportData): Array<Record<string, unknown>> {
+  const r = asObj(data.report);
+  const motionsSuppressed = Boolean(r.motions_suppressed);
+  const workProductAll = data.work_product ?? [];
+  const workProduct = motionsSuppressed
+    ? workProductAll.filter((w) => asStr(w.document_type) === "case_summary")
+    : workProductAll;
+  const bodyOf = (w: Record<string, unknown>) => asStr(w.body_markdown) || asStr(w.content);
+  return workProduct.filter((w) => bodyOf(w).trim().length > 40);
+}
+
+// Bucket a motion's raw `priority` number into the four labels attorneys
+// scan for. 1 = Critical, 2 = High, everything else (3+, or missing) folds
+// into "Additional" so the summary dashboard always adds up to the total
+// count of recommended motions, regardless of how finely the model graded
+// priority.
+function motionPriorityBucket(m: Record<string, unknown>): { label: string; color: [number, number, number] } {
+  const p = Number(m.priority);
+  if (p === 1) return { label: "CRITICAL", color: DANGER };
+  if (p === 2) return { label: "HIGH", color: ACCENT };
+  if (p === 3) return { label: "MEDIUM", color: ACCENT };
+  return { label: "CONSIDER", color: MUTED };
+}
+
+// Likelihood in the source data is a qualitative low/medium/high estimate,
+// not a numeric probability. Map it to a representative percentage so it
+// can drive a real progress bar — the number is illustrative of the bucket,
+// never presented as a precise model-computed probability.
+function likelihoodPercent(m: Record<string, unknown>): { pct: number; bucket: "high" | "medium" | "low" } {
+  const raw = (asStr(m.likelihood_of_success) || asStr(m.likely_outcome)).toLowerCase();
+  if (raw.includes("high")) return { pct: 85, bucket: "high" };
+  if (raw.includes("low")) return { pct: 35, bucket: "low" };
+  return { pct: 60, bucket: "medium" };
+}
+
+// Where a motion currently stands in the Motion Intelligence module. Never a
+// hyperlink — just an honest status readout, derived from whether a matching
+// work-product draft already exists for this motion.
+function motionIntelligenceStatus(
+  m: Record<string, unknown>,
+  generatedWP: Array<Record<string, unknown>>,
+): { label: string; color: [number, number, number] } {
+  const title = asStr(m.motion).toLowerCase();
+  const matched = generatedWP.some((w) => {
+    const wTitle = (asStr(w.title) || asStr(w.document_type)).toLowerCase();
+    return title && wTitle && (wTitle.includes(title) || title.includes(wTitle));
+  });
+  if (matched) return { label: "Ready in Motion Intelligence", color: SUCCESS };
+  if (asStr(m.draft_outline).trim().length > 40) return { label: "Draft Available", color: ACCENT };
+  if (asArr(m.elements).length || asStr(m.legal_rationale)) return { label: "Requires Attorney Review", color: MUTED };
+  return { label: "Not Yet Generated", color: MUTED };
+}
+
+// Evidence bullets for a motion card: prefer real pinpoint citations, fall
+// back to the supporting-facts prose, then the legal elements — always the
+// most concrete thing available, never invented.
+function motionEvidenceBullets(m: Record<string, unknown>): string[] {
+  const cites = asArr(m.citations);
+  if (cites.length) {
+    return cites
+      .slice(0, 4)
+      .map((c) => {
+        const quote = asStr(c.quote).trim();
+        const label = citeLabel(c.doc_n, c.page);
+        return quote ? `"${quote.slice(0, 140)}${quote.length > 140 ? "…" : ""}" — ${label}` : label;
+      })
+      .filter(Boolean);
+  }
+  const facts = asStr(m.supporting_facts).trim();
+  if (facts) return [facts.slice(0, 200)];
+  return asArr(m.elements)
+    .map((e) => asStr(e))
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+// The signature feature of the report: a dedicated, highly visible
+// "Recommended Motions" section immediately after the Executive Summary.
+// Every motion the engine surfaced is rendered as its own card — priority
+// badge, likelihood bar, reason, evidence, legal basis, and Motion
+// Intelligence status — so an attorney can identify the strongest motions
+// in seconds, without reading paragraphs of prose. Drafting/editing still
+// happens in the Motion Intelligence module; this section only tells the
+// attorney what exists and why it matters.
+function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const motionsSuppressed = Boolean(r.motions_suppressed);
+  const motions = motionsSuppressed ? [] : asArr(r.motion_opportunities);
+  if (!motions.length) return;
+
+  const generatedWP = eligibleWorkProduct(data);
+  const rank = (m: Record<string, unknown>) => {
+    const p = Number(m.priority);
+    return Number.isFinite(p) ? p : 99;
+  };
+  const ranked = [...motions].sort((ma, mb) => rank(ma) - rank(mb));
+
+  b.h1("Recommended Motions");
+  b.text(
+    "The motions most likely to strengthen this case, ranked by priority. Drafting and editing continue in the Motion Intelligence module.",
+    { size: 10, color: MUTED, gap: 10 },
+  );
+
+  // ---- Motion Summary Dashboard ----
+  const critical = ranked.filter((m) => motionPriorityBucket(m).label === "CRITICAL").length;
+  const high = ranked.filter((m) => motionPriorityBucket(m).label === "HIGH").length;
+  const additional = ranked.length - critical - high;
+  const stats: Array<{ label: string; value: number; color: [number, number, number] }> = [
+    { label: "Critical", value: critical, color: DANGER },
+    { label: "High Priority", value: high, color: ACCENT },
+    { label: "Additional", value: additional, color: MUTED },
+  ];
+  const dashH = 58;
+  b.ensureSpace(dashH + 14);
+  b.doc.setFillColor(248, 250, 252);
+  b.doc.setDrawColor(...CARD_BORDER);
+  b.doc.setLineWidth(1);
+  b.doc.roundedRect(b.margin, b.y - 14, b.pageW - b.margin * 2, dashH, 6, 6, "FD");
+  const colW = (b.pageW - b.margin * 2) / (stats.length + 1);
+  stats.forEach((s, i) => {
+    const cx = b.margin + colW * i + colW / 2;
+    b.doc.setFont("helvetica", "bold");
+    b.doc.setFontSize(22);
+    b.doc.setTextColor(...s.color);
+    b.doc.text(String(s.value), cx, b.y + 10, { align: "center" });
+    b.doc.setFont("helvetica", "normal");
+    b.doc.setFontSize(9);
+    b.doc.setTextColor(...MUTED);
+    b.doc.text(s.label.toUpperCase(), cx, b.y + 26, { align: "center" });
+  });
+  const totalCx = b.margin + colW * stats.length + colW / 2;
+  b.doc.setFont("helvetica", "bold");
+  b.doc.setFontSize(22);
+  b.doc.setTextColor(...PRIMARY);
+  b.doc.text(String(ranked.length), totalCx, b.y + 10, { align: "center" });
+  b.doc.setFont("helvetica", "normal");
+  b.doc.setFontSize(9);
+  b.doc.setTextColor(...MUTED);
+  b.doc.text("TOTAL RECOMMENDED", totalCx, b.y + 26, { align: "center" });
+  b.y += dashH + 16;
+
+  // ---- Motion cards ----
+  for (const [idx, m] of ranked.entries()) {
+    if (idx > 0) b.y += 10;
+    const evidence = motionEvidenceBullets(m);
+    const reason = asStr(m.basis) || asStr(m.legal_rationale);
+    const legalBasis = asArr(m.elements)
+      .map((e) => asStr(e))
+      .filter(Boolean);
+    const status = motionIntelligenceStatus(m, generatedWP);
+    const { pct, bucket } = likelihoodPercent(m);
+    const barColor = bucket === "high" ? SUCCESS : bucket === "low" ? DANGER : ACCENT;
+
+    // Measure the card's full height up front so it never splits across a
+    // page boundary partway through a motion.
+    b.doc.setFont("helvetica", "bold");
+    b.doc.setFontSize(13);
+    const titleLines = b.doc.splitTextToSize(asStr(m.motion), b.pageW - b.margin * 2 - 100) as string[];
+    let cardH = 20 + titleLines.length * 15 + 30; // title + likelihood bar
+    if (reason) cardH += b.measureTextHeight(reason, 9.5, 8) + 14;
+    if (evidence.length) cardH += 14 + evidence.length * 12 + 10;
+    if (legalBasis.length) cardH += 14 + 12 + 10;
+    cardH += 24; // status row + padding
+
+    b.ensureSpace(cardH);
+    const cardTop = b.y - 14;
+    const cardX = b.margin;
+    const cardW = b.pageW - b.margin * 2;
+    b.doc.setFillColor(255, 255, 255);
+    b.doc.setDrawColor(...CARD_BORDER);
+    b.doc.setLineWidth(1);
+    b.doc.roundedRect(cardX, cardTop, cardW, cardH, 6, 6, "FD");
+    const accent = motionPriorityBucket(m).color;
+    b.doc.setFillColor(...accent);
+    b.doc.roundedRect(cardX, cardTop, 4, cardH, 2, 2, "F");
+
+    const padX = cardX + 16;
+    b.y = cardTop + 22;
+    b.doc.setFont("helvetica", "bold");
+    b.doc.setFontSize(13);
+    b.doc.setTextColor(...PRIMARY);
+    b.doc.text(`${idx + 1}. ${titleLines[0] ?? ""}`, padX, b.y);
+    const bucketInfo = motionPriorityBucket(m);
+    b.pill(`Priority: ${bucketInfo.label}`, cardX + cardW - 16, b.y - 4, bucketInfo.color, "right");
+    b.y += 15;
+    for (const extra of titleLines.slice(1)) {
+      b.doc.text(extra, padX, b.y);
+      b.y += 15;
+    }
+
+    // Likelihood of Success bar.
+    b.doc.setFont("helvetica", "normal");
+    b.doc.setFontSize(8.5);
+    b.doc.setTextColor(...MUTED);
+    b.doc.text("LIKELIHOOD OF SUCCESS", padX, b.y);
+    b.doc.setFont("helvetica", "bold");
+    b.doc.setFontSize(9);
+    b.doc.setTextColor(...barColor);
+    b.doc.text(`${pct}%`, cardX + cardW - 16, b.y, { align: "right" });
+    b.y += 6;
+    const barX = padX;
+    const barW = cardW - 32;
+    b.doc.setFillColor(...CARD_BORDER);
+    b.doc.roundedRect(barX, b.y, barW, 7, 3, 3, "F");
+    b.doc.setFillColor(...barColor);
+    b.doc.roundedRect(barX, b.y, Math.max(barW * (pct / 100), 8), 7, 3, 3, "F");
+    b.y += 20;
+
+    if (reason) {
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(9);
+      b.doc.setTextColor(...PRIMARY);
+      b.doc.text("REASON", padX, b.y);
+      b.y += 12;
+      const reasonLines = b.doc.splitTextToSize(reason, cardW - 32) as string[];
+      b.doc.setFont("helvetica", "normal");
+      b.doc.setFontSize(9.5);
+      b.doc.setTextColor(...MUTED);
+      for (const line of reasonLines) {
+        b.doc.text(line, padX, b.y);
+        b.y += 12;
+      }
+      b.y += 4;
+    }
+
+    if (evidence.length) {
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(9);
+      b.doc.setTextColor(...PRIMARY);
+      b.doc.text("PRIMARY EVIDENCE", padX, b.y);
+      b.y += 12;
+      b.doc.setFont("helvetica", "normal");
+      b.doc.setFontSize(9);
+      b.doc.setTextColor(...MUTED);
+      for (const ev of evidence) {
+        const lines = b.doc.splitTextToSize(`•  ${ev}`, cardW - 32) as string[];
+        for (const line of lines) {
+          b.doc.text(line, padX, b.y);
+          b.y += 12;
+        }
+      }
+      b.y += 4;
+    }
+
+    if (legalBasis.length) {
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(9);
+      b.doc.setTextColor(...PRIMARY);
+      b.doc.text("LEGAL BASIS", padX, b.y);
+      b.y += 12;
+      b.doc.setFont("helvetica", "normal");
+      b.doc.setFontSize(9);
+      b.doc.setTextColor(...MUTED);
+      const basisLine = legalBasis.join("  •  ");
+      const lines = b.doc.splitTextToSize(basisLine, cardW - 32) as string[];
+      for (const line of lines) {
+        b.doc.text(line, padX, b.y);
+        b.y += 12;
+      }
+      b.y += 4;
+    }
+
+    // Status row, pinned to the card's bottom edge.
+    const statusY = cardTop + cardH - 12;
+    b.doc.setFont("helvetica", "normal");
+    b.doc.setFontSize(8.5);
+    b.doc.setTextColor(...MUTED);
+    b.doc.text("STATUS", padX, statusY);
+    b.pill(status.label, cardX + cardW - 16, statusY - 5, status.color, "right");
+
+    b.y = cardTop + cardH + 4;
+  }
+}
+
+function priorityBadgeColor(priority: string): [number, number, number] {
+  const p = priority.toLowerCase();
+  if (p === "critical") return DANGER;
+  if (p === "high") return ACCENT;
+  return MUTED;
+}
+
+function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const full = asObj(r.full_report);
+  // Canonical, deduplicated recommendation list (see
+  // src/lib/intelligence/report-recommendations.ts) — present on reports
+  // generated after the cross-chunk narrative-duplication fix. Older
+  // cached reports won't have it, so fall back to the legacy raw
+  // next_actions/strategy_recommendations lists in that case rather than
+  // showing an empty Action Center.
+  const canonicalRecs = asArr(full.canonical_recommendations);
+  const useCanonical = canonicalRecs.length > 0;
+
+  const nextActions = asArr(r.next_actions);
+  const stratRecs = asArr(r.strategy_recommendations);
+  const generatedWP = eligibleWorkProduct(data);
+
+  const hasAnyContent = useCanonical
+    ? canonicalRecs.length > 0 || generatedWP.length > 0
+    : nextActions.length > 0 || stratRecs.length > 0 || generatedWP.length > 0;
+  if (!hasAnyContent) return;
+
+  b.h1("Attorney Action Center");
+  b.text("Immediate next steps and strategic priorities, ahead of the detailed analysis that supports them.", {
+    size: 10,
+    color: MUTED,
+    gap: 10,
+  });
+
+  if (useCanonical) {
+    // Single merged list, already deduplicated and priority-sorted — this
+    // replaces what used to be two separately-generated lists
+    // ("Immediate Recommended Actions" from next_actions, "Strategic
+    // Priorities" from strategy_recommendations) that frequently repeated
+    // each other. Rendering them from the same canonical source here would
+    // just reproduce that duplication under two headers, so when the
+    // canonical list is available it is shown once.
+    b.h2("Recommended Actions");
+    for (const c of canonicalRecs) {
+      const title = asStr(c.title);
+      const reason = asStr(c.reason);
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(10.5);
+      const titleLines = b.doc.splitTextToSize(title, b.pageW - b.margin * 2 - 90) as string[];
+      const showReason = reason && reason !== title;
+      const itemHeight = 15 * titleLines.length + (showReason ? b.measureTextHeight(reason, 9, 6) : 0) + 6;
+      b.ensureSpace(itemHeight);
+      b.doc.setDrawColor(...ACCENT);
+      b.doc.setLineWidth(1.2);
+      b.doc.rect(b.margin, b.y - 9, 8, 8, "S");
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(10.5);
+      b.doc.setTextColor(...PRIMARY);
+      b.doc.text(titleLines[0] ?? "", b.margin + 16, b.y);
+      b.pill(
+        asStr(c.priority, "medium").toUpperCase(),
+        b.pageW - b.margin,
+        b.y + 1,
+        priorityBadgeColor(asStr(c.priority)),
+        "right",
+      );
+      b.y += 15;
+      for (const extra of titleLines.slice(1)) {
+        b.doc.text(extra, b.margin + 16, b.y);
+        b.y += 14;
+      }
+      if (showReason) b.text(reason, { size: 9.5, color: MUTED, gap: 6 });
+      b.y += 10;
+    }
+  } else {
+    if (nextActions.length) {
+      b.h2("Immediate Recommended Actions");
+      for (const n of nextActions) {
+        // Measure the item's full height (action text can wrap; "why" is a
+        // separate wrapped sentence) before committing to a page, so the
+        // checkbox/owner badge/action text/why caption move together.
+        b.doc.setFont("helvetica", "bold");
+        b.doc.setFontSize(10.5);
+        const actionPreview = b.doc.splitTextToSize(asStr(n.action), b.pageW - b.margin * 2 - 110) as string[];
+        const whyPreview = asStr(n.why);
+        const itemHeight = 15 * actionPreview.length + (whyPreview ? b.measureTextHeight(whyPreview, 9, 6) : 0) + 6;
+        b.ensureSpace(itemHeight);
+        // Open checkbox glyph — literal enough to read as "to-do" without
+        // relying on an emoji glyph the PDF font can't render.
+        b.doc.setDrawColor(...ACCENT);
+        b.doc.setLineWidth(1.2);
+        b.doc.rect(b.margin, b.y - 9, 8, 8, "S");
+        b.doc.setFont("helvetica", "bold");
+        b.doc.setFontSize(10.5);
+        b.doc.setTextColor(...PRIMARY);
+        const actionLines = b.doc.splitTextToSize(asStr(n.action), b.pageW - b.margin * 2 - 110) as string[];
+        b.doc.text(actionLines[0] ?? "", b.margin + 16, b.y);
+        if (n.owner) b.pill(asStr(n.owner), b.pageW - b.margin, b.y + 1, MUTED, "right");
+        b.y += 15;
+        for (const extra of actionLines.slice(1)) {
+          b.doc.text(extra, b.margin + 16, b.y);
+          b.y += 14;
+        }
+        if (n.why) b.text(asStr(n.why), { size: 9.5, color: MUTED, gap: 6 });
+        b.y += 10;
+      }
+    }
+
+    const highlights = stratRecs
+      .filter((s) => ["critical", "high"].includes(asStr(s.priority).toLowerCase()))
+      .slice(0, 4);
+    if (highlights.length) {
+      b.h2("Strategic Priorities");
+      for (const s of highlights) {
+        b.ensureSpace(18);
+        const color = asStr(s.priority).toLowerCase() === "critical" ? DANGER : ACCENT;
+        const pw = b.pill(asStr(s.priority), b.margin, b.y + 1, color, "left");
+        b.doc.setFont("helvetica", "normal");
+        b.doc.setFontSize(10);
+        b.doc.setTextColor(...PRIMARY);
+        b.doc.text(asStr(s.title).slice(0, 90), b.margin + pw + 10, b.y);
+        b.y += 18;
+      }
+      b.y += 2;
+    }
+  }
+
+  if (generatedWP.length) {
+    b.h2("Generated Work Product");
+    b.text("Ready for attorney review — full drafts appear later in this report.", {
+      size: 9,
+      color: MUTED,
+      gap: 6,
+    });
+    for (const w of generatedWP) {
+      b.ensureSpace(18);
+      b.doc.setFont("helvetica", "normal");
+      b.doc.setFontSize(10);
+      b.doc.setTextColor(...PRIMARY);
+      b.doc.text(asStr(w.title, asStr(w.document_type, "Work product")).slice(0, 70), b.margin, b.y);
+      b.pill("Ready", b.pageW - b.margin, b.y + 1, SUCCESS, "right");
+      b.y += 18;
+    }
+  }
+}
+
+// ---- Litigation Impact Dashboard ---------------------------------------
+// Renders the SAME cards `buildLitigationImpactDashboard()` produces for
+// the in-app Report tab. Deliberately terse — one line per card via
+// statCards() — rather than repeating each dimension's full contributor
+// breakdown, which is already covered in more depth by the "Dimension
+// Detail" subsection of Case Scorecard later in this document. Showing it
+// twice would reintroduce the exact redundancy renderScorecard's own
+// comments describe removing once already (bare numbers vs. bars).
+function impactTierColor(b: PdfBuilder, tier: ImpactCard["tier"]): [number, number, number] {
+  const word = tier === "critical" ? "critical" : tier === "high" ? "high" : tier === "moderate" ? "medium" : "low";
+  return b.severityColor(word);
+}
+
+const IMPACT_DASHBOARD_NOTE =
+  "Starting point, not a finished answer. Verify anything you plan to rely on with Case AI, pull controlling authority in Case Law, and confirm the actual filing through Motion Drafting before treating this as ready.";
+
+function renderLitigationImpactDashboard(b: PdfBuilder, data: CaseExportData) {
+  const reportRow = (data.report ?? {}) as Record<string, unknown>;
+  const dashboard = buildLitigationImpactDashboard(reportRow);
+  if (dashboard.suppressed || dashboard.cards.length === 0) return;
+
+  b.h1("Litigation Impact Dashboard");
+  b.text(
+    "A case-type read on the deterministic scorecard below, framed as the questions an attorney asks first rather than as raw dimension names.",
+    { size: 9.5, color: MUTED, gap: 10 },
+  );
+  b.statCards(
+    dashboard.cards.map((c) => ({
+      label: c.title,
+      value: `${c.badge} - ${c.value}`,
+      color: impactTierColor(b, c.tier),
+    })),
+    3,
+  );
+  b.y += 10;
+  b.text(IMPACT_DASHBOARD_NOTE, { size: 8, color: MUTED, gap: 4 });
+}
+
+function impactDashboardDocxParas(data: CaseExportData): Paragraph[] {
+  const reportRow = (data.report ?? {}) as Record<string, unknown>;
+  const dashboard = buildLitigationImpactDashboard(reportRow);
+  if (dashboard.suppressed || dashboard.cards.length === 0) return [];
+
+  const out: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Litigation Impact Dashboard")] }),
+  ];
+  for (const c of dashboard.cards) {
+    out.push(
+      new Paragraph({
+        children: [new TextRun({ text: `${c.title}: `, bold: true }), new TextRun(`${c.badge} (${c.value})`)],
+      }),
+    );
+    if (c.detail) out.push(new Paragraph({ children: [new TextRun(c.detail)] }));
+  }
+  out.push(new Paragraph({ children: [new TextRun({ italics: true, text: IMPACT_DASHBOARD_NOTE })] }));
+  return out;
+}
+
+function reportText(data: CaseExportData, key: string): string {
+  const r = asObj(data.report);
+  const full = asObj(r.full_report);
+  const prose = asObj(full.prose);
+  return processProseCitations(asStr(r[key]) || asStr(prose[key]) || asStr(full[key]));
+}
+
+function fallbackOverview(data: CaseExportData): string {
+  const c = asObj(data.case);
+  const docs = data.documents.map((d) => asStr(d.filename)).filter(Boolean);
+  const topFindings = (data.findings ?? [])
+    .slice(0, 5)
+    .map((f) => asStr(f.title))
+    .filter(Boolean);
+  return [
+    `Case: ${asStr(c.name, "Untitled Case")}.`,
+    docs.length
+      ? `Reviewed source documents: ${docs.join(", ")}.`
+      : "No source documents were attached to this export.",
+    topFindings.length
+      ? `Primary verified issues identified: ${topFindings.join("; ")}.`
+      : "No verified findings were available at export time.",
+  ].join(" ");
+}
+
+function renderCaseOverview(b: PdfBuilder, data: CaseExportData) {
+  const overview = reportText(data, "case_overview") || reportText(data, "attorney_summary") || fallbackOverview(data);
+  b.h1("Case Overview");
+  b.text(overview, { size: 11, gap: 8 });
+}
+
+// Extract a sortable date from a finding's text, falling back to null when
+// no date is present. Used to chronologically order the facts narrative.
+function extractDate(s: string): { iso: string; display: string } | null {
+  if (!s) return null;
+  // ISO: 2024-03-15 or 2024/03/15
+  const iso = s.match(/\b(20\d{2}|19\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  if (iso) {
+    const m = String(iso[2]).padStart(2, "0"),
+      d = String(iso[3]).padStart(2, "0");
+    return { iso: `${iso[1]}-${m}-${d}`, display: `${iso[1]}-${m}-${d}` };
+  }
+  // US: 03/15/2024 or 3-15-24
+  const us = s.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
+  if (us) {
+    let y = us[3];
+    if (y.length === 2) y = (parseInt(y, 10) > 50 ? "19" : "20") + y;
+    const m = String(us[1]).padStart(2, "0"),
+      d = String(us[2]).padStart(2, "0");
+    return { iso: `${y}-${m}-${d}`, display: `${us[1]}/${us[2]}/${y}` };
+  }
+  // Month-name: January 15, 2024
+  const mn = s.match(
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),?\s+(\d{4})\b/i,
+  );
+  if (mn) {
+    const months: Record<string, string> = {
+      jan: "01",
+      feb: "02",
+      mar: "03",
+      apr: "04",
+      may: "05",
+      jun: "06",
+      jul: "07",
+      aug: "08",
+      sep: "09",
+      oct: "10",
+      nov: "11",
+      dec: "12",
+    };
+    const key = mn[1].toLowerCase().slice(0, 3);
+    const m = months[key] || "01";
+    const d = String(mn[2]).padStart(2, "0");
+    return { iso: `${mn[3]}-${m}-${d}`, display: `${mn[1]} ${mn[2]}, ${mn[3]}` };
+  }
+  return null;
+}
+
+function renderFacts(b: PdfBuilder, data: CaseExportData) {
+  const facts = reportText(data, "facts");
+  b.h1("Facts");
+
+  // Always lead with the LLM-authored facts narrative when present.
+  if (facts && facts.trim().length > 0) {
+    b.text(facts, { size: 10.5, gap: 8 });
+  }
+
+  // Build a chronological narrative from verified findings. Even when the
+  // LLM narrative exists, the dated synthesis is useful as a structured
+  // companion timeline of the underlying events.
+  const findings = data.findings ?? [];
+  const dated: Array<{ iso: string; display: string; title: string; desc: string }> = [];
+  const undated: Array<{ title: string; desc: string }> = [];
+  for (const f of findings) {
+    const title = asStr(f.title);
+    const desc = asStr(f.description);
+    if (!title && !desc) continue;
+    const found = extractDate(`${title} ${desc}`);
+    if (found) {
+      dated.push({ iso: found.iso, display: found.display, title, desc });
+    } else {
+      undated.push({ title, desc });
+    }
+  }
+  dated.sort((a, c) => a.iso.localeCompare(c.iso));
+
+  if (dated.length) {
+    b.h2("Chronological Narrative");
+    b.text(
+      "The following events are reconstructed from the verified record, ordered by the earliest date associated with each finding. Each paragraph integrates the underlying evidence into a continuous factual narrative suitable for memorandum use.",
+      { size: 10, color: MUTED, gap: 8 },
+    );
+    for (const ev of dated) {
+      b.text(`${ev.display} — ${ev.title}`, { size: 10.5, bold: true, color: ACCENT, gap: 2 });
+      if (ev.desc) b.text(ev.desc, { size: 10.5, gap: 6 });
+    }
+  }
+
+  if (undated.length && !facts) {
+    b.h2("Additional Verified Facts (Undated)");
+    b.text(
+      "The following verified facts could not be placed on the timeline because no date was associated with the source citation. They are nevertheless part of the established record and should be considered alongside the chronological narrative above.",
+      { size: 10, color: MUTED, gap: 6 },
+    );
+    for (const u of undated.slice(0, 20)) {
+      b.text(`• ${u.title}`, { size: 10.5, bold: true, gap: 2 });
+      if (u.desc) b.text(u.desc, { size: 10.5, gap: 4 });
+    }
+  }
+
+  if (!facts && !dated.length && !undated.length) {
+    b.text(
+      "No verified facts were extracted from the available corpus. This typically indicates that the source documents lacked the quotable, document-anchored statements required to construct an evidence-grounded factual record. To enable a facts narrative, attach primary sources containing concrete factual assertions — pleadings, contemporaneous correspondence, contracts, transcripts, declarations, or signed reports — so the extraction layer can anchor each fact to a verbatim quote and page citation.",
+      { size: 10.5, gap: 8 },
+    );
+  }
+}
+
+function renderTimelineSummary(b: PdfBuilder, data: CaseExportData) {
+  const timeline = reportText(data, "timeline_summary");
+  const timelineFindings = (data.findings ?? [])
+    .filter((f) => /timeline|date|deadline|filing|service|procedural/i.test(`${asStr(f.category)} ${asStr(f.title)}`))
+    .slice(0, 10)
+    .map((f) => `${asStr(f.title)} — ${asStr(f.description).slice(0, 220)}`);
+  b.h1("Timeline Summary");
+  if (timeline) b.text(timeline, { size: 10.5, gap: 8 });
+  else if (timelineFindings.length) b.bullets(timelineFindings);
+  else b.text("No dated timeline events were extracted from the available corpus.", { size: 10, color: MUTED });
+}
+
+function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
+  const discovery = reportText(data, "discovery_analysis") || reportText(data, "missing_evidence_report");
+  const r = asObj(data.report);
+  const missing = asArr(r.missing_evidence_struct);
+  b.h1("Discovery Analysis");
+  if (discovery) b.text(discovery, { size: 10.5, gap: 8 });
+  if (missing.length) {
+    b.h2("Missing or Needed Evidence");
+    b.table(
+      [["Item", "Severity", "How to obtain / why critical"]],
+      missing.map((m) => [
+        asStr(m.item).slice(0, 70),
+        asStr(m.severity, "—"),
+        (asStr(m.how_to_obtain) || asStr(m.why_critical)).slice(0, 120),
+      ]),
+    );
+  }
+  if (!discovery && !missing.length) {
+    b.text("No verified discovery gaps survived evidence validation.", { size: 10, color: MUTED });
+  }
+}
+
+function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {
+  const risk = reportText(data, "risk_analysis") || reportText(data, "score_breakdown");
+  const r = asObj(data.report);
+  b.h1("Risk Analysis");
+  if (typeof r.risk_score === "number" && !r.scores_suppressed) {
+    // Compact score strip — the risk score is already displayed as a
+    // prominent radial gauge on the cover page. A second large radial
+    // repeat here creates visual repetition; the strip preserves the
+    // number and its color coding without another full-height widget.
+    b.compactScoreStrip([
+      { label: "Risk Score", value: Number(r.risk_score), color: b.scoreColor(Number(r.risk_score), true) },
+    ]);
+  }
+  if (risk) b.text(risk, { size: 10.5, gap: 8 });
+  else
+    b.text("Risk analysis is limited to the verified findings and source-document coverage shown in this report.", {
+      size: 10,
+      color: MUTED,
+    });
+}
+
+function renderRecommendationsNarrative(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const full = asObj(r.full_report);
+  const canonicalRecs = asArr(full.canonical_recommendations);
+
+  b.h1("Recommendations");
+
+  if (canonicalRecs.length) {
+    // The canonical list already merges what used to be rendered here as
+    // three separate, overlapping structures: the free-form narrative
+    // paragraph, the "Strategic recommendations" bullets, and the "Next
+    // actions" table. All three were independently-generated restatements
+    // of the same underlying recommendations, so once the merged list is
+    // available it replaces all three rather than sitting alongside them.
+    const order = ["critical", "high", "medium", "low"];
+    const grouped = order
+      .map((p) => ({ p, items: canonicalRecs.filter((c) => asStr(c.priority, "medium").toLowerCase() === p) }))
+      .filter((g) => g.items.length > 0);
+    for (const g of grouped) {
+      b.h2(`${g.p.charAt(0).toUpperCase()}${g.p.slice(1)} priority`);
+      b.bullets(
+        g.items.map((c) => {
+          const title = asStr(c.title);
+          const reason = asStr(c.reason);
+          return reason && reason !== title ? `${title} — ${reason.slice(0, 180)}` : title;
+        }),
+      );
+    }
+    return;
+  }
+
+  // Legacy fallback for reports generated before the canonical
+  // recommendations merge shipped — renders exactly as before.
+  const recommendations = reportText(data, "recommendations");
+  const next = asArr(r.next_actions);
+  const strategy = asArr(r.strategy_recommendations);
+  if (recommendations) b.text(recommendations, { size: 10.5, gap: 8 });
+  if (strategy.length) {
+    b.h2("Strategic recommendations");
+    b.bullets(
+      strategy
+        .slice(0, 12)
+        .map((s) => `${asStr(s.priority).toUpperCase()} · ${asStr(s.title)} — ${asStr(s.rationale).slice(0, 180)}`),
+    );
+  }
+  if (next.length) {
+    b.h2("Next actions");
+    b.table(
+      [["#", "Action", "Owner", "Why"]],
+      next.map((n) => [asStr(n.order, "•"), asStr(n.action).slice(0, 90), asStr(n.owner), asStr(n.why).slice(0, 90)]),
+    );
+  }
+  if (!recommendations && !strategy.length && !next.length) {
+    b.text("No recommendation narrative was available at export time.", { size: 10, color: MUTED });
+  }
+}
+
+function renderCrossExamination(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  // Only render from a genuine cross-examination plan (topic-organized
+  // questions, impeachment ties, citations). There used to be a fallback
+  // here that rebuilt an equivalent structure straight from
+  // data.witnesses.cross_exam_questions whenever no real plan existed — but
+  // that is the exact same array "Witness Intelligence" already prints in
+  // full for every witness, so the fallback never added information; it
+  // just reproduced that section's content verbatim under a second heading.
+  // Better to omit this section than duplicate one already on the page.
+  const rows = asArr(r.cross_examination);
+  if (!rows.length) return;
+  b.h1("Cross-Examination");
+  for (const p of rows) {
+    b.h3(asStr(p.witness, "Witness"));
+    if (p.objective) b.text(`Objective: ${asStr(p.objective)}`, { size: 10, gap: 4 });
+    const lines = asArr(p.lines);
+    for (const line of lines) {
+      b.text(asStr(line.topic, "Question line"), { size: 9, bold: true, color: ACCENT });
+      const qs = Array.isArray(line.questions) ? (line.questions as string[]) : [];
+      if (qs.length) b.bullets(qs.slice(0, 10));
+      if (line.impeachment_with)
+        b.text(`Impeachment with: ${asStr(line.impeachment_with)}`, { size: 9, color: DANGER });
+      const citation = asObj(line.citation);
+      if (Object.keys(citation).length) {
+        b.text(`Citation: "${asStr(citation.quote).slice(0, 180)}" — ${citeLabel(citation.doc_n, citation.page)}`, {
+          size: 9,
+          color: MUTED,
+          gap: 4,
+        });
+      }
+    }
+  }
+}
+
+function renderScorecard(b: PdfBuilder, data: CaseExportData) {
+  const score = asObj(data.score);
+  const breakdowns = asObj(score.dimension_breakdowns);
+  const det = asObj(breakdowns.deterministic);
+  const dimensions = asObj(det.dimensions);
+  const report = asObj(data.report);
+  const fullReport = asObj(report.full_report);
+  const caseType = asStr(fullReport.case_type) || asStr(asObj(breakdowns).case_type) || "general_civil";
+  const isCriminal = caseType === "criminal" || caseType === "civil_rights";
+
+  if (Object.keys(dimensions).length === 0 && !Object.keys(score).length) return;
+  b.h1("Case Scorecard");
+  b.text(asStr(score.methodology, "Deterministic rule-based scoring."), { size: 10, color: MUTED, gap: 4 });
+  b.text(`Case type: ${caseType.replace(/_/g, " ")}`, { size: 9, color: MUTED, gap: 10 });
+  const rows: (string | number)[][] = [];
+  for (const [, val] of Object.entries(dimensions)) {
+    const v = asObj(val);
+    rows.push([
+      asStr(v.dimension),
+      `${asStr(v.score, "—")} / 100`,
+      asStr(v.baseline, "—"),
+      `${asStr(v.raw_delta, "0")}`,
+      asStr(v.contributor_count, "0"),
+    ]);
+  }
+  if (rows.length) {
+    // Deliberately no plain-number table here: the Dimension Detail section
+    // below renders these exact same dimensions as color-coded bars, and
+    // showing both was pure redundancy (the reader had to parse the same
+    // nine numbers twice — once as a bare table, once as bars). The bar
+    // version is strictly more scannable, so it's now the single canonical
+    // view of dimension scores.
+  } else {
+    // Fallback to legacy fields — gated by case type so civil reports never
+    // show "Chain of Custody", "Constitutional Compliance", "Conviction Risk"
+    // or "Appeal Risk".
+    const legacy: [string, unknown][] = isCriminal
+      ? [
+          ["Evidence strength", score.evidence_strength],
+          ["Witness reliability", score.witness_reliability],
+          ["Timeline integrity", score.timeline_integrity],
+          ["Chain of custody", score.chain_of_custody],
+          ["Constitutional compliance", score.constitutional_compliance],
+          ["Investigation completeness", score.investigation_completeness],
+          ["Conviction risk", score.conviction_risk],
+          ["Appeal risk", score.appeal_risk],
+        ]
+      : [
+          ["Evidence strength", score.evidence_strength],
+          ["Witness reliability", score.witness_reliability],
+          ["Timeline integrity", score.timeline_integrity],
+          ["Documentation reliability", (score as Record<string, unknown>).documentation_reliability],
+          ["Discovery compliance", (score as Record<string, unknown>).discovery_compliance],
+          ["Investigation completeness", score.investigation_completeness],
+          ["Litigation risk", (score as Record<string, unknown>).litigation_risk],
+        ];
+    b.table(
+      [["Dimension", "Score"]],
+      legacy.filter(([, v]) => typeof v === "number").map(([k, v]) => [k, `${v} / 100`]),
+    );
+  }
+  // Per-dimension breakdown. The scoring formula is identical for every
+  // dimension, so state it once here instead of repeating it under each
+  // one — that repetition was the main thing making this section read as
+  // a wall of text. Each dimension then gets a single scannable bar row
+  // plus (at most) a one-line summary of what moved the score, rather
+  // than a full 3-column table per dimension.
+  const dimEntries = Object.entries(dimensions);
+  if (dimEntries.length) {
+    b.h2("Dimension Detail");
+    const firstFormula = asStr(asObj(dimEntries[0][1]).formula);
+    b.text(
+      firstFormula ||
+        "score = clamp(baseline + sum(severity_weight x confidence x polarity), 0, 100); severity_weights = critical:25, high:15, medium:8, low:3, info:1",
+      { size: 8, color: MUTED, gap: 12 },
+    );
+    for (const [, val] of dimEntries) {
+      const v = asObj(val);
+      const scoreNum = Number(v.score ?? 0);
+      // Keep the dimension label + bar together with its contributors so
+      // a dimension doesn't split across pages with its label orphaned.
+      b.ensureSpace(58);
+      b.dimensionRow(asStr(v.dimension), scoreNum);
+      const neg = asArr(v.negatives)
+        .slice(0, 4)
+        .map((c) => `${asStr(c.title)} (${asStr(c.severity)})`);
+      const pos = asArr(v.positives)
+        .slice(0, 3)
+        .map((c) => `${asStr(c.title)} (${asStr(c.severity)})`);
+      if (neg.length) {
+        b.text("Primary contributors — weakens", { size: 8, bold: true, color: MUTED, gap: 2 });
+        b.bullets(neg);
+      }
+      if (pos.length) {
+        b.text("Primary contributors — strengthens", { size: 8, bold: true, color: SUCCESS, gap: 2 });
+        b.bullets(pos);
+      }
+      // Consistent breathing room between dimensions so the section
+      // doesn't collapse into a continuous wall of compressed rows.
+      b.y += neg.length || pos.length ? 10 : 12;
+    }
+  }
+}
+
+function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
+  const findings = data.findings ?? [];
+  if (!findings.length) return;
+  b.h1("Key Findings");
+  b.text(
+    "Grouped by severity so the issues most likely to affect the outcome are read first. Each finding lists a " +
+      "confidence level (how sure the classification is), an evidence strength (how well-sourced it is), and any " +
+      "related findings elsewhere in this report.",
+    { size: 9.5, color: MUTED, gap: 8 },
+  );
+  const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 } as Record<string, number>;
+  const top = [...findings].sort((a, b) => (order[asStr(a.severity)] ?? 9) - (order[asStr(b.severity)] ?? 9));
+
+  // Precompute per-finding source counts and a category -> finding-number
+  // index for cross-referencing, over the FULL sorted list (not just the
+  // top 12 rendered in detail) so a "related finding" reference is always
+  // accurate even if the related item itself falls outside the detailed
+  // section.
+  const refCounts = top.map((f) => findingSourceCount(asArr(f.evidence_refs)));
+  const byCategory = new Map<string, number[]>();
+  top.forEach((f, i) => {
+    const cat = asStr(f.category).trim().toLowerCase();
+    if (!cat) return;
+    if (!byCategory.has(cat)) byCategory.set(cat, []);
+    byCategory.get(cat)!.push(i);
+  });
+
+  b.table(
+    [["#", "Severity", "Finding", "Category", "Confidence", "Evidence", "Sources"]],
+    top.map((f, i) => {
+      const conf = Number(f.confidence ?? 0);
+      const strength = evidenceStrengthLabel(conf, refCounts[i]);
+      return [
+        i + 1,
+        asStr(f.severity).toUpperCase(),
+        asStr(f.title).slice(0, 70),
+        asStr(f.category),
+        confidenceLabel(conf),
+        strength.label,
+        refCounts[i] || "—",
+      ];
+    }),
+  );
+
+  // Detailed cards, grouped under a colored severity-tier header so a
+  // critical issue visually outranks a minor discrepancy, rather than a
+  // flat list where every finding looks equally important. Tiers with
+  // nothing in them are simply skipped.
+  for (const tier of SEVERITY_TIERS) {
+    const entries = top.map((f, i) => ({ f, i })).filter(({ f }) => severityTierKey(asStr(f.severity)) === tier.key);
+    if (!entries.length) continue;
+    b.h2Tier(`${tier.label} (${entries.length})`, tier.color);
+    for (const [pos, { f, i }] of entries.entries()) {
+      if (pos > 0) b.divider();
+      b.ensureSpace(60);
+      const sevColor = b.severityColor(asStr(f.severity));
+      // Left accent stripe — same visual language as the h1 section marker —
+      // so severity reads at a glance without parsing "SEVERITY: critical".
+      b.doc.setFillColor(...sevColor);
+      b.doc.rect(b.margin, b.y - 12, 3, 16, "F");
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(12);
+      b.doc.setTextColor(...PRIMARY);
+      const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 90) as string[];
+      b.doc.text(titleLines[0] ?? "", b.margin + 10, b.y);
+      const conf = Number(f.confidence ?? 0);
+      b.pill(`${asStr(f.severity)} · ${confidenceLabel(conf)} conf.`, b.pageW - b.margin, b.y + 1, sevColor, "right");
+      b.y += 16;
+      for (const extra of titleLines.slice(1)) {
+        b.doc.text(extra, b.margin + 10, b.y);
+        b.y += 14;
+      }
+      // Claim classification — heuristic classification of the finding.
+      // Findings with verbatim quotes default to FACT; speculative
+      // descriptions degrade to ANALYSIS.
+      const fclass = classifyFindingForPdf(asStr(f.description), asArr(f.evidence_refs).length > 0);
+      b.text(`[${fclass}]`, { size: 8, bold: true, color: fclass === "FACT" ? SUCCESS : ACCENT, gap: 4 });
+      if (f.affected_party) b.label("Party", asStr(f.affected_party));
+      // Confidence / evidence strength / source count — lets an attorney
+      // triage at a glance how much weight a finding can bear, rather
+      // than treating every extracted item as equally reliable.
+      const strength = evidenceStrengthLabel(conf, refCounts[i]);
+      b.ensureSpace(28);
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(9);
+      b.doc.setTextColor(...MUTED);
+      b.doc.text("CONFIDENCE", b.margin, b.y);
+      b.doc.text("EVIDENCE STRENGTH", b.margin + 140, b.y);
+      b.doc.text("SOURCES", b.margin + 300, b.y);
+      b.y += 12;
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(10.5);
+      b.doc.setTextColor(...PRIMARY);
+      b.doc.text(confidenceLabel(conf), b.margin, b.y);
+      b.doc.setTextColor(...strength.color);
+      b.doc.text(strength.label, b.margin + 140, b.y);
+      b.doc.setTextColor(...PRIMARY);
+      b.doc.text(String(refCounts[i] || 0), b.margin + 300, b.y);
+      b.y += 16;
+      if (f.legal_significance)
+        b.text(`Legal significance: ${asStr(f.legal_significance)}`, { size: 10, color: MUTED, gap: 2 });
+      b.text(asStr(f.description), { size: 10, gap: 4 });
+      const refs = asArr(f.evidence_refs);
+      if (refs.length) {
+        b.text("Evidence:", { size: 9, bold: true, color: MUTED });
+        b.bullets(
+          refs.slice(0, 4).map((r) => {
+            const q = asStr(r.quote);
+            const lbl = asStr(r.filename) || resolveDocTitleByUuid(r.document_id ?? r.doc_id) || "";
+            return q ? (lbl ? `"${q.slice(0, 180)}"  — ${lbl}` : `"${q.slice(0, 180)}"`) : lbl;
+          }),
+        );
+      }
+      // Cross-reference other findings that share this one's category
+      // (e.g. several findings that all bear on identification, or all
+      // bear on chain of custody) so related issues read as a connected
+      // pattern instead of isolated, disconnected bullet points.
+      const cat = asStr(f.category).trim().toLowerCase();
+      const related = (byCategory.get(cat) ?? []).filter((ri) => ri !== i);
+      if (cat && related.length) {
+        b.text(
+          `Related findings: ${related
+            .slice(0, 4)
+            .map((ri) => `#${ri + 1} ${asStr(top[ri].title).slice(0, 40)}`)
+            .join("; ")}`,
+          { size: 9, color: MUTED, gap: 2 },
+        );
+      }
+    }
+  }
+}
+
+function renderEvidenceMap(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const idx = asArr(r.evidence_index);
+  if (!idx.length) return;
+  b.h1("Evidence Map");
+  b.table(
+    [["Doc", "Filename", "Role", "Key pages"]],
+    idx.map((e) => [
+      asStr(e.doc_n),
+      asStr(e.filename).slice(0, 60),
+      asStr(e.role),
+      Array.isArray(e.key_pages) ? (e.key_pages as number[]).join(", ") : "—",
+    ]),
+  );
+  // Render a full detail block for every document that actually HAS
+  // something to say — no silent truncation of the ones with real content
+  // (previously sliced to 10, which meant multi-document cases only ever
+  // saw the first 10 documents' detail). But a document with no summary
+  // and no supports/undermines has nothing beyond what the table above
+  // already shows (Doc/Filename/Role/Key pages) — repeating "no AI
+  // classification available this run" as its own full block, once per
+  // unclassified document, is what was padding large-corpus reports (e.g.
+  // ~90 pages of boilerplate on a 110-document case) without adding any
+  // information. Those documents are still listed in the table; they just
+  // don't get a redundant detail block.
+  for (const e of idx) {
+    const summary = asStr(e.summary);
+    const sup = Array.isArray(e.supports) ? (e.supports as string[]) : [];
+    const und = Array.isArray(e.undermines) ? (e.undermines as string[]) : [];
+    if (!summary && !sup.length && !und.length) continue;
+
+    b.h3(asStr(e.filename) || citeLabel(e.doc_n, undefined));
+    b.label("Role", asStr(e.role));
+    b.text(summary, { size: 10, gap: 4 });
+    if (sup.length) {
+      b.text("Supports:", { size: 9, bold: true, color: SUCCESS });
+      b.bullets(sup);
+    }
+    if (und.length) {
+      b.text("Undermines:", { size: 9, bold: true, color: DANGER });
+      b.bullets(und);
+    }
+  }
+}
+
+function renderContradictions(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const items = asArr(r.contradictions_struct);
+  if (!items.length) return;
+  b.h1("Contradiction Analysis");
+  b.text(
+    "Each contradiction below pairs two specific record statements with the legal and strategic consequences for trial.",
+    { size: 10, color: MUTED, gap: 6 },
+  );
+  for (const c of items) {
+    b.h3(asStr(c.title, "Contradiction"));
+    b.text("[FACT]", { size: 8, bold: true, color: SUCCESS, gap: 2 });
+    // Colored severity pill instead of a plain text label — this was the
+    // only section in the report still rendering severity as uncolored
+    // black text while every other section (Key Findings, tables) uses the
+    // shared severityColor()/pill() language. A reader skimming the report
+    // for critical items had to actually read the word here instead of
+    // spotting the color, unlike everywhere else.
+    const sevColor = b.severityColor(asStr(c.severity));
+    b.ensureSpace(16);
+    b.pill(asStr(c.severity, "—"), b.margin, b.y + 1, sevColor, "left");
+    b.y += 14;
+    b.label("Helps", asStr(c.side_helped));
+    const docA = asObj(c.document_a);
+    const docB = asObj(c.document_b);
+    if (Object.keys(docA).length || Object.keys(docB).length) {
+      b.text("Document A:", { size: 9, bold: true, color: ACCENT });
+      b.text(`"${asStr(docA.quote).slice(0, 220)}"  — ${citeLabel(docA.doc_n, docA.page)}`, { size: 10 });
+      b.text("Document B:", { size: 9, bold: true, color: ACCENT });
+      b.text(`"${asStr(docB.quote).slice(0, 220)}"  — ${citeLabel(docB.doc_n, docB.page)}`, {
+        size: 10,
+        gap: 4,
+      });
+    }
+    if (c.nature) b.text(`Nature: ${asStr(c.nature)}`, { size: 10 });
+    if (c.credibility_impact) b.text(`Credibility impact: ${asStr(c.credibility_impact)}`, { size: 10 });
+    if (c.trial_significance) b.text(`Trial significance: ${asStr(c.trial_significance)}`, { size: 10 });
+    if (c.impeachment_value) b.text(`Impeachment value: ${asStr(c.impeachment_value)}`, { size: 10 });
+    if (c.strategic_implications) b.text(`Strategic implications: ${asStr(c.strategic_implications)}`, { size: 10 });
+    if (c.legal_impact) b.text(`Legal impact: ${asStr(c.legal_impact)}`, { size: 10 });
+    if (c.description) b.text(asStr(c.description), { size: 10, gap: 4 });
+    const cites = asArr(c.citations);
+    if (cites.length) {
+      b.text("Additional evidence:", { size: 9, bold: true, color: MUTED });
+      b.bullets(cites.map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`));
+    }
+    if (c.recommended_use) b.text(`Use: ${asStr(c.recommended_use)}`, { size: 10, color: MUTED, gap: 6 });
+  }
+}
+
+function renderPerspectives(b: PdfBuilder, data: CaseExportData) {
+  const ps = data.perspectives ?? [];
+  if (!ps.length) return;
+  b.h1("Multi-Perspective Analysis");
+  b.text(
+    "Independent analysis from each side of the dispute. All perspectives are produced regardless of which side counsel represents.",
+    { size: 10, color: MUTED, gap: 8 },
+  );
+  // Each perspective's strength_score is produced by a separate LLM call
+  // with no visibility into the deterministic case scorecard, so it can
+  // diverge sharply from the case-level Case Strength shown on the cover
+  // page and in the Executive Summary — e.g. a "Prosecution Strength: 78"
+  // sitting a few pages after "Case Strength: 25 — Defense Advantage" with
+  // nothing explaining the gap. Surface that explicitly instead of letting
+  // two unreconciled numbers imply the report contradicts itself.
+  const canonicalStrength = getScores(getReportRow(data)).strength;
+  for (const p of ps) {
+    b.h2(asStr(p.perspective, "Perspective").toUpperCase());
+    if (typeof p.strength_score === "number") b.label("Strength", `${p.strength_score} / 100`);
+    if (typeof p.risk_score === "number") b.label("Risk", `${p.risk_score} / 100`);
+    if (
+      typeof p.strength_score === "number" &&
+      typeof canonicalStrength === "number" &&
+      Math.abs(p.strength_score - canonicalStrength) >= 25
+    ) {
+      b.text(
+        `Note: this perspective's strength score (${p.strength_score}/100) diverges substantially from the ` +
+          `case-level Case Strength (${canonicalStrength}/100). Perspective scores reflect the best case that ` +
+          `side can argue from its own vantage point and are not directly comparable to the deterministic ` +
+          `case-level score — treat them as separate measures rather than a contradiction.`,
+        { size: 9, color: MUTED, gap: 4 },
+      );
+    }
+    if (p.summary) b.text(asStr(p.summary), { size: 10.5, gap: 4 });
+    const sec = (label: string, key: string, color: [number, number, number]) => {
+      const arr = Array.isArray((p as Record<string, unknown>)[key])
+        ? ((p as Record<string, unknown>)[key] as unknown[])
+        : [];
+      if (!arr.length) return;
+      b.text(label, { size: 9, bold: true, color });
+      b.bullets(
+        arr
+          .map((x) => {
+            if (typeof x === "string") return x;
+            const o = x as Record<string, unknown>;
+            return (
+              asStr(o.text) ||
+              asStr(o.title) ||
+              asStr(o.summary) ||
+              asStr(o.description) ||
+              asStr(o.argument) ||
+              asStr(o.action) ||
+              ""
+            );
+          })
+          .filter((s) => s && s.trim().length > 0),
+      );
+    };
+    sec("Strengths:", "strengths", SUCCESS);
+    sec("Weaknesses:", "weaknesses", DANGER);
+    sec("Opposing arguments:", "opposing_arguments", ACCENT);
+    sec("Key facts:", "key_facts", MUTED);
+    sec("Recommended actions:", "recommended_actions", PRIMARY);
+  }
+}
+
+function renderEvidenceIntel(b: PdfBuilder, data: CaseExportData) {
+  const ev = data.evidence_intel ?? [];
+  if (!ev.length) return;
+  b.h1("Evidence Intelligence");
+  b.text("Document-by-document classification with confidence labels and legal impact.", {
+    size: 10,
+    color: MUTED,
+    gap: 6,
+  });
+  b.table(
+    [["Classification", "Confidence", "Severity", "Document", "Why"]],
+    ev
+      .slice(0, 60)
+      .map((e) => [
+        asStr(e.classification),
+        asStr(e.confidence_label, asStr(e.confidence)),
+        asStr(e.severity, "—"),
+        asStr(e.title, resolveDocTitleByUuid(e.document_id) ?? "—").slice(0, 40),
+        asStr(e.description, "—").slice(0, 90),
+      ]),
+  );
+}
+
+function renderStrategySynthesis(b: PdfBuilder, data: CaseExportData) {
+  const rows = data.strategy ?? [];
+  if (!rows.length) return;
+  b.h1("Strategy Synthesis");
+  for (const s of rows) {
+    b.h3(asStr(s.title, asStr(s.perspective, "Strategy")));
+    if (s.perspective) b.label("Perspective", asStr(s.perspective));
+    if (s.summary) b.text(asStr(s.summary), { size: 10, gap: 4 });
+    const motions = Array.isArray(s.motion_rankings) ? (s.motion_rankings as Array<Record<string, unknown>>) : [];
+    if (motions.length) {
+      b.text("Motion rankings:", { size: 9, bold: true, color: ACCENT });
+      b.bullets(
+        motions.map(
+          (m) => `${asStr(m.priority).toUpperCase()} · ${asStr(m.motion)} — ${asStr(m.rationale).slice(0, 160)}`,
+        ),
+      );
+    }
+    const opp = Array.isArray(s.anticipated_opposing_arguments)
+      ? (s.anticipated_opposing_arguments as Array<Record<string, unknown>>)
+      : [];
+    if (opp.length) {
+      b.text("Anticipated opposing arguments:", { size: 9, bold: true, color: DANGER });
+      b.bullets(
+        opp.map(
+          (o) =>
+            `${asStr(o.argument)} (likelihood ${asStr(o.likelihood)}, impact ${asStr(o.impact)}) — counter: ${asStr(o.counter).slice(0, 160)}`,
+        ),
+      );
+    }
+    const na = Array.isArray(s.next_actions) ? (s.next_actions as Array<Record<string, unknown>>) : [];
+    if (na.length) {
+      b.text("Next actions:", { size: 9, bold: true, color: PRIMARY });
+      b.bullets(na.map((n) => `${asStr(n.action)} — ${asStr(n.owner)}`));
+    }
+  }
+}
+
+function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
+  const allRows = data.work_product ?? [];
+  const motionsSuppressed = Boolean(asObj(data.report).motions_suppressed);
+  // Mirror the gate applied in writer.server.ts: when motions are suppressed,
+  // Attorney Work Product must not include drafted motions, trial outlines,
+  // cross-exam plans, or settlement demands — only the factual case_summary.
+  const rows = motionsSuppressed ? allRows.filter((w) => asStr(w.document_type) === "case_summary") : allRows;
+  const bodyOf = (w: Record<string, unknown>) => asStr(w.body_markdown) || asStr(w.content);
+  const generated = rows.filter((w) => bodyOf(w).trim().length > 40);
+  const skipped = rows.filter((w) => bodyOf(w).trim().length <= 40);
+  if (!generated.length && !skipped.length) {
+    if (motionsSuppressed && allRows.length > 0) {
+      b.h1("Attorney Work Product");
+      b.text(
+        "Motion drafting and prioritized recommendations were withheld because this case did not meet the Evidence Sufficiency Score threshold.",
+        { size: 10, color: MUTED, gap: 4 },
+      );
+    }
+    return;
+  }
+  b.h1("Attorney Work Product");
+  if (generated.length) {
+    b.h2("Generated");
+    generated.forEach((w, idx) => {
+      const body = bodyOf(w);
+      const title = asStr(w.title, asStr(w.document_type, "Work product"));
+      const docType = asStr(w.document_type);
+      const status = asStr(w.status);
+      // Each generated document renders as its own clearly-bounded section.
+      // Long documents (over ~1500 chars) start on a fresh page so a
+      // trial outline never begins two lines from the bottom of a page
+      // that just ended a Motion to Suppress.
+      if (idx > 0) {
+        if (body.length > 1500) {
+          b.pageBreak();
+        } else {
+          b.y += 10;
+          b.divider();
+        }
+      }
+      // Document card header — title + type/status pills, drawn atomically
+      // together with the first block of body content via ensureSpace.
+      b.ensureSpace(90);
+      const cardY = b.y;
+      b.doc.setFillColor(...CARD_BG);
+      b.doc.setDrawColor(...CARD_BORDER);
+      b.doc.setLineWidth(0.75);
+      b.doc.roundedRect(b.margin, cardY, b.pageW - b.margin * 2, 42, 4, 4, "FD");
+      b.doc.setFillColor(...ACCENT);
+      b.doc.roundedRect(b.margin, cardY, 4, 42, 2, 2, "F");
+      b.doc.setFont("helvetica", "bold");
+      b.doc.setFontSize(13);
+      b.doc.setTextColor(...PRIMARY);
+      b.doc.text(pdfSafe(title), b.margin + 14, cardY + 18);
+      const meta = [docType.replace(/_/g, " "), status].filter(Boolean).join("  ·  ");
+      if (meta) {
+        b.doc.setFont("helvetica", "normal");
+        b.doc.setFontSize(9);
+        b.doc.setTextColor(...MUTED);
+        b.doc.text(meta.toUpperCase(), b.margin + 14, cardY + 34);
+      }
+      b.y = cardY + 42 + 12;
+      b.text(body, { size: 10, gap: 6 });
+    });
+  }
+  if (skipped.length) {
+    b.h2("Skipped");
+    for (const w of skipped) {
+      const title = asStr(w.title, asStr(w.document_type, "Work product"));
+      const reason =
+        asStr(w.error_message) || asStr(w.skipped_reason) || "Not generated because insufficient evidence exists.";
+      b.text(`• ${title} — ${reason}`, { size: 10, color: MUTED });
+    }
+  }
+}
+
+function renderConstitutional(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const full = asObj(r.full_report);
+  const caseType = asStr(full.case_type) || "general_civil";
+  // Constitutional analysis is criminal/civil-rights only — never render for
+  // medical malpractice, personal injury, employment, etc.
+  if (caseType !== "criminal" && caseType !== "civil_rights") return;
+  const items = asArr(r.constitutional_issues_struct);
+  if (!items.length) return;
+  b.h1("Constitutional Analysis");
+  for (const c of items) {
+    b.h3(`${asStr(c.right)} — ${asStr(c.amendment)}`);
+    b.text(asStr(c.issue), { size: 11, bold: true, gap: 2 });
+    if (c.facts) {
+      b.h3("Facts");
+      b.text(asStr(c.facts));
+    }
+    if (c.legal_standard) {
+      b.h3("Legal standard");
+      b.text(asStr(c.legal_standard));
+    }
+    if (c.likely_outcome)
+      b.callout(
+        "Probability estimate",
+        `${asStr(c.likely_outcome)} (confidence: ${asStr(c.confidence_label, "medium")})`,
+      );
+    if (c.jurisdiction) b.label("Jurisdiction", asStr(c.jurisdiction));
+    if (c.warrant_standard) b.label("Warrant standard", asStr(c.warrant_standard));
+    if (c.uncertainty_flag) b.callout("Uncertainty", asStr(c.uncertainty_flag), DANGER);
+    if (c.remedy_sought) b.label("Remedy", asStr(c.remedy_sought));
+    const cites = asArr(c.citations);
+    if (cites.length) {
+      b.text("Evidence:", { size: 9, bold: true, color: MUTED });
+      b.bullets(cites.map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`));
+    }
+  }
+}
+
+// Renders the deterministic legal-issue hits (Fourth Amendment, Miranda,
+// Brady, Chain of Custody, etc.) together with any real case law that
+// buildLegalIssuesWithCaseLaw() attached via CourtListener. Sourced from
+// full_report.legal_issues — never gated by case type, since the
+// underlying detection runs over raw document text regardless of
+// case_type. Silently renders nothing if no issues were detected or if
+// case law lookup failed/was skipped (case_law will just be []).
+function renderLegalIssues(b: PdfBuilder, data: CaseExportData) {
+  const full = asObj(asObj(data.report).full_report);
+  const items = asArr(full.legal_issues);
+  if (!items.length) return;
+  b.h1("Legal Issues & Case Law");
+
+  // The same handful of legal theories (Fourth Amendment, Miranda, Brady,
+  // Chain of Custody, Jencks, Authentication, Expert Admissibility) get
+  // flagged independently on every document that touches them upstream,
+  // producing near-duplicate blocks — e.g. 33 separate "Brady" entries with
+  // identical significance/next-step text, each with its own copy of the
+  // same case law. On a 94-document corpus that's what pushed a report to
+  // 54 pages of largely repeated boilerplate. Consolidate to one block per
+  // issue type: shared legal framing rendered once, a few representative
+  // supporting quotes, the full set of implicated documents (nothing lost,
+  // just not repeated), and case law merged + deduped across the whole
+  // group instead of copy-pasted per document.
+  const groups = new Map<string, Array<Record<string, unknown>>>();
+  for (const it of items) {
+    const key = asStr(it.issue) || "Other";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(it);
+  }
+
+  for (const [issue, group] of groups) {
+    const first = group[0];
+    b.h3(group.length > 1 ? `${issue}  (${group.length} documents)` : issue);
+    if (first.indicator) b.text(asStr(first.indicator), { size: 9, color: MUTED, gap: 2 });
+    if (first.significance) b.label("Significance", asStr(first.significance));
+    if (first.next_step) b.label("Next step", asStr(first.next_step));
+
+    const withQuotes = group.filter((g) => asStr(g.quote).trim());
+    if (withQuotes.length) {
+      b.text("Representative evidence:", { size: 9, bold: true, color: MUTED, gap: 2 });
+      b.bullets(
+        withQuotes.slice(0, 3).map((g) => {
+          const doc = asStr(g.document);
+          const title = doc ? humanizeDocTitle(doc) : "";
+          return title ? `"${asStr(g.quote).slice(0, 160)}"  — ${title}` : `"${asStr(g.quote).slice(0, 160)}"`;
+        }),
+      );
+    }
+
+    const docs = [...new Set(group.map((g) => asStr(g.document)).filter(Boolean))].map((f) => humanizeDocTitle(f));
+    if (docs.length > 1) {
+      const shown = docs.slice(0, 12).join(", ");
+      const more = docs.length > 12 ? `, +${docs.length - 12} more` : "";
+      b.text(`Also implicated in: ${shown}${more}`, { size: 8.5, color: MUTED, gap: 4 });
+    }
+
+    const allCases = group.flatMap((g) => asArr(g.case_law));
+    const seen = new Set<string>();
+    const caseLines: string[] = [];
+    for (const c of allCases) {
+      const meta = [asStr(c.citation), asStr(c.court), asStr(c.date_filed)].filter(Boolean).join(" · ");
+      const line = meta ? `${asStr(c.case_name)} — ${meta}` : asStr(c.case_name);
+      if (!line.trim() || seen.has(line)) continue;
+      seen.add(line);
+      caseLines.push(line);
+    }
+    if (caseLines.length) {
+      b.text("Case law:", { size: 9, bold: true, color: MUTED, gap: 4 });
+      b.bullets(caseLines);
+    }
+  }
+}
+
+function renderWitnesses(b: PdfBuilder, data: CaseExportData) {
+  const ws = data.witnesses ?? [];
+  if (!ws.length) return;
+  b.h1("Witness Intelligence");
+  b.table(
+    [["Witness", "Role", "Reliability", "Bias", "Credibility risk"]],
+    ws.map((w) => [
+      asStr(w.name),
+      asStr(w.role),
+      asStr(w.reliability, "—"),
+      asStr(w.bias, "—"),
+      asStr(w.credibility_risk, "—"),
+    ]),
+  );
+  for (const [idx, w] of ws.slice(0, 8).entries()) {
+    if (idx > 0) b.divider();
+    b.h3(`${asStr(w.name)}${w.role ? ` — ${asStr(w.role)}` : ""}`);
+    // Reliability reads "good" high, while bias/credibility-risk read
+    // "good" low — invert only the bar/color for those two (via the
+    // `invert` option) so a full green bar always means "favorable for
+    // this witness's credibility" at a glance. The printed number is the
+    // real score in all three rows, matching the summary table above.
+    const reliability = Number(w.reliability);
+    const bias = Number(w.bias);
+    const credRisk = Number(w.credibility_risk);
+    if (!isNaN(reliability)) b.dimensionRow("Reliability", reliability);
+    if (!isNaN(bias)) b.dimensionRow("Bias", bias, { invert: true });
+    if (!isNaN(credRisk)) b.dimensionRow("Credibility risk", credRisk, { invert: true });
+    b.y += 2;
+    const rat = asObj(w.rationale);
+    for (const [k, v] of Object.entries(rat)) {
+      b.text(`${k}: ${asStr(v)}`, { size: 10, color: MUTED });
+    }
+    const cx = Array.isArray(w.cross_exam_questions) ? (w.cross_exam_questions as string[]) : [];
+    if (cx.length) {
+      b.text("Cross-examination:", { size: 9, bold: true, color: ACCENT });
+      b.bullets(cx.slice(0, 8));
+    }
+    const imp = Array.isArray(w.impeachment_questions) ? (w.impeachment_questions as string[]) : [];
+    if (imp.length) {
+      b.text("Impeachment:", { size: 9, bold: true, color: DANGER });
+      b.bullets(imp.slice(0, 6));
+    }
+  }
+}
+
+function renderTheories(b: PdfBuilder, data: CaseExportData) {
+  const ts = data.theories ?? [];
+  if (!ts.length) return;
+  b.h1("Theory Analysis");
+  for (const t of ts) {
+    b.h3(`${asStr(t.theory_type).toUpperCase()} theory`);
+    b.label("Confidence", Number(t.confidence ?? 0).toFixed(2));
+    if (t.risk) b.label("Risk", asStr(t.risk));
+    b.text(asStr(t.narrative), { size: 10.5, gap: 4 });
+    const sup = Array.isArray(t.supporting_evidence) ? (t.supporting_evidence as string[]) : [];
+    const con = Array.isArray(t.contradicting_evidence) ? (t.contradicting_evidence as string[]) : [];
+    const mis = Array.isArray(t.missing_evidence) ? (t.missing_evidence as string[]) : [];
+    if (sup.length) {
+      b.text("Supporting evidence:", { size: 9, bold: true, color: SUCCESS });
+      b.bullets(sup);
+    }
+    if (con.length) {
+      b.text("Contradicting evidence:", { size: 9, bold: true, color: DANGER });
+      b.bullets(con);
+    }
+    if (mis.length) {
+      b.text("Missing evidence:", { size: 9, bold: true, color: ACCENT });
+      b.bullets(mis);
+    }
+  }
+}
+
+function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
+  const sc = (data.strategy_center ?? {}) as Record<string, unknown>;
+  const theme = asObj(sc.primary_trial_theme);
+  const weakness = asObj(sc.biggest_weakness);
+  const risk = asObj(sc.biggest_trial_risk);
+  const leverage = asArr(sc.settlement_leverage);
+  const witness = asObj(sc.most_dangerous_witness);
+  const gap = asObj(sc.biggest_evidentiary_gap);
+  const defense = asObj(sc.expected_defense);
+  const counter = asStr(sc.recommended_counter_strategy);
+  const priorities = asArr(sc.weekly_priorities);
+  const dashboard = asArr(sc.winning_the_case_dashboard);
+  const leadCounsel = asStr(sc.lead_counsel_assessment);
+
+  if (!asStr(theme.theme) && !dashboard.length) return;
+
+  b.h1("Litigation Strategy Center");
+
+  // ---- What Wins This Case? ----
+  if (asStr(theme.theme)) {
+    b.h2("What Wins This Case?");
+    b.h3("Primary Trial Theme");
+    b.text(asStr(theme.theme), { size: 11, bold: true, color: PRIMARY, gap: 4 });
+    if (theme.why) b.text(asStr(theme.why), { size: 10, gap: 4 });
+    if (theme.persuasion_likelihood) b.label("Likelihood of persuasion", asStr(theme.persuasion_likelihood));
+    const supEv = Array.isArray(theme.supporting_evidence) ? (theme.supporting_evidence as string[]) : [];
+    if (supEv.length) {
+      b.text("Supporting evidence:", { size: 9, bold: true, color: MUTED });
+      b.bullets(supEv);
+    }
+    if (theme.presentation_guidance) {
+      b.text("How to present it:", { size: 9, bold: true, color: MUTED });
+      b.text(asStr(theme.presentation_guidance), { size: 10, gap: 4 });
+    }
+  }
+
+  // ---- What Could Lose This Case? ----
+  if (asStr(weakness.weakness) || asStr(risk.risk)) {
+    b.h2("What Could Lose This Case?");
+    if (weakness.weakness) {
+      b.h3("Biggest Weakness");
+      b.text(asStr(weakness.weakness), { size: 10.5, bold: true, gap: 2 });
+      if (weakness.why_it_matters) b.text(asStr(weakness.why_it_matters), { size: 10, gap: 4 });
+    }
+    if (risk.risk) {
+      b.h3("Biggest Trial Risk");
+      b.text(asStr(risk.risk), { size: 10.5, bold: true, gap: 2, color: DANGER });
+      if (risk.explanation) b.text(asStr(risk.explanation), { size: 10, gap: 4 });
+    }
+  }
+
+  // ---- Settlement leverage ----
+  if (leverage.length) {
+    b.h2("Best Settlement Leverage");
+    b.bullets(
+      leverage.map((l) => {
+        const item = asStr(l.item);
+        const why = asStr(l.why_it_increases_pressure);
+        return why ? `${item} — ${why}` : item;
+      }),
+    );
+  }
+
+  // ---- Most dangerous witness (grounded — omitted entirely if ungrounded) ----
+  if (asStr(witness.name)) {
+    b.h2("Most Dangerous Witness");
+    b.text(asStr(witness.name), { size: 11, bold: true, color: PRIMARY, gap: 4 });
+    const reasons = Array.isArray(witness.reasons) ? (witness.reasons as string[]) : [];
+    if (reasons.length) {
+      b.text("Why:", { size: 9, bold: true, color: MUTED });
+      b.bullets(reasons);
+    }
+    const approach = Array.isArray(witness.recommended_approach) ? (witness.recommended_approach as string[]) : [];
+    if (approach.length) {
+      b.text("Recommended approach:", { size: 9, bold: true, color: MUTED });
+      b.bullets(approach);
+    }
+  }
+
+  // ---- Biggest evidentiary gap ----
+  if (asStr(gap.item)) {
+    b.h2("Biggest Evidentiary Gap");
+    b.text(asStr(gap.item), { size: 11, bold: true, color: PRIMARY, gap: 4 });
+    if (gap.importance) b.label("Importance", asStr(gap.importance));
+    if (gap.impact) b.text(asStr(gap.impact), { size: 10, gap: 4 });
+    const howTo = Array.isArray(gap.how_to_obtain) ? (gap.how_to_obtain as string[]) : [];
+    if (howTo.length) {
+      b.text("How to obtain:", { size: 9, bold: true, color: MUTED });
+      b.bullets(howTo);
+    }
+    if (gap.potential_benefit) {
+      b.text("Potential benefit:", { size: 9, bold: true, color: MUTED });
+      b.text(asStr(gap.potential_benefit), { size: 10, gap: 4 });
+    }
+  }
+
+  // ---- Expected defense + counter ----
+  if (asStr(defense.primary_defense) || counter) {
+    b.h2("Most Likely Defense Strategy");
+    if (defense.primary_defense) {
+      b.h3("Primary Defense");
+      b.text(asStr(defense.primary_defense), { size: 10.5, bold: true, gap: 4 });
+      const supArgs = Array.isArray(defense.supporting_arguments) ? (defense.supporting_arguments as string[]) : [];
+      if (supArgs.length) {
+        b.text("Supporting arguments:", { size: 9, bold: true, color: MUTED });
+        b.bullets(supArgs);
+      }
+      const weaknesses = Array.isArray(defense.weaknesses) ? (defense.weaknesses as string[]) : [];
+      if (weaknesses.length) {
+        b.text("Weaknesses:", { size: 9, bold: true, color: SUCCESS });
+        b.bullets(weaknesses);
+      }
+    }
+    if (counter) {
+      b.h3("Recommended Counter Strategy");
+      b.text(counter, { size: 10, gap: 4 });
+    }
+  }
+
+  // ---- What should counsel do this week? ----
+  if (priorities.length) {
+    b.h2("What Should Counsel Do This Week?");
+    b.table(
+      [["Priority", "Action", "Impact", "Reason"]],
+      priorities.map((p) => {
+        const stars = Math.max(0, Math.min(5, Math.round(Number(p.impact_stars ?? 0))));
+        return [
+          asStr(p.priority),
+          asStr(p.action).slice(0, 90),
+          "★".repeat(stars) + "☆".repeat(5 - stars),
+          asStr(p.reason).slice(0, 90),
+        ];
+      }),
+    );
+  }
+
+  // ---- Winning the Case dashboard (computed in code, mirrors the fields above) ----
+  if (dashboard.length) {
+    b.h2("Winning the Case");
+    b.table(
+      [["Litigation Question", "AI Assessment"]],
+      dashboard.map((d) => [asStr(d.question), asStr(d.assessment).slice(0, 140)]),
+    );
+  }
+
+  // ---- If I Were Lead Trial Counsel ----
+  if (leadCounsel) {
+    b.h2("If I Were Lead Trial Counsel");
+    b.text("[STRATEGIC ANALYSIS — NOT LEGAL ADVICE]", { size: 8, bold: true, color: ACCENT, gap: 4 });
+    b.text(leadCounsel, { size: 10.5, gap: 4 });
+  }
+}
+
+function renderStrategy(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const motions = asArr(r.motion_opportunities);
+  const recs = asArr(r.strategy_recommendations);
+  const next = asArr(r.next_actions);
+  const missing = asArr(r.missing_evidence_struct);
+  if (!motions.length && !recs.length && !next.length && !missing.length) return;
+  b.h1("Strategic Opportunities");
+
+  if (missing.length) {
+    b.h2("Missing evidence");
+    b.text("[HYPOTHESIS REQUIRES VERIFICATION]", { size: 8, bold: true, color: ACCENT, gap: 4 });
+    b.table(
+      [["Item", "Severity", "Brady risk", "Recommended motion"]],
+      missing.map((m) => [
+        asStr(m.item).slice(0, 80),
+        asStr(m.severity),
+        m.brady_risk ? "Yes" : "No",
+        asStr(m.recommended_motion, "—"),
+      ]),
+    );
+  }
+
+  if (motions.length) {
+    b.h2("Motion opportunities");
+    b.text("[STRATEGIC CONSIDERATION]", { size: 8, bold: true, color: ACCENT, gap: 4 });
+    for (const m of motions) {
+      b.h3(asStr(m.motion));
+      b.label("Likelihood", asStr(m.likelihood_of_success));
+      b.label("Priority", asStr(m.priority));
+      b.text(`Basis: ${asStr(m.basis)}`, { size: 10, gap: 2 });
+      if (m.supporting_facts) b.text(`Supporting facts: ${asStr(m.supporting_facts)}`, { size: 10, gap: 2 });
+      if (m.legal_rationale) b.text(`Legal rationale: ${asStr(m.legal_rationale)}`, { size: 10, gap: 2 });
+      if (m.anticipated_opposing_response)
+        b.text(`Anticipated opposing response: ${asStr(m.anticipated_opposing_response)}`, { size: 10, gap: 2 });
+      if (m.likely_outcome)
+        b.text(`Probability estimate: ${asStr(m.likely_outcome)} (low/medium/high confidence)`, { size: 10, gap: 2 });
+      const elements = Array.isArray(m.elements) ? (m.elements as string[]) : [];
+      if (elements.length) {
+        b.text("Elements:", { size: 9, bold: true, color: MUTED });
+        b.bullets(elements);
+      }
+      const mcites = asArr(m.citations);
+      if (mcites.length) {
+        b.text("Evidence:", { size: 9, bold: true, color: MUTED });
+        b.bullets(
+          mcites.slice(0, 4).map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`),
+        );
+      }
+      if (m.draft_outline) {
+        b.h3("Draft outline");
+        b.text(asStr(m.draft_outline));
+      }
+    }
+  }
+
+  if (recs.length) {
+    b.h2("Strategy recommendations");
+    b.table(
+      [["Priority", "Title", "Category", "Expected impact"]],
+      recs.map((r) => [
+        asStr(r.priority),
+        asStr(r.title).slice(0, 80),
+        asStr(r.category),
+        asStr(r.expected_impact).slice(0, 80),
+      ]),
+    );
+  }
+
+  if (next.length) {
+    b.h2("Recommended next actions");
+    b.table(
+      [["#", "Action", "Owner", "Why"]],
+      next.map((n) => [asStr(n.order, "•"), asStr(n.action).slice(0, 90), asStr(n.owner), asStr(n.why).slice(0, 90)]),
+    );
+  }
+}
+
+function renderCoverage(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const full = asObj(r.full_report);
+  const coverage = asObj(full.coverage_report);
+  if (!coverage || Object.keys(coverage).length === 0) return;
+  b.h1("Evidence Coverage");
+  b.text("Ingestion transparency: how complete is this analysis?", { size: 10, color: MUTED, gap: 8 });
+  b.table(
+    [["Metric", "Value"]],
+    [
+      ["Documents found", asStr(coverage.documents_found, "0")],
+      ["Successfully parsed", asStr(coverage.documents_parsed, "0")],
+      ["Failed", asStr(coverage.documents_failed, "0")],
+      ["Pending", asStr(coverage.documents_pending, "0")],
+      ["Parse coverage", `${asStr(coverage.parse_coverage_pct, "0")}%`],
+      ["OCR coverage", `${asStr(coverage.ocr_coverage_pct, "0")}%`],
+      ["Metadata coverage", `${asStr(coverage.metadata_coverage_pct, "0")}%`],
+      ["Total text extracted", `${asStr(coverage.text_chars_total, "0")} chars`],
+    ],
+  );
+  const failures = asArr(coverage.failed_documents);
+  if (failures.length) {
+    b.h2("Failed documents");
+    b.table(
+      [["Filename", "Error"]],
+      failures.map((f) => [asStr(f.filename), asStr(f.error, "Unknown error").slice(0, 100)]),
+    );
+  }
+}
+
+// Per-agent row detail (agent_name, status, per-row findings breakdown) is
+// display-only and has no canonical.ts equivalent, so it still reads
+// full_report.agent_statistics.rows directly. What it must NEVER do is
+// fall back to recomputing totals from data.agent_logs on the client —
+// canonical.ts's getAgentSummary() is the only source of truth for the
+// summary counts (loaded/executed/producingOutput/producingFindings/etc),
+// because agent_logs can reflect a different run or a partial write and
+// silently disagree with the finalized full_report.agent_statistics that
+// every other surface (Dashboard, cover page) reads.
+function getAgentRows(data: CaseExportData): Array<Record<string, unknown>> {
+  const r = asObj(data.report);
+  const full = asObj(r.full_report);
+  const embedded = asObj(full.agent_statistics);
+  return asArr(embedded.rows);
+}
+
+function renderAgentStatistics(b: PdfBuilder, data: CaseExportData) {
+  const summary = getAgentSummary(getReportRow(data));
+  const rows = getAgentRows(data);
+  if (summary.loaded === 0 && !rows.length) return;
+
+  const invariantErrors = validateAgentSummary(summary);
+  if (invariantErrors.length) {
+    const isDev = ((import.meta as unknown as { env?: Record<string, string> }).env?.DEV ?? "") as unknown;
+    if (isDev) {
+      // eslint-disable-next-line no-console
+      console.warn("Agent summary invariant violation:", invariantErrors.join("; "));
+    }
+  }
+
+  b.h1("Agent Statistics");
+  b.text(
+    "This section separates loaded agents from agents that actually analyzed evidence and agents that produced measurable work product. Agent totals are based on produced output, not initialization.",
+    { size: 10, color: MUTED, gap: 8 },
+  );
+  b.table(
+    [["Metric", "Value"]],
+    [
+      ["Agents loaded", String(summary.loaded)],
+      ["Agents executed", String(summary.executed)],
+      ["Agents producing output", String(summary.producingOutput)],
+      ["Agents producing findings", String(summary.producingFindings)],
+      ["Suppressed findings", String(summary.suppressedFindings)],
+      ["Visible findings", String(summary.visibleFindings)],
+    ],
+  );
+
+  if (rows.length) {
+    b.table(
+      [["Agent", "Status", "Findings Produced", "Generated", "Suppressed", "Promoted", "Docs", "Output / Explanation"]],
+      rows.map((r) => [
+        asStr(r.agent_name || r.agent_key).slice(0, 36),
+        asStr(r.status, "pending"),
+        asStr(r.visible_findings ?? r.findings_produced, "0"),
+        asStr(r.findings_generated, "0"),
+        asStr(r.findings_suppressed, "0"),
+        asStr(r.findings_promoted, "0"),
+        asStr(r.documents_analyzed, "0"),
+        (asStr(r.no_output_reason) || `${asStr(r.output_items, "0")} output item(s)`).slice(0, 90),
+      ]),
+    );
+  }
+}
+
+function agentStatisticsDocxParas(data: CaseExportData): Paragraph[] {
+  const summary = getAgentSummary(getReportRow(data));
+  const rows = getAgentRows(data);
+  if (summary.loaded === 0 && !rows.length) return [];
+  const out = [
+    `Agents loaded: ${summary.loaded}`,
+    `Agents executed: ${summary.executed}`,
+    `Agents producing output: ${summary.producingOutput}`,
+    `Agents producing findings: ${summary.producingFindings}`,
+    `Suppressed findings: ${summary.suppressedFindings}`,
+    `Visible findings: ${summary.visibleFindings}`,
+    "",
+    ...rows.map(
+      (r) =>
+        `${asStr(r.agent_name || r.agent_key)} — ${asStr(r.status)} — findings produced: ${asStr(r.visible_findings ?? r.findings_produced, "0")} — generated: ${asStr(r.findings_generated, "0")} — suppressed: ${asStr(r.findings_suppressed, "0")} — ${asStr(r.no_output_reason) || `${asStr(r.output_items, "0")} output item(s)`}`,
+    ),
+  ].join("\n");
+  return proseDocxParas("Agent Statistics", out);
+}
+
+function humanizeEngine(e: string): string {
+  return e
+    .split(/[_:]/)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(" ");
+}
+
+function renderAudit(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const full = asObj(r.full_report);
+  const manifest = asObj(full.case_type_manifest);
+  b.h1("Audit Trail");
+  b.text(
+    "Routing record for this case. The execution manifest below shows which engines were run, which were skipped because they do not apply to the selected case type, and which were activated through cross-domain triggers.",
+    { size: 10, gap: 8 },
+  );
+
+  if (Object.keys(manifest).length) {
+    b.h2("Execution Manifest");
+    b.label("Case type", asStr(manifest.case_type_label, asStr(manifest.case_type, "—")));
+    const active = Array.isArray(manifest.active_domains) ? (manifest.active_domains as string[]) : [];
+    if (active.length) b.label("Active domains", active.map(humanizeEngine).join(", "));
+
+    const enabled = Array.isArray(manifest.enabled_engines) ? (manifest.enabled_engines as string[]) : [];
+    const skipped = Array.isArray(manifest.skipped_engines) ? (manifest.skipped_engines as string[]) : [];
+    const cross = Array.isArray(manifest.cross_domain_engines) ? (manifest.cross_domain_engines as string[]) : [];
+
+    if (enabled.length) {
+      b.h3("Enabled");
+      b.bullets(enabled.map((e) => `✔ ${humanizeEngine(e)}`));
+    }
+    if (cross.length) {
+      b.h3("Cross-domain (activated)");
+      b.bullets(cross.map((e) => `+ ${humanizeEngine(e)}`));
+    }
+    if (skipped.length) {
+      b.h3("Skipped — Not applicable to selected case type");
+      b.bullets(skipped.map((e) => `• ${humanizeEngine(e)}`));
+    }
+  }
+
+  b.h2("Source documents");
+  b.table(
+    [["#", "Filename", "Status", "Size", "Errors"]],
+    data.documents.map((d, i) => [
+      i + 1,
+      asStr(d.filename).slice(0, 60),
+      asStr(d.status),
+      asStr(d.size_bytes, "—"),
+      asStr(d.error, "—").slice(0, 60),
+    ]),
+  );
+}
+
+function renderAppendix(b: PdfBuilder, data: CaseExportData) {
+  const r = asObj(data.report);
+  const cites = asArr(r.citations);
+  if (!cites.length) return;
+  b.h1("Appendix: Source Citations");
+  b.text("Every citation below is verbatim from the case corpus. Use these to verify any claim in the report.", {
+    size: 10,
+    color: MUTED,
+    gap: 8,
+  });
+  b.table(
+    [["#", "Topic", "Document", "Page", "Quote"]],
+    cites.map((c, i) => [
+      i + 1,
+      asStr(c.topic).slice(0, 30),
+      resolveDocTitle(c.doc_n) ?? asStr(c.doc_n),
+      asStr(c.page),
+      asStr(c.quote).slice(0, 100),
+    ]),
+    {
+      columnStyles: {
+        0: { cellWidth: 22 }, // #
+        1: { cellWidth: 110 }, // Topic — widened so labels stop wrapping awkwardly
+        2: { cellWidth: 90 }, // Document
+        3: { cellWidth: 32 }, // Page
+        // Quote gets whatever remains — it's the longest field.
+      },
+      emphasizeColIdx: 2, // Document name — bold, reads as the citation's anchor
+      mutedColIdx: 4, // Quote — italic/muted, reads as quoted material, not a label
+    },
+  );
+}
+
+function renderEvidenceSources(b: PdfBuilder) {
+  if (!_footnotes.length) return;
+  b.h1("Evidence Sources");
+  b.text("Numbered references from the report body, resolved to their source document and page.", {
+    size: 10,
+    color: MUTED,
+    gap: 8,
+  });
+  b.table(
+    [["#", "Source"]],
+    _footnotes.map((f) => [`[${f.n}]`, f.label]),
+  );
+}
+
+// ===== Section plan: single source of truth for what renders =========
+//
+// Each section declares whether it's gated in LIMITED mode and a predicate
+// that returns true when it has content to render. The plan is computed
+// once; the TOC, the PDF body, and the DOCX body all walk the SAME filtered
+// list. This guarantees TOC ↔ rendered ↔ exports parity.
+
+type SectionPlan = {
+  id: string;
+  title: string;
+  gatedInLimited: boolean;
+  available: (data: CaseExportData) => boolean;
+  renderPdf: (b: PdfBuilder, data: CaseExportData) => void;
+  renderDocx: (data: CaseExportData) => Paragraph[];
+};
+
+function suppressedDocxParas(title: string): Paragraph[] {
+  return [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] }),
+    new Paragraph({
+      children: [new TextRun({ text: "Suppressed due to insufficient verified evidence.", italics: true })],
+    }),
+  ];
+}
+
+function recommendedMotionsDocxParas(data: CaseExportData): Paragraph[] {
+  const r = asObj(data.report);
+  if (Boolean(r.motions_suppressed)) return [];
+  const motions = asArr(r.motion_opportunities);
+  if (!motions.length) return [];
+  const generatedWP = eligibleWorkProduct(data);
+  const rank = (m: Record<string, unknown>) => {
+    const p = Number(m.priority);
+    return Number.isFinite(p) ? p : 99;
+  };
+  const ranked = [...motions].sort((ma, mb) => rank(ma) - rank(mb));
+
+  const out: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Recommended Motions")] }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: "The motions most likely to strengthen this case, ranked by priority. Drafting and editing continue in the Motion Intelligence module.",
+          italics: true,
+        }),
+      ],
+    }),
+  ];
+
+  for (const [idx, m] of ranked.entries()) {
+    const bucket = motionPriorityBucket(m).label;
+    const { pct } = likelihoodPercent(m);
+    const status = motionIntelligenceStatus(m, generatedWP);
+    const reason = asStr(m.basis) || asStr(m.legal_rationale);
+    const evidence = motionEvidenceBullets(m);
+    const legalBasis = asArr(m.elements)
+      .map((e) => asStr(e))
+      .filter(Boolean);
+
+    out.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun(`${idx + 1}. ${asStr(m.motion)}  —  Priority: ${bucket}`)],
+      }),
+      new Paragraph({ children: [new TextRun(`Likelihood of Success: ~${pct}%`)] }),
+    );
+    if (reason)
+      out.push(new Paragraph({ children: [new TextRun({ text: "Reason: ", bold: true }), new TextRun(reason)] }));
+    if (evidence.length) {
+      out.push(new Paragraph({ children: [new TextRun({ text: "Primary Evidence:", bold: true })] }));
+      for (const ev of evidence) out.push(new Paragraph({ children: [new TextRun(`•  ${ev}`)] }));
+    }
+    if (legalBasis.length)
+      out.push(
+        new Paragraph({
+          children: [new TextRun({ text: "Legal Basis: ", bold: true }), new TextRun(legalBasis.join("  •  "))],
+        }),
+      );
+    out.push(new Paragraph({ children: [new TextRun({ text: "Status: ", bold: true }), new TextRun(status.label)] }));
+  }
+  return out;
+}
+
+function proseDocxParas(title: string, body: string): Paragraph[] {
+  if (!body || !body.trim()) return [];
+  const out: Paragraph[] = [new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] })];
+  for (const para of body.split(/\n\n+/)) {
+    out.push(new Paragraph({ children: [new TextRun(para.replace(/\n/g, " "))] }));
+  }
+  return out;
+}
+
+function hasProseSection(data: CaseExportData, key: string): boolean {
+  return !!reportText(data, key).trim();
+}
+
+function buildSectionPlan(mode: ReportMode): SectionPlan[] {
+  // Prose-only sections that render the report-row field as paragraphs.
+  const proseSec = (id: string, title: string, key: string, gated = false): SectionPlan => ({
+    id,
+    title,
+    gatedInLimited: gated,
+    available: (d) => hasProseSection(d, key),
+    renderPdf: (b, d) => {
+      b.h1(title);
+      b.text(reportText(d, key), { size: 10.5, gap: 8 });
+    },
+    renderDocx: (d) => proseDocxParas(title, reportText(d, key)),
+  });
+
+  const sections: SectionPlan[] = [
+    {
+      id: "exec",
+      title: "Executive Summary",
+      gatedInLimited: false,
+      available: () => true,
+      renderPdf: (b, d) => renderExecutive(b, d, mode),
+      renderDocx: (d) =>
+        proseDocxParas(
+          "Executive Summary",
+          processProseCitations(asStr(asObj(d.report).executive_summary) || asStr(asObj(d.report).attorney_summary)),
+        ),
+    },
+    {
+      id: "recommended_motions",
+      title: "Recommended Motions",
+      // Motion opportunities are ESS-gated, exactly like the old Action
+      // Center: they disappear entirely in LIMITED mode rather than show a
+      // half-populated page of inferred legal theories.
+      gatedInLimited: true,
+      available: (d) => {
+        const rr = asObj(d.report);
+        if (Boolean(rr.motions_suppressed)) return false;
+        return asArr(rr.motion_opportunities).length > 0;
+      },
+      renderPdf: (b, d) => renderRecommendedMotions(b, d),
+      renderDocx: (d) => recommendedMotionsDocxParas(d),
+    },
+    {
+      id: "action_center",
+      title: "Attorney Action Center",
+      // Mirrors "opportunities"/"strategy_synthesis": all of its content is
+      // ESS-gated strategy/work-product data, so it must disappear entirely
+      // in LIMITED mode rather than show a half-populated page.
+      gatedInLimited: true,
+      available: (d) => {
+        const rr = asObj(d.report);
+        const suppressed = Boolean(rr.motions_suppressed);
+        const wp = (d.work_product ?? []).filter((w) => !suppressed || asStr(w.document_type) === "case_summary");
+        const generated = wp.filter((w) => (asStr(w.body_markdown) || asStr(w.content)).trim().length > 40);
+        return (
+          asArr(rr.next_actions).length > 0 || asArr(rr.strategy_recommendations).length > 0 || generated.length > 0
+        );
+      },
+      renderPdf: (b, d) => renderActionCenter(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "impact_dashboard",
+      title: "Litigation Impact Dashboard",
+      // Same data as "scorecard" (the deterministic dimension scores), just
+      // reframed as case-type-specific cards — gated the same way scorecard
+      // and action_center already are, since it disappears exactly when
+      // the underlying scores would.
+      gatedInLimited: true,
+      available: (d) => {
+        const reportRow = (d.report ?? {}) as Record<string, unknown>;
+        const dashboard = buildLitigationImpactDashboard(reportRow);
+        return !dashboard.suppressed && dashboard.cards.length > 0;
+      },
+      renderPdf: (b, d) => renderLitigationImpactDashboard(b, d),
+      renderDocx: (d) => impactDashboardDocxParas(d),
+    },
+    {
+      id: "overview",
+      title: "Case Overview",
+      gatedInLimited: false,
+      available: () => true, // always renders (fallbackOverview)
+      renderPdf: (b, d) => renderCaseOverview(b, d),
+      renderDocx: (d) => proseDocxParas("Case Overview", reportText(d, "case_overview") || fallbackOverview(d)),
+    },
+    {
+      id: "facts",
+      title: "Facts",
+      gatedInLimited: false,
+      available: (d) => !!reportText(d, "facts").trim() || (d.findings ?? []).length > 0,
+      renderPdf: (b, d) => renderFacts(b, d),
+      renderDocx: (d) => proseDocxParas("Facts", reportText(d, "facts")),
+    },
+    {
+      id: "timeline",
+      title: "Timeline Summary",
+      gatedInLimited: false,
+      available: (d) => !!reportText(d, "timeline_summary").trim(),
+      renderPdf: (b, d) => renderTimelineSummary(b, d),
+      renderDocx: (d) => proseDocxParas("Timeline Summary", reportText(d, "timeline_summary")),
+    },
+    {
+      id: "scorecard",
+      title: "Case Scorecard",
+      gatedInLimited: true,
+      available: (d) => {
+        const score = asObj(d.score);
+        const dims = asObj(asObj(asObj(score.dimension_breakdowns).deterministic).dimensions);
+        return Object.keys(dims).length > 0 || Object.keys(score).length > 0;
+      },
+      renderPdf: (b, d) => renderScorecard(b, d),
+      renderDocx: (d) =>
+        proseDocxParas("Score Reasoning", processProseCitations(asStr(asObj(d.report).score_breakdown))),
+    },
+    {
+      id: "risk",
+      title: "Risk Analysis",
+      gatedInLimited: true,
+      available: (d) => !!reportText(d, "risk_analysis").trim() || typeof asObj(d.report).risk_score === "number",
+      renderPdf: (b, d) => renderRiskAnalysis(b, d),
+      renderDocx: (d) => proseDocxParas("Risk Analysis", processProseCitations(asStr(asObj(d.report).risk_analysis))),
+    },
+    {
+      id: "coverage",
+      title: "Evidence Coverage",
+      gatedInLimited: false,
+      // Parse rate, OCR coverage, ingestion stats — pipeline QA information,
+      // not attorney narrative. Same reasoning as Audit Trail above.
+      available: (d) =>
+        _citationMode === "audit" && Object.keys(asObj(asObj(asObj(d.report).full_report).coverage_report)).length > 0,
+      renderPdf: (b, d) => renderCoverage(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "agent_stats",
+      title: "Agent Statistics",
+      gatedInLimited: false,
+      // Which of the 13 internal agents ran, how many findings each
+      // suppressed/promoted — pipeline internals, not attorney narrative.
+      // Same reasoning as Audit Trail above.
+      available: (d) =>
+        _citationMode === "audit" && (getAgentRows(d).length > 0 || getAgentSummary(getReportRow(d)).loaded > 0),
+      renderPdf: (b, d) => renderAgentStatistics(b, d),
+      renderDocx: (d) => (_citationMode === "audit" ? agentStatisticsDocxParas(d) : []),
+    },
+    {
+      id: "findings",
+      title: "Key Findings",
+      gatedInLimited: false,
+      available: (d) => (d.findings ?? []).length > 0,
+      renderPdf: (b, d) => renderKeyFindings(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "evidence_map",
+      title: "Evidence Map",
+      gatedInLimited: false,
+      // Per-document role/support/undermine classification reads as an
+      // internal QA artifact rather than attorney narrative — audit-mode
+      // only, same reasoning as the parity/ESS footer stamp above.
+      available: (d) => _citationMode === "audit" && asArr(asObj(d.report).evidence_index).length > 0,
+      renderPdf: (b, d) => renderEvidenceMap(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "discovery",
+      title: "Discovery Analysis",
+      gatedInLimited: false,
+      available: (d) =>
+        !!reportText(d, "discovery_analysis").trim() || asArr(asObj(d.report).missing_evidence_struct).length > 0,
+      renderPdf: (b, d) => renderDiscoveryAnalysis(b, d),
+      renderDocx: (d) =>
+        proseDocxParas("Discovery Analysis", processProseCitations(asStr(asObj(d.report).discovery_analysis))),
+    },
+    {
+      id: "evidence_intel",
+      title: "Evidence Intelligence",
+      gatedInLimited: false,
+      available: (d) => (d.evidence_intel ?? []).length > 0,
+      renderPdf: (b, d) => renderEvidenceIntel(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "contradictions",
+      title: "Contradiction Analysis",
+      gatedInLimited: false,
+      available: (d) => asArr(asObj(d.report).contradictions_struct).length > 0,
+      renderPdf: (b, d) => renderContradictions(b, d),
+      renderDocx: (d) =>
+        proseDocxParas("Contradiction Report", processProseCitations(asStr(asObj(d.report).contradiction_report))),
+    },
+    {
+      id: "constitutional",
+      title: "Constitutional Analysis",
+      gatedInLimited: false,
+      available: (d) => {
+        const ct = asStr(asObj(asObj(d.report).full_report).case_type) || "general_civil";
+        return (
+          (ct === "criminal" || ct === "civil_rights") && asArr(asObj(d.report).constitutional_issues_struct).length > 0
+        );
+      },
+      renderPdf: (b, d) => renderConstitutional(b, d),
+      renderDocx: (d) =>
+        proseDocxParas("Constitutional Issues", processProseCitations(asStr(asObj(d.report).constitutional_issues))),
+    },
+    {
+      id: "legal_issues",
+      title: "Legal Issues & Case Law",
+      gatedInLimited: false,
+      available: (d) => asArr(asObj(asObj(d.report).full_report).legal_issues).length > 0,
+      renderPdf: (b, d) => renderLegalIssues(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "witnesses",
+      title: "Witness Intelligence",
+      gatedInLimited: false,
+      available: (d) => (d.witnesses ?? []).length > 0,
+      renderPdf: (b, d) => renderWitnesses(b, d),
+      renderDocx: (d) =>
+        proseDocxParas("Witness Analysis", processProseCitations(asStr(asObj(d.report).witness_analysis))),
+    },
+    {
+      id: "cross_exam",
+      title: "Cross-Examination",
+      gatedInLimited: true,
+      available: (d) => asArr(asObj(d.report).cross_examination).length > 0,
+      renderPdf: (b, d) => renderCrossExamination(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "perspectives",
+      title: "Multi-Perspective Analysis",
+      gatedInLimited: true,
+      available: (d) => (d.perspectives ?? []).length > 0,
+      renderPdf: (b, d) => renderPerspectives(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "theories",
+      title: "Theory Analysis",
+      gatedInLimited: true,
+      available: (d) => (d.theories ?? []).length > 0,
+      renderPdf: (b, d) => renderTheories(b, d),
+      renderDocx: (d) => {
+        const out: Paragraph[] = [];
+        const r = asObj(d.report);
+        for (const [t, key] of [
+          ["Defense Theory", "defense_theory_report"],
+          ["Prosecution/Plaintiff Theory", "prosecution_theory_report"],
+          ["Alternative Theories", "alternative_theory_report"],
+        ] as const) {
+          out.push(...proseDocxParas(t, processProseCitations(asStr(r[key]))));
+        }
+        return out;
+      },
+    },
+    {
+      id: "litigation_strategy_center",
+      title: "Litigation Strategy Center",
+      gatedInLimited: true,
+      available: (d) => {
+        const sc = (d.strategy_center ?? {}) as Record<string, unknown>;
+        const theme = asObj(sc.primary_trial_theme);
+        return !!asStr(theme.theme) || asArr(sc.winning_the_case_dashboard).length > 0;
+      },
+      renderPdf: (b, d) => renderLitigationStrategyCenter(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "opportunities",
+      title: "Strategic Opportunities",
+      gatedInLimited: true,
+      available: (d) => {
+        const r = asObj(d.report);
+        return (
+          asArr(r.motion_opportunities).length > 0 ||
+          asArr(r.strategy_recommendations).length > 0 ||
+          asArr(r.next_actions).length > 0 ||
+          asArr(r.missing_evidence_struct).length > 0
+        );
+      },
+      renderPdf: (b, d) => renderStrategy(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "strategy_synthesis",
+      title: "Strategy Synthesis",
+      gatedInLimited: true,
+      available: (d) => (d.strategy ?? []).length > 0,
+      renderPdf: (b, d) => renderStrategySynthesis(b, d),
+      renderDocx: () => [],
+    },
+    proseSec("recommendations", "Recommendations", "recommendations", true),
+    {
+      id: "work_product",
+      title: "Attorney Work Product",
+      gatedInLimited: false,
+      available: (d) => (d.work_product ?? []).length > 0,
+      renderPdf: (b, d) => renderWorkProduct(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "audit",
+      title: "Audit Trail",
+      gatedInLimited: false,
+      // Execution manifest + per-file ingestion status/size/error table is
+      // internal QA information, not attorney work product — an attorney
+      // already knows what they uploaded. Audit-mode only, same reasoning
+      // as Evidence Map and the footer parity/ESS stamp.
+      available: (d) => _citationMode === "audit" && (d.documents.length > 0 || d.agents.length > 0),
+      renderPdf: (b, d) => renderAudit(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "appendix",
+      title: "Appendix: Source Citations",
+      gatedInLimited: false,
+      available: (d) => asArr(asObj(d.report).citations).length > 0,
+      renderPdf: (b, d) => renderAppendix(b, d),
+      renderDocx: () => [],
+    },
+    {
+      id: "evidence_sources",
+      title: "Evidence Sources",
+      gatedInLimited: false,
+      // Footnotes are populated by primeCitationFootnotes() before the
+      // section plan/queue is built (and further deduped-idempotently as
+      // other sections render), so by the time this predicate runs the
+      // count already reflects every inline citation in the report body —
+      // regardless of which section happened to render first. Only
+      // meaningful in attorney mode; audit mode keeps citations inline and
+      // never populates the footnote list.
+      available: () => _footnotes.length > 0,
+      renderPdf: (b) => renderEvidenceSources(b),
+      renderDocx: () =>
+        _footnotes.length
+          ? [
+              new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Evidence Sources")] }),
+              ..._footnotes.map((f) => new Paragraph({ children: [new TextRun(`[${f.n}] ${f.label}`)] })),
+            ]
+          : [],
+    },
+  ];
+  return sections;
+}
+
+function renderSuppressedSection(b: PdfBuilder, title: string) {
+  b.h1(title);
+  b.text("Suppressed due to insufficient verified evidence.", { size: 10.5, color: MUTED, gap: 8 });
+}
+
+// Determines which sections will actually appear and what each one will do.
+// Suppressed sections are dropped entirely — no placeholder pages, no TOC
+// entries — per directive: "If a section contains no evidence-supported
+// content: do not create the page, do not include it in the Table of
+// Contents, do not number it, do not print 'Suppressed...'".
+function computeRenderQueue(plan: SectionPlan[], data: CaseExportData, mode: ReportMode) {
+  const full = asObj(asObj(data.report).full_report);
+  const area = normalizePracticeArea(asStr(full.case_type) || asStr(asObj(data.report).case_type));
+  const ad = full.active_domains;
+  const activeDomains: string[] = Array.isArray(ad) ? (ad as unknown[]).map((x) => String(x)) : [];
+  const applicable = getApplicableSections(area, activeDomains);
+  return plan
+    .filter((s) => applicable.has(s.id))
+    .filter((s) => {
+      // Drop gated sections in LIMITED mode entirely.
+      if (mode === "LIMITED" && s.gatedInLimited) return false;
+      // Drop sections with no evidence-supported content.
+      return s.available(data);
+    })
+    .map((s) => ({ ...s, kind: "full" as const }));
+}
+
+function validateParity(opts: {
+  mode: ReportMode;
+  counters: { generated: number; verified: number; rendered: number };
+  documentCount: number;
+  tocIds: string[];
+  renderedIds: string[];
+  docxIds: string[];
+  renderedFindingsLength?: number;
+}): void {
+  const errors: string[] = [];
+  // Mode must be one of two values.
+  if (opts.mode !== "FULL" && opts.mode !== "LIMITED") errors.push("invalid report mode");
+  // Counter monotonicity.
+  if (opts.counters.rendered > opts.counters.verified) errors.push("rendered > verified findings");
+  if (opts.counters.verified > opts.counters.generated) errors.push("verified > generated findings");
+  // The cover-page "rendered" count must equal the length of the findings
+  // array actually rendered in the Key Findings section. This is the
+  // invariant that would have caught the cover-page-vs-table mismatch
+  // (e.g. "6 rendered findings" on the cover, 3 rows in the table).
+  if (typeof opts.renderedFindingsLength === "number" && opts.counters.rendered !== opts.renderedFindingsLength) {
+    errors.push(
+      `rendered findings counter (${opts.counters.rendered}) does not match findings actually rendered (${opts.renderedFindingsLength})`,
+    );
+  }
+  // TOC ↔ rendered must match exactly.
+  if (opts.tocIds.length !== opts.renderedIds.length || opts.tocIds.some((id, i) => id !== opts.renderedIds[i])) {
+    errors.push("TOC and rendered section list disagree");
+  }
+  // DOCX section order must be a subset-in-order of the TOC.
+  let j = 0;
+  for (const id of opts.tocIds) {
+    if (opts.docxIds[j] === id) j += 1;
+  }
+  if (j !== opts.docxIds.length) errors.push("DOCX section order diverges from TOC");
+  if (opts.documentCount < 0) errors.push("invalid document count");
+  if (errors.length) {
+    throw new Error(`Report parity validation failed: ${errors.join("; ")}`);
+  }
+}
+
+export function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
+  // Attorney mode (default): inline "[DOC N p.M]" citations become numbered
+  // footnotes resolved to real document titles, collected in an Evidence
+  // Sources appendix. Audit mode: citations stay inline but are rewritten to
+  // name the real document + page instead of an internal "DOC N" id. Must
+  // run before buildSectionPlan/computeRenderQueue — several sections'
+  // `available()` checks call reportText(), which now runs through the
+  // citation processor as a side effect.
+  initCitationContext(data, opts?.citationMode ?? "attorney");
+  primeCitationFootnotes(data);
+
+  const b = new PdfBuilder(name);
+  const reportRow = (data.report ?? {}) as Record<string, unknown>;
+
+  const mode = getReportMode(reportRow);
+  // `getFindingCounters` derives "rendered" from the report's embedded
+  // full_report.intelligence.consolidated_findings JSON, which is written
+  // once at report-generation time and can go stale. The PDF body (cover
+  // stat card, Key Findings table, timeline, risk section) all render from
+  // `data.findings` instead — the live findings actually passed into this
+  // export. Those two counts can drift apart (e.g. 7 vs 5), which is
+  // exactly the mismatch validateParity() below is designed to catch.
+  // Fix: always report "rendered" as data.findings.length, since that is
+  // the ONLY number that is actually true of what this PDF prints.
+  const counters = { ...getFindingCounters(reportRow), rendered: (data.findings ?? []).length };
+  const parity = paritySignature(reportRow);
+  const ess = getEssState(reportRow);
+  const engines = getEnginesSummary(reportRow);
+  const generatedAt = new Date().toISOString();
+  let parityShort = 0;
+  for (let i = 0; i < parity.length; i++) parityShort = ((parityShort << 5) - parityShort + parity.charCodeAt(i)) | 0;
+  const parityTag = (parityShort >>> 0).toString(16).padStart(8, "0").slice(0, 8);
+
+  // Build one section plan and one render queue used by both the TOC and
+  // the body. The TOC therefore mirrors the rendered output exactly.
+  const plan = buildSectionPlan(mode);
+  const queue = computeRenderQueue(plan, data, mode);
+
+  const coverFooterSpilled = renderCover(b, data, mode, counters);
+  // Cover stands alone; TOC starts on its own page. After this, sections
+  // flow naturally without forced page breaks. Exception: if the cover's
+  // trailing footer note already had to spill onto a new page (long
+  // dashboard content pushed it past the bottom margin), that page is
+  // already fresh and nearly empty — start the TOC there instead of
+  // forcing yet another page break, which would otherwise leave a page
+  // holding nothing but one sentence.
+  if (!coverFooterSpilled) {
+    b.pageBreak();
+  } else {
+    b.y += 18;
+  }
+
+  // ===== Table of Contents — derived from the same queue =====
+  b.h1("Table of Contents");
+  b.table(
+    [["#", "Section"]],
+    queue.map((s, i) => [String(i + 1), s.title]),
+  );
+
+  // Render body in exact same order as TOC.
+  for (const s of queue) {
+    s.renderPdf(b, data);
+  }
+
+  // Build DOCX from the same plan to verify parity before saving the PDF.
+  const docxIds: string[] = [];
+  for (const s of queue) {
+    if (s.renderDocx(data).length > 0) docxIds.push(s.id);
+  }
+
+  validateParity({
+    mode,
+    counters,
+    documentCount: data.documents.length,
+    tocIds: queue.map((s) => s.id),
+    renderedIds: queue.map((s) => s.id),
+    docxIds: queue.filter((s) => s.renderDocx(data).length > 0).map((s) => s.id),
+    renderedFindingsLength: (data.findings ?? []).length,
+  });
+
+  // Closing branding page: mark, domain, engine version/timestamp, and the
+  // standing "verify before filing" disclaimer. Appended after content and
+  // parity validation (it carries no analytical content of its own, so it
+  // has no bearing on parity), but before save() so it still gets the
+  // normal continuation header and page-numbered footer.
+  b.closingPage({ generatedAt });
+
+  // Footer reflects the SINGLE report state.
+  const footerEss = mode === "LIMITED" ? `${ess.level} · ${mode} · scores suppressed` : `${ess.level} · ${mode}`;
+  b.save(`${slug(name)}.pdf`, {
+    parity: parityTag,
+    ess: footerEss,
+    generatedAt,
+  });
+}
+
+// DOCX uses the SAME section plan, in the SAME order, gated by the SAME mode.
+export async function downloadDocx(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
+  initCitationContext(data, opts?.citationMode ?? "attorney");
+  primeCitationFootnotes(data);
+
+  const c = asObj(data.case);
+  const reportRow = (data.report ?? {}) as Record<string, unknown>;
+  const mode = getReportMode(reportRow);
+  // Same fix as downloadPdf: "rendered" must reflect data.findings, the
+  // array actually rendered into this document, not the report's cached
+  // full_report count, which can drift out of sync with it.
+  const counters = { ...getFindingCounters(reportRow), rendered: (data.findings ?? []).length };
+  const children: Paragraph[] = [];
+
+  // --- Premium branded cover page (mirrors the PDF cover) ---
+  const NAVY = "0F172A";
+  const CYAN = "2BBFC7";
+  const GOLD = "A16207";
+  const goldBorder = { style: BorderStyle.SINGLE, size: 8, color: GOLD, space: 4 };
+
+  children.push(
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 2400, after: 60 },
+      children: [new TextRun({ text: "NYRAVA", bold: true, size: 44, color: NAVY })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 480 },
+      children: [new TextRun({ text: "LEGAL INTELLIGENCE OS", bold: true, size: 16, color: CYAN })],
+    }),
+    // Trust badge — bordered navy tile with an illuminated N
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 120 },
+      border: {
+        top: { style: BorderStyle.SINGLE, size: 24, color: GOLD, space: 4 },
+        bottom: { style: BorderStyle.SINGLE, size: 24, color: GOLD, space: 4 },
+        left: { style: BorderStyle.SINGLE, size: 24, color: GOLD, space: 4 },
+        right: { style: BorderStyle.SINGLE, size: 24, color: GOLD, space: 4 },
+      },
+      shading: { type: ShadingType.CLEAR, fill: NAVY, color: "auto" },
+      children: [new TextRun({ text: "  N  ", bold: true, size: 96, color: "FFFFFF" })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 360, after: 120 },
+      children: [new TextRun({ text: "CASE INTELLIGENCE REPORT", bold: true, size: 16, color: GOLD })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 120, after: 120 },
+      children: [
+        new TextRun({
+          text: asStr(c.name, "Untitled Case"),
+          bold: true,
+          size: 56,
+          font: "Times New Roman",
+          color: NAVY,
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 240 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: GOLD, space: 1 } },
+      children: [new TextRun({ text: "", size: 2 })],
+    }),
+  );
+
+  const desc = asStr(c.description);
+  if (desc) {
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 360 },
+        children: [new TextRun({ text: desc, italics: true, size: 22, color: "374151" })],
+      }),
+    );
+  }
+
+  children.push(
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 360, after: 240 },
+      border: { top: goldBorder, bottom: goldBorder, left: goldBorder, right: goldBorder },
+      children: [
+        new TextRun({
+          text: "  ATTORNEY WORK PRODUCT  ·  PRIVILEGED & CONFIDENTIAL  ",
+          bold: true,
+          size: 18,
+          color: GOLD,
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 480, after: 60 },
+      children: [
+        new TextRun({
+          text: [
+            `Generated ${new Date().toLocaleString()}`,
+            asStr(reportRow.intelligence_version) ? `Engine ${asStr(reportRow.intelligence_version)}` : null,
+            `Status: ${mode === "LIMITED" ? "Limited Analysis" : "Complete"}`,
+          ]
+            .filter(Boolean)
+            .join("   ·   "),
+          size: 18,
+          color: "475569",
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 60 },
+      children: [
+        new TextRun({
+          text: "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.",
+          italics: true,
+          size: 16,
+          color: CYAN,
+        }),
+      ],
+    }),
+    new Paragraph({ children: [new PageBreak()] }),
+  );
+
+  // --- Executive header on page 2 ---
+  children.push(
+    new Paragraph({
+      heading: HeadingLevel.TITLE,
+      children: [new TextRun(asStr(c.name, "Case Report"))],
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Status: ${mode === "LIMITED" ? "Limited Analysis · Scores Suppressed · Recommendations Suppressed" : "Complete · Scores Enabled · Recommendations Enabled"}`,
+          bold: true,
+        }),
+      ],
+    }),
+    new Paragraph({
+      children: [
+        new TextRun(
+          `Generated Findings: ${counters.generated} · Verified Findings: ${counters.verified} · Rendered Findings: ${counters.rendered} · Documents: ${data.documents.length}`,
+        ),
+      ],
+    }),
+  );
+
+  const plan = buildSectionPlan(mode);
+  const queue = computeRenderQueue(plan, data, mode);
+
+  for (const s of queue) {
+    const paras = s.renderDocx(data);
+    if (paras.length === 0) continue;
+    children.push(...paras);
+  }
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+          },
+        },
+        children,
+      },
+    ],
+  });
+  const blob = await Packer.toBlob(doc);
+  saveBlob(blob, `${slug(name)}.docx`);
+}
+
+function slug(s: string) {
+  return (
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "case"
+  );
+}

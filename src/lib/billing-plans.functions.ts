@@ -1,0 +1,109 @@
+// Admin-managed billing plans. Reads through user-scoped Supabase (RLS)
+// so anon/authenticated see only active plans and admins see everything +
+// can write.
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type Db = SupabaseClient<Database>;
+export type BillingPlanRow = Database["public"]["Tables"]["billing_plans"]["Row"];
+
+const planInput = z.object({
+  id: z.string().uuid().optional(),
+  key: z.string().min(1).max(64).regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / dash / underscore"),
+  label: z.string().min(1).max(120),
+  tagline: z.string().max(500).default(""),
+  features: z.array(z.string().min(1).max(300)).default([]),
+  price_cents: z.number().int().min(0).default(0),
+  currency: z.string().length(3).default("usd"),
+  interval: z.enum(["month", "year", "one_time"]).default("month"),
+  stripe_price_id: z.string().trim().max(200).nullable().optional(),
+  self_serve: z.boolean().default(true),
+  contact_url: z.string().trim().max(500).nullable().optional(),
+  sort_order: z.number().int().default(0),
+  active: z.boolean().default(true),
+  // Seat metering — optional per-plan add-on line item at checkout.
+  included_seats: z.number().int().min(1).default(1),
+  per_seat_price_cents: z.number().int().min(0).nullable().optional(),
+  per_seat_stripe_price_id: z.string().trim().max(200).nullable().optional(),
+  // Admin-only. Never surfaced on /billing.
+  internal_notes: z.string().max(4000).nullable().optional(),
+});
+
+
+async function requireAdmin(ctx: { supabase: Db; userId: string }) {
+  const { data: isAdmin, error } = await ctx.supabase.rpc("is_admin_tier", { _user_id: ctx.userId });
+  if (error) throw new Error(error.message);
+  if (!isAdmin) throw new Error("Forbidden — admin required.");
+}
+
+/** Admin list — includes inactive/draft plans. */
+export const adminListBillingPlans = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const ctx = context as { supabase: Db; userId: string };
+    await requireAdmin(ctx);
+    const { data, error } = await ctx.supabase
+      .from("billing_plans")
+      .select("*")
+      .order("sort_order", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+export const adminUpsertBillingPlan = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => planInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const ctx = context as { supabase: Db; userId: string };
+    await requireAdmin(ctx);
+    const row = {
+      key: data.key,
+      label: data.label,
+      tagline: data.tagline,
+      features: data.features as unknown as Database["public"]["Tables"]["billing_plans"]["Insert"]["features"],
+      price_cents: data.price_cents,
+      currency: data.currency.toLowerCase(),
+      interval: data.interval,
+      stripe_price_id: data.stripe_price_id?.trim() || null,
+      self_serve: data.self_serve,
+      contact_url: data.contact_url?.trim() || null,
+      sort_order: data.sort_order,
+      active: data.active,
+      included_seats: data.included_seats,
+      per_seat_price_cents:
+        typeof data.per_seat_price_cents === "number" ? data.per_seat_price_cents : null,
+      per_seat_stripe_price_id: data.per_seat_stripe_price_id?.trim() || null,
+      internal_notes: data.internal_notes?.trim() || null,
+    } as unknown as Database["public"]["Tables"]["billing_plans"]["Insert"];
+    if (data.id) {
+      const { data: updated, error } = await ctx.supabase
+        .from("billing_plans")
+        .update(row)
+        .eq("id", data.id)
+        .select("*")
+        .single();
+      if (error) throw new Error(error.message);
+      return updated;
+    }
+    const { data: inserted, error } = await ctx.supabase
+      .from("billing_plans")
+      .insert(row)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return inserted;
+  });
+
+export const adminDeleteBillingPlan = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const ctx = context as { supabase: Db; userId: string };
+    await requireAdmin(ctx);
+    const { error } = await ctx.supabase.from("billing_plans").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
