@@ -4,6 +4,7 @@ import { Bell, AlertTriangle, CheckCircle2, Activity, Trash2, ChevronLeft, Chevr
 import { toast } from "sonner";
 import { useAlerts } from "@/hooks/useAlerts";
 import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/alerts")({
   head: () => ({ meta: [{ title: "Alerts & Briefings — Nyrava" }] }),
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/_authenticated/alerts")({
 const PAGE_SIZE = 10;
 
 function AlertsPage() {
+  const { t } = useI18n();
   const { alerts, isLoading, read, unread, markRead, markAllRead, dismiss, dismissAll, restore } = useAlerts();
   const [page, setPage] = useState(1);
 
@@ -25,9 +27,9 @@ function AlertsPage() {
 
   function handleDismiss(key: string, title: string) {
     dismiss(key);
-    toast(`Dismissed "${title}"`, {
+    toast(t("alerts.toast.dismissed", { title }), {
       action: {
-        label: "Undo",
+        label: t("common.undo"),
         onClick: () => restore(key),
       },
     });
@@ -35,15 +37,15 @@ function AlertsPage() {
 
   function handleDismissAll() {
     if (alerts.length === 0) return;
-    if (
-      !confirm(
-        `Clear all ${alerts.length} alert(s)? You can undo individual ones from the toast, but not this bulk action.`,
-      )
-    ) {
+    const message =
+      alerts.length === 1
+        ? t("alerts.confirmClear.singular", { count: alerts.length })
+        : t("alerts.confirmClear.plural", { count: alerts.length });
+    if (!confirm(message)) {
       return;
     }
     dismissAll();
-    toast.success("All alerts cleared.");
+    toast.success(t("alerts.toast.cleared"));
     setPage(1);
   }
 
@@ -51,33 +53,33 @@ function AlertsPage() {
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
         icon={<Bell className="h-5 w-5" />}
-        title="Alerts & Briefings"
-        subtitle="New findings, contradictions, discovery gaps, and pipeline activity across your cases."
+        title={t("alerts.title")}
+        subtitle={t("alerts.subtitle")}
       />
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {unread.length} unread of {alerts.length}
+          {t("alerts.unreadOf", { unread: unread.length, total: alerts.length })}
         </p>
         {alerts.length > 0 ? (
           <div className="flex items-center gap-4">
             <button onClick={markAllRead} className="text-xs text-primary hover:underline">
-              Mark all read
+              {t("alerts.markAllRead")}
             </button>
             <button
               onClick={handleDismissAll}
               className="text-xs text-muted-foreground hover:text-destructive hover:underline"
             >
-              Clear all
+              {t("alerts.clearAll")}
             </button>
           </div>
         ) : null}
       </div>
       {isLoading ? (
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">
-          Loading alerts…
+          {t("alerts.loading")}
         </div>
       ) : alerts.length === 0 ? (
-        <ModuleEmpty title="No alerts" hint="Run analysis on a case to generate findings and notifications." />
+        <ModuleEmpty title={t("alerts.empty.title")} hint={t("alerts.empty.hint")} />
       ) : (
         <>
           <div className="space-y-2">
@@ -116,8 +118,8 @@ function AlertsPage() {
                       e.stopPropagation();
                       handleDismiss(a.key, a.title);
                     }}
-                    title="Dismiss this alert"
-                    aria-label="Dismiss this alert"
+                    title={t("alerts.dismiss")}
+                    aria-label={t("alerts.dismiss")}
                     className="absolute right-3 top-3 rounded-lg p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -130,14 +132,14 @@ function AlertsPage() {
           {pageCount > 1 ? (
             <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
               <p className="text-xs text-muted-foreground">
-                Page {safePage} of {pageCount}
+                {t("alerts.pager.page", { page: safePage, total: pageCount })}
               </p>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={safePage <= 1}
                   className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Previous page"
+                  aria-label={t("common.pager.prev")}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -174,7 +176,7 @@ function AlertsPage() {
                   onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
                   disabled={safePage >= pageCount}
                   className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Next page"
+                  aria-label={t("common.pager.next")}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

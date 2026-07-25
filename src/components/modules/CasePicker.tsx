@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo } from "react";
 import { listCases } from "@/lib/cases.functions";
 import { ChevronDown, FolderOpen, Plus } from "lucide-react";
+import { useI18n } from "@/i18n";
+
 
 const LS_KEY = "nyrava.module.activeCase";
 
@@ -40,18 +42,19 @@ export function CasePicker({
   activeId: string | null;
   onChange: (id: string) => void;
 }) {
+  const { t } = useI18n();
   if (cases.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-card/60 p-6 text-center">
         <FolderOpen className="mx-auto h-8 w-8 text-muted-foreground" />
         <p className="mt-2 text-sm text-muted-foreground">
-          You don't have any cases yet. Upload one to use this module.
+          {t("cases.picker.empty")}
         </p>
         <Link
           to="/new"
           className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
         >
-          <Plus className="h-4 w-4" /> New case
+          <Plus className="h-4 w-4" /> {t("cases.new")}
         </Link>
       </div>
     );
@@ -59,8 +62,9 @@ export function CasePicker({
   return (
     <div className="rounded-xl border border-border bg-card/60 p-3">
       <label className="mb-1.5 block px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Active case
+        {t("cases.picker.label")}
       </label>
+
       <div className="relative">
         <select
           value={activeId ?? ""}

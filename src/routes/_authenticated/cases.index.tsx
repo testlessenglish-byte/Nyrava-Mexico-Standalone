@@ -6,6 +6,7 @@ import { listCases } from "@/lib/cases.functions";
 import { FolderOpen, Plus, Archive as ArchiveIcon, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CaseActionsMenu } from "@/components/CaseActionsMenu";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/cases/")({
   head: () => ({ meta: [{ title: "Cases — Nyrava" }] }),
@@ -15,31 +16,32 @@ export const Route = createFileRoute("/_authenticated/cases/")({
 const RUNNING = new Set(["extracting","analyzing","agents_running","scoring","reporting","intelligence_running"]);
 
 const STATUS_FILTERS = [
-  { value: "all",        label: "All" },
-  { value: "running",    label: "In progress" },
-  { value: "complete",   label: "Complete" },
-  { value: "intelligence_complete", label: "Intelligence done" },
-  { value: "uploaded",   label: "Uploaded" },
-  { value: "failed",     label: "Failed" },
-  { value: "cancelled",  label: "Cancelled" },
+  { value: "all",        labelKey: "cases.filter.all" },
+  { value: "running",    labelKey: "cases.filter.running" },
+  { value: "complete",   labelKey: "cases.filter.complete" },
+  { value: "intelligence_complete", labelKey: "cases.filter.intelligenceComplete" },
+  { value: "uploaded",   labelKey: "cases.filter.uploaded" },
+  { value: "failed",     labelKey: "cases.filter.failed" },
+  { value: "cancelled",  labelKey: "cases.filter.cancelled" },
 ] as const;
 
 const SORTS = [
-  { value: "newest", label: "Newest" },
-  { value: "oldest", label: "Oldest" },
-  { value: "name",   label: "A → Z" },
-  { value: "status", label: "Status" },
+  { value: "newest", labelKey: "cases.sort.newest" },
+  { value: "oldest", labelKey: "cases.sort.oldest" },
+  { value: "name",   labelKey: "cases.sort.name" },
+  { value: "status", labelKey: "cases.sort.status" },
 ] as const;
 
 const PAGE_SIZE = 8;
 
-function fmtDate(iso: string) {
+function fmtDate(iso: string, locale: string) {
   try {
-    return new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+    return new Date(iso).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" });
   } catch { return ""; }
 }
 
 function CasesPage() {
+  const { t, locale } = useI18n();
   const fetchCases = useServerFn(listCases);
   const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState("");
@@ -85,25 +87,25 @@ function CasesPage() {
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-10">
       <div className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:flex sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold sm:text-3xl">Cases</h1>
-          <p className="mt-1 hidden text-sm text-muted-foreground sm:block">All your matter files in one place.</p>
+          <h1 className="text-2xl font-semibold sm:text-3xl">{t("cases.title")}</h1>
+          <p className="mt-1 hidden text-sm text-muted-foreground sm:block">{t("cases.subtitle")}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
             onClick={() => setShowArchived((v) => !v)}
             className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-2 text-xs sm:text-sm ${showArchived ? "border-accent text-accent" : "border-border text-muted-foreground hover:bg-secondary"}`}
-            aria-label={showArchived ? "Show active cases" : "Show archived cases"}
+            aria-label={showArchived ? t("cases.toggle.showActive") : t("cases.toggle.showArchived")}
           >
             <ArchiveIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">{showArchived ? "Active" : "Archived"}</span>
+            <span className="hidden sm:inline">{showArchived ? t("cases.toggle.active") : t("cases.toggle.archived")}</span>
           </button>
           <Link
             to="/new"
             className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-xs font-medium text-accent-foreground hover:opacity-90 sm:text-sm"
           >
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New case</span>
-            <span className="sm:hidden">New</span>
+            <span className="hidden sm:inline">{t("cases.new")}</span>
+            <span className="sm:hidden">{t("cases.new.short")}</span>
           </Link>
         </div>
       </div>
@@ -116,7 +118,7 @@ function CasesPage() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search cases…"
+            placeholder={t("cases.search.placeholder")}
             className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:border-accent focus:outline-none"
           />
         </div>
@@ -126,37 +128,41 @@ function CasesPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="flex-1 rounded-md border border-border bg-card px-2 py-2 text-sm sm:flex-none"
           >
-            {STATUS_FILTERS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            {STATUS_FILTERS.map((s) => <option key={s.value} value={s.value}>{t(s.labelKey)}</option>)}
           </select>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
             className="flex-1 rounded-md border border-border bg-card px-2 py-2 text-sm sm:flex-none"
           >
-            {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            {SORTS.map((s) => <option key={s.value} value={s.value}>{t(s.labelKey)}</option>)}
           </select>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="text-sm text-muted-foreground">Loading…</div>
+        <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
           <FolderOpen className="mx-auto h-10 w-10 text-muted-foreground" />
           <h2 className="mt-4 text-lg font-semibold">
-            {cases && cases.length > 0 ? "No matches" : showArchived ? "No archived cases" : "No cases yet"}
+            {cases && cases.length > 0
+              ? t("cases.empty.noMatches")
+              : showArchived
+                ? t("cases.empty.archived")
+                : t("cases.empty.none")}
           </h2>
           {(!cases || cases.length === 0) && !showArchived && (
             <>
               <p className="mt-1 text-sm text-muted-foreground">
-                Upload a ZIP or individual files to get started.
+                {t("cases.empty.hint")}
               </p>
               <Link
                 to="/new"
                 className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
               >
                 <Plus className="h-4 w-4" />
-                Create first case
+                {t("cases.empty.cta")}
               </Link>
             </>
           )}
@@ -186,7 +192,7 @@ function CasesPage() {
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-foreground sm:text-base">{c.name}</div>
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {fmtDate(c.created_at)}{c.status_message ? ` · ${c.status_message}` : ""}
+                      {fmtDate(c.created_at, locale)}{c.status_message ? ` · ${c.status_message}` : ""}
                     </div>
                   </div>
                   <div className="shrink-0">
@@ -231,13 +237,14 @@ function CasesPager({
   totalItems: number;
   onPage: (page: number) => void;
 }) {
+  const { t } = useI18n();
   const start = totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const end = Math.min(page * PAGE_SIZE, totalItems);
 
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2 py-2">
       <div className="text-xs tabular-nums text-muted-foreground">
-        {start}–{end} of {totalItems}
+        {t("cases.pager.range", { start, end, total: totalItems })}
       </div>
       {totalPages > 1 && (
         <div className="flex items-center gap-1">
@@ -245,7 +252,7 @@ function CasesPager({
             onClick={() => onPage(Math.max(1, page - 1))}
             disabled={page <= 1}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-sm disabled:opacity-40"
-            aria-label="Previous page"
+            aria-label={t("common.pager.prev")}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -256,7 +263,7 @@ function CasesPager({
             onClick={() => onPage(Math.min(totalPages, page + 1))}
             disabled={page >= totalPages}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-sm disabled:opacity-40"
-            aria-label="Next page"
+            aria-label={t("common.pager.next")}
           >
             <ChevronRight className="h-4 w-4" />
           </button>
