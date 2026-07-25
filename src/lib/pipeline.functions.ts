@@ -99,12 +99,13 @@ export const processDocumentJob = createServerFn({ method: "POST" })
 
 
     await updateJob({
-      status: "processing",
+      status: "extracting",
       started_at: new Date().toISOString(),
       attempts: (job.attempts ?? 0) + 1,
       progress: 5,
     });
-    await updateDoc({ processing_status: "processing", processing_error: null });
+    await updateDoc({ processing_status: "extracting", processing_error: null });
+
 
     try {
       // === Stage 1: download ===
