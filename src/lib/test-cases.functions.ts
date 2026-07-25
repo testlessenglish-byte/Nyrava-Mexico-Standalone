@@ -149,7 +149,8 @@ Devuelve SOLO JSON con esta forma exacta:
           org_id: data.orgId,
           matter_id: matter.id,
           name: p.name,
-          role: p.role,
+          party_type: p.role,
+          role_description: p.role,
         })),
       );
     }
@@ -160,12 +161,12 @@ Devuelve SOLO JSON con esta forma exacta:
         content.legal_framework.slice(0, 25).map((c) => ({
           org_id: data.orgId,
           matter_id: matter.id,
+          engine: "legal" as const,
           kind: "authority",
           title: c,
           language: data.language,
           data: { verified: false, source: "test-case-generator" },
           confidence: 0.3,
-          created_by: userId,
         })),
       );
     }
