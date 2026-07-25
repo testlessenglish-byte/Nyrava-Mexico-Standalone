@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Upload, FileText, X, KeyRound } from "lucide-react";
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/new")({
   head: () => ({ meta: [{ title: "New case — Nyrava" }] }),
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/_authenticated/new")({
 });
 
 function NewCasePage() {
+  const { t } = useI18n();
   const nav = useNavigate();
   const uploadCase = useServerFn(createCaseAndUpload);
   const fetchKeyStatus = useServerFn(listGroqKeys);
@@ -48,19 +50,19 @@ function NewCasePage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!hasKey) {
-      toast.error("AI key not configured on the server");
+      toast.error(t("new.toast.noKey"));
       return;
     }
     if (!name.trim()) {
-      toast.error("Name your case");
+      toast.error(t("new.toast.needName"));
       return;
     }
     if (files.length === 0) {
-      toast.error("Add at least one file");
+      toast.error(t("new.toast.needFiles"));
       return;
     }
     if (!caseType) {
-      toast.error("Choose a case type — this locks the legal framework and can't be inferred automatically");
+      toast.error(t("new.toast.needCaseType"));
       return;
     }
     setSubmitting(true);
@@ -72,39 +74,40 @@ function NewCasePage() {
     if (jurisdiction) fd.append("jurisdiction", jurisdiction);
 
     for (const f of files) fd.append("files", f);
-    toast.info("Uploading evidence…");
+    toast.info(t("new.toast.uploading"));
     try {
       const res = await uploadCase({ data: fd });
-      toast.success("Evidence uploaded — open the workspace to run extraction");
+      toast.success(t("new.toast.uploaded"));
       nav({ to: "/cases/$caseId", params: { caseId: res.caseId } });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
+      toast.error(e instanceof Error ? e.message : t("new.toast.failed"));
     } finally {
       setSubmitting(false);
     }
   }
 
+  const MODE_KEYS = {
+    strict: { label: "new.mode.strict", desc: "new.mode.strict.desc" },
+    balanced: { label: "new.mode.balanced", desc: "new.mode.balanced.desc" },
+    exploratory: { label: "new.mode.exploratory", desc: "new.mode.exploratory.desc" },
+  } as const;
+
   return (
     <div className="mx-auto max-w-3xl px-8 py-10">
-      <h1 className="text-3xl font-semibold">New case</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Upload evidence. You'll run extraction, analyzers, agents, scoring, and reports independently from the
-        workspace.
-      </p>
+      <h1 className="text-3xl font-semibold">{t("new.title")}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{t("new.subtitle")}</p>
 
       {!hasKey && (
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm">
           <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div className="flex-1">
-            <p className="font-medium text-warning">AI key not configured</p>
-            <p className="mt-1 text-muted-foreground">
-              No AI provider is reachable. Check the Health page for details.
-            </p>
+            <p className="font-medium text-warning">{t("new.noKey.title")}</p>
+            <p className="mt-1 text-muted-foreground">{t("new.noKey.body")}</p>
             <Link
               to="/settings"
               className="mt-2 inline-block rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:opacity-90"
             >
-              Open Settings →
+              {t("new.noKey.cta")}
             </Link>
           </div>
         </div>
@@ -112,17 +115,17 @@ function NewCasePage() {
 
       <form onSubmit={submit} className="mt-8 space-y-6">
         <div>
-          <label className="text-sm font-medium">Case name</label>
+          <label className="text-sm font-medium">{t("new.field.name")}</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Doe v. Acme — Q3 production"
+            placeholder={t("new.field.name.placeholder")}
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         <div>
           <label className="text-sm font-medium">
-            Description <span className="text-muted-foreground">(optional)</span>
+            {t("new.field.description")} <span className="text-muted-foreground">{t("common.optional")}</span>
           </label>
           <textarea
             value={desc}
@@ -133,19 +136,15 @@ function NewCasePage() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Case type</label>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Locks the legal framework. The engine will never apply criminal terminology (Miranda, suppression,
-            conviction) to a civil case, or vice versa — except Tax Law, which starts civil (audit, Tax Court) and
-            automatically unlocks criminal tax-fraud analysis only if a charging document appears in the evidence.
-          </p>
+          <label className="text-sm font-medium">{t("new.field.caseType")}</label>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("new.field.caseType.hint")}</p>
           <select
             value={caseType}
             onChange={(e) => setCaseType(e.target.value)}
             className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="" disabled>
-              Select a case type…
+              {t("new.field.caseType.placeholder")}
             </option>
             {CASE_TYPE_SELECT_GROUPS.map((g) => (
               <optgroup key={g.group} label={g.group}>
@@ -161,18 +160,15 @@ function NewCasePage() {
 
         <div>
           <label className="text-sm font-medium">
-            Jurisdiction <span className="text-muted-foreground">(optional)</span>
+            {t("new.field.jurisdiction")} <span className="text-muted-foreground">{t("common.optional")}</span>
           </label>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Scopes case-law lookups to this state's courts instead of searching nationwide. Leave unset to search
-            nationwide.
-          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("new.field.jurisdiction.hint")}</p>
           <select
             value={jurisdiction}
             onChange={(e) => setJurisdiction(e.target.value)}
             className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
-            <option value="">Nationwide (no state filter)</option>
+            <option value="">{t("new.field.jurisdiction.nationwide")}</option>
             {JURISDICTION_OPTIONS.filter((o) => o.value !== "federal").map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
@@ -182,11 +178,8 @@ function NewCasePage() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Analysis mode</label>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Controls how strictly Nyrava filters AI-generated content. Strict keeps only items with verifiable evidence;
-            Exploratory shows AI theories with a tag.
-          </p>
+          <label className="text-sm font-medium">{t("new.field.mode")}</label>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("new.field.mode.hint")}</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-3">
             {(["strict", "balanced", "exploratory"] as const).map((m) => (
               <button
@@ -199,21 +192,15 @@ function NewCasePage() {
                     : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
                 }`}
               >
-                <div className="text-sm font-semibold capitalize text-foreground">
-                  {m === "strict" ? "Strict evidence" : m}
-                </div>
-                <div className="mt-0.5">
-                  {m === "strict" && "Only direct evidence. Drops inferences and theories."}
-                  {m === "balanced" && "Direct evidence + evidence-based inferences."}
-                  {m === "exploratory" && "Includes AI theories, clearly labeled."}
-                </div>
+                <div className="text-sm font-semibold text-foreground">{t(MODE_KEYS[m].label)}</div>
+                <div className="mt-0.5">{t(MODE_KEYS[m].desc)}</div>
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <label className="text-sm font-medium">Evidence files</label>
+          <label className="text-sm font-medium">{t("new.field.files")}</label>
           <div
             onDragOver={(e) => {
               e.preventDefault();
@@ -231,8 +218,8 @@ function NewCasePage() {
             }`}
           >
             <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-            <p className="mt-3 text-sm font-medium">Drop files here or click to browse</p>
-            <p className="mt-1 text-xs text-muted-foreground">ZIP · PDF · DOCX · TXT · Images · Audio</p>
+            <p className="mt-3 text-sm font-medium">{t("new.dropzone.title")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("new.dropzone.formats")}</p>
             <input
               ref={inputRef}
               type="file"
@@ -268,7 +255,7 @@ function NewCasePage() {
           disabled={submitting}
           className="rounded-md bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {submitting ? "Uploading…" : "Upload evidence"}
+          {submitting ? t("new.submitting") : t("new.submit")}
         </button>
       </form>
     </div>
