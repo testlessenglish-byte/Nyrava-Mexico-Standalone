@@ -9,6 +9,7 @@ import { HeroOSDashboard } from "@/components/HeroOSDashboard";
 import { TrustStrip } from "@/components/TrustStrip";
 import { SiteFooter } from "@/components/SiteFooter";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useI18n } from "@/i18n";
 import { listPublishedDemoCases } from "@/lib/demo-cases.functions";
 
 const SITE_URL = "https://nyrava.com";
