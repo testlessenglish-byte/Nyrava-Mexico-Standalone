@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo } from "react";
 import { listCases } from "@/lib/cases.functions";
 import { ChevronDown, FolderOpen, Plus } from "lucide-react";
+import { useI18n } from "@/i18n";
+
 
 const LS_KEY = "nyrava.module.activeCase";
 
