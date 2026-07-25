@@ -162,7 +162,9 @@ describe("reconcileManifest — drift detection", () => {
       manifest,
       runs: [
         ...manifest.enabled_engines.map((e) => row(e, "completed")),
-        ...manifest.skipped_engines.map((e) => row(e, "skipped", "not_applicable_to_case_type")),
+        ...manifest.skipped_engines
+          .filter((e) => !manifest.enabled_engines.includes(e))
+          .map((e) => row(e, "skipped", "not_applicable_to_case_type")),
       ],
       activations: [],
     });
