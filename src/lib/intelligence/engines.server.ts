@@ -1203,19 +1203,28 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ...({
         case_type: caseType,
+        penal_metrics: isCriminal
+          ? {
+              jurisdiction: "MX",
+              system: "penal_acusatorio_cnpp",
+              vinculacion_proceso_pct: vinculacion,
+              sentencia_condenatoria_pct: condenatoria,
+              sentencia_absolutoria_pct: absolutoria,
+              procedimiento_abreviado_pct: abreviado,
+              recurso_exito_pct: recursoPct,
+              jury_applicable: false,
+            }
+          : null,
         civil_metrics: isCriminal
           ? null
           : {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              plaintiff_success_pct: (p as any).plaintiff_success_pct ?? null,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              defense_success_pct: (p as any).defense_success_pct ?? null,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              settlement_probability_pct: (p as any).settlement_probability_pct ?? null,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              comparative_fault_estimate_pct: (p as any).comparative_fault_estimate_pct ?? null,
+              plaintiff_success_pct: num(pa.plaintiff_success_pct),
+              defense_success_pct: num(pa.defense_success_pct),
+              settlement_probability_pct: num(pa.settlement_probability_pct),
+              comparative_fault_estimate_pct: num(pa.comparative_fault_estimate_pct),
             },
       } as any),
+
     } as any,
     { onConflict: "case_id" },
   );
