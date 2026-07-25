@@ -1,146 +1,69 @@
-// Attorney-facing jurisdiction list + mapping to CourtListener court IDs.
+// Attorney-facing jurisdiction list — Mexican federal entities (31 states
+// + Ciudad de México) plus "federal" for federal-competence matters.
 //
-// This is intentionally the *state's* jurisdiction, not the case type — a
-// California family case and a California criminal case both scope to the
-// same California courts. Federal district/circuit coverage varies case by
-// case (which circuit, which district) and isn't something a single
-// dropdown can capture correctly, so "Federal" deliberately maps to no
-// court filter (i.e. nationwide search, which naturally includes federal
-// opinions) rather than guessing a circuit.
+// This is intentionally the *entity's* jurisdiction, not the case type — a
+// Jalisco family case and a Jalisco criminal case both scope to the same
+// Jalisco courts/codes. "Federal" covers matters of federal competence
+// (amparo against federal authorities, federal crimes under the CPF,
+// labor under the LFT, etc.) rather than any single state.
 //
-// The court IDs below follow CourtListener's documented ID conventions
-// (state supreme court + primary intermediate appellate court) but were
-// not individually verified against the live /api/rest/v4/courts/ list at
-// write time. That's safe: searchCaseLaw() falls back to an unfiltered
-// nationwide search whenever a jurisdiction-scoped query returns zero
-// results, so a wrong or incomplete ID here degrades to "no filter" rather
-// than silently hiding case law. Worth spot-checking against
-// https://www.courtlistener.com/api/rest/v4/courts/?full_name__icontains=<state>
-// if you notice a state consistently falling back.
+// NOTE (Phase 6/7 — research pipeline & citation engine): USA's version of
+// this file mapped each value to CourtListener court IDs for live case-law
+// lookup. There is no equivalent public API for Mexican jurisprudencia/
+// tesis (SCJN's own search tools aren't a REST API), so
+// courtIdsForJurisdiction() below is currently a safe no-op — it always
+// returns undefined, which callers already treat as "no court filter."
+// Wiring this to a real Mexican source (SCJN, DOF, state judicial sites)
+// is separate, larger work — see legal_source_connectors in the DB schema,
+// currently seeded with scjn/dof/tfja as "planned".
 
 export type JurisdictionOption = { value: string; label: string };
 
 export const JURISDICTION_OPTIONS: JurisdictionOption[] = [
-  { value: "federal", label: "Federal (no state court filter)" },
-  { value: "AL", label: "Alabama" },
-  { value: "AK", label: "Alaska" },
-  { value: "AZ", label: "Arizona" },
-  { value: "AR", label: "Arkansas" },
-  { value: "CA", label: "California" },
-  { value: "CO", label: "Colorado" },
-  { value: "CT", label: "Connecticut" },
-  { value: "DE", label: "Delaware" },
-  { value: "DC", label: "District of Columbia" },
-  { value: "FL", label: "Florida" },
-  { value: "GA", label: "Georgia" },
-  { value: "HI", label: "Hawaii" },
-  { value: "ID", label: "Idaho" },
-  { value: "IL", label: "Illinois" },
-  { value: "IN", label: "Indiana" },
-  { value: "IA", label: "Iowa" },
-  { value: "KS", label: "Kansas" },
-  { value: "KY", label: "Kentucky" },
-  { value: "LA", label: "Louisiana" },
-  { value: "ME", label: "Maine" },
-  { value: "MD", label: "Maryland" },
-  { value: "MA", label: "Massachusetts" },
-  { value: "MI", label: "Michigan" },
-  { value: "MN", label: "Minnesota" },
-  { value: "MS", label: "Mississippi" },
-  { value: "MO", label: "Missouri" },
-  { value: "MT", label: "Montana" },
-  { value: "NE", label: "Nebraska" },
-  { value: "NV", label: "Nevada" },
-  { value: "NH", label: "New Hampshire" },
-  { value: "NJ", label: "New Jersey" },
-  { value: "NM", label: "New Mexico" },
-  { value: "NY", label: "New York" },
-  { value: "NC", label: "North Carolina" },
-  { value: "ND", label: "North Dakota" },
-  { value: "OH", label: "Ohio" },
-  { value: "OK", label: "Oklahoma" },
-  { value: "OR", label: "Oregon" },
-  { value: "PA", label: "Pennsylvania" },
-  { value: "RI", label: "Rhode Island" },
-  { value: "SC", label: "South Carolina" },
-  { value: "SD", label: "South Dakota" },
-  { value: "TN", label: "Tennessee" },
-  { value: "TX", label: "Texas" },
-  { value: "UT", label: "Utah" },
-  { value: "VT", label: "Vermont" },
-  { value: "VA", label: "Virginia" },
-  { value: "WA", label: "Washington" },
-  { value: "WV", label: "West Virginia" },
-  { value: "WI", label: "Wisconsin" },
-  { value: "WY", label: "Wyoming" },
+  { value: "federal", label: "Federal (competencia federal)" },
+  { value: "AGU", label: "Aguascalientes" },
+  { value: "BCN", label: "Baja California" },
+  { value: "BCS", label: "Baja California Sur" },
+  { value: "CAM", label: "Campeche" },
+  { value: "CHP", label: "Chiapas" },
+  { value: "CHH", label: "Chihuahua" },
+  { value: "CMX", label: "Ciudad de México" },
+  { value: "COA", label: "Coahuila" },
+  { value: "COL", label: "Colima" },
+  { value: "DUR", label: "Durango" },
+  { value: "GUA", label: "Guanajuato" },
+  { value: "GRO", label: "Guerrero" },
+  { value: "HID", label: "Hidalgo" },
+  { value: "JAL", label: "Jalisco" },
+  { value: "MEX", label: "Estado de México" },
+  { value: "MIC", label: "Michoacán" },
+  { value: "MOR", label: "Morelos" },
+  { value: "NAY", label: "Nayarit" },
+  { value: "NLE", label: "Nuevo León" },
+  { value: "OAX", label: "Oaxaca" },
+  { value: "PUE", label: "Puebla" },
+  { value: "QUE", label: "Querétaro" },
+  { value: "ROO", label: "Quintana Roo" },
+  { value: "SLP", label: "San Luis Potosí" },
+  { value: "SIN", label: "Sinaloa" },
+  { value: "SON", label: "Sonora" },
+  { value: "TAB", label: "Tabasco" },
+  { value: "TAM", label: "Tamaulipas" },
+  { value: "TLA", label: "Tlaxcala" },
+  { value: "VER", label: "Veracruz" },
+  { value: "YUC", label: "Yucatán" },
+  { value: "ZAC", label: "Zacatecas" },
 ];
 
 export const JURISDICTION_VALUES = JURISDICTION_OPTIONS.map((o) => o.value) as [string, ...string[]];
 
-// State -> CourtListener court IDs (highest court + primary intermediate
-// appellate court). "federal" and unknown values intentionally have no
-// entry, which callers should treat as "no court filter."
-const COURT_IDS_BY_JURISDICTION: Record<string, string[]> = {
-  AL: ["ala", "alacivapp", "alacrimapp"],
-  AK: ["alaska", "alaskactapp"],
-  AZ: ["ariz", "arizctapp"],
-  AR: ["ark", "arkctapp"],
-  CA: ["cal", "calctapp"],
-  CO: ["colo", "coloctapp"],
-  CT: ["conn", "connappct"],
-  DE: ["del"],
-  DC: ["dc"],
-  FL: ["fla", "fladistctapp"],
-  GA: ["ga", "gactapp"],
-  HI: ["haw", "hawapp"],
-  ID: ["idaho", "idahoctapp"],
-  IL: ["ill", "illappct"],
-  IN: ["ind", "indctapp"],
-  IA: ["iowa", "iowactapp"],
-  KS: ["kan", "kanctapp"],
-  KY: ["ky", "kyctapp"],
-  LA: ["la", "lactapp"],
-  ME: ["me"],
-  MD: ["md", "mdctspecapp"],
-  MA: ["mass", "massappct"],
-  MI: ["mich", "michctapp"],
-  MN: ["minn", "minnctapp"],
-  MS: ["miss", "missctapp"],
-  MO: ["mo", "moctapp"],
-  MT: ["mont"],
-  NE: ["neb", "nebctapp"],
-  NV: ["nev", "nevctapp"],
-  NH: ["nh"],
-  NJ: ["nj", "njsuperctappdiv"],
-  NM: ["nm", "nmctapp"],
-  NY: ["ny", "nyappdiv", "nyappterm"],
-  NC: ["nc", "ncctapp"],
-  ND: ["nd"],
-  OH: ["ohio", "ohioctapp"],
-  OK: ["okla", "oklacivapp", "oklacrimapp"],
-  OR: ["or", "orctapp"],
-  PA: ["pa", "pasuperct", "pacommwct"],
-  RI: ["ri"],
-  SC: ["sc", "scctapp"],
-  SD: ["sd"],
-  TN: ["tenn", "tennctapp", "tenncrimapp"],
-  TX: ["tex", "texapp", "texcrimapp"],
-  UT: ["utah", "utahctapp"],
-  VT: ["vt"],
-  VA: ["va", "vactapp"],
-  WA: ["wash", "washctapp"],
-  WV: ["wva"],
-  WI: ["wis", "wisctapp"],
-  WY: ["wyo"],
-};
-
 /**
- * Resolve an attorney-selected jurisdiction value to the CourtListener
- * court IDs to filter on. Returns undefined for "federal", unset, or any
- * unrecognized value — callers should treat that as "no filter."
+ * Resolve an attorney-selected jurisdiction to court IDs for live case-law
+ * filtering. Always undefined for now — see the Phase 6/7 note above.
+ * Callers already treat undefined as "no court filter" (search unfiltered),
+ * so this degrades safely rather than breaking anything.
  */
 export function courtIdsForJurisdiction(jurisdiction: string | null | undefined): string[] | undefined {
-  if (!jurisdiction) return undefined;
-  const ids = COURT_IDS_BY_JURISDICTION[jurisdiction.toUpperCase()];
-  return ids && ids.length > 0 ? ids : undefined;
+  void jurisdiction;
+  return undefined;
 }

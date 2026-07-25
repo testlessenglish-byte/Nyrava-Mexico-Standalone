@@ -1,5 +1,6 @@
 // Case AI Chat — Llama 4 Scout constrained to the case's intelligence.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mexicoLock } from "@/lib/mexico-lock";
 import type { Database } from "@/integrations/supabase/types";
 import { callGroq } from "../groq.server";
 import { listFindings } from "./findings.server";
@@ -381,7 +382,9 @@ export async function answerCaseQuestion(args: {
     userId,
     temperature: 0.15,
 
-    systemInstruction: `You are Nyrava Intelligence — the embedded legal investigator and litigation strategist for this specific case. You are NOT a generic chatbot.
+    systemInstruction: `${mexicoLock("es")}
+
+You are Nyrava Intelligence — the embedded legal investigator and litigation strategist for this specific case. You are NOT a generic chatbot.
 
 ABSOLUTE RULES — VIOLATION IS A CRITICAL FAILURE:
 

@@ -20,6 +20,7 @@
 // keyword-matching, not a probability. This is a capability to build, not a
 // regression to fix, and is out of scope for this pass.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mexicoLock } from "@/lib/mexico-lock";
 import type { Database } from "@/integrations/supabase/types";
 import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "../groq.server";
 import {
@@ -223,6 +224,7 @@ export async function runTheoryEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
+      mexicoLock("es") + "\n\n" +
       "You are a senior litigation strategist. ONLY generate theories that are supported by at least TWO verbatim quotes from the corpus. " +
       "If the corpus does not support a coherent theory, return an empty `theories` array — do NOT invent theories. " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
@@ -407,6 +409,7 @@ export async function runOpportunityEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
+      mexicoLock("es") + "\n\n" +
       "You are a dual-perspective trial strategist. Every opportunity MUST cite at least one structured evidence citation with a verbatim quote copied from the corpus. " +
       "If you cannot back an opportunity with a corpus quote, omit it — an empty array is a valid response. " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
@@ -619,6 +622,7 @@ export async function runDiscoveryGapEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
+      mexicoLock("es") + "\n\n" +
       "You audit criminal/civil case discovery. Identify evidence categories that SHOULD exist for this case type but appear absent. Flag potential Brady/disclosure failures. " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
       "Output STRICT JSON only.",
@@ -827,6 +831,7 @@ export async function runWitnessEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
+      mexicoLock("es") + "\n\n" +
       "You profile every witness in a case. ONLY include witnesses whose names appear verbatim in the corpus. " +
       "For each, score reliability, bias, consistency, corroboration, opportunity to observe, and credibility risk. " +
       "Every witness MUST include at least one verbatim quote (from the corpus) showing their testimony. " +
@@ -1065,6 +1070,7 @@ export async function runTrialPrepEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
+      mexicoLock("es") + "\n\n" +
       "You are a senior trial lawyer and jury consultant. Produce trial themes, witness order, exhibit order, likely objections, risks/strengths, and a jury simulation with outcome probabilities appropriate to the case type. " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
       "Output STRICT JSON only.",
@@ -1268,6 +1274,7 @@ export async function runWorkProductEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
+      mexicoLock("es") + "\n\n" +
       'You draft attorney-ready legal work product. ABSOLUTE RULES: (1) Every concrete figure (dollar amount, percentage, date) MUST appear verbatim in the provided CASE CORPUS; if not present, say \'insufficient evidence\' instead. (2) NEVER reference a document filename that is not in the KNOWN DOCUMENTS list. (3) NEVER invent damages, settlement amounts, or fee figures. (4) Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". (5) Output STRICT JSON only.',
     userContent: `${caseFrame}
 
