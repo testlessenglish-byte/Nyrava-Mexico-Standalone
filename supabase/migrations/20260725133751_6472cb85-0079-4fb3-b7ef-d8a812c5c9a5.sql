@@ -1,0 +1,1 @@
+CREATE POLICY "users select own agent_findings" ON public.agent_findings FOR SELECT TO authenticated USING (user_id = auth.uid() OR private.has_role(auth.uid(), 'admin'::app_role));
