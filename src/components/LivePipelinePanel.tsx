@@ -59,36 +59,10 @@ type EngineRun = {
   created_at: string;
 };
 
-const STAGE_LABEL: Record<string, string> = {
-  extraction: "Extraction",
-  analyzers: "Analyzers",
-  agents: "Agents",
-  timeline: "Timeline",
-  evidence_map: "Evidence Map",
-  evidence_intel: "Evidence Intel",
-  evidence_intelligence: "Evidence Intel",
-  contradictions: "Contradictions",
-  witness: "Witness Intel",
-  witness_intel: "Witness Intel",
-  witness_intelligence: "Witness Intel",
-  discovery_gaps: "Discovery Gaps",
-  discovery: "Discovery Gaps",
-  constitutional: "Constitutional",
-  constitutional_compliance: "Constitutional",
-  perspectives: "Perspectives",
-  theories: "Theories",
-  theory: "Theories",
-  opportunities: "Opportunities",
-  opportunity: "Opportunities",
-  trial_prep: "Trial Prep",
-  work_product: "Work Product",
-  strategy: "Strategy",
-  hallucination: "Hallucination",
-  scoring: "Scoring",
-  report: "Report",
-  report_generator: "Report",
-  hallucination_review: "Hallucination Review",
-};
+// Stage/engine names are resolved through the Mexican pipeline profile
+// (mx-pipeline.ts) + i18n, so the ledger and activity feed speak the user's
+// language with terminology familiar to a Mexican attorney.
+
 
 function fmtTime(iso: string) {
   try {
