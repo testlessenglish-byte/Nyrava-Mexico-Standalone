@@ -174,6 +174,16 @@ function normalize(s: string): string {
     .toLowerCase();
 }
 
+/** Word-boundary search on normalized text — "GUA" must not match "Guadalajara". */
+function indexOfWord(haystack: string, needle: string): number {
+  const re = new RegExp(
+    `(?<![\\p{L}\\p{N}])${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
+    "u",
+  );
+  const m = re.exec(haystack);
+  return m ? m.index : -1;
+}
+
 /** Resolve entidad federativa from a free-text field or the document corpus. */
 export function detectState(text: string | null | undefined): { code: string; name: string } | null {
   if (!text) return null;
@@ -181,7 +191,7 @@ export function detectState(text: string | null | undefined): { code: string; na
   let best: { code: string; name: string; at: number } | null = null;
   for (const st of MEXICAN_STATES) {
     for (const needle of [st.name, st.code, ...st.aliases]) {
-      const at = hay.indexOf(normalize(needle));
+      const at = indexOfWord(hay, normalize(needle));
       if (at >= 0 && (!best || at < best.at)) best = { code: st.code, name: st.name, at };
     }
   }

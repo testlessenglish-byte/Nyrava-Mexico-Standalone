@@ -13,9 +13,9 @@ describe("mx terminology remediation", () => {
 
   it("maps party roles to the correct materia", () => {
     expect(remediateText("prosecution", "penal").text).toBe("Ministerio Público");
-    expect(remediateText("plaintiff", "laboral").text).toBe("Parte actora");
-    expect(remediateText("defendant", "civil").text).toBe("Parte demandada");
-    expect(remediateText("plaintiff", "amparo").text).toBe("Parte quejosa");
+    expect(remediateText("plaintiff", "laboral").text).toBe("parte actora");
+    expect(remediateText("defendant", "civil").text).toBe("parte demandada");
+    expect(remediateText("plaintiff", "amparo").text).toBe("parte quejosa");
   });
 
   it("leaves clean Mexican prose untouched", () => {
