@@ -73,6 +73,7 @@ export const evidenceEngine: IntelligenceEngine = {
     const provider = getAIProvider();
     const { content, model, tokens_used } = await provider.chatJSON<ModelResult>(
       [
+        { role: "system", content: mexicoLock(input.language) },
         { role: "system", content: input.language === "en" ? SYSTEM_EN : SYSTEM_ES },
         { role: "user", content: buildPrompt(input) },
       ],
