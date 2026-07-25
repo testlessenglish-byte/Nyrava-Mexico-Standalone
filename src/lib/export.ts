@@ -19,6 +19,7 @@ import {
   PageBreak,
 } from "docx";
 import { rt, setReportTemplateLocale, resolveReportLocale } from "./report-i18n";
+import { MX_DOMAINS } from "./intelligence/mx-coverage";
 
 /**
  * Locale-aware TextRun. Every DOCX run of template text passes through the
@@ -1656,6 +1657,54 @@ function renderCover(
   return false;
 }
 
+/**
+ * Tailored missing-document checklist for LIMITED-mode reports, per branch
+ * of Mexican law — replaces the old one-size-fits-all paragraph (which
+ * listed pure US litigation documents: "pleadings, discovery responses,
+ * deposition transcripts") with the actual document types a Mexican
+ * attorney in that specific materia would recognize and need to gather.
+ * Pulls from the SAME required_document_types data already used by the
+ * admin Legal Coverage dashboard (mx-coverage.ts) — not a new taxonomy.
+ */
+function buildMissingDocumentChecklist(data: CaseExportData): { checklistText: string } {
+  const locale = resolveReportLocale(data.report, data.case);
+  const caseType = (data.case as { case_type?: string } | null)?.case_type ?? null;
+
+  // apelación isn't in MX_DOMAINS (it's a procedural posture over whatever
+  // the underlying matter is, not its own substantive practice area) — its
+  // own document set is genuinely different from the domains list below.
+  if (caseType === "appellate") {
+    return {
+      checklistText:
+        locale === "en"
+          ? "To upgrade this matter to a full analysis, supply: (1) the certified first-instance judgment (sentencia de primera instancia), (2) the brief of grounds of appeal (escrito de agravios), (3) certified copies of the trial-court record referenced in the judgment. Each additional verified source increases the ESS score and unlocks deterministic scoring."
+          : "Para elevar este asunto a un análisis completo, aporte: (1) la sentencia de primera instancia certificada, (2) el escrito de agravios, (3) copias certificadas de las constancias del expediente de origen referidas en la sentencia. Cada fuente verificada adicional incrementa el puntaje ESS y habilita la evaluación determinista.",
+    };
+  }
+
+  const domain = MX_DOMAINS.find((d) => d.base_area === caseType || d.code === caseType);
+  if (!domain || domain.required_document_types.length === 0) {
+    // Generic Mexican-appropriate fallback (still not US litigation terms)
+    // for any case type not yet mapped into MX_DOMAINS.
+    return {
+      checklistText:
+        locale === "en"
+          ? "To upgrade this matter to a full analysis, supply additional primary sources: pleadings and their responses, notifications, contracts and amendments, expert opinions, and any documentary evidence referenced in the existing record. Each additional verified source increases the ESS score and unlocks deterministic scoring."
+          : "Para elevar este asunto a un análisis completo, aporte fuentes primarias adicionales: promociones y sus contestaciones, notificaciones, contratos y convenios modificatorios, dictámenes periciales, y cualquier prueba documental referida en el expediente. Cada fuente verificada adicional incrementa el puntaje ESS y habilita la evaluación determinista.",
+    };
+  }
+
+  const items = domain.required_document_types;
+  const listEs = items.map((it, i) => `(${i + 1}) ${it}`).join(", ");
+  const listEn = listEs; // document type names themselves stay in Spanish (they're proper Mexican legal document names) even in an English-language report
+  return {
+    checklistText:
+      locale === "en"
+        ? `To upgrade this matter to a full analysis, supply: ${listEn}, and any other documentary evidence referenced in the existing record. Each additional verified source increases the ESS score, unlocks deterministic scoring, and enables the engine to draft motion outlines with supporting citations.`
+        : `Para elevar este asunto a un análisis completo, aporte: ${listEs}, y cualquier otra prueba documental referida en el expediente. Cada fuente verificada adicional incrementa el puntaje ESS, habilita la evaluación determinista, y permite al motor esbozar promociones con citas de apoyo.`,
+  };
+}
+
 function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) {
   const r = asObj(data.report);
   b.h1("Executive Summary");
@@ -1668,10 +1717,8 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
         "An evidence-grounded narrative is rendered below for every section in which the corpus supplied sufficient verbatim material. Sections that would otherwise rely on inferred legal theories — quantitative scorecards, motion drafting, theory selection, and prioritized recommendations — have been withheld so that no claim in this report rests on speculation.",
       { size: 11, gap: 8 },
     );
-    b.text(
-      "To upgrade this matter to a full analysis, supply additional primary sources: pleadings, discovery responses, deposition transcripts, contemporaneous correspondence, contracts and amendments, expert reports, and any documentary evidence referenced in the existing record. Each additional verified source increases the ESS score, unlocks deterministic scoring, and enables the engine to draft motion outlines with supporting citations.",
-      { size: 11, gap: 8 },
-    );
+    const { checklistText } = buildMissingDocumentChecklist(data);
+    b.text(checklistText, { size: 11, gap: 8 });
     b.text(
       "Every finding rendered in this report has been validated against the source corpus and is safe to rely on. The suppressions below are conservative by design — they protect the work product from hallucinated legal conclusions while preserving the verified factual record.",
       { size: 11, gap: 8 },
