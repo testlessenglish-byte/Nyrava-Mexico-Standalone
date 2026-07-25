@@ -1,18 +1,20 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Briefcase, LayoutDashboard, LogOut, Scale, Settings, Users, FileText, ShieldCheck } from "lucide-react";
+import { Briefcase, FlaskConical, LayoutDashboard, LogOut, Scale, Settings, ShieldCheck, Users, FileText } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { NyravaLogo } from "@/components/NyravaLogo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchMyMemberships, getCurrentOrgId, setCurrentOrgId } from "@/lib/workspace";
 import { useSession } from "@/hooks/use-session";
+import { useRoles } from "@/hooks/use-roles";
 import { useI18n } from "@/i18n";
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const navigate = useNavigate();
   const router = useRouter();
   const { user } = useSession();
+  const { isSuperAdmin, isAdmin } = useRoles();
   const { t } = useI18n();
   const memberships = useQuery({ queryKey: ["memberships"], queryFn: fetchMyMemberships });
 
@@ -23,6 +25,10 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
     { to: "/library", label: t("sidebar.library"), icon: FileText, disabled: true },
     { to: "/settings", label: t("sidebar.settings"), icon: Settings, disabled: true },
   ];
+
+  const ADMIN_NAV = (isAdmin || isSuperAdmin)
+    ? [{ to: "/admin/test-cases" as const, label: "Test Cases", icon: FlaskConical }]
+    : [];
 
   useEffect(() => {
     if (!memberships.data) return;
@@ -98,6 +104,23 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               </Link>
             );
           })}
+          {ADMIN_NAV.length > 0 && (
+            <>
+              <div className="mt-4 px-3 pb-1 font-mono text-[9px] uppercase tracking-[0.22em] text-primary/70">
+                Admin
+              </div>
+              {ADMIN_NAV.map((n) => (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  activeProps={{ className: "bg-primary/10 text-primary" }}
+                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-background/60 hover:text-foreground"
+                >
+                  <n.icon className="h-4 w-4" /> {n.label}
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
         <div className="mt-auto space-y-2 p-3">
           <div className="flex justify-end">
