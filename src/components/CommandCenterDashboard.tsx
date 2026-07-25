@@ -240,7 +240,7 @@ export function CommandCenterDashboard({
 
   // Node rotation positions (heptagon, 7 nodes).
   const nodePositions = visibleNodes.map((_, i) => {
-    const angle = -Math.PI / 2 + (i * (2 * Math.PI)) / NODES.length;
+    const angle = -Math.PI / 2 + (i * (2 * Math.PI)) / Math.max(visibleNodes.length, 1);
     return { x: 50 + 38 * Math.cos(angle), y: 50 + 38 * Math.sin(angle) };
   });
 
