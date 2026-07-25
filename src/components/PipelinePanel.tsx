@@ -210,9 +210,9 @@ export function PipelinePanel({
                 try {
                   const res = await resumeFullPipelineStep({ data: { caseId } });
                   if ((res as { alreadyComplete?: boolean })?.alreadyComplete) {
-                    toast.info("Pipeline already complete — nothing to resume.");
+                    toast.info(t("pipeline.toast.alreadyComplete"));
                   } else {
-                    toast.success("Resumed pipeline from last checkpoint.");
+                    toast.success(t("pipeline.toast.resumed"));
                   }
                   invalidate?.();
                 } catch (err) {
@@ -281,20 +281,20 @@ export function PipelinePanel({
 
       {showLog && (
         <div className="rounded-lg border border-slate-700/40 bg-slate-900/60 p-3">
-          <h4 className="mb-2 text-xs font-semibold text-slate-200">Execution Log</h4>
+          <h4 className="mb-2 text-xs font-semibold text-slate-200">{t("pipeline.panel.logTitle")}</h4>
           {rows.length === 0 ? (
-            <p className="text-xs text-slate-500">No runs recorded yet.</p>
+            <p className="text-xs text-slate-500">{t("pipeline.panel.noRuns")}</p>
           ) : (
             <div className="max-h-80 overflow-auto">
               <table className="w-full text-[11px]">
                 <thead className="text-slate-400">
                   <tr className="text-left">
-                    <th className="py-1 pr-2">Engine</th>
-                    <th className="py-1 pr-2">Status</th>
-                    <th className="py-1 pr-2">Started</th>
-                    <th className="py-1 pr-2">Ended</th>
-                    <th className="py-1 pr-2">Duration</th>
-                    <th className="py-1 pr-2">Output</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.engine")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.status")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.started")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.ended")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.duration")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.output")}</th>
                   </tr>
                 </thead>
                 <tbody className="text-slate-300">
