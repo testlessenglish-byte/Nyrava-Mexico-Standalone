@@ -13,9 +13,26 @@ import { MotionEditor } from "@/components/MotionEditor";
 import { buildSupportingAuthority } from "@/lib/intelligence/authority";
 import { SupportingAuthorityCard } from "@/components/SupportingAuthorityCard";
 import { CaseDetailPanel, type CaseDetailContext } from "@/components/CaseDetailPanel";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/motion")({
-  head: () => ({ meta: [{ title: "Motion Center — Nyrava" }] }),
+  head: () => ({
+    meta: [
+      { title: "Centro de Promociones — Nyrava Intelligence México" },
+      {
+        name: "description",
+        content:
+          "Promociones y escritos respaldados por evidencia verificada, con validación de suficiencia probatoria.",
+      },
+      { property: "og:title", content: "Centro de Promociones — Nyrava México" },
+      {
+        property: "og:description",
+        content: "Promociones legales generadas a partir de evidencia verificada del expediente.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: MotionPage,
 });
 
@@ -23,6 +40,7 @@ export const Route = createFileRoute("/_authenticated/motion")({
 type Draft = any;
 
 function MotionPage() {
+  const { t } = useI18n();
   const { cases, activeId, isLoading } = useActiveCase();
   const [selected, setSelected] = useState<string | null>(null);
   const caseId = selected ?? activeId;
@@ -46,8 +64,8 @@ function MotionPage() {
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text).then(
-      () => toast.success("Copied to clipboard"),
-      () => toast.error("Copy failed"),
+      () => toast.success(t("motion.toast.copied")),
+      () => toast.error(t("motion.toast.copyFailed")),
     );
   };
 
@@ -55,12 +73,12 @@ function MotionPage() {
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
         icon={<Gavel className="h-5 w-5" />}
-        title="Motion Center"
-        subtitle="Evidence-supported motion opportunities, gated by the Evidence Sufficiency Validator."
+        title={t("motion.title")}
+        subtitle={t("motion.subtitle")}
       />
       {isLoading ? (
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">
-          Loading cases…
+          {t("motion.loadingCases")}
         </div>
       ) : (
         <div className="space-y-5">
@@ -68,22 +86,22 @@ function MotionPage() {
           {caseId ? (
             caseLoading ? (
               <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">
-                Loading motions…
+                {t("motion.loadingMotions")}
               </div>
             ) : motionsSuppressed ? (
               <SuppressedNotice
-                title="Motion generation suppressed"
-                detail="Evidence Sufficiency Validator blocked motion generation for this case. Add more verified evidence and re-run the pipeline."
+                title={t("motion.suppressed.title")}
+                detail={t("motion.suppressed.detail")}
               />
             ) : opps.length === 0 ? (
               <ModuleEmpty
-                title="No motion opportunities identified"
-                hint="Run the Opportunity / Motion engines on this case."
+                title={t("motion.empty.title")}
+                hint={t("motion.empty.hint")}
               />
             ) : (
               <>
                 {detFallback ? (
-                  <SuppressedNotice title="Limited analysis — narrative pass unavailable. Motion list below is evidence-grounded but may be incomplete; attorney review required." />
+                  <SuppressedNotice title={t("motion.limited")} />
                 ) : null}
                 <div className="grid gap-3">
                   {opps.map((o) => (
@@ -123,6 +141,7 @@ function OpportunityCard({
   jurisdiction: string | null;
   onSelectCase: (ctx: CaseDetailContext) => void;
 }) {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const fetchDrafts = useServerFn(getMotionDrafts);
   const { data: draftsData } = useQuery({
@@ -167,7 +186,7 @@ function OpportunityCard({
         </div>
       ) : null}
       {Array.isArray(o.citations) && o.citations.length > 0 ? (
-        <p className="mt-2 text-xs text-muted-foreground">{o.citations.length} citation(s)</p>
+        <p className="mt-2 text-xs text-muted-foreground">{t("motion.citations", { n: o.citations.length })}</p>
       ) : null}
     </article>
   );
@@ -198,6 +217,7 @@ function MotionRow({
   copy: (t: string) => void;
   onDrafted: () => void;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [liveBody, setLiveBody] = useState<string | null>(null);
@@ -229,14 +249,14 @@ function MotionRow({
         },
       }),
     onMutate: (opts) => {
-      toast.info(opts.regenerate ? "Redrafting motion…" : "Drafting motion…");
+      toast.info(opts.regenerate ? t("motion.toast.redrafting") : t("motion.toast.drafting"));
     },
     onSuccess: () => {
-      toast.success("Draft ready");
+      toast.success(t("motion.toast.ready"));
       setExpanded(true);
       onDrafted();
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Drafting failed"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("motion.toast.failed")),
   });
 
   useEffect(() => {
@@ -273,14 +293,14 @@ function MotionRow({
           {hasBody ? (
             <>
               <button
-                title="Copy draft"
+                title={t("motion.action.copy")}
                 onClick={() => copy(liveBody ?? String(existing.body_markdown ?? ""))}
                 className="rounded p-1 text-muted-foreground hover:text-foreground"
               >
                 <Copy className="h-3.5 w-3.5" />
               </button>
               <button
-                title="Edit motion"
+                title={t("motion.action.edit")}
                 onClick={() => {
                   setExpanded(true);
                   setEditing((v) => !v);
@@ -290,7 +310,7 @@ function MotionRow({
                 <Pencil className="h-3.5 w-3.5" />
               </button>
               <button
-                title="Print motion"
+                title={t("motion.action.print")}
                 onClick={() =>
                   printMotion(String(existing.title ?? motionTitle), liveBody ?? String(existing.body_markdown ?? ""))
                 }
@@ -299,19 +319,19 @@ function MotionRow({
                 <Printer className="h-3.5 w-3.5" />
               </button>
               <button
-                title="Download PDF"
+                title={t("motion.action.pdf")}
                 onClick={() =>
                   downloadMotionPdf(
                     String(existing.title ?? motionTitle),
                     liveBody ?? String(existing.body_markdown ?? ""),
-                  ).catch((e) => toast.error(e instanceof Error ? e.message : "Export failed"))
+                  ).catch((e) => toast.error(e instanceof Error ? e.message : t("motion.toast.exportFailed")))
                 }
                 className="rounded p-1 text-muted-foreground hover:text-foreground"
               >
                 <FileDown className="h-3.5 w-3.5" />
               </button>
               <button
-                title="Regenerate draft"
+                title={t("motion.action.regenerate")}
                 onClick={() => mutation.mutate({ regenerate: true })}
                 disabled={mutation.isPending}
                 className="rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
@@ -330,14 +350,14 @@ function MotionRow({
               className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted/40 disabled:opacity-50"
             >
               {mutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-              {mutation.isPending ? "Drafting…" : "Generate with Nyrava Intelligence"}
+              {mutation.isPending ? t("motion.action.drafting") : t("motion.action.generate")}
             </button>
           )}
         </div>
       </div>
       {failed ? (
         <p className="mt-1.5 text-xs text-muted-foreground">
-          {existing?.error_message ?? "Drafting failed. Try again."}
+          {existing?.error_message ?? t("motion.failed.retry")}
         </p>
       ) : null}
       {existing?.status === "unverified" || existing?.status === "rejected" ? (
@@ -346,8 +366,7 @@ function MotionRow({
       {hasBody && expanded ? (
         <>
           <p className="mt-2 rounded-md border border-border/60 bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
-            Generated from verified evidence in this case. Every factual assertion and citation should be reviewed by
-            counsel before filing.
+            {t("motion.disclaimer")}
           </p>
           {editing ? (
             <MotionEditor

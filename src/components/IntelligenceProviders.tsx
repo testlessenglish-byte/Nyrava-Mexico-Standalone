@@ -73,6 +73,9 @@ import {
   type FeatureKey,
   type Mode,
 } from "@/lib/intelligence-providers.functions";
+import { useI18n } from "@/i18n";
+
+type T = (key: string, params?: Record<string, string | number>) => string;
 
 // ------------------------------------------------------------
 // Static provider + feature metadata (display only — never affects routing)
@@ -119,73 +122,47 @@ const PROVIDER_META: Record<
 };
 
 const PROVIDER_LIST: Provider[] = ["openai", "anthropic", "gemini", "groq", "openrouter"];
-const ORDER_LABELS = ["Primary", "Secondary", "Third", "Backup", "Final Backup"];
-
-const FEATURES: Array<{ key: FeatureKey; label: string; purpose: string }> = [
-  {
-    key: "case_intelligence",
-    label: "Case Intelligence",
-    purpose: "Deep analysis of facts, evidence & law",
-  },
-  { key: "talk_to_cases", label: "Talk to Cases", purpose: "Conversational Q&A about your case" },
-  {
-    key: "motion_drafting",
-    label: "Motion Drafting",
-    purpose: "Draft motions and legal documents",
-  },
-  { key: "reports", label: "Reports", purpose: "Comprehensive case reports" },
-  {
-    key: "ocr_documents",
-    label: "OCR & Document Processing",
-    purpose: "Extract text and process documents",
-  },
-  {
-    key: "voice_transcription",
-    label: "Voice Transcription",
-    purpose: "Audio transcription and summarization",
-  },
-  {
-    key: "evidence_explorer",
-    label: "Evidence Explorer",
-    purpose: "Explore and organize evidence",
-  },
-  {
-    key: "timeline_builder",
-    label: "Timeline Builder",
-    purpose: "Build and analyze case timelines",
-  },
-  {
-    key: "witness_intelligence",
-    label: "Witness Intelligence",
-    purpose: "Analyze witness statements & credibility",
-  },
-  {
-    key: "strategy_center",
-    label: "Strategy Center",
-    purpose: "Generate strategy and recommendations",
-  },
+const ORDER_KEYS = [
+  "providers.order.primary",
+  "providers.order.secondary",
+  "providers.order.third",
+  "providers.order.backup",
+  "providers.order.finalBackup",
 ];
 
-const MODE_META: Record<Mode, { label: string; icon: typeof Sparkles }> = {
-  maximum_accuracy: { label: "Maximum Accuracy", icon: Sparkles },
-  balanced: { label: "Balanced", icon: Gauge },
-  fastest: { label: "Fastest", icon: RotateCw },
-  lowest_cost: { label: "Lowest Cost", icon: ChevronRight },
-  private: { label: "Private", icon: Lock },
+const FEATURE_KEYS: FeatureKey[] = [
+  "case_intelligence",
+  "talk_to_cases",
+  "motion_drafting",
+  "reports",
+  "ocr_documents",
+  "voice_transcription",
+  "evidence_explorer",
+  "timeline_builder",
+  "witness_intelligence",
+  "strategy_center",
+];
+
+const MODE_META: Record<Mode, { labelKey: string; icon: typeof Sparkles }> = {
+  maximum_accuracy: { labelKey: "providers.mode.maximum_accuracy", icon: Sparkles },
+  balanced: { labelKey: "providers.mode.balanced", icon: Gauge },
+  fastest: { labelKey: "providers.mode.fastest", icon: RotateCw },
+  lowest_cost: { labelKey: "providers.mode.lowest_cost", icon: ChevronRight },
+  private: { labelKey: "providers.mode.private", icon: Lock },
 };
 
 type Health = "healthy" | "slow" | "offline" | "unverified" | "not_connected";
 
-function timeAgo(iso: string | null): string {
-  if (!iso) return "Never tested";
+function timeAgo(iso: string | null, t: T): string {
+  if (!iso) return t("providers.time.never");
   const ms = Date.now() - new Date(iso).getTime();
   const min = Math.floor(ms / 60_000);
-  if (min < 1) return "Just now";
-  if (min < 60) return `${min} min${min === 1 ? "" : "s"} ago`;
+  if (min < 1) return t("providers.time.now");
+  if (min < 60) return t(min === 1 ? "providers.time.minute" : "providers.time.minutes", { n: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
+  if (hr < 24) return t(hr === 1 ? "providers.time.hour" : "providers.time.hours", { n: hr });
   const day = Math.floor(hr / 24);
-  return `${day} day${day === 1 ? "" : "s"} ago`;
+  return t(day === 1 ? "providers.time.day" : "providers.time.days", { n: day });
 }
 
 function providerHealth(keys: UserAIKeyView[]): {
@@ -221,17 +198,22 @@ function providerHealth(keys: UserAIKeyView[]): {
 }
 
 function HealthBadge({ health }: { health: Health }) {
-  const map: Record<Health, { label: string; className: string; dot: string }> = {
-    healthy: { label: "Healthy", className: "text-success", dot: "bg-success" },
-    slow: { label: "Slow", className: "text-warning", dot: "bg-warning" },
-    offline: { label: "Offline", className: "text-destructive", dot: "bg-destructive" },
+  const { t } = useI18n();
+  const map: Record<Health, { labelKey: string; className: string; dot: string }> = {
+    healthy: { labelKey: "providers.health.healthy", className: "text-success", dot: "bg-success" },
+    slow: { labelKey: "providers.health.slow", className: "text-warning", dot: "bg-warning" },
+    offline: {
+      labelKey: "providers.health.offline",
+      className: "text-destructive",
+      dot: "bg-destructive",
+    },
     unverified: {
-      label: "Not tested",
+      labelKey: "providers.health.unverified",
       className: "text-muted-foreground",
       dot: "bg-muted-foreground",
     },
     not_connected: {
-      label: "Not Connected",
+      labelKey: "providers.health.not_connected",
       className: "text-muted-foreground",
       dot: "bg-muted-foreground",
     },
@@ -240,7 +222,7 @@ function HealthBadge({ health }: { health: Health }) {
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${m.className}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
-      {m.label}
+      {t(m.labelKey)}
     </span>
   );
 }
@@ -261,6 +243,7 @@ function ProviderMark({ provider, size = 40 }: { provider: Provider; size?: numb
 // Main component
 // ==============================================================
 export function IntelligenceProviders() {
+  const { t } = useI18n();
   const qc = useQueryClient();
 
   const listFn = useServerFn(listUserAIKeys);
@@ -343,14 +326,12 @@ export function IntelligenceProviders() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Intelligence Providers</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage how Nyrava Intelligence powers your case work.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("providers.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("providers.subtitle")}</p>
         </div>
         <Button onClick={() => setWizardOpen(true)} className="gap-2">
           <Plus className="h-4 w-4" />
-          Add Provider
+          {t("providers.add")}
         </Button>
       </div>
 
@@ -363,7 +344,7 @@ export function IntelligenceProviders() {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold">Nyrava Intelligence</h2>
+                <h2 className="text-lg font-semibold">{t("providers.status.title")}</h2>
                 <Badge
                   variant="outline"
                   className={
@@ -374,29 +355,36 @@ export function IntelligenceProviders() {
                         : "border-destructive/30 bg-destructive/10 text-destructive"
                   }
                 >
-                  {overallHealth === "excellent"
-                    ? "Operational"
-                    : overallHealth === "degraded"
-                      ? "Degraded"
-                      : "Offline"}
+                  {t(
+                    overallHealth === "excellent"
+                      ? "providers.status.operational"
+                      : overallHealth === "degraded"
+                        ? "providers.status.degraded"
+                        : "providers.status.offline",
+                  )}
                 </Badge>
               </div>
               <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3 text-sm">
                 <div>
                   <div className="font-medium">
-                    {connectedCount} Provider{connectedCount === 1 ? "" : "s"} Available
+                    {t(
+                      connectedCount === 1
+                        ? "providers.status.available.one"
+                        : "providers.status.available.other",
+                      { n: connectedCount },
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    of {PROVIDER_LIST.length} supported
+                    {t("providers.status.supported", { n: PROVIDER_LIST.length })}
                   </div>
                 </div>
                 <div>
-                  <div className="font-medium text-success">Automatic Failover Enabled</div>
-                  <div className="text-xs text-muted-foreground">Switches providers instantly</div>
+                  <div className="font-medium text-success">{t("providers.failover.enabled")}</div>
+                  <div className="text-xs text-muted-foreground">{t("providers.failover.hint")}</div>
                 </div>
                 <div>
                   <div className="font-medium">
-                    Provider Health —{" "}
+                    {t("providers.health.label")} —{" "}
                     <span
                       className={
                         overallHealth === "excellent"
@@ -406,17 +394,21 @@ export function IntelligenceProviders() {
                             : "text-destructive"
                       }
                     >
-                      {overallHealth === "excellent"
-                        ? "Excellent"
-                        : overallHealth === "degraded"
-                          ? "Degraded"
-                          : "No coverage"}
+                      {t(
+                        overallHealth === "excellent"
+                          ? "providers.health.excellent"
+                          : overallHealth === "degraded"
+                            ? "providers.health.degradedLabel"
+                            : "providers.health.noCoverage",
+                      )}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {overallHealth === "excellent"
-                      ? "All systems operational."
-                      : "Connect a provider to restore full coverage."}
+                    {t(
+                      overallHealth === "excellent"
+                        ? "providers.health.allOk"
+                        : "providers.health.connectHint",
+                    )}
                   </div>
                 </div>
               </div>
@@ -425,7 +417,7 @@ export function IntelligenceProviders() {
 
           <div className="flex shrink-0 flex-col gap-4 border-t border-border pt-4 md:border-l md:border-t-0 md:pl-6 md:pt-0">
             <div>
-              <div className="text-xs text-muted-foreground">Current Provider</div>
+              <div className="text-xs text-muted-foreground">{t("providers.current")}</div>
               <div className="mt-0.5 flex items-center gap-2 font-medium">
                 {currentProvider ? (
                   <>
@@ -433,26 +425,26 @@ export function IntelligenceProviders() {
                     {PROVIDER_META[currentProvider.provider].label}
                   </>
                 ) : (
-                  <span className="text-muted-foreground">None connected</span>
+                  <span className="text-muted-foreground">{t("providers.noneConnected")}</span>
                 )}
               </div>
             </div>
             <div className="flex gap-8">
               <div>
-                <div className="text-xs text-muted-foreground">Response Time</div>
+                <div className="text-xs text-muted-foreground">{t("providers.responseTime")}</div>
                 <div className="font-medium">
                   {currentProvider?.latencyMs ? `${currentProvider.latencyMs}ms` : "—"}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Quality Mode</div>
+                <div className="text-xs text-muted-foreground">{t("providers.qualityMode")}</div>
                 <div className="font-medium">
-                  {
+                  {t(
                     MODE_META[
                       featuresQ.data?.find((f) => f.featureKey === "case_intelligence")?.mode ??
                         "maximum_accuracy"
-                    ].label
-                  }
+                    ].labelKey,
+                  )}
                 </div>
               </div>
             </div>
@@ -462,7 +454,7 @@ export function IntelligenceProviders() {
 
       {/* SECTION 2 — Connected Providers */}
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Connected Providers</h2>
+        <h2 className="mb-3 text-lg font-semibold">{t("providers.connected.title")}</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {PROVIDER_LIST.map((p) => {
             const keys = byProvider.get(p) ?? [];
@@ -475,19 +467,21 @@ export function IntelligenceProviders() {
                   <div>
                     <div className="font-semibold leading-tight">{meta.label}</div>
                     <div className="text-xs text-muted-foreground">
-                      {keys.length > 0 ? "Connected" : "Not Connected"}
+                      {t(keys.length > 0 ? "providers.connectedLabel" : "providers.health.not_connected")}
                     </div>
                   </div>
                 </div>
                 <div className="mt-3 flex-1 space-y-1 text-xs text-muted-foreground">
                   <div className="truncate">{meta.models.join(", ")}</div>
                   <div>
-                    {keys.length} Key{keys.length === 1 ? "" : "s"}
+                    {t(keys.length === 1 ? "providers.keys.one" : "providers.keys.other", {
+                      n: keys.length,
+                    })}
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <HealthBadge health={h.health} />
-                  <span className="text-[11px] text-muted-foreground">{timeAgo(h.lastTested)}</span>
+                  <span className="text-[11px] text-muted-foreground">{timeAgo(h.lastTested, t)}</span>
                 </div>
                 <Button
                   variant="outline"
@@ -495,7 +489,7 @@ export function IntelligenceProviders() {
                   className="mt-3 w-full"
                   onClick={() => setManageProvider(p)}
                 >
-                  Manage
+                  {t("providers.manage")}
                 </Button>
               </div>
             );
@@ -505,10 +499,8 @@ export function IntelligenceProviders() {
 
       {/* SECTION 3 — Provider Order */}
       <section className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="text-lg font-semibold">Provider Order</h2>
-        <p className="mb-4 mt-1 text-sm text-muted-foreground">
-          Drag to reorder. Nyrava will use providers in this order with automatic failover.
-        </p>
+        <h2 className="text-lg font-semibold">{t("providers.order.title")}</h2>
+        <p className="mb-4 mt-1 text-sm text-muted-foreground">{t("providers.order.hint")}</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {order.map((p, i) => (
             <div
@@ -522,7 +514,7 @@ export function IntelligenceProviders() {
               <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="text-[10px] font-semibold uppercase tracking-wide text-accent">
-                  {ORDER_LABELS[i] ?? `#${i + 1}`}
+                  {ORDER_KEYS[i] ? t(ORDER_KEYS[i]) : `#${i + 1}`}
                 </div>
                 <div className="flex items-center gap-1.5 truncate text-sm font-medium">
                   <ProviderMark provider={p} size={18} />
@@ -539,10 +531,8 @@ export function IntelligenceProviders() {
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
           <div>
-            <h3 className="font-semibold">How Automatic Failover Works</h3>
-            <p className="text-sm text-muted-foreground">
-              Nyrava automatically switches providers if one becomes unavailable.
-            </p>
+            <h3 className="font-semibold">{t("providers.failover.title")}</h3>
+            <p className="text-sm text-muted-foreground">{t("providers.failover.desc")}</p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -563,7 +553,9 @@ export function IntelligenceProviders() {
                   <ProviderMark provider={p} size={20} />
                   <span className="font-medium">{PROVIDER_META[p].label}</span>
                   {isRunning && (
-                    <Badge className="bg-success text-success-foreground">Running</Badge>
+                    <Badge className="bg-success text-success-foreground">
+                      {t("providers.running")}
+                    </Badge>
                   )}
                 </div>
                 {i < order.length - 1 && (
@@ -575,41 +567,41 @@ export function IntelligenceProviders() {
           <ArrowDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
           <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-sm font-medium text-success">
             <CheckCircle2 className="h-4 w-4" />
-            Case Continues
+            {t("providers.caseContinues")}
           </div>
         </div>
       </section>
 
       {/* SECTION 4 — Intelligence Features */}
       <section className="rounded-2xl border border-border bg-card p-5">
-        <h2 className="text-lg font-semibold">Intelligence Features</h2>
-        <p className="mb-4 mt-1 text-sm text-muted-foreground">
-          Every feature chooses how Nyrava should think — not which API to call.
-        </p>
+        <h2 className="text-lg font-semibold">{t("providers.features.title")}</h2>
+        <p className="mb-4 mt-1 text-sm text-muted-foreground">{t("providers.features.hint")}</p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="pb-2 pr-4 font-medium">Feature</th>
-                <th className="pb-2 pr-4 font-medium">Provider</th>
-                <th className="pb-2 font-medium">Mode</th>
+                <th className="pb-2 pr-4 font-medium">{t("providers.col.feature")}</th>
+                <th className="pb-2 pr-4 font-medium">{t("providers.col.provider")}</th>
+                <th className="pb-2 font-medium">{t("providers.col.mode")}</th>
               </tr>
             </thead>
             <tbody>
-              {FEATURES.map((f) => {
-                const routing = featuresQ.data?.find((r) => r.featureKey === f.key);
+              {FEATURE_KEYS.map((fk) => {
+                const routing = featuresQ.data?.find((r) => r.featureKey === fk);
                 return (
-                  <tr key={f.key} className="border-b border-border/60 last:border-0">
+                  <tr key={fk} className="border-b border-border/60 last:border-0">
                     <td className="py-2.5 pr-4">
-                      <div className="font-medium">{f.label}</div>
-                      <div className="text-xs text-muted-foreground">{f.purpose}</div>
+                      <div className="font-medium">{t(`providers.feature.${fk}.label`)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {t(`providers.feature.${fk}.purpose`)}
+                      </div>
                     </td>
                     <td className="py-2.5 pr-4">
                       <Select
                         value={routing?.provider ?? "auto"}
                         onValueChange={(v) =>
                           featureMut.mutate({
-                            featureKey: f.key,
+                            featureKey: fk,
                             provider: v as Provider | "auto",
                             mode: routing?.mode ?? "balanced",
                           })
@@ -619,7 +611,7 @@ export function IntelligenceProviders() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="auto">Auto (Best Available)</SelectItem>
+                          <SelectItem value="auto">{t("providers.auto")}</SelectItem>
                           {PROVIDER_LIST.map((p) => (
                             <SelectItem key={p} value={p}>
                               {PROVIDER_META[p].label}
@@ -633,7 +625,7 @@ export function IntelligenceProviders() {
                         value={routing?.mode ?? "balanced"}
                         onValueChange={(v) =>
                           featureMut.mutate({
-                            featureKey: f.key,
+                            featureKey: fk,
                             provider: routing?.provider ?? "auto",
                             mode: v as Mode,
                           })
@@ -645,7 +637,7 @@ export function IntelligenceProviders() {
                         <SelectContent>
                           {(Object.keys(MODE_META) as Mode[]).map((m) => (
                             <SelectItem key={m} value={m}>
-                              {MODE_META[m].label}
+                              {t(MODE_META[m].labelKey)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -663,11 +655,8 @@ export function IntelligenceProviders() {
       <section className="flex items-start gap-3 rounded-2xl border border-border bg-card p-5">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-success" />
         <div className="text-sm">
-          <div className="font-medium">Your API keys are encrypted.</div>
-          <p className="text-muted-foreground">
-            Stored securely, never shared, and only used inside your account. Nyrava cannot view
-            your legal data.
-          </p>
+          <div className="font-medium">{t("providers.security.title")}</div>
+          <p className="text-muted-foreground">{t("providers.security.desc")}</p>
         </div>
       </section>
 
@@ -712,6 +701,7 @@ function ManageDrawer({
     addFn: ReturnType<typeof useServerFn<typeof addUserAIKey>>;
   };
 }) {
+  const { t } = useI18n();
   const [showKeys, setShowKeys] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [addingKey, setAddingKey] = useState(false);
@@ -729,19 +719,19 @@ function ManageDrawer({
       await mutators.toggleProviderFn({ data: { provider: provider as Provider, isActive: next } });
       onChanged();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update provider.");
+      toast.error(e instanceof Error ? e.message : t("providers.toast.updateFailed"));
     }
   }
 
   async function handleDeleteProvider() {
-    if (!confirm(`Remove all ${meta.label} keys? This can't be undone.`)) return;
+    if (!confirm(t("providers.confirm.deleteProvider", { provider: meta.label }))) return;
     try {
       await mutators.deleteProviderFn({ data: { provider: provider as Provider } });
       onChanged();
       onClose();
-      toast.success(`${meta.label} disconnected.`);
+      toast.success(t("providers.toast.disconnected", { provider: meta.label }));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to delete provider.");
+      toast.error(e instanceof Error ? e.message : t("providers.toast.deleteFailed"));
     }
   }
 
@@ -753,16 +743,16 @@ function ManageDrawer({
         data: { provider: provider as Provider, apiKey: newKey, label: newLabel || undefined },
       });
       if (r.validated) {
-        toast.success("Key connected.");
+        toast.success(t("providers.toast.keyConnected"));
         setNewKey("");
         setNewLabel("");
         setAddingKey(false);
         onChanged();
       } else {
-        toast.error(r.validationError ?? "Key validation failed.");
+        toast.error(r.validationError ?? t("providers.toast.validationFailed"));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add key.");
+      toast.error(e instanceof Error ? e.message : t("providers.toast.addKeyFailed"));
     } finally {
       setBusyId(null);
     }
@@ -776,7 +766,7 @@ function ManageDrawer({
             <ProviderMark provider={provider} />
             <div>
               <SheetTitle>{meta.label}</SheetTitle>
-              <SheetDescription>Connection settings</SheetDescription>
+              <SheetDescription>{t("providers.drawer.subtitle")}</SheetDescription>
             </div>
           </div>
         </SheetHeader>
@@ -784,16 +774,16 @@ function ManageDrawer({
         <div className="mt-6 space-y-6">
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div>
-              <div className="text-sm font-medium">Connection Status</div>
+              <div className="text-sm font-medium">{t("providers.drawer.status")}</div>
               <HealthBadge health={h.health} />
             </div>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div>
-              <div className="text-sm font-medium">Enabled</div>
+              <div className="text-sm font-medium">{t("providers.drawer.enabled")}</div>
               <div className="text-xs text-muted-foreground">
-                Let Nyrava route requests to {meta.label}.
+                {t("providers.drawer.enabledHint", { provider: meta.label })}
               </div>
             </div>
             <Switch
@@ -804,7 +794,7 @@ function ManageDrawer({
           </div>
 
           <div>
-            <div className="mb-2 text-sm font-medium">Models</div>
+            <div className="mb-2 text-sm font-medium">{t("providers.drawer.models")}</div>
             <ul className="space-y-1 text-sm text-muted-foreground">
               {meta.models.map((m) => (
                 <li key={m} className="flex items-center gap-2">
@@ -820,14 +810,14 @@ function ManageDrawer({
               className="flex w-full items-center justify-between rounded-lg border border-border p-3 text-sm font-medium"
             >
               <span className="flex items-center gap-2">
-                <KeyIcon className="h-4 w-4" /> Keys ({keys.length})
+                <KeyIcon className="h-4 w-4" /> {t("providers.drawer.keys", { n: keys.length })}
               </span>
               {showKeys ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
 
             {showKeys && (
               <div className="mt-3 space-y-2">
-                {keys.length === 0 && <p className="text-xs text-muted-foreground">No keys yet.</p>}
+                {keys.length === 0 && <p className="text-xs text-muted-foreground">{t("providers.drawer.noKeys")}</p>}
                 {keys.map((k) => (
                   <div key={k.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-center justify-between gap-2">
@@ -844,7 +834,7 @@ function ManageDrawer({
                             : "bg-muted text-muted-foreground"
                         }`}
                       >
-                        {k.isActive ? "Active" : "Disabled"}
+                        {t(k.isActive ? "providers.key.active" : "providers.key.disabled")}
                       </span>
                     </div>
                     <div className="mt-2 flex items-center gap-1.5">
@@ -857,15 +847,19 @@ function ManageDrawer({
                           setBusyId(k.id);
                           try {
                             const r = await mutators.testFn({ data: { id: k.id } });
-                            if (r.ok) toast.success(`Key OK (${r.latencyMs}ms)`);
-                            else toast.error(r.error ?? "Test failed.");
+                            if (r.ok) toast.success(t("providers.toast.keyOk", { ms: r.latencyMs ?? 0 }));
+                            else toast.error(r.error ?? t("providers.toast.testFailed"));
                             onChanged();
                           } finally {
                             setBusyId(null);
                           }
                         }}
                       >
-                        {busyId === k.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Test"}
+                        {busyId === k.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          t("providers.action.test")
+                        )}
                       </Button>
                       <Button
                         size="sm"
@@ -883,7 +877,7 @@ function ManageDrawer({
                         variant="outline"
                         className="h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
                         onClick={async () => {
-                          if (!confirm("Delete this key?")) return;
+                          if (!confirm(t("providers.confirm.deleteKey"))) return;
                           await mutators.delFn({ data: { id: k.id } });
                           onChanged();
                         }}
@@ -894,10 +888,16 @@ function ManageDrawer({
                     {showAdvanced && (
                       <div className="mt-2 space-y-0.5 border-t border-border pt-2 text-[11px] text-muted-foreground">
                         <div>id: {k.id}</div>
-                        <div>priority: {k.priority ?? "—"}</div>
-                        <div>added: {new Date(k.createdAt).toLocaleString()}</div>
+                        <div>
+                          {t("providers.adv.priority")}: {k.priority ?? "—"}
+                        </div>
+                        <div>
+                          {t("providers.adv.added")}: {new Date(k.createdAt).toLocaleString()}
+                        </div>
                         {k.lastTestError && (
-                          <div className="text-destructive">last error: {k.lastTestError}</div>
+                          <div className="text-destructive">
+                            {t("providers.adv.lastError")}: {k.lastTestError}
+                          </div>
                         )}
                       </div>
                     )}
@@ -911,20 +911,20 @@ function ManageDrawer({
                     className="w-full gap-1"
                     onClick={() => setAddingKey(true)}
                   >
-                    <Plus className="h-3.5 w-3.5" /> Add Key
+                    <Plus className="h-3.5 w-3.5" /> {t("providers.action.addKey")}
                   </Button>
                 ) : (
                   <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
                     <input
                       autoFocus
                       type="password"
-                      placeholder="Paste API key"
+                      placeholder={t("providers.placeholder.apiKey")}
                       value={newKey}
                       onChange={(e) => setNewKey(e.target.value)}
                       className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-mono"
                     />
                     <input
-                      placeholder="Label (optional)"
+                      placeholder={t("providers.placeholder.label")}
                       value={newLabel}
                       onChange={(e) => setNewLabel(e.target.value)}
                       className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
@@ -940,11 +940,11 @@ function ManageDrawer({
                         {busyId === "__add__" ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          "Verify & Save"
+                          t("providers.action.verifySave")
                         )}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setAddingKey(false)}>
-                        Cancel
+                        {t("common.cancel")}
                       </Button>
                     </div>
                   </div>
@@ -957,7 +957,8 @@ function ManageDrawer({
             onClick={() => setShowAdvanced((s) => !s)}
             className="flex w-full items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
           >
-            <Settings2 className="h-3.5 w-3.5" /> {showAdvanced ? "Hide" : "Show"} advanced details
+            <Settings2 className="h-3.5 w-3.5" />{" "}
+            {t(showAdvanced ? "providers.adv.hide" : "providers.adv.show")}
           </button>
 
           <div className="border-t border-border pt-4">
@@ -966,7 +967,7 @@ function ManageDrawer({
               className="w-full gap-2 text-destructive hover:text-destructive"
               onClick={handleDeleteProvider}
             >
-              <Trash2 className="h-4 w-4" /> Delete Provider
+              <Trash2 className="h-4 w-4" /> {t("providers.action.deleteProvider")}
             </Button>
           </div>
         </div>
@@ -989,6 +990,7 @@ function AddProviderWizard({
   addFn: ReturnType<typeof useServerFn<typeof addUserAIKey>>;
   onAdded: () => void;
 }) {
+  const { t } = useI18n();
   const [step, setStep] = useState<1 | 2>(1);
   const [provider, setProvider] = useState<Provider>("openai");
   const [apiKey, setApiKey] = useState("");
@@ -1007,15 +1009,15 @@ function AddProviderWizard({
     try {
       const r = await addFn({ data: { provider, apiKey, label: label || undefined } });
       if (r.validated) {
-        toast.success(`${PROVIDER_META[provider].label} connected.`);
+        toast.success(t("providers.toast.connected", { provider: PROVIDER_META[provider].label }));
         onAdded();
         onOpenChange(false);
         reset();
       } else {
-        toast.error(r.validationError ?? "Key validation failed.");
+        toast.error(r.validationError ?? t("providers.toast.validationFailed"));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add provider.");
+      toast.error(e instanceof Error ? e.message : t("providers.toast.addProviderFailed"));
     } finally {
       setBusy(false);
     }
@@ -1031,11 +1033,9 @@ function AddProviderWizard({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Provider</DialogTitle>
+          <DialogTitle>{t("providers.wizard.title")}</DialogTitle>
           <DialogDescription>
-            {step === 1
-              ? "Choose an intelligence provider to connect."
-              : "Paste the key — Nyrava verifies it before saving."}
+            {t(step === 1 ? "providers.wizard.step1" : "providers.wizard.step2")}
           </DialogDescription>
         </DialogHeader>
 
@@ -1065,13 +1065,13 @@ function AddProviderWizard({
             <input
               autoFocus
               type="password"
-              placeholder="Paste API key"
+              placeholder={t("providers.placeholder.apiKey")}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono"
             />
             <input
-              placeholder="Label (optional)"
+              placeholder={t("providers.placeholder.label")}
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
@@ -1083,14 +1083,14 @@ function AddProviderWizard({
         <div className="flex justify-between gap-2 pt-2">
           {step === 2 ? (
             <Button variant="ghost" onClick={() => setStep(1)}>
-              Back
+              {t("common.back")}
             </Button>
           ) : (
             <span />
           )}
           {step === 1 ? (
             <Button onClick={() => setStep(2)} className="gap-1">
-              Continue <ChevronRight className="h-4 w-4" />
+              {t("providers.wizard.continue")} <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
             <Button onClick={handleSave} disabled={busy || !apiKey} className="gap-2">
@@ -1099,7 +1099,7 @@ function AddProviderWizard({
               ) : (
                 <CheckCircle2 className="h-4 w-4" />
               )}
-              Verify Connection & Save
+              {t("providers.wizard.verifySave")}
             </Button>
           )}
         </div>

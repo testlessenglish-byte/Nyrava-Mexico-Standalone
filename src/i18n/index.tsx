@@ -46,6 +46,22 @@ function format(template: string, params?: Record<string, string | number>): str
   return template.replace(/\{(\w+)\}/g, (_, k) => (params[k] != null ? String(params[k]) : `{${k}}`));
 }
 
+/**
+ * Dev-only missing-key diagnostics. Warns once per key/locale pair so the
+ * console stays readable. The production fallback chain is untouched.
+ */
+const warnedKeys = new Set<string>();
+function warnMissingKey(key: string, locale: Locale, hasFallback: boolean) {
+  const id = `${locale}:${key}`;
+  if (warnedKeys.has(id)) return;
+  warnedKeys.add(id);
+  console.warn(
+    `[i18n] Missing "${locale}" translation for key "${key}"` +
+      (hasFallback ? ` — falling back to "${DEFAULT_LOCALE}".` : " — no fallback, rendering the raw key."),
+  );
+}
+
+
 type I18nCtx = {
   locale: Locale;
   setLocale: (l: Locale) => void;
@@ -84,11 +100,20 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       // Legal terminology is locked and shared across locales.
       if (LEGAL_TERMS[key] != null) return LEGAL_TERMS[key];
       const dict = DICTS[locale] ?? DICTS[DEFAULT_LOCALE];
-      const value = dict[key] ?? DICTS[DEFAULT_LOCALE][key] ?? key;
+      const own = dict[key];
+      const fallback = DICTS[DEFAULT_LOCALE][key];
+      // Dev-only diagnostics. The English/Spanish fallback chain below is
+      // intentionally preserved in production — showing a translated string
+      // from the other locale beats showing a raw key to a user.
+      if (import.meta.env.DEV && own == null) {
+        warnMissingKey(key, locale, fallback != null);
+      }
+      const value = own ?? fallback ?? key;
       return format(value, params);
     },
     [locale],
   );
+
 
   const tList = useCallback(
     (key: string) => t(key).split("|").map((s) => s.trim()).filter(Boolean),
