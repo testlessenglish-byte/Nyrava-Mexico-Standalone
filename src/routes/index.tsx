@@ -8,6 +8,7 @@ import { NyravaLogo } from "@/components/NyravaLogo";
 import { HeroOSDashboard } from "@/components/HeroOSDashboard";
 import { TrustStrip } from "@/components/TrustStrip";
 import { SiteFooter } from "@/components/SiteFooter";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { listPublishedDemoCases } from "@/lib/demo-cases.functions";
 
 const SITE_URL = "https://nyrava.com";
@@ -111,6 +112,7 @@ function Landing() {
             )}
           </nav>
           <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             <Link
               to="/auth"
               className="rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground hover:bg-card"
