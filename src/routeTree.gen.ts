@@ -69,6 +69,7 @@ import { Route as AuthenticatedCasesCaseIdRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminTestCasesRouteImport } from './routes/_authenticated/admin.test-cases'
 import { Route as AuthenticatedAdminTeamRouteImport } from './routes/_authenticated/admin.team'
+import { Route as AuthenticatedAdminResetRouteImport } from './routes/_authenticated/admin.reset'
 import { Route as AuthenticatedAdminPipelineLedgerRouteImport } from './routes/_authenticated/admin.pipeline-ledger'
 import { Route as AuthenticatedAdminLegalCoverageRouteImport } from './routes/_authenticated/admin.legal-coverage'
 import { Route as AuthenticatedAdminDemoCasesRouteImport } from './routes/_authenticated/admin.demo-cases'
@@ -381,6 +382,11 @@ const AuthenticatedAdminTeamRoute = AuthenticatedAdminTeamRouteImport.update({
   path: '/team',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminResetRoute = AuthenticatedAdminResetRouteImport.update({
+  id: '/reset',
+  path: '/reset',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminPipelineLedgerRoute =
   AuthenticatedAdminPipelineLedgerRouteImport.update({
     id: '/pipeline-ledger',
@@ -494,6 +500,7 @@ export interface FileRoutesByFullPath {
   '/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
   '/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
+  '/admin/reset': typeof AuthenticatedAdminResetRoute
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -563,6 +570,7 @@ export interface FileRoutesByTo {
   '/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
   '/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
+  '/admin/reset': typeof AuthenticatedAdminResetRoute
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -635,6 +643,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
   '/_authenticated/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/_authenticated/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
+  '/_authenticated/admin/reset': typeof AuthenticatedAdminResetRoute
   '/_authenticated/admin/team': typeof AuthenticatedAdminTeamRoute
   '/_authenticated/admin/test-cases': typeof AuthenticatedAdminTestCasesRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -707,6 +716,7 @@ export interface FileRouteTypes {
     | '/admin/demo-cases'
     | '/admin/legal-coverage'
     | '/admin/pipeline-ledger'
+    | '/admin/reset'
     | '/admin/team'
     | '/admin/test-cases'
     | '/admin/users'
@@ -776,6 +786,7 @@ export interface FileRouteTypes {
     | '/admin/demo-cases'
     | '/admin/legal-coverage'
     | '/admin/pipeline-ledger'
+    | '/admin/reset'
     | '/admin/team'
     | '/admin/test-cases'
     | '/admin/users'
@@ -847,6 +858,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/demo-cases'
     | '/_authenticated/admin/legal-coverage'
     | '/_authenticated/admin/pipeline-ledger'
+    | '/_authenticated/admin/reset'
     | '/_authenticated/admin/team'
     | '/_authenticated/admin/test-cases'
     | '/_authenticated/admin/users'
@@ -1320,6 +1332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminTeamRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/reset': {
+      id: '/_authenticated/admin/reset'
+      path: '/reset'
+      fullPath: '/admin/reset'
+      preLoaderRoute: typeof AuthenticatedAdminResetRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/pipeline-ledger': {
       id: '/_authenticated/admin/pipeline-ledger'
       path: '/pipeline-ledger'
@@ -1393,6 +1412,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminDemoCasesRoute: typeof AuthenticatedAdminDemoCasesRoute
   AuthenticatedAdminLegalCoverageRoute: typeof AuthenticatedAdminLegalCoverageRoute
   AuthenticatedAdminPipelineLedgerRoute: typeof AuthenticatedAdminPipelineLedgerRoute
+  AuthenticatedAdminResetRoute: typeof AuthenticatedAdminResetRoute
   AuthenticatedAdminTeamRoute: typeof AuthenticatedAdminTeamRoute
   AuthenticatedAdminTestCasesRoute: typeof AuthenticatedAdminTestCasesRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -1405,6 +1425,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminDemoCasesRoute: AuthenticatedAdminDemoCasesRoute,
   AuthenticatedAdminLegalCoverageRoute: AuthenticatedAdminLegalCoverageRoute,
   AuthenticatedAdminPipelineLedgerRoute: AuthenticatedAdminPipelineLedgerRoute,
+  AuthenticatedAdminResetRoute: AuthenticatedAdminResetRoute,
   AuthenticatedAdminTeamRoute: AuthenticatedAdminTeamRoute,
   AuthenticatedAdminTestCasesRoute: AuthenticatedAdminTestCasesRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
