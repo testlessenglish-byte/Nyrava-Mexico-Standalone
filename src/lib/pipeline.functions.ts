@@ -254,12 +254,13 @@ export const processDocumentJob = createServerFn({ method: "POST" })
 
       await updateJob({
         stage: "done",
-        status: "completed",
+        status: "analyzed",
         progress: 100,
         completed_at: new Date().toISOString(),
         error: null,
         payload: { entities: rows.length, classification: cls.doc_type },
       });
+
       await updateDoc({ processing_status: "analyzed", metadata: { entities_extracted: rows.length } });
 
       return { ok: true, entities: rows.length, classification: cls.doc_type };
