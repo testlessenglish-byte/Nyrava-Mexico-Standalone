@@ -3,24 +3,26 @@ import { useQuery } from "@tanstack/react-query";
 import { Briefcase, LayoutDashboard, LogOut, Scale, Settings, Users, FileText, ShieldCheck } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { NyravaLogo } from "@/components/NyravaLogo";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchMyMemberships, getCurrentOrgId, setCurrentOrgId } from "@/lib/workspace";
 import { useSession } from "@/hooks/use-session";
-
-type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; disabled?: boolean };
-const NAV: NavItem[] = [
-  { to: "/dashboard", label: "Panel", icon: LayoutDashboard },
-  { to: "/matters", label: "Asuntos", icon: Briefcase },
-  { to: "/people", label: "Personas", icon: Users, disabled: true },
-  { to: "/library", label: "Biblioteca", icon: FileText, disabled: true },
-  { to: "/settings", label: "Ajustes", icon: Settings, disabled: true },
-];
+import { useI18n } from "@/i18n";
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const navigate = useNavigate();
   const router = useRouter();
   const { user } = useSession();
+  const { t } = useI18n();
   const memberships = useQuery({ queryKey: ["memberships"], queryFn: fetchMyMemberships });
+
+  const NAV = [
+    { to: "/dashboard" as const, label: t("sidebar.dashboard"), icon: LayoutDashboard, disabled: false },
+    { to: "/matters" as const, label: t("sidebar.matters"), icon: Briefcase, disabled: false },
+    { to: "/people", label: t("sidebar.people"), icon: Users, disabled: true },
+    { to: "/library", label: t("sidebar.library"), icon: FileText, disabled: true },
+    { to: "/settings", label: t("sidebar.settings"), icon: Settings, disabled: true },
+  ];
 
   useEffect(() => {
     if (!memberships.data) return;
@@ -51,7 +53,9 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         </div>
         <div className="px-3 pb-2">
           <div className="rounded-md border border-border/60 bg-background/60 p-3">
-            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">Organización</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+              {t("sidebar.organization")}
+            </div>
             <select
               className="mt-1 w-full bg-transparent text-sm text-foreground focus:outline-none"
               value={currentOrgId ?? ""}
@@ -79,14 +83,14 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               return (
                 <div key={n.to} className={cls}>
                   <n.icon className="h-4 w-4" /> {n.label}
-                  <span className="ml-auto text-[9px] uppercase tracking-widest opacity-60">pronto</span>
+                  <span className="ml-auto text-[9px] uppercase tracking-widest opacity-60">{t("common.soon")}</span>
                 </div>
               );
             }
             return (
               <Link
                 key={n.to}
-                to={n.to}
+                to={n.to as "/dashboard" | "/matters"}
                 activeProps={{ className: "bg-primary/10 text-primary" }}
                 className={cls}
               >
@@ -95,17 +99,20 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
             );
           })}
         </nav>
-        <div className="mt-auto p-3">
+        <div className="mt-auto space-y-2 p-3">
+          <div className="flex justify-end">
+            <LanguageSwitcher variant="sidebar" />
+          </div>
           <div className="rounded-md border border-border/60 bg-background/40 p-3">
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              <ShieldCheck className="h-3 w-3 text-primary" /> Sesión segura
+              <ShieldCheck className="h-3 w-3 text-primary" /> {t("sidebar.secureSession")}
             </div>
             <div className="mt-1 truncate text-xs text-foreground">{user?.email}</div>
             <button
               onClick={handleSignOut}
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-border/60 py-1.5 text-[11px] uppercase tracking-[0.16em] text-muted-foreground transition hover:bg-background hover:text-foreground"
             >
-              <LogOut className="h-3 w-3" /> Cerrar sesión
+              <LogOut className="h-3 w-3" /> {t("sidebar.signOut")}
             </button>
           </div>
         </div>
@@ -115,12 +122,12 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         <header className="flex items-center justify-between border-b border-border/60 bg-background/60 px-6 py-4 backdrop-blur-xl">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
-              Nyrava · México · {currentOrg?.organizations.name ?? "—"}
+              Nyrava · México · {currentOrg?.organizations.name ?? t("common.dash")}
             </div>
             {title && <h1 className="mt-1 font-display text-xl font-semibold tracking-tight">{title}</h1>}
           </div>
           <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            <Scale className="h-3.5 w-3.5" /> Legal Intelligence OS
+            <Scale className="h-3.5 w-3.5" /> {t("common.tagline")}
           </div>
         </header>
         <div className="p-6">{children}</div>

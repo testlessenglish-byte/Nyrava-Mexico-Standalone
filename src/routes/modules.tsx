@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/modules")({
   head: () => ({
@@ -16,38 +17,30 @@ export const Route = createFileRoute("/modules")({
   component: ModulesPage,
 });
 
-const MODULES = [
-  { name: "Inteligencia Legal", features: ["Análisis estatutario", "Investigación de jurisprudencia", "Razonamiento legal", "Recomendaciones de citación", "Análisis de autoridad aplicable"] },
-  { name: "Inteligencia de Caso", features: ["Resúmenes del caso", "Identificación de cuestiones", "Extracción de hechos", "Mapeo de relaciones", "Organización del caso"] },
-  { name: "Inteligencia de Evidencia", features: ["Clasificación", "Relaciones entre evidencias", "Detección de evidencia faltante", "Evidencia contradictoria", "Análisis de fuerza probatoria"] },
-  { name: "Inteligencia de Testigos", features: ["Perfiles de testigos", "Comparación de declaraciones", "Análisis de contradicciones", "Observaciones de credibilidad", "Mapeo de relaciones"] },
-  { name: "Inteligencia de Línea de Tiempo", features: ["Cronología automática", "Correlación de eventos", "Cronología de testigos", "Cronología de evidencia", "Visualización interactiva"] },
-  { name: "Inteligencia de Litigio", features: ["Cuestiones procesales", "Observaciones estratégicas", "Argumentos potenciales", "Análisis de riesgos", "Fortalezas y debilidades"] },
-  { name: "Inteligencia Contractual", features: ["Revisión de contratos", "Extracción de cláusulas", "Identificación de riesgos", "Seguimiento de plazos", "Revisión de cumplimiento"] },
-  { name: "Investigación", features: ["Legislación Federal", "Legislación Estatal", "SCJN", "Poder Judicial Federal y Estatal", "DOF y códigos procesales"] },
-];
+const MODULE_KEYS = [
+  "legal", "case", "evidence", "witness", "timeline", "litigation", "contract", "research",
+] as const;
 
 function ModulesPage() {
+  const { t, tList } = useI18n();
   return (
     <div className="min-h-screen">
       <SiteHeader />
       <section className="mx-auto max-w-7xl px-6 py-20">
         <span className="tag-bracket font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-          Módulos
+          {t("modules.tag")}
         </span>
         <h1 className="mt-3 font-display text-4xl font-bold leading-tight md:text-5xl">
-          Ocho módulos<span className="font-editorial text-primary">.</span> Un solo modelo.
+          {t("modules.title.line1")}<span className="font-editorial text-primary">{t("modules.title.line2")}</span>
         </h1>
-        <p className="mt-6 max-w-2xl text-muted-foreground">
-          Cada módulo funciona de manera independiente y contribuye al modelo de inteligencia global del caso.
-        </p>
+        <p className="mt-6 max-w-2xl text-muted-foreground">{t("modules.body")}</p>
 
         <div className="mt-14 grid gap-6 md:grid-cols-2">
-          {MODULES.map((m) => (
-            <div key={m.name} className="panel p-6">
-              <h3 className="font-display text-lg font-semibold">{m.name}</h3>
+          {MODULE_KEYS.map((k) => (
+            <div key={k} className="panel p-6">
+              <h3 className="font-display text-lg font-semibold">{t(`module.${k}.name`)}</h3>
               <ul className="mt-4 space-y-2">
-                {m.features.map((f) => (
+                {tList(`modules.${k}.features`).map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm text-foreground/80">
                     <span className="mt-1.5 inline-block h-1 w-1 rounded-full bg-primary" />
                     {f}

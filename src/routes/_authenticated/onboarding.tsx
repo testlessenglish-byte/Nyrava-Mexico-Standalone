@@ -2,8 +2,10 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { NyravaLogo } from "@/components/NyravaLogo";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { createOrganization, setCurrentOrgId } from "@/lib/workspace";
 import { Loader2 } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({ meta: [{ title: "Configurar organización · Nyrava México" }] }),
@@ -17,6 +19,7 @@ function slugify(s: string) {
 function OnboardingPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -32,7 +35,7 @@ function OnboardingPage() {
       await qc.invalidateQueries({ queryKey: ["memberships"] });
       navigate({ to: "/dashboard", replace: true });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Error");
+      setErr(e instanceof Error ? e.message : t("common.error.generic"));
     } finally {
       setLoading(false);
     }
@@ -40,21 +43,22 @@ function OnboardingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="absolute right-6 top-6"><LanguageSwitcher /></div>
       <div className="w-full max-w-md">
         <div className="mb-8 flex justify-center"><NyravaLogo size={56} /></div>
         <div className="panel p-8">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Configura tu organización</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Cada firma o despacho es un espacio aislado con sus propios asuntos, personas y expedientes.
-          </p>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">{t("onboarding.title")}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t("onboarding.body")}</p>
           <form onSubmit={submit} className="mt-6 space-y-3">
             <label className="block">
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Nombre del despacho</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                {t("onboarding.field.name")}
+              </span>
               <input
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ej. García &amp; Asociados"
+                placeholder={t("onboarding.field.placeholder")}
                 className="mt-1 w-full rounded-md border border-border/70 bg-background/60 px-3 py-2.5 text-sm focus:border-primary focus:outline-none"
               />
             </label>
@@ -65,7 +69,7 @@ function OnboardingPage() {
               className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-primary-foreground transition hover:brightness-110 disabled:opacity-50"
             >
               {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Crear organización
+              {t("onboarding.submit")}
             </button>
           </form>
         </div>
