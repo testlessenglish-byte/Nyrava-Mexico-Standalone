@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { PIPELINE_STAGES, resumeFullPipelineStep } from "@/lib/cases.functions";
+import { resumeFullPipelineStep } from "@/lib/cases.functions";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { PIPELINE_STAGE_TO_ENGINE } from "@/lib/execution/canonical";
 import { mxPipelineStages, stageLabelKey, statusLabelKey, resolveMxProfile } from "@/lib/execution/mx-pipeline";
