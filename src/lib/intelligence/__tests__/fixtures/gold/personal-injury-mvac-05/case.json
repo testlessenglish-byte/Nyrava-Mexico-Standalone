@@ -1,0 +1,9 @@
+{
+  "id": "gold-05-personal-injury",
+  "slug": "personal-injury-mvac-05",
+  "practice_area": "personal_injury",
+  "title": "Reyes v. Palmer & Interstate Freight (fictional)",
+  "description": "Motor-vehicle accident. Police accident report, medical records, employer log conflicts, expert accident-reconstruction opinion.",
+  "document_ids": ["doc-accident-report", "doc-er-records", "doc-mri-report", "doc-driver-log", "doc-expert-recon", "doc-insurance-claim"],
+  "entity_ids": ["ent-plaintiff-reyes", "ent-defendant-palmer", "ent-defendant-interstate", "ent-expert-mercer", "ent-off-tan"]
+}

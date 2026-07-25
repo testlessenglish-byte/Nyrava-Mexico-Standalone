@@ -1,0 +1,308 @@
+// =====================================================================
+// Layer 2 — Deterministic Legal Intelligence Algorithms
+// =====================================================================
+// These functions are pure (no LLM, no I/O, no randomness). They take
+// structured inputs that the upstream extractors / engines have already
+// produced and return scored, explainable outputs.
+//
+// Architecture rule:
+//   - Layer 1 (code) orchestrates and persists.
+//   - Layer 2 (this file) computes deterministic legal signals.
+//   - Layer 3 (AI) only interprets the outputs of Layer 2 — it never
+//     invents scores, contradictions, or timelines.
+//
+// Every output exposes a `factors` / `reasoning` breakdown so a human
+// (or an auditor) can re-derive the score from the inputs.
+// =====================================================================
+
+export type Severity = "low" | "medium" | "high" | "critical";
+const SEV_RANK: Record<Severity, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+
+const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Math.round(n)));
+
+// ---------------------------------------------------------------------
+// 1. Evidence Weighting Engine
+// ---------------------------------------------------------------------
+export interface EvidenceItem {
+  id: string;
+  type?: string;                       // "document" | "testimony" | "physical" | ...
+  source_doc_ids?: string[];
+  witness_ids?: string[];
+  physical?: boolean;
+  ocr_confidence?: number;             // 0..1 ; undefined = native text
+  chain_of_custody?: boolean;
+  conflicting_testimony?: boolean;
+}
+export function scoreEvidence(e: EvidenceItem): {
+  score: number;
+  factors: Array<{ label: string; delta: number }>;
+} {
+  const factors: Array<{ label: string; delta: number }> = [];
+  let s = 40;
+  const corroboration = new Set(e.source_doc_ids ?? []).size;
+  if (corroboration >= 2) { s += 20; factors.push({ label: `corroborated by ${corroboration} documents`, delta: +20 }); }
+  if ((e.witness_ids?.length ?? 0) >= 1) { s += 10; factors.push({ label: "independent witness support", delta: +10 }); }
+  if (e.physical) { s += 15; factors.push({ label: "physical evidence", delta: +15 }); }
+  if (typeof e.ocr_confidence === "number" && e.ocr_confidence < 0.7) {
+    const d = -Math.round((0.7 - e.ocr_confidence) * 30);
+    s += d; factors.push({ label: "low OCR confidence", delta: d });
+  }
+  if (e.conflicting_testimony) { s -= 15; factors.push({ label: "conflicting testimony", delta: -15 }); }
+  if (e.chain_of_custody === false) { s -= 20; factors.push({ label: "missing chain of custody", delta: -20 }); }
+  return { score: clamp(s), factors };
+}
+
+// ---------------------------------------------------------------------
+// 2. Witness Credibility Engine
+// ---------------------------------------------------------------------
+export interface WitnessSignals {
+  internal_consistency?: number;       // 0..1
+  contradictions?: number;             // count
+  corroborated_statements?: number;    // count
+  prior_inconsistent_statements?: number;
+  bias_indicators?: number;
+  opportunity_to_observe?: number;     // 0..1
+  statement_completeness?: number;     // 0..1
+}
+export function scoreWitnessCredibility(w: WitnessSignals): {
+  score: number;
+  factors: Array<{ label: string; delta: number }>;
+} {
+  const factors: Array<{ label: string; delta: number }> = [];
+  let s = 50;
+  const add = (label: string, delta: number) => { s += delta; factors.push({ label, delta }); };
+  if (typeof w.internal_consistency === "number") add("internal consistency", Math.round(w.internal_consistency * 20));
+  if (w.contradictions) add(`${w.contradictions} contradiction(s)`, -Math.min(30, w.contradictions * 8));
+  if (w.corroborated_statements) add(`${w.corroborated_statements} corroborated statement(s)`, Math.min(20, w.corroborated_statements * 5));
+  if (w.prior_inconsistent_statements) add(`${w.prior_inconsistent_statements} prior inconsistent statement(s)`, -Math.min(25, w.prior_inconsistent_statements * 6));
+  if (w.bias_indicators) add(`${w.bias_indicators} bias indicator(s)`, -Math.min(20, w.bias_indicators * 5));
+  if (typeof w.opportunity_to_observe === "number") add("opportunity to observe", Math.round(w.opportunity_to_observe * 15));
+  if (typeof w.statement_completeness === "number") add("statement completeness", Math.round(w.statement_completeness * 10));
+  return { score: clamp(s), factors };
+}
+
+// ---------------------------------------------------------------------
+// 3. Timeline Integrity Engine
+// ---------------------------------------------------------------------
+export interface TimelineEvent {
+  id?: string;
+  date?: string;                       // any parseable date string
+  event?: string;
+  source_doc_id?: string;
+}
+export interface TimelineReport {
+  ordered: Array<TimelineEvent & { ts: number }>;
+  undated: TimelineEvent[];
+  impossible_sequences: Array<{ a: TimelineEvent; b: TimelineEvent; reason: string }>;
+  missing_intervals: Array<{ after: TimelineEvent; before: TimelineEvent; gap_days: number }>;
+  conflicts: Array<{ a: TimelineEvent; b: TimelineEvent; reason: string }>;
+}
+export function buildTimeline(events: TimelineEvent[], opts: { gapDays?: number } = {}): TimelineReport {
+  const gapDays = opts.gapDays ?? 90;
+  const dated: Array<TimelineEvent & { ts: number }> = [];
+  const undated: TimelineEvent[] = [];
+  for (const e of events) {
+    if (!e.date) { undated.push(e); continue; }
+    const ts = Date.parse(e.date);
+    if (Number.isNaN(ts)) { undated.push(e); continue; }
+    dated.push({ ...e, ts });
+  }
+  dated.sort((a, b) => a.ts - b.ts);
+
+  const impossible_sequences: TimelineReport["impossible_sequences"] = [];
+  const conflicts: TimelineReport["conflicts"] = [];
+  for (let i = 1; i < dated.length; i++) {
+    const a = dated[i - 1]; const b = dated[i];
+    if (a.event && b.event && a.event === b.event && a.ts !== b.ts) {
+      conflicts.push({ a, b, reason: "same event reported on two different dates" });
+    }
+    if (a.ts > b.ts) impossible_sequences.push({ a, b, reason: "out-of-order after sort (data corruption)" });
+  }
+
+  const missing_intervals: TimelineReport["missing_intervals"] = [];
+  for (let i = 1; i < dated.length; i++) {
+    const gap = (dated[i].ts - dated[i - 1].ts) / 86_400_000;
+    if (gap > gapDays) missing_intervals.push({ after: dated[i - 1], before: dated[i], gap_days: Math.round(gap) });
+  }
+  return { ordered: dated, undated, impossible_sequences, missing_intervals, conflicts };
+}
+
+// ---------------------------------------------------------------------
+// 4. Contradiction Detection Engine
+// ---------------------------------------------------------------------
+export interface Statement {
+  id: string;
+  subject?: string;
+  event?: string;
+  attributes?: Record<string, unknown>; // e.g. { time: "10:00", color: "red" }
+  source_doc_id?: string;
+}
+const norm = (s: unknown) => String(s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+export function detectContradictions(stmts: Statement[]): Array<{
+  a: Statement; b: Statement; field: string; valueA: unknown; valueB: unknown;
+}> {
+  const out: Array<{ a: Statement; b: Statement; field: string; valueA: unknown; valueB: unknown }> = [];
+  for (let i = 0; i < stmts.length; i++) {
+    for (let j = i + 1; j < stmts.length; j++) {
+      const a = stmts[i]; const b = stmts[j];
+      if (norm(a.subject) !== norm(b.subject)) continue;
+      if (norm(a.event) !== norm(b.event)) continue;
+      const fields = new Set([...Object.keys(a.attributes ?? {}), ...Object.keys(b.attributes ?? {})]);
+      for (const f of fields) {
+        const va = a.attributes?.[f]; const vb = b.attributes?.[f];
+        if (va == null || vb == null) continue;
+        if (norm(va) !== norm(vb)) out.push({ a, b, field: f, valueA: va, valueB: vb });
+      }
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// 5. Discovery Completeness Engine
+// ---------------------------------------------------------------------
+export interface DiscoveryRequest { id: string; label: string; received?: boolean; }
+export function discoveryCompleteness(requests: DiscoveryRequest[]): {
+  total: number; received: number; outstanding: DiscoveryRequest[]; percent: number;
+} {
+  const received = requests.filter((r) => r.received).length;
+  const outstanding = requests.filter((r) => !r.received);
+  const percent = requests.length ? Math.round((received / requests.length) * 100) : 0;
+  return { total: requests.length, received, outstanding, percent };
+}
+
+// ---------------------------------------------------------------------
+// 6. Chain of Custody Engine
+// ---------------------------------------------------------------------
+export interface CustodyEntry { ts: string; from: string; to: string; itemId: string; }
+export function auditChainOfCustody(entries: CustodyEntry[]): {
+  items: Record<string, { complete: boolean; breaks: Array<{ atIndex: number; reason: string }> }>;
+} {
+  const byItem = new Map<string, CustodyEntry[]>();
+  for (const e of entries) {
+    const arr = byItem.get(e.itemId) ?? [];
+    arr.push(e); byItem.set(e.itemId, arr);
+  }
+  const items: Record<string, { complete: boolean; breaks: Array<{ atIndex: number; reason: string }> }> = {};
+  for (const [id, list] of byItem) {
+    list.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+    const breaks: Array<{ atIndex: number; reason: string }> = [];
+    for (let i = 1; i < list.length; i++) {
+      if (norm(list[i - 1].to) !== norm(list[i].from)) {
+        breaks.push({ atIndex: i, reason: `handoff break: ${list[i - 1].to} -> ${list[i].from}` });
+      }
+    }
+    items[id] = { complete: breaks.length === 0, breaks };
+  }
+  return { items };
+}
+
+// ---------------------------------------------------------------------
+// 7. Burden of Proof Engine
+// ---------------------------------------------------------------------
+export type BurdenStandard = "preponderance" | "clear_and_convincing" | "beyond_reasonable_doubt";
+const STANDARD_THRESHOLD: Record<BurdenStandard, number> = {
+  preponderance: 51, clear_and_convincing: 75, beyond_reasonable_doubt: 90,
+};
+export interface ElementSupport { element: string; evidence_score: number; }
+export function evaluateBurden(standard: BurdenStandard, elements: ElementSupport[]): {
+  standard: BurdenStandard; threshold: number; satisfied: boolean;
+  perElement: Array<ElementSupport & { satisfied: boolean }>;
+  weakest: ElementSupport | null;
+} {
+  const threshold = STANDARD_THRESHOLD[standard];
+  const perElement = elements.map((e) => ({ ...e, satisfied: e.evidence_score >= threshold }));
+  const weakest = perElement.reduce<ElementSupport | null>((min, e) =>
+    min == null || e.evidence_score < min.evidence_score ? e : min, null);
+  return { standard, threshold, satisfied: perElement.every((e) => e.satisfied), perElement, weakest };
+}
+
+// ---------------------------------------------------------------------
+// 8. Risk Assessment Engine
+// ---------------------------------------------------------------------
+export interface RiskInputs {
+  unresolved_contradictions: number;
+  missing_evidence: number;
+  constitutional_issues: number;
+  unfavorable_witnesses: number;
+  procedural_defects: number;
+}
+export function assessRisk(r: RiskInputs): { score: number; band: Severity; factors: Array<{ label: string; delta: number }> } {
+  const factors: Array<{ label: string; delta: number }> = [];
+  let s = 0;
+  const add = (label: string, n: number, w: number) => { const d = n * w; s += d; if (n) factors.push({ label: `${n} x ${label}`, delta: d }); };
+  add("unresolved contradictions", r.unresolved_contradictions, 8);
+  add("missing evidence items", r.missing_evidence, 6);
+  add("constitutional issues", r.constitutional_issues, 10);
+  add("unfavorable witnesses", r.unfavorable_witnesses, 7);
+  add("procedural defects", r.procedural_defects, 5);
+  const score = clamp(s);
+  const band: Severity = score >= 75 ? "critical" : score >= 50 ? "high" : score >= 25 ? "medium" : "low";
+  return { score, band, factors };
+}
+
+// ---------------------------------------------------------------------
+// 9. Motion Opportunity Detector
+// ---------------------------------------------------------------------
+export interface MotionSignal { tag: string; severity: Severity; }
+const MOTION_RULES: Array<{ when: (s: MotionSignal[]) => boolean; motion: string; basis: string }> = [
+  { when: (s) => s.some((x) => x.tag === "brady_violation" && SEV_RANK[x.severity] >= 3), motion: "Motion to Dismiss / Brady sanctions", basis: "Brady disclosure failure" },
+  { when: (s) => s.some((x) => x.tag === "fourth_amendment_violation"), motion: "Motion to Suppress", basis: "Fourth Amendment violation" },
+  { when: (s) => s.some((x) => x.tag === "discovery_withholding"), motion: "Motion to Compel", basis: "Discovery withholding" },
+  { when: (s) => s.some((x) => x.tag === "chain_of_custody_break"), motion: "Motion in Limine", basis: "Chain of custody break" },
+  { when: (s) => s.filter((x) => x.tag === "procedural_defect").length >= 2, motion: "Motion to Dismiss (procedural)", basis: "Cumulative procedural defects" },
+];
+export function detectMotions(signals: MotionSignal[]): Array<{ motion: string; basis: string }> {
+  return MOTION_RULES.filter((r) => r.when(signals)).map(({ motion, basis }) => ({ motion, basis }));
+}
+
+// ---------------------------------------------------------------------
+// 10. Appeal Issue Detector
+// ---------------------------------------------------------------------
+export interface TrialEvent { kind: string; preserved?: boolean; severity?: Severity; description?: string; }
+export function detectAppealIssues(events: TrialEvent[]): Array<{ issue: string; preserved: boolean; severity: Severity; description?: string }> {
+  const APPEAL_KINDS = new Set([
+    "evidentiary_ruling", "jury_instruction_error", "prosecutorial_misconduct",
+    "ineffective_assistance", "constitutional_violation", "sentencing_error",
+  ]);
+  return events
+    .filter((e) => APPEAL_KINDS.has(e.kind))
+    .map((e) => ({
+      issue: e.kind.replace(/_/g, " "),
+      preserved: e.preserved ?? false,
+      severity: e.severity ?? "medium",
+      description: e.description,
+    }));
+}
+
+// ---------------------------------------------------------------------
+// Top-level convenience: run every algorithm in one shot for the report.
+// Inputs are tolerant — missing fields => zeroed contribution, never throw.
+// ---------------------------------------------------------------------
+export interface AlgorithmBundleInputs {
+  evidence?: EvidenceItem[];
+  witnesses?: Array<WitnessSignals & { id?: string; name?: string }>;
+  timeline?: TimelineEvent[];
+  statements?: Statement[];
+  discovery?: DiscoveryRequest[];
+  custody?: CustodyEntry[];
+  burden?: { standard: BurdenStandard; elements: ElementSupport[] };
+  risk?: RiskInputs;
+  motionSignals?: MotionSignal[];
+  trialEvents?: TrialEvent[];
+}
+export function runAlgorithmBundle(input: AlgorithmBundleInputs) {
+  return {
+    layer: "deterministic_legal_intelligence_v1",
+    evidence:        (input.evidence ?? []).map((e) => ({ id: e.id, ...scoreEvidence(e) })),
+    witnesses:       (input.witnesses ?? []).map((w) => ({ id: w.id ?? null, name: w.name ?? null, ...scoreWitnessCredibility(w) })),
+    timeline:        buildTimeline(input.timeline ?? []),
+    contradictions:  detectContradictions(input.statements ?? []),
+    discovery:       discoveryCompleteness(input.discovery ?? []),
+    chain_of_custody: auditChainOfCustody(input.custody ?? []),
+    burden:          input.burden ? evaluateBurden(input.burden.standard, input.burden.elements) : null,
+    risk:            input.risk ? assessRisk(input.risk) : null,
+    motions:         detectMotions(input.motionSignals ?? []),
+    appeal_issues:   detectAppealIssues(input.trialEvents ?? []),
+  };
+}

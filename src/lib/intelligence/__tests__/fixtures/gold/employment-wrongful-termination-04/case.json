@@ -1,0 +1,9 @@
+{
+  "id": "gold-04-wrongful-termination",
+  "slug": "employment-wrongful-termination-04",
+  "practice_area": "employment",
+  "title": "Okafor v. Meridian Health Systems (fictional)",
+  "description": "Wrongful termination and retaliation. Performance reviews contradict termination memo; HR emails and internal Slack messages implicated.",
+  "document_ids": ["doc-offer-letter", "doc-perf-reviews", "doc-hr-emails", "doc-slack-export", "doc-termination-memo"],
+  "entity_ids": ["ent-plaintiff-okafor", "ent-defendant-meridian", "ent-mgr-hines", "ent-hr-park"]
+}

@@ -1,0 +1,36 @@
+{
+  "id": "civil-02-theories-failure",
+  "description": "Fictional civil case where the theories stage fails; strategy (dependsOn=[perspectives,theories]) and work_product (dependsOn=[strategy]) must be blocked.",
+  "stageOutcomes": {
+    "evidence_map": { "status": "complete", "findings": 6 },
+    "evidence_intel": { "status": "complete", "findings": 9 },
+    "contradictions": { "status": "complete", "findings": 0 },
+    "witness": { "status": "complete", "findings": 3 },
+    "constitutional": { "status": "complete", "findings": 0 },
+    "discovery": { "status": "complete", "findings": 4 },
+    "perspectives": { "status": "complete", "findings": 3 },
+    "theories": { "status": "failed" },
+    "opportunities": { "status": "complete", "findings": 2 },
+    "trial_prep": { "status": "complete", "findings": 1 },
+    "strategy": { "status": "complete", "findings": 1 },
+    "work_product": { "status": "complete", "findings": 1 },
+    "hallucination": { "status": "complete", "findings": 0 }
+  },
+  "expected": {
+    "stageCount": 13,
+    "failedStages": ["theories"],
+    "blockedStages": ["strategy", "work_product"],
+    "completeStages": [
+      "constitutional",
+      "contradictions",
+      "discovery",
+      "evidence_intel",
+      "evidence_map",
+      "hallucination",
+      "opportunities",
+      "perspectives",
+      "trial_prep",
+      "witness"
+    ]
+  }
+}

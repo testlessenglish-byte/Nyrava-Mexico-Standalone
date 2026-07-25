@@ -1,0 +1,72 @@
+{
+  "entities": [
+    { "id": "ent-def-marlow", "type": "person", "name": "Devon Marlow", "role": "defendant" },
+    { "id": "ent-vic-rowan", "type": "person", "name": "Terrance Rowan", "role": "victim" },
+    { "id": "ent-wit-alvarez", "type": "person", "name": "Julia Alvarez", "role": "eyewitness" },
+    { "id": "ent-wit-park", "type": "person", "name": "Marcus Park", "role": "eyewitness" },
+    { "id": "ent-inf-hines", "type": "person", "name": "Colby Hines", "role": "informant" },
+    { "id": "ent-det-cho", "type": "person", "name": "Det. Aaron Cho", "role": "investigator" }
+  ],
+  "timeline": [
+    { "id": "tl-1", "date_iso": "2025-03-14T22:47:00Z", "event": "911 call reporting gunshots at warehouse", "source_document_id": "doc-arrest-report" },
+    { "id": "tl-2", "date_iso": "2025-03-14T22:52:00Z", "event": "Officers arrive; Rowan pronounced dead on scene", "source_document_id": "doc-arrest-report" },
+    { "id": "tl-3", "date_iso": "2025-03-14T23:15:00Z", "event": "Alvarez identifies shooter as 'man in red hoodie'", "source_document_id": "doc-witness-a" },
+    { "id": "tl-4", "date_iso": "2025-03-15T01:30:00Z", "event": "Park identifies shooter as 'wearing black jacket'", "source_document_id": "doc-witness-b" },
+    { "id": "tl-5", "date_iso": "2025-03-15T08:00:00Z", "event": "Ballistics recovers 9mm casings", "source_document_id": "doc-ballistics" },
+    { "id": "tl-6", "date_iso": "2025-03-18T14:00:00Z", "event": "Informant Hines gives statement implicating Marlow", "source_document_id": "doc-informant-file" }
+  ],
+  "evidence_map": [
+    { "id": "ev-1", "document_id": "doc-surveillance-log", "page": 3, "description": "Warehouse camera 4 — 22:46:12 timestamp gap", "classification": "surveillance", "chain_of_custody": "Cho → evidence locker 3/15 09:12" },
+    { "id": "ev-2", "document_id": "doc-ballistics", "page": 1, "description": "Three 9mm shell casings", "classification": "physical", "chain_of_custody": "Cho → lab 3/15 12:00 → ??? (gap after 3/17)" },
+    { "id": "ev-3", "document_id": "doc-informant-file", "page": 2, "description": "Hines cooperation agreement — undisclosed pending charges dropped", "classification": "documentary" }
+  ],
+  "findings": [
+    { "id": "f-1", "category": "contradiction", "title": "Eyewitness clothing descriptions conflict", "description": "Alvarez: red hoodie. Park: black jacket. Same incident, ~30 min apart.", "source_document_id": "doc-witness-a", "source_page": 2, "source_quote": "he was wearing a red hoodie, pulled up", "evidence_refs": ["ev-1"] },
+    { "id": "f-2", "category": "contradiction", "title": "Park's clothing statement contradicts Alvarez", "description": "See f-1.", "source_document_id": "doc-witness-b", "source_page": 1, "source_quote": "definitely a black jacket, zipped up", "evidence_refs": ["ev-1"] },
+    { "id": "f-3", "category": "brady", "title": "Informant received undisclosed benefit", "description": "Hines had two pending felony charges dropped after cooperating; not disclosed in initial discovery.", "source_document_id": "doc-informant-file", "source_page": 2, "source_quote": "in exchange for truthful testimony, State agrees to dismiss cases 25-CR-441 and 25-CR-502", "evidence_refs": ["ev-3"] },
+    { "id": "f-4", "category": "chain_of_custody", "title": "Ballistics chain of custody gap", "description": "No custody entry between 3/17 lab transfer and 3/22 return.", "source_document_id": "doc-ballistics", "source_page": 4, "source_quote": "Received: 3/15. Returned to locker: 3/22. (no intervening entries)", "evidence_refs": ["ev-2"] },
+    { "id": "f-5", "category": "constitutional", "title": "Warrantless search of vehicle", "description": "Officer search of Marlow's vehicle occurred before warrant issued.", "source_document_id": "doc-arrest-report", "source_page": 6, "source_quote": "vehicle searched at 23:10; search warrant timestamp 23:47", "evidence_refs": [] },
+    { "id": "f-6", "category": "discovery_gap", "title": "Missing camera 3 footage", "description": "Surveillance log references camera 3 but footage never produced.", "source_document_id": "doc-surveillance-log", "source_page": 1, "source_quote": "Cameras 1-6 online during incident", "evidence_refs": ["ev-1"] },
+    { "id": "f-7", "category": "motion", "title": "Motion to Suppress vehicle search", "description": "4th Amendment — search preceded warrant.", "source_document_id": "doc-arrest-report", "source_page": 6, "source_quote": "vehicle searched at 23:10; search warrant timestamp 23:47", "evidence_refs": [] },
+    { "id": "f-8", "category": "risk", "title": "Informant credibility damages State's narrative", "description": "Hines is the sole witness linking motive to Marlow.", "source_document_id": "doc-informant-file", "source_page": 5, "source_quote": "Hines is the only witness to defendant's admission", "evidence_refs": ["ev-3"] },
+    { "id": "f-9", "category": "theory", "title": "Reasonable doubt via inconsistent identification", "description": "Contradictory eyewitness identifications support misidentification theory.", "source_document_id": "doc-witness-a", "source_page": 2, "source_quote": "he was wearing a red hoodie, pulled up", "evidence_refs": ["ev-1"] }
+  ],
+  "contradictions": [
+    { "id": "c-1", "finding_a_id": "f-1", "finding_b_id": "f-2", "description": "Eyewitnesses give incompatible clothing descriptions of the shooter." }
+  ],
+  "discovery_gaps": [
+    { "id": "dg-1", "category": "surveillance", "description": "Camera 3 footage never produced despite being logged online.", "requested_from": "State" }
+  ],
+  "constitutional": [
+    { "id": "co-1", "amendment": "Fourth", "issue": "Warrantless vehicle search prior to warrant issuance.", "severity": "high" }
+  ],
+  "brady": [
+    { "id": "br-1", "category": "impeachment", "description": "Informant's cooperation deal (dropped charges) not disclosed." }
+  ],
+  "chain_of_custody": [
+    { "id": "coc-1", "item": "9mm shell casings", "gap": "No custody entries between 3/17 and 3/22." }
+  ],
+  "motions": [
+    { "id": "mo-1", "title": "Motion to Suppress vehicle search", "basis": "Fourth Amendment — search preceded warrant.", "likelihood": "high" },
+    { "id": "mo-2", "title": "Motion in Limine to exclude Hines testimony until Brady cured", "basis": "Brady/Giglio — impeachment material undisclosed.", "likelihood": "medium" }
+  ],
+  "risks": [
+    { "id": "r-1", "category": "witness_credibility", "description": "Informant is sole witness to motive.", "severity": "high" }
+  ],
+  "theories": [
+    { "id": "th-1", "label": "Misidentification", "support": ["f-1", "f-2", "f-6"], "strength": "moderate" }
+  ],
+  "report_sections": [
+    { "key": "case_summary", "title": "Case Summary", "required": true },
+    { "key": "timeline", "title": "Timeline of Events", "required": true },
+    { "key": "entities", "title": "Key Entities", "required": true },
+    { "key": "evidence_map", "title": "Evidence Map", "required": true },
+    { "key": "findings", "title": "Findings", "required": true },
+    { "key": "constitutional_issues", "title": "Constitutional Issues", "required": true },
+    { "key": "brady_giglio", "title": "Brady/Giglio Material", "required": true },
+    { "key": "motions", "title": "Motion Opportunities", "required": true },
+    { "key": "risks", "title": "Risk Assessment", "required": true },
+    { "key": "theories", "title": "Case Theories", "required": true },
+    { "key": "citations_audit", "title": "Citation Audit", "required": true }
+  ]
+}

@@ -13,7 +13,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { getAIProvider } from "./ai/provider.server";
-import { mexicoLock } from "./engines/mexico-lock";
+import { mexicoLock } from "./mexico-lock";
 
 const MEXICAN_STATES = [
   "Federal","CDMX","Aguascalientes","Baja California","Baja California Sur","Campeche",

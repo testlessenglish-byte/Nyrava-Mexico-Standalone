@@ -1,0 +1,9 @@
+{
+  "id": "gold-03-contract",
+  "slug": "civil-breach-of-contract-03",
+  "practice_area": "civil_litigation",
+  "title": "Arden Systems v. Halberd Manufacturing (fictional)",
+  "description": "Breach of supply agreement. Email chains show conflicting delivery-deadline representations; deposition contradicts contemporaneous internal memo.",
+  "document_ids": ["doc-supply-agreement", "doc-email-chain-jan", "doc-email-chain-feb", "doc-internal-memo", "doc-halberd-depo"],
+  "entity_ids": ["ent-arden", "ent-halberd", "ent-arden-vp", "ent-halberd-ops"]
+}
