@@ -629,6 +629,7 @@ function relTime(iso: string, t: (k: string, v?: Record<string, string>) => stri
 
 // ---------------- Subcomponents ----------------
 function ScoreGauge({ value, color, label }: { value: number; color: string; label: string }) {
+  const { t } = useI18n();
   const R = 38;
   const C = 2 * Math.PI * R;
   const off = C * (1 - value / 100);
@@ -652,7 +653,7 @@ function ScoreGauge({ value, color, label }: { value: number; color: string; lab
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-slate-400">Case Score</div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-400">{t("cc.caseScore")}</div>
           <div className="text-2xl font-bold tabular-nums text-white">
             {value}
             <span className="text-xs text-slate-400">/100</span>

@@ -245,6 +245,7 @@
   "cases.toggle.showActive": "Show active cases",
   "cases.toggle.showArchived": "Show archived cases",
   "cc.caseIntelligence": "Case Intelligence",
+  "cc.caseScore": "Case Score",
   "cc.ess": "ESS",
   "cc.ess.high": "high",
   "cc.ess.low": "low",
