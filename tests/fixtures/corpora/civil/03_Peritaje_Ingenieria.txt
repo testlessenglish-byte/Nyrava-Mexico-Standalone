@@ -1,0 +1,35 @@
+DICTAMEN PERICIAL EN INGENIERÍA CIVIL
+Expediente 748/2026 — Juzgado Séptimo de lo Civil de la Ciudad de México
+Perito tercero en discordia: Ing. Civil Verónica Aristegui Duarte
+Cédula profesional: 3,215,876
+Registro auxiliar del TSJ CDMX: PT-CIV-1245
+
+I. OBJETO DEL DICTAMEN
+Determinar el porcentaje real de avance de obra ejecutado por Constructora Peninsular, S.A. de C.V. en el desarrollo "Torres Cedros", primera etapa, al 30 de septiembre de 2025, y valorar la corrección técnica de las estimaciones 3 y 4 presentadas por la contratista.
+
+II. METODOLOGÍA
+Inspección física del predio el 10 de junio de 2026; cotejo de bitácora de obra en original; medición de volúmenes ejecutados en cimentación, estructura y albañilería; cotejo con el catálogo de conceptos del contrato y sus tres addendas; entrevistas con el residente Arq. Julieta Vera López (por parte de la demandada) y el superintendente Ing. Manuel Sotelo (por parte de la actora).
+
+III. RESULTADOS
+1. Cimentación: 100% ejecutada. Se verificaron 148 zapatas aisladas y 320 m³ de losa de cimentación, coincidentes con el proyecto ejecutivo Rev. C.
+2. Estructura de concreto reforzado: 78% ejecutada. Faltan colar tres columnas del eje G en el nivel 3 y la losa de azotea (400 m²).
+3. Albañilería: 22% ejecutada. Se ejecutaron 890 m² de muros de tabique rojo recocido de los 4,050 m² contratados.
+4. Instalaciones (hidrosanitaria, eléctrica): 0% ejecutadas, conforme al programa contractual, que las ubicaba entre octubre y diciembre de 2025.
+
+IV. CÁLCULO PONDERADO DEL AVANCE
+Aplicando los pesos porcentuales del catálogo del contrato:
+  Cimentación (18%) × 100% = 18.0
+  Estructura (32%) × 78%  = 24.96
+  Albañilería (14%) × 22% = 3.08
+  Instalaciones (22%) × 0% = 0
+  Acabados y otros (14%) × 0% = 0
+  AVANCE PONDERADO REAL: 46.04%
+
+V. ANÁLISIS DE LAS ESTIMACIONES 3 Y 4
+Las estimaciones 3 y 4 incluyen 620 m² de muros y 12 castillos que a la fecha del corte no se encontraban físicamente ejecutados. Los volúmenes cobrados exceden los ejecutados en un 14.2% del monto de dichas estimaciones.
+
+VI. CONCLUSIÓN
+El avance real de la obra al 30 de septiembre de 2025 fue de 46.04%, distinto tanto del 65% afirmado por la actora como del 42% afirmado por la demandada. Las estimaciones 3 y 4 contienen conceptos no ejecutados por un monto aproximado de $454,400.00 M.N., que deberán descontarse.
+
+Ciudad de México, 25 de junio de 2026.
+Ing. Verónica Aristegui Duarte
