@@ -31,6 +31,17 @@ export type ReportLocale = "es" | "en";
  * translated away.
  */
 const ES: Record<string, string> = {
+  "ATTORNEY WORK PRODUCT  \u00b7  PRIVILEGED & CONFIDENTIAL":
+    "PRODUCTO DE TRABAJO DEL ABOGADO  \u00b7  PRIVILEGIADO Y CONFIDENCIAL",
+  "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations.":
+    "Este expediente se analiz\u00f3 en modo LIMITADO porque el corpus disponible no alcanz\u00f3 el umbral del Puntaje de Suficiencia Probatoria (ESS) requerido para sustentar puntajes cuantitativos o recomendaciones formales de promociones.",
+  "An evidence-grounded narrative is rendered below for every section in which the corpus supplied sufficient verbatim material. Sections that would otherwise rely on inferred legal theories \u2014 quantitative scorecards, motion drafting, theory selection, and prioritized recommendations \u2014 have been withheld so that no claim in this report rests on speculation.":
+    "A continuaci\u00f3n se presenta una narrativa sustentada en evidencia para cada secci\u00f3n en la que el corpus aport\u00f3 material textual suficiente. Las secciones que depender\u00edan de teor\u00edas jur\u00eddicas inferidas \u2014 puntajes cuantitativos, redacci\u00f3n de promociones, selecci\u00f3n de teor\u00eda del caso y recomendaciones priorizadas \u2014 se retuvieron para que ninguna afirmaci\u00f3n de este reporte descanse en especulaci\u00f3n.",
+  "confidence level (how sure the classification is), an evidence strength (how well-sourced it is), and any related findings elsewhere in this report.":
+    "nivel de confianza (qu\u00e9 tan segura es la clasificaci\u00f3n), una fuerza probatoria (qu\u00e9 tan sustentado est\u00e1) y los hallazgos relacionados en otras partes de este reporte.",
+  "This report was generated using Nyrava Intelligence\u2122 and is intended to support\u2014not replace\u2014professional legal judgment. Attorneys remain responsible for reviewing and verifying all findings, citations, scores, legal analysis, and drafted work product against the official source record before filing or relying upon this report.":
+    "Este reporte fue generado con Nyrava Intelligence\u2122 y busca apoyar \u2014no sustituir\u2014 el criterio jur\u00eddico profesional. El abogado es responsable de revisar y verificar todos los hallazgos, citas, puntajes, an\u00e1lisis jur\u00eddico y producto de trabajo contra el expediente oficial antes de presentarlo o sustentarse en \u00e9l.",
+  "Nyrava Legal Intelligence": "Nyrava Legal Intelligence",
   // ---- Section headings (15-section report structure) ----
   "Table of Contents": "Índice",
   "Executive Summary": "Resumen Ejecutivo",
@@ -313,6 +324,28 @@ const ES_PATTERNS: Array<[RegExp, string]> = [
   [/\bEvidence Sufficiency Score\b/, "Puntaje de Suficiencia Probatoria"],
 ];
 
+/**
+ * Interpolated fragments: sentences the exporter concatenates with runtime
+ * numbers, so they can never match a dictionary key exactly.
+ */
+const ES_FRAGMENTS: Array<[RegExp, string]> = [
+  [
+    /The intake included (\d+) source documents? and produced (\d+) verified findings?\./g,
+    "La ingesta incluy\u00f3 $1 documento(s) fuente y produjo $2 hallazgo(s) verificado(s).",
+  ],
+  [/\bEngine v/g, "Motor v"],
+  [/\bPriority\b/g, "Prioridad"],
+];
+
+/**
+ * Long dictionary phrases are also applied as substring replacements, so a
+ * template sentence that got glued to an interpolated fragment still switches
+ * language instead of falling back to English.
+ */
+const ES_LONG_PHRASES: Array<[string, string]> = Object.entries(ES)
+  .filter(([k]) => k.length >= 40)
+  .sort((a, b) => b[0].length - a[0].length);
+
 let current: ReportLocale = "es";
 
 /** Set the locale for the report currently being exported. */
@@ -361,7 +394,13 @@ export function rt(value: string): string {
   for (const [re, to] of ES_PATTERNS) {
     if (re.test(value)) return value.replace(re, to);
   }
-  return value;
+  // Mixed string: template sentences concatenated with runtime values.
+  let out = value;
+  for (const [en, es] of ES_LONG_PHRASES) {
+    if (out.includes(en)) out = out.split(en).join(es);
+  }
+  for (const [re, to] of ES_FRAGMENTS) out = out.replace(re, to);
+  return out;
 }
 
 /** Exposed for tests: how many template phrases are covered. */
