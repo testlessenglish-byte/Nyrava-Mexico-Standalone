@@ -3836,6 +3836,8 @@ export type Database = {
       }
       user_ai_keys: {
         Row: {
+          calls_month: number
+          calls_today: number
           created_at: string
           encrypted_key: string
           id: string
@@ -3846,11 +3848,18 @@ export type Database = {
           last_test_latency_ms: number | null
           last_test_ok: boolean | null
           last_used_at: string | null
+          priority: number | null
           provider: Database["public"]["Enums"]["ai_provider"]
+          tokens_month: number
+          tokens_today: number
           updated_at: string
+          usage_date: string | null
+          usage_month: string | null
           user_id: string
         }
         Insert: {
+          calls_month?: number
+          calls_today?: number
           created_at?: string
           encrypted_key: string
           id?: string
@@ -3861,11 +3870,18 @@ export type Database = {
           last_test_latency_ms?: number | null
           last_test_ok?: boolean | null
           last_used_at?: string | null
+          priority?: number | null
           provider: Database["public"]["Enums"]["ai_provider"]
+          tokens_month?: number
+          tokens_today?: number
           updated_at?: string
+          usage_date?: string | null
+          usage_month?: string | null
           user_id: string
         }
         Update: {
+          calls_month?: number
+          calls_today?: number
           created_at?: string
           encrypted_key?: string
           id?: string
@@ -3876,8 +3892,13 @@ export type Database = {
           last_test_latency_ms?: number | null
           last_test_ok?: boolean | null
           last_used_at?: string | null
+          priority?: number | null
           provider?: Database["public"]["Enums"]["ai_provider"]
+          tokens_month?: number
+          tokens_today?: number
           updated_at?: string
+          usage_date?: string | null
+          usage_month?: string | null
           user_id?: string
         }
         Relationships: []
