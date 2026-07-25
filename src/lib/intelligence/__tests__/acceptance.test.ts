@@ -28,8 +28,8 @@ function row(engine: string, status: ExecutionRow["status"], iso = "2026-01-01T0
 }
 
 describe("Pre-flight report gate (single source of truth)", () => {
-  it("requires exactly 11 canonical engines (report_generator is the consumer, not a self-precondition)", () => {
-    expect(REPORT_REQUIRED_ENGINES.length).toBe(11);
+  it("requires exactly 14 canonical engines (report_generator is the consumer, not a self-precondition)", () => {
+    expect(REPORT_REQUIRED_ENGINES.length).toBe(14);
     expect(REPORT_REQUIRED_ENGINES).not.toContain("report_generator");
     // No duplicates
     expect(new Set(REPORT_REQUIRED_ENGINES).size).toBe(REPORT_REQUIRED_ENGINES.length);
