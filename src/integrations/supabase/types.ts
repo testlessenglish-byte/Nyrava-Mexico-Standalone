@@ -1520,6 +1520,7 @@ export type Database = {
           most_damaging_evidence: Json | null
           most_persuasive_evidence: Json | null
           opening_themes: Json | null
+          penal_metrics: Json | null
           trial_risks: Json | null
           trial_strengths: Json | null
           updated_at: string
@@ -1542,6 +1543,7 @@ export type Database = {
           most_damaging_evidence?: Json | null
           most_persuasive_evidence?: Json | null
           opening_themes?: Json | null
+          penal_metrics?: Json | null
           trial_risks?: Json | null
           trial_strengths?: Json | null
           updated_at?: string
@@ -1564,6 +1566,7 @@ export type Database = {
           most_damaging_evidence?: Json | null
           most_persuasive_evidence?: Json | null
           opening_themes?: Json | null
+          penal_metrics?: Json | null
           trial_risks?: Json | null
           trial_strengths?: Json | null
           updated_at?: string
