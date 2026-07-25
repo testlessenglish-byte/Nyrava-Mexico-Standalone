@@ -120,7 +120,7 @@ async function syncPreferredLanguage(locale: Locale) {
     const { data } = await supabase.auth.getUser();
     const uid = data.user?.id;
     if (!uid) return;
-    await supabase.from("profiles").update({ locale }).eq("id", uid);
+    await supabase.from("profiles").update({ preferred_language: locale }).eq("id", uid);
   } catch {
     /* silent */
   }
