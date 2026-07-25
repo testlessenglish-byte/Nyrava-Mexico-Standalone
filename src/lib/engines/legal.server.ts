@@ -7,6 +7,7 @@
  * time, or stored as an unverified suggestion for human review.
  */
 import { getAIProvider } from "../ai/provider.server";
+import { mexicoLock } from "./mexico-lock";
 import type {
   EngineInput,
   EngineOutput,
