@@ -1,0 +1,50 @@
+INTERNAL REVENUE SERVICE
+Department of the Treasury
+
+NOTICE OF DEFICIENCY (Letter 3219)
+Tax Year: 2022
+Notice Date: April 7, 2025
+
+Taxpayers: Michael A. Okafor and Diane R. Okafor
+Joint Return, Filed: April 15, 2023
+Address: 4417 Larkspur Ridge Rd, Cary, NC 27519
+
+This letter is a NOTICE OF DEFICIENCY as required by law. The Internal Revenue Service has
+determined a deficiency in your income tax for the year(s) shown above. If you want to contest
+this deficiency in court before making any payment, you have 90 days from the date of this letter
+(150 days if addressed to a person outside the United States) to file a petition with the United
+States Tax Court, pursuant to Internal Revenue Code (IRC) Section 6213(a).
+
+Summary of Adjustments
+
+1. Unreported income (bank deposits method) ..................... $47,600
+2. Disallowed Schedule C vehicle expense (substantiation) ........ $9,800
+3. Disallowed Schedule C home office expense (substantiation) .... $4,200
+4. Disallowed Schedule C contract labor expense (no Forms 1099) .. $4,400
+
+Total adjustments to taxable income ............................. $66,000
+Recomputed deficiency in tax .................................... $17,850
+Accuracy-related penalty, IRC Section 6662(a) (20%) ............. $3,570
+Total amount you owe ............................................ $21,420
+
+Explanation of Adjustments
+
+Item 1: Our examination of your business bank account (Piedmont Trust Bank, acct ending 4471)
+identified total deposits of $186,400 during 2022. Your return reported gross receipts of
+$138,800 from Okafor Strategic Consulting. Because you did not provide records reconciling the
+$47,600 difference during the examination, it is treated as unreported gross receipts under IRC
+Section 61(a).
+
+Items 2-4: Deductions claimed on Schedule C were disallowed in full because contemporaneous
+records adequate to substantiate business purpose, amount, and time were not provided at the time
+of examination, as required under IRC Section 162(a) and the recordkeeping requirements of IRC
+Section 6001.
+
+Penalty: The accuracy-related penalty under IRC Section 6662(a) is asserted based on a
+substantial understatement of income tax.
+
+If you do not file a petition with the Tax Court within the time period described above, the
+deficiency will be assessed and you will receive a bill.
+
+/s/ R. Falkenberg
+Technical Services, Area 4

@@ -1,0 +1,29 @@
+AFFIDAVIT OF EXPERT OPINION — Dr. Reza Park, MD
+Board-certified Infectious Disease, Professor of Medicine, Eastern University School of Medicine
+
+I have reviewed the complete WMH medical record for Marcus Whitfield (admission 09/20/2024 – death 09/22/2024), including triage notes, ED physician notes, laboratory results, imaging, nursing notes, hospitalist documentation, and the autopsy report.
+
+OPINIONS, held to a reasonable degree of medical certainty:
+
+1. The standard of care for an immunocompetent adult presenting with severe headache, fever, neck stiffness, and photophobia is to consider bacterial meningitis until ruled out, to perform lumbar puncture promptly, and to initiate empiric IV antibiotics within ONE HOUR of clinical suspicion. (Tunkel et al., IDSA Practice Guidelines for the Management of Bacterial Meningitis, 2017; van de Beek et al., NEJM 2006.)
+
+2. Mr. Whitfield presented with the classic triad of fever, headache, and meningismus at 04:14 on 09/20/2024. By 04:17, the triage RN documented concern for meningitis. The clinical suspicion existed at presentation.
+
+3. The absence of overt nuchal rigidity or positive Kernig/Brudzinski signs does not rule out meningitis and does not relieve the clinician of the duty to perform LP and start empiric antibiotics promptly. Both signs have low sensitivity (~5–30%) in confirmed bacterial meningitis cases.
+
+4. Dr. Holbrook's failure to order empiric antibiotics or to perform LP at the time of his evaluation (05:48) was a breach of the standard of care.
+
+5. Dr. Petrov's acceptance of the patient for admission with a plan to defer LP until "AM rounds" and without initiating empiric antibiotics was a breach of the standard of care.
+
+6. The first dose of antibiotics was administered at 17:15, approximately 13 hours after presentation and approximately 11.5 hours after the standard-of-care window had closed.
+
+7. Published mortality data for bacterial meningitis treated within the recommended window is approximately 10–15%. Mortality rises sharply with each hour of delay. With a 12-hour delay in an immunocompetent 56-year-old, expected mortality exceeds 60%.
+
+8. To a reasonable degree of medical certainty, had appropriate empiric antibiotics been administered by 06:14 on 09/20/2024 (the one-hour standard-of-care benchmark), Mr. Whitfield had a greater than 85% probability of survival.
+
+9. The departures from the standard of care by Dr. Holbrook and Dr. Petrov were substantial factors in causing Mr. Whitfield's death.
+
+I declare under penalty of perjury that the foregoing is true and correct.
+
+/s/ Reza Park, MD
+December 1, 2024

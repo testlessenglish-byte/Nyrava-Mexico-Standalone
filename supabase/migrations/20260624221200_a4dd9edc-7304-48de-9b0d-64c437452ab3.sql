@@ -1,0 +1,2 @@
+ALTER TABLE public.ai_providers
+  ADD COLUMN IF NOT EXISTS api_key_encrypted text;

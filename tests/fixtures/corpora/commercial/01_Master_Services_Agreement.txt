@@ -1,0 +1,57 @@
+MASTER SERVICES AGREEMENT
+
+This Master Services Agreement ("Agreement") is entered into as of March 3, 2024
+(the "Effective Date") by and between Northstar Analytics, Inc., a Delaware
+corporation with its principal place of business at 200 Market Street, San
+Francisco, California ("Provider"), and Ridgeline Manufacturing Corp., an Ohio
+corporation with its principal place of business at 4400 Industrial Way,
+Cleveland, Ohio ("Customer").
+
+1. SERVICES. Provider shall perform the professional data-integration and
+analytics services described in one or more Statements of Work ("SOWs") executed
+by the parties. Each SOW is incorporated by reference into this Agreement.
+
+2. FEES AND PAYMENT. Customer shall pay the fees stated in each SOW within
+thirty (30) days of invoice. Undisputed amounts not paid when due shall accrue
+interest at 1.0% per month or the maximum rate permitted by law, whichever is
+lower.
+
+3. TERM AND TERMINATION. This Agreement commences on the Effective Date and
+continues for an initial term of two (2) years, renewing automatically for
+successive one-year terms unless either party gives written notice of
+non-renewal at least sixty (60) days before the end of the then-current term.
+Either party may terminate this Agreement for material breach if the breaching
+party fails to cure within thirty (30) days after receiving written notice
+describing the breach in reasonable detail.
+
+4. WARRANTY. Provider warrants that the Services will be performed in a
+professional and workmanlike manner consistent with generally accepted industry
+practice. EXCEPT AS EXPRESSLY STATED IN THIS SECTION 4, PROVIDER DISCLAIMS ALL
+WARRANTIES, EXPRESS OR IMPLIED, INCLUDING THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+
+5. LIMITATION OF LIABILITY. IN NO EVENT SHALL EITHER PARTY BE LIABLE FOR ANY
+INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING
+LOST PROFITS, ARISING OUT OF OR RELATED TO THIS AGREEMENT, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGES. EACH PARTY'S TOTAL AGGREGATE LIABILITY UNDER
+THIS AGREEMENT SHALL NOT EXCEED THE FEES PAID BY CUSTOMER TO PROVIDER IN THE
+TWELVE (12) MONTHS PRECEDING THE CLAIM.
+
+6. CONFIDENTIALITY. Each party shall protect the other's Confidential
+Information with at least the same degree of care it uses for its own
+confidential information, and in no event less than reasonable care.
+
+7. GOVERNING LAW; FORUM. This Agreement is governed by the laws of the State
+of Delaware without regard to conflict-of-laws principles. Any dispute arising
+out of or related to this Agreement shall be brought exclusively in the state
+or federal courts located in Wilmington, Delaware, and the parties consent to
+personal jurisdiction and venue in those courts.
+
+8. INTEGRATION. This Agreement, together with all executed SOWs, constitutes
+the entire agreement between the parties and supersedes all prior negotiations,
+representations, and agreements, whether oral or written, relating to its
+subject matter. No modification is effective unless in writing and signed by
+both parties.
+
+Signed and dated by authorized representatives of Provider and Customer,
+March 3, 2024.

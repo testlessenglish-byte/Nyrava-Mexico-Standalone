@@ -1,0 +1,39 @@
+STATEMENT OF WORK NO. 1
+Under the Master Services Agreement dated March 3, 2024
+Between Northstar Analytics, Inc. ("Provider") and Ridgeline Manufacturing
+Corp. ("Customer").
+
+Effective Date: March 15, 2024.
+
+1. SCOPE. Provider shall design, build, and deploy a factory-floor telemetry
+integration between Customer's Cleveland facility (Line A and Line B) and
+Provider's Nova analytics platform, including:
+  (a) Deployment of edge collectors on 42 CNC machines;
+  (b) Real-time ingestion pipeline handling not less than 100,000 events per
+      minute at 99.9% monthly uptime;
+  (c) Two operational dashboards (yield and throughput);
+  (d) Training for up to 15 Customer personnel.
+
+2. MILESTONES.
+  M1 - Environment provisioning and data-map sign-off .... April 30, 2024
+  M2 - Pilot cutover on Line A ........................... June 15, 2024
+  M3 - Production cutover on Lines A and B ............... August 30, 2024
+  M4 - Acceptance and go-live ............................ September 30, 2024
+
+3. FEES. Total fixed fee: $480,000, invoiced as follows:
+  - 25% ($120,000) on execution of this SOW;
+  - 25% ($120,000) on completion of M2;
+  - 30% ($144,000) on completion of M3;
+  - 20% ($96,000) on Acceptance under Section 4.
+
+4. ACCEPTANCE. Customer shall have fifteen (15) business days after
+Provider's written notice of completion of M4 to test the deliverables against
+the acceptance criteria in Exhibit A. Customer shall provide a written notice
+of acceptance or a written notice of non-conformance identifying specific
+failures. Failure to provide either notice within the acceptance period shall
+constitute acceptance.
+
+5. CHANGE ORDERS. Any change to scope, milestones, or fees requires a written
+change order signed by both parties.
+
+Signed by authorized representatives, March 15, 2024.

@@ -1,0 +1,5 @@
+ALTER TABLE public.user_settings
+  ADD COLUMN IF NOT EXISTS voice_continuous BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS voice_pitch TEXT NOT NULL DEFAULT 'medium',
+  ADD COLUMN IF NOT EXISTS voice_accent TEXT NOT NULL DEFAULT 'us',
+  ADD COLUMN IF NOT EXISTS voice_gender TEXT NOT NULL DEFAULT 'female';

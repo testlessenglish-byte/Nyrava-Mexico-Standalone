@@ -1,0 +1,51 @@
+INTERNAL REVENUE SERVICE — INDEPENDENT OFFICE OF APPEALS
+Appeals Case Memorandum (Summary)
+
+Taxpayers: Michael A. Okafor and Diane R. Okafor
+Tax Year: 2022
+Appeals Officer: T. Nakamura
+Conference Date: February 11, 2025
+Protest Filed: November 20, 2024
+
+Issues Considered
+
+1. Unreported income — bank deposits method ($47,600 as determined in RAR)
+2. Disallowed vehicle expense ($9,800)
+3. Disallowed home office expense ($4,200)
+4. Disallowed contract labor expense ($4,400)
+5. Accuracy-related penalty under IRC Section 6662(a)
+
+Determination
+
+1. Unreported income: Taxpayers submitted a CPA-prepared reconciliation (dated May 19, 2025 —
+   received informally prior to formal issuance but discussed at conference) identifying $23,200
+   as a transfer between the taxpayers' own accounts and $14,000 as repayment of a personal loan.
+   Supporting bank statements for the savings transfer were provided and appear to corroborate the
+   $23,200 item. Documentation for the $14,000 loan repayment (promissory note, cancelled checks)
+   was incomplete at the time of this conference — taxpayers produced an unsigned draft of a
+   promissory note but no contemporaneous evidence the funds were actually advanced in 2021.
+   Appeals is not sustaining the $23,200 adjustment based on the savings-account documentation, but
+   is sustaining the remaining $24,400 ($14,000 loan item plus $6,200 duplicate-deposit item plus
+   $4,200 unreconciled item) pending further documentation, which may still be submitted to Tax
+   Court counsel.
+
+2. Vehicle expense: Partial contemporaneous log for July–December 2022 was provided. Appeals will
+   allow a corrected deduction of $152 for the documented period; the undocumented January–June
+   portion remains disallowed for lack of contemporaneous records under IRC Section 274(d).
+
+3. Home office expense: Appeals accepts the corrected calculation of $917 (10 months at 10.5% of
+   home square footage, simplified method) in place of the original $4,200 claim.
+
+4. Contract labor: No additional documentation was provided. This $4,400 adjustment is sustained
+   in full.
+
+5. Accuracy-related penalty: Given the taxpayers' engagement of a CPA, partial cooperation during
+   the exam, and partial substantiation obtained on review, Appeals will recommend the penalty be
+   asserted only against the portion of the deficiency that is ultimately sustained, rather than
+   the full amount originally proposed, consistent with a reasonable-cause and reliance-on-
+   preparer argument under IRC Section 6664(c). Full resolution of the penalty is deferred pending
+   the Tax Court's determination on the underlying deficiency, as the case has already been
+   petitioned.
+
+Note: This is a summary Appeals memorandum, not a closing agreement. The matter remains pending
+before the United States Tax Court under the petition filed June 30, 2025.

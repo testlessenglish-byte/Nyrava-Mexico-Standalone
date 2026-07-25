@@ -1,0 +1,56 @@
+COURT OF APPEAL OF THE STATE OF WESTBROOK, DIVISION TWO
+
+THE PEOPLE OF THE STATE OF WESTBROOK,
+                Plaintiff-Respondent,
+        v.                              No. A-160-2024-CR
+ANTOINE J. BARRETT,
+                Defendant-Appellant.
+
+APPELLANT'S OPENING BRIEF
+
+Appeal from the Judgment of the Superior Court of Marion County
+The Honorable D. Sutter, Judge Presiding
+Trial Court No. CR-2023-04418
+
+ISSUES PRESENTED FOR REVIEW:
+
+I. WHETHER THE TRIAL COURT REVERSIBLY ERRED IN DENYING APPELLANT'S MOTION TO SUPPRESS THE FRUITS OF A WARRANTLESS VEHICLE SEARCH WHERE PROBABLE CAUSE WAS BASED EXCLUSIVELY ON AN UNCORROBORATED ANONYMOUS TIP, IN VIOLATION OF THE FOURTH AMENDMENT AND ARTICLE I, § 13 OF THE WESTBROOK CONSTITUTION.
+
+II. WHETHER THE TRIAL COURT REVERSIBLY ERRED IN ADMITTING AT TRIAL A STATEMENT MADE BY APPELLANT DURING CUSTODIAL INTERROGATION AFTER A LIMITED MIRANDA WAIVER, WHERE OFFICERS QUESTIONED APPELLANT ABOUT AN UNRELATED OFFENSE NOT COVERED BY THE WAIVER.
+
+III. WHETHER CUMULATIVE ERROR REQUIRES REVERSAL.
+
+STATEMENT OF THE CASE:
+On June 4, 2023, Appellant was charged with possession with intent to distribute a controlled substance (W.S.A. § 47-3-401), based on 412 grams of methamphetamine recovered from a search of his vehicle. The trial court denied Appellant's motion to suppress (RT 142–198) and denied Appellant's motion in limine to exclude statements (RT 211–229). A jury convicted on January 22, 2024. Appellant was sentenced to 8 years' confinement on March 14, 2024. Notice of Appeal was timely filed March 22, 2024.
+
+STATEMENT OF FACTS:
+On May 18, 2023, Westbrook State Police received an anonymous tip via the agency's online portal stating: "Black male, late 20s, driving silver SUV, Marion area, has drugs in car." The tip provided no further identifying information, no basis for the tipster's knowledge, and no track record of the tipster's reliability. (RT 78–82; Ex. M-1.)
+
+Approximately 90 minutes later, Trooper J. Reeves observed Appellant, a Black male, driving a silver Toyota 4Runner on SR-9 in Marion County. Trooper Reeves followed Appellant for 2.4 miles, observed no traffic violations, and then initiated a stop based "solely on the tip." (RT 94.) Trooper Reeves searched the vehicle without consent and without a warrant. (RT 108–114.)
+
+After arrest, Appellant invoked his right to counsel for "questions about the drugs in my car." (RT 218.) Officers continued to question him for 47 minutes about an unrelated 2021 incident, during which Appellant made the statement admitted at trial. (RT 220–228.)
+
+ARGUMENT:
+
+I. THE ANONYMOUS TIP DID NOT SUPPLY PROBABLE CAUSE.
+
+The Supreme Court's anonymous-tip jurisprudence — Illinois v. Gates, 462 U.S. 213 (1983); Florida v. J.L., 529 U.S. 266 (2000); Navarette v. California, 572 U.S. 393 (2014) — requires that an anonymous tip carry sufficient indicia of reliability before officers may rely on it for probable cause. The tip here meets none of the Gates factors: the tipster's identity, basis of knowledge, and reliability are all unknown.
+
+This case is materially indistinguishable from Florida v. J.L., where the Court suppressed a search based on an anonymous tip identifying a young Black male at a bus stop with a gun. 529 U.S. at 268. The tip in J.L. — like the tip here — described only a race, sex, age range, location, and alleged contraband. The Court held this insufficient. Id. at 271.
+
+Navarette is distinguishable. There the Court credited an anonymous tip in part because the tipster used a 911 call (which carries identifying technology and recording) and described conduct (running another vehicle off the road) that the tipster had personally observed. 572 U.S. at 400–402. The portal tip in this case has neither feature.
+
+II. THE STATEMENT OBTAINED AFTER LIMITED MIRANDA WAIVER MUST BE SUPPRESSED.
+
+Edwards v. Arizona, 451 U.S. 477 (1981), prohibits all custodial interrogation after invocation of counsel, regardless of subject matter, until counsel is made available. Appellant's invocation — although phrased as relating to "the drugs in my car" — was an invocation of counsel as a constitutional matter, not a limited waiver. Continued interrogation about a separate offense violated Edwards.
+
+III. CUMULATIVE ERROR REQUIRES REVERSAL.
+
+(Argument and authority omitted in this excerpt.)
+
+CONCLUSION:
+For the reasons stated, this Court should reverse and remand with instructions to suppress the physical evidence and the post-invocation statement.
+
+Respectfully submitted, June 24, 2024
+                                /s/ A. Mercer, Esq.
+                                Westbrook Appellate Defender's Office

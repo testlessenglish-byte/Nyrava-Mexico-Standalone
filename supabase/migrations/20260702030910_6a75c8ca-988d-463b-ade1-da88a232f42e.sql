@@ -1,0 +1,1 @@
+ALTER TABLE public.cases DROP COLUMN IF EXISTS pipeline_progress;

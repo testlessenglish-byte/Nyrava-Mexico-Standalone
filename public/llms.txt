@@ -1,0 +1,56 @@
+# Nyrava
+
+> Nyrava Intelligence is a legal intelligence operating system for attorneys and litigation teams. It turns case documents into structured, citation-grounded legal analysis using a locked, defensible report engine.
+
+Nyrava helps lawyers and legal professionals build case analysis, manage evidence, and produce litigation-ready reports. The platform is built around a frozen 17-section report engine, a pipeline-gated evidence system, and a confidentiality-first architecture. It supports bring-your-own AI keys (OpenAI, Google, Groq, and others) and workspace-based team collaboration.
+
+## Product
+
+- [/](/): Nyrava Intelligence — legal intelligence OS overview.
+- [/about](/about): What Nyrava does, who it is for, and the problems it solves.
+- [/how-it-works](/how-it-works): How cases flow through intake, evidence grounding, analysis, and export.
+- [/product/ai-analysis](/product/ai-analysis): AI-assisted legal analysis and report generation.
+- [/product/evidence-management](/product/evidence-management): Document intake, grounding, and citation management.
+- [/product/litigation-reports](/product/litigation-reports): Premium litigation report exports.
+- [/product/team-workspaces](/product/team-workspaces): Firm-wide workspace and seat management.
+- [/demo/constitutional-review](/demo/constitutional-review): Interactive sample case demo.
+- [/contact](/contact): Sales, support, and enterprise inquiries.
+
+## Documentation
+
+- [/help](/help): Help Center, getting started guides, and FAQs.
+- [/learning-center](/learning-center): Tutorials, guides, and best practices for legal teams.
+- [/resources](/resources): Blog, articles, and legal-technology resources.
+- [/release-notes](/release-notes): Platform updates and changelog.
+- [/roadmap](/roadmap): Public roadmap and upcoming capabilities.
+- [/help/first-case](/help/first-case): Step-by-step guide to running your first case.
+- [/help/uploading](/help/uploading): Document upload requirements and tips.
+- [/help/reports](/help/reports): How reports are structured and exported.
+- [/help/api-keys](/help/api-keys): Connecting your own AI provider keys.
+
+## Trust & Legal
+
+- [/security](/security): Security architecture, data handling, and infrastructure details.
+- [/trust](/trust): Trust Center, compliance posture, and transparency commitments.
+- [/confidentiality](/confidentiality): Attorney confidentiality and administrator-blind design.
+- [/responsible-ai](/responsible-ai): Responsible AI use policy and human-in-the-loop commitments.
+- [/ai-transparency](/ai-transparency): How AI-generated analysis is produced and reviewed.
+- [/data-control](/data-control): Data retention, deletion, and customer control commitments.
+- [/privacy](/privacy): Privacy policy.
+- [/terms](/terms): Terms of service.
+- [/beta-terms](/beta-terms): Beta participant terms.
+- [/acceptable-use](/acceptable-use): Acceptable use policy.
+- [/cookies](/cookies): Cookie policy.
+- [/copyright](/copyright): Copyright policy and DMCA agent.
+- [/dmca](/dmca): DMCA takedown process.
+- [/dpa](/dpa): Data processing addendum.
+- [/accessibility](/accessibility): Accessibility commitment.
+
+## Practice Areas
+
+- [/product/corporate](/product/corporate): Corporate Law Intelligence — governance, M&A, and due-diligence analysis inside Nyrava's frozen 17-section canonical report.
+- [/product/commercial](/product/commercial): Business & Commercial Law Intelligence — contract disputes, UCC Article 2, warranty, business torts, and trade-secret analysis inside the same 17-section canonical report.
+
+## Optional
+
+- [/product/security](/product/security): Security and compliance features for enterprise teams.

@@ -1,0 +1,50 @@
+EMAIL NEGOTIATION THREAD (extracted from Ridgeline mailbox)
+
+--- Message 1 ---
+From: J. Park <j.park@ridgeline.com>
+To: D. Ilic <d.ilic@northstar-analytics.com>
+Date: February 6, 2024, 10:14 AM
+Subject: Analytics platform - proposal
+
+D — following up on our call. Ridgeline is ready to move on the analytics
+project for Lines A and B. Two things we need in the SOW: (1) hard go-live
+date of August 30 and (2) 99.9% uptime with an SLA credit if you miss. Can
+you accommodate?
+
+--- Message 2 ---
+From: D. Ilic <d.ilic@northstar-analytics.com>
+To: J. Park <j.park@ridgeline.com>
+Date: February 7, 2024, 8:44 AM
+Subject: RE: Analytics platform - proposal
+
+J — Yes on both. We can commit to August 30 production cutover and 99.9%
+uptime measured monthly. On the credit — we'll do a 10% monthly fee credit
+if we drop below 99.9%. I'll get that into the SOW draft.
+
+--- Message 3 ---
+From: J. Park <j.park@ridgeline.com>
+To: D. Ilic <d.ilic@northstar-analytics.com>
+Date: February 8, 2024, 3:02 PM
+Subject: RE: Analytics platform - proposal
+
+Great. One more — training for 15 of our operators, all done before
+go-live. Please include.
+
+--- Message 4 ---
+From: D. Ilic <d.ilic@northstar-analytics.com>
+To: J. Park <j.park@ridgeline.com>
+Date: February 8, 2024, 5:19 PM
+Subject: RE: Analytics platform - proposal
+
+Confirmed. Sending the redline in the morning.
+
+--- Message 5 ---
+From: D. Ilic <d.ilic@northstar-analytics.com>
+To: J. Park <j.park@ridgeline.com>
+Date: September 5, 2024, 6:41 PM
+Subject: Line B status
+
+J — quick heads-up. We're going to miss the September 30 acceptance window on
+Line B. The edge collector firmware has a data-corruption bug that vendor
+support hasn't been able to hotfix. We're pushing for a resolution but it's
+not going to be quick. Let's regroup on scope Monday.

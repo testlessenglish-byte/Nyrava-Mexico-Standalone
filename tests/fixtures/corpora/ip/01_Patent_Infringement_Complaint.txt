@@ -1,0 +1,50 @@
+UNITED STATES DISTRICT COURT
+NORTHERN DISTRICT OF CALIFORNIA
+
+HELIOFORGE SYSTEMS, INC.,
+    Plaintiff,
+v.                                              Case No. 3:26-cv-02184-JSC
+LUMINAX ROBOTICS CORP.,
+    Defendant.
+
+COMPLAINT FOR PATENT INFRINGEMENT
+(35 U.S.C. §§ 271, 281, 283-285)
+DEMAND FOR JURY TRIAL
+
+Plaintiff Helioforge Systems, Inc. ("Helioforge"), by and through its undersigned counsel, alleges as follows against Defendant Luminax Robotics Corp. ("Luminax"):
+
+I. NATURE OF THE ACTION
+1. This is a civil action for patent infringement arising under the Patent Laws of the United States, 35 U.S.C. § 1 et seq., seeking damages and injunctive relief for Luminax's ongoing infringement of United States Patent Nos. 11,482,913 ("the '913 Patent") and 11,701,224 ("the '224 Patent") (collectively, the "Asserted Patents").
+
+II. PARTIES
+2. Plaintiff Helioforge is a Delaware corporation with its principal place of business at 4400 Bayfront Parkway, Suite 700, San Francisco, California 94105.
+3. Defendant Luminax is a Delaware corporation with its principal place of business at 220 Innovation Drive, Austin, Texas 78701.
+
+III. JURISDICTION AND VENUE
+4. This Court has subject matter jurisdiction under 28 U.S.C. §§ 1331 and 1338(a).
+5. Venue is proper under 28 U.S.C. § 1400(b) because Luminax maintains a regular and established place of business at 1500 Mission Street, San Francisco, California, where it employs at least 47 engineers who design and test the Accused Products.
+
+IV. THE ASSERTED PATENTS
+6. The '913 Patent, titled "Coordinated Multi-Actuator Path Optimization for Autonomous Warehouse Robots," was duly and legally issued by the USPTO on October 25, 2022 to inventors Dr. Priya Ramanathan and Marcus Odell, and assigned to Helioforge.
+7. The '224 Patent, titled "Adaptive Load Redistribution in Fleet Robotics," issued July 18, 2023 to the same inventors.
+
+V. FACTUAL ALLEGATIONS
+8. Luminax markets and sells the "AxisFleet 4" and "AxisFleet 4 Pro" warehouse robotics systems (the "Accused Products").
+9. Independent testing performed by Dr. Adaeze Nwosu on March 4, 2026 demonstrated that the Accused Products execute the multi-actuator coordination algorithm claimed in Claim 1 of the '913 Patent, including the "predictive collision envelope" limitation.
+10. On November 12, 2025, Helioforge sent Luminax a detailed notice letter identifying both Asserted Patents and providing claim charts. Luminax's General Counsel, Trenton J. Whitfield, acknowledged receipt on November 18, 2025 but declined to take a license. Luminax's continued sales since that date constitute willful infringement under Halo Electronics, Inc. v. Pulse Electronics, Inc., 579 U.S. 93 (2016).
+
+VI. COUNT I — INFRINGEMENT OF THE '913 PATENT
+11. Luminax directly infringes at least Claims 1, 4, 7, and 12 of the '913 Patent under 35 U.S.C. § 271(a) by making, using, selling, and offering to sell the Accused Products in the United States.
+
+VII. COUNT II — INFRINGEMENT OF THE '224 PATENT
+12. Luminax directly infringes at least Claims 1, 3, and 8 of the '224 Patent.
+
+VIII. PRAYER FOR RELIEF
+WHEREFORE, Helioforge respectfully requests: (a) a judgment that Luminax has infringed the Asserted Patents; (b) a permanent injunction under 35 U.S.C. § 283; (c) damages under 35 U.S.C. § 284, including a reasonable royalty of no less than $37,500,000, trebled for willfulness; (d) attorneys' fees under § 285; and (e) such other relief as the Court deems just.
+
+Dated: April 8, 2026
+Respectfully submitted,
+/s/ Elena M. Sharpe
+Elena M. Sharpe (CA Bar No. 218449)
+KELLER SHARPE & VOSS LLP
+Attorneys for Plaintiff Helioforge Systems, Inc.
