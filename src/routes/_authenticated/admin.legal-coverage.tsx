@@ -9,7 +9,7 @@ import {
   type CapabilityDimension,
   type CoverageStatus,
 } from "@/lib/intelligence/mx-coverage";
-import { useIsAdmin } from "@/hooks/use-roles";
+import { useRoles } from "@/hooks/use-roles";
 
 /**
  * Admin — Legal Coverage Dashboard (Nyrava México).
