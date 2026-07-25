@@ -84,11 +84,20 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       // Legal terminology is locked and shared across locales.
       if (LEGAL_TERMS[key] != null) return LEGAL_TERMS[key];
       const dict = DICTS[locale] ?? DICTS[DEFAULT_LOCALE];
-      const value = dict[key] ?? DICTS[DEFAULT_LOCALE][key] ?? key;
+      const own = dict[key];
+      const fallback = DICTS[DEFAULT_LOCALE][key];
+      // Dev-only diagnostics. The English/Spanish fallback chain below is
+      // intentionally preserved in production — showing a translated string
+      // from the other locale beats showing a raw key to a user.
+      if (import.meta.env.DEV && own == null) {
+        warnMissingKey(key, locale, fallback != null);
+      }
+      const value = own ?? fallback ?? key;
       return format(value, params);
     },
     [locale],
   );
+
 
   const tList = useCallback(
     (key: string) => t(key).split("|").map((s) => s.trim()).filter(Boolean),
