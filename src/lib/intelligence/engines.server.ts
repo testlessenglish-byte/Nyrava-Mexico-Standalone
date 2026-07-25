@@ -1041,7 +1041,7 @@ export async function runTrialPrepEngine(args: {
   apiKeys?: string[];
 }) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
-  await setCase(db, caseId, { status_message: "Generating trial prep and jury simulation", progress: 80 });
+  await setCase(db, caseId, { status_message: "Generando preparación para audiencia/juicio oral", progress: 80 });
 
   const ctx = await buildContext(db, caseId);
   if (!ctx.corpus) throw new Error("No extracted documents.");
@@ -1052,18 +1052,33 @@ export async function runTrialPrepEngine(args: {
   const activeDomains = await getActiveDomains(db, caseId);
   const isCriminal = isCriminalEffective(caseType, activeDomains);
 
+  // MEXICO (sistema penal acusatorio, CNPP): there is NO jury in ordinary
+  // criminal proceedings — guilt is decided by a Tribunal de Enjuiciamiento
+  // (bench). So the criminal branch estimates the real procedural outcomes:
+  // vinculación a proceso, sentencia condenatoria/absolutoria, procedimiento
+  // abreviado / acuerdo reparatorio, and success on recursos.
   const juryMetricsSchema = isCriminal
-    ? `  "jury_conviction_pct": number (0-100),
-  "jury_acquittal_pct": number (0-100),
-  "jury_appeal_pct": number (0-100),`
+    ? `  "vinculacion_proceso_pct": number (0-100),
+  "sentencia_condenatoria_pct": number (0-100),
+  "sentencia_absolutoria_pct": number (0-100),
+  "procedimiento_abreviado_pct": number (0-100),
+  "recurso_exito_pct": number (0-100),`
     : `  "plaintiff_success_pct": number (0-100),
   "defense_success_pct": number (0-100),
   "settlement_probability_pct": number (0-100),
   "comparative_fault_estimate_pct": number (0-100),`;
 
   const caseFrame = isCriminal
-    ? `This is a CRIMINAL matter (case_type=${caseType}). Use criminal jury metrics: conviction / acquittal / appeal probabilities.`
-    : `This is a CIVIL matter (case_type=${caseType}). NEVER produce conviction, acquittal, or criminal verdict probabilities. Use civil metrics ONLY. Use civil terminology only (liability, damages, comparative fault, settlement, credibility, discovery).`;
+    ? `Este es un asunto PENAL mexicano (case_type=${caseType}), regido por el CNPP y el sistema penal acusatorio.
+PROHIBIDO ABSOLUTAMENTE: jurado, jury, "jury selection", "voir dire", simulación de jurado, "conviction by jury", plea bargain, indictment, prosecutor, felony, misdemeanor, discovery.
+La culpabilidad la determina un Tribunal de Enjuiciamiento (juzgamiento colegiado/unitario), no un jurado.
+Usa exclusivamente métricas y terminología del proceso penal acusatorio:
+- vinculacion_proceso_pct: probabilidad de auto de vinculación a proceso (art. 316 CNPP) con los datos de prueba actuales.
+- sentencia_condenatoria_pct / sentencia_absolutoria_pct: probabilidad de sentencia condenatoria o absolutoria ante el Tribunal de Enjuiciamiento (deben sumar aproximadamente 100).
+- procedimiento_abreviado_pct: probabilidad de que el asunto se resuelva por procedimiento abreviado, acuerdo reparatorio o suspensión condicional.
+- recurso_exito_pct: probabilidad de éxito en apelación o amparo directo.
+El campo "jury_concerns" se reinterpreta como riesgos de percepción ante el juez de control y el Tribunal de Enjuiciamiento (NO menciones jurado). Las "likely_objections" son objeciones en audiencia oral conforme al CNPP.`
+    : `Este es un asunto CIVIL/no penal (case_type=${caseType}) en jurisdicción mexicana. NUNCA produzcas probabilidades de condena, absolución ni veredicto penal, y nunca menciones jurado. Usa solo métricas civiles y terminología mexicana (responsabilidad, daños y perjuicios, daño moral, culpa concurrente, convenio, valoración probatoria, audiencia).`;
 
   const r = await callGroq({
     apiKey,
@@ -1071,7 +1086,9 @@ export async function runTrialPrepEngine(args: {
     model: MODEL,
     systemInstruction:
       mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
-      "You are a senior trial lawyer and jury consultant. Produce trial themes, witness order, exhibit order, likely objections, risks/strengths, and a jury simulation with outcome probabilities appropriate to the case type. " +
+      (isCriminal
+        ? "Eres un litigante penal mexicano de alto nivel (defensa/asesoría jurídica) experto en el sistema penal acusatorio y el CNPP. Produce teoría del caso, orden de testigos, orden de prueba material, objeciones probables en audiencia, riesgos/fortalezas y una estimación de resultados ante el juez de control y el Tribunal de Enjuiciamiento. Jamás menciones jurado ni instituciones del common law. "
+        : "Eres un litigante mexicano de alto nivel. Produce ejes de alegatos, orden de testigos, orden de pruebas, objeciones probables en audiencia, riesgos/fortalezas y una estimación de resultados apropiada a la materia. Jamás menciones jurado. ") +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
       "Output STRICT JSON only.",
     userContent: `${caseFrame}
@@ -1087,6 +1104,10 @@ Return STRICT JSON:
   "trial_strengths": string[],
   "jury_concerns": string[],
 ${juryMetricsSchema}
+  "most_persuasive_evidence": string[],
+  "most_damaging_evidence": string[]
+}
+
   "most_persuasive_evidence": string[],
   "most_damaging_evidence": string[]
 }
@@ -1118,13 +1139,29 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
     `[engine:trial_prep] case=${caseId} llm_text_chars=${r.text?.length ?? 0} opening=${(p.opening_themes ?? []).length} closing=${(p.closing_themes ?? []).length} risks=${(p.trial_risks ?? []).length} strengths=${(p.trial_strengths ?? []).length} witness_order=${(p.witness_order ?? []).length} exhibit_order=${(p.exhibit_order ?? []).length} llm_preview=${JSON.stringify((r.text ?? "").slice(0, 240))}`,
   );
 
-  // Civil cases: criminal jury fields are forced null. Settlement slot holds
-  // settlement_probability_pct. Plaintiff/defense success live in metadata.
-  const conviction = isCriminal ? (p.jury_conviction_pct ?? null) : null;
-  const acquittal = isCriminal ? (p.jury_acquittal_pct ?? null) : null;
-  const appealPct = isCriminal ? (p.jury_appeal_pct ?? null) : null;
+  // MEXICO PENAL: the legacy columns are reused as storage slots for the
+  // acusatorio outcome estimates (there is no jury, so no jury metric is ever
+  // requested or written):
+  //   jury_conviction_pct  -> sentencia condenatoria %
+  //   jury_acquittal_pct   -> sentencia absolutoria %
+  //   jury_appeal_pct      -> éxito en recurso (apelación / amparo directo) %
+  //   jury_settlement_pct  -> procedimiento abreviado / salida alterna %
+  // The full, explicitly named set (including vinculación a proceso) is
+  // persisted in metadata as penal_metrics.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const civilSettlement = (p as any).settlement_probability_pct ?? p.jury_settlement_pct ?? null;
+  const pa = p as any;
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const condenatoria = isCriminal ? num(pa.sentencia_condenatoria_pct) : null;
+  const absolutoria = isCriminal ? num(pa.sentencia_absolutoria_pct) : null;
+  const recursoPct = isCriminal ? num(pa.recurso_exito_pct) : null;
+  const vinculacion = isCriminal ? num(pa.vinculacion_proceso_pct) : null;
+  const abreviado = isCriminal ? num(pa.procedimiento_abreviado_pct) : null;
+  const conviction = condenatoria;
+  const acquittal = absolutoria;
+  const appealPct = recursoPct;
+  const civilSettlement = isCriminal
+    ? abreviado
+    : (num(pa.settlement_probability_pct) ?? num(pa.jury_settlement_pct));
 
   // Preserve prior trial prep if this pass yielded an empty plan.
   const hasContent =
@@ -1136,12 +1173,14 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
     (Array.isArray(p.exhibit_order) && p.exhibit_order.length > 0) ||
     conviction != null ||
     acquittal != null ||
+    vinculacion != null ||
     civilSettlement != null;
   if (!hasContent) {
     throw new Error(
-      "Trial prep engine produced no usable plan (empty themes, risks, and jury metrics). Prior trial prep preserved.",
+      "Trial prep engine produced no usable plan (empty themes, risks, and outcome estimates). Prior trial prep preserved.",
     );
   }
+
 
   const { error: trialPrepWriteError } = await db.from("case_trial_prep").upsert(
     {
@@ -1164,19 +1203,28 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ...({
         case_type: caseType,
+        penal_metrics: isCriminal
+          ? {
+              jurisdiction: "MX",
+              system: "penal_acusatorio_cnpp",
+              vinculacion_proceso_pct: vinculacion,
+              sentencia_condenatoria_pct: condenatoria,
+              sentencia_absolutoria_pct: absolutoria,
+              procedimiento_abreviado_pct: abreviado,
+              recurso_exito_pct: recursoPct,
+              jury_applicable: false,
+            }
+          : null,
         civil_metrics: isCriminal
           ? null
           : {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              plaintiff_success_pct: (p as any).plaintiff_success_pct ?? null,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              defense_success_pct: (p as any).defense_success_pct ?? null,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              settlement_probability_pct: (p as any).settlement_probability_pct ?? null,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              comparative_fault_estimate_pct: (p as any).comparative_fault_estimate_pct ?? null,
+              plaintiff_success_pct: num(pa.plaintiff_success_pct),
+              defense_success_pct: num(pa.defense_success_pct),
+              settlement_probability_pct: num(pa.settlement_probability_pct),
+              comparative_fault_estimate_pct: num(pa.comparative_fault_estimate_pct),
             },
       } as any),
+
     } as any,
     { onConflict: "case_id" },
   );

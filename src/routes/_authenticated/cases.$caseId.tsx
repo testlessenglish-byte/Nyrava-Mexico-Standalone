@@ -1020,17 +1020,30 @@ function DashboardTab({
               : (((trialPrep as Record<string, unknown>).case_type as string | undefined) ?? "general_civil");
           const isCrim2 = ct2 === "criminal" || ct2 === "civil_rights";
           const cm = ((trialPrep as Record<string, unknown>).civil_metrics ?? {}) as Record<string, number | null>;
+          const pm = ((trialPrep as Record<string, unknown>).penal_metrics ?? {}) as Record<string, number | null>;
           return (
             <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-semibold">Jury Simulation</h3>
+              <h3 className="text-sm font-semibold">
+                {isCrim2 ? "Estimación de resultado (Tribunal de Enjuiciamiento)" : "Estimación de resultado"}
+              </h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-4">
                 {isCrim2 ? (
                   <>
-                    <BigMetric label="Conviction %" v={trialPrep.jury_conviction_pct} />
-                    <BigMetric label="Acquittal %" v={trialPrep.jury_acquittal_pct} />
-                    <BigMetric label="Appeal %" v={trialPrep.jury_appeal_pct} />
-                    <BigMetric label="Settlement %" v={trialPrep.jury_settlement_pct} />
+                    <BigMetric label="Vinculación a proceso %" v={pm.vinculacion_proceso_pct ?? null} />
+                    <BigMetric
+                      label="Sentencia condenatoria %"
+                      v={pm.sentencia_condenatoria_pct ?? trialPrep.jury_conviction_pct}
+                    />
+                    <BigMetric
+                      label="Sentencia absolutoria %"
+                      v={pm.sentencia_absolutoria_pct ?? trialPrep.jury_acquittal_pct}
+                    />
+                    <BigMetric
+                      label="Procedimiento abreviado %"
+                      v={pm.procedimiento_abreviado_pct ?? trialPrep.jury_settlement_pct}
+                    />
                   </>
+
                 ) : (
                   <>
                     <BigMetric label="Plaintiff success %" v={cm.plaintiff_success_pct ?? null} />
@@ -1731,25 +1744,31 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
       <Empty
         msg={
           ranAt
-            ? "No trial prep generated. The Trial Prep + Jury Simulation engine ran successfully but produced no themes, witness ordering, or jury metrics supportable by the current evidence corpus."
-            : "No trial prep yet. Run Trial Prep + Jury Sim."
+            ? "No se generó preparación para audiencia. El motor corrió pero no produjo ejes de alegato, orden de testigos ni estimaciones sostenibles con el corpus probatorio actual."
+            : "Aún no hay preparación para audiencia. Ejecuta Preparación para Juicio Oral / Audiencia."
         }
       />
     );
   const ct = typeof t.case_type === "string" ? t.case_type : "general_civil";
   const isCrim = ct === "criminal" || ct === "civil_rights";
   const cm = (t.civil_metrics ?? {}) as Record<string, number | null>;
+  const pm = (t.penal_metrics ?? {}) as Record<string, number | null>;
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Jury simulation</h3>
+        <h3 className="text-sm font-semibold">
+          {isCrim ? "Estimación de resultado (Tribunal de Enjuiciamiento)" : "Estimación de resultado"}
+        </h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-4">
           {isCrim ? (
             <>
-              <BigMetric label="Conviction" v={t.jury_conviction_pct} />
-              <BigMetric label="Acquittal" v={t.jury_acquittal_pct} />
-              <BigMetric label="Appeal" v={t.jury_appeal_pct} />
-              <BigMetric label="Settlement" v={t.jury_settlement_pct} />
+              <BigMetric label="Vinculación a proceso" v={pm.vinculacion_proceso_pct ?? null} />
+              <BigMetric label="Sentencia condenatoria" v={pm.sentencia_condenatoria_pct ?? t.jury_conviction_pct} />
+              <BigMetric label="Sentencia absolutoria" v={pm.sentencia_absolutoria_pct ?? t.jury_acquittal_pct} />
+              <BigMetric
+                label="Procedimiento abreviado"
+                v={pm.procedimiento_abreviado_pct ?? t.jury_settlement_pct}
+              />
             </>
           ) : (
             <>
@@ -1760,6 +1779,13 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
             </>
           )}
         </div>
+        {isCrim && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Éxito estimado en recurso (apelación / amparo directo):{" "}
+            <span className="tabular-nums">{pm.recurso_exito_pct ?? t.jury_appeal_pct ?? "—"}</span>. En el sistema
+            penal acusatorio mexicano no existe jurado: la culpabilidad la determina el Tribunal de Enjuiciamiento.
+          </p>
+        )}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -1767,7 +1793,11 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
         <Block title="Closing themes" items={t.closing_themes} />
         <Block title="Trial strengths" items={t.trial_strengths} />
         <Block title="Trial risks" items={t.trial_risks} />
-        <Block title="Jury concerns" items={t.jury_concerns} />
+        <Block
+          title={isCrim ? "Riesgos de percepción ante el Tribunal" : "Riesgos de percepción"}
+          items={t.jury_concerns}
+        />
+
         <Block title="Most persuasive evidence" items={t.most_persuasive_evidence} />
         <Block title="Most damaging evidence" items={t.most_damaging_evidence} />
       </div>
