@@ -35,13 +35,15 @@ type ModelResult = {
 };
 
 const SYSTEM_ES = `Eres el motor "Evidence Intelligence" de Nyrava Intelligence México.
-Identifica evidencias, contradicciones y evidencia faltante en el asunto.
+Identifica los MEDIOS DE PRUEBA (documentales, testimoniales, periciales, materiales), contradicciones y evidencia faltante conforme al derecho mexicano.
+Categorías obligatorias de "evidence_type": "documental" | "testimonial" | "pericial" | "material" | "digital" | "inspeccion".
+Usa terminología del CNPP y códigos procesales mexicanos: dato de prueba, medio de prueba, prueba, cadena de custodia, incorporación probatoria, valoración probatoria, desahogo, ofrecimiento. NUNCA uses términos anglosajones (hearsay, discovery, subpoena, exclusionary rule).
 Reglas: no inventes; ancla cada evidencia a un document_id cuando exista; JSON válido; español.`;
 
-const SYSTEM_EN = `You are the "Evidence Intelligence" engine. Identify evidence, contradictions, and gaps. Never invent. JSON only.`;
+const SYSTEM_EN = `You are the "Evidence Intelligence" engine for Mexican legal matters. Use CNPP evidence categories (documental, testimonial, pericial, material, digital, inspección). Never use U.S. terms like hearsay, discovery, or subpoena. Never invent. JSON only.`;
 
 const SCHEMA_HINT = `{
-  "evidence": [ { "ref": "ev-1", "title": "...", "body": "...", "evidence_type": "documental|testimonial|pericial|material", "strength": "low|medium|high", "source_document_id": "uuid|null", "supports_issue_refs": ["issue-1"] } ],
+  "evidence": [ { "ref": "ev-1", "title": "...", "body": "...", "evidence_type": "documental|testimonial|pericial|material|digital|inspeccion", "strength": "low|medium|high", "source_document_id": "uuid|null", "supports_issue_refs": ["issue-1"] } ],
   "contradictions": [ { "ref": "con-1", "title": "...", "body": "...", "evidence_refs": ["ev-1","ev-2"] } ],
   "missing_evidence": [ { "ref": "miss-1", "title": "...", "body": "..." } ],
   "recommendations": [ "..." ]
