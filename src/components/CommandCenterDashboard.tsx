@@ -32,6 +32,8 @@ import {
   paritySignature,
   type ReportLike,
 } from "@/lib/intelligence/canonical";
+import { useI18n } from "@/i18n";
+import { engineLabelKey, isStageRelevantForCaseType, stageKeyForEngine, statusLabelKey } from "@/lib/execution/mx-pipeline";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { COMMAND_CENTER_ENGINES } from "@/lib/execution/canonical";
 
@@ -77,19 +79,20 @@ type Props = {
 // engine row (or aggregates several) and is positioned on a circle.
 type NodeDef = {
   key: string;
-  label: string;
+  /** Canonical engine name used to resolve the localized, materia-aware label. */
+  labelEngine: string;
   icon: React.ComponentType<{ className?: string }>;
   matches: string[]; // engine keys to merge for status display
 };
 
 const NODES: NodeDef[] = [
-  { key: "extraction", label: "Extraction", icon: FileText, matches: ["extraction", "ocr"] },
-  { key: "analyzers", label: "Analyzers", icon: Brain, matches: ["analyzers"] },
-  { key: "agents", label: "Agents", icon: Sparkles, matches: ["agents"] },
-  { key: "contradict", label: "Contradictions", icon: AlertTriangle, matches: ["contradictions"] },
-  { key: "witness", label: "Witness Intel", icon: Users, matches: ["witness_intelligence"] },
-  { key: "discovery", label: "Discovery Gaps", icon: Target, matches: ["discovery_gaps"] },
-  { key: "evidence", label: "Evidence Intel", icon: ShieldAlert, matches: ["evidence_intelligence"] },
+  { key: "extraction", labelEngine: "extraction", icon: FileText, matches: ["extraction", "ocr"] },
+  { key: "analyzers", labelEngine: "analyzers", icon: Brain, matches: ["analyzers"] },
+  { key: "agents", labelEngine: "agents", icon: Sparkles, matches: ["agents"] },
+  { key: "contradict", labelEngine: "contradictions", icon: AlertTriangle, matches: ["contradictions"] },
+  { key: "witness", labelEngine: "witness_intelligence", icon: Users, matches: ["witness_intelligence"] },
+  { key: "discovery", labelEngine: "discovery_gaps", icon: Target, matches: ["discovery_gaps"] },
+  { key: "evidence", labelEngine: "evidence_intelligence", icon: ShieldAlert, matches: ["evidence_intelligence"] },
 ];
 
 function rollupStatus(row: { status: string } | undefined): EngineStatus | "idle" {
@@ -132,7 +135,16 @@ export function CommandCenterDashboard({
   onOpenChat,
   onOpenVoice,
 }: Props) {
+  const { t } = useI18n();
   const { runs: engineRows, latestByEngine, progress: execProgress, isRunning } = useCaseExecution(caseId);
+  // Jurisdiction-aware radar: hide engines that aren't legally relevant for
+  // this materia (e.g. witness intelligence in an amparo).
+  const caseType = (caseRow?.case_type as string | undefined) ?? null;
+  const visibleNodes = NODES.filter((n) => {
+    const key = stageKeyForEngine(n.labelEngine);
+    return !key || isStageRelevantForCaseType(caseType, key);
+  });
+  const bottomNode = visibleNodes.length > 6 ? visibleNodes[6] : null;
   const [events, setEvents] = useState<EventRow[]>([]);
   const wasRunningRef = useRef(false);
 
@@ -227,8 +239,8 @@ export function CommandCenterDashboard({
   const totalEngines = COMMAND_CENTER_ENGINES.length;
 
   // Node rotation positions (heptagon, 7 nodes).
-  const nodePositions = NODES.map((_, i) => {
-    const angle = -Math.PI / 2 + (i * (2 * Math.PI)) / NODES.length;
+  const nodePositions = visibleNodes.map((_, i) => {
+    const angle = -Math.PI / 2 + (i * (2 * Math.PI)) / Math.max(visibleNodes.length, 1);
     return { x: 50 + 38 * Math.cos(angle), y: 50 + 38 * Math.sin(angle) };
   });
 
@@ -297,7 +309,7 @@ export function CommandCenterDashboard({
       <div className="rounded-2xl border border-cyan-400/15 bg-slate-950/60 p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">Analysis Command Center</h3>
+            <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
             <p className="text-xs text-cyan-300/70">
               Real-time intelligence build · {completedEngines}/{totalEngines} pipeline stages complete
               {agentSummary.loaded > 0 && (
@@ -316,11 +328,12 @@ export function CommandCenterDashboard({
         <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_minmax(260px,360px)_1fr] items-center">
           {/* LEFT chips */}
           <div className="hidden lg:flex flex-col gap-3">
-            {NODES.slice(0, 3).map((n) => (
+            {visibleNodes.slice(0, 3).map((n) => (
               <EngineChip
                 key={n.key}
                 node={n}
                 status={rollupStatus(pickLatest(latestByEngine, n.matches))}
+                caseType={caseType}
                 align="left"
               />
             ))}
@@ -384,7 +397,7 @@ export function CommandCenterDashboard({
 
               {/* connection lines from center → each node */}
               {nodePositions.map((p, i) => {
-                const st = rollupStatus(pickLatest(latestByEngine, NODES[i].matches));
+                const st = rollupStatus(pickLatest(latestByEngine, visibleNodes[i].matches));
                 const stroke =
                   st === "completed"
                     ? "#34d399"
@@ -410,7 +423,7 @@ export function CommandCenterDashboard({
 
               {/* node dots */}
               {nodePositions.map((p, i) => {
-                const st = rollupStatus(pickLatest(latestByEngine, NODES[i].matches));
+                const st = rollupStatus(pickLatest(latestByEngine, visibleNodes[i].matches));
                 const fill =
                   st === "completed"
                     ? "#34d399"
@@ -464,11 +477,12 @@ export function CommandCenterDashboard({
 
           {/* RIGHT chips */}
           <div className="hidden lg:flex flex-col gap-3">
-            {NODES.slice(3, 6).map((n) => (
+            {visibleNodes.slice(3, 6).map((n) => (
               <EngineChip
                 key={n.key}
                 node={n}
                 status={rollupStatus(pickLatest(latestByEngine, n.matches))}
+                caseType={caseType}
                 align="right"
               />
             ))}
@@ -476,11 +490,12 @@ export function CommandCenterDashboard({
 
           {/* Mobile chips */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:hidden col-span-full">
-            {NODES.map((n) => (
+            {visibleNodes.map((n) => (
               <EngineChip
                 key={n.key}
                 node={n}
                 status={rollupStatus(pickLatest(latestByEngine, n.matches))}
+                caseType={caseType}
                 align="left"
               />
             ))}
@@ -489,12 +504,15 @@ export function CommandCenterDashboard({
 
         {/* Bottom evidence chip + overall progress */}
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <EngineChip
-            node={NODES[6]}
-            status={rollupStatus(pickLatest(latestByEngine, NODES[6].matches))}
-            align="left"
-            className="sm:w-auto"
-          />
+          {bottomNode && (
+            <EngineChip
+              node={bottomNode}
+              status={rollupStatus(pickLatest(latestByEngine, bottomNode.matches))}
+              align="left"
+              className="sm:w-auto"
+              caseType={caseType}
+            />
+          )}
           <div className="flex-1">
             <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-400">
               <span>Overall Progress</span>
@@ -550,12 +568,12 @@ export function CommandCenterDashboard({
       {/* ============ RECENT ACTIVITY ============ */}
       <div className="rounded-2xl border border-slate-700/40 bg-slate-950/50 p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-white">Recent Activity</h3>
+          <h3 className="text-sm font-semibold text-white">{t("pipeline.activity.recent")}</h3>
           <span className="text-[10px] uppercase tracking-wider text-slate-500">live feed</span>
         </div>
         <ul className="mt-3 divide-y divide-slate-800/60">
           {events.length === 0 && (
-            <li className="py-3 text-xs text-slate-500">No activity yet. Run the pipeline to populate the feed.</li>
+            <li className="py-3 text-xs text-slate-500">{t("pipeline.activity.empty")}</li>
           )}
           {events.map((ev) => (
             <li key={ev.id} className="flex items-center gap-3 py-2 text-sm">
@@ -692,22 +710,28 @@ function EngineChip({
   status,
   align,
   className = "",
+  caseType,
 }: {
   node: NodeDef;
   status: EngineStatus | "idle";
   align: "left" | "right";
   className?: string;
+  caseType?: string | null;
 }) {
+  const { t } = useI18n();
   const Icon = node.icon;
+  const labelKey = engineLabelKey(node.labelEngine, caseType);
   return (
     <div
       className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${statusColor(status)} ${align === "right" ? "flex-row-reverse text-right" : ""} ${className}`}
     >
       <Icon className="h-4 w-4 shrink-0" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium leading-tight">{node.label}</div>
+        <div className="truncate text-sm font-medium leading-tight">
+          {labelKey ? t(labelKey) : node.labelEngine}
+        </div>
         <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider opacity-80">
-          {statusDot(status)} <span>{status === "idle" ? "pending" : status}</span>
+          {statusDot(status)} <span>{t(statusLabelKey(status === "idle" ? "pending" : status))}</span>
         </div>
       </div>
     </div>

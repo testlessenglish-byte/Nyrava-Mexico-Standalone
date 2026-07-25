@@ -5,9 +5,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { PIPELINE_STAGES, resumeFullPipelineStep } from "@/lib/cases.functions";
+import { resumeFullPipelineStep } from "@/lib/cases.functions";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { PIPELINE_STAGE_TO_ENGINE } from "@/lib/execution/canonical";
+import { mxPipelineStages, stageLabelKey, statusLabelKey, resolveMxProfile } from "@/lib/execution/mx-pipeline";
+import { useI18n } from "@/i18n";
+import { PRACTICE_AREA_LABELS, normalizePracticeArea } from "@/lib/intelligence/practice-areas";
 import { toast } from "sonner";
 
 type EngineRow = {
@@ -38,21 +41,9 @@ type Visual = {
   outOfDate?: boolean;
 };
 
-function statusLabel(v: Visual): string {
-  switch (v.state) {
-    case "completed":
-      return "Complete";
-    case "running":
-      return "Running";
-    case "failed":
-      return "Failed";
-    case "skipped":
-      return "Skipped";
-    case "out_of_date":
-      return "Out of Date";
-    default:
-      return "Pending";
-  }
+/** i18n key for a visual state — statuses render in the user's language. */
+function statusKey(v: Visual): string {
+  return statusLabelKey(v.state === "completed" ? "completed" : v.state);
 }
 
 function statusClass(v: Visual): string {
@@ -104,7 +95,13 @@ export function PipelinePanel({
   caseRow?: Record<string, unknown> | null;
   invalidate?: () => void;
 }) {
+  const { t } = useI18n();
   const { runs, latestByEngine } = useCaseExecution(caseId);
+  // Jurisdiction-aware pipeline: the case's materia decides which engines are
+  // legally relevant, and how each one is named for a Mexican attorney.
+  const caseType = (caseRow?.case_type as string | undefined) ?? null;
+  const stageDefs = useMemo(() => mxPipelineStages(caseType), [caseType]);
+  const materiaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(caseType)];
   const rows = runs;
 
   const [latestDocAt, setLatestDocAt] = useState<string | null>(null);
@@ -139,7 +136,7 @@ export function PipelinePanel({
 
   const visuals = useMemo<Record<string, Visual>>(() => {
     const out: Record<string, Visual> = {};
-    for (const s of PIPELINE_STAGES) {
+    for (const s of stageDefs) {
       const eng = PIPELINE_STAGE_TO_ENGINE[s.key];
       const row = latestByEngine.get(eng);
       if (!row) {
@@ -164,7 +161,7 @@ export function PipelinePanel({
       out[s.key] = { state, row, outOfDate };
     }
     return out;
-  }, [latestByEngine, latestDocAt]);
+  }, [latestByEngine, latestDocAt, stageDefs]);
 
   const anyRunning = !!(
     caseStatus &&
@@ -181,24 +178,31 @@ export function PipelinePanel({
     ].includes(caseStatus)
   );
 
-  const completedCount = PIPELINE_STAGES.filter((s) => visuals[s.key]?.state === "completed").length;
-  const failedCount = PIPELINE_STAGES.filter((s) => visuals[s.key]?.state === "failed").length;
-  const outOfDateCount = PIPELINE_STAGES.filter((s) => visuals[s.key]?.state === "out_of_date").length;
+  const completedCount = stageDefs.filter((s) => visuals[s.key]?.state === "completed").length;
+  const failedCount = stageDefs.filter((s) => visuals[s.key]?.state === "failed").length;
+  const outOfDateCount = stageDefs.filter((s) => visuals[s.key]?.state === "out_of_date").length;
 
   return (
     <div className="rounded-2xl border border-cyan-400/15 bg-slate-950/60 p-4 sm:p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-white">Analysis Command Center</h3>
+          <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
           <p className="text-xs text-slate-400">
-            Real-time intelligence build · {completedCount}/{PIPELINE_STAGES.length} engines complete
-            {anyRunning && <span className="text-cyan-300"> · running</span>}
-            {failedCount > 0 && <span className="text-red-400"> · {failedCount} failed</span>}
-            {outOfDateCount > 0 && <span className="text-amber-300"> · {outOfDateCount} out of date</span>}
+            {t("pipeline.panel.engines", { done: completedCount, total: stageDefs.length })}
+            {anyRunning && <span className="text-cyan-300"> · {t("pipeline.panel.running")}</span>}
+            {failedCount > 0 && (
+              <span className="text-red-400"> · {t("pipeline.panel.failed", { n: failedCount })}</span>
+            )}
+            {outOfDateCount > 0 && (
+              <span className="text-amber-300"> · {t("pipeline.panel.outOfDate", { n: outOfDateCount })}</span>
+            )}
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            {t("pipeline.panel.profile", { materia: materiaLabel })} · {resolveMxProfile(caseType)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {(failedCount > 0 || (completedCount > 0 && completedCount < PIPELINE_STAGES.length && !anyRunning)) && (
+          {(failedCount > 0 || (completedCount > 0 && completedCount < stageDefs.length && !anyRunning)) && (
             <button
               disabled={resuming || anyRunning}
               onClick={async () => {
@@ -206,9 +210,9 @@ export function PipelinePanel({
                 try {
                   const res = await resumeFullPipelineStep({ data: { caseId } });
                   if ((res as { alreadyComplete?: boolean })?.alreadyComplete) {
-                    toast.info("Pipeline already complete — nothing to resume.");
+                    toast.info(t("pipeline.toast.alreadyComplete"));
                   } else {
-                    toast.success("Resumed pipeline from last checkpoint.");
+                    toast.success(t("pipeline.toast.resumed"));
                   }
                   invalidate?.();
                 } catch (err) {
@@ -220,21 +224,20 @@ export function PipelinePanel({
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-50"
             >
-              {resuming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />} Resume
-              pipeline
+              {resuming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />} {t("pipeline.panel.resume")}
             </button>
           )}
           <button
             onClick={() => setShowLog((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-600/40 bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700/50"
           >
-            <FileText className="h-3.5 w-3.5" /> {showLog ? "Hide log" : "Execution log"}
+            <FileText className="h-3.5 w-3.5" /> {showLog ? t("pipeline.panel.hideLog") : t("pipeline.panel.showLog")}
           </button>
         </div>
       </div>
 
       <ol className="space-y-1.5">
-        {PIPELINE_STAGES.map((s, i) => {
+        {stageDefs.map((s, i) => {
           const v = visuals[s.key];
           const row = v.row;
           return (
@@ -245,8 +248,10 @@ export function PipelinePanel({
               <StatusIcon v={v} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium text-slate-100">{s.label}</span>
-                  <span className="text-[10px] uppercase tracking-wider opacity-80">{statusLabel(v)}</span>
+                  <span className="truncate text-sm font-medium text-slate-100">
+                    {t(stageLabelKey(s.key, caseType))}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wider opacity-80">{t(statusKey(v))}</span>
                 </div>
                 {row && (
                   <div className="text-[11px] text-slate-400">
@@ -276,20 +281,20 @@ export function PipelinePanel({
 
       {showLog && (
         <div className="rounded-lg border border-slate-700/40 bg-slate-900/60 p-3">
-          <h4 className="mb-2 text-xs font-semibold text-slate-200">Execution Log</h4>
+          <h4 className="mb-2 text-xs font-semibold text-slate-200">{t("pipeline.panel.logTitle")}</h4>
           {rows.length === 0 ? (
-            <p className="text-xs text-slate-500">No runs recorded yet.</p>
+            <p className="text-xs text-slate-500">{t("pipeline.panel.noRuns")}</p>
           ) : (
             <div className="max-h-80 overflow-auto">
               <table className="w-full text-[11px]">
                 <thead className="text-slate-400">
                   <tr className="text-left">
-                    <th className="py-1 pr-2">Engine</th>
-                    <th className="py-1 pr-2">Status</th>
-                    <th className="py-1 pr-2">Started</th>
-                    <th className="py-1 pr-2">Ended</th>
-                    <th className="py-1 pr-2">Duration</th>
-                    <th className="py-1 pr-2">Output</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.engine")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.status")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.started")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.ended")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.duration")}</th>
+                    <th className="py-1 pr-2">{t("pipeline.col.output")}</th>
                   </tr>
                 </thead>
                 <tbody className="text-slate-300">

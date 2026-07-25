@@ -665,7 +665,7 @@ function Workspace() {
           </div>
         </section>
       </div>
-      <LivePipelinePanel caseId={c.id} isProcessing={running} />
+      <LivePipelinePanel caseId={c.id} isProcessing={running} caseType={(c as any).case_type ?? null} />
     </div>
   );
 }

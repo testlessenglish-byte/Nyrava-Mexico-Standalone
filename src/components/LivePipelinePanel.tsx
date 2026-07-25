@@ -11,6 +11,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
+import { engineLabelKey, statusLabelKey } from "@/lib/execution/mx-pipeline";
 import {
   Activity,
   ChevronDown,
@@ -59,36 +61,10 @@ type EngineRun = {
   created_at: string;
 };
 
-const STAGE_LABEL: Record<string, string> = {
-  extraction: "Extraction",
-  analyzers: "Analyzers",
-  agents: "Agents",
-  timeline: "Timeline",
-  evidence_map: "Evidence Map",
-  evidence_intel: "Evidence Intel",
-  evidence_intelligence: "Evidence Intel",
-  contradictions: "Contradictions",
-  witness: "Witness Intel",
-  witness_intel: "Witness Intel",
-  witness_intelligence: "Witness Intel",
-  discovery_gaps: "Discovery Gaps",
-  discovery: "Discovery Gaps",
-  constitutional: "Constitutional",
-  constitutional_compliance: "Constitutional",
-  perspectives: "Perspectives",
-  theories: "Theories",
-  theory: "Theories",
-  opportunities: "Opportunities",
-  opportunity: "Opportunities",
-  trial_prep: "Trial Prep",
-  work_product: "Work Product",
-  strategy: "Strategy",
-  hallucination: "Hallucination",
-  scoring: "Scoring",
-  report: "Report",
-  report_generator: "Report",
-  hallucination_review: "Hallucination Review",
-};
+// Stage/engine names are resolved through the Mexican pipeline profile
+// (mx-pipeline.ts) + i18n, so the ledger and activity feed speak the user's
+// language with terminology familiar to a Mexican attorney.
+
 
 function fmtTime(iso: string) {
   try {
@@ -131,26 +107,26 @@ function statusIcon(status: string) {
   }
 }
 
-function statusLabel(status: string) {
-  switch (status) {
-    case "completed":
-      return "Complete";
-    case "running":
-      return "Running";
-    case "failed":
-      return "Failed";
-    case "blocked":
-      return "Blocked";
-    case "skipped":
-      return "Skipped";
-    case "queued":
-      return "Queued";
-    default:
-      return status;
-  }
-}
-
-export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; isProcessing: boolean }) {
+export function LivePipelinePanel({
+  caseId,
+  isProcessing,
+  caseType,
+}: {
+  caseId: string;
+  isProcessing: boolean;
+  /** cases.case_type — drives Mexican materia-aware engine names. */
+  caseType?: string | null;
+}) {
+  const { t } = useI18n();
+  // Localized engine name; unknown engines fall back to their raw name.
+  const engineName = (engine: string) => {
+    const key = engineLabelKey(engine, caseType);
+    return key ? t(key) : engine;
+  };
+  const statusText = (status: string) => {
+    const label = t(statusLabelKey(status));
+    return label === statusLabelKey(status) ? status : label;
+  };
   const [events, setEvents] = useState<Event[]>([]);
   const [runs, setRuns] = useState<EngineRun[]>([]);
   const [open, setOpen] = useState<boolean>(false);
@@ -301,7 +277,7 @@ export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; is
         aria-label="Live engine activity"
       >
         {isProcessing ? <Loader2 className="h-4 w-4 animate-spin text-accent" /> : <Activity className="h-4 w-4" />}
-        <span>{isProcessing ? "Engines running" : "Activity"}</span>
+        <span>{isProcessing ? t("pipeline.launcher.running") : t("pipeline.launcher.idle")}</span>
         {latestRuns.length > 0 && (
           <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] tabular-nums">{latestRuns.length}</span>
         )}
@@ -332,7 +308,7 @@ export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; is
             ) : (
               <Activity className="h-4 w-4 text-muted-foreground" />
             )}
-            <h2 className="text-sm font-semibold">Pipeline ledger</h2>
+            <h2 className="text-sm font-semibold">{t("pipeline.ledger.title")}</h2>
           </div>
           <button onClick={close} className="rounded p-1 hover:bg-muted" aria-label="Close">
             <X className="h-4 w-4" />
@@ -343,17 +319,17 @@ export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; is
         <div className="border-b border-border">
           <div className="max-h-[45vh] overflow-y-auto">
             {latestRuns.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-muted-foreground">No engines have run yet.</div>
+              <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t("pipeline.ledger.empty")}</div>
             ) : (
               <table className="w-full text-[11px]">
                 <thead className="sticky top-0 bg-muted/60 text-[10px] uppercase tracking-wide text-muted-foreground backdrop-blur">
                   <tr>
-                    <th className="px-2 py-1.5 text-left font-medium">Engine</th>
-                    <th className="px-2 py-1.5 text-left font-medium">Status</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Dur.</th>
-                    <th className="px-2 py-1.5 text-left font-medium">Provider</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Tokens</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Found.</th>
+                    <th className="px-2 py-1.5 text-left font-medium">{t("pipeline.col.engine")}</th>
+                    <th className="px-2 py-1.5 text-left font-medium">{t("pipeline.col.status")}</th>
+                    <th className="px-2 py-1.5 text-right font-medium">{t("pipeline.col.duration")}</th>
+                    <th className="px-2 py-1.5 text-left font-medium">{t("pipeline.col.provider")}</th>
+                    <th className="px-2 py-1.5 text-right font-medium">{t("pipeline.col.tokens")}</th>
+                    <th className="px-2 py-1.5 text-right font-medium">{t("pipeline.col.findings")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -370,11 +346,11 @@ export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; is
                           )}
                           onClick={() => setExpandedRun(isExpanded ? null : r.id)}
                         >
-                          <td className="px-2 py-1.5 font-medium">{STAGE_LABEL[r.engine] ?? r.engine}</td>
+                          <td className="px-2 py-1.5 font-medium">{engineName(r.engine)}</td>
                           <td className="px-2 py-1.5">
                             <span className="inline-flex items-center gap-1">
                               {statusIcon(r.status)}
-                              <span className="text-[10px] uppercase tracking-wide">{statusLabel(r.status)}</span>
+                              <span className="text-[10px] uppercase tracking-wide">{statusText(r.status)}</span>
                             </span>
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
@@ -456,7 +432,7 @@ export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; is
                                   <>
                                     <dt>Blocked by</dt>
                                     <dd className="text-orange-600 dark:text-orange-400">
-                                      {r.blocking_engines.join(", ")}
+                                      {r.blocking_engines.map(engineName).join(", ")}
                                     </dd>
                                   </>
                                 )}
@@ -581,13 +557,13 @@ export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; is
 
         {/* Event stream */}
         <div className="border-b border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Activity feed
+          {t("pipeline.activity.title")}
         </div>
         <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-2">
           {events.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 py-8 text-center text-xs text-muted-foreground">
               <Activity className="h-6 w-6 opacity-50" />
-              <p>No activity yet. Run an engine to see live updates here.</p>
+              <p>{t("pipeline.activity.empty")}</p>
             </div>
           ) : (
             <ul className="space-y-1.5">
@@ -601,7 +577,7 @@ export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; is
                   )}
                 >
                   <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    <span className="font-medium">{STAGE_LABEL[e.stage] ?? e.stage}</span>
+                    <span className="font-medium">{engineName(e.stage)}</span>
                     <span className="tabular-nums">{fmtTime(e.created_at)}</span>
                   </div>
                   <div className="mt-0.5 break-words text-foreground">{e.message}</div>
@@ -613,7 +589,7 @@ export function LivePipelinePanel({ caseId, isProcessing }: { caseId: string; is
 
         <footer className="border-t border-border px-4 py-2 text-[10px] text-muted-foreground md:hidden">
           <button onClick={close} className="inline-flex items-center gap-1">
-            <ChevronDown className="h-3 w-3" /> Swipe down to hide
+            <ChevronDown className="h-3 w-3" /> {t("pipeline.hide")}
           </button>
         </footer>
       </aside>
