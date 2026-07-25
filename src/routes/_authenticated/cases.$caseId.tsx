@@ -1020,17 +1020,30 @@ function DashboardTab({
               : (((trialPrep as Record<string, unknown>).case_type as string | undefined) ?? "general_civil");
           const isCrim2 = ct2 === "criminal" || ct2 === "civil_rights";
           const cm = ((trialPrep as Record<string, unknown>).civil_metrics ?? {}) as Record<string, number | null>;
+          const pm = ((trialPrep as Record<string, unknown>).penal_metrics ?? {}) as Record<string, number | null>;
           return (
             <div className="rounded-xl border border-border bg-card p-5">
-              <h3 className="text-sm font-semibold">Jury Simulation</h3>
+              <h3 className="text-sm font-semibold">
+                {isCrim2 ? "Estimación de resultado (Tribunal de Enjuiciamiento)" : "Estimación de resultado"}
+              </h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-4">
                 {isCrim2 ? (
                   <>
-                    <BigMetric label="Conviction %" v={trialPrep.jury_conviction_pct} />
-                    <BigMetric label="Acquittal %" v={trialPrep.jury_acquittal_pct} />
-                    <BigMetric label="Appeal %" v={trialPrep.jury_appeal_pct} />
-                    <BigMetric label="Settlement %" v={trialPrep.jury_settlement_pct} />
+                    <BigMetric label="Vinculación a proceso %" v={pm.vinculacion_proceso_pct ?? null} />
+                    <BigMetric
+                      label="Sentencia condenatoria %"
+                      v={pm.sentencia_condenatoria_pct ?? trialPrep.jury_conviction_pct}
+                    />
+                    <BigMetric
+                      label="Sentencia absolutoria %"
+                      v={pm.sentencia_absolutoria_pct ?? trialPrep.jury_acquittal_pct}
+                    />
+                    <BigMetric
+                      label="Procedimiento abreviado %"
+                      v={pm.procedimiento_abreviado_pct ?? trialPrep.jury_settlement_pct}
+                    />
                   </>
+
                 ) : (
                   <>
                     <BigMetric label="Plaintiff success %" v={cm.plaintiff_success_pct ?? null} />
