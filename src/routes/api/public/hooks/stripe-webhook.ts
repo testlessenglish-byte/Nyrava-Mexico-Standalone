@@ -65,6 +65,7 @@ async function syncFirmPlan(admin: ReturnType<typeof getAdmin>, userId: string, 
 export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
   server: {
     handlers: {
+      GET: async () => new Response("Method Not Allowed", { status: 405 }),
       POST: async ({ request }) => {
         const sig = request.headers.get("stripe-signature");
         const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;

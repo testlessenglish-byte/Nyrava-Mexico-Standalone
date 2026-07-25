@@ -42,6 +42,7 @@ function isRotatableError(status: number, bodyText: string): boolean {
 export const Route = createFileRoute("/api/voice/transcribe")({
   server: {
     handlers: {
+      GET: async () => new Response("Method Not Allowed", { status: 405 }),
       POST: async ({ request }) => {
         const authed = await requireAuthedClient(request);
         if (authed instanceof Response) return authed;
