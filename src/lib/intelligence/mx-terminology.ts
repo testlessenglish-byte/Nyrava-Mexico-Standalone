@@ -16,7 +16,7 @@
 // when a blocking violation survives remediation.
 // =============================================================================
 
-import type { MxPipelineProfile } from "@/lib/execution/mx-pipeline";
+import type { MxPipelineProfile } from "../execution/mx-pipeline";
 
 export type ViolationSeverity = "blocking" | "warning";
 

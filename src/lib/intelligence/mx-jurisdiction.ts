@@ -9,7 +9,7 @@
 // against the correct body of law.
 // =============================================================================
 
-import { resolveMxProfile, type MxPipelineProfile } from "@/lib/execution/mx-pipeline";
+import { resolveMxProfile, type MxPipelineProfile } from "../execution/mx-pipeline";
 
 export const MEXICAN_STATES: readonly { code: string; name: string; aliases: readonly string[] }[] = [
   { code: "AGU", name: "Aguascalientes", aliases: [] },

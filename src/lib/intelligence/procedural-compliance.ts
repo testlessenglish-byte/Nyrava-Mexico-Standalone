@@ -12,7 +12,7 @@
 // hallucinate an article number.
 // =============================================================================
 
-import type { MxPipelineProfile } from "@/lib/execution/mx-pipeline";
+import type { MxPipelineProfile } from "../execution/mx-pipeline";
 
 export type ComplianceRequirement = "required" | "recommended";
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { auditText, remediateText, findEnglishSentences } from "@/lib/intelligence/mx-terminology";
-import { evaluateProceduralCompliance } from "@/lib/intelligence/procedural-compliance";
-import { buildJurisdictionProfile } from "@/lib/intelligence/mx-jurisdiction";
+import { auditText, remediateText, findEnglishSentences } from "../mx-terminology";
+import { evaluateProceduralCompliance } from "../procedural-compliance";
+import { buildJurisdictionProfile } from "../mx-jurisdiction";
 
 describe("mx terminology remediation", () => {
   it("rewrites discovery leakage per materia", () => {
