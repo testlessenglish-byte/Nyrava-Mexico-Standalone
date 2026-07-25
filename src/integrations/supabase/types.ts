@@ -529,6 +529,54 @@ export type Database = {
           },
         ]
       }
+      legal_profiles: {
+        Row: {
+          code: string
+          country: string
+          created_at: string
+          id: string
+          jurisdictions: Json
+          language: string
+          legal_system: string
+          metadata: Json
+          name: string
+          practice_areas: Json
+          primary_sources: Json
+          prompt_lock: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          country: string
+          created_at?: string
+          id?: string
+          jurisdictions?: Json
+          language?: string
+          legal_system: string
+          metadata?: Json
+          name: string
+          practice_areas?: Json
+          primary_sources?: Json
+          prompt_lock?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          country?: string
+          created_at?: string
+          id?: string
+          jurisdictions?: Json
+          language?: string
+          legal_system?: string
+          metadata?: Json
+          name?: string
+          practice_areas?: Json
+          primary_sources?: Json
+          prompt_lock?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       legal_source_connectors: {
         Row: {
           base_url: string | null
@@ -1193,6 +1241,7 @@ export type Database = {
           deleted_at: string | null
           edition: string
           id: string
+          legal_profile_code: string
           name: string
           plan: string
           slug: string
@@ -1205,6 +1254,7 @@ export type Database = {
           deleted_at?: string | null
           edition?: string
           id?: string
+          legal_profile_code?: string
           name: string
           plan?: string
           slug: string
@@ -1217,6 +1267,7 @@ export type Database = {
           deleted_at?: string | null
           edition?: string
           id?: string
+          legal_profile_code?: string
           name?: string
           plan?: string
           slug?: string

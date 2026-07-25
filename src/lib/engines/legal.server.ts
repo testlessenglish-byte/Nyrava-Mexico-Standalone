@@ -7,6 +7,7 @@
  * time, or stored as an unverified suggestion for human review.
  */
 import { getAIProvider } from "../ai/provider.server";
+import { mexicoLock } from "./mexico-lock";
 import type {
   EngineInput,
   EngineOutput,
@@ -73,6 +74,7 @@ export const legalEngine: IntelligenceEngine = {
     const provider = getAIProvider();
     const { content, model, tokens_used } = await provider.chatJSON<ModelResult>(
       [
+        { role: "system", content: mexicoLock(input.language) },
         { role: "system", content: input.language === "en" ? SYSTEM_EN : SYSTEM_ES },
         { role: "user", content: buildPrompt(input) },
       ],

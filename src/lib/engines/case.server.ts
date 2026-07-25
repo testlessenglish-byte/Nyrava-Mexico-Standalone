@@ -6,6 +6,7 @@
  * relationships between them (party ↔ event, event ↔ document, etc.).
  */
 import { getAIProvider } from "../ai/provider.server";
+import { mexicoLock } from "./mexico-lock";
 import type {
   EngineInput,
   EngineOutput,
@@ -87,6 +88,7 @@ export const caseEngine: IntelligenceEngine = {
     const provider = getAIProvider();
     const { content, model, tokens_used } = await provider.chatJSON<ModelResult>(
       [
+        { role: "system", content: mexicoLock(input.language) },
         { role: "system", content: input.language === "en" ? SYSTEM_EN : SYSTEM_ES },
         { role: "user", content: buildPrompt(input) },
       ],

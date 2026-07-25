@@ -8,15 +8,82 @@
  * Extend this list as new legal-specific terms enter the platform.
  */
 export const LEGAL_TERMS: Record<string, string> = {
+  // Jurisprudencia y órganos
   "legal.term.jurisprudencia": "Jurisprudencia",
   "legal.term.tesisAislada": "Tesis aislada",
-  "legal.term.amparo": "Amparo",
   "legal.term.scjn": "Suprema Corte de Justicia de la Nación",
   "legal.term.tfja": "Tribunal Federal de Justicia Administrativa",
+  "legal.term.poderJudicial": "Poder Judicial de la Federación",
+  "legal.term.tcc": "Tribunales Colegiados de Circuito",
+  "legal.term.semanario": "Semanario Judicial de la Federación",
+
+  // Amparo
+  "legal.term.amparo": "Amparo",
+  "legal.term.amparoDirecto": "Amparo directo",
+  "legal.term.amparoIndirecto": "Amparo indirecto",
+  "legal.term.quejoso": "Quejoso",
+  "legal.term.autoridadResponsable": "Autoridad responsable",
+  "legal.term.terceroInteresado": "Tercero interesado",
+  "legal.term.suspension": "Suspensión del acto reclamado",
+
+  // Penal
+  "legal.term.ministerio": "Ministerio Público",
+  "legal.term.fiscalia": "Fiscalía",
+  "legal.term.imputado": "Imputado",
+  "legal.term.victima": "Víctima",
+  "legal.term.ofendido": "Ofendido",
+  "legal.term.carpetaInvestigacion": "Carpeta de investigación",
+  "legal.term.vinculacionProceso": "Vinculación a proceso",
+  "legal.term.medidasCautelares": "Medidas cautelares",
+  "legal.term.autoApertura": "Auto de apertura a juicio",
+  "legal.term.juicioOral": "Juicio oral",
+  "legal.term.juezControl": "Juez de control",
+  "legal.term.tribunalEnjuiciamiento": "Tribunal de Enjuiciamiento",
+  "legal.term.cadenaCustodia": "Cadena de custodia",
+
+  // Documentos oficiales / expediente
   "legal.term.expediente": "Expediente",
   "legal.term.asunto": "Asunto",
   "legal.term.dof": "Diario Oficial de la Federación",
-  "legal.term.poderJudicial": "Poder Judicial de la Federación",
-  "legal.term.ministerio": "Ministerio Público",
+
+  // Ordenamientos
+  "legal.term.cpeum": "CPEUM",
+  "legal.term.cnpp": "CNPP",
+  "legal.term.cpf": "Código Penal Federal",
+  "legal.term.ccf": "Código Civil Federal",
+  "legal.term.ccom": "Código de Comercio",
+  "legal.term.lft": "Ley Federal del Trabajo",
+  "legal.term.leyAmparo": "Ley de Amparo",
   "legal.term.lfpdppp": "LFPDPPP",
+  "legal.term.lgsm": "LGSM",
+  "legal.term.cff": "Código Fiscal de la Federación",
 };
+
+/**
+ * Common-law terms that must NEVER appear in Nyrava México outputs.
+ * Used by the QA harness to flag drift.
+ */
+export const FORBIDDEN_COMMON_LAW_TERMS = [
+  "felony",
+  "misdemeanor",
+  "plea bargain",
+  "plea hearing",
+  "grand jury",
+  "indictment",
+  "discovery motion",
+  "deposition",
+  "subpoena",
+  "summary judgment",
+  "tort",
+  "hearsay",
+  "Miranda",
+  "exclusionary rule",
+  "district attorney",
+  " DA ",
+  "jury trial",
+  "jury instructions",
+  "Federal Rules of Evidence",
+  "Federal Rules of Civil Procedure",
+  "common-law precedent",
+  "stare decisis",
+];
