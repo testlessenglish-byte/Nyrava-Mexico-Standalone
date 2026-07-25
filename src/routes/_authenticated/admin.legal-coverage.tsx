@@ -34,7 +34,7 @@ const STATUS_TONES: Record<CoverageStatus, string> = {
 };
 
 function LegalCoveragePage() {
-  const { isAdmin, isLoading } = useIsAdmin();
+  const { isAdmin, loading: isLoading } = useRoles();
   const rows = useMemo(() => buildCoverageMatrix(), []);
   const [wave, setWave] = useState<"all" | "deep" | "stub" | "future">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
