@@ -391,15 +391,16 @@ export function rt(value: string): string {
     const key = Object.keys(ES).find((k) => k.toUpperCase() === trimmed);
     if (key) return value.replace(trimmed, ES[key].toUpperCase());
   }
-  for (const [re, to] of ES_PATTERNS) {
-    if (re.test(value)) return value.replace(re, to);
-  }
   // Mixed string: template sentences concatenated with runtime values.
+  // Longest phrases first, then interpolation fragments, then the generic
+  // patterns (page stamps, standalone terms). Order matters: a short pattern
+  // must never short-circuit a long-phrase replacement.
   let out = value;
   for (const [en, es] of ES_LONG_PHRASES) {
     if (out.includes(en)) out = out.split(en).join(es);
   }
   for (const [re, to] of ES_FRAGMENTS) out = out.replace(re, to);
+  for (const [re, to] of ES_PATTERNS) out = out.replace(re, to);
   return out;
 }
 
