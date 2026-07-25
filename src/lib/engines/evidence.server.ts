@@ -5,6 +5,7 @@
  * missing evidence + contradictions across the corpus.
  */
 import { getAIProvider } from "../ai/provider.server";
+import { mexicoLock } from "./mexico-lock";
 import type {
   EngineInput,
   EngineOutput,
