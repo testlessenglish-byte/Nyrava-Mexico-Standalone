@@ -15,7 +15,6 @@
   "common.language.es": "Español",
   "common.language.en": "English",
   "common.tagline": "Legal Intelligence OS",
-
   "nav.platform": "PLATAFORMA",
   "nav.modules": "MÓDULOS",
   "nav.security": "SEGURIDAD",
@@ -23,7 +22,6 @@
   "nav.signIn": "INICIAR SESIÓN",
   "nav.requestAccess": "SOLICITAR ACCESO",
   "nav.openWorkspace": "ABRIR WORKSPACE",
-
   "sidebar.dashboard": "Panel",
   "sidebar.matters": "Asuntos",
   "sidebar.people": "Personas",
@@ -32,7 +30,6 @@
   "sidebar.organization": "Organización",
   "sidebar.secureSession": "Sesión segura",
   "sidebar.signOut": "Cerrar sesión",
-
   "landing.title.badge": "Edición México · Programa cerrado",
   "landing.title.line1": "Inteligencia legal",
   "landing.title.line2": "para el sistema jurídico mexicano.",
@@ -56,7 +53,6 @@
   "landing.cta.big.line1": "El sistema operativo de",
   "landing.cta.big.line2": "los profesionales legales en México.",
   "landing.cta.big.body": "No es un asistente conversacional. Es una plataforma de inteligencia legal de grado profesional para despachos, litigantes e instituciones.",
-
   "module.legal.name": "Inteligencia Legal",
   "module.legal.desc": "Análisis estatutario, jurisprudencia SCJN, autoridad aplicable.",
   "module.case.name": "Inteligencia de Caso",
@@ -73,7 +69,6 @@
   "module.contract.desc": "Revisión, cláusulas, plazos y cumplimiento.",
   "module.research.name": "Investigación",
   "module.research.desc": "Ley federal, estatal, SCJN, Poder Judicial, DOF, códigos procesales.",
-
   "source.federalLegislation": "Legislación Federal",
   "source.stateLegislation": "Legislación Estatal",
   "source.scjn": "SCJN · Jurisprudencia",
@@ -83,7 +78,6 @@
   "source.constReforms": "Reformas Constitucionales",
   "source.dof": "Diario Oficial de la Federación",
   "source.procCodes": "Códigos Procesales",
-
   "platform.head.title": "Plataforma · Nyrava Intelligence México",
   "platform.head.desc": "Arquitectura de inteligencia legal: procesamiento de documentos, extracción de entidades, relaciones y espacio de trabajo por caso.",
   "platform.tag": "Arquitectura",
@@ -102,14 +96,12 @@
   "platform.step.intel.desc": "Cuestiones, contradicciones, argumentos, riesgos, cronología.",
   "platform.step.product.name": "Producto",
   "platform.step.product.desc": "Memoranda, escritos, resúmenes, informes y trabajo del abogado.",
-
   "modules.head.title": "Módulos de Inteligencia · Nyrava México",
   "modules.head.desc": "Legal, Caso, Evidencia, Testigos, Línea de Tiempo, Litigio, Contratos e Investigación — los ocho módulos de Nyrava Intelligence México.",
   "modules.tag": "Módulos",
   "modules.title.line1": "Ocho módulos.",
   "modules.title.line2": " Un solo modelo.",
   "modules.body": "Cada módulo funciona de manera independiente y contribuye al modelo de inteligencia global del caso.",
-
   "modules.legal.features": "Análisis estatutario|Investigación de jurisprudencia|Razonamiento legal|Recomendaciones de citación|Análisis de autoridad aplicable",
   "modules.case.features": "Resúmenes del caso|Identificación de cuestiones|Extracción de hechos|Mapeo de relaciones|Organización del caso",
   "modules.evidence.features": "Clasificación|Relaciones entre evidencias|Detección de evidencia faltante|Evidencia contradictoria|Análisis de fuerza probatoria",
@@ -118,7 +110,6 @@
   "modules.litigation.features": "Cuestiones procesales|Observaciones estratégicas|Argumentos potenciales|Análisis de riesgos|Fortalezas y debilidades",
   "modules.contract.features": "Revisión de contratos|Extracción de cláusulas|Identificación de riesgos|Seguimiento de plazos|Revisión de cumplimiento",
   "modules.research.features": "Legislación Federal|Legislación Estatal|SCJN|Poder Judicial Federal y Estatal|DOF y códigos procesales",
-
   "security.head.title": "Seguridad · Nyrava Intelligence México",
   "security.head.desc": "Seguridad de grado gubernamental: cifrado, aislamiento por cliente, RLS, auditoría y confidencialidad para despachos legales en México.",
   "security.tag": "Seguridad",
@@ -137,7 +128,6 @@
   "security.pillar.confidentiality.desc": "Cumplimiento con secreto profesional y protección de datos LFPDPPP.",
   "security.pillar.audit.name": "Auditoría continua",
   "security.pillar.audit.desc": "Registro inmutable de actividad y revisiones periódicas.",
-
   "contact.head.title": "Contacto · Nyrava Intelligence México",
   "contact.head.desc": "Contacta al equipo de Nyrava Intelligence México — programa cerrado para despachos e instituciones legales.",
   "contact.tag": "Contacto",
@@ -147,7 +137,6 @@
   "contact.email": "Correo",
   "contact.location": "Ubicación",
   "contact.location.value": "Ciudad de México · CDMX",
-
   "footer.about": "Plataforma de Inteligencia Legal para el sistema jurídico mexicano. Un entorno unificado para organizar, analizar y desarrollar asuntos legales de principio a fin.",
   "footer.version": "Edición México · v0.1",
   "footer.section.platform": "Plataforma",
@@ -160,7 +149,6 @@
   "footer.link.contact": "Contacto",
   "footer.copyright": "Todos los derechos reservados.",
   "footer.location": "CDMX · MÉXICO",
-
   "auth.head.title": "Acceso · Nyrava Intelligence México",
   "auth.head.desc": "Accede a Nyrava Intelligence México — Legal Intelligence OS para el sistema jurídico mexicano.",
   "auth.signIn.title": "Iniciar sesión",
@@ -177,7 +165,6 @@
   "auth.submit.signUp": "Crear cuenta",
   "auth.toggle.toSignUp": "¿No tienes cuenta? Regístrate",
   "auth.toggle.toSignIn": "¿Ya tienes cuenta? Inicia sesión",
-
   "onboarding.head.title": "Configurar organización · Nyrava México",
   "onboarding.title": "Configura tu organización",
   "onboarding.body": "Cada firma o despacho es un espacio aislado con sus propios asuntos, personas y expedientes.",
@@ -185,7 +172,6 @@
   "onboarding.field.placeholder": "Ej. García & Asociados",
   "onboarding.submit": "Crear organización",
   "onboarding.error.notAuth": "No autenticado",
-
   "dashboard.head.title": "Panel · Nyrava México",
   "dashboard.title": "Panel de inteligencia",
   "dashboard.stat.total": "Asuntos totales",
@@ -196,7 +182,6 @@
   "dashboard.recent.empty": "Aún no hay asuntos registrados.",
   "dashboard.recent.createFirst": "Crear el primer asunto",
   "dashboard.recent.noClient": "sin cliente",
-
   "matters.head.title": "Asuntos · Nyrava México",
   "matters.title": "Asuntos legales",
   "matters.subtitle": "Sistema general de matter management — litigios, contratos, asesorías, cumplimiento y más.",
@@ -209,7 +194,6 @@
   "matters.field.jurisdiction.placeholder": "CDMX, Federal, Jalisco…",
   "matters.field.status": "Estado",
   "matters.empty": "Aún no hay asuntos.",
-
   "matter.head.title": "Asunto · Nyrava México",
   "matter.back": "Volver a asuntos",
   "matter.default.title": "Asunto",
@@ -232,7 +216,6 @@
   "matter.row.description": "Descripción",
   "matter.noDescription": "Sin descripción.",
   "matter.tab.placeholder": "Este módulo estará disponible en la próxima fase. El esquema y los permisos ya están listos.",
-
   "matter.type.litigation": "Litigio",
   "matter.type.criminal": "Penal",
   "matter.type.civil": "Civil",
@@ -248,18 +231,57 @@
   "matter.type.advisory": "Asesoría",
   "matter.type.compliance": "Cumplimiento",
   "matter.type.transaction": "Transaccional",
-
   "matter.status.intake": "Recepción",
   "matter.status.active": "Activo",
   "matter.status.on_hold": "En pausa",
   "matter.status.closed": "Cerrado",
   "matter.status.archived": "Archivado",
-
   "error.404.title": "Página no encontrada",
   "error.404.body": "La página que buscas no existe o fue movida.",
   "error.404.home": "Ir al inicio",
   "error.generic.title": "Esta página no cargó",
   "error.generic.body": "Algo salió mal de nuestro lado. Puedes intentar recargar o volver al inicio.",
   "error.retry": "Reintentar",
-  "error.home": "Ir al inicio"
+  "error.home": "Ir al inicio",
+  "docs.title": "Documentos del asunto",
+  "docs.subtitle": "Sube archivos: se procesan, clasifican y transforman en conocimiento.",
+  "docs.upload": "Subir archivos",
+  "docs.uploading": "Subiendo…",
+  "docs.empty": "Aún no hay documentos. Sube el primero para iniciar el pipeline.",
+  "docs.retry": "Reintentar",
+  "docs.col.title": "Título",
+  "docs.col.kind": "Tipo",
+  "docs.col.status": "Estado",
+  "docs.col.progress": "Progreso",
+  "docs.col.actions": "Acciones",
+  "intel.title": "Nyrava Intelligence",
+  "intel.subtitle": "Motores modulares que transforman documentos en conocimiento estructurado del asunto.",
+  "intel.engine": "Motor",
+  "intel.run": "Ejecutar",
+  "intel.kb.title": "Base de conocimiento del asunto",
+  "intel.kb.items": "elementos",
+  "intel.kb.relations": "relaciones",
+  "intel.kb.empty": "Sin conocimiento aún. Ejecuta un motor para poblar la base.",
+  "intel.graph.title": "Relaciones (grafo)",
+  "intel.runs.title": "Historial de ejecuciones",
+  "intel.runs.empty": "Sin ejecuciones registradas.",
+  "engine.case": "Case Intelligence",
+  "engine.case.desc": "Resumen, hechos, partes, fechas, cronología y temas.",
+  "engine.legal": "Legal Intelligence",
+  "engine.legal.desc": "Temas jurídicos y autoridades relevantes (sin fabricación).",
+  "engine.evidence": "Evidence Intelligence",
+  "engine.evidence.desc": "Evidencia, contradicciones y vacíos probatorios.",
+  "kind.summary": "Resumen",
+  "kind.fact": "Hechos",
+  "kind.issue": "Temas jurídicos",
+  "kind.party": "Partes",
+  "kind.entity": "Entidades",
+  "kind.date": "Fechas",
+  "kind.timeline_event": "Cronología",
+  "kind.evidence": "Evidencia",
+  "kind.authority": "Autoridades",
+  "kind.contradiction": "Contradicciones",
+  "kind.recommendation": "Recomendaciones",
+  "kind.citation": "Citas",
+  "kind.risk": "Riesgos"
 }

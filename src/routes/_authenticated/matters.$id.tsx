@@ -2,9 +2,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { DocumentsTab } from "@/components/matter/DocumentsTab";
+import { IntelligenceTab } from "@/components/matter/IntelligenceTab";
 import { getMatter } from "@/lib/matters";
 import { ArrowLeft } from "lucide-react";
 import { useI18n, type Locale } from "@/i18n";
+
 
 export const Route = createFileRoute("/_authenticated/matters/$id")({
   head: () => ({ meta: [{ title: "Asunto · Nyrava México" }] }),
@@ -83,7 +86,11 @@ function MatterDetail() {
                 </div>
               </div>
             )}
-            {tab !== "overview" && <EmptyState label={t(`matter.tab.${tab}`)} placeholder={t("matter.tab.placeholder")} />}
+            {tab === "documents" && <DocumentsTab matterId={m.id} orgId={m.org_id} />}
+            {tab === "intelligence" && <IntelligenceTab matterId={m.id} />}
+            {tab !== "overview" && tab !== "documents" && tab !== "intelligence" && (
+              <EmptyState label={t(`matter.tab.${tab}`)} placeholder={t("matter.tab.placeholder")} />
+            )}
           </div>
         </>
       )}
