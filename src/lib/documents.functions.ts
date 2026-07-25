@@ -69,11 +69,12 @@ export const registerDocument = createServerFn({ method: "POST" })
       document_id: data.documentId,
       org_id: data.orgId,
       stage: "extract",
-      status: "queued",
+      status: "pending",
       progress: 0,
       payload: {},
-    }).select("id").single();
+    } as never).select("id").single();
     if (jobErr) throw jobErr;
+
 
     return { ok: true, documentId: data.documentId, jobId: job.id };
   });
