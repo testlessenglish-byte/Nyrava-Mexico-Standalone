@@ -15,7 +15,12 @@ import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedMattersRouteImport } from './routes/_authenticated/matters'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedMattersIdRouteImport } from './routes/_authenticated/matters.$id'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -47,10 +52,34 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMattersRoute = AuthenticatedMattersRouteImport.update({
+  id: '/matters',
+  path: '/matters',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMattersIdRoute = AuthenticatedMattersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedMattersRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -61,6 +90,10 @@ export interface FileRoutesByFullPath {
   '/platform': typeof PlatformRoute
   '/security': typeof SecurityRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/matters': typeof AuthenticatedMattersRouteWithChildren
+  '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/matters/$id': typeof AuthenticatedMattersIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,16 +103,25 @@ export interface FileRoutesByTo {
   '/platform': typeof PlatformRoute
   '/security': typeof SecurityRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/matters': typeof AuthenticatedMattersRouteWithChildren
+  '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/matters/$id': typeof AuthenticatedMattersIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/contact': typeof ContactRoute
   '/modules': typeof ModulesRoute
   '/platform': typeof PlatformRoute
   '/security': typeof SecurityRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/matters': typeof AuthenticatedMattersRouteWithChildren
+  '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/matters/$id': typeof AuthenticatedMattersIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +133,10 @@ export interface FileRouteTypes {
     | '/platform'
     | '/security'
     | '/sitemap.xml'
+    | '/dashboard'
+    | '/matters'
+    | '/onboarding'
+    | '/matters/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,19 +146,29 @@ export interface FileRouteTypes {
     | '/platform'
     | '/security'
     | '/sitemap.xml'
+    | '/dashboard'
+    | '/matters'
+    | '/onboarding'
+    | '/matters/$id'
   id:
     | '__root__'
     | '/'
+    | '/_authenticated'
     | '/auth'
     | '/contact'
     | '/modules'
     | '/platform'
     | '/security'
     | '/sitemap.xml'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/matters'
+    | '/_authenticated/onboarding'
+    | '/_authenticated/matters/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ContactRoute: typeof ContactRoute
   ModulesRoute: typeof ModulesRoute
@@ -165,6 +221,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -172,11 +235,66 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/onboarding': {
+      id: '/_authenticated/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/matters': {
+      id: '/_authenticated/matters'
+      path: '/matters'
+      fullPath: '/matters'
+      preLoaderRoute: typeof AuthenticatedMattersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/matters/$id': {
+      id: '/_authenticated/matters/$id'
+      path: '/$id'
+      fullPath: '/matters/$id'
+      preLoaderRoute: typeof AuthenticatedMattersIdRouteImport
+      parentRoute: typeof AuthenticatedMattersRoute
+    }
   }
 }
 
+interface AuthenticatedMattersRouteChildren {
+  AuthenticatedMattersIdRoute: typeof AuthenticatedMattersIdRoute
+}
+
+const AuthenticatedMattersRouteChildren: AuthenticatedMattersRouteChildren = {
+  AuthenticatedMattersIdRoute: AuthenticatedMattersIdRoute,
+}
+
+const AuthenticatedMattersRouteWithChildren =
+  AuthenticatedMattersRoute._addFileChildren(AuthenticatedMattersRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedMattersRoute: typeof AuthenticatedMattersRouteWithChildren
+  AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedMattersRoute: AuthenticatedMattersRouteWithChildren,
+  AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ContactRoute: ContactRoute,
   ModulesRoute: ModulesRoute,
@@ -187,13 +305,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
