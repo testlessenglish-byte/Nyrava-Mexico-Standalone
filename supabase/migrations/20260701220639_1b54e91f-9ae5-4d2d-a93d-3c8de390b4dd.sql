@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.tg_protect_user_settings_firm_id() FROM PUBLIC, anon;

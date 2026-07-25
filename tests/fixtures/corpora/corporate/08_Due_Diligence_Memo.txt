@@ -1,0 +1,46 @@
+CONFIDENTIAL — SUBJECT TO PRIVILEGE
+DUE DILIGENCE MEMORANDUM
+TO: Northwind Holdings, Inc. Board of Directors
+FROM: Wilson, Frey & Ambrose LLP (Sarah L. Ito, Partner)
+RE: Proposed Acquisition of Cobalt Analytics, Inc.
+DATE: May 12, 2025 (final)
+
+1. SUMMARY
+We conducted legal due diligence on Cobalt Analytics, Inc. ("Cobalt") in connection with Northwind's proposed acquisition. Diligence covered the period from Cobalt's incorporation (April 2020) through April 30, 2025 and included review of the corporate record, material contracts, intellectual property, litigation, tax filings, and employment matters. This memo identifies findings that in our view warrant board attention and/or specific disclosure-schedule treatment.
+
+2. CORPORATE GOVERNANCE
+2.1 Formation. Cobalt is a validly formed Delaware corporation in good standing.
+2.2 Board Record. The board minute book is substantially complete for FY2022 through FY2024, but we identified two gaps: (a) no minutes documenting the September 2022 approval of the Series Seed extension (referenced in the FY2022 audit letter but not in the minute book); and (b) no board resolution authorizing the March 2024 executive-compensation increases for the CEO and CFO, despite $175,000 of increased annual cash compensation. Recommend obtaining ratifying resolutions before Closing.
+2.3 Stockholder Consents. All stockholder actions from 2020 through Q1 2025 are supported by written consents that on their face satisfy DGCL § 228. However, the January 2024 consent authorizing the amendment to the Certificate of Incorporation is missing the signatures of two Common holders (approximately 3.2% of the outstanding shares). Recommend obtaining ratifying consents before Closing.
+
+3. CAPITALIZATION
+3.1 The capitalization schedule provided by Cobalt reconciles to our review of the stock ledger and the option-grant records, subject to two discrepancies: 15,000 options granted to a former engineer (Kelvin Osei) in January 2023 are reflected in the ledger but not in the option-grant book; and 8,000 shares reported as issued to an early advisor (Dr. Nella Croft) are not supported by a stock purchase agreement in the corporate record.
+
+4. MATERIAL CONTRACTS
+4.1 Change of Control. Six customer agreements (aggregate ARR ~$3.4M) contain change-of-control consent provisions that will be triggered by the proposed Merger. Recommend obtaining consents on Section 5.4 of the Disclosure Schedule prior to Closing.
+4.2 Non-Compete Restrictions. The 2023 reseller agreement with Halcyon Data, Inc. contains a two-year non-compete that would restrict Northwind's ability to offer analytics products in the pharmaceutical vertical.
+
+5. INTELLECTUAL PROPERTY
+5.1 Ownership. Cobalt has recorded IP assignments from each current employee and each of the seven engineers who separated from Cobalt during the diligence period. Two consultants (Ravi Setharaman, 2021; Yuki Ohashi, 2022) performed material development work without executing IP assignments; consulting invoices reference "specifications drafted" for the core "Prism" module. Recommend obtaining retroactive IP assignments before Closing.
+5.2 Open Source. Cobalt's open-source-license scan (BlackDuck report dated April 3, 2025) identified two components licensed under AGPL v3 embedded in the Prism module. Recommend confirming that these components are used in a manner consistent with the AGPL or replacing them prior to Closing.
+
+6. LITIGATION
+6.1 There is one pending action: Osei v. Cobalt Analytics, Inc., Del. Ch. C.A. No. 2024-1128-JTL, a former-employee wage claim seeking approximately $95,000. Reserve of $110,000 is reflected in the FY2024 audited financials. Not material.
+6.2 No governmental investigation or regulatory inquiry disclosed in diligence responses. The June 2024 FTC information request referenced in the FY2024 board minutes was closed without action per correspondence dated November 2024.
+
+7. TAX
+7.1 Federal and state income Tax Returns filed through FY2024. FY2020 income Tax Return under IRS audit; audit opened October 2024, no notice of proposed adjustment as of the date of this memo. Recommend a specific indemnity in the Tax section of the definitive agreement covering all pre-Closing Tax periods, uncapped and not subject to the Basket.
+7.2 Cobalt has not filed any state income Tax Return in California despite having remote employees in that state since 2022. Nexus exposure is estimated at $180,000 - $260,000. Recommend disclosing on Section 2.9 of the Disclosure Schedule and adjusting the purchase price accordingly.
+
+8. EMPLOYMENT
+8.1 All current employees are at-will. Two executives (CEO and CFO) have severance arrangements providing 9 months' base salary on qualifying terminations following a change of control ("double-trigger"). Confirm treatment at Closing.
+
+9. RECOMMENDED CONDITIONS TO CLOSING
+(a) Ratifying board resolutions and stockholder consents identified in Sections 2.2 and 2.3.
+(b) Retroactive IP assignments for Setharaman and Ohashi.
+(c) Change-of-control consents identified in Section 4.1.
+(d) Uncapped Pre-Closing Tax indemnity and California nexus purchase-price adjustment.
+
+Respectfully submitted,
+Sarah L. Ito, Partner
+Wilson, Frey & Ambrose LLP

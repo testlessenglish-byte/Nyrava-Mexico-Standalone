@@ -1,0 +1,51 @@
+UNITED STATES SECURITIES AND EXCHANGE COMMISSION
+Washington, D.C. 20549
+FORM 8-K
+CURRENT REPORT
+
+Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934
+
+Date of Report (Date of earliest event reported): May 12, 2026
+
+CELESTA BIOSCIENCES, INC.
+(Exact name of registrant as specified in its charter)
+
+Delaware                001-40892                87-4128119
+(State of incorporation) (Commission File No.) (I.R.S. Employer Id. No.)
+
+3200 Torrey View Court, San Diego, CA 92130
+(Address of principal executive offices)
+
+Registrant's telephone number, including area code: (858) 555-0470
+
+Item 8.01 Other Events.
+On May 12, 2026, Celesta Biosciences, Inc. (the "Company") issued a press release announcing topline results from its Phase 3 pivotal trial (protocol CB-401-P3) of CBX-4402 in patients with treatment-refractory eosinophilic esophagitis. The trial did not meet its primary endpoint of statistically significant reduction in peak eosinophil count at Week 24 (p = 0.184; pre-specified alpha = 0.025). The Company also disclosed that the secondary endpoint of dysphagia symptom score also did not achieve statistical significance.
+
+Item 3.02 Unregistered Sales of Equity Securities.
+On May 8, 2026, the Company issued 3,412,000 shares of its common stock in a private placement to Longbrook Ventures IV, L.P. and Palomar Growth Fund II, L.P. at a price of $14.20 per share, for aggregate gross proceeds of approximately $48.4 million. The shares were issued in reliance on Section 4(a)(2) of the Securities Act of 1933 and Rule 506(b) of Regulation D. The Company has agreed to file a resale registration statement covering these shares within 45 days of issuance.
+
+Item 5.02 Departure of Directors or Certain Officers.
+Effective May 10, 2026, Dr. Kenji T. Matsuoka resigned from his position as Chief Medical Officer of the Company to pursue other opportunities. Dr. Matsuoka will remain available in a consulting capacity through August 31, 2026. The Company has commenced a search for a permanent successor and has appointed Dr. Priya Chandrasekaran, the Company's SVP of Clinical Development, as Interim Chief Medical Officer.
+
+Item 9.01 Financial Statements and Exhibits.
+(d) Exhibits.
+Exhibit 99.1 — Press Release dated May 12, 2026 announcing Phase 3 topline results.
+Exhibit 99.2 — Investor presentation dated May 12, 2026.
+
+TRADING HALT AND MARKET IMPACT
+Following the pre-market announcement, Nasdaq halted trading in CELB from 8:44 a.m. ET until 10:15 a.m. ET on May 12, 2026. Upon resumption of trading, the stock opened at $6.18, a decline of 62% from the previous day's closing price of $16.24, on trading volume of 47.8 million shares (approximately 22 times the trailing 30-day average daily volume).
+
+INSIDER TRANSACTIONS NOTED
+Form 4 filings retrieved from EDGAR show the following transactions in the 20 trading days preceding the Item 8.01 disclosure:
+- April 24, 2026: CEO Elena Sokolova sold 88,000 shares at a weighted average price of $17.05 pursuant to a 10b5-1 plan adopted January 12, 2026.
+- April 29, 2026: CFO Marcus Delahoyde sold 42,500 shares at a weighted average price of $16.88 pursuant to a 10b5-1 plan adopted February 4, 2026.
+- May 1, 2026: Director Priscilla Voorhees exercised and sold 15,000 options at a net realized value of $118,200. This transaction was not made pursuant to a 10b5-1 plan.
+- May 6, 2026: Chief Medical Officer Kenji T. Matsuoka sold 33,700 shares at a weighted average price of $16.42. This transaction was not made pursuant to a 10b5-1 plan.
+
+SIGNATURE
+Pursuant to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by the undersigned duly authorized officer.
+
+CELESTA BIOSCIENCES, INC.
+Date: May 12, 2026
+By: /s/ Marcus Delahoyde
+    Marcus Delahoyde, Chief Financial Officer

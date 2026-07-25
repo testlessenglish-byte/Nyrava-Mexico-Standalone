@@ -1,0 +1,23 @@
+WESTBROOK MEMORIAL HOSPITAL — DEPARTMENT OF EMERGENCY MEDICINE
+INTERNAL ROOT-CAUSE ANALYSIS (RCA) — MEMORANDUM
+RE: Patient Whitfield, M., MRN 77820144 (admission 09/20/2024, expired 09/22/2024)
+Author: Dr. L. Inoue, ED Quality Director
+Date: 10/08/2024
+[CONFIDENTIAL — Patient Safety Work Product — Privileged Under W.S.A. § 41-7-205]
+(produced in discovery; privilege contested)
+
+SUMMARY OF EVENT:
+56 y.o. male presented with classic features of bacterial meningitis. Empiric antibiotics were not initiated until ~13 hours after presentation. Patient expired from culture-confirmed Neisseria meningitidis meningitis.
+
+CONTRIBUTING FACTORS IDENTIFIED:
+1. ED physician evaluation occurred 94 minutes after triage. Department target for ESI-2 patients is <30 minutes. Cause: high census, two simultaneous trauma activations.
+2. Antibiotic-first protocol for suspected meningitis exists (ED Standing Order Set "Meningitis-A," updated 2022) but was not invoked. Cause: physician did not consider meningitis high enough on the differential to invoke the protocol despite triage flag.
+3. Hospitalist accept-note plan to "perform LP at AM rounds" deferred a critical diagnostic step by ~12 hours.
+4. ED-to-floor handoff did not include a verbal acknowledgement of the meningitis ddx flagged at triage.
+
+RECOMMENDATIONS:
+- Reinforce mandatory invocation of Meningitis-A standing orders whenever triage RN documents "meningitis ddx" in the chief complaint.
+- Implement hard-stop in EHR requiring physician to either order LP + empiric abx or document explicit reason for not doing so within 60 minutes of triage flag.
+- Re-educate hospitalist group on time-sensitive ED admits.
+
+This RCA is provided to the Quality Committee for system improvement only.

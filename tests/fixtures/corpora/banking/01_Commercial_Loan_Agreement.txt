@@ -1,0 +1,65 @@
+FIRST HERITAGE COMMERCIAL BANK, N.A.
+Loan Number: 8842-CRE-2026-118
+
+COMMERCIAL LOAN AGREEMENT
+
+Borrower: Meridian Northwest Coffee Roasters, Inc., a Washington corporation
+Guarantor: Marisol T. Kettering, individual (limited guaranty capped at $500,000)
+Lender: First Heritage Commercial Bank, N.A.
+Loan Amount: $2,400,000 (Term Loan) plus $500,000 (Revolving Line of Credit)
+Effective Date: March 1, 2026
+
+1. TERM LOAN FACILITY
+   (a) Principal: $2,400,000
+   (b) Interest Rate: Wall Street Journal Prime Rate + 1.75%, adjusted quarterly. As of the Effective Date, the initial rate is 9.50%.
+   (c) Amortization: 10-year straight-line amortization; 5-year balloon maturity.
+   (d) Payment: Monthly principal and interest of approximately $30,354.00, first payment due April 1, 2026; balloon payment due March 1, 2031.
+   (e) Prepayment Penalty: 3-2-1 declining prepayment penalty in years 1, 2, and 3; no penalty thereafter.
+   (f) Purpose: Financing of leasehold improvements and equipment purchase (2 x Loring S15 Falcon roasters) at 1400 Western Avenue, Seattle, WA 98101.
+
+2. REVOLVING CREDIT FACILITY
+   (a) Commitment: $500,000
+   (b) Interest Rate: WSJ Prime + 2.25%, floating. Interest-only monthly on outstanding balance.
+   (c) Unused Line Fee: 0.35% per annum on the average unused portion.
+   (d) Maturity: 364-day facility, subject to annual renewal at Lender's discretion.
+   (e) Borrowing Base: 80% of Eligible Accounts Receivable (0-60 days aged) plus 50% of Eligible Green Coffee Inventory, less a $75,000 availability reserve.
+
+3. COLLATERAL
+   (a) First priority security interest in all Borrower's business assets, including inventory, accounts receivable, equipment, and general intangibles (UCC-1 to be filed with Washington Secretary of State).
+   (b) Collateral assignment of Borrower's leasehold interest at 1400 Western Avenue, Seattle, WA (subject to Landlord's consent and Non-Disturbance Agreement in form acceptable to Lender).
+   (c) Assignment of key-person life insurance on Marisol T. Kettering in the amount of $2,400,000 (Northwestern Mutual Policy No. NWM-441028).
+
+4. FINANCIAL COVENANTS
+Beginning with the fiscal quarter ending June 30, 2026, Borrower shall maintain:
+   (a) Debt Service Coverage Ratio not less than 1.25 to 1.00, tested quarterly on a trailing four-quarter basis.
+   (b) Debt-to-Tangible-Net-Worth Ratio not to exceed 3.00 to 1.00, tested quarterly.
+   (c) Minimum Tangible Net Worth of $850,000 at all times, stepping up to $1,100,000 by December 31, 2027.
+   (d) Capital Expenditures not to exceed $250,000 per fiscal year without Lender's prior written consent.
+
+5. REPORTING REQUIREMENTS
+   (a) Annual audited financial statements within 120 days of fiscal year-end, prepared by an independent CPA acceptable to Lender.
+   (b) Quarterly internally prepared financial statements within 45 days of quarter-end.
+   (c) Monthly borrowing base certificate (for the revolving facility) within 20 days of month-end.
+   (d) Annual personal financial statement of Guarantor within 90 days of the Guarantor's fiscal year-end.
+   (e) Copies of federal tax returns within 30 days of filing.
+
+6. EVENTS OF DEFAULT
+The following constitute Events of Default:
+   (a) Non-payment of any amount within 10 days after due date.
+   (b) Breach of any financial covenant, uncured for 30 days after Lender notice.
+   (c) Cross-default on any indebtedness in excess of $50,000.
+   (d) Death or incapacity of the Guarantor without a replacement guarantor acceptable to Lender within 60 days.
+   (e) Change of control of Borrower (defined as any transaction resulting in Marisol T. Kettering owning less than 51% of the voting equity of Borrower) without Lender's prior written consent.
+   (f) Material adverse change in the financial condition or business prospects of Borrower.
+
+7. GOVERNING LAW
+This Agreement is governed by federal law, and to the extent not preempted, the laws of the State of Washington.
+
+BORROWER:                                    LENDER:
+Meridian Northwest Coffee Roasters, Inc.     First Heritage Commercial Bank, N.A.
+By: /s/ Marisol T. Kettering                 By: /s/ Warrick D. Hollingsworth
+Name: Marisol T. Kettering                   Name: Warrick D. Hollingsworth
+Title: Chief Executive Officer               Title: Senior Vice President, Commercial Banking
+
+GUARANTOR:
+/s/ Marisol T. Kettering (individually)

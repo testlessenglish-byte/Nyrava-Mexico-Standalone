@@ -1,0 +1,58 @@
+TERMS OF SERVICE — SWIFTPAY BY KINETIC LEDGER PAYMENTS, INC.
+Effective: February 14, 2026
+Version 8.2
+
+These Terms of Service ("Terms") govern your access to and use of the SwiftPay peer-to-peer payment service, related mobile applications, websites, and APIs (collectively, the "Service") provided by Kinetic Ledger Payments, Inc. ("Kinetic," "we," "our"). Kinetic is licensed as a money transmitter in 49 U.S. states and the District of Columbia (excluding Montana) and holds a New York State Department of Financial Services BitLicense (License No. FS-2022-0447-BL).
+
+1. ELIGIBILITY
+You must be at least 18 years old, a resident of the United States, and provide truthful identifying information. You may not use the Service if you have been previously suspended.
+
+2. ACCOUNT REGISTRATION AND KYC
+Upon registration, we will collect identifying information required under the Bank Secrecy Act (31 U.S.C. § 5311 et seq.) and our Customer Identification Program, including your full legal name, date of birth, Social Security number, and residential address. We may verify your identity using third-party data providers, including LexisNexis Risk Solutions and Socure. Under our Enhanced Due Diligence program, transactions exceeding $10,000 per week may require additional documentation.
+
+3. FUNDING SOURCES
+You may fund your SwiftPay account by (a) linking a U.S. bank account via ACH, (b) linking a U.S. debit card (Visa or Mastercard), or (c) receiving funds from another SwiftPay user. Credit cards are not supported. ACH transfers may take 1-3 business days to clear; debit card transfers are typically instant.
+
+4. FEES
+   (a) Sending money to another U.S. SwiftPay user via linked bank account: FREE
+   (b) Sending via linked debit card: 1.75% of the transaction amount
+   (c) Instant transfer to your bank account: 1.75% (minimum $0.25, maximum $15.00)
+   (d) SwiftPay Crypto: 0.30% per trade for Bitcoin and Ethereum
+   (e) Failed ACH: $10.00 per failed transaction
+Fees are disclosed at the time of each transaction. See our current Fee Schedule at swiftpay.com/fees.
+
+5. AUTHORIZATION AND FINALITY OF TRANSACTIONS
+   (a) When you authorize a payment through SwiftPay, the transaction is generally final and irreversible once processed.
+   (b) You bear full responsibility for verifying the identity and payment details of the recipient before authorizing the transaction. WE DO NOT OFFER PURCHASE PROTECTION FOR PAYMENTS TO OTHER USERS. If you send money to the wrong person or if you send money for a purchase that turns out to be fraudulent (e.g., you buy an item that is never delivered), we cannot recover those funds for you.
+   (c) You should treat SwiftPay as you would cash — send money only to people you know and trust.
+
+6. UNAUTHORIZED TRANSFERS AND ERROR RESOLUTION (Regulation E)
+   (a) If you believe a transfer was made from your SwiftPay account without your authorization, notify us immediately at support@swiftpay.com or via the in-app "Report a Problem" tool.
+   (b) We will investigate under Regulation E (12 C.F.R. § 1005.11). If we determine the transfer was unauthorized under 12 C.F.R. § 1005.2(m), we will refund the amount subject to the limitations in Regulation E.
+   (c) Your liability for unauthorized electronic fund transfers is limited if you report the loss or theft of your credentials within 2 business days. See our Regulation E Disclosure for details.
+
+7. PROHIBITED TRANSACTIONS
+The Service may not be used for: (a) unlawful activities; (b) gambling in jurisdictions where prohibited; (c) firearms, ammunition, or explosives; (d) narcotics or controlled substances; (e) sexually explicit material; (f) transactions involving OFAC-sanctioned persons or countries; (g) escort services; or (h) any transaction that violates our Acceptable Use Policy.
+
+8. SWIFTPAY CRYPTO
+   (a) SwiftPay Crypto allows you to buy, sell, and hold Bitcoin (BTC) and Ethereum (ETH). Custody is provided by Anchorage Digital Bank, N.A.
+   (b) Cryptocurrency is not FDIC-insured, may lose value, and is subject to significant price volatility.
+   (c) Cryptocurrency purchases and sales are final and cannot be reversed.
+   (d) You may withdraw cryptocurrency to an external wallet subject to a $25.00 network fee (variable based on network congestion).
+
+9. FDIC PASS-THROUGH INSURANCE
+U.S. dollar balances held in your SwiftPay account are held at Cross River Bank (member FDIC) and are eligible for FDIC pass-through deposit insurance up to $250,000 per depositor, subject to Cross River Bank's compliance with 12 C.F.R. § 330.7.
+
+10. ARBITRATION AND CLASS ACTION WAIVER
+Except for claims that qualify for small claims court, all disputes shall be resolved through binding individual arbitration administered by the American Arbitration Association under its Consumer Arbitration Rules. YOU AND KINETIC WAIVE THE RIGHT TO BRING OR PARTICIPATE IN A CLASS ACTION. You may opt out of arbitration within 30 days of accepting these Terms by emailing arbitration-optout@swiftpay.com.
+
+11. GOVERNING LAW
+These Terms are governed by the laws of the State of Delaware (except for state-specific consumer protection statutes).
+
+12. CHANGES TO TERMS
+We may modify these Terms at any time. Material changes will be communicated at least 30 days in advance via in-app notification and email.
+
+Kinetic Ledger Payments, Inc.
+NMLS ID: 1188442
+Licensed Money Transmitter
+Contact: legal@swiftpay.com

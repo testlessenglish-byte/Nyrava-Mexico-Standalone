@@ -1,0 +1,1 @@
+ALTER TABLE public.cases ALTER COLUMN analysis_mode SET DEFAULT 'balanced';

@@ -1,257 +1,134 @@
-# Nyrava Intelligence México — Architecture Blueprint
+# Nyrava Architecture
 
-_Last updated: end of Phase 2 (validation & hardening)._
+This document is the single source of truth for how the system executes. If
+code disagrees with this document, the code is wrong.
 
-This document is the authoritative blueprint for the platform's foundation:
-tenancy, security, matter management, documents, intelligence engines,
-legal knowledge, billing, and audit.
+## 1. Execution State — Single Source of Truth
 
----
+All execution state lives in **two tables**:
 
-## 1. Isolation & Environment
+| Table | Purpose |
+| --- | --- |
+| `pipeline_engine_runs` | Authoritative per-engine status (queued → running → completed/failed/skipped). One row per engine execution. |
+| `pipeline_events` | Append-only event stream for the activity feed (queued, started, progress, completed, failed). |
 
-- Dedicated Lovable Cloud (Supabase) project — no shared infrastructure with any other Nyrava deployment.
-- Frontend: TanStack Start (React 19, Vite 7) on Cloudflare Workers.
-- All server logic lives in `createServerFn` handlers or `src/routes/api/*` route handlers. No Supabase Edge Functions.
-- Secrets: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `LOVABLE_API_KEY`.
+Every UI surface — Command Center, Dashboard, Pipeline Panel, Engine Cards,
+Activity Feed, Progress Bars, Reports — reads from these two tables (live via
+Supabase realtime). No component computes completion locally. The mapping from
+pipeline stage to canonical engine id lives in
+`src/lib/execution-state.ts::PIPELINE_STAGE_TO_ENGINE`.
 
-## 2. Multi-Tenant Model
+## 2. Engine Registry
 
-```
-auth.users
-   │
-   ├── profiles          (1:1 personal profile)
-   ├── user_roles        (global app roles: super_admin, platform_admin, admin, moderator, user)
-   └── org_memberships   (N:N users ↔ organizations, with role_in_org + status)
-                                    │
-                                    └── organizations
-                                             │
-                                             ├── matters
-                                             │      ├── matter_parties
-                                             │      ├── matter_events
-                                             │      ├── matter_documents ── document_versions
-                                             │      │                    └── document_processing_jobs
-                                             │      ├── matter_notes
-                                             │      ├── matter_tasks
-                                             │      ├── matter_knowledge
-                                             │      └── intelligence_runs
-                                             ├── org_role_permissions   (per-org RBAC overrides)
-                                             ├── org_subscriptions      (Mercado Pago)
-                                             └── billing_payments
-```
-
-Every tenant-scoped table carries `org_id UUID NOT NULL REFERENCES organizations(id)`.
-Isolation is enforced by RLS through two `SECURITY DEFINER` helpers:
-
-- `is_org_member(user, org)` — active membership check.
-- `can_manage_org(user, org)` / `can_contribute_org(user, org)` — role gates.
-
-There is no application code path that can read cross-tenant rows: even the
-publishable client is blocked by RLS, and the service role is only used
-inside verified server-only handlers.
-
-## 3. RBAC — Scalable Permission System
-
-Roles are NOT hardcoded in application logic. Permissions flow:
+Canonical engine identifiers (used everywhere — backend, frontend, DB,
+reports, audit trail):
 
 ```
-User → org_membership.role_in_org → role_permissions (baseline)
-                                  ↘ org_role_permissions (per-org override, can grant/revoke)
-                                    → permissions (resource + action registry)
-                                      → has_permission(user, org, code) → feature access
+extraction, analyzers, agents, timeline, evidence_map, contradictions,
+witness_intelligence, evidence_intelligence, constitutional_compliance,
+discovery_gaps, perspectives, theory, opportunity, trial_prep, strategy,
+work_product, hallucination, scoring, report_generator
 ```
 
-### Enum `org_role`
+There are **no** alternate spellings (`analyzer_contradictions`,
+`ContradictionEngine`, etc.).
 
-`owner`, `admin`, `lawyer`, `paralegal`, `viewer`,
-`firm_administrator`, `attorney`, `associate_attorney`, `legal_assistant`,
-`client`, `read_only`.
+## 3. Engine Lifecycle Wrapper
 
-### Enum `app_role` (global)
-
-`super_admin`, `platform_admin`, `admin`, `moderator`, `user`.
-
-### Permission codes (initial catalog)
-
-`matters.view|create|update|delete`, `documents.view|upload|download|delete`,
-`notes.write`, `tasks.write`, `parties.write`, `events.write`,
-`members.manage`, `billing.view|manage`, `intelligence.run`, `audit.view`.
-
-Add new codes via `INSERT INTO public.permissions`. Assign to roles via
-`role_permissions`. Override per organization via `org_role_permissions`
-without shipping code.
-
-### Runtime check
-
-```sql
-SELECT public.has_permission(auth.uid(), :org_id, 'documents.download');
-```
-
-Callable from server functions and RLS `USING` clauses. Internally scoped to
-`auth.uid()` so users cannot probe permissions of others.
-
-## 4. Matter Management
-
-Central concept is **Matter**, not "case". `matter_type` enum covers:
-
-`litigation, criminal, civil, commercial, labor, family, constitutional,
-administrative, corporate, tax, immigration, contract, advisory, compliance,
-transaction`.
-
-Common fields: `title, description, client_name, jurisdiction, court,
-docket_number, reference_code, matter_type, status, priority, tags[],
-lead_lawyer_id, opened_at, closed_at`.
-
-Every child table (`matter_parties`, `matter_events`, `matter_documents`,
-`matter_notes`, `matter_tasks`) carries `org_id` + `matter_id` and is
-independently RLS-gated.
-
-Soft delete on every row (`deleted_at TIMESTAMPTZ NULL`); SELECT policies
-filter `deleted_at IS NULL`.
-
-## 5. Document Foundation
-
-- **Metadata**: `matter_documents` — title, `media_kind` (pdf/docx/image/audio/video/email/spreadsheet), `mime_type`, `size_bytes`, `checksum`, `classification JSONB`, `metadata JSONB`.
-- **Versioning**: `document_versions (document_id, version, storage_path, checksum, uploaded_by)` with unique `(document_id, version)`.
-- **Processing state**: `processing_status` enum tracks the full pipeline `pending → uploaded → extracted → classified → analyzed | failed`.
-- **Queue**: `document_processing_jobs` — durable job queue consumed by future server functions or `pg_net`-invoked handlers.
-
-### Storage
-
-Private bucket **`matter-documents`**. Path convention:
+Every engine runs through `runEngine()` in
+`src/lib/intelligence/engine-audit.server.ts`:
 
 ```
-{org_id}/{matter_id}/{document_id}/v{version}/{filename}
+queued → running → (progress events) → completed | failed → persist → emit
 ```
 
-Storage policies parse the first path segment as `org_id` and delegate to the
-same helper functions used by table RLS.
+No engine writes its own status. No engine bypasses the wrapper.
 
-### Pipeline (to implement in Phase 3)
+## 4. AI Provider Router
 
-```
-Upload (signed URL)
-   → matter_documents row (pending)
-   → document_versions row
-   → document_processing_jobs (stage=extract)
-   → server-fn worker
-   → extract text / OCR
-   → stage=classify
-   → stage=analyze (intelligence engine)
-   → matter_knowledge rows written
-```
+`src/lib/ai/router.server.ts` is the only path to any model. It reads
+`ai_providers` (priority-ordered), honors per-task pins from
+`ai_task_routing`, and accepts runtime per-user Groq keys. On failure it
+records to `_state` + stamps `ai_providers.last_error_at` and falls through
+to the next provider.
 
-## 6. Intelligence Engine Architecture
+- Groq is pinned via `ai_providers` priority + `ai_task_routing`.
+- Runtime user-supplied Groq keys form a Groq-only chain (no silent
+  provider switch).
+- Every call is logged to `ai_usage` (provider, model, tokens, latency,
+  success).
 
-Not implemented yet — architecture only. Each engine is an independent module
-that consumes matter context, calls a model via the Lovable AI Gateway
-(default) or another provider, and writes structured output into
-`matter_knowledge`.
+## 5. Pre-Flight Report Validation Gate
 
-### Registry (enum `intelligence_engine`)
+`_runReportInner` checks `pipeline_engine_runs` for all required upstream
+engines before generating a report. If any are missing or failed it throws:
 
-`legal, case, evidence, witness, timeline, litigation, contract, research, work_product`.
+> Pipeline incomplete — cannot generate report. Missing or failed engines: …
 
-### Runtime
+This prevents the "report complete / dashboard pending" desync class.
 
-- `intelligence_runs` — one row per invocation: input, output, model, tokens_used, cost_cents, status, timing, requester.
-- `matter_knowledge` — persistent structured knowledge: kind (`fact`, `entity`, `citation`, `timeline_event`, `risk`, `summary`), confidence, source document, source run.
+## 6. Evidence Gating & Sanitization
 
-### Interface contract
+- Findings without `{document, page, quote, confidence}` are suppressed via
+  `addGatedFindings` (`evidence-gate.server.ts`).
+- Contradictions require both Statement A and Statement B with citations;
+  otherwise classified as `needs_corroboration` /
+  `possible_inconsistency` (`dispute-classifier.server.ts`).
+- PDF/DOCX renderers never emit raw JSON — list rendering falls back to
+  `text|title|summary|description|argument|action` and drops empty entries.
+- UUIDs/internal ids are not surfaced; documents render as filename + page.
 
-Each engine will expose:
+## 7. Canonical Counts
 
-```ts
-type EngineInput  = { orgId: string; matterId: string; scope: unknown };
-type EngineOutput = { knowledge: MatterKnowledgeRow[]; artifacts?: unknown };
+All UI counts go through `src/lib/intelligence/canonical.ts`. The
+`paritySignature(report)` string lets any two surfaces verify they agree.
 
-interface IntelligenceEngine {
-  code: IntelligenceEngineCode;
-  run(input: EngineInput, ctx: RunContext): Promise<EngineOutput>;
-}
-```
+## 8. Caching & Idempotency
 
-Engines communicate only through `matter_knowledge` and their own run
-records; no direct cross-engine coupling.
+- Document content hashes (`src/lib/hash.server.ts`) gate re-extraction.
+- The router has an in-process completion cache keyed by
+  `(model, system, user, json, temp)`.
+- `runReport` clears only the report-tier engine runs before re-running, so
+  upstream engines are not re-executed.
 
-## 7. Legal Knowledge (Mexican sources)
+## 9. Failure Semantics
 
-Shared reference corpus, readable by anyone (including anon for public
-research surfaces).
+- Engine failures persist to `pipeline_engine_runs.status = 'failed'` with
+  `error_message`, and emit a `failed` event.
+- Report generation aborts on the validation gate; the case status reflects
+  the gate message.
+- The router throws a single aggregated error listing every provider that
+  failed in the chain.
 
-- `legal_authorities` — laws, codes, articles, regulations, jurisprudence, court decisions, concepts. Full-text index on Spanish `to_tsvector` of title + body.
-- `legal_citations` — citation graph between authorities.
-- `legal_source_connectors` — external source registry (seeded: SCJN, DOF, TFJA). Connector implementations arrive in later phases; they'll be TanStack server routes writing into `legal_authorities` under the service role.
+## 10. Case-Type Execution Framework
 
-## 8. Billing & Entitlements (Mercado Pago-ready)
+`src/lib/intelligence/practice-areas.ts` is the single source of truth for
+which analyzers, finding modules, motion families, terminology, report
+sections, and workspace tabs each practice area may execute or render.
 
-```
-billing_plans (free, starter, pro, enterprise, MXN)
-   ↘ plan_entitlements (plan → permission code + quota)
-      ↘ org_subscriptions (org → plan, provider=mercadopago, status)
-         ↘ billing_payments (payment history from webhooks)
-```
+- The active case `case_type` is the base policy.
+- `cross-domain.server.ts` may widen the policy through exactly three
+  audited paths: explicit user opt-in (`cases.additional_domains`), a
+  formally registered hybrid case type, or a deterministic evidence
+  trigger (≥ N findings of a declared module). Every activation is
+  written to `case_domain_activations` with `source`, `trigger_id`,
+  `reason`, and `evidence_finding_ids`.
+- Practice-restricted engines (`constitutional_compliance`, `trial_prep`,
+  `cross_examination`) are short-circuited at the runner level when not
+  allowed, recorded in `pipeline_engine_runs` as `status='skipped'` with
+  `skipped_reason='not_applicable_to_case_type'`.
+- `findings.server.ts::addFindings` runs a final policy filter so a
+  forbidden module can never reach `case_findings` even if an engine
+  produced it.
+- `export.ts::computeRenderQueue` reads `full_report.active_domains` and
+  filters PDF / DOCX sections through the same registry — output parity
+  with the UI is guaranteed.
 
-Billing controls access **through permissions**, not through hardcoded module
-gates. Subscription status → active entitlements → `has_permission` returns
-true → feature is accessible. Downgrading a plan revokes entitlements
-without any code change.
+## 11. Acceptance Tests
 
-Webhook target (to build in Phase 3): `src/routes/api/public/webhooks/mercadopago.ts`.
+Regression suite lives in `src/lib/intelligence/__tests__/`. It exercises
+the engine registry, evidence gate, contradiction classifier, ESS
+suppression, parity signature, and (in `__tests__/case_type/`) the
+case-type execution policy + cross-domain activation rules. No
+deployment without this suite green.
 
-## 9. Audit System
-
-`audit_log` fields: `org_id, actor_id, action, entity_type, entity_id,
-diff JSONB, ip_address, user_agent, session_id, created_at`.
-
-Track (at minimum): auth events, matter create/update/delete, document
-upload/view/download, permission changes, generated documents, intelligence
-runs.
-
-RLS: members can read their org's audit, and can insert rows attributed to
-themselves in their org. Cross-org audit is invisible.
-
-## 10. Performance & Scale
-
-Indexes shipped:
-
-- Matters: `(org_id, status)`, `(org_id, matter_type)`, `(org_id, updated_at DESC)`, `lead_lawyer_id`, GIN on `tags`.
-- Documents: `matter_id`, `(org_id, processing_status)`, versions by `(document_id, version DESC)`.
-- Events/tasks/notes/parties: `matter_id`, tasks also `(matter_id, status)` and `assignee_id`.
-- Memberships: `user_id`, `org_id`.
-- Audit: `(org_id, created_at DESC)`, `(actor_id, created_at DESC)`.
-- Processing queue: `(status, scheduled_at)`.
-- Intelligence: `(matter_id, created_at DESC)`, partial index for pending/running.
-- Legal FTS: GIN `to_tsvector('spanish', title || body)`.
-
-Targets: thousands of orgs, millions of documents, long-running intelligence
-jobs consumed off the `document_processing_jobs` queue.
-
-## 11. Security Summary
-
-- RLS enabled on **every** public table.
-- Cross-tenant isolation enforced by `is_org_member` / `can_manage_org` / `can_contribute_org`.
-- Storage bucket private, path-scoped to `org_id`.
-- Service role usage confined to `client.server.ts`, imported only inside handler bodies of `*.functions.ts` / route files, never at module scope.
-- `has_role` and `has_permission` are `SECURITY DEFINER` but internally scoped to `auth.uid()`; execute revoked from `PUBLIC`/`anon`, granted to `authenticated` and `service_role`. Linter warning on this class of function is accepted as intentional.
-- Google OAuth via the Lovable broker; email/password enabled; anonymous sign-ups off.
-
-## 12. Extension Points
-
-| Extension              | Where                                                            |
-| ---------------------- | ---------------------------------------------------------------- |
-| New matter type        | Add value to `matter_type` enum via migration                    |
-| New role               | Add value to `org_role` + rows in `role_permissions`             |
-| New permission         | Insert into `permissions` + assign in `role_permissions`         |
-| New intelligence engine| Add value to `intelligence_engine` enum + implement engine module |
-| New legal source       | Insert into `legal_source_connectors` + connector server route   |
-| New billing plan       | Insert into `billing_plans` + `plan_entitlements` rows           |
-
-## 13. Phase 3 Kickoff Checklist
-
-1. Document ingestion pipeline (upload → storage → `document_processing_jobs`).
-2. Text extraction worker (PDF/DOCX/OCR) as a server function invoked by pg_cron on the queue.
-3. Legal Intelligence Engine (baseline: summarization, citation extraction against `legal_authorities`).
-4. Case Intelligence Engine (facts, parties, timeline synthesis into `matter_knowledge`).
-5. Evidence Intelligence Engine (document classification + evidence weighting).
-6. Wire `has_permission` gates into UI actions (upload, download, delete, run engine).

@@ -1,0 +1,31 @@
+WESTBROOK COUNTY MEDICAL EXAMINER
+AUTOPSY REPORT (SUMMARY)
+Decedent: Whitfield, Marcus
+DOB: 02/18/1968    DOD: 09/22/2024 03:48
+ME Case No.: ME-2024-09-1144
+Examiner: Dr. P. Achterberg, MD, Forensic Pathologist
+Autopsy Date: 09/23/2024
+
+GROSS FINDINGS:
+- Body of well-developed 56 y.o. male, 184 cm, 91 kg.
+- Meninges: diffuse purulent exudate over cerebral convexities, most prominent over frontal and parietal regions.
+- Brain: marked cerebral edema, weight 1,612 g (expected ~1,450), with tonsillar herniation.
+- Heart, lungs, liver, kidneys: congestion consistent with septic shock.
+
+MICROSCOPIC:
+- Meninges: dense neutrophilic infiltrate with Gram-negative diplococci on Gram stain. Findings diagnostic of acute bacterial meningitis.
+- Brain parenchyma: vasogenic edema, scattered cortical neuronal necrosis.
+
+MICROBIOLOGY:
+- Antemortem CSF (09/20/2024): culture positive for Neisseria meningitidis, serogroup B.
+- Antemortem blood cultures: positive for N. meningitidis (drawn 04:48 09/20/2024; resulted 09/21/2024 08:30).
+- Postmortem cardiac blood: positive for N. meningitidis.
+
+CAUSE OF DEATH:
+Septic shock due to acute bacterial meningitis (Neisseria meningitidis serogroup B).
+
+MANNER OF DEATH: Natural.
+
+NOTE: Pathology is consistent with a treatable bacterial infection. Outcome was not predetermined by host factors; decedent had no immunocompromise and no comorbidities increasing baseline mortality risk.
+
+/s/ Dr. P. Achterberg, MD

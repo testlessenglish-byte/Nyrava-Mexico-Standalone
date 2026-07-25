@@ -1,0 +1,34 @@
+LIFE CARE PLAN (SUMMARY)
+Patient: Jordan K. Parrish, DOB 11/22/1989
+Prepared by: Dr. R. Estrada, MD, CLCP (Certified Life Care Planner)
+Date: 12/02/2024
+Life expectancy basis: U.S. Life Tables 2021 (remaining 47.2 years)
+
+FUTURE MEDICAL NEEDS (PRESENT VALUE, 3% DISCOUNT RATE):
+
+Category                                              Annual    Years   Total PV
+-----------------------------------------------------------------------------------
+Orthopedic follow-up (L knee, lifetime)                $1,800     47    $46,900
+Hardware removal (anticipated yr 2-3)                  one-time           $24,000
+Eventual L knee TKA (estimated age 50-55)              one-time           $78,000
+Revision TKA (estimated age 70)                        one-time           $42,000
+Physical therapy (ongoing, declining schedule)         $4,200    20      $62,400
+Neurology follow-up (post-TBI)                         $2,400    10      $20,500
+Neuropsychology, cognitive rehab                       $5,600     3      $15,800
+Pain management (L4-L5 ongoing)                        $3,200    47      $83,400
+Medications (NSAIDs, neuropathic agents)               $2,800    47      $73,000
+Assistive devices (cane, brace replacement cycle)      $400      47      $10,400
+Home modifications (one-time, ramping, grab bars)      one-time           $18,000
+-----------------------------------------------------------------------------------
+SUBTOTAL FUTURE MEDICAL                                                $474,400
+
+VOCATIONAL IMPACT:
+Pre-injury occupation: Field service technician, $74,800/yr base.
+Post-injury restrictions: No prolonged standing >30 min, no climbing, no lifting >25 lb.
+Earning capacity reduction estimated at 35%, or $26,180/yr × 24 remaining work years = $628,320 nominal, $410,000 PV at 3%.
+
+PSYCHOLOGICAL SERVICES:
+Anticipated CBT for acute stress / adjustment disorder: $8,400 over 3 years.
+
+GRAND TOTAL ESTIMATED FUTURE DAMAGES (PV): $892,800
+[Plaintiff's pleadings reference $1,180,000; differential reflects updates since pleading and includes contingency reserve for revision surgeries.]

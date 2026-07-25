@@ -1,0 +1,64 @@
+UNITED STATES DISTRICT COURT
+SOUTHERN DISTRICT OF NEW YORK
+
+IN RE CELESTA BIOSCIENCES, INC.
+SECURITIES LITIGATION                     Master File No. 1:26-cv-04182-VSB
+
+CONSOLIDATED AMENDED CLASS ACTION COMPLAINT
+FOR VIOLATIONS OF THE FEDERAL SECURITIES LAWS
+JURY TRIAL DEMANDED
+
+Lead Plaintiff Amalgamated Public Employees Retirement System ("APERS"), on behalf of itself and all others similarly situated, alleges the following based on personal knowledge as to itself and on information and belief as to all other matters, based upon the investigation conducted by counsel:
+
+I. NATURE OF THE ACTION
+1. This is a federal securities class action on behalf of all persons who purchased or otherwise acquired the common stock of Celesta Biosciences, Inc. ("Celesta" or the "Company") between February 6, 2025 and May 11, 2026, inclusive (the "Class Period"), seeking to recover damages caused by Defendants' violations of Sections 10(b) and 20(a) of the Securities Exchange Act of 1934 (the "Exchange Act") and Rule 10b-5 promulgated thereunder.
+
+II. JURISDICTION AND VENUE
+2. The claims asserted herein arise under §§ 10(b) and 20(a) of the Exchange Act (15 U.S.C. §§ 78j(b) and 78t(a)) and Rule 10b-5 (17 C.F.R. § 240.10b-5).
+3. This Court has jurisdiction pursuant to § 27 of the Exchange Act and 28 U.S.C. § 1331.
+4. Venue is proper in this District pursuant to § 27 of the Exchange Act and 28 U.S.C. § 1391(b) because Celesta's securities are actively traded on the Nasdaq Global Select Market and many of the acts constituting the violations alleged herein occurred in substantial part in this District.
+
+III. PARTIES
+5. Lead Plaintiff APERS is a public pension fund headquartered in Little Rock, Arkansas, that purchased 214,000 shares of Celesta common stock during the Class Period and suffered damages.
+6. Defendant Celesta Biosciences, Inc. is a Delaware corporation with headquarters in San Diego, California.
+7. Defendant Elena Sokolova served as CEO of Celesta throughout the Class Period.
+8. Defendant Marcus Delahoyde served as CFO of Celesta throughout the Class Period.
+9. Defendant Dr. Kenji T. Matsuoka served as CMO of Celesta from March 2023 until May 10, 2026.
+
+IV. SUBSTANTIVE ALLEGATIONS
+
+A. Background
+10. Celesta is a clinical-stage biotechnology company focused on eosinophilic gastrointestinal disorders. The Company's lead product candidate, CBX-4402, is an anti-IL-5 monoclonal antibody being developed for eosinophilic esophagitis.
+
+B. False and Misleading Statements During the Class Period
+11. On February 6, 2025, in the Company's fourth quarter and full year 2024 earnings call, Defendant Sokolova stated: "We remain highly confident in the mechanism of CBX-4402 based on the strength of our Phase 2 data. We expect the Phase 3 study to demonstrate a clinically meaningful and statistically robust reduction in peak eosinophil count." This statement was materially false and misleading because, as Confidential Witness 1 (a former Senior Director of Clinical Operations who reported directly to Defendant Matsuoka from 2022 through March 2026) has confirmed, an interim analysis conducted by an independent data monitoring committee in November 2025 had already flagged a conditional power calculation of approximately 24% for the primary endpoint, well below the pre-specified futility boundary of 30%.
+
+12. On March 12, 2026, in a Cowen Healthcare Conference presentation, Defendant Delahoyde stated: "The trial is fully enrolled, blinded, and progressing on schedule. Nothing has changed our internal probability of technical success." According to CW-1 and CW-2 (a former biostatistician contracted through Precision Clinical Research), a formal internal memo dated November 22, 2025 downgraded the company's internal probability-of-technical-success estimate from 68% to 34%, and the underlying interim data were shared with Defendants Sokolova, Delahoyde, and Matsuoka on November 24, 2025.
+
+C. The Truth Emerges
+13. On May 12, 2026, the Company disclosed that the Phase 3 trial had failed both its primary and secondary endpoints. Celesta's stock price collapsed by 62%, from a closing price of $16.24 on May 11, 2026 to an intraday low of $5.94 on May 12, 2026.
+
+D. Suspicious Insider Trading
+14. During the Class Period, and after receiving the negative interim data on November 24, 2025, Defendant Matsuoka sold 33,700 shares of Celesta on May 6, 2026 — six trading days before the disclosure — realizing proceeds of approximately $553,354. This sale was not made pursuant to any Rule 10b5-1 plan.
+15. On May 1, 2026, Director Priscilla Voorhees exercised and sold 15,000 options outside any 10b5-1 plan for realized value of $118,200.
+16. The temporal proximity, magnitude, and departure from historical trading patterns of these transactions supports a strong inference of scienter.
+
+V. LOSS CAUSATION
+17. The May 12, 2026 disclosure was the direct and proximate cause of the 62% decline in Celesta's stock price, and Lead Plaintiff and the Class suffered damages under Dura Pharmaceuticals, Inc. v. Broudo, 544 U.S. 336 (2005).
+
+VI. CLASS ALLEGATIONS
+18. Plaintiff brings this action as a class action pursuant to Rule 23 of the Federal Rules of Civil Procedure on behalf of all persons who purchased Celesta common stock during the Class Period.
+
+VII. CLAIMS FOR RELIEF
+COUNT I — Against All Defendants — § 10(b) of the Exchange Act and Rule 10b-5
+COUNT II — Against the Individual Defendants — § 20(a) of the Exchange Act
+
+PRAYER FOR RELIEF
+WHEREFORE, Plaintiff prays for judgment: (a) certifying the Class; (b) awarding compensatory damages; (c) awarding pre- and post-judgment interest; and (d) awarding reasonable attorneys' fees and costs pursuant to the PSLRA.
+
+Dated: July 8, 2026
+Respectfully submitted,
+/s/ Rowena T. Kestrel
+Rowena T. Kestrel (Bar No. 4188229)
+BERGSTROM, KESTREL & HOLLIS LLP
+Lead Counsel for Lead Plaintiff and the Proposed Class

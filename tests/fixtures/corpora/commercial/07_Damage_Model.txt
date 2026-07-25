@@ -1,0 +1,42 @@
+DAMAGE MODEL — RIDGELINE v. NORTHSTAR ANALYTICS
+Prepared by: Ridgeline Finance & Legal, October 30, 2024.
+Purpose: Internal work product to quantify exposure and demand.
+
+I. DIRECT DAMAGES
+   A. Fees paid to Provider under SOW No. 1 through M2 ....... $240,000
+   B. Cost to remediate corrupt telemetry / rebuild ingestion:
+      - Emergency third-party integrator (Vector Systems) .... $186,400
+      - Ridgeline internal engineering hours (1,240 @ $145) ... $179,800
+      - Replacement edge-collector hardware .................... $62,000
+   Direct-damages subtotal ................................... $668,200
+
+II. INCIDENTAL DAMAGES
+   Sourcing, vendor evaluation, and interim manual reporting .. $47,900
+
+III. CONSEQUENTIAL DAMAGES (foreseeable — communicated
+     in February 6 - February 8, 2024 email thread, and in
+     Sections 1 and 2 of SOW No. 1)
+   A. Lost yield on Line B, August 30 - October 15, 2024,
+      measured against Line A control ..................... $1,940,000
+   B. Late-delivery penalties owed to two automotive
+      customers (contractual, invoiced) ..................... $412,000
+   C. Rework and scrap tied to corrupt telemetry ............. $206,300
+   Consequential-damages subtotal ......................... $2,558,300
+
+IV. LIMITATION-OF-LIABILITY ANALYSIS (Section 5 of MSA)
+   The MSA excludes "indirect, incidental, special, consequential, or
+   punitive damages" and caps aggregate liability at fees paid in the
+   preceding 12 months. Fees paid in the 12 months preceding the claim
+   equal $240,000.
+
+V. THEORY-BY-THEORY RECOVERY
+   Contract (MSA governs, cap applies) ....................... $240,000
+   Independent tort - fraudulent inducement (if pleaded and
+      proven; would defeat contractual cap and disclaimers -
+      confer with outside counsel) ......................... $3,274,400
+   UCC (does not apply - services contract, common law only) ....... N/A
+
+VI. NOTE
+   Massachusetts arbitration clause in Aperture acknowledgment
+   (unrelated PO) is not implicated in the Northstar dispute. The
+   Northstar MSA specifies Delaware law and Delaware forum.
