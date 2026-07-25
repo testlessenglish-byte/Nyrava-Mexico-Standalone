@@ -17,6 +17,7 @@ import {
 import { AGENT_DEFINITIONS } from "@/lib/agents/types";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
+import { useI18n } from "@/i18n";
 
 const RUNNING_STATUSES = new Set([
   "queued",
@@ -48,6 +49,7 @@ export function CaseControlPanel({
   documentsCount: number;
   invalidate: () => void;
 }) {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const running = !!caseStatus && RUNNING_STATUSES.has(caseStatus);
   const queueFn = useServerFn(queueCaseForPipeline);
@@ -105,7 +107,7 @@ export function CaseControlPanel({
             e,
           );
           if (consecutiveFailures >= maxConsecutiveFailures) {
-            toast.error("Lost connection to the pipeline worker — refresh the page to resume driving this case.");
+            toast.error(t("caseControl.toast.lostConnection"));
             break;
           }
           // Back off a bit longer after a failure so a transient outage
@@ -209,7 +211,7 @@ export function CaseControlPanel({
       if (attempts >= maxAttempts) {
         cancelWaitRef.current = false;
         setAwaitingCancel(false);
-        toast.warning("Still stopping the previous run — click Rerun again in a moment.");
+        toast.warning(t("caseControl.toast.stillStopping"));
         return;
       }
       setTimeout(poll, 1500);
@@ -222,27 +224,27 @@ export function CaseControlPanel({
     if (arr.length === 0) return;
     setAddBusy(true);
     try {
-      setAddProgress(`Uploading ${arr.length} file(s) and extracting…`);
+      setAddProgress(t("caseControl.progress.uploading", { count: arr.length }));
       const fd = new FormData();
       fd.append("caseId", caseId);
       for (const f of arr) fd.append("files", f);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await (addFn as any)({ data: fd });
-      toast.success(`Uploaded ${res?.uploaded ?? arr.length} file(s). Re-running affected analyses…`);
+      toast.success(t("caseControl.toast.uploaded", { count: res?.uploaded ?? arr.length }));
       invalidate();
       qc.invalidateQueries({ queryKey: ["case", caseId] });
 
-      setAddProgress("Re-queuing analyzers so the worker re-runs them…");
+      setAddProgress(t("caseControl.progress.requeue"));
       await queueFn({ data: { caseId } });
 
-      setAddProgress("Computing What's Changed…");
+      setAddProgress(t("caseControl.progress.changes"));
       await finalizeFn({ data: { caseId } });
 
-      toast.success(`Report v${res?.nextVersion ?? "?"} generated with change log`);
+      toast.success(t("caseControl.toast.reportGenerated", { version: res?.nextVersion ?? "?" }));
       invalidate();
       qc.invalidateQueries({ queryKey: ["case", caseId] });
     } catch (e) {
-      toast.error(`Add evidence failed: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(t("caseControl.toast.addFailed", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       setAddBusy(false);
       setAddProgress("");
@@ -256,13 +258,15 @@ export function CaseControlPanel({
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-cyan-400/20 bg-slate-950/60 p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-cyan-300">Case Control</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-cyan-300">{t("caseControl.title")}</h2>
         <p className="mt-1 text-xs text-slate-400">
-          One command runs the full pipeline in locked order. Outputs stream into the Analysis Command Center.
+          {t("caseControl.subtitle")}
         </p>
         <p className="mt-2 text-[11px] leading-snug text-slate-500">
-          Runs {PIPELINE_STAGES.length} intelligence stages + a {AGENT_DEFINITIONS.length}-agent verification pass
-          (Judge, QA, Hallucination gates). Expect ~8–12 additional LLM calls per run vs. analyzers alone.
+          {t("caseControl.stagesNote", {
+            stages: PIPELINE_STAGES.length,
+            agents: AGENT_DEFINITIONS.length,
+          })}
         </p>
 
         <button
@@ -275,13 +279,13 @@ export function CaseControlPanel({
           ) : (
             <Play className="h-4 w-4" />
           )}
-          Run Case
+          {t("caseControl.run")}
         </button>
 
         <button
           onClick={() => {
             if (
-              confirm("Rerun Case will clear all findings, scores, and reports. Uploaded files are kept. Continue?")
+              confirm(t("caseControl.rerun.confirm"))
             ) {
               runM.mutate(true);
             }
@@ -294,7 +298,7 @@ export function CaseControlPanel({
           ) : (
             <RotateCw className="h-4 w-4" />
           )}
-          {awaitingCancel ? "Stopping current run…" : "Rerun Case"}
+          {awaitingCancel ? t("caseControl.rerun.stopping") : t("caseControl.rerun")}
         </button>
 
         <input
@@ -311,15 +315,15 @@ export function CaseControlPanel({
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-4 py-2.5 text-sm font-medium text-emerald-200 hover:bg-emerald-400/20 disabled:opacity-50"
         >
           {addBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FilePlus2 className="h-4 w-4" />}
-          {addBusy ? "Working…" : "Add Evidence"}
+          {addBusy ? t("caseControl.working") : t("caseControl.addEvidence")}
         </button>
         {addBusy && addProgress && <p className="mt-2 text-xs text-emerald-300">{addProgress}</p>}
 
         {documentsCount === 0 && (
-          <p className="mt-3 text-xs text-amber-300">Upload at least one document before running.</p>
+          <p className="mt-3 text-xs text-amber-300">{t("caseControl.needDocument")}</p>
         )}
         {running && (
-          <p className="mt-3 text-xs text-cyan-300">Pipeline in progress — see the Command Center for live status.</p>
+          <p className="mt-3 text-xs text-cyan-300">{t("caseControl.inProgress")}</p>
         )}
       </div>
 
@@ -350,6 +354,7 @@ function CollapsedCaseSettings({
   running: boolean;
   invalidate: () => void;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const updateFn = useServerFn(updateCaseSettings);
   const [ct, setCt] = useState<string>(caseType ?? "general_civil");
@@ -366,11 +371,11 @@ function CollapsedCaseSettings({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       updateFn({ data: { caseId, ...(patch as any) } }),
     onSuccess: () => {
-      toast.success("Settings saved. Rerun Case to apply.");
+      toast.success(t("caseSettings.toast.saved"));
       setOpen(false);
       invalidate();
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Save failed"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("caseSettings.toast.saveFailed")),
   });
 
   const dirty =
@@ -384,7 +389,7 @@ function CollapsedCaseSettings({
         className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
       >
         <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <SettingsIcon className="h-3.5 w-3.5" /> Case Settings
+          <SettingsIcon className="h-3.5 w-3.5" /> {t("caseSettings.title")}
         </span>
         {open ? (
           <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -395,7 +400,7 @@ function CollapsedCaseSettings({
       {open && (
         <div className="border-t border-border p-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground/80">Case type</label>
+            <label className="text-xs font-medium text-foreground/80">{t("caseSettings.caseType")}</label>
             <select
               value={ct}
               onChange={(e) => setCt(e.target.value)}
@@ -411,15 +416,15 @@ function CollapsedCaseSettings({
           </div>
 
           <div className="mt-4 space-y-1.5">
-            <label className="text-xs font-medium text-foreground/80">Jurisdiction</label>
-            <p className="text-[11px] text-muted-foreground">Scopes case-law lookups to this state's courts.</p>
+            <label className="text-xs font-medium text-foreground/80">{t("caseSettings.jurisdiction")}</label>
+            <p className="text-[11px] text-muted-foreground">{t("caseSettings.jurisdiction.hint")}</p>
             <select
               value={juris}
               onChange={(e) => setJuris(e.target.value)}
               disabled={disabled}
               className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm disabled:opacity-50"
             >
-              <option value="">Nationwide (no state filter)</option>
+              <option value="">{t("caseSettings.jurisdiction.national")}</option>
               {JURISDICTION_OPTIONS.filter((o) => o.value !== "federal").map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -429,12 +434,12 @@ function CollapsedCaseSettings({
           </div>
 
           <div className="mt-4 space-y-1.5">
-            <label className="text-xs font-medium text-foreground/80">Analysis mode</label>
+            <label className="text-xs font-medium text-foreground/80">{t("caseSettings.analysisMode")}</label>
             <div className="grid gap-1.5">
               {[
-                { v: "strict", label: "Strict", desc: "Only direct evidence." },
-                { v: "balanced", label: "Balanced", desc: "Direct + evidence-based inferences." },
-                { v: "exploratory", label: "Exploratory", desc: "Includes AI theories, labeled." },
+                { v: "strict", label: t("caseSettings.mode.strict"), desc: t("caseSettings.mode.strict.desc") },
+                { v: "balanced", label: t("caseSettings.mode.balanced"), desc: t("caseSettings.mode.balanced.desc") },
+                { v: "exploratory", label: t("caseSettings.mode.exploratory"), desc: t("caseSettings.mode.exploratory.desc") },
               ].map((opt) => (
                 <button
                   key={opt.v}
@@ -458,7 +463,7 @@ function CollapsedCaseSettings({
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
           >
             {m.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {dirty ? "Save settings" : "Saved"}
+            {dirty ? t("caseSettings.save") : t("caseSettings.saved")}
           </button>
         </div>
       )}
