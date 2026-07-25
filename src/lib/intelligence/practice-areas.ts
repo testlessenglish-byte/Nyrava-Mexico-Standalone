@@ -432,28 +432,26 @@ const MODULE_NOISE_TOKENS = new Set<string>([
 
 const PRACTICE_FINDING_MODULES: Record<PracticeArea, string[]> = {
   criminal: [
-    "miranda",
-    "brady",
-    "giglio",
-    "search_seizure",
-    "fourth_amendment",
-    "fifth_amendment",
-    "sixth_amendment",
-    "chain_of_custody",
-    "criminal_discovery",
+    "carpeta_de_investigacion",
+    "vinculacion_a_proceso",
+    "medidas_cautelares",
+    "prision_preventiva_oficiosa",
+    "cadena_de_custodia",
+    "debido_proceso",
+    "presuncion_de_inocencia",
+    "defensa_adecuada",
+    "datos_de_prueba",
+    "individualizacion_sancion",
+    "salidas_alternas",
     "trial_strategy",
-    "sentencing",
-    "constitutional",
-    "suppression",
     "procedural",
     // Tax-fraud specific — only reachable on a tax_law case once the
     // charging-doc cross-domain trigger activates "criminal" (or on a
     // criminal case type directly).
     "tax_evasion",
-    "tax_fraud",
+    "defraudacion_fiscal",
     "willfulness",
     "false_return",
-    "klein_conspiracy",
   ],
   civil_rights: [
     "constitutional",
@@ -1056,15 +1054,13 @@ const UNIVERSAL_MOTION_TYPES = ["procedural", "scheduling", "in_limine"];
 
 const PRACTICE_MOTION_TYPES: Record<PracticeArea, string[]> = {
   criminal: [
-    "suppress",
-    "motion_to_suppress",
-    "dismiss",
-    "discovery",
-    "brady",
-    "franks",
-    "speedy_trial",
-    "bail",
-    "sentencing",
+    "solicitud_de_no_vinculacion",
+    "impugnacion_medidas_cautelares",
+    "suspension_condicional",
+    "acuerdo_reparatorio",
+    "procedimiento_abreviado",
+    "recurso_de_apelacion",
+    "amparo_indirecto_penal",
   ],
   civil_rights: ["summary_judgment", "preliminary_injunction", "qualified_immunity", "section_1983", "discovery"],
   general_civil: [
@@ -1243,6 +1239,12 @@ const PRACTICE_BLOCKED_TERMS: Record<PracticeArea, string[]> = {
     "title vii",
     "discrimination claim",
     "payroll records",
+    "miranda",
+    "grand jury",
+    "plea bargain",
+    "felony",
+    "misdemeanor",
+    "district attorney",
   ],
   civil_rights: ["child custody", "spousal support", "payroll records", "divorce"],
   general_civil: [

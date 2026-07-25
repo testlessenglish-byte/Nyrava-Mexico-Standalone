@@ -27,37 +27,36 @@ export interface CaseTypeStandards {
 
 const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
   criminal: {
-    label: "Criminal Defense",
+    label: "Derecho Penal (Sistema Acusatorio)",
     controlling_standards:
-      "Prosecution must prove every element beyond a reasonable doubt (In re Winship, 397 U.S. 358 (1970)). Fourth Amendment governs searches/seizures; Fifth Amendment governs custodial interrogation and self-incrimination; Sixth Amendment governs confrontation, counsel, and speedy trial; Fourteenth Amendment incorporates these to the states. Brady/Giglio impose an ongoing duty to disclose exculpatory and impeachment material.",
+      "El sistema de justicia penal en México es acusatorio, adversarial y oral (Art. 20 CPEUM, vigente en todo el país desde 2016), regido por los principios de publicidad, contradicción, concentración, continuidad e inmediación. Rige la presunción de inocencia (Art. 20, apartado B, fracción I). El Ministerio Público dirige la investigación a través de la carpeta de investigación (Art. 21 CPEUM; CNPP). El proceso se estructura en etapas: investigación (inicial y complementaria), intermedia, y juicio oral. La vinculación a proceso debe resolverse dentro del plazo constitucional de 72 horas, ampliable a 144 a solicitud del imputado (Art. 19 CPEUM). Las medidas cautelares (Arts. 153–171 CNPP) incluyen la prisión preventiva justificada y, para el catálogo de delitos del Art. 19 CPEUM (delincuencia organizada, homicidio doloso, violación, secuestro, trata de personas, feminicidio, entre otros), la prisión preventiva OFICIOSA.",
     key_cases: [
-      "Brady v. Maryland, 373 U.S. 83 (1963) — duty to disclose exculpatory evidence",
-      "Giglio v. United States, 405 U.S. 150 (1972) — impeachment material re: cooperating witnesses",
-      "Miranda v. Arizona, 384 U.S. 436 (1966) — custodial interrogation warnings",
-      "Terry v. Ohio, 392 U.S. 1 (1968) — investigative stops require reasonable suspicion",
-      "Arizona v. Gant, 556 U.S. 332 (2009) — vehicle search incident to arrest",
-      "Franks v. Delaware, 438 U.S. 154 (1978) — challenging warrant affidavit veracity",
-      "Crawford v. Washington, 541 U.S. 36 (2004) — Confrontation Clause / testimonial hearsay",
-      "Strickland v. Washington, 466 U.S. 668 (1984) — ineffective assistance of counsel",
+      "Art. 20 CPEUM — principios rectores del proceso penal acusatorio y derechos del imputado y la víctima",
+      "Art. 19 CPEUM — plazo constitucional, vinculación a proceso, catálogo de prisión preventiva oficiosa",
+      "Arts. 227–230 CNPP — cadena de custodia",
+      "Arts. 153–171 CNPP — medidas cautelares",
+      "Arts. 186–207 CNPP — salidas alternas y formas de terminación anticipada (acuerdos reparatorios, suspensión condicional del proceso, procedimiento abreviado)",
+      "Art. 20, apartado B, fracción VIII CPEUM — derecho a una defensa técnica adecuada",
     ],
     canonical_motions: [
-      "Motion to Suppress (4th Am. / Miranda / voluntariness)",
-      "Motion to Dismiss (speedy trial, statute of limitations, defective charging document)",
-      "Franks Hearing Motion (false statements in warrant affidavit)",
-      "Brady/Giglio Discovery Motion",
-      "Motion in Limine (prior bad acts under FRE 404(b); prior convictions under FRE 609)",
-      "Motion for Bill of Particulars",
+      "Solicitud de no vinculación a proceso",
+      "Impugnación de medidas cautelares (Arts. 161–162 CNPP)",
+      "Solicitud de suspensión condicional del proceso",
+      "Acuerdo reparatorio (cuando el delito lo permita — Art. 187 CNPP)",
+      "Solicitud de procedimiento abreviado",
+      "Recurso de apelación (Arts. 467–472 CNPP)",
+      "Amparo indirecto en materia penal (contra actos dentro del procedimiento — ver módulo Amparo)",
     ],
     evidentiary_rules: [
-      "Chain of custody must be established for physical evidence (FRE 901)",
-      "Prior consistent/inconsistent statements: FRE 613, 801(d)(1)",
-      "Character evidence limits: FRE 404, 405, 608",
-      "Confessions: voluntariness under Jackson v. Denno, 378 U.S. 368 (1964)",
+      "Distinción procesal entre dato de prueba, medio de prueba y prueba (esta última solo se produce en juicio oral, ante el Tribunal de Enjuiciamiento)",
+      "Cadena de custodia debe documentarse desde el aseguramiento del indicio hasta su desahogo en juicio (Arts. 227–230 CNPP)",
+      "Principio de inmediación: solo lo desahogado ante el Tribunal de Enjuiciamiento constituye prueba válida para sentencia",
+      "La confesión del imputado carece de valor probatorio pleno si no fue rendida con asistencia de su defensor (Art. 20, apartado B, fracción II CPEUM)",
     ],
     damages_or_remedies:
-      "Remedies: suppression of unlawfully obtained evidence, dismissal, sentence mitigation, acquittal. There are no monetary damages in a criminal case; strategy centers on suppression, negotiation, and trial acquittal.",
+      "No hay daños monetarios como remedio principal en materia penal — la estrategia se centra en: no vinculación a proceso, modificación o revocación de medidas cautelares, salidas alternas (evitando el juicio oral), individualización favorable de la sanción, o absolución en juicio. La reparación del daño a la víctima se determina de forma independiente (Arts. 108–111 CNPP; Ley General de Víctimas) y puede exigirse incluso en salidas alternas.",
     drafting_notes:
-      "Every IRAC block must state the constitutional or statutory rule with the correct case citation and year. Every motion must identify the specific evidence to be suppressed or claim to be dismissed, with pinpoint [DOC N p.M] citations. Do NOT invent Miranda facts absent an interrogation record.",
+      "Verificar SIEMPRE si el delito imputado está en el catálogo de prisión preventiva oficiosa (Art. 19 CPEUM) antes de plantear estrategia de medidas cautelares — si lo está, no procede solicitar cautelar distinta. Distinguir con precisión dato de prueba (etapa de investigación) de prueba (solo en juicio). Evaluar viabilidad de salidas alternas ANTES de asumir que el caso va a juicio oral — often la vía más favorable para el imputado. NUNCA uses terminología del sistema estadounidense (Miranda, grand jury, felony, misdemeanor, plea bargain, motion to suppress) — usa siempre los términos del CNPP y la CPEUM.",
   },
 
   civil_rights: {
