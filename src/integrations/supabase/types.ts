@@ -4274,13 +4274,17 @@ export type Database = {
           case_overview: string | null
           case_strength_score: number | null
           change_log: Json | null
+          citations: Json
           constitutional_issues: string | null
+          constitutional_issues_struct: Json
           contradiction_report: string | null
           contradictions_struct: Json | null
           created_at: string
+          cross_examination: Json
           defense_theory_report: string | null
           discovery_analysis: string | null
           engines_summary: Json | null
+          evidence_index: Json
           evidence_summary: string | null
           executive_summary: string | null
           facts: string | null
@@ -4288,10 +4292,14 @@ export type Database = {
           full_report: Json
           generated_language: string
           id: string
+          intelligence_version: string | null
           investigator_summary: string | null
+          item_flags: Json
           missing_evidence_report: Json | null
           missing_evidence_struct: Json | null
+          motion_opportunities: Json
           motions_suppressed: boolean
+          next_actions: Json
           procedural_issues_report: string | null
           prosecution_theory_report: string | null
           quality_block_reasons: Json | null
@@ -4303,6 +4311,7 @@ export type Database = {
           risk_score: number | null
           score_breakdown: string | null
           scores_suppressed: boolean
+          strategy_recommendations: Json
           timeline_summary: string | null
           updated_at: string
           user_id: string | null
@@ -4317,13 +4326,17 @@ export type Database = {
           case_overview?: string | null
           case_strength_score?: number | null
           change_log?: Json | null
+          citations?: Json
           constitutional_issues?: string | null
+          constitutional_issues_struct?: Json
           contradiction_report?: string | null
           contradictions_struct?: Json | null
           created_at?: string
+          cross_examination?: Json
           defense_theory_report?: string | null
           discovery_analysis?: string | null
           engines_summary?: Json | null
+          evidence_index?: Json
           evidence_summary?: string | null
           executive_summary?: string | null
           facts?: string | null
@@ -4331,10 +4344,14 @@ export type Database = {
           full_report?: Json
           generated_language?: string
           id?: string
+          intelligence_version?: string | null
           investigator_summary?: string | null
+          item_flags?: Json
           missing_evidence_report?: Json | null
           missing_evidence_struct?: Json | null
+          motion_opportunities?: Json
           motions_suppressed?: boolean
+          next_actions?: Json
           procedural_issues_report?: string | null
           prosecution_theory_report?: string | null
           quality_block_reasons?: Json | null
@@ -4346,6 +4363,7 @@ export type Database = {
           risk_score?: number | null
           score_breakdown?: string | null
           scores_suppressed?: boolean
+          strategy_recommendations?: Json
           timeline_summary?: string | null
           updated_at?: string
           user_id?: string | null
@@ -4360,13 +4378,17 @@ export type Database = {
           case_overview?: string | null
           case_strength_score?: number | null
           change_log?: Json | null
+          citations?: Json
           constitutional_issues?: string | null
+          constitutional_issues_struct?: Json
           contradiction_report?: string | null
           contradictions_struct?: Json | null
           created_at?: string
+          cross_examination?: Json
           defense_theory_report?: string | null
           discovery_analysis?: string | null
           engines_summary?: Json | null
+          evidence_index?: Json
           evidence_summary?: string | null
           executive_summary?: string | null
           facts?: string | null
@@ -4374,10 +4396,14 @@ export type Database = {
           full_report?: Json
           generated_language?: string
           id?: string
+          intelligence_version?: string | null
           investigator_summary?: string | null
+          item_flags?: Json
           missing_evidence_report?: Json | null
           missing_evidence_struct?: Json | null
+          motion_opportunities?: Json
           motions_suppressed?: boolean
+          next_actions?: Json
           procedural_issues_report?: string | null
           prosecution_theory_report?: string | null
           quality_block_reasons?: Json | null
@@ -4389,6 +4415,7 @@ export type Database = {
           risk_score?: number | null
           score_breakdown?: string | null
           scores_suppressed?: boolean
+          strategy_recommendations?: Json
           timeline_summary?: string | null
           updated_at?: string
           user_id?: string | null
