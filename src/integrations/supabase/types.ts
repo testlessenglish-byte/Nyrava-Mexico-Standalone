@@ -23,7 +23,10 @@ export type Database = {
           entity_id: string | null
           entity_type: string
           id: string
+          ip_address: unknown
           org_id: string | null
+          session_id: string | null
+          user_agent: string | null
         }
         Insert: {
           action: string
@@ -33,7 +36,10 @@ export type Database = {
           entity_id?: string | null
           entity_type: string
           id?: string
+          ip_address?: unknown
           org_id?: string | null
+          session_id?: string | null
+          user_agent?: string | null
         }
         Update: {
           action?: string
@@ -43,7 +49,10 @@ export type Database = {
           entity_id?: string | null
           entity_type?: string
           id?: string
+          ip_address?: unknown
           org_id?: string | null
+          session_id?: string | null
+          user_agent?: string | null
         }
         Relationships: [
           {
@@ -55,15 +64,445 @@ export type Database = {
           },
         ]
       }
+      billing_payments: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json
+          org_id: string
+          paid_at: string | null
+          provider: string
+          provider_payment_id: string | null
+          status: string
+          subscription_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json
+          org_id: string
+          paid_at?: string | null
+          provider?: string
+          provider_payment_id?: string | null
+          status: string
+          subscription_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json
+          org_id?: string
+          paid_at?: string | null
+          provider?: string
+          provider_payment_id?: string | null
+          status?: string
+          subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_payments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "org_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_plans: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          currency: string
+          description: string | null
+          features: Json
+          id: string
+          interval: string
+          name: string
+          price_cents: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          features?: Json
+          id?: string
+          interval?: string
+          name: string
+          price_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          features?: Json
+          id?: string
+          interval?: string
+          name?: string
+          price_cents?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      document_processing_jobs: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          document_id: string
+          error: string | null
+          id: string
+          org_id: string
+          payload: Json
+          scheduled_at: string
+          stage: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["doc_processing_status"]
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          document_id: string
+          error?: string | null
+          id?: string
+          org_id: string
+          payload?: Json
+          scheduled_at?: string
+          stage: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["doc_processing_status"]
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          document_id?: string
+          error?: string | null
+          id?: string
+          org_id?: string
+          payload?: Json
+          scheduled_at?: string
+          stage?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["doc_processing_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_processing_jobs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "matter_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_processing_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_versions: {
+        Row: {
+          checksum: string | null
+          created_at: string
+          document_id: string
+          id: string
+          mime_type: string | null
+          notes: string | null
+          org_id: string
+          size_bytes: number | null
+          storage_path: string
+          uploaded_by: string | null
+          version: number
+        }
+        Insert: {
+          checksum?: string | null
+          created_at?: string
+          document_id: string
+          id?: string
+          mime_type?: string | null
+          notes?: string | null
+          org_id: string
+          size_bytes?: number | null
+          storage_path: string
+          uploaded_by?: string | null
+          version: number
+        }
+        Update: {
+          checksum?: string | null
+          created_at?: string
+          document_id?: string
+          id?: string
+          mime_type?: string | null
+          notes?: string | null
+          org_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "matter_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intelligence_runs: {
+        Row: {
+          completed_at: string | null
+          cost_cents: number | null
+          created_at: string
+          engine: Database["public"]["Enums"]["intelligence_engine"]
+          error: string | null
+          id: string
+          input: Json
+          matter_id: string | null
+          model: string | null
+          org_id: string
+          output: Json
+          requested_by: string | null
+          started_at: string | null
+          status: string
+          tokens_used: number | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          cost_cents?: number | null
+          created_at?: string
+          engine: Database["public"]["Enums"]["intelligence_engine"]
+          error?: string | null
+          id?: string
+          input?: Json
+          matter_id?: string | null
+          model?: string | null
+          org_id: string
+          output?: Json
+          requested_by?: string | null
+          started_at?: string | null
+          status?: string
+          tokens_used?: number | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          cost_cents?: number | null
+          created_at?: string
+          engine?: Database["public"]["Enums"]["intelligence_engine"]
+          error?: string | null
+          id?: string
+          input?: Json
+          matter_id?: string | null
+          model?: string | null
+          org_id?: string
+          output?: Json
+          requested_by?: string | null
+          started_at?: string | null
+          status?: string
+          tokens_used?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intelligence_runs_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intelligence_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_authorities: {
+        Row: {
+          body: string | null
+          citation: string | null
+          created_at: string
+          effective_at: string | null
+          id: string
+          issuer: string | null
+          jurisdiction: string | null
+          kind: string
+          metadata: Json
+          published_at: string | null
+          short_title: string | null
+          source_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          citation?: string | null
+          created_at?: string
+          effective_at?: string | null
+          id?: string
+          issuer?: string | null
+          jurisdiction?: string | null
+          kind: string
+          metadata?: Json
+          published_at?: string | null
+          short_title?: string | null
+          source_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          citation?: string | null
+          created_at?: string
+          effective_at?: string | null
+          id?: string
+          issuer?: string | null
+          jurisdiction?: string | null
+          kind?: string
+          metadata?: Json
+          published_at?: string | null
+          short_title?: string | null
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      legal_citations: {
+        Row: {
+          authority_id: string
+          citation_text: string
+          cited_authority_id: string | null
+          context: string | null
+          created_at: string
+          id: string
+        }
+        Insert: {
+          authority_id: string
+          citation_text: string
+          cited_authority_id?: string | null
+          context?: string | null
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          authority_id?: string
+          citation_text?: string
+          cited_authority_id?: string | null
+          context?: string | null
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_citations_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_citations_cited_authority_id_fkey"
+            columns: ["cited_authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_source_connectors: {
+        Row: {
+          base_url: string | null
+          code: string
+          config: Json
+          created_at: string
+          description: string | null
+          id: string
+          last_sync_at: string | null
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          base_url?: string | null
+          code: string
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          last_sync_at?: string | null
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string | null
+          code?: string
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          last_sync_at?: string | null
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       matter_documents: {
         Row: {
+          checksum: string | null
+          classification: Json
           created_at: string
+          current_version: number
           deleted_at: string | null
           doc_type: string | null
           id: string
           matter_id: string
+          media_kind: string | null
+          metadata: Json
           mime_type: string | null
           org_id: string
+          processing_error: string | null
+          processing_status: Database["public"]["Enums"]["doc_processing_status"]
           size_bytes: number | null
           storage_path: string | null
           title: string
@@ -71,13 +510,20 @@ export type Database = {
           uploaded_by: string | null
         }
         Insert: {
+          checksum?: string | null
+          classification?: Json
           created_at?: string
+          current_version?: number
           deleted_at?: string | null
           doc_type?: string | null
           id?: string
           matter_id: string
+          media_kind?: string | null
+          metadata?: Json
           mime_type?: string | null
           org_id: string
+          processing_error?: string | null
+          processing_status?: Database["public"]["Enums"]["doc_processing_status"]
           size_bytes?: number | null
           storage_path?: string | null
           title: string
@@ -85,13 +531,20 @@ export type Database = {
           uploaded_by?: string | null
         }
         Update: {
+          checksum?: string | null
+          classification?: Json
           created_at?: string
+          current_version?: number
           deleted_at?: string | null
           doc_type?: string | null
           id?: string
           matter_id?: string
+          media_kind?: string | null
+          metadata?: Json
           mime_type?: string | null
           org_id?: string
+          processing_error?: string | null
+          processing_status?: Database["public"]["Enums"]["doc_processing_status"]
           size_bytes?: number | null
           storage_path?: string | null
           title?: string
@@ -171,6 +624,83 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      matter_knowledge: {
+        Row: {
+          body: string | null
+          confidence: number | null
+          created_at: string
+          data: Json
+          engine: Database["public"]["Enums"]["intelligence_engine"]
+          id: string
+          kind: string
+          matter_id: string
+          org_id: string
+          source_document_id: string | null
+          source_run_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          confidence?: number | null
+          created_at?: string
+          data?: Json
+          engine: Database["public"]["Enums"]["intelligence_engine"]
+          id?: string
+          kind: string
+          matter_id: string
+          org_id: string
+          source_document_id?: string | null
+          source_run_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          confidence?: number | null
+          created_at?: string
+          data?: Json
+          engine?: Database["public"]["Enums"]["intelligence_engine"]
+          id?: string
+          kind?: string
+          matter_id?: string
+          org_id?: string
+          source_document_id?: string | null
+          source_run_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matter_knowledge_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matter_knowledge_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matter_knowledge_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "matter_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matter_knowledge_source_run_id_fkey"
+            columns: ["source_run_id"]
+            isOneToOne: false
+            referencedRelation: "intelligence_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -461,6 +991,108 @@ export type Database = {
           },
         ]
       }
+      org_role_permissions: {
+        Row: {
+          created_at: string
+          granted: boolean
+          id: string
+          org_id: string
+          permission_code: string
+          role: Database["public"]["Enums"]["org_role"]
+        }
+        Insert: {
+          created_at?: string
+          granted?: boolean
+          id?: string
+          org_id: string
+          permission_code: string
+          role: Database["public"]["Enums"]["org_role"]
+        }
+        Update: {
+          created_at?: string
+          granted?: boolean
+          id?: string
+          org_id?: string
+          permission_code?: string
+          role?: Database["public"]["Enums"]["org_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_role_permissions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_role_permissions_permission_code_fkey"
+            columns: ["permission_code"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      org_subscriptions: {
+        Row: {
+          cancel_at: string | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          metadata: Json
+          org_id: string
+          plan_id: string
+          provider: string
+          provider_subscription_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cancel_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          metadata?: Json
+          org_id: string
+          plan_id: string
+          provider?: string
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cancel_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          metadata?: Json
+          org_id?: string
+          plan_id?: string
+          provider?: string
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_subscriptions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -500,6 +1132,69 @@ export type Database = {
         }
         Relationships: []
       }
+      permissions: {
+        Row: {
+          action: string
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          resource: string
+        }
+        Insert: {
+          action: string
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          resource: string
+        }
+        Update: {
+          action?: string
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          resource?: string
+        }
+        Relationships: []
+      }
+      plan_entitlements: {
+        Row: {
+          id: string
+          permission_code: string
+          plan_id: string
+          quota: number | null
+        }
+        Insert: {
+          id?: string
+          permission_code: string
+          plan_id: string
+          quota?: number | null
+        }
+        Update: {
+          id?: string
+          permission_code?: string
+          plan_id?: string
+          quota?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_entitlements_permission_code_fkey"
+            columns: ["permission_code"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "plan_entitlements_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -536,6 +1231,35 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          created_at: string
+          id: string
+          permission_code: string
+          role: Database["public"]["Enums"]["org_role"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permission_code: string
+          role: Database["public"]["Enums"]["org_role"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permission_code?: string
+          role?: Database["public"]["Enums"]["org_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_permission_code_fkey"
+            columns: ["permission_code"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -570,6 +1294,10 @@ export type Database = {
         Args: { _org: string; _user: string }
         Returns: boolean
       }
+      has_permission: {
+        Args: { _org: string; _perm: string; _user: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -584,7 +1312,33 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role:
+        | "admin"
+        | "moderator"
+        | "user"
+        | "super_admin"
+        | "platform_admin"
+      doc_processing_status:
+        | "pending"
+        | "uploading"
+        | "uploaded"
+        | "extracting"
+        | "extracted"
+        | "classifying"
+        | "classified"
+        | "analyzing"
+        | "analyzed"
+        | "failed"
+      intelligence_engine:
+        | "legal"
+        | "case"
+        | "evidence"
+        | "witness"
+        | "timeline"
+        | "litigation"
+        | "contract"
+        | "research"
+        | "work_product"
       matter_priority: "low" | "normal" | "high" | "urgent"
       matter_status: "intake" | "active" | "on_hold" | "closed" | "archived"
       matter_type:
@@ -604,7 +1358,18 @@ export type Database = {
         | "compliance"
         | "transaction"
       membership_status: "active" | "invited" | "suspended"
-      org_role: "owner" | "admin" | "lawyer" | "paralegal" | "viewer"
+      org_role:
+        | "owner"
+        | "admin"
+        | "lawyer"
+        | "paralegal"
+        | "viewer"
+        | "firm_administrator"
+        | "attorney"
+        | "associate_attorney"
+        | "legal_assistant"
+        | "client"
+        | "read_only"
       task_status: "todo" | "in_progress" | "blocked" | "done" | "cancelled"
     }
     CompositeTypes: {
@@ -733,7 +1498,30 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "super_admin", "platform_admin"],
+      doc_processing_status: [
+        "pending",
+        "uploading",
+        "uploaded",
+        "extracting",
+        "extracted",
+        "classifying",
+        "classified",
+        "analyzing",
+        "analyzed",
+        "failed",
+      ],
+      intelligence_engine: [
+        "legal",
+        "case",
+        "evidence",
+        "witness",
+        "timeline",
+        "litigation",
+        "contract",
+        "research",
+        "work_product",
+      ],
       matter_priority: ["low", "normal", "high", "urgent"],
       matter_status: ["intake", "active", "on_hold", "closed", "archived"],
       matter_type: [
@@ -754,7 +1542,19 @@ export const Constants = {
         "transaction",
       ],
       membership_status: ["active", "invited", "suspended"],
-      org_role: ["owner", "admin", "lawyer", "paralegal", "viewer"],
+      org_role: [
+        "owner",
+        "admin",
+        "lawyer",
+        "paralegal",
+        "viewer",
+        "firm_administrator",
+        "attorney",
+        "associate_attorney",
+        "legal_assistant",
+        "client",
+        "read_only",
+      ],
       task_status: ["todo", "in_progress", "blocked", "done", "cancelled"],
     },
   },
