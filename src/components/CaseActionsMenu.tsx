@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { MoreHorizontal, Pencil, Archive, ArchiveRestore, Copy, Trash2, StopCircle } from "lucide-react";
+import { useI18n } from "@/i18n";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,7 @@ type Props = {
 };
 
 export function CaseActionsMenu({ caseId, name, archived, running, onAfter, navigateAfterDelete }: Props) {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const invalidate = () => {
@@ -54,18 +56,21 @@ export function CaseActionsMenu({ caseId, name, archived, running, onAfter, navi
 
   const renameM = useMutation({
     mutationFn: () => rename({ data: { caseId, name: newName.trim() } }),
-    onSuccess: () => { toast.success("Renamed"); setRenameOpen(false); invalidate(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Rename failed"),
+    onSuccess: () => { toast.success(t("cases.toast.renamed")); setRenameOpen(false); invalidate(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("cases.toast.renameFailed")),
   });
   const archiveM = useMutation({
     mutationFn: () => archive({ data: { caseId, archived: !archived } }),
-    onSuccess: () => { toast.success(archived ? "Unarchived" : "Archived"); invalidate(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Action failed"),
+    onSuccess: () => {
+      toast.success(archived ? t("cases.toast.unarchived") : t("cases.toast.archived"));
+      invalidate();
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("cases.toast.actionFailed")),
   });
   const deleteM = useMutation({
     mutationFn: () => del({ data: { caseId } }),
     onSuccess: () => {
-      toast.success("Case deleted");
+      toast.success(t("cases.toast.deleted"));
       setDeleteOpen(false);
       qc.setQueryData<Array<{ id: string }>>(["cases"], (old) => old?.filter((c) => c.id !== caseId));
       qc.setQueryData<{ cases?: Array<{ id: string }> }>(["adminStats"], (old) => (
@@ -74,21 +79,21 @@ export function CaseActionsMenu({ caseId, name, archived, running, onAfter, navi
       invalidate();
       if (navigateAfterDelete) navigate({ to: "/cases" });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Delete failed"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("cases.toast.deleteFailed")),
   });
   const dupM = useMutation({
     mutationFn: () => dup({ data: { caseId } }),
     onSuccess: (r: { caseId: string }) => {
-      toast.success("Duplicated — upload files to the new case");
+      toast.success(t("cases.toast.duplicated"));
       invalidate();
       navigate({ to: "/cases/$caseId", params: { caseId: r.caseId } });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Duplicate failed"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("cases.toast.duplicateFailed")),
   });
   const cancelM = useMutation({
     mutationFn: () => cancel({ data: { caseId } }),
-    onSuccess: () => { toast.info("Cancel requested — will stop at next checkpoint"); invalidate(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Cancel failed"),
+    onSuccess: () => { toast.info(t("cases.toast.cancelRequested")); invalidate(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("cases.toast.cancelFailed")),
   });
 
   return (
@@ -97,7 +102,7 @@ export function CaseActionsMenu({ caseId, name, archived, running, onAfter, navi
         <DropdownMenuTrigger
           onClick={(e) => e.stopPropagation()}
           className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-secondary"
-          aria-label="Case actions"
+          aria-label={t("cases.actions.menu")}
         >
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
@@ -105,24 +110,24 @@ export function CaseActionsMenu({ caseId, name, archived, running, onAfter, navi
           {running && (
             <>
               <DropdownMenuItem onSelect={() => cancelM.mutate()} className="text-warning">
-                <StopCircle className="mr-2 h-4 w-4" /> Cancel processing
+                <StopCircle className="mr-2 h-4 w-4" /> {t("cases.actions.cancelProcessing")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
           )}
           <DropdownMenuItem onSelect={() => { setNewName(name); setRenameOpen(true); }}>
-            <Pencil className="mr-2 h-4 w-4" /> Rename
+            <Pencil className="mr-2 h-4 w-4" /> {t("cases.actions.rename")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => dupM.mutate()}>
-            <Copy className="mr-2 h-4 w-4" /> Duplicate
+            <Copy className="mr-2 h-4 w-4" /> {t("cases.actions.duplicate")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => archiveM.mutate()}>
             {archived ? <ArchiveRestore className="mr-2 h-4 w-4" /> : <Archive className="mr-2 h-4 w-4" />}
-            {archived ? "Unarchive" : "Archive"}
+            {archived ? t("cases.actions.unarchive") : t("cases.actions.archive")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setDeleteOpen(true)} className="text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" /> Delete
+            <Trash2 className="mr-2 h-4 w-4" /> {t("cases.actions.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -130,20 +135,20 @@ export function CaseActionsMenu({ caseId, name, archived, running, onAfter, navi
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename case</DialogTitle>
-            <DialogDescription>Update the display name for this case.</DialogDescription>
+            <DialogTitle>{t("cases.rename.title")}</DialogTitle>
+            <DialogDescription>{t("cases.rename.description")}</DialogDescription>
           </DialogHeader>
           <Input value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={200} autoFocus />
           <DialogFooter>
             <button
               onClick={() => setRenameOpen(false)}
               className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-secondary"
-            >Cancel</button>
+            >{t("common.cancel")}</button>
             <button
               onClick={() => renameM.mutate()}
               disabled={renameM.isPending || !newName.trim() || newName.trim() === name}
               className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground disabled:opacity-50"
-            >Save</button>
+            >{t("common.save")}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -151,19 +156,17 @@ export function CaseActionsMenu({ caseId, name, archived, running, onAfter, navi
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete case forever?</AlertDialogTitle>
+            <AlertDialogTitle>{t("cases.delete.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes “{name}” — every document, OCR page, finding,
-              theory, report, and uploaded file is erased from the database and
-              storage. This action cannot be undone.
+              {t("cases.delete.description", { name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteM.mutate()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >Delete forever</AlertDialogAction>
+            >{t("cases.delete.confirm")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
