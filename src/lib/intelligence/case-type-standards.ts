@@ -170,32 +170,37 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
   },
 
   general_civil: {
-    label: "General Civil Litigation",
+    label: "Derecho Civil (Federal y Local)",
     controlling_standards:
-      "Contract claims require formation (offer, acceptance, consideration), breach, and damages. Tort claims require duty, breach, causation, damages. Federal Rules of Civil Procedure govern federal actions; state analogs (e.g., CCP) govern state actions. Rule 56 summary judgment: no genuine dispute of material fact and movant entitled to judgment as a matter of law (Celotex, Anderson, Matsushita trilogy).",
+      "La materia civil en México se rige por el Código Civil Federal (CCF) y los códigos civiles de cada entidad federativa (frecuentemente CCDF/CCCDMX y análogos estatales, que en la práctica siguen la estructura del CCF), y procesalmente por el Código Federal de Procedimientos Civiles (CFPC) y los códigos de procedimientos civiles locales. Fuentes de las obligaciones (Art. 1792 y ss. CCF): contrato, declaración unilateral de la voluntad, enriquecimiento ilegítimo (Arts. 1882–1895), gestión de negocios (Arts. 1896–1909) y hechos ilícitos (Arts. 1910–1934). El contrato requiere consentimiento y objeto que pueda ser materia del contrato (Art. 1794 CCF); son elementos de validez la capacidad, la ausencia de vicios del consentimiento, licitud del objeto/motivo/fin, y forma exigida por la ley (Art. 1795 CCF). La responsabilidad civil puede ser subjetiva por hecho ilícito culposo (Art. 1910 CCF) u objetiva por uso de mecanismos, instrumentos, aparatos o sustancias peligrosas (Art. 1913 CCF). El daño comprende daño material (pérdida o menoscabo — daño emergente y lucro cesante, Art. 2109 CCF) y daño moral (Art. 1916 CCF, afectación a sentimientos, afectos, honor, vida privada o aspecto físico), reparable de forma independiente del daño material. La prescripción negativa ordinaria en materia civil es de diez años salvo plazos especiales (Arts. 1158–1164 CCF); la acción por responsabilidad civil extracontractual prescribe en dos años contados desde el día en que se causó el daño (Art. 1934 CCF).",
     key_cases: [
-      "Celotex Corp. v. Catrett, 477 U.S. 317 (1986) — summary judgment burden",
-      "Anderson v. Liberty Lobby, 477 U.S. 242 (1986) — genuine issue of material fact",
-      "Ashcroft v. Iqbal, 556 U.S. 662 (2009) & Bell Atl. v. Twombly, 550 U.S. 544 (2007) — pleading plausibility",
-      "Hadley v. Baxendale, 9 Ex. 341 (1854) — foreseeability of contract damages",
+      "Arts. 1792–1859 CCF — contratos: definición, formación, elementos de existencia y validez, interpretación",
+      "Arts. 1910–1934 CCF — hechos ilícitos y responsabilidad civil subjetiva y objetiva; daño moral (Art. 1916)",
+      "Arts. 2062–2118 CCF — cumplimiento e incumplimiento de las obligaciones, mora, daños y perjuicios",
+      "Arts. 1158–1164 y 1934 CCF — prescripción negativa (regla general y en responsabilidad civil extracontractual)",
+      "Arts. 322–342 CFPC — ofrecimiento, admisión, desahogo y valoración de pruebas en el procedimiento civil federal",
+      "Jurisprudencia SCJN sobre daño moral y su cuantificación (Primera Sala, línea consolidada desde 2014) — usar únicamente cuando el corpus incluya el registro/tesis específico; en caso contrario, marcar como no verificada",
     ],
     canonical_motions: [
-      "Motion to Dismiss (12(b)(6)) — plausibility under Twombly/Iqbal",
-      "Motion for Summary Judgment (Rule 56)",
-      "Motion to Compel (Rule 37) with meet-and-confer certification",
-      "Motion for Protective Order (Rule 26(c))",
-      "Motion for Sanctions (Rule 11, Rule 37)",
+      "Escrito inicial de demanda (Arts. 322 CFPC / análogo local) con hechos, prestaciones, fundamentos de derecho y ofrecimiento de pruebas",
+      "Contestación de demanda con excepciones (dilatorias y perentorias) y, en su caso, reconvención",
+      "Ofrecimiento y desahogo de pruebas (documental pública/privada, confesional, testimonial, pericial, inspección judicial, presuncional)",
+      "Incidente de nulidad de actuaciones o de falta de personalidad",
+      "Alegatos y sentencia; recurso de apelación ante Sala Civil (Arts. 231 y ss. CFPC / análogos locales)",
+      "Amparo directo contra sentencia definitiva que ponga fin al juicio (ante Tribunal Colegiado de Circuito — ver módulo Amparo)",
+      "Amparo indirecto ante Juez de Distrito contra actos dentro del juicio de imposible reparación (p. ej. providencias precautorias)",
     ],
     evidentiary_rules: [
-      "Parol evidence rule limits extrinsic evidence contradicting integrated writings",
-      "Business records exception FRE 803(6) for internal memos, ledgers, invoices",
-      "Statements of party opponent FRE 801(d)(2) — emails between principals",
-      "Authentication of electronic records FRE 901, 902(13)–(14)",
+      "Sistema mixto de valoración: prueba tasada para documentos públicos e instrumentos con reconocimiento judicial, y sana crítica del juzgador para las demás pruebas (Arts. 197–218 CFPC)",
+      "Documentos públicos hacen prueba plena de su contenido y fecha (Art. 202 CFPC); los privados requieren reconocimiento expreso o tácito de la parte a quien se atribuyen (Arts. 203–210 CFPC)",
+      "La prueba pericial es indispensable cuando la controversia requiere conocimientos técnicos, científicos o artísticos (Arts. 143–162 CFPC); cada parte designa perito y el juez tercero en discordia",
+      "Los mensajes de datos (correos electrónicos, mensajería) se rigen por el Código de Comercio (Arts. 89–114) supletoriamente aplicable y por la NOM-151-SCFI-2016 para su valor probatorio pleno; sin conservación con constancia, su fuerza es indiciaria",
+      "Carga de la prueba: quien afirma un hecho debe probarlo (Art. 81 CFPC); el actor debe probar los hechos constitutivos de su acción y el demandado los de sus excepciones",
     ],
     damages_or_remedies:
-      "Contract: expectation, reliance, restitution damages; specific performance for unique goods/real property. Tort: compensatory + punitive when clear and convincing evidence of malice/oppression/fraud. Attorney's fees only when contract or statute provides.",
+      "Cumplimiento forzoso de la obligación en especie cuando sea posible, o su equivalente en dinero (Arts. 2027–2028 CCF); indemnización por daños y perjuicios que comprende el daño emergente y el lucro cesante (Arts. 2108–2109 CCF); pago del daño moral (Art. 1916 CCF), reparable con independencia del daño material y determinado prudentemente por el juzgador considerando los derechos lesionados, el grado de responsabilidad, la situación económica del responsable y de la víctima, y las demás circunstancias del caso; rescisión del contrato con restitución mutua de prestaciones (Art. 1949 CCF, pacto comisorio tácito); nulidad absoluta o relativa según el vicio (Arts. 2224–2242 CCF); intereses moratorios legales al 9% anual si no se pactaron (Art. 2395 CCF). No existen 'daños punitivos' en el sentido del common law; la jurisprudencia mexicana ha reconocido, en supuestos acotados, componentes punitivos dentro de la indemnización por daño moral, pero SIEMPRE dentro de la lógica reparadora del CCF, nunca como categoría autónoma.",
     drafting_notes:
-      "For every breach-of-contract claim, quote the contract provision and the breach conduct side-by-side with pinpoint citations. Damages must tie to a specific measure (expectation vs. reliance). Cite Twombly/Iqbal explicitly when opposing motion to dismiss.",
+      "Identificar SIEMPRE el fundamento legal específico del CCF (o código local aplicable) para cada prestación reclamada — no basta afirmar 'incumplimiento contractual' sin citar el artículo del CCF que regula la obligación incumplida. Distinguir con precisión responsabilidad civil contractual (deriva de un contrato previo — Arts. 2104 y ss. CCF) de la extracontractual (hecho ilícito — Arts. 1910 y ss. CCF), porque los plazos de prescripción y la carga probatoria difieren. Al reclamar daño moral, fundar en Art. 1916 CCF y describir el bien jurídico lesionado (honor, sentimientos, vida privada, aspecto físico), no arrastrar categorías del common law. NUNCA uses terminología estadounidense (Rule 56, Twombly/Iqbal, motion to dismiss, summary judgment, discovery, deposition, subpoena, tort, punitive damages, hearsay) — usa siempre términos del CCF/CFPC y códigos locales. Si citas jurisprudencia de la SCJN, incluye rubro, número de registro y tesis; si el corpus no los aporta, márcala como no verificada en lugar de presentarla como cita firme.",
   },
 
   family: {
