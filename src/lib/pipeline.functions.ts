@@ -91,11 +91,12 @@ export const processDocumentJob = createServerFn({ method: "POST" })
     if (!doc?.storage_path) throw new Error("Document has no storage path.");
 
     const updateJob = async (patch: Record<string, unknown>) => {
-      await supabase.from("document_processing_jobs").update(patch).eq("id", job.id);
+      await supabase.from("document_processing_jobs").update(patch as never).eq("id", job.id);
     };
     const updateDoc = async (patch: Record<string, unknown>) => {
-      await supabase.from("matter_documents").update(patch).eq("id", doc.id);
+      await supabase.from("matter_documents").update(patch as never).eq("id", doc.id);
     };
+
 
     await updateJob({
       status: "processing",
@@ -246,7 +247,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
       );
 
       if (rows.length) {
-        const { error: kErr } = await supabase.from("matter_knowledge").insert(rows);
+        const { error: kErr } = await supabase.from("matter_knowledge").insert(rows as never);
         if (kErr) throw kErr;
       }
 

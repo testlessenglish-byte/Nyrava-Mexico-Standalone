@@ -95,15 +95,16 @@ export const runEngine = createServerFn({ method: "POST" })
           kind: k.kind,
           title: k.title,
           body: k.body ?? null,
-          data: k.data ?? {},
+          data: (k.data ?? {}) as never,
           confidence: k.confidence ?? null,
           language: k.language ?? data.language,
           source_document_id: k.source_document_id ?? null,
           source_run_id: run.id,
-        }).select("id").single();
+        } as never).select("id").single();
         if (error) throw error;
-        refToId.set(k.ref, row.id);
+        refToId.set(k.ref, (row as { id: string }).id);
       }
+
 
       // Persist relationships that resolve on both sides.
       const relRows = output.relationships
@@ -124,9 +125,10 @@ export const runEngine = createServerFn({ method: "POST" })
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
       if (relRows.length) {
-        const { error } = await supabase.from("knowledge_relationships").insert(relRows);
+        const { error } = await supabase.from("knowledge_relationships").insert(relRows as never);
         if (error) throw error;
       }
+
 
       await supabase.from("intelligence_runs").update({
         status: "completed",
