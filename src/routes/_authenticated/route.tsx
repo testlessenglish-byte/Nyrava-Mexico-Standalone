@@ -54,39 +54,42 @@ export const Route = createFileRoute("/_authenticated")({
   component: AppLayout,
 });
 
+// Nav labels are i18n keys resolved at render time (see NavItem) so the
+// sidebar switches language with the rest of the shell.
 const PRIMARY_NAV = [
-  { to: "/dashboard", label: "Mission Control", icon: LayoutDashboard },
-  { to: "/cases", label: "Case Intelligence", icon: FolderOpen },
-  { to: "/new", label: "Analyze New Case", icon: Plus },
+  { to: "/dashboard", labelKey: "nav.missionControl", icon: LayoutDashboard },
+  { to: "/cases", labelKey: "nav.caseIntelligence", icon: FolderOpen },
+  { to: "/new", labelKey: "nav.analyzeNewCase", icon: Plus },
 ] as const;
 
 const INTEL_NAV = [
-  { to: "/talk", label: "Talk To Cases", icon: MessageSquare },
-  { to: "/evidence", label: "Evidence Explorer", icon: FileSearch },
-  { to: "/timeline", label: "Timeline Builder", icon: Clock },
-  { to: "/witness", label: "Witness Intelligence", icon: Users },
+  { to: "/talk", labelKey: "nav.talkToCases", icon: MessageSquare },
+  { to: "/evidence", labelKey: "nav.evidenceExplorer", icon: FileSearch },
+  { to: "/timeline", labelKey: "nav.timelineBuilder", icon: Clock },
+  { to: "/witness", labelKey: "nav.witnessIntelligence", icon: Users },
 ] as const;
 
 const OUTPUT_NAV = [
-  { to: "/reports", label: "Reports", icon: FileText },
-  { to: "/motion", label: "Motion Intelligence", icon: Gavel },
-  { to: "/strategy", label: "Strategy Center", icon: Target },
-  { to: "/alerts", label: "Alerts & Briefings", icon: Bell },
+  { to: "/reports", labelKey: "nav.reports", icon: FileText },
+  { to: "/motion", labelKey: "nav.motionIntelligence", icon: Gavel },
+  { to: "/strategy", labelKey: "nav.strategyCenter", icon: Target },
+  { to: "/alerts", labelKey: "nav.alerts", icon: Bell },
 ] as const;
 
 type MobileTabTo = "/dashboard" | "/cases" | "/talk" | "/reports" | "/settings";
 const MOBILE_TABS: Array<{
   to: MobileTabTo;
-  label: string;
+  labelKey: string;
   icon: typeof LayoutDashboard;
   primary?: boolean;
 }> = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/cases", label: "Cases", icon: FolderOpen },
-  { to: "/talk", label: "Companion", icon: Mic, primary: true },
-  { to: "/reports", label: "Reports", icon: FileText },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/dashboard", labelKey: "nav.tab.dashboard", icon: LayoutDashboard },
+  { to: "/cases", labelKey: "nav.tab.cases", icon: FolderOpen },
+  { to: "/talk", labelKey: "nav.tab.companion", icon: Mic, primary: true },
+  { to: "/reports", labelKey: "nav.tab.reports", icon: FileText },
+  { to: "/settings", labelKey: "nav.tab.settings", icon: Settings },
 ];
+
 
 function AppLayout() {
   const nav = useNavigate();
