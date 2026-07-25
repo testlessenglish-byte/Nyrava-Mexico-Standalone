@@ -2,8 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { getCurrentOrgId } from "@/lib/workspace";
-import { listMatters, MATTER_TYPE_LABEL, MATTER_STATUS_LABEL } from "@/lib/matters";
+import { listMatters } from "@/lib/matters";
 import { Briefcase, Clock, FileText, ShieldCheck } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Panel · Nyrava México" }] }),
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
+  const { t } = useI18n();
   const orgId = getCurrentOrgId();
   const q = useQuery({
     queryKey: ["matters", orgId],
@@ -22,24 +24,26 @@ function DashboardPage() {
   const intake = matters.filter((m) => m.status === "intake").length;
 
   return (
-    <AppShell title="Panel de inteligencia">
+    <AppShell title={t("dashboard.title")}>
       <div className="grid gap-4 md:grid-cols-4">
-        <Stat icon={Briefcase} label="Asuntos totales" value={matters.length} />
-        <Stat icon={Clock} label="En intake" value={intake} />
-        <Stat icon={FileText} label="Activos" value={active} />
-        <Stat icon={ShieldCheck} label="Seguridad" value="RLS ✓" small />
+        <Stat icon={Briefcase} label={t("dashboard.stat.total")} value={matters.length} />
+        <Stat icon={Clock} label={t("dashboard.stat.intake")} value={intake} />
+        <Stat icon={FileText} label={t("dashboard.stat.active")} value={active} />
+        <Stat icon={ShieldCheck} label={t("dashboard.stat.security")} value="RLS ✓" small />
       </div>
 
       <div className="mt-8 panel p-6">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold">Asuntos recientes</h2>
-          <Link to="/matters" className="text-[11px] uppercase tracking-[0.18em] text-primary hover:brightness-110">Ver todos →</Link>
+          <h2 className="font-display text-lg font-semibold">{t("dashboard.recent.title")}</h2>
+          <Link to="/matters" className="text-[11px] uppercase tracking-[0.18em] text-primary hover:brightness-110">
+            {t("common.viewAll")} →
+          </Link>
         </div>
         {matters.length === 0 ? (
           <div className="mt-6 rounded-md border border-dashed border-border/70 p-8 text-center">
-            <p className="text-sm text-muted-foreground">Aún no hay asuntos registrados.</p>
+            <p className="text-sm text-muted-foreground">{t("dashboard.recent.empty")}</p>
             <Link to="/matters" className="mt-3 inline-flex rounded-md bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-foreground hover:brightness-110">
-              Crear el primer asunto
+              {t("dashboard.recent.createFirst")}
             </Link>
           </div>
         ) : (
@@ -49,11 +53,11 @@ function DashboardPage() {
                 <div>
                   <div className="text-sm font-medium text-foreground">{m.title}</div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    {MATTER_TYPE_LABEL[m.matter_type]} · {m.client_name ?? "sin cliente"}
+                    {t(`matter.type.${m.matter_type}`)} · {m.client_name ?? t("dashboard.recent.noClient")}
                   </div>
                 </div>
                 <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-primary">
-                  {MATTER_STATUS_LABEL[m.status]}
+                  {t(`matter.status.${m.status}`)}
                 </span>
               </Link>
             ))}
