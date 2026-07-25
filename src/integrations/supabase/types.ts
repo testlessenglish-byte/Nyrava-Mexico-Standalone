@@ -4302,6 +4302,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_factory_reset_case_data: {
+        Args: {
+          p_include_ai_usage?: boolean
+          p_include_audit?: boolean
+          p_include_demo?: boolean
+        }
+        Returns: Json
+      }
       admin_get_user_id_by_email: { Args: { _email: string }; Returns: string }
       admin_list_firms_with_seats: {
         Args: never
