@@ -173,6 +173,7 @@ export type Database = {
           id: string
           org_id: string
           payload: Json
+          progress: number
           scheduled_at: string
           stage: string
           started_at: string | null
@@ -188,6 +189,7 @@ export type Database = {
           id?: string
           org_id: string
           payload?: Json
+          progress?: number
           scheduled_at?: string
           stage: string
           started_at?: string | null
@@ -203,6 +205,7 @@ export type Database = {
           id?: string
           org_id?: string
           payload?: Json
+          progress?: number
           scheduled_at?: string
           stage?: string
           started_at?: string | null
@@ -355,6 +358,84 @@ export type Database = {
           },
         ]
       }
+      knowledge_relationships: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          matter_id: string
+          object_id: string
+          org_id: string
+          relation: string
+          source_run_id: string | null
+          subject_id: string
+          updated_at: string
+          weight: number | null
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: string
+          matter_id: string
+          object_id: string
+          org_id: string
+          relation: string
+          source_run_id?: string | null
+          subject_id: string
+          updated_at?: string
+          weight?: number | null
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          matter_id?: string
+          object_id?: string
+          org_id?: string
+          relation?: string
+          source_run_id?: string | null
+          subject_id?: string
+          updated_at?: string
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_relationships_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_relationships_object_id_fkey"
+            columns: ["object_id"]
+            isOneToOne: false
+            referencedRelation: "matter_knowledge"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_relationships_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_relationships_source_run_id_fkey"
+            columns: ["source_run_id"]
+            isOneToOne: false
+            referencedRelation: "intelligence_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_relationships_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "matter_knowledge"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_authorities: {
         Row: {
           body: string | null
@@ -496,15 +577,18 @@ export type Database = {
           deleted_at: string | null
           doc_type: string | null
           id: string
+          language: string | null
           matter_id: string
           media_kind: string | null
           metadata: Json
           mime_type: string | null
           org_id: string
+          page_count: number | null
           processing_error: string | null
           processing_status: Database["public"]["Enums"]["doc_processing_status"]
           size_bytes: number | null
           storage_path: string | null
+          text_content: string | null
           title: string
           updated_at: string
           uploaded_by: string | null
@@ -517,15 +601,18 @@ export type Database = {
           deleted_at?: string | null
           doc_type?: string | null
           id?: string
+          language?: string | null
           matter_id: string
           media_kind?: string | null
           metadata?: Json
           mime_type?: string | null
           org_id: string
+          page_count?: number | null
           processing_error?: string | null
           processing_status?: Database["public"]["Enums"]["doc_processing_status"]
           size_bytes?: number | null
           storage_path?: string | null
+          text_content?: string | null
           title: string
           updated_at?: string
           uploaded_by?: string | null
@@ -538,15 +625,18 @@ export type Database = {
           deleted_at?: string | null
           doc_type?: string | null
           id?: string
+          language?: string | null
           matter_id?: string
           media_kind?: string | null
           metadata?: Json
           mime_type?: string | null
           org_id?: string
+          page_count?: number | null
           processing_error?: string | null
           processing_status?: Database["public"]["Enums"]["doc_processing_status"]
           size_bytes?: number | null
           storage_path?: string | null
+          text_content?: string | null
           title?: string
           updated_at?: string
           uploaded_by?: string | null
@@ -637,6 +727,7 @@ export type Database = {
           engine: Database["public"]["Enums"]["intelligence_engine"]
           id: string
           kind: string
+          language: string
           matter_id: string
           org_id: string
           source_document_id: string | null
@@ -652,6 +743,7 @@ export type Database = {
           engine: Database["public"]["Enums"]["intelligence_engine"]
           id?: string
           kind: string
+          language?: string
           matter_id: string
           org_id: string
           source_document_id?: string | null
@@ -667,6 +759,7 @@ export type Database = {
           engine?: Database["public"]["Enums"]["intelligence_engine"]
           id?: string
           kind?: string
+          language?: string
           matter_id?: string
           org_id?: string
           source_document_id?: string | null
