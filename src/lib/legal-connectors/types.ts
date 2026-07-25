@@ -112,10 +112,18 @@ export interface LegalSourceConnector {
 }
 
 /**
- * Registry of connectors actually wired up and tested against their real
- * source. Empty until one is built and verified — see
- * src/lib/legal-connectors/registry.server.ts for the DB-backed
- * enable/disable config layer (legal_source_connectors table), which is
- * separate from this in-code list of what's actually implemented.
+ * Registry of connectors actually wired up. Presence here means the code
+ * exists and conforms to LegalSourceConnector; it does NOT mean the source
+ * has been verified end-to-end. Actual enable/disable is DB-driven via
+ * public.legal_source_connectors.status (see registry.server.ts) — a
+ * connector only runs when it's BOTH implemented here AND status='active'.
+ * Kept status='planned' until a real ingest run confirms rows land in
+ * public.legal_authorities.
  */
-export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [];
+import { dofConnector } from "./dof.connector";
+import { scjnConnector } from "./scjn.connector";
+
+export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [
+  dofConnector,
+  scjnConnector,
+];
