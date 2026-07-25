@@ -1,12 +1,13 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Briefcase, LayoutDashboard, LogOut, Scale, Settings, Users, FileText, ShieldCheck } from "lucide-react";
+import { Briefcase, FlaskConical, LayoutDashboard, LogOut, Scale, Settings, ShieldCheck, Users, FileText } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { NyravaLogo } from "@/components/NyravaLogo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchMyMemberships, getCurrentOrgId, setCurrentOrgId } from "@/lib/workspace";
 import { useSession } from "@/hooks/use-session";
+import { useRoles } from "@/hooks/use-roles";
 import { useI18n } from "@/i18n";
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
