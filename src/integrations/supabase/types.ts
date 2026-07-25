@@ -644,6 +644,35 @@ export type Database = {
           },
         ]
       }
+      billing_plan_notes: {
+        Row: {
+          created_at: string
+          notes: string | null
+          plan_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          notes?: string | null
+          plan_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          notes?: string | null
+          plan_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_plan_notes_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: true
+            referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_plans: {
         Row: {
           active: boolean
@@ -655,7 +684,6 @@ export type Database = {
           features: Json
           id: string
           included_seats: number
-          internal_notes: string | null
           interval: string
           key: string | null
           label: string | null
@@ -679,7 +707,6 @@ export type Database = {
           features?: Json
           id?: string
           included_seats?: number
-          internal_notes?: string | null
           interval?: string
           key?: string | null
           label?: string | null
@@ -703,7 +730,6 @@ export type Database = {
           features?: Json
           id?: string
           included_seats?: number
-          internal_notes?: string | null
           interval?: string
           key?: string | null
           label?: string | null
