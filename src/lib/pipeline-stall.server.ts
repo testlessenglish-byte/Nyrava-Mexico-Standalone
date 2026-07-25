@@ -1,0 +1,148 @@
+// Stall watchdog. Any case whose `worker_lease_until` has expired without a
+// completed pipeline run is flipped from `running` → `failed` with an explicit
+// `stall_reason` so the UI can show "Stalled — click Resume" instead of a
+// perpetually-running spinner. Called from:
+//  - the pipeline-worker cron tick (defense in depth)
+//  - a client-triggered server fn on case-page mount (recovers cases whose
+//    worker died between ticks and whose owner is looking at the page now)
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
+
+type Db = SupabaseClient<Database>;
+
+// A case that hasn't heartbeat in this long is considered stalled.
+const DEFAULT_STALL_MS = 4 * 60 * 1000;
+
+export async function sweepStalledCases(
+  db: Db,
+  opts?: { staleMs?: number; caseId?: string },
+): Promise<{ swept: number; ids: string[] }> {
+  const staleMs = opts?.staleMs ?? DEFAULT_STALL_MS;
+  const cutoff = new Date(Date.now() - staleMs).toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q: any = (db as any)
+    .from("cases")
+    .select("id,status,updated_at,worker_lease_until,queued_at")
+    .in("status", ["extracting", "analyzing", "agents_running", "intelligence_running", "scoring", "reporting", "queued"])
+    .lt("updated_at", cutoff);
+  if (opts?.caseId) q = q.eq("id", opts.caseId);
+  const { data: rows } = await q;
+  const candidates = (rows ?? []) as Array<{ id: string; worker_lease_until: string | null }>;
+  const stalled = candidates.filter((c) => {
+    // Respect an unexpired lease — an active worker is still allowed its
+    // full lease window regardless of the coarser updated_at heuristic.
+    if (!c.worker_lease_until) return true;
+    return new Date(c.worker_lease_until).getTime() < Date.now();
+  });
+  // Even when no case rows meet the stall cutoff, still sweep orphan
+  // engine-run rows below — a case may have completed while individual
+  // engine rows were left `running` by a killed worker.
+  const ids = stalled.map((c) => c.id);
+  if (ids.length) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any)
+      .from("cases")
+      .update({
+        status: "failed",
+        status_message: "Stalled — worker timed out. Click Resume to continue.",
+        stall_reason: "worker_timeout",
+        worker_lease_until: null,
+        queued_at: null,
+      })
+      .in("id", ids);
+    if (error) {
+      console.warn("[stall-watchdog] case update failed", error);
+    }
+  }
+
+  // Always sweep orphan `pipeline_engine_runs` rows — a row that has been
+  // `running` longer than the stall cutoff cannot recover on its own, and
+  // leaves the Engine Status ledger permanently stuck. Force-fail them so
+  // every ledger row terminates in `completed` or `failed`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ledgerQ: any = opts?.caseId
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? (db as any)
+        .from("pipeline_engine_runs")
+        .update({
+          status: "failed",
+          ended_at: new Date().toISOString(),
+          error: "Stalled — worker timed out before writing terminal state",
+        })
+        .eq("status", "running")
+        .lt("started_at", cutoff)
+        .eq("case_id", opts.caseId)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    : (db as any)
+        .from("pipeline_engine_runs")
+        .update({
+          status: "failed",
+          ended_at: new Date().toISOString(),
+          error: "Stalled — worker timed out before writing terminal state",
+        })
+        .eq("status", "running")
+        .lt("started_at", cutoff);
+  const { data: ledgerRows, error: ledgerErr } = await ledgerQ.select("id,case_id");
+  const ledgerCount = (ledgerRows as Array<{ id: string; case_id?: string | null }> | null)?.length ?? 0;
+  if (ledgerErr) {
+    console.warn("[stall-watchdog] ledger sweep failed", ledgerErr);
+  } else if (ledgerCount && ledgerCount > 0) {
+    console.info(`[stall-watchdog] force-failed ${ledgerCount} stale engine run(s)`);
+    const ledgerCaseIds = [...new Set(
+      ((ledgerRows as Array<{ case_id?: string | null }> | null) ?? [])
+        .map((r) => r.case_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    )];
+    if (ledgerCaseIds.length > 0) {
+      // If a stale engine row timed out, the case itself must not remain
+      // `intelligence_running` behind an unexpired worker lease. The live
+      // trial_prep failure reproduced exactly this split-brain state: ledger
+      // failed, case still running, UI stuck. Terminate the case state too.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: caseFromLedgerErr } = await (db as any)
+        .from("cases")
+        .update({
+          status: "failed",
+          status_message: "Stalled — worker timed out. Click Resume to continue.",
+          stall_reason: "worker_timeout",
+          worker_lease_until: null,
+          queued_at: null,
+        })
+        .in("id", ledgerCaseIds)
+        .in("status", ["extracting", "analyzing", "agents_running", "intelligence_running", "scoring", "reporting", "queued"]);
+      if (caseFromLedgerErr) {
+        console.warn("[stall-watchdog] case update from ledger stall failed", caseFromLedgerErr);
+      }
+    }
+  }
+
+  if (ids.length) console.info(`[stall-watchdog] swept ${ids.length} stalled case(s)`);
+  return { swept: ids.length, ids };
+}
+
+
+// Re-queue a case that voluntarily checkpointed out mid-stage. Idempotent —
+// safe to call multiple times.
+export async function requeueForContinuation(
+  db: Db,
+  caseId: string,
+  reason: string,
+): Promise<void> {
+  const queuedAt = new Date().toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (db as any).from("cases").update({
+    status: "queued",
+    status_message: `Checkpoint reached — continuing (${reason})`,
+    queued_at: queuedAt,
+    worker_lease_until: null,
+    next_stage: reason,
+    stall_reason: null,
+  }).eq("id", caseId);
+  console.info(`[pipeline] ${JSON.stringify({
+    t: queuedAt,
+    event: "checkpoint.requeued",
+    caseId,
+    next_stage: reason,
+    status: "queued",
+  })}`);
+}
