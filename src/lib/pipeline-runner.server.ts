@@ -626,11 +626,27 @@ async function _runPipelineForCase(
   const stageRequirement = (k: string): "blocking" | "enriching" | "optional" =>
     CANONICAL_STAGES.find((c) => c.key === k)?.requirement ?? "blocking";
 
+  // Jurisdiction-aware sequence. Mexican practice doesn't run every engine for
+  // every materia (e.g. no jury simulation in an ordinary penal case, no
+  // witness intelligence in an amparo). Resolve the case's materia and drop the
+  // stages that aren't legally relevant so they never occupy the ledger.
   let stages: (typeof PIPELINE_STAGES)[number][] = [...PIPELINE_STAGES];
+  {
+    const { isStageRelevantForCaseType } = await import("./execution/mx-pipeline");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: mxCaseRow } = await (supabase as any)
+      .from("cases")
+      .select("case_type")
+      .eq("id", caseId)
+      .maybeSingle();
+    const mxCaseType = (mxCaseRow as { case_type?: string | null } | null)?.case_type ?? null;
+    stages = stages.filter((s) => isStageRelevantForCaseType(mxCaseType, s.key));
+  }
   if (startFrom) {
     const idx = stages.findIndex((s) => s.key === startFrom);
     if (idx > 0) stages = stages.slice(idx);
   }
+
 
   const total = stages.length;
   const FATAL_STAGES = new Set<PipelineStageKey>(["extraction", "analyzers", "agents"]);
