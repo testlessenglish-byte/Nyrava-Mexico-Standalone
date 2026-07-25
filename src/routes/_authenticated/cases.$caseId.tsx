@@ -41,6 +41,7 @@ import { CaseActionsMenu } from "@/components/CaseActionsMenu";
 import { AttorneyAssistancePanel } from "@/components/AttorneyAssistancePanel";
 import { LivePipelinePanel } from "@/components/LivePipelinePanel";
 import { CommandCenterDashboard } from "@/components/CommandCenterDashboard";
+import { useI18n } from "@/i18n";
 import { PipelinePanel } from "@/components/PipelinePanel";
 import { CaseControlPanel } from "@/components/CaseControlPanel";
 import { MultiAgentPanel } from "@/components/MultiAgentPanel";
@@ -366,11 +367,11 @@ function Workspace() {
     icon: React.ComponentType<{ className?: string }>;
     count?: number;
   }[] = [
-    { k: "dashboard", label: "Dashboard", icon: Activity },
-    { k: "perspectives", label: "Perspectives", icon: Scale, count: perspectives.length },
+    { k: "dashboard", label: t("caseTab.dashboard"), icon: Activity },
+    { k: "perspectives", label: t("caseTab.perspectives"), icon: Scale, count: perspectives.length },
     {
       k: "strategic",
-      label: "Strategic Findings",
+      label: t("caseTab.strategic"),
       icon: Sparkles,
       // Must match StrategicFindingsTab's own filter (priority <= 3 — P1
       // Case-Dispositive through P3 Credibility) or a case with only P3
@@ -379,26 +380,26 @@ function Workspace() {
     },
     {
       k: "attack",
-      label: "Attack Surface",
+      label: t("caseTab.attack"),
       icon: ShieldAlert,
       count: attackSurface
         ? Object.values(attackSurface).filter((v) => Array.isArray(v) && (v as unknown[]).length > 0).length
         : 0,
     },
-    { k: "evidence", label: "Evidence Intel", icon: ShieldAlert, count: evidenceIntel.length },
-    { k: "strategy", label: "Strategy", icon: Gavel, count: strategy.length },
-    { k: "findings", label: "Findings", icon: Sparkles, count: findings.length },
-    { k: "intel", label: "Documents", icon: FileText, count: docs.length },
-    { k: "analyzers", label: "Analyzers", icon: Search, count: analyzersCount },
-    { k: "agents", label: "Agents", icon: ShieldAlert, count: getAgentSummary(report).executed || agents.length },
-    { k: "theories", label: "Theories", icon: Scale, count: theories.length },
-    { k: "opportunities", label: "Opportunities", icon: Gavel, count: opportunities.length },
-    { k: "witnesses", label: "Witnesses", icon: Users, count: witnesses.length },
-    { k: "trial", label: "Trial Prep", icon: ShieldCheck, count: trialPrepCount },
-    { k: "work", label: "Work Product", icon: BookOpen, count: workProduct.length },
-    { k: "scorecard", label: "Scorecard", icon: Activity, count: scorecardCount },
-    { k: "chat", label: "Case AI", icon: MessageSquare },
-    { k: "report", label: "Report", icon: FileText, count: reportCount },
+    { k: "evidence", label: t("caseTab.evidence"), icon: ShieldAlert, count: evidenceIntel.length },
+    { k: "strategy", label: t("caseTab.strategy"), icon: Gavel, count: strategy.length },
+    { k: "findings", label: t("caseTab.findings"), icon: Sparkles, count: findings.length },
+    { k: "intel", label: t("caseTab.documents"), icon: FileText, count: docs.length },
+    { k: "analyzers", label: t("caseTab.analyzers"), icon: Search, count: analyzersCount },
+    { k: "agents", label: t("caseTab.agents"), icon: ShieldAlert, count: getAgentSummary(report).executed || agents.length },
+    { k: "theories", label: t("caseTab.theories"), icon: Scale, count: theories.length },
+    { k: "opportunities", label: t("caseTab.opportunities"), icon: Gavel, count: opportunities.length },
+    { k: "witnesses", label: t("caseTab.witnesses"), icon: Users, count: witnesses.length },
+    { k: "trial", label: t("caseTab.trial"), icon: ShieldCheck, count: trialPrepCount },
+    { k: "work", label: t("caseTab.work"), icon: BookOpen, count: workProduct.length },
+    { k: "scorecard", label: t("caseTab.scorecard"), icon: Activity, count: scorecardCount },
+    { k: "chat", label: t("caseTab.chat"), icon: MessageSquare },
+    { k: "report", label: t("caseTab.report"), icon: FileText, count: reportCount },
   ];
 
   // Practice Area Isolation: hide workspace tabs that don't belong to
@@ -408,7 +409,7 @@ function Workspace() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const _additional = Array.isArray((c as any)?.additional_domains) ? ((c as any).additional_domains as string[]) : [];
   const _allowed = getApplicableTabs(_area, _additional);
-  const _filteredTabs = tabs.filter((t) => _allowed.has(t.k));
+  const _filteredTabs = tabs.filter((tab) => _allowed.has(tab.k));
 
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-8">
@@ -417,7 +418,7 @@ function Workspace() {
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        All cases
+        {t("caseWorkspace.allCases")}
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -449,7 +450,7 @@ function Workspace() {
             ) : (
               <Loader2 className="h-4 w-4 animate-spin text-accent" />
             )}
-            <span className="flex-1">{c.status_message ?? c.status}</span>
+            <span className="flex-1">{c.status_message ?? t(`cases.status.${c.status}`)}</span>
             {running && <InlineCancelButton caseId={c.id} invalidate={invalidate} />}
           </div>
           {running && (
@@ -477,11 +478,11 @@ function Workspace() {
           />
 
           <div className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Downloads</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("caseWorkspace.downloads")}</h2>
             <div className="mt-3 space-y-2">
               <DownloadBtn
                 icon={FileDown}
-                label="Download PDF"
+                label={t("caseWorkspace.downloadPdf")}
                 disabled={reportBlocked || !hasReport}
                 onClick={() => {
                   downloadPdf(exportData, c.name);
@@ -490,7 +491,7 @@ function Workspace() {
               />
               <DownloadBtn
                 icon={FileType}
-                label="Download DOCX"
+                label={t("caseWorkspace.downloadDocx")}
                 disabled={reportBlocked || !hasReport}
                 onClick={() => {
                   downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
@@ -499,7 +500,7 @@ function Workspace() {
               />
               <DownloadBtn
                 icon={FileJson}
-                label="Download JSON"
+                label={t("caseWorkspace.downloadJson")}
                 disabled={false}
                 onClick={() => {
                   downloadJson(exportData, c.name);
@@ -509,7 +510,7 @@ function Workspace() {
             </div>
             {reportBlocked && (
               <div className="mt-3 rounded border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
-                <div className="font-semibold">Report blocked: citation integrity failed</div>
+                <div className="font-semibold">{t("caseWorkspace.reportBlocked")}</div>
                 {reportBlockReasons.length > 0 && (
                   <ul className="mt-1 list-disc pl-4">
                     {reportBlockReasons.map((r, i) => (
@@ -517,28 +518,28 @@ function Workspace() {
                     ))}
                   </ul>
                 )}
-                <p className="mt-1 opacity-80">JSON export remains available for audit.</p>
+                <p className="mt-1 opacity-80">{t("caseWorkspace.reportBlocked.json")}</p>
               </div>
             )}
             {!reportBlocked && !hasReport && (
               <p className="mt-2 text-xs text-muted-foreground">
-                Generate report to include full report sections. PDF/JSON work anytime.
+                {t("caseWorkspace.noReportHint")}
               </p>
             )}
           </div>
 
           <div className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Timestamps</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("caseWorkspace.timestamps")}</h2>
             <dl className="mt-3 space-y-1.5 text-xs">
-              <Stamp label="Created" v={c.created_at} />
-              <Stamp label="Extracted" v={c.extracted_at} />
-              <Stamp label="Analyzed" v={c.analysis_at} />
-              <Stamp label="Agents" v={c.agents_at} />
-              <Stamp label="Scored" v={c.scored_at} />
-              <Stamp label="Theories" v={c.theories_at} />
-              <Stamp label="Opportunities" v={c.opportunities_at} />
-              <Stamp label="Trial Prep" v={c.trial_prep_at} />
-              <Stamp label="Reported" v={c.report_at} />
+              <Stamp label={t("caseWorkspace.ts.created")} v={c.created_at} />
+              <Stamp label={t("caseWorkspace.ts.extracted")} v={c.extracted_at} />
+              <Stamp label={t("caseWorkspace.ts.analyzed")} v={c.analysis_at} />
+              <Stamp label={t("caseWorkspace.ts.agents")} v={c.agents_at} />
+              <Stamp label={t("caseWorkspace.ts.scored")} v={c.scored_at} />
+              <Stamp label={t("caseWorkspace.ts.theories")} v={c.theories_at} />
+              <Stamp label={t("caseWorkspace.ts.opportunities")} v={c.opportunities_at} />
+              <Stamp label={t("caseWorkspace.ts.trialPrep")} v={c.trial_prep_at} />
+              <Stamp label={t("caseWorkspace.ts.reported")} v={c.report_at} />
             </dl>
           </div>
 
