@@ -44,9 +44,9 @@ export const runEngine = createServerFn({ method: "POST" })
         matter_id: matter.id,
         org_id: matter.org_id,
         engine: data.engine,
-        language: data.language,
         status: "queued",
-        triggered_by: userId,
+        input: { language: data.language },
+        requested_by: userId,
       })
       .select("id")
       .single();
