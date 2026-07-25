@@ -618,40 +618,73 @@ export type Database = {
         Row: {
           active: boolean
           code: string
+          contact_url: string | null
           created_at: string
           currency: string
           description: string | null
           features: Json
           id: string
+          included_seats: number
+          internal_notes: string | null
           interval: string
+          key: string | null
+          label: string | null
           name: string
+          per_seat_price_cents: number | null
+          per_seat_stripe_price_id: string | null
           price_cents: number
+          self_serve: boolean
+          sort_order: number
+          stripe_price_id: string | null
+          tagline: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
           code: string
+          contact_url?: string | null
           created_at?: string
           currency?: string
           description?: string | null
           features?: Json
           id?: string
+          included_seats?: number
+          internal_notes?: string | null
           interval?: string
+          key?: string | null
+          label?: string | null
           name: string
+          per_seat_price_cents?: number | null
+          per_seat_stripe_price_id?: string | null
           price_cents?: number
+          self_serve?: boolean
+          sort_order?: number
+          stripe_price_id?: string | null
+          tagline?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
           code?: string
+          contact_url?: string | null
           created_at?: string
           currency?: string
           description?: string | null
           features?: Json
           id?: string
+          included_seats?: number
+          internal_notes?: string | null
           interval?: string
+          key?: string | null
+          label?: string | null
           name?: string
+          per_seat_price_cents?: number | null
+          per_seat_stripe_price_id?: string | null
           price_cents?: number
+          self_serve?: boolean
+          sort_order?: number
+          stripe_price_id?: string | null
+          tagline?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -2032,6 +2065,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          archived_at: string | null
           case_id: string
           content_hash: string
           created_at: string
@@ -2051,6 +2085,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          archived_at?: string | null
           case_id: string
           content_hash: string
           created_at?: string
@@ -2070,6 +2105,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          archived_at?: string | null
           case_id?: string
           content_hash?: string
           created_at?: string
@@ -3610,6 +3646,7 @@ export type Database = {
           default_org_id: string | null
           deleted_at: string | null
           display_name: string | null
+          email: string | null
           full_name: string | null
           id: string
           is_blocked: boolean
@@ -3623,6 +3660,7 @@ export type Database = {
           default_org_id?: string | null
           deleted_at?: string | null
           display_name?: string | null
+          email?: string | null
           full_name?: string | null
           id: string
           is_blocked?: boolean
@@ -3636,6 +3674,7 @@ export type Database = {
           default_org_id?: string | null
           deleted_at?: string | null
           display_name?: string | null
+          email?: string | null
           full_name?: string | null
           id?: string
           is_blocked?: boolean
@@ -3723,14 +3762,17 @@ export type Database = {
           id: string
           investigator_summary: string | null
           missing_evidence_report: Json | null
+          missing_evidence_struct: Json | null
           motions_suppressed: boolean
           procedural_issues_report: string | null
           prosecution_theory_report: string | null
           quality_block_reasons: Json | null
           quality_blocked: boolean
           recommendations: string | null
+          report_chunk_cache: Json
           report_mode: string | null
           risk_analysis: string | null
+          risk_score: number | null
           score_breakdown: string | null
           scores_suppressed: boolean
           timeline_summary: string | null
@@ -3763,14 +3805,17 @@ export type Database = {
           id?: string
           investigator_summary?: string | null
           missing_evidence_report?: Json | null
+          missing_evidence_struct?: Json | null
           motions_suppressed?: boolean
           procedural_issues_report?: string | null
           prosecution_theory_report?: string | null
           quality_block_reasons?: Json | null
           quality_blocked?: boolean
           recommendations?: string | null
+          report_chunk_cache?: Json
           report_mode?: string | null
           risk_analysis?: string | null
+          risk_score?: number | null
           score_breakdown?: string | null
           scores_suppressed?: boolean
           timeline_summary?: string | null
@@ -3803,14 +3848,17 @@ export type Database = {
           id?: string
           investigator_summary?: string | null
           missing_evidence_report?: Json | null
+          missing_evidence_struct?: Json | null
           motions_suppressed?: boolean
           procedural_issues_report?: string | null
           prosecution_theory_report?: string | null
           quality_block_reasons?: Json | null
           quality_blocked?: boolean
           recommendations?: string | null
+          report_chunk_cache?: Json
           report_mode?: string | null
           risk_analysis?: string | null
+          risk_score?: number | null
           score_breakdown?: string | null
           scores_suppressed?: boolean
           timeline_summary?: string | null
@@ -4353,6 +4401,11 @@ export type Database = {
         | "released"
         | "needs_revision"
         | "stalled"
+        | "extracted"
+        | "analyzed"
+        | "agents_running"
+        | "agents_complete"
+        | "scored"
       doc_processing_status:
         | "pending"
         | "uploading"
@@ -4565,6 +4618,11 @@ export const Constants = {
         "released",
         "needs_revision",
         "stalled",
+        "extracted",
+        "analyzed",
+        "agents_running",
+        "agents_complete",
+        "scored",
       ],
       doc_processing_status: [
         "pending",
