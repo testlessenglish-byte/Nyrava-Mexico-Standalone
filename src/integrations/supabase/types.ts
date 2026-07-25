@@ -1674,6 +1674,7 @@ export type Database = {
           error: string | null
           evidence_intel_at: string | null
           extracted_at: string | null
+          extraction_report: Json | null
           firm_id: string | null
           hallucination_at: string | null
           hallucination_report: Json | null
@@ -1722,6 +1723,7 @@ export type Database = {
           error?: string | null
           evidence_intel_at?: string | null
           extracted_at?: string | null
+          extraction_report?: Json | null
           firm_id?: string | null
           hallucination_at?: string | null
           hallucination_report?: Json | null
@@ -1770,6 +1772,7 @@ export type Database = {
           error?: string | null
           evidence_intel_at?: string | null
           extracted_at?: string | null
+          extraction_report?: Json | null
           firm_id?: string | null
           hallucination_at?: string | null
           hallucination_report?: Json | null
