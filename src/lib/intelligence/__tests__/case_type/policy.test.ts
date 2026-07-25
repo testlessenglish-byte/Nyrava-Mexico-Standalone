@@ -61,17 +61,20 @@ describe("analyzer gating (rule sets from the directive)", () => {
 });
 
 describe("finding-module gating", () => {
-  it("criminal allows miranda/brady/chain_of_custody; civil does not", () => {
-    expect(isFindingAllowed("criminal", "engine:miranda:violation")).toBe(true);
-    expect(isFindingAllowed("criminal", "engine:brady:withheld")).toBe(true);
-    expect(isFindingAllowed("general_civil", "engine:miranda:violation")).toBe(false);
-    expect(isFindingAllowed("general_civil", "engine:brady:withheld")).toBe(false);
+  // MX-aligned: the criminal (penal acusatorio) profile allows CNPP/CPEUM
+  // modules — never US common-law ones like Miranda or Brady.
+  it("criminal allows CNPP modules; civil does not", () => {
+    expect(isFindingAllowed("criminal", "engine:cadena_de_custodia:ruptura")).toBe(true);
+    expect(isFindingAllowed("criminal", "engine:vinculacion_a_proceso:plazo")).toBe(true);
+    expect(isFindingAllowed("criminal", "engine:medidas_cautelares:impugnacion")).toBe(true);
+    expect(isFindingAllowed("general_civil", "engine:cadena_de_custodia:ruptura")).toBe(false);
+    expect(isFindingAllowed("general_civil", "engine:prision_preventiva_oficiosa:catalogo")).toBe(false);
   });
 
   it("family allows custody/support; rejects criminal terminology", () => {
     expect(isFindingAllowed("family", "engine:custody:primary")).toBe(true);
     expect(isFindingAllowed("family", "engine:child_support:guideline")).toBe(true);
-    expect(isFindingAllowed("family", "engine:miranda:warning")).toBe(false);
+    expect(isFindingAllowed("family", "engine:vinculacion_a_proceso:plazo")).toBe(false);
     expect(isFindingAllowed("family", "engine:wrongful_termination:claim")).toBe(false);
   });
 
@@ -79,13 +82,15 @@ describe("finding-module gating", () => {
     expect(isFindingAllowed("employment", "engine:discrimination:title_vii")).toBe(true);
     expect(isFindingAllowed("employment", "engine:eeoc:charge")).toBe(true);
     expect(isFindingAllowed("employment", "engine:custody:dispute")).toBe(false);
-    expect(isFindingAllowed("employment", "engine:brady:withheld")).toBe(false);
+    expect(isFindingAllowed("employment", "engine:cadena_de_custodia:ruptura")).toBe(false);
   });
 });
 
 describe("motion gating", () => {
-  it("family forbids motion-to-suppress; criminal allows it", () => {
-    expect(isMotionAllowed("criminal", "motion_to_suppress")).toBe(true);
+  it("family forbids penal filings; criminal allows them", () => {
+    expect(isMotionAllowed("criminal", "solicitud_de_no_vinculacion")).toBe(true);
+    expect(isMotionAllowed("criminal", "impugnacion_medidas_cautelares")).toBe(true);
+    expect(isMotionAllowed("family", "solicitud_de_no_vinculacion")).toBe(false);
     expect(isMotionAllowed("family", "motion_to_suppress")).toBe(false);
   });
   it("family allows custody_modification; civil does not", () => {
@@ -126,9 +131,12 @@ describe("terminology blocklist", () => {
   it("does not flag custody language in a family case", () => {
     expect(findBlockedTermsIn("Joint custody is in the child's best interests.", "family")).toEqual([]);
   });
-  it("criminal blocklist excludes criminal terms", () => {
+  it("criminal blocklist keeps US common-law terms blocked and allows CNPP terms", () => {
     const terms = getBlockedTerms("criminal");
-    expect(terms.some((t) => /miranda|brady|search and seizure/i.test(t))).toBe(false);
+    // MX penal profile blocks US terminology outright.
+    expect(terms.some((t) => /miranda|grand jury|plea bargain|felony/i.test(t))).toBe(true);
+    // ...and never blocks its own Mexican modules.
+    expect(terms.some((t) => /cadena de custodia|vinculaci/i.test(t))).toBe(false);
   });
 });
 
@@ -179,7 +187,7 @@ describe("cross-domain activation — only via audited paths", () => {
     // Family activated → custody now permitted.
     expect(isFindingAllowed("criminal", "engine:custody:dispute", ["family"])).toBe(true);
     // Criminal base modules still permitted.
-    expect(isFindingAllowed("criminal", "engine:miranda:violation", ["family"])).toBe(true);
+    expect(isFindingAllowed("criminal", "engine:cadena_de_custodia:ruptura", ["family"])).toBe(true);
   });
 });
 

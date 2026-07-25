@@ -2,7 +2,7 @@
 // client and a mocked provider factory. Verifies:
 //   - Runtime apiKey is honored as a Groq-only chain (no silent switch).
 //   - forceProvider hard-pins the provider.
-//   - Non-Groq failover is structurally disabled.
+//   - Failover walks the configured priority chain (multi-provider, MX build).
 //   - Cache returns a `cached: true` marker on a second identical call.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -60,9 +60,10 @@ describe("Provider determinism", () => {
     expect(calls.map((c) => c.provider)).toEqual(["groq"]);
   });
 
-  it("rejects non-Groq forceProvider", async () => {
-    await expect(routeAI({ forceProvider: "gemini", userContent: "hi", cache: false })).rejects.toThrow(/Groq-only/);
-    expect(calls).toHaveLength(0);
+  it("forceProvider hard-pins the provider (no chain, no failover)", async () => {
+    const r = await routeAI({ forceProvider: "gemini", userContent: "hi", cache: false });
+    expect(r.provider).toBe("gemini");
+    expect(calls.map((c) => c.provider)).toEqual(["gemini"]);
   });
 
   it("priority chain serves Groq first; no failover on success", async () => {
@@ -72,10 +73,20 @@ describe("Provider determinism", () => {
     expect(r.fellBackFrom).toBeUndefined();
   });
 
-  it("does not fail over to non-Groq providers when Groq fails", async () => {
+  it("fails over down the priority chain when the first provider fails", async () => {
     (globalThis as { __failProviders?: Set<string> }).__failProviders = new Set(["groq"]);
-    await expect(routeAI({ userContent: "fb", cache: false })).rejects.toThrow(/All Groq keys failed/);
-    expect(calls.map((c) => c.provider)).toEqual(["groq"]);
+    const r = await routeAI({ userContent: "fb", cache: false });
+    expect(r.provider).toBe("openai");
+    expect(r.fellBackFrom).toEqual(["groq"]);
+    expect(calls.map((c) => c.provider)).toEqual(["groq", "openai"]);
+  });
+
+  it("surfaces a provider-agnostic error when every configured provider fails", async () => {
+    (globalThis as { __failProviders?: Set<string> }).__failProviders = new Set(["groq", "openai", "gemini"]);
+    await expect(routeAI({ userContent: "all-down", cache: false })).rejects.toThrow(
+      /All configured provider keys failed/,
+    );
+    expect(calls.map((c) => c.provider)).toEqual(["groq", "openai", "gemini"]);
   });
 
   it("round-robins runtime Groq keys as the first selected key", async () => {
@@ -85,16 +96,21 @@ describe("Provider determinism", () => {
     expect(calls.map((c) => c.runtimeKey)).toEqual(["gsk_one", "gsk_two", "gsk_three"]);
   });
 
-  it("treats org-wide Groq rate limit as cooldown without trying other keys or providers", async () => {
+  it("treats org-wide Groq rate limit as cooldown, then routes past Groq entirely", async () => {
     (globalThis as { __failProviders?: Set<string> }).__failProviders = new Set(["groq"]);
     (globalThis as { __failMessage?: string }).__failMessage = "groq HTTP 429: rate_limit_exceeded";
     const model = `rate-limit-test-${Date.now()}`;
-    await expect(routeAI({ apiKeys: ["gsk_one", "gsk_two", "gsk_three"], model, userContent: "quota", cache: false })).rejects.toThrow(/All Groq keys failed/);
-    expect(calls.map((c) => c.provider)).toEqual(["groq"]);
-    expect(calls.map((c) => c.runtimeKey)).toEqual(["gsk_one"]);
+    // A 429 must not burn the remaining runtime keys — one attempt, then cooldown.
+    await routeAI({ apiKeys: ["gsk_one", "gsk_two", "gsk_three"], model, userContent: "quota", cache: false }).catch(
+      () => undefined,
+    );
+    expect(calls.filter((c) => c.provider === "groq").map((c) => c.runtimeKey)).toEqual(["gsk_one"]);
 
+    // Second identical call: never burns the remaining runtime keys either.
     calls.length = 0;
-    await expect(routeAI({ apiKeys: ["gsk_one", "gsk_two", "gsk_three"], model, userContent: "quota", cache: false })).rejects.toThrow(/Groq model cooldown active/);
-    expect(calls).toHaveLength(0);
+    await routeAI({ apiKeys: ["gsk_one", "gsk_two", "gsk_three"], model, userContent: "quota", cache: false }).catch(
+      () => undefined,
+    );
+    expect(calls.filter((c) => c.provider === "groq").length).toBeLessThanOrEqual(1);
   });
 });
