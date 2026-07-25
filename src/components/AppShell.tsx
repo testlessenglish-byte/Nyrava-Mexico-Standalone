@@ -71,20 +71,29 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           </div>
         </div>
         <nav className="mt-2 flex flex-col gap-0.5 px-2">
-          {NAV.map((n) => (
-            <Link
-              key={n.to}
-              to={n.disabled ? "/dashboard" : n.to}
-              disabled={n.disabled}
-              activeProps={{ className: "bg-primary/10 text-primary" }}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
-                n.disabled ? "cursor-not-allowed text-muted-foreground/40" : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
-              }`}
-            >
-              <n.icon className="h-4 w-4" /> {n.label}
-              {n.disabled && <span className="ml-auto text-[9px] uppercase tracking-widest opacity-60">pronto</span>}
-            </Link>
-          ))}
+          {NAV.map((n) => {
+            const cls = `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
+              n.disabled ? "cursor-not-allowed text-muted-foreground/40" : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+            }`;
+            if (n.disabled) {
+              return (
+                <div key={n.to} className={cls}>
+                  <n.icon className="h-4 w-4" /> {n.label}
+                  <span className="ml-auto text-[9px] uppercase tracking-widest opacity-60">pronto</span>
+                </div>
+              );
+            }
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                activeProps={{ className: "bg-primary/10 text-primary" }}
+                className={cls}
+              >
+                <n.icon className="h-4 w-4" /> {n.label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="mt-auto p-3">
           <div className="rounded-md border border-border/60 bg-background/40 p-3">
