@@ -94,75 +94,87 @@ export function priorityFor(f: Partial<NewFinding>): number {
 // Explicit rule-based mapping. First matching rule wins; fallback is
 // "General Finding". Deliberately overrides upstream LLM category labels
 // so a chain-of-custody tag never lands on a financial fraud finding.
+//
+// Locale-aware from the source (not translated after the fact): every
+// category has a real Spanish name — reusing US doctrine names like
+// "Discovery Violation" for a Mexican report is wrong regardless of what
+// later translation layer might catch it, since a case-workspace UI that
+// never goes through report-i18n.ts would show the raw English value.
 // ---------------------------------------------------------------------------
-const CATEGORY_RULES: Array<{ match: RegExp; category: string }> = [
+const CATEGORY_RULES: Array<{ match: RegExp; category: string; categoryEs: string }> = [
   { match: /\b(financial\s+misconduct|money\s+laund|diver(?:t|sion)\s+of\s+funds|ponzi|investment\s+fraud|embezzl|wire\s+fraud|mail\s+fraud|kickback|bribe|shell\s+comp|commingl)\b/i,
-    category: "Financial Fraud" },
+    category: "Financial Fraud", categoryEs: "Fraude Financiero" },
   { match: /\b(brady|jencks|giglio|exculpatory|disclosure\s+violation|withheld\s+evidence|undisclosed\s+deal|immunity\s+agreement)\b/i,
-    category: "Discovery Violation" },
+    category: "Discovery Violation", categoryEs: "Deficiencia Probatoria" },
   { match: /\b(miranda|voluntariness|custodial\s+interrogation|confession|waiver\s+of\s+rights|self[- ]incrimin)\b/i,
-    category: "Confession Issue" },
+    category: "Confession Issue", categoryEs: "Declaración del Imputado" },
   { match: /\b(search\s+warrant|warrantless|seizure|fourth\s+amendment|probable\s+cause|expectation\s+of\s+privacy|franks)\b/i,
-    category: "Constitutional Issue" },
+    category: "Constitutional Issue", categoryEs: "Cuestión Constitucional" },
   { match: /\b(expert\s+(?:report|opinion|witness|qualifications?)|methodology|daubert|frye|peer[- ]review|error\s+rate)\b/i,
-    category: "Expert Challenge" },
+    category: "Expert Challenge", categoryEs: "Impugnación Pericial" },
   { match: /\b(authenticat|foundation|hearsay|best\s+evidence|business\s+records?\s+exception|self[- ]authenticating)\b/i,
-    category: "Evidentiary Foundation" },
+    category: "Evidentiary Foundation", categoryEs: "Fundamentación Probatoria" },
   { match: /\b(physical\s+evidence|dna|fingerprint|weapon|firearm|drugs?\s+seized|narcotics|contraband|blood\s+sample)\b/i,
-    category: "Physical Evidence" },
+    category: "Physical Evidence", categoryEs: "Evidencia Física" },
   { match: /\b(chain\s+of\s+custody|evidence\s+log|seal(?:ed|ing)|tamper|storage\s+gap)\b/i,
-    category: "Chain of Custody" },
+    category: "Chain of Custody", categoryEs: "Cadena de Custodia" },
   { match: /\b(witness\s+statement|testimony|interview|deposition|grand\s+jury|proffer|cooperating\s+witness)\b/i,
-    category: "Witness Testimony" },
+    category: "Witness Testimony", categoryEs: "Testimonio de Testigo" },
   { match: /\b(credibility|impeachment|bias|prior\s+inconsistent|motive\s+to\s+lie)\b/i,
-    category: "Credibility" },
+    category: "Credibility", categoryEs: "Credibilidad" },
   { match: /\b(criminal\s+conduct|racketeer|conspir(?:e|acy)|obstruction|perjury)\b/i,
-    category: "Criminal Conduct" },
+    category: "Criminal Conduct", categoryEs: "Conducta Delictiva" },
   { match: /\b(fraud\s+pattern|scheme\s+to\s+defraud|false\s+representation|misrepresentation|deceit)\b/i,
-    category: "Fraud Pattern" },
+    category: "Fraud Pattern", categoryEs: "Patrón de Fraude" },
 ];
 
-export function classifyCategory(f: Partial<NewFinding>): string {
+export function classifyCategory(f: Partial<NewFinding>, locale: "es" | "en" = "es"): string {
   const blob = `${f.title ?? ""} ${f.description ?? ""} ${f.category ?? ""}`;
-  for (const r of CATEGORY_RULES) if (r.match.test(blob)) return r.category;
-  return "General Finding";
+  for (const r of CATEGORY_RULES) if (r.match.test(blob)) return locale === "en" ? r.category : r.categoryEs;
+  return locale === "en" ? "General Finding" : "Hallazgo General";
 }
 
-const LEGACY_CATEGORY_ALIAS: Record<string, string> = {
-  contradiction: "Credibility",
-  witness: "Witness Testimony",
-  fact: "General Finding",
-  evidence: "Physical Evidence",
-  chain_of_custody: "Chain of Custody",
-  missing_evidence: "Discovery Violation",
-  discovery_gap: "Discovery Violation",
-  weak_evidence: "General Finding",
-  risk: "General Finding",
-  entity: "General Finding",
-  timeline: "General Finding",
+const LEGACY_CATEGORY_ALIAS: Record<string, { en: string; es: string }> = {
+  contradiction: { en: "Credibility", es: "Credibilidad" },
+  witness: { en: "Witness Testimony", es: "Testimonio de Testigo" },
+  fact: { en: "General Finding", es: "Hallazgo General" },
+  evidence: { en: "Physical Evidence", es: "Evidencia Física" },
+  chain_of_custody: { en: "Chain of Custody", es: "Cadena de Custodia" },
+  missing_evidence: { en: "Discovery Violation", es: "Deficiencia Probatoria" },
+  discovery_gap: { en: "Discovery Violation", es: "Deficiencia Probatoria" },
+  weak_evidence: { en: "General Finding", es: "Hallazgo General" },
+  risk: { en: "General Finding", es: "Hallazgo General" },
+  entity: { en: "General Finding", es: "Hallazgo General" },
+  timeline: { en: "General Finding", es: "Hallazgo General" },
 };
 
-export function rankAndClassify<T extends Partial<NewFinding>>(rows: T[]): Array<T & {
+export function rankAndClassify<T extends Partial<NewFinding>>(
+  rows: T[],
+  locale: "es" | "en" = "es",
+): Array<T & {
   evidence_type: EvidenceType;
   impact_direction: ImpactDirection;
   priority: number;
   category: string;
 }> {
+  const generalFinding = locale === "en" ? "General Finding" : "Hallazgo General";
+  const chainOfCustody = locale === "en" ? "Chain of Custody" : "Cadena de Custodia";
+  const financialFraud = locale === "en" ? "Financial Fraud" : "Fraude Financiero";
   return rows.map((r) => {
     const cls = classifyFinding(r);
-    const contentCat = classifyCategory(r);
+    const contentCat = classifyCategory(r, locale);
     let category = contentCat;
-    if (category === "General Finding") {
+    if (category === generalFinding) {
       const raw = String(r.category ?? "").toLowerCase();
-      if (raw && LEGACY_CATEGORY_ALIAS[raw]) category = LEGACY_CATEGORY_ALIAS[raw];
+      if (raw && LEGACY_CATEGORY_ALIAS[raw]) category = LEGACY_CATEGORY_ALIAS[raw][locale];
       else if (raw) category = raw.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     }
     // Guardrail: never label a financial/fraud finding as "Chain of Custody".
     if (
-      category === "Chain of Custody" &&
-      /\b(financial|fraud|money|funds|ponzi|embezzl)\b/i.test(`${r.title ?? ""} ${r.description ?? ""}`)
+      category === chainOfCustody &&
+      /\b(financial|fraud|money|funds|ponzi|embezzl|fraude|dinero|lavado|desfalco)\b/i.test(`${r.title ?? ""} ${r.description ?? ""}`)
     ) {
-      category = "Financial Fraud";
+      category = financialFraud;
     }
     return {
       ...r,

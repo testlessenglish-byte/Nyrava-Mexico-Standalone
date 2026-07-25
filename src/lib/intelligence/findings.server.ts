@@ -617,7 +617,12 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   if (finalized.length === 0) return [];
 
   const { rankAndClassify } = await import("./classify.server");
-  const classified = rankAndClassify(finalized);
+  const { getReportLocale } = await import("@/lib/mexico-lock");
+  // caseId from the earlier per-case loops is out of scope here — rows are
+  // always one case in practice (see comment above), so derive it from the
+  // findings themselves rather than assuming a variable that no longer exists.
+  const classifyLocale = finalized[0]?.case_id ? await getReportLocale(db, finalized[0].case_id) : "es";
+  const classified = rankAndClassify(finalized, classifyLocale);
 
   // Dimension tagging — computed ONCE, here, at the single insert choke
   // point every write path funnels through (see TRUST CONTRACT header).
