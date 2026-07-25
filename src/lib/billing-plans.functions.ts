@@ -39,7 +39,7 @@ async function requireAdmin(ctx: { supabase: Db; userId: string }) {
   if (!isAdmin) throw new Error("Forbidden — admin required.");
 }
 
-/** Admin list — includes inactive/draft plans. */
+/** Admin list — includes inactive/draft plans plus admin-only internal notes. */
 export const adminListBillingPlans = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -50,7 +50,14 @@ export const adminListBillingPlans = createServerFn({ method: "GET" })
       .select("*")
       .order("sort_order", { ascending: true });
     if (error) throw new Error(error.message);
-    return data ?? [];
+    // internal_notes lives in an admin-only side table so the public plan read
+    // (anon can SELECT active plans) can never expose it.
+    const { data: notes, error: notesErr } = await ctx.supabase
+      .from("billing_plan_notes")
+      .select("plan_id,notes");
+    if (notesErr) throw new Error(notesErr.message);
+    const byPlan = new Map((notes ?? []).map((n) => [n.plan_id, n.notes ?? null]));
+    return (data ?? []).map((p) => ({ ...p, internal_notes: byPlan.get(p.id) ?? null }));
   });
 
 export const adminUpsertBillingPlan = createServerFn({ method: "POST" })
@@ -76,8 +83,21 @@ export const adminUpsertBillingPlan = createServerFn({ method: "POST" })
       per_seat_price_cents:
         typeof data.per_seat_price_cents === "number" ? data.per_seat_price_cents : null,
       per_seat_stripe_price_id: data.per_seat_stripe_price_id?.trim() || null,
-      internal_notes: data.internal_notes?.trim() || null,
     } as unknown as Database["public"]["Tables"]["billing_plans"]["Insert"];
+
+    const notes = data.internal_notes?.trim() || null;
+    const saveNotes = async (planId: string) => {
+      if (notes === null) {
+        const { error } = await ctx.supabase.from("billing_plan_notes").delete().eq("plan_id", planId);
+        if (error) throw new Error(error.message);
+        return;
+      }
+      const { error } = await ctx.supabase
+        .from("billing_plan_notes")
+        .upsert({ plan_id: planId, notes }, { onConflict: "plan_id" });
+      if (error) throw new Error(error.message);
+    };
+
     if (data.id) {
       const { data: updated, error } = await ctx.supabase
         .from("billing_plans")
@@ -86,7 +106,8 @@ export const adminUpsertBillingPlan = createServerFn({ method: "POST" })
         .select("*")
         .single();
       if (error) throw new Error(error.message);
-      return updated;
+      await saveNotes(data.id);
+      return { ...updated, internal_notes: notes };
     }
     const { data: inserted, error } = await ctx.supabase
       .from("billing_plans")
@@ -94,8 +115,10 @@ export const adminUpsertBillingPlan = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
-    return inserted;
+    await saveNotes(inserted.id);
+    return { ...inserted, internal_notes: notes };
   });
+
 
 export const adminDeleteBillingPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

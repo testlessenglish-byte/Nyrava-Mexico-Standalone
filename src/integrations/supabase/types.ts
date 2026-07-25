@@ -530,6 +530,36 @@ export type Database = {
           },
         ]
       }
+      authority_relationships: {
+        Row: {
+          created_at: string
+          from_id: string
+          from_type: string
+          id: string
+          relationship: string
+          to_id: string
+          to_type: string
+        }
+        Insert: {
+          created_at?: string
+          from_id: string
+          from_type: string
+          id?: string
+          relationship: string
+          to_id: string
+          to_type: string
+        }
+        Update: {
+          created_at?: string
+          from_id?: string
+          from_type?: string
+          id?: string
+          relationship?: string
+          to_id?: string
+          to_type?: string
+        }
+        Relationships: []
+      }
       beta_invites: {
         Row: {
           email: string
@@ -614,6 +644,35 @@ export type Database = {
           },
         ]
       }
+      billing_plan_notes: {
+        Row: {
+          created_at: string
+          notes: string | null
+          plan_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          notes?: string | null
+          plan_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          notes?: string | null
+          plan_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_plan_notes_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: true
+            referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_plans: {
         Row: {
           active: boolean
@@ -625,7 +684,6 @@ export type Database = {
           features: Json
           id: string
           included_seats: number
-          internal_notes: string | null
           interval: string
           key: string | null
           label: string | null
@@ -649,7 +707,6 @@ export type Database = {
           features?: Json
           id?: string
           included_seats?: number
-          internal_notes?: string | null
           interval?: string
           key?: string | null
           label?: string | null
@@ -673,7 +730,6 @@ export type Database = {
           features?: Json
           id?: string
           included_seats?: number
-          internal_notes?: string | null
           interval?: string
           key?: string | null
           label?: string | null
@@ -1812,6 +1868,48 @@ export type Database = {
           },
         ]
       }
+      citation_cache: {
+        Row: {
+          citation_text: string
+          id: string
+          last_checked_at: string
+          resolved_article_id: string | null
+          resolved_authority_id: string | null
+          verification_status: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Insert: {
+          citation_text: string
+          id?: string
+          last_checked_at?: string
+          resolved_article_id?: string | null
+          resolved_authority_id?: string | null
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Update: {
+          citation_text?: string
+          id?: string
+          last_checked_at?: string
+          resolved_article_id?: string | null
+          resolved_authority_id?: string | null
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "citation_cache_resolved_article_id_fkey"
+            columns: ["resolved_article_id"]
+            isOneToOne: false
+            referencedRelation: "legal_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citation_cache_resolved_authority_id_fkey"
+            columns: ["resolved_authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_case_documents: {
         Row: {
           created_at: string
@@ -2523,10 +2621,105 @@ export type Database = {
           },
         ]
       }
+      legal_amendments: {
+        Row: {
+          amendment_type: string
+          article_id: string
+          created_at: string
+          decree_reference: string | null
+          effective_at: string | null
+          id: string
+          new_body: string
+          previous_body: string | null
+          source_url: string | null
+        }
+        Insert: {
+          amendment_type?: string
+          article_id: string
+          created_at?: string
+          decree_reference?: string | null
+          effective_at?: string | null
+          id?: string
+          new_body: string
+          previous_body?: string | null
+          source_url?: string | null
+        }
+        Update: {
+          amendment_type?: string
+          article_id?: string
+          created_at?: string
+          decree_reference?: string | null
+          effective_at?: string | null
+          id?: string
+          new_body?: string
+          previous_body?: string | null
+          source_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_amendments_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "legal_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_articles: {
+        Row: {
+          article_number: string
+          authority_id: string
+          body: string
+          created_at: string
+          effective_at: string | null
+          heading: string | null
+          id: string
+          repealed_at: string | null
+          source_url: string | null
+          updated_at: string
+          verification_status: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Insert: {
+          article_number: string
+          authority_id: string
+          body: string
+          created_at?: string
+          effective_at?: string | null
+          heading?: string | null
+          id?: string
+          repealed_at?: string | null
+          source_url?: string | null
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Update: {
+          article_number?: string
+          authority_id?: string
+          body?: string
+          created_at?: string
+          effective_at?: string | null
+          heading?: string | null
+          id?: string
+          repealed_at?: string | null
+          source_url?: string | null
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_articles_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_authorities: {
         Row: {
           body: string | null
           citation: string | null
+          connector_code: string | null
           created_at: string
           effective_at: string | null
           id: string
@@ -2535,14 +2728,20 @@ export type Database = {
           kind: string
           metadata: Json
           published_at: string | null
+          repealed_at: string | null
           short_title: string | null
           source_url: string | null
+          superseded_by_id: string | null
           title: string
           updated_at: string
+          verification_status: Database["public"]["Enums"]["legal_verification_status"]
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           body?: string | null
           citation?: string | null
+          connector_code?: string | null
           created_at?: string
           effective_at?: string | null
           id?: string
@@ -2551,14 +2750,20 @@ export type Database = {
           kind: string
           metadata?: Json
           published_at?: string | null
+          repealed_at?: string | null
           short_title?: string | null
           source_url?: string | null
+          superseded_by_id?: string | null
           title: string
           updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           body?: string | null
           citation?: string | null
+          connector_code?: string | null
           created_at?: string
           effective_at?: string | null
           id?: string
@@ -2567,12 +2772,25 @@ export type Database = {
           kind?: string
           metadata?: Json
           published_at?: string | null
+          repealed_at?: string | null
           short_title?: string | null
           source_url?: string | null
+          superseded_by_id?: string | null
           title?: string
           updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+          verified_at?: string | null
+          verified_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "legal_authorities_superseded_by_id_fkey"
+            columns: ["superseded_by_id"]
+            isOneToOne: false
+            referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       legal_authority_versions: {
         Row: {
@@ -2687,6 +2905,157 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_jurisprudencia: {
+        Row: {
+          binding: boolean
+          body: string
+          created_at: string
+          epoca: string | null
+          formation_method: string | null
+          id: string
+          issuing_body: string | null
+          published_at: string | null
+          registry_number: string | null
+          source_url: string | null
+          title: string
+          updated_at: string
+          verification_status: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Insert: {
+          binding?: boolean
+          body: string
+          created_at?: string
+          epoca?: string | null
+          formation_method?: string | null
+          id?: string
+          issuing_body?: string | null
+          published_at?: string | null
+          registry_number?: string | null
+          source_url?: string | null
+          title: string
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Update: {
+          binding?: boolean
+          body?: string
+          created_at?: string
+          epoca?: string | null
+          formation_method?: string | null
+          id?: string
+          issuing_body?: string | null
+          published_at?: string | null
+          registry_number?: string | null
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Relationships: []
+      }
+      legal_keyword_links: {
+        Row: {
+          entity_id: string
+          entity_type: string
+          id: string
+          keyword_id: string
+        }
+        Insert: {
+          entity_id: string
+          entity_type: string
+          id?: string
+          keyword_id: string
+        }
+        Update: {
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          keyword_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_keyword_links_keyword_id_fkey"
+            columns: ["keyword_id"]
+            isOneToOne: false
+            referencedRelation: "legal_keywords"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_keywords: {
+        Row: {
+          created_at: string
+          id: string
+          term: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          term: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          term?: string
+        }
+        Relationships: []
+      }
+      legal_precedents: {
+        Row: {
+          authority_id: string | null
+          binding: boolean
+          case_number: string | null
+          court: string
+          created_at: string
+          decision_date: string | null
+          full_text: string | null
+          id: string
+          jurisdiction: string | null
+          source_url: string | null
+          summary: string | null
+          updated_at: string
+          verification_status: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Insert: {
+          authority_id?: string | null
+          binding?: boolean
+          case_number?: string | null
+          court: string
+          created_at?: string
+          decision_date?: string | null
+          full_text?: string | null
+          id?: string
+          jurisdiction?: string | null
+          source_url?: string | null
+          summary?: string | null
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Update: {
+          authority_id?: string | null
+          binding?: boolean
+          case_number?: string | null
+          court?: string
+          created_at?: string
+          decision_date?: string | null
+          full_text?: string | null
+          id?: string
+          jurisdiction?: string | null
+          source_url?: string | null
+          summary?: string | null
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_precedents_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_profiles: {
         Row: {
           code: string
@@ -2735,6 +3104,59 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_regulations: {
+        Row: {
+          body: string | null
+          created_at: string
+          effective_at: string | null
+          id: string
+          implements_authority_id: string | null
+          issuer: string | null
+          jurisdiction: string | null
+          published_at: string | null
+          source_url: string | null
+          title: string
+          updated_at: string
+          verification_status: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          effective_at?: string | null
+          id?: string
+          implements_authority_id?: string | null
+          issuer?: string | null
+          jurisdiction?: string | null
+          published_at?: string | null
+          source_url?: string | null
+          title: string
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          effective_at?: string | null
+          id?: string
+          implements_authority_id?: string | null
+          issuer?: string | null
+          jurisdiction?: string | null
+          published_at?: string | null
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_regulations_implements_authority_id_fkey"
+            columns: ["implements_authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_source_connectors: {
         Row: {
           base_url: string | null
@@ -2773,6 +3195,106 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      legal_theses: {
+        Row: {
+          body: string
+          created_at: string
+          epoca: string | null
+          id: string
+          issuing_body: string | null
+          published_at: string | null
+          registry_number: string | null
+          source_url: string | null
+          title: string
+          updated_at: string
+          verification_status: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          epoca?: string | null
+          id?: string
+          issuing_body?: string | null
+          published_at?: string | null
+          registry_number?: string | null
+          source_url?: string | null
+          title: string
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          epoca?: string | null
+          id?: string
+          issuing_body?: string | null
+          published_at?: string | null
+          registry_number?: string | null
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+          verification_status?: Database["public"]["Enums"]["legal_verification_status"]
+        }
+        Relationships: []
+      }
+      legal_topic_links: {
+        Row: {
+          entity_id: string
+          entity_type: string
+          id: string
+          topic_id: string
+        }
+        Insert: {
+          entity_id: string
+          entity_type: string
+          id?: string
+          topic_id: string
+        }
+        Update: {
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          topic_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_topic_links_topic_id_fkey"
+            columns: ["topic_id"]
+            isOneToOne: false
+            referencedRelation: "legal_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_topics: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          parent_topic_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          parent_topic_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          parent_topic_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_topics_parent_topic_id_fkey"
+            columns: ["parent_topic_id"]
+            isOneToOne: false
+            referencedRelation: "legal_topics"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       matter_documents: {
         Row: {
@@ -4385,6 +4907,8 @@ export type Database = {
       plan_seat_limit: { Args: { _plan: string }; Returns: number }
       resolve_firm_for_email: { Args: { _email: string }; Returns: string }
       same_firm: { Args: { _a: string; _b: string }; Returns: boolean }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       ai_provider: "groq" | "openai" | "gemini" | "anthropic" | "openrouter"
@@ -4444,6 +4968,12 @@ export type Database = {
         | "contract"
         | "research"
         | "work_product"
+      legal_verification_status:
+        | "verified"
+        | "pending"
+        | "deprecated"
+        | "superseded"
+        | "failed_verification"
       matter_priority: "low" | "normal" | "high" | "urgent"
       matter_status: "intake" | "active" | "on_hold" | "closed" | "archived"
       matter_type:
@@ -4664,6 +5194,13 @@ export const Constants = {
         "contract",
         "research",
         "work_product",
+      ],
+      legal_verification_status: [
+        "verified",
+        "pending",
+        "deprecated",
+        "superseded",
+        "failed_verification",
       ],
       matter_priority: ["low", "normal", "high", "urgent"],
       matter_status: ["intake", "active", "on_hold", "closed", "archived"],
