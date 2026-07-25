@@ -9,6 +9,7 @@ import { HeroOSDashboard } from "@/components/HeroOSDashboard";
 import { TrustStrip } from "@/components/TrustStrip";
 import { SiteFooter } from "@/components/SiteFooter";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useI18n } from "@/i18n";
 import { listPublishedDemoCases } from "@/lib/demo-cases.functions";
 
 const SITE_URL = "https://nyrava.com";
@@ -66,13 +67,14 @@ export const Route = createFileRoute("/")({
 });
 
 const NAV = [
-  { label: "PRODUCT", href: "#product" },
-  { label: "SECURITY", to: "/security" },
-  { label: "TRANSPARENCY", to: "/ai-transparency" },
-  { label: "HELP", to: "/help" },
+  { key: "home.nav.product", href: "#product" },
+  { key: "home.nav.security", to: "/security" },
+  { key: "home.nav.transparency", to: "/ai-transparency" },
+  { key: "home.nav.help", to: "/help" },
 ] as const;
 
 function Landing() {
+  const { t } = useI18n();
   const [signedIn, setSignedIn] = useState(false);
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
@@ -94,19 +96,19 @@ function Landing() {
             {NAV.map((n) =>
               "to" in n ? (
                 <Link
-                  key={n.label}
+                  key={n.key}
                   to={n.to}
                   className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
                 >
-                  {n.label}
+                  {t(n.key)}
                 </Link>
               ) : (
                 <a
-                  key={n.label}
+                  key={n.key}
                   href={n.href}
                   className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
                 >
-                  {n.label}
+                  {t(n.key)}
                 </a>
               ),
             )}
@@ -117,17 +119,18 @@ function Landing() {
               to="/auth"
               className="rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground hover:bg-card"
             >
-              SIGN IN
+              {t("home.cta.signIn")}
             </Link>
             <Link
               to="/auth"
               className="rounded-md border border-primary/60 bg-primary/15 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary hover:bg-primary/25"
               style={{ boxShadow: "var(--shadow-glow-cyan)" }}
             >
-              {signedIn ? "LAUNCH PLATFORM" : "LAUNCH PLATFORM"}
+              {t("home.cta.launchPlatform")}
             </Link>
           </div>
         </div>
+
       </header>
 
       <main>
@@ -136,16 +139,15 @@ function Landing() {
         <div className="mx-auto grid max-w-7xl gap-12 px-6 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-20">
           <div>
             <div className="mb-6 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">
-              <span className="text-amber">NYRAVA INTELLIGENCE</span>
+              <span className="text-amber">{t("home.hero.badge")}</span>
             </div>
             <h1 className="text-5xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
-              Legal Intelligence
+              {t("home.hero.line1")}
               <br />
-              <span className="font-editorial text-primary">Beyond Human Analysis</span>
+              <span className="font-editorial text-primary">{t("home.hero.line2")}</span>
             </h1>
             <p className="mt-8 max-w-xl text-base leading-relaxed text-muted-foreground">
-              The most advanced Legal Intelligence Operating System. Built for attorneys, investigators, and
-              organizations that demand truth, precision, and results.
+              {t("home.hero.subtitle")}
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <Link
@@ -153,15 +155,16 @@ function Landing() {
                 className="inline-flex items-center gap-2 rounded-md border border-primary/60 bg-primary/15 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary transition hover:bg-primary/25"
                 style={{ boxShadow: "var(--shadow-glow-cyan)" }}
               >
-                LAUNCH COMMAND CENTER <ArrowRight className="h-4 w-4" />
+                {t("home.cta.launchCommand")} <ArrowRight className="h-4 w-4" />
               </Link>
               <a
                 href="#product"
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground transition hover:bg-card"
               >
-                WATCH DEMONSTRATION <Play className="h-3.5 w-3.5" />
+                {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5" />
               </a>
             </div>
+
           </div>
           <div className="flex justify-center lg:pl-4">
             <HeroOSDashboard />
@@ -172,10 +175,11 @@ function Landing() {
       {/* Experience Nyrava — live case demos */}
       <section id="product" className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
 
-        <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">EXPERIENCE NYRAVA</div>
+        <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">{t("home.demos.tag")}</div>
         <h2 className="mb-8 max-w-2xl font-display text-2xl font-semibold leading-tight md:text-3xl">
-          See a complete case analysis before you upload a single document.
+          {t("home.demos.title")}
         </h2>
+
 
         {demosLoading && (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -186,7 +190,7 @@ function Landing() {
         )}
 
         {!demosLoading && (!demoCases || demoCases.length === 0) && (
-          <div className="panel p-8 text-sm text-muted-foreground">Demo cases are coming soon.</div>
+          <div className="panel p-8 text-sm text-muted-foreground">{t("home.demos.empty")}</div>
         )}
 
         {!demosLoading && demoCases && demoCases.length > 0 && (
@@ -210,7 +214,7 @@ function Landing() {
                   {c.summary && <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{c.summary}</p>}
                 </div>
                 <span className="mt-auto inline-flex items-center gap-1 text-[10.5px] font-semibold tracking-[0.22em] text-primary transition group-hover:gap-2">
-                  RUN DEMO <ArrowRight className="h-3 w-3" />
+                  {t("home.demos.run")} <ArrowRight className="h-3 w-3" />
                 </span>
               </Link>
             ))}
