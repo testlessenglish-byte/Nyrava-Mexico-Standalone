@@ -577,6 +577,8 @@ export const PIPELINE_STAGES = [
   { key: "contradictions", label: "Contradiction Analysis" },
   { key: "witness", label: "Witness Intelligence" },
   { key: "evidence_intel", label: "Evidence Intelligence" },
+  { key: "jurisdiction_intel", label: "Jurisdiction Intelligence" },
+  { key: "procedural_compliance", label: "Procedural Compliance Analysis" },
   { key: "constitutional", label: "Constitutional Analysis" },
   { key: "discovery", label: "Discovery Gap Detection" },
   { key: "perspectives", label: "Multi-Perspective Analysis" },
@@ -588,6 +590,7 @@ export const PIPELINE_STAGES = [
   { key: "work_product", label: "Attorney Work Product" },
   { key: "hallucination", label: "Hallucination Review" },
   { key: "scoring", label: "Score Case" },
+  { key: "legal_qa", label: "Legal Quality Control" },
   { key: "report", label: "Generate Report" },
   { key: "multi_agent", label: "Multi-Agent Review (13 Agents)" },
 ] as const;
