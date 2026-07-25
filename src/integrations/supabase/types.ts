@@ -4898,6 +4898,10 @@ export type Database = {
       }
       is_admin_tier: { Args: { _user_id: string }; Returns: boolean }
       is_case_manager: { Args: { _user_id: string }; Returns: boolean }
+      is_member_of_firm: {
+        Args: { _firm: string; _user: string }
+        Returns: boolean
+      }
       is_org_member: { Args: { _org: string; _user: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       org_role_of: {
