@@ -239,7 +239,7 @@ export function CommandCenterDashboard({
   const totalEngines = COMMAND_CENTER_ENGINES.length;
 
   // Node rotation positions (heptagon, 7 nodes).
-  const nodePositions = NODES.map((_, i) => {
+  const nodePositions = visibleNodes.map((_, i) => {
     const angle = -Math.PI / 2 + (i * (2 * Math.PI)) / NODES.length;
     return { x: 50 + 38 * Math.cos(angle), y: 50 + 38 * Math.sin(angle) };
   });
@@ -397,7 +397,7 @@ export function CommandCenterDashboard({
 
               {/* connection lines from center → each node */}
               {nodePositions.map((p, i) => {
-                const st = rollupStatus(pickLatest(latestByEngine, NODES[i].matches));
+                const st = rollupStatus(pickLatest(latestByEngine, visibleNodes[i].matches));
                 const stroke =
                   st === "completed"
                     ? "#34d399"
@@ -423,7 +423,7 @@ export function CommandCenterDashboard({
 
               {/* node dots */}
               {nodePositions.map((p, i) => {
-                const st = rollupStatus(pickLatest(latestByEngine, NODES[i].matches));
+                const st = rollupStatus(pickLatest(latestByEngine, visibleNodes[i].matches));
                 const fill =
                   st === "completed"
                     ? "#34d399"
