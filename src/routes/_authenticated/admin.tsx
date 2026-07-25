@@ -151,6 +151,12 @@ function AdminDashboard() {
           >
             <ShieldCheck className="h-3.5 w-3.5" /> Cobertura Legal MX →
           </Link>
+          <Link
+            to="/admin/legal-knowledge"
+            className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-accent hover:bg-accent/20 flex items-center gap-1.5"
+          >
+            <FlaskConical className="h-3.5 w-3.5" /> Legal Knowledge Network →
+          </Link>
         </div>
       </div>
 

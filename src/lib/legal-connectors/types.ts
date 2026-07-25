@@ -122,8 +122,27 @@ export interface LegalSourceConnector {
  */
 import { dofConnector } from "./dof.connector";
 import { scjnConnector } from "./scjn.connector";
+import { cjfConnector } from "./cjf.connector";
+import { tfjaConnector } from "./tfja.connector";
+import { tepjfConnector } from "./tepjf.connector";
+import { congresoConnector } from "./congreso.connector";
+import { stateGazettesConnector } from "./state_gazettes.connector";
+import { stateScjConnector } from "./state_scj.connector";
 
 export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [
   dofConnector,
   scjnConnector,
+  // The following 6 are STUBS — every data method throws until someone
+  // with real network access inspects the actual source and implements
+  // discover/sync/fetchUpdates/fetchDocument against a confirmed shape
+  // (see each file's header). Registering them here is safe even as
+  // stubs: if legal_source_connectors.status is ever flipped to 'active'
+  // before that work is done, runConnectorIngest's error handling records
+  // a 'failed' run rather than silently pretending to succeed.
+  cjfConnector,
+  tfjaConnector,
+  tepjfConnector,
+  congresoConnector,
+  stateGazettesConnector,
+  stateScjConnector,
 ];
