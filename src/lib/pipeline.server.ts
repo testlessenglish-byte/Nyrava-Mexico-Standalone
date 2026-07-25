@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
 import { callGroq, parseJsonLoose, type GroqContent } from "./groq.server";
+import { mexicoLock, getReportLocale } from "@/lib/mexico-lock";
 import { sha256Hex } from "./hash.server";
 import {
   addFindings,
@@ -1489,7 +1490,7 @@ async function _runExtractionInner(args: {
         const r = await callGroq({
           apiKey,
           apiKeys,
-          systemInstruction: "You are a precise legal-document extractor. Output JSON only.",
+          systemInstruction: `${mexicoLock(await getReportLocale(db, caseId))}\nYou are a precise legal-document extractor for the Mexican legal system. Recognize Mexican document types and formats (carpeta de investigación, escritura pública, demanda, contestación, acuerdo, oficio, etc.). Output JSON only.`,
           userContent: content,
           json: true,
         });
@@ -1542,7 +1543,7 @@ async function _runExtractionInner(args: {
           const vr = await callGroq({
             apiKey,
             apiKeys,
-            systemInstruction: "You describe evidentiary images. Output JSON only. Never identify people.",
+            systemInstruction: `${mexicoLock(await getReportLocale(db, caseId))}\nYou describe evidentiary images relevant to a Mexican legal proceeding. Output JSON only. Never identify people.`,
             userContent: visionContent,
             json: true,
           });
@@ -1912,10 +1913,11 @@ async function _runAnalyzersInner(args: {
   const analyzerDomains = await getActiveDomains(db, caseId);
   const analyzerAreaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(analyzerArea)];
   const analyzerPreamble =
+    `${mexicoLock(await getReportLocale(db, caseId))}\n` +
     `CASE TYPE: ${analyzerAreaLabel} (${analyzerArea}). ` +
     `Only surface findings whose legal theory applies to a ${analyzerAreaLabel} matter. ` +
-    `Do NOT generate criminal-procedure, constitutional (4th/5th/6th Amendment), Miranda, Brady/Giglio, ` +
-    `chain-of-custody, family-law, immigration, tax, or bankruptcy findings ` +
+    `Do NOT generate findings framed around sistema penal acusatorio concepts (vinculación a proceso, ` +
+    `medidas cautelares, cadena de custodia), derecho laboral, derecho migratorio, or derecho fiscal ` +
     `unless this case type expressly covers them. ` +
     `Do NOT infer missing procedural facts (e.g. "no proof of service") absent a verbatim corpus quote.`;
 
@@ -2549,6 +2551,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     const { PRACTICE_AREA_LABELS, normalizePracticeArea } = await import("./intelligence/practice-areas");
     const areaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(area)];
     const areaPreamble =
+      `${mexicoLock(await getReportLocale(db, caseId))}\n` +
       `CASE TYPE: ${areaLabel} (${area}). ` +
       `Only surface findings whose legal theory is applicable to a ${areaLabel} matter. ` +
       `Do NOT manufacture findings from other practice areas. ` +
@@ -3005,8 +3008,7 @@ async function _runScoringInner(args: { db: Db; caseId: string; userId: string; 
   const r = await callGroq({
     apiKey,
     apiKeys,
-    systemInstruction:
-      "You score legal cases objectively across 10 dimensions. EVERY score must list specific positive and negative contributors that reference finding ids. NEVER produce opaque scores. Output STRICT JSON only.",
+    systemInstruction: `${mexicoLock(await getReportLocale(db, caseId))}\nYou score legal cases objectively across 10 dimensions. EVERY score must list specific positive and negative contributors that reference finding ids. NEVER produce opaque scores. Output STRICT JSON only.`,
     userContent: `Return STRICT JSON. Each numeric field is 0-100 (integer). Each dimension_breakdowns entry must list at least 2 positive and 2 negative contributors with finding_id references when available.
 
 {
@@ -3932,11 +3934,12 @@ ${corpus.slice(0, s(160000))}`;
   };
 
   const systemInstruction =
-    "You are an elite litigation intelligence engine for U.S. attorneys, NOT a summarizer. You produce court-ready work product that wins motions and survives Daubert scrutiny." +
+    `${mexicoLock(await getReportLocale(db, caseId))}\n` +
+    "You are an elite litigation intelligence engine for Mexican attorneys, NOT a summarizer. You produce court-ready work product grounded in the sistema penal acusatorio and Mexican civil procedure." +
     `\nCASE TYPE: ${caseType}. ` +
     (isCriminalOrCivilRights
-      ? "Constitutional, criminal-procedure, and Brady analyses ARE relevant when supported by the corpus. Cite Brady v. Maryland, 373 U.S. 83 (1963) for exculpatory evidence; Miranda v. Arizona, 384 U.S. 436 (1966) for interrogation issues; Arizona v. Gant, 556 U.S. 332 (2009) for vehicle-search issues."
-      : "This is NOT a criminal or civil-rights matter. DO NOT manufacture constitutional issues, Fourth/Fifth/Sixth Amendment claims, Brady/Giglio, or criminal motions (suppress/dismiss-criminal). Return empty arrays for `constitutional_issues` and exclude criminal motions from `motion_opportunities`. Focus on civil procedure, discovery, and dispositive motions.") +
+      ? "Análisis constitucional y de procedimiento penal SÍ son relevantes cuando el corpus los respalda. Fundamenta en el Art. 20 CPEUM (derechos del imputado y la víctima), el catálogo de prisión preventiva oficiosa del Art. 19 CPEUM, y las reglas de cadena de custodia (Arts. 227-230 CNPP) — nunca en doctrina estadounidense (Miranda, Brady/Giglio, enmiendas constitucionales de EE.UU.)."
+      : "Este NO es un asunto penal ni de derechos humanos por violación de autoridad. NO manufactures cuestiones constitucionales ni recursos de amparo. Regresa arreglos vacíos para `constitutional_issues` y excluye recursos penales de `motion_opportunities`. Concéntrate en el procedimiento civil, ofrecimiento de pruebas, y mociones dispositivas conforme al derecho mexicano.") +
     '\nMANDATORY CITATION RULE: Every factual claim MUST include a `[DOC N p.M]` bracket immediately after a 10–30 word verbatim quote from that page, written as natural prose — the quote goes in the sentence itself, in quotation marks, NOT inside the brackets. Correct: the report states the officer "failed to inspect the equipment" [DOC 3 p.2]. WRONG — never do this: [DOC 3 p.2: "failed to inspect the equipment"]. A claim without a citation is UNVERIFIED and must be rewritten or omitted. No exceptions.' +
     "\nDO NOT duplicate findings already provided — extend them with deeper analysis; do not restate them as new items." +
     "\nFor every CONTRADICTION: Document A specific quote vs Document B specific quote, plus (nature, credibility impact, trial significance, impeachment value, strategic implications)." +
