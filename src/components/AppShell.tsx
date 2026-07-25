@@ -7,13 +7,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchMyMemberships, getCurrentOrgId, setCurrentOrgId } from "@/lib/workspace";
 import { useSession } from "@/hooks/use-session";
 
-const NAV = [
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; disabled?: boolean };
+const NAV: NavItem[] = [
   { to: "/dashboard", label: "Panel", icon: LayoutDashboard },
   { to: "/matters", label: "Asuntos", icon: Briefcase },
   { to: "/people", label: "Personas", icon: Users, disabled: true },
   { to: "/library", label: "Biblioteca", icon: FileText, disabled: true },
   { to: "/settings", label: "Ajustes", icon: Settings, disabled: true },
-] as const;
+];
 
 export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
   const navigate = useNavigate();
