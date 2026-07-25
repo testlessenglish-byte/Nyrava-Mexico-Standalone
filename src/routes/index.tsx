@@ -139,16 +139,15 @@ function Landing() {
         <div className="mx-auto grid max-w-7xl gap-12 px-6 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-20">
           <div>
             <div className="mb-6 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">
-              <span className="text-amber">NYRAVA INTELLIGENCE</span>
+              <span className="text-amber">{t("home.hero.badge")}</span>
             </div>
             <h1 className="text-5xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
-              Legal Intelligence
+              {t("home.hero.line1")}
               <br />
-              <span className="font-editorial text-primary">Beyond Human Analysis</span>
+              <span className="font-editorial text-primary">{t("home.hero.line2")}</span>
             </h1>
             <p className="mt-8 max-w-xl text-base leading-relaxed text-muted-foreground">
-              The most advanced Legal Intelligence Operating System. Built for attorneys, investigators, and
-              organizations that demand truth, precision, and results.
+              {t("home.hero.subtitle")}
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <Link
@@ -156,15 +155,16 @@ function Landing() {
                 className="inline-flex items-center gap-2 rounded-md border border-primary/60 bg-primary/15 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary transition hover:bg-primary/25"
                 style={{ boxShadow: "var(--shadow-glow-cyan)" }}
               >
-                LAUNCH COMMAND CENTER <ArrowRight className="h-4 w-4" />
+                {t("home.cta.launchCommand")} <ArrowRight className="h-4 w-4" />
               </Link>
               <a
                 href="#product"
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground transition hover:bg-card"
               >
-                WATCH DEMONSTRATION <Play className="h-3.5 w-3.5" />
+                {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5" />
               </a>
             </div>
+
           </div>
           <div className="flex justify-center lg:pl-4">
             <HeroOSDashboard />
