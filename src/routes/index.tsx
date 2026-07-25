@@ -214,7 +214,7 @@ function Landing() {
                   {c.summary && <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{c.summary}</p>}
                 </div>
                 <span className="mt-auto inline-flex items-center gap-1 text-[10.5px] font-semibold tracking-[0.22em] text-primary transition group-hover:gap-2">
-                  RUN DEMO <ArrowRight className="h-3 w-3" />
+                  {t("home.demos.run")} <ArrowRight className="h-3 w-3" />
                 </span>
               </Link>
             ))}
