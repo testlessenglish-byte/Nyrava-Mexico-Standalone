@@ -35,6 +35,7 @@ import { ScrollToTop } from "@/components/ScrollToTop";
 import { BackButton } from "@/components/BackButton";
 import { UserMenu } from "@/components/UserMenu";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated")({
   head: () => ({
@@ -92,6 +93,7 @@ const MOBILE_TABS: Array<{
 
 
 function AppLayout() {
+  const { t } = useI18n();
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [email, setEmail] = useState<string>("");
@@ -165,13 +167,24 @@ function AppLayout() {
   ).toUpperCase();
   const greeting = (() => {
     const h = new Date().getHours();
-    if (h < 12) return "Good morning";
-    if (h < 18) return "Good afternoon";
-    return "Good evening";
+    if (h < 12) return t("shell.greeting.morning");
+    if (h < 18) return t("shell.greeting.afternoon");
+    return t("shell.greeting.evening");
   })();
-  const firstName = fullName.split(/\s+/)[0] || email.split("@")[0]?.split(".")[0] || "Counsel";
+  const firstName = fullName.split(/\s+/)[0] || email.split("@")[0]?.split(".")[0] || t("shell.counsel");
 
-  const NavItem = ({ to, label, icon: Icon }: { to: string; label: string; icon: typeof LayoutDashboard }) => {
+  const NavItem = ({
+    to,
+    label,
+    labelKey,
+    icon: Icon,
+  }: {
+    to: string;
+    label?: string;
+    labelKey?: string;
+    icon: typeof LayoutDashboard;
+  }) => {
+    const text = labelKey ? t(labelKey) : (label ?? "");
     const active = pathname === to;
     return (
       <Link
@@ -185,7 +198,7 @@ function AppLayout() {
         <Icon
           className={`h-4 w-4 shrink-0 ${active ? "text-primary" : "text-sidebar-foreground/60 group-hover:text-primary"}`}
         />
-        <span className="truncate">{label}</span>
+        <span className="truncate">{text}</span>
       </Link>
     );
   };
@@ -196,7 +209,7 @@ function AppLayout() {
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-sidebar-border bg-sidebar/95 px-4 py-3 backdrop-blur md:hidden">
         <button
           onClick={() => setDrawerOpen(true)}
-          aria-label="Open menu"
+          aria-label={t("shell.menu.open")}
           className="rounded-md p-1.5 text-sidebar-foreground/80 hover:bg-sidebar-accent"
         >
           <Menu className="h-5 w-5" />
@@ -206,7 +219,7 @@ function AppLayout() {
           <Link
             to="/alerts"
             className="relative rounded-md p-1.5 text-sidebar-foreground/80 hover:bg-sidebar-accent"
-            aria-label="Notifications"
+            aria-label={t("shell.notifications")}
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (
@@ -229,7 +242,7 @@ function AppLayout() {
               <NyravaLogo size={30} withWordmark />
               <button
                 onClick={() => setDrawerOpen(false)}
-                aria-label="Close menu"
+                aria-label={t("shell.menu.close")}
                 className="rounded-md p-1.5 text-sidebar-foreground/80 hover:bg-sidebar-accent"
               >
                 <X className="h-5 w-5" />
@@ -242,50 +255,50 @@ function AppLayout() {
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold">{firstName}</div>
                 <div className="truncate text-[11px] text-sidebar-foreground/60">
-                  {adminInfo?.isAdmin ? "Administrator" : "Attorney"}
+                  {adminInfo?.isAdmin ? t("nav.role.admin") : t("nav.role.attorney")}
                 </div>
               </div>
             </div>
             <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
               <div className="space-y-1">
                 <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/40">
-                  Command
+                  {t("nav.section.command")}
                 </div>
                 {PRIMARY_NAV.map((it) => (
-                  <NavItem key={it.label} {...it} />
+                  <NavItem key={it.to} {...it} />
                 ))}
               </div>
               <div className="space-y-1">
                 <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/40">
-                  Intelligence
+                  {t("nav.section.intelligence")}
                 </div>
                 {INTEL_NAV.map((it) => (
-                  <NavItem key={it.label} {...it} />
+                  <NavItem key={it.to} {...it} />
                 ))}
               </div>
               <div className="space-y-1">
                 <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/40">
-                  Output
+                  {t("nav.section.output")}
                 </div>
                 {OUTPUT_NAV.map((it) => (
-                  <NavItem key={it.label} {...it} />
+                  <NavItem key={it.to} {...it} />
                 ))}
               </div>
               <div className="space-y-1">
                 <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                  System
+                  {t("nav.section.system")}
                 </div>
-                <NavItem to="/account" label="Account" icon={User} />
-                <NavItem to="/security-dashboard" label="Security" icon={ShieldCheck} />
-                <NavItem to="/ai-keys" label="Intelligence Providers" icon={Sparkles} />
-                <NavItem to="/health" label="System Health" icon={Activity} />
-                {adminInfo?.isAdmin && <NavItem to="/admin" label="Admin Panel" icon={ShieldCheck} />}
+                <NavItem to="/account" labelKey="nav.account" icon={User} />
+                <NavItem to="/security-dashboard" labelKey="nav.security" icon={ShieldCheck} />
+                <NavItem to="/ai-keys" labelKey="nav.aiKeys" icon={Sparkles} />
+                <NavItem to="/health" labelKey="nav.health" icon={Activity} />
+                {adminInfo?.isAdmin && <NavItem to="/admin" labelKey="nav.adminPanel" icon={ShieldCheck} />}
                 <Link
                   to="/settings"
                   className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
                 >
                   <HelpCircle className="h-4 w-4 shrink-0 text-sidebar-foreground/60" />
-                  <span>Help & Support</span>
+                  <span>{t("nav.help")}</span>
                 </Link>
               </div>
             </nav>
@@ -298,7 +311,7 @@ function AppLayout() {
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
               >
                 <LogOut className="h-4 w-4 shrink-0 text-sidebar-foreground/60" />
-                <span>Logout</span>
+                <span>{t("nav.logout")}</span>
               </button>
             </div>
           </aside>
@@ -313,43 +326,43 @@ function AppLayout() {
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
           <div className="space-y-1">
             <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/40">
-              Command
+              {t("nav.section.command")}
             </div>
             {PRIMARY_NAV.map((it) => (
-              <NavItem key={it.label} {...it} />
+              <NavItem key={it.to} {...it} />
             ))}
           </div>
           <div className="space-y-1">
             <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/40">
-              Intelligence
+              {t("nav.section.intelligence")}
             </div>
             {INTEL_NAV.map((it) => (
-              <NavItem key={it.label} {...it} />
+              <NavItem key={it.to} {...it} />
             ))}
           </div>
           <div className="space-y-1">
             <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/40">
-              Output
+              {t("nav.section.output")}
             </div>
             {OUTPUT_NAV.map((it) => (
-              <NavItem key={it.label} {...it} />
+              <NavItem key={it.to} {...it} />
             ))}
           </div>
           <div className="space-y-1">
             <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/40">
-              System
+              {t("nav.section.system")}
             </div>
-            <NavItem to="/account" label="Account" icon={User} />
-            <NavItem to="/security-dashboard" label="Security" icon={ShieldCheck} />
-            <NavItem to="/ai-keys" label="Intelligence Providers" icon={Sparkles} />
-            <NavItem to="/health" label="System Health" icon={Activity} />
-            {adminInfo?.isAdmin && <NavItem to="/admin" label="Admin" icon={ShieldCheck} />}
+            <NavItem to="/account" labelKey="nav.account" icon={User} />
+            <NavItem to="/security-dashboard" labelKey="nav.security" icon={ShieldCheck} />
+            <NavItem to="/ai-keys" labelKey="nav.aiKeys" icon={Sparkles} />
+            <NavItem to="/health" labelKey="nav.health" icon={Activity} />
+            {adminInfo?.isAdmin && <NavItem to="/admin" labelKey="nav.admin" icon={ShieldCheck} />}
             <Link
               to="/settings"
               className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
             >
               <HelpCircle className="h-4 w-4 shrink-0 text-sidebar-foreground/60" />
-              <span>Help & Support</span>
+              <span>{t("nav.help")}</span>
             </Link>
           </div>
         </nav>
@@ -361,7 +374,7 @@ function AppLayout() {
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs font-semibold text-sidebar-foreground">{firstName}</div>
               <div className="truncate text-[10px] text-sidebar-foreground/60">
-                {adminInfo?.isAdmin ? "Administrator" : "Attorney"}
+                {adminInfo?.isAdmin ? t("nav.role.admin") : t("nav.role.attorney")}
               </div>
             </div>
             <button
@@ -370,7 +383,7 @@ function AppLayout() {
                 nav({ to: "/auth" });
               }}
               className="rounded-md p-1.5 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              aria-label="Sign out"
+              aria-label={t("nav.logout")}
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -405,13 +418,13 @@ function AppLayout() {
                 // unmounts — a plain onBlur closing immediately would
                 // swallow the click.
                 onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
-                placeholder="Search cases, documents, evidence..."
+                placeholder={t("shell.search.placeholder")}
                 className="w-full rounded-lg border border-border bg-input/40 py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
               {searchOpen && searchQuery.trim() && (
                 <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-80 overflow-auto rounded-lg border border-border bg-popover shadow-lg">
                   {searchResults.length === 0 ? (
-                    <div className="px-3 py-3 text-xs text-muted-foreground">No cases match "{searchQuery}".</div>
+                    <div className="px-3 py-3 text-xs text-muted-foreground">{t("shell.search.noMatches", { query: searchQuery })}</div>
                   ) : (
                     searchResults.map((c) => (
                       <Link
@@ -425,7 +438,7 @@ function AppLayout() {
                         }}
                       >
                         <span className="font-medium text-foreground">{c.name}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">{c.status}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{t(`cases.status.${c.status}`)}</span>
                       </Link>
                     ))
                   )}
@@ -435,7 +448,7 @@ function AppLayout() {
             <Link
               to="/alerts"
               className="relative rounded-lg border border-border bg-card/60 p-2 hover:bg-card"
-              aria-label="Notifications"
+              aria-label={t("shell.notifications")}
             >
               <Bell className="h-4 w-4 text-foreground" />
               {unreadCount > 0 && (
@@ -456,7 +469,8 @@ function AppLayout() {
 
         {/* Mobile bottom tabs */}
         <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 gap-1 border-t border-sidebar-border bg-sidebar/95 px-2 pb-2 pt-2 backdrop-blur md:hidden">
-          {MOBILE_TABS.map(({ to, label, icon: Icon, primary }) => {
+          {MOBILE_TABS.map(({ to, labelKey, icon: Icon, primary }) => {
+            const label = t(labelKey);
             if (primary) {
               return (
                 <Link key={label} to={to} className="flex flex-col items-center justify-center gap-1">
