@@ -22,6 +22,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 
 // Renders the "Attorney Assistance" enterprise-UX panel that lives in the
 // Case Workspace left sidebar, directly beneath the Downloads / Timestamps
@@ -54,70 +55,23 @@ export type AttorneyAssistancePanelProps = {
 };
 
 const GETTING_STARTED_STEPS = [
-  {
-    icon: Upload,
-    title: "Upload Documents",
-    body: "Add your case files, discovery, reports, and evidence.",
-  },
-  {
-    icon: PlayCircle,
-    title: "Run Analysis",
-    body: "Nyrava runs multiple intelligence engines automatically.",
-  },
-  {
-    icon: Search,
-    title: "Review Findings",
-    body: "Explore evidence, timeline, witnesses, and issues.",
-  },
-  {
-    icon: FileOutput,
-    title: "Generate Reports",
-    body: "Create reports, motions, and litigation documents.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Review Before Filing",
-    body: "Always review and verify all work product before filing.",
-  },
-];
+  { icon: Upload, id: "upload" },
+  { icon: PlayCircle, id: "run" },
+  { icon: Search, id: "review" },
+  { icon: FileOutput, id: "reports" },
+  { icon: ShieldCheck, id: "verify" },
+] as const;
 
-const FAQS: { q: string; a: string }[] = [
-  {
-    q: "Why is my case taking longer?",
-    a: "Large files — thousands of pages, OCR documents, video, or audio — require more processing time.",
-  },
-  {
-    q: "Should I refresh?",
-    a: "If Recent Activity is still updating, do not refresh. If there has been no activity for several minutes, refreshing will reconnect and resume whenever possible.",
-  },
-  {
-    q: "Can I leave the page?",
-    a: "Yes. If background processing is supported, analysis continues. Otherwise, leave the browser open until it completes.",
-  },
-  {
-    q: "Is my case private?",
-    a: "Yes. Cases remain private to your workspace.",
-  },
-  {
-    q: "Can I regenerate reports?",
-    a: "Yes. Reports can be regenerated any time after changes.",
-  },
-];
+const FAQ_IDS = ["duration", "refresh", "leave", "privacy", "regenerate"] as const;
 
-const TIPS = [
-  "Upload OCR-quality PDFs for the most accurate extraction.",
-  "Name documents clearly so findings are easy to trace back.",
-  "Upload discovery before running analysis for the fullest picture.",
-  "Review contradictions first — they often point to the strongest issues.",
-  'Ask "Talk To Case" follow-up questions to dig into any finding.',
-];
+const TIP_IDS = ["ocr", "naming", "discovery", "contradictions", "followup"] as const;
 
 const KEYBOARD_TIPS = [
-  { keys: "Ctrl / ⌘ + F", desc: "Search within the current page" },
-  { keys: "Esc", desc: "Close panels, dialogs, and menus" },
-  { keys: "Tab", desc: "Move between fields and controls" },
-  { keys: "Ctrl / ⌘ + Click", desc: "Open a link in a new tab" },
-];
+  { keys: "Ctrl / ⌘ + F", id: "find" },
+  { keys: "Esc", id: "close" },
+  { keys: "Tab", id: "move" },
+  { keys: "Ctrl / ⌘ + Click", id: "newTab" },
+] as const;
 
 function stepState(done: boolean, running: boolean): "done" | "active" | "pending" {
   if (done) return "done";
@@ -132,14 +86,14 @@ function stepState(done: boolean, running: boolean): "done" | "active" | "pendin
 function useAnalysisSteps(ts: PipelineTimestamps, running: boolean) {
   return useMemo(
     () => [
-      { label: "Extraction", done: !!ts.extracted_at },
-      { label: "OCR", done: !!ts.extracted_at },
-      { label: "Evidence Intelligence", done: !!ts.analysis_at },
-      { label: "Timeline Intelligence", done: !!ts.analysis_at },
-      { label: "Witness Intelligence", done: !!ts.agents_at },
-      { label: "Constitutional Analysis", done: !!ts.theories_at },
-      { label: "Motion Intelligence", done: !!ts.opportunities_at },
-      { label: "Report Generation", done: !!ts.report_at },
+      { key: "pipeline.stage.extraction", done: !!ts.extracted_at },
+      { key: "assist.step.ocr", done: !!ts.extracted_at },
+      { key: "pipeline.stage.evidence_intel", done: !!ts.analysis_at },
+      { key: "pipeline.stage.timeline", done: !!ts.analysis_at },
+      { key: "pipeline.stage.witness", done: !!ts.agents_at },
+      { key: "pipeline.stage.constitutional", done: !!ts.theories_at },
+      { key: "nav.motionIntelligence", done: !!ts.opportunities_at },
+      { key: "pipeline.stage.report", done: !!ts.report_at },
     ],
     [ts, running],
   );
@@ -193,13 +147,14 @@ function AssistanceBody({
   openSection: string;
   setOpenSection: (v: string) => void;
 }) {
+  const { t } = useI18n();
   const steps = useAnalysisSteps(timestamps, running);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [tipIndex, setTipIndex] = useState(0);
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      setTipIndex((i) => (i + 1) % TIPS.length);
+      setTipIndex((i) => (i + 1) % TIP_IDS.length);
     }, 9000);
     return () => window.clearInterval(id);
   }, []);
@@ -207,13 +162,13 @@ function AssistanceBody({
   return (
     <Accordion type="single" collapsible value={openSection} onValueChange={setOpenSection} className="w-full">
       <AccordionItem value="getting-started" className="border-border/60">
-        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">Getting Started</AccordionTrigger>
+        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">{t("assist.gettingStarted")}</AccordionTrigger>
         <AccordionContent className="px-1">
           <ol className="space-y-3">
             {GETTING_STARTED_STEPS.map((step, i) => {
               const Icon = step.icon;
               return (
-                <li key={step.title} className="flex gap-2.5">
+                <li key={step.id} className="flex gap-2.5">
                   <div className="flex flex-col items-center">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent">
                       {i + 1}
@@ -223,9 +178,11 @@ function AssistanceBody({
                   <div className="pb-1">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                       <Icon className="h-3.5 w-3.5 text-accent" />
-                      {step.title}
+                      {t(`assist.step.${step.id}.title`)}
                     </div>
-                    <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{step.body}</p>
+                    <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+                      {t(`assist.step.${step.id}.body`)}
+                    </p>
                   </div>
                 </li>
               );
@@ -235,22 +192,20 @@ function AssistanceBody({
       </AccordionItem>
 
       <AccordionItem value="analysis-status" className="border-border/60">
-        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">Analysis Status</AccordionTrigger>
+        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">{t("assist.analysisStatus")}</AccordionTrigger>
         <AccordionContent className="px-1">
           <p className="text-xs leading-snug text-muted-foreground">
-            {running
-              ? "Nyrava is currently processing your case. Large cases — thousands of pages, OCR documents, video, or audio — may require additional processing time."
-              : "Here's what Nyrava has completed for this case so far."}
+            {running ? t("assist.status.running") : t("assist.status.idle")}
           </p>
           <ul className="mt-3 space-y-1.5">
             {steps.map((s) => {
               const state = stepState(s.done, running && !s.done);
               return (
-                <li key={s.label} className="flex items-center gap-2 text-xs">
+                <li key={s.key} className="flex items-center gap-2 text-xs">
                   {state === "done" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />}
                   {state === "active" && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" />}
                   {state === "pending" && <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />}
-                  <span className={state === "pending" ? "text-muted-foreground" : "text-foreground"}>{s.label}</span>
+                  <span className={state === "pending" ? "text-muted-foreground" : "text-foreground"}>{t(s.key)}</span>
                 </li>
               );
             })}
@@ -260,50 +215,53 @@ function AssistanceBody({
 
       <AccordionItem value="reports-motions" className="border-border/60">
         <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">
-          Reports &amp; Motions
+          {t("assist.reportsMotions")}
         </AccordionTrigger>
         <AccordionContent className="px-1">
           <p className="text-xs leading-snug text-muted-foreground">
-            Generate reports after analysis completes, and always review them before filing. Nyrava assists attorneys —
-            it does not replace legal judgment.
+            {t("assist.reports.body")}
           </p>
           <div className="mt-3 space-y-1.5">
             <QuickLink
               icon={FileDown}
-              label="Generate PDF"
+              label={t("assist.link.pdf")}
               disabled={reportBlocked || !hasReport}
               onClick={onDownloadPdf}
             />
             <QuickLink
               icon={FileType}
-              label="Generate DOCX"
+              label={t("assist.link.docx")}
               disabled={reportBlocked || !hasReport}
               onClick={onDownloadDocx}
             />
-            <QuickLink icon={Gavel} label="Motion Intelligence" onClick={() => onOpenTab("opportunities")} />
-            <QuickLink icon={Target} label="Strategy Center" onClick={() => onOpenTab("strategy")} />
-            <QuickLink icon={MessageSquare} label="Talk To Case" onClick={() => onOpenTab("chat")} />
+            <QuickLink icon={Gavel} label={t("nav.motionIntelligence")} onClick={() => onOpenTab("opportunities")} />
+            <QuickLink icon={Target} label={t("nav.strategyCenter")} onClick={() => onOpenTab("strategy")} />
+            <QuickLink icon={MessageSquare} label={t("assist.link.talk")} onClick={() => onOpenTab("chat")} />
           </div>
         </AccordionContent>
       </AccordionItem>
 
       <AccordionItem value="faq" className="border-border/60">
         <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">
-          Frequently Asked Questions
+          {t("assist.faq")}
         </AccordionTrigger>
         <AccordionContent className="px-1">
           <div className="space-y-1">
-            {FAQS.map((f, i) => (
-              <div key={f.q} className="rounded-lg border border-border/60">
+            {FAQ_IDS.map((id, i) => (
+              <div key={id} className="rounded-lg border border-border/60">
                 <button
                   type="button"
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left text-xs font-medium text-foreground"
                 >
-                  {f.q}
+                  {t(`assist.faq.${id}.q`)}
                   <ChevronMini open={openFaq === i} />
                 </button>
-                {openFaq === i && <p className="px-2.5 pb-2.5 text-xs leading-snug text-muted-foreground">{f.a}</p>}
+                {openFaq === i && (
+                  <p className="px-2.5 pb-2.5 text-xs leading-snug text-muted-foreground">
+                    {t(`assist.faq.${id}.a`)}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -311,22 +269,22 @@ function AssistanceBody({
       </AccordionItem>
 
       <AccordionItem value="tips" className="border-border/60">
-        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">Helpful Tips</AccordionTrigger>
+        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">{t("assist.tips")}</AccordionTrigger>
         <AccordionContent className="px-1">
           <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 p-2.5">
             <Lightbulb className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-            <p className="text-xs leading-snug text-foreground">{TIPS[tipIndex]}</p>
+            <p className="text-xs leading-snug text-foreground">{t(`assist.tip.${TIP_IDS[tipIndex]}`)}</p>
           </div>
         </AccordionContent>
       </AccordionItem>
 
       <AccordionItem value="keyboard" className="border-border/60">
-        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">Keyboard Tips</AccordionTrigger>
+        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">{t("assist.keyboard")}</AccordionTrigger>
         <AccordionContent className="px-1">
           <ul className="space-y-1.5">
             {KEYBOARD_TIPS.map((k) => (
               <li key={k.keys} className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-muted-foreground">{k.desc}</span>
+                <span className="text-muted-foreground">{t(`assist.key.${k.id}`)}</span>
                 <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground">
                   {k.keys}
                 </kbd>
@@ -337,14 +295,14 @@ function AssistanceBody({
       </AccordionItem>
 
       <AccordionItem value="contact" className="border-none">
-        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">Contact Support</AccordionTrigger>
+        <AccordionTrigger className="px-1 text-sm font-medium hover:no-underline">{t("assist.contact")}</AccordionTrigger>
         <AccordionContent className="px-1">
-          <p className="text-xs leading-snug text-muted-foreground">Find answers or reach the Nyrava team.</p>
+          <p className="text-xs leading-snug text-muted-foreground">{t("assist.contact.body")}</p>
           <Link
             to="/help"
             className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
           >
-            Open Help Center
+            {t("assist.contact.cta")}
             <ExternalLink className="h-3 w-3" />
           </Link>
         </AccordionContent>
@@ -392,6 +350,7 @@ function QuickLink({
 }
 
 export function AttorneyAssistancePanel(props: AttorneyAssistancePanelProps) {
+  const { t } = useI18n();
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(true);
   const [openSection, setOpenSection] = useState("getting-started");
@@ -438,13 +397,13 @@ export function AttorneyAssistancePanel(props: AttorneyAssistancePanelProps) {
               <div className="flex items-center gap-1.5">
                 <Info className="h-3.5 w-3.5 text-accent" />
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Attorney Assistance
+                  {t("assist.title")}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={hide}
-                aria-label="Collapse Attorney Assistance panel"
+                aria-label={t("assist.collapse")}
                 className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
@@ -457,9 +416,9 @@ export function AttorneyAssistancePanel(props: AttorneyAssistancePanelProps) {
         ) : (
           <div className="rounded-xl border border-border bg-card p-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Attorney Assistance is hidden</span>
+              <span className="text-xs font-medium text-muted-foreground">{t("assist.hidden")}</span>
               <Button variant="outline" size="sm" className="h-7 text-xs" onClick={show}>
-                Show Guide
+                {t("assist.show")}
               </Button>
             </div>
           </div>
@@ -472,7 +431,7 @@ export function AttorneyAssistancePanel(props: AttorneyAssistancePanelProps) {
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
         >
           <LifeBuoy className="h-3.5 w-3.5" />
-          Need Help?
+          {t("assist.needHelp")}
         </button>
       </div>
 
