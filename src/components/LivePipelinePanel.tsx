@@ -432,7 +432,7 @@ export function LivePipelinePanel({
                                   <>
                                     <dt>Blocked by</dt>
                                     <dd className="text-orange-600 dark:text-orange-400">
-                                      {r.blocking_engines.join(", ")}
+                                      {r.blocking_engines.map(engineName).join(", ")}
                                     </dd>
                                   </>
                                 )}
