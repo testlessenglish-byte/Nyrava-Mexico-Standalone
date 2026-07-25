@@ -247,11 +247,22 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     requirement: "blocking",
   },
   {
+    // Control de Calidad Jurídica — terminal gate. Remediates US/common-law
+    // terminology and invalid party roles in persisted engine output, then
+    // audits it. A surviving blocking violation fails this stage, which blocks
+    // `report`: a defective report is never silently published.
+    key: "legal_qa",
+    label: "Legal Quality Control",
+    engine: "legal_qa",
+    dependsOn: ["scoring", "analyzers", "agents"],
+    requirement: "blocking",
+  },
+  {
     key: "report",
     label: "Generate Report",
     engine: "report_generator",
     timestampColumn: "report_at",
-    dependsOn: ["scoring", "analyzers", "agents"],
+    dependsOn: ["scoring", "legal_qa", "analyzers", "agents"],
     requirement: "blocking",
   },
   {
