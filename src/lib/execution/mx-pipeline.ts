@@ -99,6 +99,40 @@ export function isStageRelevantForCaseType(caseType: string | null | undefined, 
   return !EXCLUDED_STAGES[resolveMxProfile(caseType)].includes(stageKey);
 }
 
+/**
+ * Specific, human-readable explanation for why a stage was skipped for this
+ * profile — replaces the old bare "OMITIDO"/SKIP_REASON_NOT_RELEVANT_MX
+ * generic code with actual legal reasoning a user can read. Returns the
+ * i18n KEY (resolved via src/i18n, same pattern as stageLabelKey), not a
+ * hardcoded string, so this respects the user's language setting too.
+ */
+const SKIP_REASON_KEYS: Record<string, Partial<Record<MxPipelineProfile, string>>> = {
+  witness: {
+    amparo: "pipeline.skip.witness.amparo",
+    apelacion: "pipeline.skip.witness.apelacion",
+  },
+  trial_prep: {
+    amparo: "pipeline.skip.trial_prep.amparo",
+    apelacion: "pipeline.skip.trial_prep.apelacion",
+  },
+  constitutional: {
+    laboral: "pipeline.skip.constitutional.ordinary",
+    civil: "pipeline.skip.constitutional.ordinary",
+    familiar: "pipeline.skip.constitutional.ordinary",
+    mercantil: "pipeline.skip.constitutional.ordinary",
+    fiscal: "pipeline.skip.constitutional.ordinary",
+    administrativo: "pipeline.skip.constitutional.ordinary",
+    apelacion: "pipeline.skip.constitutional.apelacion",
+  },
+};
+
+/** i18n key for why a stage was skipped for this case type, or a generic
+ *  fallback if this exact (stage, profile) pair isn't specifically documented. */
+export function stageSkipReasonKey(stageKey: string, caseType: string | null | undefined): string {
+  const profile = resolveMxProfile(caseType);
+  return SKIP_REASON_KEYS[stageKey]?.[profile] ?? "pipeline.skip.generic";
+}
+
 /** Ordered, profile-filtered stage list for a case type. */
 export function mxPipelineStages(caseType: string | null | undefined): StageDef[] {
   const excluded = EXCLUDED_STAGES[resolveMxProfile(caseType)];

@@ -4,6 +4,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
+import esLocale from "@/i18n/locales/es.json";
+import enLocale from "@/i18n/locales/en.json";
 
 type Db = SupabaseClient<Database>;
 
@@ -708,14 +710,32 @@ async function _runPipelineForCase(
   // stages that aren't legally relevant so they never occupy the ledger.
   let stages: (typeof PIPELINE_STAGES)[number][] = [...PIPELINE_STAGES];
   {
-    const { isStageRelevantForCaseType } = await import("./execution/mx-pipeline");
+    const { isStageRelevantForCaseType, stageSkipReasonKey } = await import("./execution/mx-pipeline");
+    const { recordSkipped } = await import("./intelligence/engine-audit.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: mxCaseRow } = await (supabase as any)
       .from("cases")
-      .select("case_type")
+      .select("case_type,report_language")
       .eq("id", caseId)
       .maybeSingle();
     const mxCaseType = (mxCaseRow as { case_type?: string | null } | null)?.case_type ?? null;
+    const mxLocale = (mxCaseRow as { report_language?: string | null } | null)?.report_language === "en" ? "en" : "es";
+    const dict: Record<string, string> = mxLocale === "en" ? (enLocale as Record<string, string>) : (esLocale as Record<string, string>);
+
+    const excluded = stages.filter((s) => !isStageRelevantForCaseType(mxCaseType, s.key));
+    for (const stage of excluded) {
+      const reasonKey = stageSkipReasonKey(stage.key, mxCaseType);
+      const reason = dict[reasonKey] ?? reasonKey;
+      // Best-effort — a failure here must never block the pipeline itself,
+      // it only means the OMITIDO badge falls back to no explanation.
+      await recordSkipped(supabase, {
+        caseId,
+        userId,
+        engine: stage.key,
+        reason,
+      }).catch((e) => console.warn("[mx-pipeline] recordSkipped failed", stage.key, e));
+    }
+
     stages = stages.filter((s) => isStageRelevantForCaseType(mxCaseType, s.key));
   }
   if (startFrom) {

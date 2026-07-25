@@ -55,6 +55,7 @@ type EngineRun = {
   rows_written: number | null;
   blocking_engines: string[] | null;
   error: string | null;
+  skipped_reason: string | null;
   meta: Record<string, unknown> | null;
   started_at: string | null;
   ended_at: string | null;
@@ -180,7 +181,7 @@ export function LivePipelinePanel({
         supabase
           .from("pipeline_engine_runs")
           .select(
-            "id,engine,status,runtime_ms,generated,accepted,rejected,suppressed_ess,suppressed_validator,provider,model,tokens_in,tokens_out,retry_count,cost_usd,db_write_confirmed,rows_written,blocking_engines,error,started_at,ended_at,created_at,meta",
+            "id,engine,status,runtime_ms,generated,accepted,rejected,suppressed_ess,suppressed_validator,provider,model,tokens_in,tokens_out,retry_count,cost_usd,db_write_confirmed,rows_written,blocking_engines,error,skipped_reason,started_at,ended_at,created_at,meta",
           )
           .eq("case_id", caseId)
           .order("created_at", { ascending: true })
@@ -518,6 +519,11 @@ export function LivePipelinePanel({
                               {r.error && (
                                 <div className="mt-2 rounded border border-destructive/40 bg-destructive/5 px-2 py-1.5 text-[11px] text-destructive">
                                   {r.error}
+                                </div>
+                              )}
+                              {r.skipped_reason && (
+                                <div className="mt-2 rounded border border-border bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground">
+                                  {r.skipped_reason}
                                 </div>
                               )}
                               {Array.isArray((r.meta as { gate_rejections?: unknown[] } | null)?.gate_rejections) &&
