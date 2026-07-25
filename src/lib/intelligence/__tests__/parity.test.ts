@@ -17,6 +17,8 @@ const EXPECTED: Record<string, string> = {
   "prob-01": "f4.c1.d2.m0.t3.w1.s1.p1.o2.mo0.e7.ci7.th1.co0.xe0.na0.essmedium.ss0.ms0",
   "emp-01": "f5.c2.d1.m0.t7.w3.s1.p1.o4.mo2.e11.ci11.th1.co0.xe0.na0.esshigh.ss0.ms0",
   "adm-01": "f2.c0.d1.m0.t2.w1.s1.p1.o1.mo0.e4.ci4.th1.co0.xe0.na0.esslow.ss0.ms0",
+  "corp-01": "f4.c1.d1.m0.t3.w2.s1.p1.o2.mo2.e6.ci6.th1.co0.xe0.na0.essmedium.ss0.ms0",
+  "comm-01": "f5.c2.d1.m0.t4.w3.s1.p1.o2.mo3.e7.ci7.th1.co0.xe0.na0.essmedium.ss0.ms0",
   // mixed-01 = minimal ESS, motions suppressed from raw 5 → 0
   "mixed-01": "f3.c0.d2.m0.t2.w1.s0.p1.o1.mo0.e3.ci3.th1.co0.xe0.na0.essminimal.ss1.ms1",
 };
