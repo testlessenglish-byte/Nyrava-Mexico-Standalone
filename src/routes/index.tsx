@@ -1,209 +1,223 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Brain, FileSearch, GitBranch, Layers, ScanLine, Scale, ShieldCheck, Users } from "lucide-react";
-import { SiteHeader } from "@/components/SiteHeader";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { supabase } from "@/integrations/supabase/client";
+import { Play, ArrowRight } from "lucide-react";
+import { NyravaLogo } from "@/components/NyravaLogo";
+import { HeroOSDashboard } from "@/components/HeroOSDashboard";
+import { TrustStrip } from "@/components/TrustStrip";
 import { SiteFooter } from "@/components/SiteFooter";
-import { IntelligenceHeroPanel } from "@/components/IntelligenceHeroPanel";
-import { useI18n } from "@/i18n";
+import { listPublishedDemoCases } from "@/lib/demo-cases.functions";
+
+const SITE_URL = "https://nyrava.com";
+const LOGO_URL = `${SITE_URL}/nyrava-shield.png`;
+
+const ORGANIZATION_JSON_LD = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Nyrava",
+  url: SITE_URL,
+  logo: LOGO_URL,
+  description:
+    "The most advanced Legal Intelligence Operating System. Built for attorneys, investigators, and organizations that demand truth, precision, and results.",
+});
+
+const WEBSITE_JSON_LD = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Nyrava Intelligence OS",
+  url: SITE_URL,
+  description: "Legal Intelligence beyond human analysis.",
+  publisher: {
+    "@type": "Organization",
+    name: "Nyrava",
+    url: SITE_URL,
+    logo: LOGO_URL,
+  },
+});
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Nyrava Intelligence México — Plataforma de Inteligencia Legal" },
+      { title: "Nyrava Intelligence OS — Legal Intelligence Operating System" },
+      { property: "og:url", content: "https://nyrava.com/" },
+      { name: "twitter:url", content: "https://nyrava.com/" },
       {
         name: "description",
         content:
-          "La primera Plataforma de Inteligencia Legal diseñada para el sistema jurídico mexicano. Organiza, analiza y desarrolla asuntos legales de principio a fin.",
+          "The most advanced Legal Intelligence Operating System. Built for attorneys, investigators, and organizations that demand truth, precision, and results.",
       },
-      { property: "og:title", content: "Nyrava Intelligence México" },
-      {
-        property: "og:description",
-        content:
-          "Inteligencia legal integrada para abogados, despachos e instituciones en México. Federal, estatal, SCJN, jurisprudencia y evidencia en un solo entorno.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Nyrava Intelligence México" },
-      {
-        name: "twitter:description",
-        content:
-          "Plataforma de Inteligencia Legal para el sistema jurídico mexicano.",
-      },
+      { property: "og:title", content: "Nyrava Intelligence OS" },
+      { property: "og:description", content: "Legal Intelligence beyond human analysis." },
+    ],
+    scripts: [
+      { type: "application/ld+json", children: ORGANIZATION_JSON_LD },
+      { type: "application/ld+json", children: WEBSITE_JSON_LD },
     ],
   }),
+  beforeLoad: async () => {
+    if (typeof window === "undefined") return;
+    const { data } = await supabase.auth.getSession();
+    if (data.session) throw redirect({ to: "/cases" });
+  },
   component: Landing,
 });
 
+const NAV = [
+  { label: "PRODUCT", href: "#product" },
+  { label: "SECURITY", to: "/security" },
+  { label: "TRANSPARENCY", to: "/ai-transparency" },
+  { label: "HELP", to: "/help" },
+] as const;
+
 function Landing() {
-  const { t } = useI18n();
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
+  }, []);
 
-  const MODULES = [
-    { icon: Scale, name: t("module.legal.name"), desc: t("module.legal.desc") },
-    { icon: FileSearch, name: t("module.case.name"), desc: t("module.case.desc") },
-    { icon: Layers, name: t("module.evidence.name"), desc: t("module.evidence.desc") },
-    { icon: Users, name: t("module.witness.name"), desc: t("module.witness.desc") },
-    { icon: GitBranch, name: t("module.timeline.name"), desc: t("module.timeline.desc") },
-    { icon: Brain, name: t("module.litigation.name"), desc: t("module.litigation.desc") },
-    { icon: ShieldCheck, name: t("module.contract.name"), desc: t("module.contract.desc") },
-    { icon: ScanLine, name: t("module.research.name"), desc: t("module.research.desc") },
-  ];
-
-  const SOURCES = [
-    t("source.federalLegislation"),
-    t("source.stateLegislation"),
-    t("source.scjn"),
-    t("source.federalJudicial"),
-    t("source.stateCourts"),
-    t("source.adminRegs"),
-    t("source.constReforms"),
-    t("source.dof"),
-    t("source.procCodes"),
-  ];
+  const fetchDemoCases = useServerFn(listPublishedDemoCases);
+  const { data: demoCases, isLoading: demosLoading } = useQuery({
+    queryKey: ["published-demo-cases"],
+    queryFn: () => fetchDemoCases(),
+  });
 
   return (
     <div className="min-h-screen text-foreground">
-      <SiteHeader />
+      {/* Top nav */}
+      <header className="border-b border-border/60">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+          <NyravaLogo size={42} withWordmark />
+          <nav className="hidden items-center gap-8 lg:flex">
+            {NAV.map((n) =>
+              "to" in n ? (
+                <Link
+                  key={n.label}
+                  to={n.to}
+                  className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
+                >
+                  {n.label}
+                </Link>
+              ) : (
+                <a
+                  key={n.label}
+                  href={n.href}
+                  className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
+                >
+                  {n.label}
+                </a>
+              ),
+            )}
+          </nav>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/auth"
+              className="rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground hover:bg-card"
+            >
+              SIGN IN
+            </Link>
+            <Link
+              to="/auth"
+              className="rounded-md border border-primary/60 bg-primary/15 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary hover:bg-primary/25"
+              style={{ boxShadow: "var(--shadow-glow-cyan)" }}
+            >
+              {signedIn ? "LAUNCH PLATFORM" : "LAUNCH PLATFORM"}
+            </Link>
+          </div>
+        </div>
+      </header>
 
+      <main>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 divider-grid opacity-[0.35]" aria-hidden />
-        <div className="mx-auto grid max-w-7xl gap-14 px-6 py-20 lg:grid-cols-[1.05fr_1fr] lg:py-28">
-          <div className="relative">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/50 px-3 py-1 backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                {t("landing.title.badge")}
-              </span>
+        <div className="mx-auto grid max-w-7xl gap-12 px-6 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-20">
+          <div>
+            <div className="mb-6 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">
+              <span className="text-amber">NYRAVA INTELLIGENCE</span>
             </div>
-
-            <h1 className="mt-6 font-display text-5xl font-bold leading-[1.05] tracking-tight text-foreground md:text-6xl">
-              {t("landing.title.line1")}
+            <h1 className="text-5xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
+              Legal Intelligence
               <br />
-              <span className="font-editorial text-primary">{t("landing.title.line2")}</span>
+              <span className="font-editorial text-primary">Beyond Human Analysis</span>
             </h1>
-
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              {t("landing.title.subtitle")}
+            <p className="mt-8 max-w-xl text-base leading-relaxed text-muted-foreground">
+              The most advanced Legal Intelligence Operating System. Built for attorneys, investigators, and
+              organizations that demand truth, precision, and results.
             </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-10 flex flex-wrap gap-3">
               <Link
                 to="/auth"
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-primary-foreground shadow-[0_0_28px_oklch(0.82_0.13_195/0.35)] transition hover:brightness-110"
+                className="inline-flex items-center gap-2 rounded-md border border-primary/60 bg-primary/15 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary transition hover:bg-primary/25"
+                style={{ boxShadow: "var(--shadow-glow-cyan)" }}
               >
-                {t("landing.cta.request")} <ArrowRight className="h-4 w-4" />
+                LAUNCH COMMAND CENTER <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link
-                to="/platform"
-                className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-card/40 px-5 py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-foreground transition hover:border-primary/50"
+              <a
+                href="#product"
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground transition hover:bg-card"
               >
-                {t("landing.cta.viewPlatform")}
-              </Link>
-            </div>
-
-            <div className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-border/60 pt-6">
-              {[
-                { k: t("landing.stat.sources"), v: "40+" },
-                { k: t("landing.stat.modules"), v: "8" },
-                { k: t("landing.stat.jurisdictions"), v: t("landing.stat.jurisdictions.value") },
-              ].map((s) => (
-                <div key={s.k}>
-                  <div className="font-display text-2xl font-bold text-foreground">{s.v}</div>
-                  <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{s.k}</div>
-                </div>
-              ))}
+                WATCH DEMONSTRATION <Play className="h-3.5 w-3.5" />
+              </a>
             </div>
           </div>
-
-          <div className="relative">
-            <IntelligenceHeroPanel />
+          <div className="flex justify-center lg:pl-4">
+            <HeroOSDashboard />
           </div>
         </div>
       </section>
 
-      {/* Problem / Solution */}
-      <section className="border-y border-border/60 bg-background/40">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-2">
-          <div>
-            <span className="tag-bracket font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              {t("landing.problem.tag")}
-            </span>
-            <h2 className="mt-3 font-display text-3xl font-bold leading-tight">{t("landing.problem.title")}</h2>
-            <p className="mt-4 text-muted-foreground">{t("landing.problem.body")}</p>
-          </div>
-          <div>
-            <span className="tag-bracket font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              {t("landing.solution.tag")}
-            </span>
-            <h2 className="mt-3 font-display text-3xl font-bold leading-tight">{t("landing.solution.title")}</h2>
-            <p className="mt-4 text-muted-foreground">{t("landing.solution.body")}</p>
-          </div>
-        </div>
-      </section>
+      {/* Experience Nyrava — live case demos */}
+      <section id="product" className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
 
-      {/* Modules */}
-      <section className="mx-auto max-w-7xl px-6 py-20">
-        <div className="flex items-end justify-between gap-6">
-          <div>
-            <span className="tag-bracket font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              {t("landing.modules.tag")}
-            </span>
-            <h2 className="mt-3 font-display text-3xl font-bold leading-tight md:text-4xl">
-              {t("landing.modules.title")}
-            </h2>
-          </div>
-          <Link to="/modules" className="hidden text-[11px] font-semibold uppercase tracking-[0.18em] text-primary hover:underline md:inline">
-            {t("common.viewAll")} →
-          </Link>
-        </div>
+        <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">EXPERIENCE NYRAVA</div>
+        <h2 className="mb-8 max-w-2xl font-display text-2xl font-semibold leading-tight md:text-3xl">
+          See a complete case analysis before you upload a single document.
+        </h2>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {MODULES.map((m) => (
-            <div key={m.name} className="stat-tile group p-5">
-              <m.icon className="h-5 w-5 text-primary transition group-hover:scale-110" />
-              <h3 className="mt-4 font-display text-base font-semibold text-foreground">{m.name}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{m.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Sources */}
-      <section className="border-t border-border/60 bg-background/40">
-        <div className="mx-auto max-w-7xl px-6 py-16">
-          <span className="tag-bracket font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-            {t("landing.sources.tag")}
-          </span>
-          <h2 className="mt-3 font-display text-3xl font-bold leading-tight">{t("landing.sources.title")}</h2>
-          <div className="mt-8 flex flex-wrap gap-2">
-            {SOURCES.map((s) => (
-              <span
-                key={s}
-                className="rounded-md border border-border/70 bg-card/40 px-3 py-1.5 font-mono text-[11px] tracking-[0.06em] text-foreground/80"
-              >
-                {s}
-              </span>
+        {demosLoading && (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="panel h-40 animate-pulse" />
             ))}
           </div>
-        </div>
+        )}
+
+        {!demosLoading && (!demoCases || demoCases.length === 0) && (
+          <div className="panel p-8 text-sm text-muted-foreground">Demo cases are coming soon.</div>
+        )}
+
+        {!demosLoading && demoCases && demoCases.length > 0 && (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {demoCases.map((c) => (
+              <Link
+                key={c.id}
+                to="/demo/$slug"
+                params={{ slug: c.slug }}
+                className="panel group flex flex-col gap-4 p-5 transition hover:-translate-y-0.5"
+              >
+                <div className="grid h-12 w-12 place-items-center rounded-md border border-border bg-card/60 p-1">
+                  <img src="/nyrava-shield.png" alt="Nyrava" className="h-full w-full object-contain" />
+                </div>
+
+                <div>
+                  <div className="text-[10.5px] font-semibold tracking-[0.2em] text-amber">
+                    {c.case_type_label.toUpperCase()}
+                  </div>
+                  <h3 className="mt-1 font-display text-base font-semibold leading-tight">{c.name}</h3>
+                  {c.summary && <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{c.summary}</p>}
+                </div>
+                <span className="mt-auto inline-flex items-center gap-1 text-[10.5px] font-semibold tracking-[0.22em] text-primary transition group-hover:gap-2">
+                  RUN DEMO <ArrowRight className="h-3 w-3" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-5xl px-6 py-24 text-center">
-        <h2 className="font-display text-4xl font-bold leading-tight tracking-tight md:text-5xl">
-          {t("landing.cta.big.line1")} <br />
-          <span className="font-editorial text-primary">{t("landing.cta.big.line2")}</span>
-        </h2>
-        <p className="mx-auto mt-5 max-w-2xl text-muted-foreground">{t("landing.cta.big.body")}</p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link
-            to="/auth"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-primary-foreground transition hover:brightness-110"
-          >
-            {t("landing.cta.request")} <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
-
+      <TrustStrip />
+      </main>
       <SiteFooter />
     </div>
   );

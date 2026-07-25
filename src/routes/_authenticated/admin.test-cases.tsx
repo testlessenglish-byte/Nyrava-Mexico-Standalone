@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { AppShell } from "@/components/AppShell";
 import { getCurrentOrgId } from "@/lib/workspace";
 import { generateMexicoTestCase } from "@/lib/test-cases.functions";
 import { FlaskConical, Loader2, ShieldAlert } from "lucide-react";
@@ -60,7 +59,7 @@ function TestCasesAdmin() {
   }
 
   return (
-    <AppShell title="Generador de casos de prueba">
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">
       <div className="panel p-6">
         <div className="flex items-start gap-3">
           <FlaskConical className="mt-1 h-5 w-5 text-primary" />
@@ -141,6 +140,6 @@ function TestCasesAdmin() {
           </div>
         )}
       </div>
-    </AppShell>
+    </div>
   );
 }
