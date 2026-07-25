@@ -13,6 +13,7 @@ import { checkIsAdmin } from "@/lib/cases.functions";
 import { AGENT_DEFINITIONS } from "@/lib/agents/types";
 import { supabase } from "@/integrations/supabase/client";
 import { getAgentSummary, type AgentSummary } from "@/lib/intelligence/canonical";
+import { useI18n } from "@/i18n";
 
 
 type LogRow = {
@@ -59,6 +60,7 @@ function SummaryTile({ label, value, tone }: { label: string; value: number; ton
 
 export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: unknown }) {
   const qc = useQueryClient();
+  const { t } = useI18n();
   const runFn = useServerFn(runMultiAgentAnalysis);
   const logsFn = useServerFn(getAgentLogs);
   const adminFn = useServerFn(checkIsAdmin);
@@ -100,14 +102,14 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
       setRunning(false);
       qc.invalidateQueries({ queryKey: ["agent-logs", caseId] });
       if (res.released) {
-        toast.success("Multi-agent run complete — report released.");
+        toast.success(t("agents.toast.released"));
       } else {
-        toast.warning("Run finished, but release gate failed. Check QA / Judge / Hallucination.");
+        toast.warning(t("agents.toast.gate"));
       }
     },
     onError: (e) => {
       setRunning(false);
-      toast.error(e instanceof Error ? e.message : "Multi-agent run failed");
+      toast.error(e instanceof Error ? e.message : t("agents.toast.failed"));
     },
   });
 
@@ -135,25 +137,25 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-cyan-100">
           <ShieldCheck className="h-5 w-5 text-cyan-400" />
-          Multi-Agent Intelligence ({AGENT_DEFINITIONS.length} Agents)
+          {t("agents.title", { count: AGENT_DEFINITIONS.length })}
         </CardTitle>
         {isAdmin ? (
-          <Button onClick={() => mut.mutate()} disabled={running || mut.isPending} size="sm" title="Admin-only: re-run the 13-agent review manually. Production Run Case already includes this stage.">
+          <Button onClick={() => mut.mutate()} disabled={running || mut.isPending} size="sm" title={t("agents.rerun.hint")}>
             {running || mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            <span className="ml-2">{running ? "Running…" : "Re-run (Admin)"}</span>
+            <span className="ml-2">{running ? t("agents.running") : t("agents.rerun")}</span>
           </Button>
         ) : (
-          <span className="text-[11px] text-slate-500">Runs automatically as the final pipeline stage.</span>
+          <span className="text-[11px] text-slate-500">{t("agents.autoNote")}</span>
         )}
       </CardHeader>
       <CardContent>
         <div className="mb-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          <SummaryTile label="Loaded" value={summary.loaded} tone="slate" />
-          <SummaryTile label="Executed" value={summary.executed} tone="cyan" />
-          <SummaryTile label="Produced Output" value={summary.producingOutput} tone="emerald" />
-          <SummaryTile label="Produced Findings" value={summary.producingFindings} tone="emerald" />
-          <SummaryTile label="Visible" value={summary.visibleFindings} tone="slate" />
-          <SummaryTile label="Suppressed" value={summary.suppressedFindings} tone="amber" />
+          <SummaryTile label={t("agents.tile.loaded")} value={summary.loaded} tone="slate" />
+          <SummaryTile label={t("agents.tile.executed")} value={summary.executed} tone="cyan" />
+          <SummaryTile label={t("agents.tile.producedOutput")} value={summary.producingOutput} tone="emerald" />
+          <SummaryTile label={t("agents.tile.producedFindings")} value={summary.producingFindings} tone="emerald" />
+          <SummaryTile label={t("agents.tile.visible")} value={summary.visibleFindings} tone="slate" />
+          <SummaryTile label={t("agents.tile.suppressed")} value={summary.suppressedFindings} tone="amber" />
         </div>
 
         <ol className="space-y-2">
@@ -170,11 +172,11 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs text-slate-500">#{def.index}</span>
-                    <span className="font-medium text-slate-100">{def.name}</span>
+                    <span className="font-medium text-slate-100">{t(`agent.${def.key}.name`)}</span>
                     <code className="text-xs text-slate-500">{def.outputFile}</code>
                     {row?.confidence != null && (
                       <Badge variant="outline" className="text-[10px]">
-                        conf {(Number(row.confidence) * 100).toFixed(0)}%
+                        {t("agents.conf", { pct: (Number(row.confidence) * 100).toFixed(0) })}
                       </Badge>
                     )}
                     {row?.processing_time_ms != null && (
@@ -184,22 +186,24 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
                     )}
                     {row && (
                       <Badge variant="outline" className="border-emerald-500/30 text-[10px] text-emerald-300">
-                        {Number(row.findings_produced ?? 0)} finding{Number(row.findings_produced ?? 0) === 1 ? "" : "s"}
+                        {Number(row.findings_produced ?? 0) === 1
+                          ? t("agents.findings.singular")
+                          : t("agents.findings.plural", { count: Number(row.findings_produced ?? 0) })}
                       </Badge>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-400">{def.description}</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{t(`agent.${def.key}.desc`)}</p>
                   {row && (
                     <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-slate-400">
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">Docs {Number(row.documents_analyzed ?? 0)}</span>
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">Generated {Number(row.findings_generated ?? 0)}</span>
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">Promoted {Number(row.findings_promoted ?? row.findings_produced ?? 0)}</span>
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">Suppressed {Number(row.findings_suppressed ?? 0)}</span>
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">Output items {Number(row.output_items ?? 0)}</span>
+                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.docs", { count: Number(row.documents_analyzed ?? 0) })}</span>
+                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.generated", { count: Number(row.findings_generated ?? 0) })}</span>
+                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.promoted", { count: Number(row.findings_promoted ?? row.findings_produced ?? 0) })}</span>
+                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.suppressed", { count: Number(row.findings_suppressed ?? 0) })}</span>
+                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.outputItems", { count: Number(row.output_items ?? 0) })}</span>
                     </div>
                   )}
                   {row?.no_output_reason && (
-                    <p className="mt-1 text-xs text-amber-300">No-output reason: {row.no_output_reason}</p>
+                    <p className="mt-1 text-xs text-amber-300">{t("agents.noOutput", { reason: row.no_output_reason })}</p>
                   )}
                   {errs.length > 0 && (
                     <ul className="mt-1 list-disc pl-4 text-xs text-rose-400">
