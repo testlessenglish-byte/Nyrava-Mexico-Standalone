@@ -1139,13 +1139,29 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
     `[engine:trial_prep] case=${caseId} llm_text_chars=${r.text?.length ?? 0} opening=${(p.opening_themes ?? []).length} closing=${(p.closing_themes ?? []).length} risks=${(p.trial_risks ?? []).length} strengths=${(p.trial_strengths ?? []).length} witness_order=${(p.witness_order ?? []).length} exhibit_order=${(p.exhibit_order ?? []).length} llm_preview=${JSON.stringify((r.text ?? "").slice(0, 240))}`,
   );
 
-  // Civil cases: criminal jury fields are forced null. Settlement slot holds
-  // settlement_probability_pct. Plaintiff/defense success live in metadata.
-  const conviction = isCriminal ? (p.jury_conviction_pct ?? null) : null;
-  const acquittal = isCriminal ? (p.jury_acquittal_pct ?? null) : null;
-  const appealPct = isCriminal ? (p.jury_appeal_pct ?? null) : null;
+  // MEXICO PENAL: the legacy columns are reused as storage slots for the
+  // acusatorio outcome estimates (there is no jury, so no jury metric is ever
+  // requested or written):
+  //   jury_conviction_pct  -> sentencia condenatoria %
+  //   jury_acquittal_pct   -> sentencia absolutoria %
+  //   jury_appeal_pct      -> éxito en recurso (apelación / amparo directo) %
+  //   jury_settlement_pct  -> procedimiento abreviado / salida alterna %
+  // The full, explicitly named set (including vinculación a proceso) is
+  // persisted in metadata as penal_metrics.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const civilSettlement = (p as any).settlement_probability_pct ?? p.jury_settlement_pct ?? null;
+  const pa = p as any;
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const condenatoria = isCriminal ? num(pa.sentencia_condenatoria_pct) : null;
+  const absolutoria = isCriminal ? num(pa.sentencia_absolutoria_pct) : null;
+  const recursoPct = isCriminal ? num(pa.recurso_exito_pct) : null;
+  const vinculacion = isCriminal ? num(pa.vinculacion_proceso_pct) : null;
+  const abreviado = isCriminal ? num(pa.procedimiento_abreviado_pct) : null;
+  const conviction = condenatoria;
+  const acquittal = absolutoria;
+  const appealPct = recursoPct;
+  const civilSettlement = isCriminal
+    ? abreviado
+    : (num(pa.settlement_probability_pct) ?? num(pa.jury_settlement_pct));
 
   // Preserve prior trial prep if this pass yielded an empty plan.
   const hasContent =
@@ -1157,12 +1173,14 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
     (Array.isArray(p.exhibit_order) && p.exhibit_order.length > 0) ||
     conviction != null ||
     acquittal != null ||
+    vinculacion != null ||
     civilSettlement != null;
   if (!hasContent) {
     throw new Error(
-      "Trial prep engine produced no usable plan (empty themes, risks, and jury metrics). Prior trial prep preserved.",
+      "Trial prep engine produced no usable plan (empty themes, risks, and outcome estimates). Prior trial prep preserved.",
     );
   }
+
 
   const { error: trialPrepWriteError } = await db.from("case_trial_prep").upsert(
     {
