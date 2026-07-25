@@ -210,14 +210,14 @@ export function CommandCenterDashboard({
   const caseScore = Math.max(0, Math.min(100, Math.round((scores.strength ?? 0) || 100 - (scores.risk ?? 100))));
   const scoreLabel =
     caseScore >= 80
-      ? "Excellent"
+      ? t("score.excellent")
       : caseScore >= 65
-        ? "Strong"
+        ? t("score.strong")
         : caseScore >= 50
-          ? "Moderate"
+          ? t("score.moderate")
           : caseScore > 0
-            ? "Developing"
-            : "Pending";
+            ? t("score.developing")
+            : t("score.pending");
   const scoreColor =
     caseScore >= 80
       ? "#34d399"
@@ -270,19 +270,19 @@ export function CommandCenterDashboard({
           />
           <div className="relative flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-300/80">Case Intelligence</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-300/80">{t("cc.caseIntelligence")}</div>
               <h2 className="mt-1 truncate text-xl font-semibold text-white">{caseName}</h2>
               <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
                 <span className="inline-flex items-center gap-1">
                   <span
                     className={`h-1.5 w-1.5 rounded-full ${running ? "bg-cyan-300 animate-pulse" : "bg-emerald-400"}`}
                   />
-                  {status ?? "idle"}
+                  {status ? t(`cases.status.${status}`) : t("cases.status.idle")}
                 </span>
                 <span>·</span>
-                <span>ESS {ess.level}</span>
+                <span>{t("cc.ess")} {t(`cc.ess.${ess.level}`)}</span>
                 <span>·</span>
-                <span className="font-mono text-[10px] text-slate-500">parity {parity.slice(0, 18)}…</span>
+                <span className="font-mono text-[10px] text-slate-500">{t("cc.parity")} {parity.slice(0, 18)}…</span>
               </div>
             </div>
             <ScoreGauge value={caseScore} color={scoreColor} label={scoreLabel} />
@@ -292,18 +292,18 @@ export function CommandCenterDashboard({
 
       {/* ============ INTELLIGENCE SUMMARY (5 tiles) ============ */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <SummaryTile icon={FileText} label="Documents" value={documentsCount} tint="cyan" />
-        <SummaryTile icon={ShieldAlert} label="Evidence" value={counts.evidence + counts.findings} tint="emerald" />
-        <SummaryTile icon={Users} label="Witnesses" value={counts.witnesses} tint="violet" />
-        <SummaryTile icon={AlertTriangle} label="Contradictions" value={counts.contradictions} tint="amber" />
-        <SummaryTile icon={Target} label="Gaps" value={counts.missing_evidence} tint="rose" />
+        <SummaryTile icon={FileText} label={t("cc.tile.documents")} value={documentsCount} tint="cyan" />
+        <SummaryTile icon={ShieldAlert} label={t("cc.tile.evidence")} value={counts.evidence + counts.findings} tint="emerald" />
+        <SummaryTile icon={Users} label={t("cc.tile.witnesses")} value={counts.witnesses} tint="violet" />
+        <SummaryTile icon={AlertTriangle} label={t("cc.tile.contradictions")} value={counts.contradictions} tint="amber" />
+        <SummaryTile icon={Target} label={t("cc.tile.gaps")} value={counts.missing_evidence} tint="rose" />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MiniBadge icon={Scale} label="Disputed Issues" value={counts.disputed_issues} />
-        <MiniBadge icon={Gauge} label="Opportunities" value={counts.opportunities} />
-        <MiniBadge icon={Radar} label="Timeline Events" value={counts.timeline_events} />
-        <MiniBadge icon={Activity} label="Constitutional" value={counts.constitutional} />
+        <MiniBadge icon={Scale} label={t("cc.tile.disputed")} value={counts.disputed_issues} />
+        <MiniBadge icon={Gauge} label={t("cc.tile.opportunities")} value={counts.opportunities} />
+        <MiniBadge icon={Radar} label={t("cc.tile.timeline")} value={counts.timeline_events} />
+        <MiniBadge icon={Activity} label={t("cc.tile.constitutional")} value={counts.constitutional} />
       </div>
 
       {/* ============ ANALYSIS COMMAND CENTER ============ */}
@@ -312,17 +312,21 @@ export function CommandCenterDashboard({
           <div>
             <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
             <p className="text-xs text-cyan-300/70">
-              Real-time intelligence build · {completedEngines}/{totalEngines} pipeline stages complete
+              {t("cc.subtitle", { done: String(completedEngines), total: String(totalEngines) })}
               {agentSummary.loaded > 0 && (
                 <>
                   {" "}
-                  · {agentSummary.producingOutput}/{agentSummary.loaded} agents producing output
+                  ·{" "}
+                  {t("cc.subtitle.agents", {
+                    done: String(agentSummary.producingOutput),
+                    total: String(agentSummary.loaded),
+                  })}
                 </>
               )}
             </p>
           </div>
           <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan-300">
-            <Loader2 className={`h-3 w-3 ${running ? "animate-spin" : ""}`} /> {running ? "live" : "ready"}
+            <Loader2 className={`h-3 w-3 ${running ? "animate-spin" : ""}`} /> {running ? t("cc.live") : t("cc.ready")}
           </span>
         </div>
 
@@ -586,7 +590,7 @@ export function CommandCenterDashboard({
               <span className="min-w-0 flex-1 truncate text-slate-200">
                 {localizeActivityMessage(ev.message, ev.stage, caseType, t, locale)}
               </span>
-              <span className="text-[11px] tabular-nums text-slate-500">{relTime(ev.created_at)}</span>
+              <span className="text-[11px] tabular-nums text-slate-500">{relTime(ev.created_at, t)}</span>
             </li>
           ))}
         </ul>
@@ -611,16 +615,16 @@ function pickLatest<T extends { status: string }>(map: Map<string, T>, keys: str
   return best;
 }
 
-function relTime(iso: string): string {
-  const t = new Date(iso).getTime();
-  const diff = Math.max(0, Date.now() - t);
+function relTime(iso: string, t: (k: string, v?: Record<string, string>) => string): string {
+  const ms = new Date(iso).getTime();
+  const diff = Math.max(0, Date.now() - ms);
   const s = Math.floor(diff / 1000);
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return t("time.secondsAgo", { n: String(s) });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t("time.minutesAgo", { n: String(m) });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t("time.hoursAgo", { n: String(h) });
+  return t("time.daysAgo", { n: String(Math.floor(h / 24)) });
 }
 
 // ---------------- Subcomponents ----------------
