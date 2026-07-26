@@ -1,0 +1,39 @@
+FISCALÍA GENERAL DE JUSTICIA DEL ESTADO DE JALISCO
+Dirección de Servicios Periciales — Área de Informática Forense y Video
+
+DICTAMEN PERICIAL EN MATERIA DE VIDEOVIGILANCIA Y ANÁLISIS DE IMAGEN
+Número de dictamen: SP/JAL/INF/0451/2026
+Carpeta de investigación: FGJ/JAL/UIP/00234/2026
+Perito: M. en C. Alejandra Sofía Barrientos Ledesma, cédula profesional 8842176, perito oficial adscrita a Servicios Periciales.
+Fecha de emisión: 22 de marzo de 2026.
+
+I. PLANTEAMIENTO DEL PROBLEMA
+Mediante oficio FGJ/JAL/UIP/234-7/2026, el Agente del Ministerio Público Lic. Jorge Aarón Delgado solicitó determinar: (1) si las videograbaciones remitidas por el Escudo Urbano C5 corresponden al lugar y hora de los hechos denunciados; (2) si es posible identificar a la persona que aparece interactuando con la víctima; (3) si existen alteraciones en los archivos; y (4) la trazabilidad de la cadena de custodia digital.
+
+II. MATERIAL RECIBIDO
+1. Un disco óptico DVD-R rotulado "C5-GDL / CAM 4412 / 14-03-2026", sellado con etiqueta de indicio DIG-2026-1187.
+2. Archivo "CAM4412_20260314_2200_2300.mp4", 1,412,338,204 bytes, duración 59:58, resolución 1920x1080, 25 fps, códec H.264.
+3. Archivo "CAM4419_20260314_2230_2330.mp4", 1,208,441,003 bytes, duración 59:59, misma configuración.
+4. Oficio C5/GDL/EXT/2210/2026 con la bitácora de exportación firmada por el operador de turno, C. Emilio Rentería Salas.
+
+III. MÉTODO
+Se aplicó el método científico en su modalidad deductiva, con las técnicas siguientes: verificación de integridad mediante función hash SHA-256; análisis de metadatos contenedor MP4 (atom moov, mdat, cabeceras de creación); observación fotograma por fotograma en la ventana temporal 22:30:00–22:50:00; mejora de imagen no destructiva (ajuste de gamma, ecualización local de histograma) sin interpolación generativa; y confronta morfológica de rasgos externos con la fotografía de ficha signalética del imputado.
+
+IV. OBSERVACIONES
+a) Integridad. El valor SHA-256 del archivo CAM4412 calculado por esta perito coincide con el registrado en la bitácora del C5 (a71f...9ce4), por lo que no se advierte alteración posterior a la exportación. El archivo CAM4419 presenta discrepancia: la bitácora reporta b0c2...11af y el cálculo arroja 4d9e...77b1. Al requerirse aclaración, el C5 informó (oficio C5/GDL/EXT/2260/2026) que el archivo fue re-exportado el 18/03/2026 por falla de lectura, sin conservar el original. Esta perito hace constar que dicha re-exportación rompe la trazabilidad del segundo archivo.
+b) Correspondencia espacio-temporal. Los rótulos de sobreimpresión de CAM4412 muestran continuidad de reloj sin saltos; el mobiliario urbano visible (parada de autobús con anuncio de la Feria Internacional del Libro, jardinera de la esquina de Av. Chapultepec Sur y Calle Pedro Moreno) coincide con el registro fotográfico de la inspección del lugar.
+c) Hecho registrado. En el minuto 40:12 (22:40:12 hrs) se observa a una persona de sexo femenino caminando hacia el sur; en 40:26 se aproxima por detrás una persona de sexo masculino, complexión delgada, estatura aproximada 1.70–1.76 m, sudadera clara con capucha, pantalón oscuro. En 40:31 se aprecia contacto físico a la altura del brazo derecho de la primera persona y un movimiento de la mano derecha del segundo sujeto hacia la cintura. En 40:44 el sujeto se retira corriendo hacia el poniente. En ningún fotograma es posible observar el objeto que, según la denuncia, fue exhibido: la mano del sujeto permanece parcialmente ocluida por su propio cuerpo y por la jardinera.
+d) Identificación. El rostro del sujeto no es visible en ningún fotograma útil: la capucha y el ángulo descendente de la cámara (aprox. 32°) impiden registrar región facial. La confronta morfológica es, por tanto, INCONCLUSA. Solo puede afirmarse compatibilidad de complexión y estatura, lo que no constituye individualización.
+
+V. CONCLUSIONES
+PRIMERA. El archivo CAM4412_20260314_2200_2300.mp4 es íntegro y corresponde al lugar y hora de los hechos.
+SEGUNDA. El archivo CAM4419 no puede considerarse íntegro por re-exportación sin preservación del original.
+TERCERA. Se registra un evento de contacto físico y sustracción aparente a las 22:40:31 hrs.
+CUARTA. No es posible identificar al sujeto que aparece en la grabación; la atribución de identidad al imputado no se sustenta en este dictamen.
+QUINTA. No se registra en video el objeto punzocortante referido en la denuncia.
+
+VI. PROTESTA
+La perito protesta conducirse con verdad conforme a los artículos 272 y 368 del Código Nacional de Procedimientos Penales, y manifiesta no tener interés en el resultado del procedimiento.
+
+M. en C. Alejandra Sofía Barrientos Ledesma
+Perito oficial en informática forense — Servicios Periciales, FGJ Jalisco

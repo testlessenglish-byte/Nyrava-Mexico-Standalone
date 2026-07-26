@@ -856,6 +856,25 @@ async function _runPipelineForCase(
   const stageRequirement = (k: string): "blocking" | "enriching" | "optional" =>
     CANONICAL_STAGES.find((c) => c.key === k)?.requirement ?? "blocking";
 
+  // Automatic case-context detection. Before anything else, resolve the
+  // materia and the jurisdiction from the corpus when the attorney left them
+  // blank, so stage selection below and every downstream prompt is already
+  // jurisdiction-aware. Deterministic keyword classification — no AI spend.
+  {
+    const { autoDetectCaseContext } = await import("./mx-auto-detect.server");
+    try {
+      const detection = await autoDetectCaseContext(supabase, caseId);
+      trace("case.context_auto_detected", {
+        case_type: detection.caseType,
+        jurisdiction: detection.jurisdiction,
+        persisted: detection.detected,
+        source: detection.source,
+      });
+    } catch (e) {
+      console.warn("[mx-auto-detect] failed", e);
+    }
+  }
+
   // Jurisdiction-aware sequence. Mexican practice doesn't run every engine for
   // every materia (e.g. no jury simulation in an ordinary penal case, no
   // witness intelligence in an amparo). Resolve the case's materia and drop the
@@ -872,6 +891,7 @@ async function _runPipelineForCase(
       .eq("id", caseId)
       .maybeSingle();
     const mxCaseType = (mxCaseRow as { case_type?: string | null } | null)?.case_type ?? null;
+
     const mxLocale =
       (mxCaseRow as { report_language?: string | null } | null)?.report_language === "en"
         ? "en"
