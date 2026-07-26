@@ -2161,7 +2161,7 @@ ${corpusText}`;
       if (isGroqCooldownOrRateLimit(msg)) {
         const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
         console.warn(`[analyzers] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`);
-        throw new CheckpointRequired("analyzers", `Groq cooldown after ${successes} successful batch(es)`);
+        throw new CheckpointRequired("analyzers", `after ${successes} successful batch(es) — ${msg.slice(0, 300)}`);
       }
       if (providerUnavailable || retryableTransport) {
         console.warn(
@@ -2726,7 +2726,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 );
                 throw new CheckpointRequired(
                   "agents",
-                  `${agent.type} Groq cooldown after ${successes} successful batch(es)`,
+                  `${agent.type} after ${successes} successful batch(es) — ${bmsg.slice(0, 300)}`,
                 );
               }
               if (providerUnavailable || retryableTransport) {
