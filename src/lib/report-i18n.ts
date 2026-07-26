@@ -263,6 +263,52 @@ const ES: Record<string, string> = {
   prosecutor: "Ministerio Público",
   Defense: "Defensa",
   defense: "defensa",
+
+  // ---- Legal memorandum exporter (export-legal-memo.ts) ----
+  "MEMORANDUM OF LAW": "MEMORANDO DE DERECHO",
+  "EXECUTIVE SUMMARY": "RESUMEN EJECUTIVO",
+  "STATEMENT OF FACTS": "RELACIÓN DE HECHOS",
+  "I. Chronology": "I. Cronología",
+  "II. Undisputed Facts": "II. Hechos No Controvertidos",
+  "III. Disputed Facts": "III. Hechos Controvertidos",
+  "LEGAL ANALYSIS": "ANÁLISIS JURÍDICO",
+  "RECOMMENDED MOTIONS": "PROMOCIONES RECOMENDADAS",
+  "EVIDENCE APPENDIX": "ANEXO PROBATORIO",
+  "RISK MATRIX": "MATRIZ DE RIESGOS",
+  "NEXT ACTIONS": "SIGUIENTES ACCIONES",
+  "Untitled Issue": "Cuestión sin título",
+  "Untitled Motion": "Promoción sin título",
+  RULE: "NORMA",
+  APPLICATION: "APLICACIÓN",
+  CONCLUSION: "CONCLUSIÓN",
+  "Supporting Evidence:": "Evidencia de sustento:",
+  "Factual Basis:": "Fundamento fáctico:",
+  "Draft Paragraph:": "Párrafo de borrador:",
+  "Urgent Actions Required:": "Acciones urgentes requeridas:",
+  "Bottom Line": "Conclusión general",
+  "Legal Standard": "Estándar jurídico",
+  "Likelihood of Success": "Probabilidad de éxito",
+  "Key Quote": "Cita clave",
+  Proves: "Acredita",
+  Mitigation: "Mitigación",
+  Probability: "Probabilidad",
+  "Re: ": "Ref.: ",
+  "Date: ": "Fecha: ",
+  "Opposing view:": "Postura contraria:",
+  "Attorney-reviewed work product. Nyrava Intelligence-generated draft — verify all citations before filing.":
+    "Producto de trabajo revisado por el abogado. Borrador generado por Nyrava Intelligence — verifique todas las citas antes de presentarlo.",
+
+  // ---- Jurisdiction Intelligence block ----
+  "Legal Area": "Materia",
+  "Legal Basis": "Fundamento legal",
+  "Governing Court": "Órgano jurisdiccional",
+
+  // ---- Priority action center (final section) ----
+  "Action Center — Priority Recommendations": "Centro de Acciones — Recomendaciones Prioritarias",
+  "Legal Basis / Authority": "Fundamento legal",
+  "Expected impact": "Impacto esperado",
+  "-Legal-Memo": "-Memorando-Legal",
+  "Legal Memo": "Memorando Legal",
 };
 
 /**

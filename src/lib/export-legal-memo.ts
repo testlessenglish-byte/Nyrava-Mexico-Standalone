@@ -10,6 +10,7 @@ import {
   convertInchesToTwip,
 } from "docx";
 import type { LegalMemorandum } from "@/components/LegalMemorandumPanel";
+import { rt } from "./report-i18n";
 
 type ChronEntry = string | { date?: string; event?: string; source?: string };
 type DisputedEntry = string | { claim?: string; opposing_view?: string };
@@ -159,13 +160,13 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
   out.push(new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { after: 160 },
-    children: [new TextRun({ text: cap.title || "MEMORANDUM OF LAW", bold: true, font: "Times New Roman", size: 32 })],
+    children: [new TextRun({ text: cap.title || rt("MEMORANDUM OF LAW"), bold: true, font: "Times New Roman", size: 32 })],
     border: { bottom: { color: "1A1A1A", space: 1, style: BorderStyle.SINGLE, size: 12 } },
   }));
   out.push(new Paragraph({
     alignment: AlignmentType.CENTER,
     children: [
-      new TextRun({ text: "Re: ", bold: true, font: "Times New Roman", size: 22 }),
+      new TextRun({ text: rt("Re: "), bold: true, font: "Times New Roman", size: 22 }),
       new TextRun({ text: cap.re || caseName, font: "Times New Roman", size: 22 }),
     ],
   }));
@@ -173,19 +174,19 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
     alignment: AlignmentType.CENTER,
     spacing: { after: 320 },
     children: [
-      new TextRun({ text: "Date: ", bold: true, font: "Times New Roman", size: 22 }),
+      new TextRun({ text: rt("Date: "), bold: true, font: "Times New Roman", size: 22 }),
       new TextRun({ text: cap.date || new Date().toLocaleDateString(), font: "Times New Roman", size: 22 }),
     ],
   }));
 
   // Executive Summary
   if (exec.dispositive_recommendation || exec.case_strength || exec.primary_risk || (exec.urgent_actions?.length ?? 0) > 0) {
-    out.push(h1("EXECUTIVE SUMMARY"));
-    if (exec.dispositive_recommendation) out.push(labelledPair("Bottom Line", exec.dispositive_recommendation));
-    if (exec.case_strength) out.push(labelledPair("Case Strength", exec.case_strength));
-    if (exec.primary_risk) out.push(labelledPair("Primary Risk", exec.primary_risk));
+    out.push(h1(rt("EXECUTIVE SUMMARY")));
+    if (exec.dispositive_recommendation) out.push(labelledPair(rt("Bottom Line"), exec.dispositive_recommendation));
+    if (exec.case_strength) out.push(labelledPair(rt("Case Strength"), exec.case_strength));
+    if (exec.primary_risk) out.push(labelledPair(rt("Primary Risk"), exec.primary_risk));
     if ((exec.urgent_actions?.length ?? 0) > 0) {
-      out.push(p("Urgent Actions Required:", { bold: true }));
+      out.push(p(rt("Urgent Actions Required:"), { bold: true }));
       exec.urgent_actions!.forEach((a) => out.push(bullet(a)));
     }
   }
@@ -193,10 +194,10 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
   // Statement of Facts
   const totalFacts = (facts.chronology?.length ?? 0) + (facts.undisputed?.length ?? 0) + (facts.disputed?.length ?? 0);
   if (totalFacts > 0) {
-    out.push(h1("STATEMENT OF FACTS"));
+    out.push(h1(rt("STATEMENT OF FACTS")));
 
     if ((facts.chronology?.length ?? 0) > 0) {
-      out.push(h2("I. Chronology"));
+      out.push(h2(rt("I. Chronology")));
       const widths = [1680, 5520, 2160];
       const rows = facts.chronology!.map((raw) => {
         const c = parseChron(raw);
@@ -206,34 +207,34 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
           bodyCell(c.source, widths[2], { mono: true }),
         ];
       });
-      out.push(makeTable(["Date", "Event", "Source"], widths, rows));
+      out.push(makeTable([rt("Date"), rt("Event"), rt("Source")], widths, rows));
     }
 
     if ((facts.undisputed?.length ?? 0) > 0) {
-      out.push(h2("II. Undisputed Facts"));
+      out.push(h2(rt("II. Undisputed Facts")));
       facts.undisputed!.forEach((f) => out.push(bullet(f)));
     }
 
     if ((facts.disputed?.length ?? 0) > 0) {
-      out.push(h2("III. Disputed Facts"));
+      out.push(h2(rt("III. Disputed Facts")));
       facts.disputed!.forEach((raw) => {
         const d = parseDisputed(raw);
         out.push(bullet(d.claim));
-        if (d.opposing) out.push(p(`Opposing view: ${d.opposing}`, { italics: true, color: "666666", indent: 720 }));
+        if (d.opposing) out.push(p(`${rt("Opposing view:")} ${d.opposing}`, { italics: true, color: "666666", indent: 720 }));
       });
     }
   }
 
   // Legal Analysis (IRAC)
   if (irac.length > 0) {
-    out.push(h1("LEGAL ANALYSIS"));
+    out.push(h1(rt("LEGAL ANALYSIS")));
     irac.forEach((issue, i) => {
-      out.push(h2(`${i + 1}. ${issue.issue || "Untitled Issue"}`));
-      if (issue.rule)        { out.push(p("RULE", { bold: true })); out.push(p(issue.rule, { indent: 360 })); }
-      if (issue.application) { out.push(p("APPLICATION", { bold: true })); out.push(p(issue.application, { indent: 360 })); }
-      if (issue.conclusion)  { out.push(p("CONCLUSION", { bold: true })); out.push(p(issue.conclusion, { indent: 360, bold: true })); }
+      out.push(h2(`${i + 1}. ${issue.issue || rt("Untitled Issue")}`));
+      if (issue.rule)        { out.push(p(rt("RULE"), { bold: true })); out.push(p(issue.rule, { indent: 360 })); }
+      if (issue.application) { out.push(p(rt("APPLICATION"), { bold: true })); out.push(p(issue.application, { indent: 360 })); }
+      if (issue.conclusion)  { out.push(p(rt("CONCLUSION"), { bold: true })); out.push(p(issue.conclusion, { indent: 360, bold: true })); }
       if ((issue.cited_evidence?.length ?? 0) > 0) {
-        out.push(p("Supporting Evidence:", { bold: true }));
+        out.push(p(rt("Supporting Evidence:"), { bold: true }));
         issue.cited_evidence!.forEach((ce) => {
           out.push(new Paragraph({
             spacing: { after: 60 },
@@ -250,17 +251,17 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
 
   // Recommended Motions
   if (motions.length > 0) {
-    out.push(h1("RECOMMENDED MOTIONS"));
+    out.push(h1(rt("RECOMMENDED MOTIONS")));
     motions.forEach((m) => {
-      out.push(h2(m.motion || "Untitled Motion"));
-      if (m.legal_standard) out.push(labelledPair("Legal Standard", m.legal_standard));
+      out.push(h2(m.motion || rt("Untitled Motion")));
+      if (m.legal_standard) out.push(labelledPair(rt("Legal Standard"), m.legal_standard));
       if ((m.factual_basis?.length ?? 0) > 0) {
-        out.push(p("Factual Basis:", { bold: true }));
+        out.push(p(rt("Factual Basis:"), { bold: true }));
         m.factual_basis!.forEach((f) => out.push(bullet(f)));
       }
-      if (m.likelihood) out.push(labelledPair("Likelihood of Success", m.likelihood));
+      if (m.likelihood) out.push(labelledPair(rt("Likelihood of Success"), m.likelihood));
       if (m.draft_paragraph) {
-        out.push(p("Draft Paragraph:", { bold: true }));
+        out.push(p(rt("Draft Paragraph:"), { bold: true }));
         out.push(new Paragraph({
           spacing: { before: 60, after: 200 },
           indent: { left: 360, right: 360 },
@@ -278,7 +279,7 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
 
   // Evidence Appendix
   if (exhibits.length > 0) {
-    out.push(h1("EVIDENCE APPENDIX"));
+    out.push(h1(rt("EVIDENCE APPENDIX")));
     const widths = [720, 2160, 720, 2400, 2160, 1200];
     const rows = exhibits.map((e) => [
       bodyCell(e.exhibit || "—", widths[0], { bold: true, align: AlignmentType.CENTER }),
@@ -292,12 +293,12 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
       bodyCell(e.proves || "—", widths[4]),
       bodyCell(e.admissibility_risk || "—", widths[5], { align: AlignmentType.CENTER }),
     ]);
-    out.push(makeTable(["Exhibit", "Description", "Page", "Key Quote", "Proves", "Risk"], widths, rows));
+    out.push(makeTable([rt("Exhibit"), rt("Description"), rt("Page"), rt("Key Quote"), rt("Proves"), rt("Risk")], widths, rows));
   }
 
   // Risk Matrix
   if (risks.length > 0) {
-    out.push(h1("RISK MATRIX"));
+    out.push(h1(rt("RISK MATRIX")));
     const widths = [3600, 1440, 1440, 2880];
     const rows = risks.map((r) => [
       bodyCell(r.risk || "—", widths[0]),
@@ -305,12 +306,12 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
       bodyCell(r.impact || "—", widths[2], { align: AlignmentType.CENTER }),
       bodyCell(r.mitigation || "—", widths[3]),
     ]);
-    out.push(makeTable(["Risk", "Probability", "Impact", "Mitigation"], widths, rows));
+    out.push(makeTable([rt("Risk"), rt("Probability"), rt("Impact"), rt("Mitigation")], widths, rows));
   }
 
   // Next Actions
   if (actions.length > 0) {
-    out.push(h1("NEXT ACTIONS"));
+    out.push(h1(rt("NEXT ACTIONS")));
     const widths = [1200, 4800, 1680, 1680];
     const rows = actions.map((a) => [
       bodyCell(a.priority || "—", widths[0], { bold: true, align: AlignmentType.CENTER }),
@@ -318,14 +319,14 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
       bodyCell(a.owner || "—", widths[2]),
       bodyCell(a.deadline || "—", widths[3]),
     ]);
-    out.push(makeTable(["Priority", "Action", "Owner", "Deadline"], widths, rows));
+    out.push(makeTable([rt("Priority"), rt("Action"), rt("Owner"), rt("Deadline")], widths, rows));
   }
 
   out.push(new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: 400 },
     children: [new TextRun({
-      text: "Attorney-reviewed work product. Nyrava Intelligence-generated draft — verify all citations before filing.",
+      text: rt("Attorney-reviewed work product. Nyrava Intelligence-generated draft — verify all citations before filing."),
       italics: true, color: "64748B", font: "Times New Roman", size: 18,
     })],
   }));
@@ -351,7 +352,7 @@ export async function downloadLegalMemoDocx(memo: LegalMemorandum, caseName: str
     }],
   });
   const blob = await Packer.toBlob(doc);
-  saveBlob(blob, `${safeName(caseName)}-Legal-Memo.docx`);
+  saveBlob(blob, `${safeName(caseName)}${rt("-Legal-Memo")}.docx`);
 }
 
 // ────────────────────────── PDF ──────────────────────────
@@ -443,7 +444,7 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
   };
 
   // Caption
-  center(memo.caption?.title || "MEMORANDUM OF LAW", 16, true);
+  center(memo.caption?.title || rt("MEMORANDUM OF LAW"), 16, true);
   doc.setLineWidth(0.02);
   doc.line(margin, y, pageW - margin, y);
   y += 0.15;
@@ -453,7 +454,7 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
 
   const exec = memo.executive_summary ?? {};
   if (exec.dispositive_recommendation || exec.case_strength || exec.primary_risk || (exec.urgent_actions?.length ?? 0) > 0) {
-    sectionHeading("EXECUTIVE SUMMARY");
+    sectionHeading(rt("EXECUTIVE SUMMARY"));
     if (exec.dispositive_recommendation) {
       left("Bottom Line:", 11, true);
       wrap(exec.dispositive_recommendation, 11, 0.2);
@@ -461,40 +462,40 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
     if (exec.case_strength) wrap(`Case Strength: ${exec.case_strength}`, 11);
     if (exec.primary_risk) wrap(`Primary Risk: ${exec.primary_risk}`, 11);
     if ((exec.urgent_actions?.length ?? 0) > 0) {
-      left("Urgent Actions Required:", 11, true);
+      left(rt("Urgent Actions Required:"), 11, true);
       exec.urgent_actions!.forEach((a) => wrap(`* ${a}`, 11, 0.2));
     }
   }
 
   const facts = memo.statement_of_facts ?? {};
   if ((facts.chronology?.length ?? 0) + (facts.undisputed?.length ?? 0) + (facts.disputed?.length ?? 0) > 0) {
-    sectionHeading("STATEMENT OF FACTS");
+    sectionHeading(rt("STATEMENT OF FACTS"));
     if ((facts.chronology?.length ?? 0) > 0) {
-      left("I. Chronology", 11, true);
+      left(rt("I. Chronology"), 11, true);
       const rows = facts.chronology!.map((raw) => {
         const c = parseChron(raw);
         return [pdfSafe(c.date), pdfSafe(c.event), pdfSafe(c.source)];
       });
-      runTable(["Date", "Event", "Source"], rows, { 0: { cellWidth: 1.1 }, 2: { cellWidth: 1.4 } });
+      runTable([rt("Date"), rt("Event"), rt("Source")], rows, { 0: { cellWidth: 1.1 }, 2: { cellWidth: 1.4 } });
     }
     if ((facts.undisputed?.length ?? 0) > 0) {
-      left("II. Undisputed Facts", 11, true);
+      left(rt("II. Undisputed Facts"), 11, true);
       facts.undisputed!.forEach((f) => wrap(`* ${f}`, 11, 0.2));
       y += 0.05;
     }
     if ((facts.disputed?.length ?? 0) > 0) {
-      left("III. Disputed Facts", 11, true);
+      left(rt("III. Disputed Facts"), 11, true);
       facts.disputed!.forEach((raw) => {
         const d = parseDisputed(raw);
         wrap(`* ${d.claim}`, 11, 0.2);
-        if (d.opposing) wrap(`(Opposing view: ${d.opposing})`, 10, 0.4, { italic: true, color: [102, 102, 102] });
+        if (d.opposing) wrap(`(${rt("Opposing view:")} ${d.opposing})`, 10, 0.4, { italic: true, color: [102, 102, 102] });
       });
     }
   }
 
   const irac = memo.legal_analysis ?? [];
   if (irac.length > 0) {
-    sectionHeading("LEGAL ANALYSIS");
+    sectionHeading(rt("LEGAL ANALYSIS"));
     irac.forEach((issue, i) => {
       ensureRoom(0.8);
       left(`${i + 1}. ${issue.issue || ""}`, 11, true);
@@ -510,18 +511,18 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
 
   const motions = memo.recommended_motions ?? [];
   if (motions.length > 0) {
-    sectionHeading("RECOMMENDED MOTIONS");
+    sectionHeading(rt("RECOMMENDED MOTIONS"));
     motions.forEach((m) => {
       ensureRoom(0.8);
       left(m.motion || "", 11, true);
       if (m.legal_standard) wrap(`Legal Standard: ${m.legal_standard}`, 11, 0.2);
       if ((m.factual_basis?.length ?? 0) > 0) {
-        left("Factual Basis:", 10, true, 0.2);
+        left(rt("Factual Basis:"), 10, true, 0.2);
         m.factual_basis!.forEach((f) => wrap(`* ${f}`, 11, 0.4));
       }
       if (m.likelihood) wrap(`Likelihood: ${m.likelihood}`, 11, 0.2);
       if (m.draft_paragraph) {
-        left("Draft Paragraph:", 10, true, 0.2);
+        left(rt("Draft Paragraph:"), 10, true, 0.2);
         wrap(`"${m.draft_paragraph}"`, 11, 0.4, { italic: true });
       }
       y += 0.1;
@@ -530,7 +531,7 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
 
   const exhibits = memo.evidence_appendix ?? [];
   if (exhibits.length > 0) {
-    sectionHeading("EVIDENCE APPENDIX");
+    sectionHeading(rt("EVIDENCE APPENDIX"));
     const rows = exhibits.map((e) => [
       pdfSafe(e.exhibit ?? ""),
       pdfSafe(e.description ?? ""),
@@ -540,7 +541,7 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
       pdfSafe(e.admissibility_risk ?? ""),
     ]);
     runTable(
-      ["Exhibit", "Description", "Page", "Key Quote", "Proves", "Risk"],
+      [rt("Exhibit"), rt("Description"), rt("Page"), rt("Key Quote"), rt("Proves"), rt("Risk")],
       rows,
       { 0: { cellWidth: 0.6 }, 2: { cellWidth: 0.5 }, 3: { cellWidth: 1.9 }, 5: { cellWidth: 0.7 } },
     );
@@ -548,9 +549,9 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
 
   const risks = memo.risk_matrix ?? [];
   if (risks.length > 0) {
-    sectionHeading("RISK MATRIX");
+    sectionHeading(rt("RISK MATRIX"));
     const rows = risks.map((r) => [pdfSafe(r.risk ?? ""), pdfSafe(r.probability ?? ""), pdfSafe(r.impact ?? ""), pdfSafe(r.mitigation ?? "")]);
-    runTable(["Risk", "Probability", "Impact", "Mitigation"], rows, { 1: { cellWidth: 0.9 }, 2: { cellWidth: 0.9 } });
+    runTable([rt("Risk"), rt("Probability"), rt("Impact"), rt("Mitigation")], rows, { 1: { cellWidth: 0.9 }, 2: { cellWidth: 0.9 } });
   }
 
   const actions = memo.next_actions ? [...memo.next_actions] : [];
@@ -560,10 +561,10 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
       const pb = PRIORITY_ORDER[(b.priority ?? "medium").toLowerCase()] ?? 2;
       return pa - pb;
     });
-    sectionHeading("NEXT ACTIONS");
+    sectionHeading(rt("NEXT ACTIONS"));
     const rows = actions.map((a) => [pdfSafe(a.priority ?? ""), pdfSafe(a.action ?? ""), pdfSafe(a.owner ?? ""), pdfSafe(a.deadline ?? "")]);
-    runTable(["Priority", "Action", "Owner", "Deadline"], rows, { 0: { cellWidth: 0.8 } });
+    runTable([rt("Priority"), rt("Action"), rt("Owner"), rt("Deadline")], rows, { 0: { cellWidth: 0.8 } });
   }
 
-  doc.save(`${safeName(caseName)}-Legal-Memo.pdf`);
+  doc.save(`${safeName(caseName)}${rt("-Legal-Memo")}.pdf`);
 }
