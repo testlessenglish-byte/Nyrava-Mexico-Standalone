@@ -114,6 +114,16 @@ export const seedFixtureCorpus = createServerFn({ method: "POST" })
       .slice(0, 120_000);
     const { resolveMxCaseType, MX_CASE_TYPE_LABELS } = await import("@/lib/mx-case-classifier");
     const detected = resolveMxCaseType({ text: corpusText, declaredArea: corpusArea });
+    // Jurisdiction is inferred from the corpus too (entidad federativa / fuero),
+    // so the operator never types a state either.
+    const { buildJurisdictionProfile } = await import("@/lib/intelligence/mx-jurisdiction");
+    const jurProfile = buildJurisdictionProfile({
+      caseType: detected.caseType,
+      jurisdictionField: null,
+      corpusText,
+    });
+    const detectedJurisdiction =
+      jurProfile.state?.name ?? (jurProfile.fuero === "federal" ? "Federal" : null);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { uploadFiles } = await import("@/lib/pipeline.server");
@@ -129,11 +139,15 @@ export const seedFixtureCorpus = createServerFn({ method: "POST" })
         description:
           `Caso semilla con acervo probatorio real. Corpus: tests/fixtures/corpora/${corpusArea}/. ` +
           `Materia detectada automáticamente: ${MX_CASE_TYPE_LABELS[detected.caseType].es} ` +
-          `(origen: ${detected.source}, confianza ${detected.classification.confidence}).`,
+          `(origen: ${detected.source}, confianza ${detected.classification.confidence}). ` +
+          `Jurisdicción detectada: ${detectedJurisdiction ?? "por determinar"} — fuero ${jurProfile.fuero}.`,
         status: "uploaded",
         progress: 0,
-        analysis_mode: "strict",
+        // Seeded benchmark matters run in exploratory mode so every engine
+        // produces output instead of being gated by strict evidence thresholds.
+        analysis_mode: "exploratory",
         case_type: detected.caseType,
+        jurisdiction: detectedJurisdiction,
       } as never)
       .select("id")
       .single();
@@ -141,6 +155,7 @@ export const seedFixtureCorpus = createServerFn({ method: "POST" })
       throw new Error(`Failed to create fixture case: ${error?.message ?? "unknown"}`);
     }
     const caseId = (created as { id: string }).id;
+
 
     await uploadFiles({
       db: supabaseAdmin as never,
