@@ -14,6 +14,14 @@ import {
   isCheckpointError,
 } from "../pipeline-checkpoint.server";
 import { traceAsync } from "@/lib/pipeline-trace.server";
+import {
+  clearProviderCooldowns,
+  getProviderCooldown,
+  listProviderCooldowns,
+  markProviderCooldown,
+  parseRetryHintMs,
+  type CooldownReason,
+} from "./cooldown.server";
 
 export interface RouteOpts extends ChatOpts {
   task?: AITask;
@@ -113,6 +121,7 @@ export function getRouterDiagnostics() {
     cacheHits: _state.cacheHits,
     totalCalls: _state.totalCalls,
     cacheSize: _cache.size,
+    cooldowns: listProviderCooldowns(),
   };
 }
 
@@ -217,6 +226,10 @@ export function listGroqCooldowns(): Array<{
   return out;
 }
 
+export function listAiProviderCooldowns() {
+  return listProviderCooldowns();
+}
+
 /**
  * Admin: clear Groq cooldowns.
  * - No args → clears every cooldown entry.
@@ -239,6 +252,13 @@ export function clearGroqCooldowns(model?: string | null): number {
   }
   return n;
 }
+
+export function clearAiProviderCooldowns(provider?: ProviderType | null, model?: string | null): number {
+  const generic = clearProviderCooldowns({ provider, model });
+  if (provider && provider !== "groq") return generic;
+  return generic + clearGroqCooldowns(model);
+}
+
 function keyFingerprint(key: string): string {
   return createHash("sha256").update(key).digest("hex").slice(0, 12);
 }
@@ -462,38 +482,6 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
 
   if (!rows.length && runtimeGroups.length === 0) throw new Error("No AI providers configured.");
 
-  // Groq org-scoped cooldown: only short-circuits the whole call when Groq
-  // is the ONLY provider available. If the user has other providers
-  // configured as fallback, just drop Groq's group below and keep going.
-  const groqCooldownUntil = getGroqModelCooldownUntil(opts.model);
-  if (groqCooldownUntil) {
-    const retryAfterMs = Math.max(0, groqCooldownUntil - Date.now());
-    const msg = `Groq model cooldown active; retry_after_ms=${retryAfterMs}; no provider request made.`;
-    try {
-      const { pushTelemetryCall } = await import("./telemetry.server");
-      pushTelemetryCall({
-        ts: Date.now(),
-        provider: "groq",
-        providerId: "groq-cooldown",
-        model: opts.model ?? "default",
-        ok: false,
-        latencyMs: 0,
-        error: msg,
-        errorKind: "quota",
-        cooldownState: `active:${retryAfterMs}`,
-        consideredProviders: ["groq"],
-        keySelectionReason: "org_model_cooldown",
-      });
-    } catch {
-      /* noop */
-    }
-    const hasNonGroqFallback =
-      runtimeGroups.some((g) => g.provider !== "groq") ||
-      rows.some((r) => r.enabled && r.provider_type !== "groq");
-    if (!hasNonGroqFallback) throw new Error(msg);
-    runtimeGroups = runtimeGroups.filter((g) => g.provider !== "groq");
-  }
-
   // Build the ordered chain across every runtime group.
   let chain: RuntimeGroqRow[] = [];
   if (runtimeGroups.length > 0) {
@@ -535,11 +523,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     // secret (e.g. the Lovable AI Gateway). Without this, a user with their
     // own Groq/Gemini keys had NO capacity left the moment those keys hit
     // their daily quota — the run stalled instead of failing over.
-    const runtimeProviders = new Set(runtimeGroups.map((g) => g.provider));
     const { resolveApiKey } = await import("./providers/factory");
     for (const r of rows) {
       if (!r.enabled) continue;
-      if (runtimeProviders.has(r.provider_type)) continue;
       if (!resolveApiKey(r)) continue; // no server key configured — nothing to try
       chain.push({ ...r, selectionReason: "platform_fallback" });
     }
@@ -586,6 +572,13 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   // message so "tried: x, y" reflects reality instead of the full chain.
   const attemptedProviders = new Set<ProviderType>();
 
+  const effectiveModelFor = (row: RuntimeGroqRow): string | null =>
+    row.provider_type === "groq"
+      ? opts.model ?? row.default_model ?? null
+      : row.default_model ?? opts.model ?? null;
+  const cooldownIdentityFor = (row: RuntimeGroqRow): string =>
+    row.runtimeKeyFingerprint ?? row.id ?? row.provider_type;
+
   traceAsync({
     phase: "ai",
     step: "router.chain_built",
@@ -605,30 +598,28 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
 
   for (let i = 0; i < chain.length; i++) {
     const row = chain[i];
-    // Mid-loop cooldown guard: only applies to Groq (its org-wide TPM/TPD
-    // pattern). Other providers have per-key limits, not per-org.
-    if (i > 0 && row.provider_type === "groq") {
-      const cd = getGroqModelCooldownUntil(opts.model);
-      if (cd) {
-        console.warn(
-          `[router.key] skipping remaining Groq key(s) — cooldown active for ${Math.max(0, cd - Date.now())}ms`,
-        );
-        traceAsync({
-          phase: "ai",
-          step: "router.provider_skipped",
-          status: "warn",
-          provider: "groq",
-          model: opts.model ?? null,
-          detail: { reason: "cooldown_active", cooldown_ms: Math.max(0, cd - Date.now()) },
-        });
-        while (i < chain.length && chain[i].provider_type === "groq") i++;
-        if (i >= chain.length) break;
-        // fall through to try chain[i], which is now a non-Groq provider
-        i--; // compensate for the loop's own i++
-        continue;
-      }
+    const effectiveModel = effectiveModelFor(row);
+    const candidateCooldown = getProviderCooldown({
+      provider: row.provider_type,
+      model: effectiveModel,
+      key: cooldownIdentityFor(row),
+    });
+    if (candidateCooldown) {
+      traceAsync({
+        phase: "ai",
+        step: "router.provider_skipped",
+        status: "warn",
+        provider: row.provider_type,
+        model: effectiveModel,
+        detail: {
+          reason: "cooldown_active",
+          cooldown_ms: candidateCooldown.retryAfterMs,
+          cooldown_reason: candidateCooldown.reason,
+          key: row.runtimeKeyIndex != null ? `key#${row.runtimeKeyIndex + 1}` : "(env)",
+        },
+      });
+      continue;
     }
-
     const provider: AIProvider = buildProvider(row, row.runtimeApiKey);
     const maskedKey = row.runtimeApiKey
       ? `${row.runtimeApiKey.slice(0, 4)}…${row.runtimeApiKey.slice(-4)}`
@@ -669,12 +660,8 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       let rateLimitRetries = 0;
       const retryReasons: string[] = [];
       const parseRetryAfterMs = (em: string): number | null => {
-        // Groq: "Please try again in 1.234s". OpenAI: "retry after 2 seconds".
-        const m =
-          em.match(/(?:try again|retry(?:\s+after)?)\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i) ??
-          em.match(/retry(?:-|\s+)after[:\s]+([0-9]+(?:\.[0-9]+)?)/i);
-        if (m?.[1]) return Math.min(RATE_LIMIT_MAX_WAIT_MS, Math.ceil(parseFloat(m[1]) * 1000));
-        return null;
+        const hinted = parseRetryHintMs(em);
+        return hinted == null ? null : Math.min(RATE_LIMIT_MAX_WAIT_MS, hinted);
       };
       for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
         try {
@@ -930,6 +917,26 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       errors.push(`${row.display_name} [${kind}]: ${msg}`);
       fellBackFrom.push(row.provider_type);
       if (isPayment || isQuota) {
+        const cooldownReason: CooldownReason = isPayment ? "payment" : isQuota ? "quota" : "rate_limit";
+        const cd = markProviderCooldown({
+          provider: row.provider_type,
+          model: effectiveModel,
+          key: cooldownIdentityFor(row),
+          reason: cooldownReason,
+          message: msg,
+        });
+        traceAsync({
+          phase: "ai",
+          step: "router.cooldown_marked",
+          status: "warn",
+          provider: row.provider_type,
+          model: effectiveModel,
+          detail: {
+            key: keyLabel,
+            retry_after_ms: cd.retryAfterMs,
+            reason: cd.reason,
+          },
+        });
         if (row.provider_type === "groq") {
           const orgMatch = msg.match(/organization[\s`'"]+([a-z0-9_]+)/i);
           const exhaustedOrg = orgMatch?.[1] ?? null;

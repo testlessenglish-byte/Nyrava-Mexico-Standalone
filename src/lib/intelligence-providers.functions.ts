@@ -43,6 +43,13 @@ export const listProviderOrder = createServerFn({ method: "POST" })
     return [...saved, ...rest];
   });
 
+export const listProviderCooldownStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { listAiProviderCooldowns } = await import("@/lib/ai/router.server");
+    return { ts: Date.now(), cooldowns: listAiProviderCooldowns() };
+  });
+
 const SetOrderInput = z.object({ order: z.array(ProviderSchema).length(5) });
 
 export const setProviderOrder = createServerFn({ method: "POST" })

@@ -938,7 +938,7 @@ async function _runPipelineForCase(
   const failed = new Set<PipelineStageKey>();
   const blocked = new Set<PipelineStageKey>();
   const {
-    withCheckpointScope,
+    withHardCheckpointDeadline,
     budgetFor,
     WORKER_INVOCATION_BUDGET_MS,
     CHECKPOINT_SAFETY_BUFFER_MS,
@@ -1099,7 +1099,7 @@ async function _runPipelineForCase(
       // only the coarse per-stage progress checks fire — which is exactly the
       // "died mid-Groq-call, never wrote terminal state" symptom.
       const stageBudgetMs = Math.min(budgetFor(s.key), WORKER_INVOCATION_BUDGET_MS);
-      await withCheckpointScope(
+      await withHardCheckpointDeadline(
         {
           stage: s.key,
           deadlineAt: Math.min(stageStart + stageBudgetMs, invocationDeadlineAt),
