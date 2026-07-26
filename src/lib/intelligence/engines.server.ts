@@ -736,78 +736,11 @@ ${ctx.corpus}`,
 // =========================================================================
 // WITNESS INTELLIGENCE ENGINE
 // =========================================================================
-// Weights for the deterministic credibility_risk composite below. Each
-// component contributes its "risk direction" — e.g. low reliability raises
-// risk, so it's (100 - reliability), not reliability itself. Weights are a
-// starting hypothesis (documented as such), not a calibrated model — see
-// the TODO in computeCredibilityRisk.
-const CREDIBILITY_RISK_WEIGHTS = {
-  reliability: 0.3,
-  bias: 0.25,
-  consistency: 0.2,
-  corroboration: 0.15,
-  observationOpportunity: 0.1,
-} as const;
-
-/**
- * Computes credibility_risk deterministically from the other 5 witness
- * scores instead of trusting the LLM's own independent guess for it.
- * Previously credibility_risk was requested as a 6th, unrelated number with
- * no rationale field and nothing checking it against the other 5 — a model
- * could say reliability=90, bias=10, corroboration=90 (all low-risk
- * signals) yet still return credibility_risk=80, and nothing would catch or
- * explain the contradiction. This makes the composite fully auditable: it's
- * always traceable to its 5 inputs and their fixed, documented weights.
- *
- * TODO(calibration): CREDIBILITY_RISK_WEIGHTS above is a reasonable starting
- * hypothesis (reliability and bias weighted heaviest), not something
- * derived from real case outcomes. Once an outcomes-tracking table exists
- * (see the TODO in report-quality-gate.ts / sufficiency.server.ts), these
- * weights should be re-derived from it rather than left as hand-picked
- * constants indefinitely.
- */
-function computeCredibilityRisk(w: {
-  reliability?: number | null;
-  bias?: number | null;
-  consistency?: number | null;
-  corroboration?: number | null;
-  observation_opportunity?: number | null;
-}): { risk: number; breakdown: string } {
-  const reliability = clamp0to100(w.reliability);
-  const bias = clamp0to100(w.bias);
-  const consistency = clamp0to100(w.consistency);
-  const corroboration = clamp0to100(w.corroboration);
-  const observationOpportunity = clamp0to100(w.observation_opportunity);
-
-  const contributions = {
-    reliability: (100 - reliability) * CREDIBILITY_RISK_WEIGHTS.reliability,
-    bias: bias * CREDIBILITY_RISK_WEIGHTS.bias,
-    consistency: (100 - consistency) * CREDIBILITY_RISK_WEIGHTS.consistency,
-    corroboration: (100 - corroboration) * CREDIBILITY_RISK_WEIGHTS.corroboration,
-    observationOpportunity: (100 - observationOpportunity) * CREDIBILITY_RISK_WEIGHTS.observationOpportunity,
-  };
-  const risk = Math.round(
-    contributions.reliability +
-      contributions.bias +
-      contributions.consistency +
-      contributions.corroboration +
-      contributions.observationOpportunity,
-  );
-
-  // Name the top 1-2 drivers so the composite reads as an explanation, not
-  // just a number — this is what closes the "opaque score" gap.
-  const ranked = Object.entries(contributions).sort((a, b) => b[1] - a[1]);
-  const topDrivers = ranked
-    .slice(0, 2)
-    .filter(([, v]) => v > 5)
-    .map(([k]) => k.replace(/([A-Z])/g, " $1").toLowerCase())
-    .join(" and ");
-  const breakdown = topDrivers
-    ? `Computed from reliability=${reliability}, bias=${bias}, consistency=${consistency}, corroboration=${corroboration}, observation_opportunity=${observationOpportunity} (weights: reliability 30%, bias 25%, consistency 20%, corroboration 15%, observation opportunity 10%). Largest driver(s): ${topDrivers}.`
-    : `Computed from reliability=${reliability}, bias=${bias}, consistency=${consistency}, corroboration=${corroboration}, observation_opportunity=${observationOpportunity} (weights: reliability 30%, bias 25%, consistency 20%, corroboration 15%, observation opportunity 10%). No single dimension dominates.`;
-
-  return { risk: Math.max(0, Math.min(100, risk)), breakdown };
-}
+// Credibility scoring is role-aware and lives in ./mx-witness-roles.ts:
+// the Mexican procedural role of the declarant (perito, policía primer
+// respondiente, autoridad responsable, víctima, Ministerio Público, patrón…)
+// determines the weighting of the five dimensions and the structural bias
+// floor the law itself presumes. See computeRoleAwareCredibility.
 
 function clamp0to100(n: number | null | undefined): number {
   if (typeof n !== "number" || Number.isNaN(n)) return 50; // neutral default when the model omits a score
@@ -835,6 +768,7 @@ export async function runWitnessEngine(args: {
       mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
       "You profile every witness in a case. ONLY include witnesses whose names appear verbatim in the corpus. " +
       "For each, score reliability, bias, consistency, corroboration, opportunity to observe, and credibility risk. " +
+      "State the declarant's MEXICAN procedural role in `role` using Mexican terminology (víctima u ofendido, testigo, perito, policía primer respondiente, Ministerio Público, imputado, quejoso, autoridad responsable, tercero interesado, servidor público, autoridad fiscal, actor, demandado, trabajador, patrón). Never use United States roles such as plaintiff, defendant in a civil sense, prosecutor or deponent. " +
       "Every witness MUST include at least one verbatim quote (from the corpus) showing their testimony. " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
       "Output STRICT JSON only.",
@@ -974,7 +908,7 @@ ${ctx.corpus}`,
         corroboration: w.corroboration ?? null,
         observation_opportunity: w.observation_opportunity ?? null,
         // Canonical value is now the deterministic composite, not the raw
-        // LLM guess — see computeCredibilityRisk above.
+        // LLM guess — see computeRoleAwareCredibility above.
         credibility_risk: computedRisk[i].risk,
         cross_exam_questions: (w.cross_exam_questions ?? []) as J,
         impeachment_questions: (w.impeachment_questions ?? []) as J,
