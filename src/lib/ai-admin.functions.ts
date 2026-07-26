@@ -17,9 +17,15 @@ async function assertAdmin(context: { userId: string }) {
   if (!data) throw new Error("Admin access required");
 }
 
-const PROVIDER_TYPES: ProviderType[] = ["groq"];
+const PROVIDER_TYPES: ProviderType[] = ["groq", "gemini", "openai", "openrouter", "anthropic", "ollama", "lmstudio"];
 const TASKS: AITask[] = ["extraction", "analysis", "reasoning", "report", "chat"];
-const SUPPORTED_SECRETS = ["GROQ_API_KEY"] as const;
+const SUPPORTED_SECRETS = [
+  "GROQ_API_KEY",
+  "GEMINI_API_KEY",
+  "OPENAI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "ANTHROPIC_API_KEY",
+] as const;
 type AiProviderInsert = Database["public"]["Tables"]["ai_providers"]["Insert"];
 
 function encryptApiKey(value: string): string {
@@ -44,7 +50,6 @@ export const listAiProviders = createServerFn({ method: "GET" })
       .select(
         "id,provider_type,display_name,enabled,priority,base_url,default_model,secret_name,last_ok_at,last_error_at,last_error,api_key_encrypted",
       )
-      .eq("provider_type", "groq")
       .order("priority", { ascending: true });
     if (error) throw new Error(error.message);
     return (data ?? []).map(({ api_key_encrypted, ...row }: any) => ({
@@ -71,7 +76,6 @@ export const upsertAiProvider = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => UpsertSchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    if (data.provider_type !== "groq") throw new Error("Groq-only mode: only Groq providers can be managed.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const row: AiProviderInsert = {
       provider_type: data.provider_type,
@@ -188,7 +192,6 @@ export const testAiProvider = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .single();
     if (error || !row) throw new Error(error?.message ?? "Provider not found");
-    if (row.provider_type !== "groq") throw new Error("Groq-only mode: non-Groq providers are disabled.");
 
     const { resolveProviderKeys, maskKey } = await import("./ai-key-router.server");
     const { makeOpenAICompatible } = await import("./ai/providers/openai-compatible");
@@ -199,7 +202,7 @@ export const testAiProvider = createServerFn({ method: "POST" })
     const { keys, userKeyCount, hasPlatform } = await resolveProviderKeys(
       supabaseAdmin as never,
       context.userId,
-      "groq",
+      row.provider_type as never,
     );
 
     type PerKey = {
@@ -222,7 +225,7 @@ export const testAiProvider = createServerFn({ method: "POST" })
       if (seen.has(k)) return;
       seen.add(k);
       const provider = makeOpenAICompatible(
-        { type: "groq", apiKey: k, baseUrl: row?.base_url ?? null, defaultModel: row?.default_model ?? null },
+        { type: row.provider_type as ProviderType, apiKey: k, baseUrl: row?.base_url ?? null, defaultModel: row?.default_model ?? null },
         { requiresKey: true },
       );
       const r = await provider.testConnection();
@@ -355,7 +358,6 @@ export const getAiProviderHealth = createServerFn({ method: "GET" })
     const { data: usage } = await supabaseAdmin
       .from("ai_usage")
       .select("provider_type,model,total_tokens,input_tokens,output_tokens,latency_ms,success,created_at")
-      .eq("provider_type", "groq")
       .gte("created_at", since)
       .limit(2000);
     const { PRICING } = await import("./ai/pricing");
