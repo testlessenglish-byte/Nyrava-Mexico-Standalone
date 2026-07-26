@@ -67,3 +67,21 @@ export const getPipelineTrace = createServerFn({ method: "POST" })
       maxId: list.length ? list[list.length - 1].id : (data.sinceId ?? 0),
     };
   });
+
+/** Client-side shape returned by `getPipelineTrace` (detail is JSON text). */
+export type PipelineTraceEntry = {
+  id: number;
+  case_id: string;
+  correlation_id: string | null;
+  phase: string;
+  step: string;
+  status: string;
+  level: string;
+  provider: string | null;
+  model: string | null;
+  attempt: number | null;
+  duration_ms: number | null;
+  detail: string | null;
+  error: string | null;
+  created_at: string;
+};
