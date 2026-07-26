@@ -15,7 +15,13 @@ export const Route = createFileRoute("/_authenticated/admin/ai-providers")({
 });
 
 const PROVIDER_TYPES = [
-  { value: "groq",       label: "Groq",        defaultUrl: "https://api.groq.com/openai/v1",       defaultModel: "openai/gpt-oss-120b",       secret: "GROQ_API_KEY" },
+  { value: "groq",       label: "Groq",        defaultUrl: "https://api.groq.com/openai/v1",        defaultModel: "llama-3.3-70b-versatile", secret: "GROQ_API_KEY" },
+  { value: "gemini",     label: "Google Gemini", defaultUrl: "",                                    defaultModel: "gemini-2.0-flash",        secret: "GEMINI_API_KEY" },
+  { value: "openrouter", label: "OpenRouter",  defaultUrl: "https://openrouter.ai/api/v1",          defaultModel: "deepseek/deepseek-chat-v3:free", secret: "OPENROUTER_API_KEY" },
+  { value: "openai",     label: "OpenAI",      defaultUrl: "https://api.openai.com/v1",             defaultModel: "gpt-4o-mini",             secret: "OPENAI_API_KEY" },
+  { value: "anthropic",  label: "Anthropic",   defaultUrl: "",                                      defaultModel: "claude-3-5-sonnet-latest", secret: "ANTHROPIC_API_KEY" },
+  { value: "ollama",     label: "Ollama (local)",   defaultUrl: "http://localhost:11434/v1",        defaultModel: "llama3.1",                secret: "" },
+  { value: "lmstudio",   label: "LM Studio (local)", defaultUrl: "http://localhost:1234/v1",        defaultModel: "local-model",             secret: "" },
 ] as const;
 
 const TASKS = [
@@ -63,7 +69,10 @@ function AIProvidersPage() {
         <h1 className="text-2xl font-semibold md:text-3xl">AI Provider Management</h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Manage Groq providers and run probes. Non-Groq fallback is disabled.
+        Platform-level provider fallback chain, task routing, and credential probes across every
+        supported provider (Groq, Gemini, OpenRouter, OpenAI, Anthropic, local). Personal keys live
+        on the Intelligence Providers page; this page controls the shared chain used when a run has
+        no personal key for a provider.
       </p>
 
       <SecretsPanel status={secretsQ.data ?? {}} onChanged={refresh} />
@@ -77,7 +86,7 @@ function AIProvidersPage() {
 // ---------------- Secrets ----------------
 
 function SecretsPanel({ status, onChanged }: { status: Record<string, boolean>; onChanged: () => void }) {
-  const names = ["GROQ_API_KEY"];
+  const names = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"];
   return (
     <Section title="API Keys" icon={KeyRound}>
       <div className="rounded-xl border border-border bg-card">
@@ -432,7 +441,11 @@ function TaskRoutingPanel({ providers, routes, onChanged }: { providers: Provide
                   className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                 >
                   <option value="">Auto (priority order)</option>
-                  {providers.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)}
+                  {providers.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.display_name} ({p.provider_type}){p.enabled ? "" : " — disabled"}
+                    </option>
+                  ))}
                 </select>
                 <input
                   placeholder="Model override (optional)"
