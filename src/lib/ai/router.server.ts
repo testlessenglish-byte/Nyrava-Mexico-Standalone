@@ -652,30 +652,6 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       });
       continue;
     }
-    // Mid-loop cooldown guard: only applies to Groq (its org-wide TPM/TPD
-    // pattern). Other providers have per-key limits, not per-org.
-    if (i > 0 && row.provider_type === "groq") {
-      const cd = getGroqModelCooldownUntil(opts.model);
-      if (cd) {
-        console.warn(
-          `[router.key] skipping remaining Groq key(s) — cooldown active for ${Math.max(0, cd - Date.now())}ms`,
-        );
-        traceAsync({
-          phase: "ai",
-          step: "router.provider_skipped",
-          status: "warn",
-          provider: "groq",
-          model: opts.model ?? null,
-          detail: { reason: "cooldown_active", cooldown_ms: Math.max(0, cd - Date.now()) },
-        });
-        while (i < chain.length && chain[i].provider_type === "groq") i++;
-        if (i >= chain.length) break;
-        // fall through to try chain[i], which is now a non-Groq provider
-        i--; // compensate for the loop's own i++
-        continue;
-      }
-    }
-
     const provider: AIProvider = buildProvider(row, row.runtimeApiKey);
     const maskedKey = row.runtimeApiKey
       ? `${row.runtimeApiKey.slice(0, 4)}…${row.runtimeApiKey.slice(-4)}`
