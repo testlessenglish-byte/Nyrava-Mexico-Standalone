@@ -1705,6 +1705,61 @@ function buildMissingDocumentChecklist(data: CaseExportData): { checklistText: s
   };
 }
 
+function jurisdictionIntelRows(data: CaseExportData): Array<[string, string]> {
+  const c = asObj(data.case);
+  const jp = asObj(c.jurisdiction_profile);
+  const pc = asObj(c.procedural_compliance);
+  const stageMap = asObj(pc.stage_map);
+  const current = asObj(stageMap.current);
+  const notDetermined = () => rt("Not determined");
+
+  const country = asStr(jp.country) || "MX";
+  const state = asStr(asObj(jp.state).name) || notDetermined();
+  const materia = asStr(jp.materia) || asStr(c.case_type) || notDetermined();
+  const procedure = asStr(jp.fuero) || notDetermined();
+  const courts = asArr(jp.courts as unknown as Array<Record<string, unknown>>);
+  const court =
+    (Array.isArray(jp.courts) && (jp.courts as unknown[]).length > 0
+      ? String((jp.courts as unknown[])[0])
+      : "") || notDetermined();
+  const substantive = Array.isArray(jp.substantive_codes) ? (jp.substantive_codes as unknown[]) : [];
+  const procedural = Array.isArray(jp.procedural_codes) ? (jp.procedural_codes as unknown[]) : [];
+  const applicableLaw = [...substantive, ...procedural].map(String).filter(Boolean).join("; ") || notDetermined();
+  const constitutional = Array.isArray(jp.constitutional_basis) ? (jp.constitutional_basis as unknown[]) : [];
+  const jurisprudence = constitutional.map(String).filter(Boolean).join("; ") || notDetermined();
+  const currentStage = asStr(current.label_es) || asStr(stageMap.next && asObj(stageMap.next).label_es) || notDetermined();
+  void courts;
+
+  return [
+    [rt("Country"), country],
+    [rt("State"), state],
+    [rt("Procedure"), procedure],
+    [rt("Legal Area"), materia],
+    [rt("Governing Court"), court],
+    [rt("Applicable Law"), applicableLaw],
+    [rt("Relevant Jurisprudence"), jurisprudence],
+    [rt("Current Procedural Stage"), currentStage],
+  ];
+}
+
+function renderJurisdictionIntelligence(b: PdfBuilder, data: CaseExportData) {
+  b.h1("Jurisdiction Intelligence");
+  b.table([[rt("Category"), rt("Description")]], jurisdictionIntelRows(data));
+}
+
+function jurisdictionIntelDocxParas(data: CaseExportData): Paragraph[] {
+  const rows = jurisdictionIntelRows(data);
+  const out: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Jurisdiction Intelligence")] }),
+  ];
+  for (const [label, value] of rows) {
+    out.push(
+      new Paragraph({ children: [new TextRun({ text: `${label}: `, bold: true }), new TextRun(value)] }),
+    );
+  }
+  return out;
+}
+
 function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) {
   const r = asObj(data.report);
   b.h1("Executive Summary");
@@ -3826,6 +3881,14 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
 
   const sections: SectionPlan[] = [
     {
+      id: "jurisdiction_intel",
+      title: "Jurisdiction Intelligence",
+      gatedInLimited: false,
+      available: () => true,
+      renderPdf: (b, d) => renderJurisdictionIntelligence(b, d),
+      renderDocx: (d) => jurisdictionIntelDocxParas(d),
+    },
+    {
       id: "exec",
       title: "Executive Summary",
       gatedInLimited: false,
@@ -4133,6 +4196,14 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       renderDocx: () => [],
     },
     {
+      id: "priority_action_center",
+      title: "Action Center — Priority Recommendations",
+      gatedInLimited: true,
+      available: (d) => priorityActionRows(d).length > 0,
+      renderPdf: (b, d) => renderPriorityActionCenter(b, d),
+      renderDocx: (d) => priorityActionCenterDocxParas(d),
+    },
+    {
       id: "evidence_sources",
       title: "Evidence Sources",
       gatedInLimited: false,
@@ -4155,6 +4226,62 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
   ];
   return sections;
+}
+
+function priorityActionRows(data: CaseExportData): Array<[string, string, string, string, string, string]> {
+  const r = asObj(data.report);
+  const full = asObj(r.full_report);
+  const c = asObj(data.case);
+  const pc = asObj(c.procedural_compliance);
+  const deadlines = asArr(pc.deadlines as unknown as Array<Record<string, unknown>>);
+  const notDetermined = () => rt("Not determined");
+
+  const findAuthority = (title: string): string => {
+    const hit = deadlines.find((d) => asStr(d.label_es).length > 0 && title.toLowerCase().includes(asStr(d.label_es).toLowerCase()));
+    return hit ? asStr(hit.authority) : notDetermined();
+  };
+
+  const canonicalRecs = asArr(full.canonical_recommendations);
+  const rows: Array<[string, string, string, string, string, string]> = canonicalRecs.map((rec, i) => {
+    const priority = asStr(rec.priority, "medium");
+    const title = asStr(rec.title) || notDetermined();
+    const reason = asStr(rec.reason) || notDetermined();
+    const authority = findAuthority(title);
+    const urgency = priority === "critical" || priority === "high" ? rt("High") : rt("Medium");
+    const impact = asStr(rec.expectedImpact) || notDetermined();
+    return [String(i + 1), rt(priority), title, reason, authority, `${urgency} — ${impact}`];
+  });
+  return rows;
+}
+
+function renderPriorityActionCenter(b: PdfBuilder, data: CaseExportData) {
+  const rows = priorityActionRows(data);
+  if (!rows.length) return;
+  b.h1("Action Center — Priority Recommendations");
+  b.table(
+    [[rt("Priority"), rt("Recommendation"), rt("Reason"), rt("Legal Basis / Authority"), rt("Urgency"), rt("Expected impact")]],
+    rows.map((row) => [row[1], row[2], row[3], row[4], row[5].split(" — ")[0], row[5].split(" — ")[1] ?? row[5]]),
+  );
+}
+
+function priorityActionCenterDocxParas(data: CaseExportData): Paragraph[] {
+  const rows = priorityActionRows(data);
+  if (!rows.length) return [];
+  const out: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Action Center — Priority Recommendations")] }),
+  ];
+  for (const row of rows) {
+    out.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: `${row[1]} — `, bold: true }),
+          new TextRun(row[2]),
+          new TextRun(` (${row[3]})`),
+        ],
+      }),
+    );
+  }
+  return out;
 }
 
 function renderSuppressedSection(b: PdfBuilder, title: string) {
