@@ -20,6 +20,7 @@ import { runEngine, type EngineName, type EngineResult, type EngineStats } from 
 import { withTelemetryScope, summarizeScope } from "../ai/telemetry.server";
 import { snapshotCorpus } from "./corpus-snapshot.server";
 import { engineVersion } from "./engine-fingerprint";
+import { trace, traceAsync } from "../pipeline-trace.server";
 
 
 type Db = SupabaseClient<Database>;
@@ -134,6 +135,16 @@ export async function runVerifiedEngine<T>(
   return runEngine<T>(db, args, async () => {
     const runId = `${args.engine}-${args.caseId}-${Date.now().toString(36)}`;
     const engVer = engineVersion(args.engine as string);
+    const engineStartedAt = Date.now();
+    traceAsync({
+      phase: "engine",
+      step: `${args.engine}.start`,
+      status: "start",
+      detail: { run_id: runId, engine_version: engVer },
+      db,
+      caseId: args.caseId,
+      userId: args.userId,
+    });
     // Open a telemetry scope so every routeAI call inside `fn` is captured.
     const { value: raw, scope } = await withTelemetryScope(
       {
@@ -213,8 +224,43 @@ export async function runVerifiedEngine<T>(
       replay: scope.replay,
     };
 
+    await trace({
+      phase: "engine",
+      step: `${args.engine}.model_calls`,
+      status: telemetry.failedCalls > 0 ? "warn" : "ok",
+      provider: telemetry.provider ?? null,
+      model: telemetry.model ?? null,
+      durationMs: telemetry.totalLatencyMs || null,
+      detail: {
+        total_calls: telemetry.totalCalls,
+        success_calls: telemetry.successCalls,
+        failed_calls: telemetry.failedCalls,
+        tokens_in: telemetry.tokensIn,
+        tokens_out: telemetry.tokensOut,
+        retry_count: telemetry.retryCount,
+        retry_reasons: telemetry.retryReasons,
+        response_valid_json: telemetry.responseValidJson,
+        schema_validation_passed: telemetry.schemaValidationPassed,
+        repair_attempts: telemetry.repairAttempts,
+        errors: telemetry.errors?.slice(0, 3) ?? [],
+      },
+      db,
+      caseId: args.caseId,
+      userId: args.userId,
+    });
+
     const expectations = spec(value);
     if (expectations.length === 0) {
+      traceAsync({
+        phase: "engine",
+        step: `${args.engine}.complete`,
+        status: "ok",
+        durationMs: Date.now() - engineStartedAt,
+        detail: { persistence: "no table writes declared", rows_written: priorStats.rows_written ?? 0 },
+        db,
+        caseId: args.caseId,
+        userId: args.userId,
+      });
       const stats: EngineStats = {
         ...priorStats,
         ...telemetryStats,
@@ -230,6 +276,16 @@ export async function runVerifiedEngine<T>(
     }
 
     const report = await verifyPersistence(db, { caseId: args.caseId, expectations });
+    await trace({
+      phase: "db",
+      step: `${args.engine}.persistence_verified`,
+      status: report.ok ? "ok" : "error",
+      error: report.ok ? null : (report.error ?? "verification failed"),
+      detail: { rows_written: report.rows_written, tables: report.tables },
+      db,
+      caseId: args.caseId,
+      userId: args.userId,
+    });
     if (!report.ok) {
       const err = new Error(
         `Persistence verification failed for ${args.engine}: ${report.error}`,
@@ -239,6 +295,16 @@ export async function runVerifiedEngine<T>(
       throw err;
     }
 
+    traceAsync({
+      phase: "engine",
+      step: `${args.engine}.complete`,
+      status: "ok",
+      durationMs: Date.now() - engineStartedAt,
+      detail: { rows_written: report.rows_written },
+      db,
+      caseId: args.caseId,
+      userId: args.userId,
+    });
     const stats: EngineStats = {
       ...priorStats,
       ...telemetryStats,
