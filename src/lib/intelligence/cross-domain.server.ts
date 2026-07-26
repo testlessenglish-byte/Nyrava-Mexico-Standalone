@@ -13,7 +13,7 @@
 // functions of the inputs — same inputs always produce the same activations.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { normalizePracticeArea, type PracticeArea } from "./practice-areas";
+import { normalizePracticeArea, resolvePracticeAreaOrNull, type PracticeArea } from "./practice-areas";
 
 type Db = SupabaseClient<Database>;
 
@@ -27,42 +27,35 @@ export type DomainActivation = {
   evidence_finding_ids: string[];
 };
 
-/** Practice areas that are EXPLICITLY civil — a charging doc should not
- * override into criminal for these (e.g., a PI case with a criminal exhibit
- * for background context does NOT need constitutional/chain-of-custody
- * agents). `general_civil` is intentionally NOT here: it's the ambiguous
- * default and a charging doc there strongly implies criminal/hybrid work.
+/** Materias that are unequivocally non-penal: a penal document attached as
+ * background (e.g. una carpeta de investigación ofrecida como prueba en un
+ * juicio familiar o laboral) must NOT unlock the penal track for them.
  *
- * `tax_law` is ALSO intentionally NOT here. A tax case starts civil (audit,
- * deficiency notice, Tax Court petition) but the same case_type covers
- * criminal tax fraud prosecutions (26 U.S.C. §§ 7201, 7206). Leaving tax_law
- * out of this set means the charging-doc trigger below does its job
- * automatically: the moment an indictment, criminal information, or arrest/
- * search warrant appears in the corpus, the case gets full criminal
- * treatment (Miranda, chain of custody, constitutional_compliance,
- * conviction/acquittal jury metrics) with no manual reclassification. */
-const EXPLICITLY_CIVIL: ReadonlySet<PracticeArea> = new Set([
-  "personal_injury",
-  "medical_malpractice",
-  "employment",
-  "family",
-  "corporate",
-  "commercial",
+ * `fiscal` is deliberately NOT in this set. Un asunto fiscal nace en la vía
+ * administrativa (facultades de comprobación, recurso de revocación, juicio
+ * de nulidad) pero la misma materia cubre la defraudación fiscal (Arts. 108
+ * y 109 CFF). Dejar `fiscal` fuera permite que el disparador de documentos
+ * de imputación haga su trabajo: en cuanto aparece una carpeta de
+ * investigación o un auto de vinculación a proceso, el caso recibe el
+ * tratamiento penal completo (cadena de custodia, debido proceso, control
+ * constitucional) sin reclasificación manual. */
+const EXPLICITLY_NON_PENAL: ReadonlySet<PracticeArea> = new Set([
+  "civil",
+  "familiar",
+  "laboral",
+  "mercantil",
+  "administrativo",
+  "agrario",
+  "electoral",
 ]);
 
-/** Filename patterns that reliably identify a criminal charging document.
- * NOTE: "complaint" and "information" must NEVER appear bare in this list.
- * Every civil lawsuit is initiated by a document literally called "the
- * Complaint" — interrogatories, RFPs, and motions constantly reference "the
- * Complaint filed by Plaintiff" as routine civil boilerplate. A bare
- * `complaint` alternative here previously matched that boilerplate and
- * mis-triggered the criminal domain on ordinary civil cases. Same issue for
- * bare `information`, which is just a common English word. Both must be
- * qualified with `criminal` so they only match the actual legal terms of
- * art ("criminal complaint", "criminal information" — the charging
- * instrument used in states without grand jury indictment). */
+/** Patrones que identifican de manera confiable un documento de imputación
+ * penal mexicano (CNPP). NOTA: "denuncia" y "querella" NO aparecen solas,
+ * porque cualquier escrito civil o laboral puede mencionarlas como
+ * antecedente; sólo cuentan cuando van acompañadas de la actuación
+ * ministerial o jurisdiccional correspondiente. */
 const CHARGING_DOC_RE =
-  /\b(indictment|criminal[\s_-]?information|search[\s_-]?warrant|arrest[\s_-]?warrant|criminal[\s_-]?complaint|grand[\s_-]?jury)\b/i;
+  /(carpeta[\s_-]?de[\s_-]?investigaci[oó]n|formulaci[oó]n[\s_-]?de[\s_-]?imputaci[oó]n|auto[\s_-]?de[\s_-]?vinculaci[oó]n[\s_-]?a[\s_-]?proceso|orden[\s_-]?de[\s_-]?aprehensi[oó]n|orden[\s_-]?de[\s_-]?cateo|acusaci[oó]n[\s_-]?del[\s_-]?ministerio[\s_-]?p[uú]blico|auto[\s_-]?de[\s_-]?apertura[\s_-]?a[\s_-]?juicio[\s_-]?oral|informe[\s_-]?policial[\s_-]?homologado)/i;
 
 function isChargingDoc(filename: string, extractedText: string | null | undefined): boolean {
   if (CHARGING_DOC_RE.test(filename)) return true;
@@ -72,9 +65,12 @@ function isChargingDoc(filename: string, extractedText: string | null | undefine
 
 /** Formally supported hybrid case types. */
 const HYBRID_TYPES: Record<string, PracticeArea[]> = {
-  criminal_civil_rights: ["criminal", "civil_rights"],
-  "criminal+civil_rights": ["criminal", "civil_rights"],
-  employment_civil_rights: ["employment", "civil_rights"],
+  penal_constitucional: ["penal", "constitucional"],
+  "penal+constitucional": ["penal", "constitucional"],
+  penal_amparo: ["penal", "amparo"],
+  laboral_amparo: ["laboral", "amparo"],
+  administrativo_amparo: ["administrativo", "amparo"],
+  fiscal_penal: ["fiscal", "penal"],
 };
 
 /** Evidence-trigger rules — deterministic, threshold-based. */
@@ -90,25 +86,26 @@ type EvidenceTrigger = {
 
 const EVIDENCE_TRIGGERS: EvidenceTrigger[] = [
   {
-    id: "civil_rights_in_criminal",
-    unlocks: "civil_rights",
-    modulePrefixes: ["section_1983", "qualified_immunity", "excessive_force", "monell"],
+    id: "constitucional_en_penal",
+    unlocks: "constitucional",
+    modulePrefixes: ["debido_proceso", "defensa_adecuada", "presuncion_de_inocencia", "derechos_humanos", "tortura"],
     minFindings: 2,
-    reason: "Multiple verified findings establish a parallel § 1983 / civil-rights theory.",
+    reason:
+      "Hallazgos verificados acreditan una posible violación a derechos fundamentales que exige análisis de control constitucional.",
   },
   {
-    id: "employment_in_civil_rights",
-    unlocks: "employment",
-    modulePrefixes: ["eeoc", "title_vii", "wrongful_termination", "discrimination"],
+    id: "amparo_en_ordinario",
+    unlocks: "amparo",
+    modulePrefixes: ["acto_de_autoridad", "suspension", "acto_reclamado", "violacion_procesal"],
     minFindings: 2,
-    reason: "Verified employment-claim findings warrant employment-law analysis.",
+    reason: "Hallazgos verificados identifican un acto de autoridad impugnable por la vía del juicio de amparo.",
   },
   {
-    id: "personal_injury_in_civil",
-    unlocks: "personal_injury",
-    modulePrefixes: ["bodily_injury", "medical_treatment", "lost_wages"],
+    id: "laboral_en_civil",
+    unlocks: "laboral",
+    modulePrefixes: ["relacion_laboral", "despido", "salario", "jornada", "imss"],
     minFindings: 2,
-    reason: "Verified injury-related findings warrant personal-injury analysis.",
+    reason: "Hallazgos verificados sobre una relación de trabajo justifican el análisis en materia laboral.",
   },
 ];
 
@@ -166,18 +163,18 @@ export function deriveActivations(args: {
   //    charging document AND the base area is NOT explicitly civil. Guard
   //    against the false positive of a civil case (PI / employment / family
   //    / malpractice) that merely attaches a criminal document as background.
-  if (!seen.has("criminal") && !EXPLICITLY_CIVIL.has(base) && args.documents?.length) {
+  if (!seen.has("penal") && !EXPLICITLY_NON_PENAL.has(base) && args.documents?.length) {
     const chargingDocs = args.documents.filter((d) => isChargingDoc(d.filename ?? "", d.extracted_text));
     if (chargingDocs.length > 0) {
-      seen.add("criminal");
+      seen.add("penal");
       out.push({
-        domain: "criminal",
+        domain: "penal",
         source: "charging_docs",
         trigger_id: "charging_doc_present",
         reason: `Charging document(s) detected (${chargingDocs
           .slice(0, 3)
           .map((d) => d.filename)
-          .join(", ")}${chargingDocs.length > 3 ? ", …" : ""}); unlocking criminal-law agents.`,
+          .join(", ")}${chargingDocs.length > 3 ? ", …" : ""}); se habilitan los motores de materia penal.`,
         evidence_finding_ids: chargingDocs.slice(0, 10).map((d) => d.id),
       });
     }
@@ -214,7 +211,12 @@ export async function resolveActivations(
     .eq("id", caseId)
     .maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ct = String((caseRow as any)?.case_type ?? "general_civil");
+  // No silent default: si la materia no está resuelta todavía, no se derivan
+  // activaciones (el runner la determina con mx-auto-detect antes de ejecutar).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const resolvedCt = resolvePracticeAreaOrNull((caseRow as any)?.case_type);
+  if (!resolvedCt) return { activeDomains: new Set<string>(), activations: [] };
+  const ct = resolvedCt;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const additional = Array.isArray((caseRow as any)?.additional_domains)
     ? ((caseRow as any).additional_domains as string[])
@@ -260,17 +262,17 @@ export async function resolveActivations(
 }
 
 /**
- * True if the case should receive criminal-track treatment (Miranda,
- * chain of custody, constitutional_compliance, conviction/acquittal jury
- * metrics) — either because its base case_type IS criminal/civil_rights,
- * or because "criminal" has been cross-domain-activated (e.g. a tax_law
- * case where a charging document was detected in the corpus).
+ * True if the case should receive penal-track treatment (cadena de custodia,
+ * debido proceso, control constitucional, métricas de vinculación a proceso)
+ * — either because its materia IS `penal`, or because `penal` was
+ * cross-domain-activated (e.g. un asunto fiscal en el que se detectó una
+ * carpeta de investigación en el corpus).
  */
 export function isCriminalEffective(caseType: string | undefined | null, activeDomains?: Iterable<string>): boolean {
-  const base = normalizePracticeArea(caseType);
-  if (base === "criminal" || base === "civil_rights") return true;
+  const base = resolvePracticeAreaOrNull(caseType);
+  if (base === "penal") return true;
   if (!activeDomains) return false;
-  for (const d of activeDomains) if (normalizePracticeArea(d) === "criminal") return true;
+  for (const d of activeDomains) if (resolvePracticeAreaOrNull(d) === "penal") return true;
   return false;
 }
 
@@ -284,9 +286,12 @@ export async function getActiveDomains(db: Db, caseId: string): Promise<Set<stri
     .eq("id", caseId)
     .maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const base = normalizePracticeArea((caseRow as any)?.case_type);
-  const out = new Set<string>([base]);
+  const base = resolvePracticeAreaOrNull((caseRow as any)?.case_type);
+  const out = new Set<string>(base ? [base] : []);
   const { data: rows } = await db.from("case_domain_activations").select("domain").eq("case_id", caseId);
-  for (const r of rows ?? []) out.add(normalizePracticeArea(r.domain));
+  for (const r of rows ?? []) {
+    const d = resolvePracticeAreaOrNull(r.domain);
+    if (d) out.add(d);
+  }
   return out;
 }

@@ -120,7 +120,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "amparo",
     label_es: "Juicio de Amparo",
     label_en: "Amparo Trial",
-    base_area: "constitucional",
+    base_area: "amparo",
     required_laws: ["CPEUM", "Ley de Amparo", "Jurisprudencia SCJN"],
     required_document_types: [
       "demanda de amparo",
@@ -301,7 +301,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "propiedad_intelectual",
     label_es: "Propiedad Intelectual",
     label_en: "Intellectual Property",
-    base_area: null,
+    base_area: "mercantil",
     required_laws: ["Ley Federal de Protección a la Propiedad Industrial", "Ley Federal del Derecho de Autor"],
     required_document_types: ["registro de marca IMPI", "certificado de derechos de autor INDAUTOR"],
     wave: "future",
