@@ -299,7 +299,7 @@ const ES: Record<string, string> = {
     "Producto de trabajo revisado por el abogado. Borrador generado por Nyrava Intelligence — verifique todas las citas antes de presentarlo.",
 
   // ---- Jurisdiction Intelligence block ----
-  "Legal Area": "Materia",
+  "Legal Basis": "Fundamento legal",
   "Legal Basis": "Fundamento legal",
   "Governing Court": "Órgano jurisdiccional",
 
