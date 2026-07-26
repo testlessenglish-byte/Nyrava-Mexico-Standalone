@@ -2669,7 +2669,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
       "You are a witness credibility investigator. Examine statements for consistency, motive, bias, and corroboration. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "chain_of_custody",
@@ -2678,7 +2678,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
       "You are a chain-of-custody investigator. Examine evidence handling for gaps, breaks, and documentation failures. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "item": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "item": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "constitutional_compliance",
@@ -2687,7 +2687,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
       "You are a constitutional rights investigator. Examine for 4th/5th/6th Amendment issues, Miranda, search/seizure, due process. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "right": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "right": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "procedural_violations",
@@ -2696,7 +2696,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
       "You are a procedural rules investigator. Examine for FRCP/FRCrP/local rule violations, deadline failures, service defects. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
 ];
 
