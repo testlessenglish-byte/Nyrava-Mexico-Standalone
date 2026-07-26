@@ -4,6 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
+import { withTraceScope, currentTraceScope, newCorrelationId, traceAsync } from "./pipeline-trace.server";
 import esLocale from "@/i18n/locales/es.json";
 import enLocale from "@/i18n/locales/en.json";
 
@@ -29,7 +30,17 @@ export async function runPipelineForCase(
   failedAt?: string;
 }> {
   const { withAIUser } = await import("@/lib/ai/user-scope.server");
-  return withAIUser(userId, () => _runPipelineForCase(supabase, userId, opts));
+  // Open the instrumentation scope for the WHOLE run so nested code (engines,
+  // the AI router, DB helpers) can emit trace rows without extra plumbing.
+  return withTraceScope(
+    {
+      db: supabase,
+      caseId: opts.caseId,
+      userId,
+      correlationId: newCorrelationId(opts.caseId),
+    },
+    () => withAIUser(userId, () => _runPipelineForCase(supabase, userId, opts)),
+  );
 }
 
 async function _runPipelineForCase(
@@ -48,7 +59,7 @@ async function _runPipelineForCase(
   // Structured instrumentation — every stage transition and case-status write
   // logs a single JSON line so the full automatic execution path can be
   // reconstructed from worker logs. correlationId ties every line together.
-  const correlationId = `run-${caseId}-${Date.now().toString(36)}`;
+  const correlationId = currentTraceScope()?.correlationId ?? newCorrelationId(caseId);
   const runStart = Date.now();
   const trace = (event: string, extra: Record<string, unknown> = {}) => {
     const payload = {
@@ -61,6 +72,29 @@ async function _runPipelineForCase(
       ...extra,
     };
     console.info(`[pipeline] ${JSON.stringify(payload)}`);
+    // Mirror every stage transition into pipeline_trace so the Live Debug
+    // panel shows the same timeline the worker log does.
+    const status = /failed|error/.test(event)
+      ? "error"
+      : /blocked|checkpoint|cancelled/.test(event)
+        ? "warn"
+        : /\.complete$/.test(event)
+          ? "ok"
+          : /\.start$/.test(event)
+            ? "start"
+            : "info";
+    traceAsync({
+      phase: event.startsWith("stage.") ? "stage" : "pipeline",
+      step: event,
+      status: status as "start" | "ok" | "warn" | "error" | "info",
+      durationMs: typeof extra.runtime_ms === "number" ? extra.runtime_ms : null,
+      error: typeof extra.error === "string" ? extra.error : null,
+      detail: { elapsed_ms: Date.now() - runStart, ...extra },
+      db: supabase,
+      caseId,
+      userId,
+      correlationId,
+    });
   };
 
   const updateCase = async (patch: Record<string, unknown>, source: string) => {
@@ -89,7 +123,20 @@ async function _runPipelineForCase(
       .from("cases")
       .update(withHeartbeat as any)
       .eq("id", caseId);
-    if (error) throw new Error(`case update failed at ${source}: ${error.message}`);
+    if (error) {
+      traceAsync({
+        phase: "db",
+        step: `update:cases`,
+        status: "error",
+        error: error.message,
+        detail: { source, patch: Object.keys(withHeartbeat), pg_code: error.code ?? null, pg_details: error.details ?? null },
+        db: supabase,
+        caseId,
+        userId,
+        correlationId,
+      });
+      throw new Error(`case update failed at ${source}: ${error.message}`);
+    }
     if (includesStatus) {
       trace("case.status.write", {
         source,
