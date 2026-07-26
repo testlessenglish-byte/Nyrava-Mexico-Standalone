@@ -644,25 +644,15 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       // used instead of forwarding an unknown model name.
       const baseProviderOpts =
         row.provider_type === "groq" ? opts : { ...opts, model: row.default_model ?? undefined };
-      // Retry-with-backoff for transient 5xx/network errors on Groq. For
-      // HTTP 429 we now attempt a single short retry that honors the
-      // provider's "Please try again in X.XXXs" hint (Groq surfaces this in
-      // the 429 body). If it still 429s we fall through to the outer
-      // cooldown/failover path so we don't spin. Quota/payment (402,
-      // insufficient credits) short-circuits — retrying can't fix a dry
-      // account.
+      // Retry-with-backoff only for transient transport/5xx failures. HTTP 429
+      // never retries in-place: the outer cooldown/failover path must mark the
+      // exact key/model unavailable immediately so a single logical AI call
+      // cannot hammer a fresh Gemini/Groq key repeatedly.
       let r: ChatResult | undefined;
       let lastErr: unknown;
       const RETRY_DELAYS_MS = [400, 900];
-      const RATE_LIMIT_RETRIES_MAX = 1;
-      const RATE_LIMIT_MAX_WAIT_MS = 5_000;
       let retryCount = 0;
-      let rateLimitRetries = 0;
       const retryReasons: string[] = [];
-      const parseRetryAfterMs = (em: string): number | null => {
-        const hinted = parseRetryHintMs(em);
-        return hinted == null ? null : Math.min(RATE_LIMIT_MAX_WAIT_MS, hinted);
-      };
       for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
         try {
           assertCheckpointBudget(`before AI call attempt ${attempt + 1}`);
@@ -690,25 +680,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
             ) &&
             !/HTTP 401|HTTP 403|invalid_api_key|unauthor/i.test(em);
 
-          // Only retry-in-place when the provider gave us a concrete
-          // "try again in X seconds" hint (Groq surfaces this on soft TPM
-          // throttles). Unhinted 429s fall straight through to the outer
-          // cooldown path — retrying an org-wide TPD quota would just
-          // burn latency.
-          const hinted = isRateLimit ? parseRetryAfterMs(em) : null;
-          if (isRateLimit && hinted != null && rateLimitRetries < RATE_LIMIT_RETRIES_MAX) {
-            const jitter = Math.floor(Math.random() * 400);
-            const wait = Math.max(500, hinted + jitter);
-            rateLimitRetries++;
-            retryCount++;
-            retryReasons.push(`429:hint=${hinted}ms wait=${wait}ms`);
-            assertCheckpointBudget(`before 429 backoff`, wait + 2_000);
-            console.warn(
-              `[router.key] 429 backoff attempt=${rateLimitRetries} wait=${wait}ms provider=${row.provider_type} ${keyLabel} hint=${hinted}`,
-            );
-            await new Promise((res) => setTimeout(res, wait));
-            continue;
-          }
+          if (isRateLimit) throw err;
 
           if (!isTransport || attempt >= RETRY_DELAYS_MS.length) throw err;
           retryCount++;
@@ -918,12 +890,14 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       fellBackFrom.push(row.provider_type);
       if (isPayment || isQuota) {
         const cooldownReason: CooldownReason = isPayment ? "payment" : isQuota ? "quota" : "rate_limit";
+        const retryAfterMs = (e as { retryAfterMs?: number })?.retryAfterMs ?? parseRetryHintMs(msg);
         const cd = markProviderCooldown({
           provider: row.provider_type,
           model: effectiveModel,
           key: cooldownIdentityFor(row),
           reason: cooldownReason,
           message: msg,
+          retryAfterMs,
         });
         traceAsync({
           phase: "ai",

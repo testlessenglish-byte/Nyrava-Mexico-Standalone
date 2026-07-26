@@ -4621,17 +4621,15 @@ ${corpus.slice(0, 55000)}`;
     10000,
   );
 
-  // --- STAGE 2: memo + intelligence run in parallel, referencing narrative
-  // Neither depends on the other, only on narrative's output, so they keep
-  // their existing concurrency relative to EACH OTHER — just not relative
-  // to narrative anymore.
+  // --- STAGE 2: memo + intelligence run sequentially, referencing narrative.
+  // These are LLM-heavy report chunks. Keeping them sequential prevents a
+  // single report from bursting multiple provider requests into a fresh/free
+  // Gemini key at the same instant.
   const canonicalContext = buildCanonicalReportContext(chunkParsedByName.narrative ?? null);
   const canonicalContextBlock = serializeCanonicalContextForPrompt(canonicalContext);
 
-  await Promise.all([
-    runChunk("memo", memoSysSuffix, memoShape, 10000, canonicalContextBlock),
-    runChunk("intelligence", intelSysSuffix, intelShape, 7000, canonicalContextBlock),
-  ]);
+  await runChunk("memo", memoSysSuffix, memoShape, 10000, canonicalContextBlock);
+  await runChunk("intelligence", intelSysSuffix, intelShape, 7000, canonicalContextBlock);
 
   // `r` drives downstream logic (parsed, fallback banner). Anchor on narrative
   // since prose is the visible surface; memo/intelligence merge in below.
@@ -4791,37 +4789,46 @@ ${buildUserContent(0.25).split("PAGINATION RULES:")[1] ? "PAGINATION RULES:" + b
 ${paginationTail}`;
     };
 
-    const proseCalls = groups.map((g) =>
-      callGroq({
-        apiKey,
-        apiKeys,
-        signal: ac.signal,
-        systemInstruction,
-        userContent: buildGroupPrompt(g.sections),
-        json: true,
-        temperature: 0.2,
-        maxTokens: 6000,
-      }).then((res) => ({ kind: "prose" as const, group: g, res })),
-    );
-    const memoCall = callGroq({
-      apiKey,
-      apiKeys,
-      signal: ac.signal,
-      systemInstruction,
-      userContent: buildMemoPrompt(),
-      json: true,
-      temperature: 0.2,
-      maxTokens: 8000,
-    }).then((res) => ({ kind: "memo" as const, res }));
-
-    const groupResults = await Promise.allSettled<
+    const groupResults: PromiseSettledResult<
       | {
           kind: "prose";
           group: { label: string; sections: string[] };
           res: Awaited<ReturnType<typeof callGroq>>;
         }
       | { kind: "memo"; res: Awaited<ReturnType<typeof callGroq>> }
-    >([...proseCalls, memoCall]);
+    >[] = [];
+    for (const g of groups) {
+      try {
+        const res = await callGroq({
+          apiKey,
+          apiKeys,
+          signal: ac.signal,
+          systemInstruction,
+          userContent: buildGroupPrompt(g.sections),
+          json: true,
+          temperature: 0.2,
+          maxTokens: 6000,
+        });
+        groupResults.push({ status: "fulfilled", value: { kind: "prose" as const, group: g, res } });
+      } catch (reason) {
+        groupResults.push({ status: "rejected", reason });
+      }
+    }
+    try {
+      const res = await callGroq({
+        apiKey,
+        apiKeys,
+        signal: ac.signal,
+        systemInstruction,
+        userContent: buildMemoPrompt(),
+        json: true,
+        temperature: 0.2,
+        maxTokens: 8000,
+      });
+      groupResults.push({ status: "fulfilled", value: { kind: "memo" as const, res } });
+    } catch (reason) {
+      groupResults.push({ status: "rejected", reason });
+    }
     for (const gr of groupResults) {
       if (gr.status !== "fulfilled") {
         const msg = gr.reason instanceof Error ? gr.reason.message : String(gr.reason);

@@ -1,12 +1,15 @@
 // Shared OpenAI-compatible provider used by Groq, OpenRouter, OpenAI, Ollama,
 // and LM Studio. Provider-specific tweaks (headers, default URL) are passed in.
 
+import { createHash } from "node:crypto";
 import {
   AIProvider, ChatOpts, ChatResult, ProviderConfig, ProviderConfigError,
   PROVIDER_DEFAULTS, PROVIDER_TIMEOUT_MS, withTimeout, buildOAIMessages,
 } from "./types";
 import { withCapabilities } from "./capabilities";
 import { aiCallTimeoutForCheckpoint, assertCheckpointBudget } from "../../pipeline-checkpoint.server";
+import { currentTelemetryScope } from "../telemetry.server";
+import { traceAsync } from "../../pipeline-trace.server";
 
 export interface OAICompatOpts {
   requiresKey: boolean;
@@ -28,6 +31,15 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
     });
   }
 
+  const retryAfterHeaderMs = (value: string | null): number | undefined => {
+    if (!value) return undefined;
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds * 1000);
+    const dateMs = Date.parse(value);
+    if (Number.isFinite(dateMs)) return Math.max(1000, dateMs - Date.now());
+    return undefined;
+  };
+
   async function rawCall(body: Record<string, unknown>, signal?: AbortSignal): Promise<ChatResult> {
     const model = String(body.model);
     const t0 = Date.now();
@@ -37,8 +49,19 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
     const timeoutMs = Math.max(1_000, Math.min(requestedTimeoutMs, PROVIDER_TIMEOUT_MS));
     delete body.__timeoutMs;
     const to = withTimeout(signal, timeoutMs);
+    const aiCallId = `${cfg.type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const promptSha256 = createHash("sha256").update(JSON.stringify(body)).digest("hex");
+    const engine = currentTelemetryScope()?.replay?.engine;
     let res: Response;
     try {
+      traceAsync({
+        phase: "ai",
+        step: "provider.request",
+        status: "start",
+        provider: cfg.type,
+        model,
+        detail: { ai_call_id: aiCallId, engine: typeof engine === "string" ? engine : null, prompt_sha256: promptSha256 },
+      });
       res = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -51,9 +74,20 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
       });
     } catch (e) {
       to.cancel();
-      throw new Error(to.timedOut()
+      const message = to.timedOut()
         ? `${cfg.type} timed out after ${timeoutMs}ms`
-        : (e instanceof Error ? e.message : String(e)));
+        : (e instanceof Error ? e.message : String(e));
+      traceAsync({
+        phase: "ai",
+        step: "provider.request",
+        status: "error",
+        provider: cfg.type,
+        model,
+        durationMs: Date.now() - t0,
+        error: message,
+        detail: { ai_call_id: aiCallId, engine: typeof engine === "string" ? engine : null, prompt_sha256: promptSha256 },
+      });
+      throw new Error(message);
     }
     to.cancel();
     assertCheckpointBudget(`after ${cfg.type} fetch ${model}`);
@@ -70,7 +104,27 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
     if (!res.ok) {
       const text = (await res.text().catch(() => "")).slice(0, 500);
       const err = new Error(`${cfg.type} HTTP ${res.status}: ${text}`);
-      (err as unknown as { providerRequestId?: string }).providerRequestId = providerRequestId ?? undefined;
+      (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).providerRequestId = providerRequestId ?? undefined;
+      (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).retryAfterMs = retryAfterHeaderMs(
+        res.headers.get("retry-after"),
+      );
+      traceAsync({
+        phase: "ai",
+        step: "provider.request",
+        status: "error",
+        provider: cfg.type,
+        model,
+        durationMs: latencyMs,
+        error: err.message,
+        detail: {
+          ai_call_id: aiCallId,
+          engine: typeof engine === "string" ? engine : null,
+          prompt_sha256: promptSha256,
+          http_status: res.status,
+          retry_after_ms: (err as unknown as { retryAfterMs?: number }).retryAfterMs ?? null,
+          provider_request_id: providerRequestId ?? null,
+        },
+      });
       throw err;
     }
     const json = await res.json() as {
@@ -83,6 +137,23 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
       const fr = json.choices?.[0]?.finish_reason ?? "no choices";
       throw new Error(`${cfg.type}: empty response (finish_reason=${fr}, model=${model})`);
     }
+    traceAsync({
+      phase: "ai",
+      step: "provider.request",
+      status: "ok",
+      provider: cfg.type,
+      model,
+      durationMs: latencyMs,
+      detail: {
+        ai_call_id: aiCallId,
+        engine: typeof engine === "string" ? engine : null,
+        prompt_sha256: promptSha256,
+        input_tokens: json.usage?.prompt_tokens ?? null,
+        output_tokens: json.usage?.completion_tokens ?? null,
+        total_tokens: json.usage?.total_tokens ?? null,
+        provider_request_id: providerRequestId ?? json.id ?? null,
+      },
+    });
     return {
       text,
       inputTokens: json.usage?.prompt_tokens,
