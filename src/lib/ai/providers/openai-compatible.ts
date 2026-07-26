@@ -105,7 +105,21 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
       if (o.timeoutMs) body.__timeoutMs = o.timeoutMs;
       if (o.maxTokens) body.max_tokens = Math.min(o.maxTokens, 8192);
       if (o.json) body.response_format = { type: "json_object" };
-      return rawCall(body, o.signal);
+      try {
+        return await rawCall(body, o.signal);
+      } catch (e) {
+        // OpenRouter retires `:free` slugs and answers 404 with the live slug
+        // to use instead ("use this slug instead: vendor/model"). A stale slug
+        // in the DB row would otherwise burn an attempt on every single AI
+        // call for the whole run — self-heal by retrying once with the slug
+        // the provider itself named.
+        const msg = e instanceof Error ? e.message : String(e);
+        const suggested = /HTTP 404/.test(msg)
+          ? msg.match(/use this slug instead:\s*([A-Za-z0-9._\-/:]+)/i)?.[1]
+          : undefined;
+        if (!suggested || suggested === body.model) throw e;
+        return rawCall({ ...body, model: suggested }, o.signal);
+      }
     },
     async testConnection() {
       const t0 = Date.now();
