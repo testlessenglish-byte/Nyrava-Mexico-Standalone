@@ -117,7 +117,7 @@ Devuelve SOLO JSON con esta forma exacta:
         { role: "system", content: "Devuelve ÚNICAMENTE JSON válido con la estructura solicitada. No incluyas explicaciones fuera del JSON." },
         { role: "user", content: userPrompt },
       ],
-      { temperature: 0.7 },
+      { ...aiOpts, temperature: 0.7 },
     );
 
     // Persist the matter under the caller's identity (RLS applies).
