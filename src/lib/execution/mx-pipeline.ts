@@ -18,8 +18,18 @@
 // =============================================================================
 
 import { CANONICAL_STAGES, type StageDef } from "./canonical";
+import {
+  normalizeMexicanCaseType,
+  requireMexicanCaseType,
+  type MexicanCaseType,
+} from "@/lib/jurisdiction/mexico";
 
-/** Mexican pipeline profiles, keyed by materia. */
+/**
+ * Mexican PROCEDURAL profiles. These are execution profiles (which procedural
+ * code and which audiencias govern the run), not a second case-type
+ * taxonomy — the only case-type vocabulary in the platform is
+ * `MexicanCaseType` (src/lib/jurisdiction/mexico-types.ts).
+ */
 export type MxPipelineProfile =
   | "penal"
   | "amparo"
@@ -35,35 +45,53 @@ export type MxPipelineProfile =
 export const MX_JURISDICTION = "MX" as const;
 
 /**
- * Practice area (cases.case_type) → pipeline profile.
- * Unknown/empty values fall back to `civil`, the broadest ordinary-litigation
- * profile.
+ * THE single materia → procedural-profile mapping. Every stage-relevance,
+ * label, party-role and skip-reason decision flows through it, so there is
+ * exactly one place where a materia's procedural framing is decided.
  */
-const PROFILE_BY_CASE_TYPE: Record<string, MxPipelineProfile> = {
-  criminal: "penal",
+const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
+  penal: "penal",
   amparo: "amparo",
-  civil_rights: "derechos_humanos",
-  employment: "laboral",
-  family: "familiar",
-  general_civil: "civil",
-  personal_injury: "civil",
-  medical_malpractice: "civil",
-  real_estate: "civil",
-  estate: "familiar",
-  commercial: "mercantil",
-  corporate: "mercantil",
-  ip: "mercantil",
-  securities: "mercantil",
-  banking: "mercantil",
-  fintech: "mercantil",
-  tax_law: "fiscal",
-  appellate: "apelacion",
+  constitucional: "derechos_humanos",
+  laboral: "laboral",
+  civil: "civil",
+  familiar: "familiar",
+  mercantil: "mercantil",
+  fiscal: "fiscal",
+  administrativo: "administrativo",
+  // Materias con procedimiento contencioso administrativo/especial: se
+  // ejecutan con el perfil administrativo (juicio de nulidad, agravios).
+  electoral: "administrativo",
+  agrario: "civil",
 };
 
-export function resolveMxProfile(caseType: string | null | undefined): MxPipelineProfile {
-  if (!caseType) return "civil";
-  return PROFILE_BY_CASE_TYPE[caseType] ?? "civil";
+/**
+ * Strict resolution for execution paths: an unrecognized materia is a routing
+ * error, never a silent fallback to `civil`.
+ */
+export function requireMxProfile(caseType: unknown): MxPipelineProfile {
+  return PROFILE_BY_MATERIA[requireMexicanCaseType(caseType, "requireMxProfile")];
 }
+
+/**
+ * Tolerant resolution for rendering/summarizing paths. Returns null when the
+ * case has no materia stamped yet (auto-detection runs before execution), so
+ * callers can degrade honestly instead of pretending the case is civil.
+ */
+export function mxProfileOrNull(caseType: unknown): MxPipelineProfile | null {
+  const materia = normalizeMexicanCaseType(caseType);
+  return materia ? PROFILE_BY_MATERIA[materia] : null;
+}
+
+/**
+ * Back-compat resolver used by procedural modules that require a profile to
+ * key their tables. Strict by design — call `mxProfileOrNull` when the input
+ * may legitimately be unset.
+ */
+export function resolveMxProfile(caseType: string | null | undefined): MxPipelineProfile {
+  return requireMxProfile(caseType);
+}
+
 
 /**
  * Stages that are NOT legally relevant per profile. Everything else in
