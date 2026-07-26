@@ -71,7 +71,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RunInput.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
 
     // Load job + doc.
     const { data: job, error: jobErr } = await supabase
