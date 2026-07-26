@@ -570,6 +570,9 @@ export const runFullIntelligenceStep = createServerFn({ method: "POST" })
   .inputValidator(stepInput)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "FullIntelligence");
+    const { claimPipelineLease } = await import("@/lib/pipeline-lease.server");
+    const claim = await claimPipelineLease(supabase, data.caseId);
+    if (!claim.claimed) return { ok: false, queued: false, ...claim };
     const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
     return runPipelineForCase(supabase, userId, { caseId: data.caseId });
   });
@@ -713,6 +716,9 @@ export const runFullPipelineStep = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "FullPipeline");
+    const { claimPipelineLease } = await import("@/lib/pipeline-lease.server");
+    const claim = await claimPipelineLease(supabase, data.caseId, { reset: data.reset });
+    if (!claim.claimed) return { ok: false, queued: false, ...claim };
     const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
     return await runPipelineForCase(supabase, userId, {
       caseId: data.caseId,
