@@ -165,6 +165,29 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["garantia del interes fiscal", "fianza", "embargo en via administrativa"],
     },
   ],
+  derechos_humanos: [
+    {
+      id: "queja_doc",
+      label_es: "Queja presentada ante la comisión de derechos humanos",
+      label_en: "Complaint filed with the human-rights commission",
+      authority: "Ley de la CNDH Art. 25-27",
+      patterns: ["queja ante la comision", "cndh", "comision estatal de derechos humanos"],
+    },
+    {
+      id: "expediente_queja",
+      label_es: "Expediente de queja integrado",
+      label_en: "Complaint file on record",
+      authority: "Ley de la CNDH Art. 34-40",
+      patterns: ["expediente de queja", "investigacion de la comision"],
+    },
+    {
+      id: "recomendacion_doc",
+      label_es: "Recomendación emitida",
+      label_en: "Recommendation issued",
+      authority: "Ley de la CNDH Art. 44-46",
+      patterns: ["recomendacion", "punto recomendatorio"],
+    },
+  ],
   civil: [
     {
       id: "contrato",

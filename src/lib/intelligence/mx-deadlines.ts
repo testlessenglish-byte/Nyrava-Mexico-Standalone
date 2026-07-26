@@ -454,3 +454,103 @@ export function computeMxDeadlines(input: MxDeadlineInput): MxDeadline[] {
 
   return deadlines.sort((a, b) => (a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0));
 }
+
+// -----------------------------------------------------------------------------
+// Best-effort corpus event extraction
+// -----------------------------------------------------------------------------
+
+/**
+ * Keyword patterns (accent/case-insensitive) that evidence a given trigger
+ * event type occurred, used to locate a nearby date in the corpus when no
+ * explicit case-event ledger exists yet.
+ */
+const TRIGGER_KEYWORDS: Record<string, readonly string[]> = {
+  notificacion_acto_reclamado: ["notificacion del acto reclamado", "se le notifico", "notificado el acto reclamado"],
+  sentencia_amparo: ["sentencia que concede el amparo", "sentencia que niega el amparo", "sentencia de amparo"],
+  acto_recurrible_queja: ["acuerdo recurrible en queja", "recurso de queja"],
+  puesta_disposicion: ["puesta a disposicion"],
+  hecho_delictivo: ["hechos delictivos", "fecha de los hechos"],
+  notificacion_sentencia: ["notificacion de la sentencia", "se notifico la sentencia"],
+  notificacion_resolucion_determinante: ["resolucion determinante", "notificacion de la resolucion"],
+  hecho_generador: ["hecho generador", "fecha en que se genero la obligacion"],
+  fecha_despido: ["fecha de despido", "separacion del trabajo", "fecha de rescision"],
+  notificacion_laudo: ["notificacion del laudo", "se notifico el laudo"],
+  emplazamiento: ["emplazamiento", "cedula de notificacion", "razon actuarial"],
+  ultima_actuacion: ["ultima actuacion", "ultima promocion"],
+  vencimiento_titulo: ["fecha de vencimiento", "vencimiento del titulo"],
+  notificacion_acto_administrativo: ["notificacion del acto administrativo", "notificacion personal"],
+  hecho_violatorio: ["hechos violatorios", "fecha de los hechos violatorios"],
+};
+
+const SPANISH_MONTHS: Record<string, string> = {
+  enero: "01",
+  febrero: "02",
+  marzo: "03",
+  abril: "04",
+  mayo: "05",
+  junio: "06",
+  julio: "07",
+  agosto: "08",
+  septiembre: "09",
+  setiembre: "09",
+  octubre: "10",
+  noviembre: "11",
+  diciembre: "12",
+};
+
+/** Find and normalize the first date-like token near a corpus offset, or null. */
+function findNearbyDate(corpusText: string, normalizedCorpus: string, at: number): string | null {
+  const window = corpusText.slice(Math.max(0, at - 120), at + 200);
+  const numeric = window.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (numeric) {
+    const [, d, m, y] = numeric;
+    const dd = d.padStart(2, "0");
+    const mm = m.padStart(2, "0");
+    return `${y}-${mm}-${dd}`;
+  }
+  const iso = window.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[0];
+  const spanish = normalize(window).match(
+    /(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+de\s+(\d{4})/,
+  );
+  if (spanish) {
+    const [, d, monthName, y] = spanish;
+    return `${y}-${SPANISH_MONTHS[monthName]}-${d.padStart(2, "0")}`;
+  }
+  return null;
+}
+
+function normalize(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * Best-effort extraction of dated `MxCaseEvent`s from raw corpus text, used
+ * when no explicit case-event ledger exists. For each trigger event type
+ * used by the materia's deadline rules, scans for its evidencing keywords
+ * and, if a date is found nearby, emits an event. Purely heuristic —
+ * conservative by design: no match, no invented event.
+ */
+export function extractMxEventsFromCorpus(materia: MxPipelineProfile, corpusText: string): MxCaseEvent[] {
+  const hay = normalize(corpusText ?? "");
+  if (!hay.trim()) return [];
+
+  const triggerTypes = new Set(deadlineRules(materia).map((r) => r.triggerEventType));
+  const events: MxCaseEvent[] = [];
+  let seq = 0;
+  for (const type of triggerTypes) {
+    const keywords = TRIGGER_KEYWORDS[type] ?? [];
+    for (const kw of keywords) {
+      const at = hay.indexOf(normalize(kw));
+      if (at < 0) continue;
+      const date = findNearbyDate(corpusText, hay, at);
+      if (!date) continue;
+      events.push({ id: `corpus:${type}:${seq++}`, type, date });
+      break;
+    }
+  }
+  return events;
+}
