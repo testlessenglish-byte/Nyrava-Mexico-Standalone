@@ -2,6 +2,8 @@
 // both from an authenticated server function (user click) and from the
 // background worker route (cron / queue drain) with an admin client.
 import { unzipSync } from "fflate";
+import { classifyMexicanCaseType } from "@/lib/mx-case-classifier";
+import { normalizeMexicanCaseType } from "@/lib/jurisdiction/mexico";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
