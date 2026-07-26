@@ -83,7 +83,8 @@ function sanitize(detail: Record<string, unknown> | undefined): Record<string, u
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(detail)) {
     if (/key|secret|token|password|authorization/i.test(k)) {
-      out[k] = typeof v === "string" && v.length > 8 ? `${v.slice(0, 3)}…${v.slice(-3)}` : "[redacted]";
+      out[k] =
+        typeof v === "string" && v.length > 8 ? `${v.slice(0, 3)}…${v.slice(-3)}` : "[redacted]";
       continue;
     }
     if (typeof v === "string") out[k] = clip(v, 2000);
@@ -144,7 +145,8 @@ export async function trace(entry: TraceEntry): Promise<void> {
       detail,
       error: clip(entry.error, 4000),
     });
-    if (error) console.warn(`[trace] persist failed (${entry.phase}/${entry.step}): ${error.message}`);
+    if (error)
+      console.warn(`[trace] persist failed (${entry.phase}/${entry.step}): ${error.message}`);
   } catch (e) {
     console.warn(`[trace] persist threw (${entry.phase}/${entry.step})`, e);
   }
@@ -192,7 +194,7 @@ export async function traceDbWrite(args: {
   table: string;
   op: "insert" | "update" | "upsert" | "delete";
   rows?: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   error?: { message?: string; code?: string; details?: string; hint?: string } | null;
   db?: Db;
   caseId?: string;

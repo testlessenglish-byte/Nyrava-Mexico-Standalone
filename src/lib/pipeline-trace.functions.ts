@@ -36,7 +36,9 @@ export const getPipelineTrace = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q: any = supabase
       .from("pipeline_trace")
-      .select("id,case_id,correlation_id,phase,step,status,level,provider,model,attempt,duration_ms,detail,error,created_at")
+      .select(
+        "id,case_id,correlation_id,phase,step,status,level,provider,model,attempt,duration_ms,detail,error,created_at",
+      )
       .eq("case_id", data.caseId)
       .order("id", { ascending: false })
       .limit(data.limit ?? 200);

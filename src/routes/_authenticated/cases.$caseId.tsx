@@ -65,7 +65,11 @@ import {
 } from "@/lib/intelligence/canonical";
 
 import { requestCancel, forceCancelCase } from "@/lib/cases.functions";
-import { PerspectivesPanel, EvidenceIntelPanel, StrategyPanel } from "@/components/LitigationPanels";
+import {
+  PerspectivesPanel,
+  EvidenceIntelPanel,
+  StrategyPanel,
+} from "@/components/LitigationPanels";
 import { ImageIntelligencePanel } from "@/components/ImageIntelligencePanel";
 import {
   LitigationImpactDashboardSection,
@@ -290,7 +294,8 @@ function Workspace() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportBlocked = Boolean((report as any)?.quality_blocked);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const reportBlockReasons = (((report as any)?.quality_block_reasons as unknown[]) ?? []) as string[];
+  const reportBlockReasons = (((report as any)?.quality_block_reasons as unknown[]) ??
+    []) as string[];
 
   const exportData: CaseExportData = {
     case: c as unknown as Record<string, unknown>,
@@ -350,19 +355,23 @@ function Workspace() {
           "exhibit_order",
           "likely_objections",
         ] as const
-      ).filter((k) => Array.isArray(trialPrepData[k]) && (trialPrepData[k] as unknown[]).length > 0).length
+      ).filter((k) => Array.isArray(trialPrepData[k]) && (trialPrepData[k] as unknown[]).length > 0)
+        .length
     : 0;
 
   const scorecardData = score as unknown as Record<string, unknown> | null;
   const scorecardCount = scorecardData
-    ? Object.keys((scorecardData.dimension_breakdowns as Record<string, unknown> | null) ?? {}).length
+    ? Object.keys((scorecardData.dimension_breakdowns as Record<string, unknown> | null) ?? {})
+        .length
     : 0;
 
   // Report tab: how many distinct content categories the finished report
   // actually populated (findings, contradictions, motions, citations, etc.)
   // — reuses the same canonical counter the Report tab itself renders from,
   // so this badge can never drift out of parity with what's on the page.
-  const reportCount = report ? Object.values(getCanonicalCounts(report)).filter((v) => v > 0).length : 0;
+  const reportCount = report
+    ? Object.values(getCanonicalCounts(report)).filter((v) => v > 0).length
+    : 0;
 
   const tabs: {
     k: Tab;
@@ -371,7 +380,12 @@ function Workspace() {
     count?: number;
   }[] = [
     { k: "dashboard", label: t("caseTab.dashboard"), icon: Activity },
-    { k: "perspectives", label: t("caseTab.perspectives"), icon: Scale, count: perspectives.length },
+    {
+      k: "perspectives",
+      label: t("caseTab.perspectives"),
+      icon: Scale,
+      count: perspectives.length,
+    },
     {
       k: "strategic",
       label: t("caseTab.strategic"),
@@ -386,7 +400,9 @@ function Workspace() {
       label: t("caseTab.attack"),
       icon: ShieldAlert,
       count: attackSurface
-        ? Object.values(attackSurface).filter((v) => Array.isArray(v) && (v as unknown[]).length > 0).length
+        ? Object.values(attackSurface).filter(
+            (v) => Array.isArray(v) && (v as unknown[]).length > 0,
+          ).length
         : 0,
     },
     { k: "evidence", label: t("caseTab.evidence"), icon: ShieldAlert, count: evidenceIntel.length },
@@ -394,9 +410,19 @@ function Workspace() {
     { k: "findings", label: t("caseTab.findings"), icon: Sparkles, count: findings.length },
     { k: "intel", label: t("caseTab.documents"), icon: FileText, count: docs.length },
     { k: "analyzers", label: t("caseTab.analyzers"), icon: Search, count: analyzersCount },
-    { k: "agents", label: t("caseTab.agents"), icon: ShieldAlert, count: getAgentSummary(report).executed || agents.length },
+    {
+      k: "agents",
+      label: t("caseTab.agents"),
+      icon: ShieldAlert,
+      count: getAgentSummary(report).executed || agents.length,
+    },
     { k: "theories", label: t("caseTab.theories"), icon: Scale, count: theories.length },
-    { k: "opportunities", label: t("caseTab.opportunities"), icon: Gavel, count: opportunities.length },
+    {
+      k: "opportunities",
+      label: t("caseTab.opportunities"),
+      icon: Gavel,
+      count: opportunities.length,
+    },
     { k: "witnesses", label: t("caseTab.witnesses"), icon: Users, count: witnesses.length },
     { k: "trial", label: t("caseTab.trial"), icon: ShieldCheck, count: trialPrepCount },
     { k: "work", label: t("caseTab.work"), icon: BookOpen, count: workProduct.length },
@@ -410,7 +436,9 @@ function Workspace() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const _area = ((c as any)?.case_type as string) || "general_civil";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const _additional = Array.isArray((c as any)?.additional_domains) ? ((c as any).additional_domains as string[]) : [];
+  const _additional = Array.isArray((c as any)?.additional_domains)
+    ? ((c as any).additional_domains as string[])
+    : [];
   const _allowed = getApplicableTabs(_area, _additional);
   const _filteredTabs = tabs.filter((tab) => _allowed.has(tab.k));
 
@@ -458,7 +486,10 @@ function Workspace() {
           </div>
           {running && (
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-              <div className="h-full bg-accent transition-all" style={{ width: `${c.progress}%` }} />
+              <div
+                className="h-full bg-accent transition-all"
+                style={{ width: `${c.progress}%` }}
+              />
             </div>
           )}
           {c.error && <div className="mt-2 text-xs text-destructive">{c.error}</div>}
@@ -481,7 +512,9 @@ function Workspace() {
           />
 
           <div className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("caseWorkspace.downloads")}</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("caseWorkspace.downloads")}
+            </h2>
             <div className="mt-3 space-y-2">
               <DownloadBtn
                 icon={FileDown}
@@ -489,7 +522,9 @@ function Workspace() {
                 disabled={reportBlocked || !hasReport}
                 onClick={() => {
                   downloadPdf(exportData, c.name);
-                  void logReportExport({ data: { caseId: c.id, format: "pdf", caseName: c.name } }).catch(() => {});
+                  void logReportExport({
+                    data: { caseId: c.id, format: "pdf", caseName: c.name },
+                  }).catch(() => {});
                 }}
               />
               <DownloadBtn
@@ -497,8 +532,12 @@ function Workspace() {
                 label={t("caseWorkspace.downloadDocx")}
                 disabled={reportBlocked || !hasReport}
                 onClick={() => {
-                  downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
-                  void logReportExport({ data: { caseId: c.id, format: "docx", caseName: c.name } }).catch(() => {});
+                  downloadDocx(exportData, c.name).catch((e) =>
+                    toast.error(e?.message ?? "DOCX failed"),
+                  );
+                  void logReportExport({
+                    data: { caseId: c.id, format: "docx", caseName: c.name },
+                  }).catch(() => {});
                 }}
               />
               <DownloadBtn
@@ -507,7 +546,9 @@ function Workspace() {
                 disabled={false}
                 onClick={() => {
                   downloadJson(exportData, c.name);
-                  void logReportExport({ data: { caseId: c.id, format: "json", caseName: c.name } }).catch(() => {});
+                  void logReportExport({
+                    data: { caseId: c.id, format: "json", caseName: c.name },
+                  }).catch(() => {});
                 }}
               />
             </div>
@@ -532,7 +573,9 @@ function Workspace() {
           </div>
 
           <div className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("caseWorkspace.timestamps")}</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("caseWorkspace.timestamps")}
+            </h2>
             <dl className="mt-3 space-y-1.5 text-xs">
               <Stamp label={t("caseWorkspace.ts.created")} v={c.created_at} />
               <Stamp label={t("caseWorkspace.ts.extracted")} v={c.extracted_at} />
@@ -563,11 +606,17 @@ function Workspace() {
             reportBlocked={reportBlocked}
             onDownloadPdf={() => {
               downloadPdf(exportData, c.name);
-              void logReportExport({ data: { caseId: c.id, format: "pdf", caseName: c.name } }).catch(() => {});
+              void logReportExport({
+                data: { caseId: c.id, format: "pdf", caseName: c.name },
+              }).catch(() => {});
             }}
             onDownloadDocx={() => {
-              downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
-              void logReportExport({ data: { caseId: c.id, format: "docx", caseName: c.name } }).catch(() => {});
+              downloadDocx(exportData, c.name).catch((e) =>
+                toast.error(e?.message ?? "DOCX failed"),
+              );
+              void logReportExport({
+                data: { caseId: c.id, format: "docx", caseName: c.name },
+              }).catch(() => {});
             }}
             onOpenTab={(t) => setTab(t as Tab)}
           />
@@ -592,7 +641,9 @@ function Workspace() {
                       {t.count}
                     </span>
                   )}
-                  {tab === t.k && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent" />}
+                  {tab === t.k && (
+                    <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent" />
+                  )}
                 </button>
               );
             })}
@@ -656,10 +707,16 @@ function Workspace() {
               </>
             )}
             {tab === "strategy" && (
-              <StrategyPanel strategy={strategy} running={strategyM.isPending} onRun={(p) => strategyM.mutate(p)} />
+              <StrategyPanel
+                strategy={strategy}
+                running={strategyM.isPending}
+                onRun={(p) => strategyM.mutate(p)}
+              />
             )}
             {tab === "theories" && <TheoriesTab theories={theories} />}
-            {tab === "opportunities" && <OpportunitiesTab opps={opportunities} ranAt={c.opportunities_at} />}
+            {tab === "opportunities" && (
+              <OpportunitiesTab opps={opportunities} ranAt={c.opportunities_at} />
+            )}
             {tab === "witnesses" && <WitnessesTab witnesses={witnesses} ranAt={c.witnesses_at} />}
             {tab === "trial" && <TrialPrepTab t={trialPrep} ranAt={c.trial_prep_at} />}
             {tab === "work" && <WorkProductTab docs={workProduct} />}
@@ -669,7 +726,11 @@ function Workspace() {
           </div>
         </section>
       </div>
-      <LivePipelinePanel caseId={c.id} isProcessing={running} caseType={(c as any).case_type ?? null} />
+      <LivePipelinePanel
+        caseId={c.id}
+        isProcessing={running}
+        caseType={(c as any).case_type ?? null}
+      />
       <PipelineTracePanel caseId={c.id} isProcessing={running} />
     </div>
   );
@@ -699,7 +760,9 @@ function PipelineCard({
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h2>
       <ol className="mt-3 space-y-2">
         {steps.map((s, i) => {
           const state = s.pending
@@ -751,7 +814,9 @@ function PipelineCard({
                   <span className="block font-medium">
                     {i + 1}. {s.label}
                   </span>
-                  <span className="block text-xs text-muted-foreground truncate">{s.error ?? stateLabel}</span>
+                  <span className="block text-xs text-muted-foreground truncate">
+                    {s.error ?? stateLabel}
+                  </span>
                 </span>
                 {state !== "completed" && (
                   <Play className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-foreground" />
@@ -800,7 +865,8 @@ function CaseSettingsCard({
       toast.success("Case settings updated. Re-run engines to apply.");
       invalidate();
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to update settings"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to update settings"),
   });
 
   const dirty = ct !== (caseType ?? "general_civil") || mode !== (analysisMode || "balanced");
@@ -808,7 +874,9 @@ function CaseSettingsCard({
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Case Settings</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Case Settings
+      </h2>
       <p className="mt-1 text-xs text-muted-foreground">
         Editable after upload. Re-run engines to apply changes to existing findings.
       </p>
@@ -843,7 +911,9 @@ function CaseSettingsCard({
               disabled={disabled}
               onClick={() => setMode(opt.v)}
               className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${
-                mode === opt.v ? "border-accent bg-accent/10" : "border-border bg-background hover:bg-secondary"
+                mode === opt.v
+                  ? "border-accent bg-accent/10"
+                  : "border-border bg-background hover:bg-secondary"
               }`}
             >
               <div className="font-medium">{opt.label}</div>
@@ -963,13 +1033,23 @@ function DashboardTab({
   witnesses: unknown[];
 }) {
   const { t } = useI18n();
-  const sorted = [...findings].sort((a, b) => sevRank(b.severity) - sevRank(a.severity) || b.confidence - a.confidence);
+  const sorted = [...findings].sort(
+    (a, b) => sevRank(b.severity) - sevRank(a.severity) || b.confidence - a.confidence,
+  );
   const top = sorted.slice(0, 5);
-  const risks = sorted.filter((f) => f.severity === "critical" || f.severity === "high").slice(0, 8);
+  const risks = sorted
+    .filter((f) => f.severity === "critical" || f.severity === "high")
+    .slice(0, 8);
   const strengths = findings
-    .filter((f) => f.affected_party === "defense" && (f.category === "strength" || f.category === "opportunity"))
+    .filter(
+      (f) =>
+        f.affected_party === "defense" &&
+        (f.category === "strength" || f.category === "opportunity"),
+    )
     .slice(0, 5);
-  const weak = findings.filter((f) => f.category === "missing_evidence" || f.category === "discovery_gap").slice(0, 8);
+  const weak = findings
+    .filter((f) => f.category === "missing_evidence" || f.category === "discovery_gap")
+    .slice(0, 8);
 
   return (
     <div className="space-y-6">
@@ -990,7 +1070,9 @@ function DashboardTab({
 
       {score &&
         (() => {
-          const dbRaw = (score as { dimension_breakdowns?: Record<string, unknown> }).dimension_breakdowns ?? {};
+          const dbRaw =
+            (score as { dimension_breakdowns?: Record<string, unknown> }).dimension_breakdowns ??
+            {};
           const ct =
             typeof (dbRaw as { case_type?: unknown }).case_type === "string"
               ? (dbRaw as { case_type: string }).case_type
@@ -1000,10 +1082,17 @@ function DashboardTab({
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-sm font-semibold">{t("dash.caseHealth")}</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <BigMetric label={t("dash.metric.overallConfidence")} v={score.overall_confidence} />
+                <BigMetric
+                  label={t("dash.metric.overallConfidence")}
+                  v={score.overall_confidence}
+                />
                 <BigMetric label={t("dash.metric.caseQuality")} v={score.case_quality} />
                 {isCrim ? (
-                  <BigMetric label={t("dash.metric.convictionRisk")} v={score.conviction_risk} inverse />
+                  <BigMetric
+                    label={t("dash.metric.convictionRisk")}
+                    v={score.conviction_risk}
+                    inverse
+                  />
                 ) : (
                   <BigMetric
                     label={t("dash.metric.litigationRisk")}
@@ -1019,14 +1108,22 @@ function DashboardTab({
       {trialPrep &&
         (() => {
           const dbRaw2 =
-            (score as { dimension_breakdowns?: Record<string, unknown> } | null)?.dimension_breakdowns ?? {};
+            (score as { dimension_breakdowns?: Record<string, unknown> } | null)
+              ?.dimension_breakdowns ?? {};
           const ct2 =
             typeof (dbRaw2 as { case_type?: unknown }).case_type === "string"
               ? (dbRaw2 as { case_type: string }).case_type
-              : (((trialPrep as Record<string, unknown>).case_type as string | undefined) ?? "general_civil");
+              : (((trialPrep as Record<string, unknown>).case_type as string | undefined) ??
+                "general_civil");
           const isCrim2 = ct2 === "criminal" || ct2 === "civil_rights";
-          const cm = ((trialPrep as Record<string, unknown>).civil_metrics ?? {}) as Record<string, number | null>;
-          const pm = ((trialPrep as Record<string, unknown>).penal_metrics ?? {}) as Record<string, number | null>;
+          const cm = ((trialPrep as Record<string, unknown>).civil_metrics ?? {}) as Record<
+            string,
+            number | null
+          >;
+          const pm = ((trialPrep as Record<string, unknown>).penal_metrics ?? {}) as Record<
+            string,
+            number | null
+          >;
           return (
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-sm font-semibold">
@@ -1035,7 +1132,10 @@ function DashboardTab({
               <div className="mt-3 grid gap-3 sm:grid-cols-4">
                 {isCrim2 ? (
                   <>
-                    <BigMetric label={t("dash.metric.vinculacion")} v={pm.vinculacion_proceso_pct ?? null} />
+                    <BigMetric
+                      label={t("dash.metric.vinculacion")}
+                      v={pm.vinculacion_proceso_pct ?? null}
+                    />
                     <BigMetric
                       label={t("dash.metric.condenatoria")}
                       v={pm.sentencia_condenatoria_pct ?? trialPrep.jury_conviction_pct}
@@ -1049,16 +1149,24 @@ function DashboardTab({
                       v={pm.procedimiento_abreviado_pct ?? trialPrep.jury_settlement_pct}
                     />
                   </>
-
                 ) : (
                   <>
-                    <BigMetric label={t("dash.metric.actorSuccess")} v={cm.plaintiff_success_pct ?? null} />
-                    <BigMetric label={t("dash.metric.defenseSuccess")} v={cm.defense_success_pct ?? null} />
+                    <BigMetric
+                      label={t("dash.metric.actorSuccess")}
+                      v={cm.plaintiff_success_pct ?? null}
+                    />
+                    <BigMetric
+                      label={t("dash.metric.defenseSuccess")}
+                      v={cm.defense_success_pct ?? null}
+                    />
                     <BigMetric
                       label={t("dash.metric.settlement")}
                       v={cm.settlement_probability_pct ?? trialPrep.jury_settlement_pct}
                     />
-                    <BigMetric label={t("dash.metric.comparativeFault")} v={cm.comparative_fault_estimate_pct ?? null} />
+                    <BigMetric
+                      label={t("dash.metric.comparativeFault")}
+                      v={cm.comparative_fault_estimate_pct ?? null}
+                    />
                   </>
                 )}
               </div>
@@ -1067,8 +1175,16 @@ function DashboardTab({
         })()}
 
       <DashboardList title={t("dash.list.top")} items={top} empty={t("dash.list.top.empty")} />
-      <DashboardList title={t("dash.list.risks")} items={risks} empty={t("dash.list.risks.empty")} />
-      <DashboardList title={t("dash.list.strengths")} items={strengths} empty={t("dash.list.strengths.empty")} />
+      <DashboardList
+        title={t("dash.list.risks")}
+        items={risks}
+        empty={t("dash.list.risks.empty")}
+      />
+      <DashboardList
+        title={t("dash.list.strengths")}
+        items={strengths}
+        empty={t("dash.list.strengths.empty")}
+      />
       <DashboardList title={t("dash.list.gaps")} items={weak} empty={t("dash.list.gaps.empty")} />
 
       {theories.length > 0 && (
@@ -1077,7 +1193,9 @@ function DashboardTab({
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {theories.map((th) => (
               <div key={th.id} className="rounded-lg border border-border p-3">
-                <div className="text-xs font-semibold uppercase tracking-wider text-accent">{th.theory_type}</div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-accent">
+                  {th.theory_type}
+                </div>
                 <p className="mt-1 text-sm text-foreground/90">{th.narrative}</p>
                 <div className="mt-2 text-xs text-muted-foreground">
                   {t("dash.theories.meta", {
@@ -1094,9 +1212,21 @@ function DashboardTab({
   );
 }
 
-function StatTile({ label, value, accent }: { label: string; value: number; accent?: "destructive" | "success" }) {
+function StatTile({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: "destructive" | "success";
+}) {
   const color =
-    accent === "destructive" ? "text-destructive" : accent === "success" ? "text-success" : "text-foreground";
+    accent === "destructive"
+      ? "text-destructive"
+      : accent === "success"
+        ? "text-success"
+        : "text-foreground";
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
@@ -1127,7 +1257,15 @@ function BigMetric({ label, v, inverse }: { label: string; v: number | null; inv
   );
 }
 
-function DashboardList({ title, items, empty }: { title: string; items: Finding[]; empty: string }) {
+function DashboardList({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items: Finding[];
+  empty: string;
+}) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h3 className="text-sm font-semibold">{title}</h3>
@@ -1136,7 +1274,10 @@ function DashboardList({ title, items, empty }: { title: string; items: Finding[
       ) : (
         <ul className="mt-3 space-y-2">
           {items.map((f) => (
-            <li key={f.id} className="flex items-start gap-3 rounded-lg border border-border bg-background p-3 text-sm">
+            <li
+              key={f.id}
+              className="flex items-start gap-3 rounded-lg border border-border bg-background p-3 text-sm"
+            >
               <span
                 className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${sevColor(f.severity)}`}
               >
@@ -1144,7 +1285,9 @@ function DashboardList({ title, items, empty }: { title: string; items: Finding[
               </span>
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{f.title}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{f.description}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                  {f.description}
+                </div>
               </div>
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                 {Math.round(f.confidence * 100)}%
@@ -1197,8 +1340,8 @@ function FindingsTab({ findings }: { findings: Finding[] }) {
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{f.title}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {f.category} · {f.source_module} · {f.affected_party ?? "—"} · {Math.round(f.confidence * 100)}%
-                  confidence
+                  {f.category} · {f.source_module} · {f.affected_party ?? "—"} ·{" "}
+                  {Math.round(f.confidence * 100)}% confidence
                 </div>
               </div>
             </summary>
@@ -1220,7 +1363,9 @@ function FindingsTab({ findings }: { findings: Finding[] }) {
                   </div>
                 );
               })()}
-              {f.legal_significance && <FieldRow label="Legal significance" v={f.legal_significance} />}
+              {f.legal_significance && (
+                <FieldRow label="Legal significance" v={f.legal_significance} />
+              )}
               {f.potential_impact && <FieldRow label="Potential impact" v={f.potential_impact} />}
               {f.tags && f.tags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
@@ -1246,20 +1391,36 @@ function FindingTypeBadge({ type }: { type?: string }) {
     AI_THEORY: "border-rose-500/40 bg-rose-500/10 text-rose-200",
   };
   const label =
-    type === "DIRECT_EVIDENCE" ? "Evidence" : type === "EVIDENCE_BASED_INFERENCE" ? "Inference" : "AI theory";
+    type === "DIRECT_EVIDENCE"
+      ? "Evidence"
+      : type === "EVIDENCE_BASED_INFERENCE"
+        ? "Inference"
+        : "AI theory";
   return (
-    <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${map[type] ?? ""}`}>
+    <span
+      className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${map[type] ?? ""}`}
+    >
       {label}
     </span>
   );
 }
 
-function FilterPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function FilterPill({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
       className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${
-        active ? "bg-accent text-accent-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
+        active
+          ? "bg-accent text-accent-foreground"
+          : "bg-secondary text-muted-foreground hover:text-foreground"
       }`}
     >
       {label}
@@ -1270,7 +1431,9 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
 function FieldRow({ label, v }: { label: string; v: string }) {
   return (
     <div className="mt-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
       <div className="text-sm text-foreground/90">{v}</div>
     </div>
   );
@@ -1288,7 +1451,15 @@ type Doc = {
   entities: unknown;
 };
 
-function IntelTab({ docs, caseId, invalidate }: { docs: Doc[]; caseId: string; invalidate: () => Promise<void> }) {
+function IntelTab({
+  docs,
+  caseId,
+  invalidate,
+}: {
+  docs: Doc[];
+  caseId: string;
+  invalidate: () => Promise<void>;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
   const [retryAllBusy, setRetryAllBusy] = useState(false);
@@ -1398,7 +1569,9 @@ function IntelTab({ docs, caseId, invalidate }: { docs: Doc[]; caseId: string; i
                           return;
                         setBusyDocId(d.id);
                         try {
-                          await rollbackDocumentExtraction({ data: { caseId, documentIds: [d.id] } });
+                          await rollbackDocumentExtraction({
+                            data: { caseId, documentIds: [d.id] },
+                          });
                           await invalidate();
                           toast.success("Extraction rolled back");
                         } catch (err) {
@@ -1433,7 +1606,13 @@ function IntelTab({ docs, caseId, invalidate }: { docs: Doc[]; caseId: string; i
   );
 }
 
-function AddEvidenceBlock({ caseId, invalidate }: { caseId: string; invalidate: () => Promise<void> }) {
+function AddEvidenceBlock({
+  caseId,
+  invalidate,
+}: {
+  caseId: string;
+  invalidate: () => Promise<void>;
+}) {
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState<string>("");
@@ -1495,9 +1674,9 @@ function AddEvidenceBlock({ caseId, invalidate }: { caseId: string; invalidate: 
         <div>
           <h3 className="text-sm font-semibold">Add Evidence</h3>
           <p className="text-xs text-muted-foreground">
-            Upload one or more documents. Only new files are extracted; whole-case engines (timeline, contradictions,
-            witnesses, evidence map, scoring) rerun automatically and a new report version is generated with a "What's
-            Changed" diff.
+            Upload one or more documents. Only new files are extracted; whole-case engines
+            (timeline, contradictions, witnesses, evidence map, scoring) rerun automatically and a
+            new report version is generated with a "What's Changed" diff.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1562,21 +1741,28 @@ type Agent = {
 };
 
 function AgentsTab({ agents }: { agents: Agent[] }) {
-  if (agents.length === 0) return <Empty msg="No agents have run yet. Run Agents to dispatch the investigators." />;
+  if (agents.length === 0)
+    return <Empty msg="No agents have run yet. Run Agents to dispatch the investigators." />;
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {agents.map((a) => (
         <div key={a.id} className="rounded-lg border border-border bg-card p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold capitalize">{a.agent_type.replace(/_/g, " ")}</h3>
-            <span className={`text-xs ${a.status === "complete" ? "text-success" : "text-destructive"}`}>
+            <span
+              className={`text-xs ${a.status === "complete" ? "text-success" : "text-destructive"}`}
+            >
               {a.status}
             </span>
           </div>
           {typeof a.confidence === "number" && (
-            <div className="mt-1 text-xs text-muted-foreground">Confidence: {Math.round(a.confidence * 100)}%</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Confidence: {Math.round(a.confidence * 100)}%
+            </div>
           )}
-          {a.summary && <p className="mt-3 text-sm leading-relaxed text-foreground/90">{a.summary}</p>}
+          {a.summary && (
+            <p className="mt-3 text-sm leading-relaxed text-foreground/90">{a.summary}</p>
+          )}
           {a.error && (
             <div className="mt-2 rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
               {a.error}
@@ -1591,7 +1777,9 @@ function AgentsTab({ agents }: { agents: Agent[] }) {
             </details>
           )}
           {a.latency_ms != null && (
-            <div className="mt-2 text-xs text-muted-foreground">{(a.latency_ms / 1000).toFixed(1)}s</div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              {(a.latency_ms / 1000).toFixed(1)}s
+            </div>
           )}
         </div>
       ))}
@@ -1608,7 +1796,9 @@ function TheoriesTab({ theories }: { theories: any[] }) {
         <div key={t.id} className="rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold capitalize">{t.theory_type} theory</h3>
-            <span className="text-xs text-muted-foreground">Confidence {Math.round((t.confidence ?? 0) * 100)}%</span>
+            <span className="text-xs text-muted-foreground">
+              Confidence {Math.round((t.confidence ?? 0) * 100)}%
+            </span>
           </div>
           <p className="mt-3 text-sm text-foreground/90">{t.narrative}</p>
           <ListSection title="Supporting evidence" items={t.supporting_evidence} />
@@ -1651,7 +1841,9 @@ function OpportunitiesTab({ opps, ranAt }: { opps: any[]; ranAt?: string | null 
               </div>
               <h3 className="mt-1 text-sm font-semibold">{o.title}</h3>
             </div>
-            <span className="text-xs text-muted-foreground">{Math.round((o.confidence ?? 0) * 100)}%</span>
+            <span className="text-xs text-muted-foreground">
+              {Math.round((o.confidence ?? 0) * 100)}%
+            </span>
           </div>
           <p className="mt-2 text-sm text-foreground/90">{o.description}</p>
           <ListSection title="Recommended motions" items={o.recommended_motions} />
@@ -1675,7 +1867,9 @@ function ListSection({ title, items }: { title: string; items: unknown }) {
   if (!Array.isArray(items) || items.length === 0) return null;
   return (
     <div className="mt-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </div>
       <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-foreground/90">
         {items.map((it, i) => (
           <li key={i}>{typeof it === "string" ? it : JSON.stringify(it)}</li>
@@ -1766,14 +1960,22 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
     <div className="space-y-4">
       <div className="rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">
-          {isCrim ? "Estimación de resultado (Tribunal de Enjuiciamiento)" : "Estimación de resultado"}
+          {isCrim
+            ? "Estimación de resultado (Tribunal de Enjuiciamiento)"
+            : "Estimación de resultado"}
         </h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-4">
           {isCrim ? (
             <>
               <BigMetric label="Vinculación a proceso" v={pm.vinculacion_proceso_pct ?? null} />
-              <BigMetric label="Sentencia condenatoria" v={pm.sentencia_condenatoria_pct ?? t.jury_conviction_pct} />
-              <BigMetric label="Sentencia absolutoria" v={pm.sentencia_absolutoria_pct ?? t.jury_acquittal_pct} />
+              <BigMetric
+                label="Sentencia condenatoria"
+                v={pm.sentencia_condenatoria_pct ?? t.jury_conviction_pct}
+              />
+              <BigMetric
+                label="Sentencia absolutoria"
+                v={pm.sentencia_absolutoria_pct ?? t.jury_acquittal_pct}
+              />
               <BigMetric
                 label="Procedimiento abreviado"
                 v={pm.procedimiento_abreviado_pct ?? t.jury_settlement_pct}
@@ -1783,7 +1985,10 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
             <>
               <BigMetric label="Plaintiff success" v={cm.plaintiff_success_pct ?? null} />
               <BigMetric label="Defense success" v={cm.defense_success_pct ?? null} />
-              <BigMetric label="Settlement" v={cm.settlement_probability_pct ?? t.jury_settlement_pct} />
+              <BigMetric
+                label="Settlement"
+                v={cm.settlement_probability_pct ?? t.jury_settlement_pct}
+              />
               <BigMetric label="Comparative fault" v={cm.comparative_fault_estimate_pct ?? null} />
             </>
           )}
@@ -1791,8 +1996,9 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
         {isCrim && (
           <p className="mt-3 text-xs text-muted-foreground">
             Éxito estimado en recurso (apelación / amparo directo):{" "}
-            <span className="tabular-nums">{pm.recurso_exito_pct ?? t.jury_appeal_pct ?? "—"}</span>. En el sistema
-            penal acusatorio mexicano no existe jurado: la culpabilidad la determina el Tribunal de Enjuiciamiento.
+            <span className="tabular-nums">{pm.recurso_exito_pct ?? t.jury_appeal_pct ?? "—"}</span>
+            . En el sistema penal acusatorio mexicano no existe jurado: la culpabilidad la determina
+            el Tribunal de Enjuiciamiento.
           </p>
         )}
       </div>
@@ -1814,14 +2020,18 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
         <h3 className="text-sm font-semibold">Witness order</h3>
         <ListSection
           title=""
-          items={(t.witness_order ?? []).map((w: { name: string; reason: string }) => `${w.name} — ${w.reason}`)}
+          items={(t.witness_order ?? []).map(
+            (w: { name: string; reason: string }) => `${w.name} — ${w.reason}`,
+          )}
         />
       </div>
       <div className="rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">Exhibit order</h3>
         <ListSection
           title=""
-          items={(t.exhibit_order ?? []).map((e: { exhibit: string; reason: string }) => `${e.exhibit} — ${e.reason}`)}
+          items={(t.exhibit_order ?? []).map(
+            (e: { exhibit: string; reason: string }) => `${e.exhibit} — ${e.reason}`,
+          )}
         />
       </div>
       <div className="rounded-lg border border-border bg-card p-4">
@@ -1875,14 +2085,17 @@ function WorkProductTab({ docs }: { docs: any[] }) {
             <div className="border-t border-border p-4">
               {failed ? (
                 <p className="text-sm text-muted-foreground">
-                  {d.error_message ?? "This draft was not produced. Re-run Attorney Work Product to retry."}
+                  {d.error_message ??
+                    "This draft was not produced. Re-run Attorney Work Product to retry."}
                 </p>
               ) : empty ? (
                 <p className="text-sm text-muted-foreground">
                   No content was generated for this draft. Re-run Attorney Work Product to retry.
                 </p>
               ) : (
-                <pre className="whitespace-pre-wrap font-sans text-sm text-foreground/90">{d.body_markdown}</pre>
+                <pre className="whitespace-pre-wrap font-sans text-sm text-foreground/90">
+                  {d.body_markdown}
+                </pre>
               )}
             </div>
           </details>
@@ -1924,11 +2137,18 @@ function ScorecardTab({ s }: { s: Score | null | undefined }) {
   // legacy column the runScoring step set to null is hidden entirely.
   const breakdownsRaw = (s.dimension_breakdowns ?? {}) as Record<string, unknown>;
   const detRoot = (
-    breakdownsRaw as { deterministic?: { dimensions?: Record<string, { dimension?: string; score?: number }> } }
+    breakdownsRaw as {
+      deterministic?: { dimensions?: Record<string, { dimension?: string; score?: number }> };
+    }
   ).deterministic;
   const detDims = detRoot?.dimensions ?? {};
   const detKeys = Object.keys(detDims);
-  const INVERSE = new Set(["conviction_risk", "appeal_risk", "litigation_risk", "settlement_pressure"]);
+  const INVERSE = new Set([
+    "conviction_risk",
+    "appeal_risk",
+    "litigation_risk",
+    "settlement_pressure",
+  ]);
   const LEGACY_LABELS: Record<string, string> = {
     overall_confidence: "Overall confidence",
     case_quality: "Case quality",
@@ -1976,12 +2196,15 @@ function ScorecardTab({ s }: { s: Score | null | undefined }) {
         {dims.map(({ k, label, inverse }) => {
           const v = (s as Record<string, unknown>)[k] as number | null | undefined;
           const detScore = detDims[k]?.score;
-          const shownV: number | null = typeof v === "number" ? v : typeof detScore === "number" ? detScore : null;
+          const shownV: number | null =
+            typeof v === "number" ? v : typeof detScore === "number" ? detScore : null;
           const b = breakdowns[k];
           return (
             <details key={k} className="rounded-lg border border-border bg-card p-4">
               <summary className="cursor-pointer">
-                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {label}
+                </div>
                 <div className="mt-1 flex items-baseline gap-1">
                   <div
                     className={`text-3xl font-semibold tabular-nums ${shownV != null && (inverse ? shownV > 70 : shownV < 35) ? "text-destructive" : shownV != null && (inverse ? shownV < 40 : shownV >= 60) ? "text-success" : "text-foreground"}`}
@@ -1999,7 +2222,9 @@ function ScorecardTab({ s }: { s: Score | null | undefined }) {
                   {b.reasoning && <p className="text-foreground/90">{b.reasoning}</p>}
                   {b.positive?.length > 0 && (
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-success">Positive</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-success">
+                        Positive
+                      </div>
                       <ul className="mt-0.5 list-disc pl-5">
                         {b.positive.map((p, i) => (
                           <li key={i}>{p.label}</li>
@@ -2128,8 +2353,8 @@ function ChatTab({ caseId }: { caseId: string }) {
         {history.length === 0 && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Ask anything about this case. Every answer is grounded in the unified findings, theories, opportunities,
-              witnesses, and trial prep produced for this case.
+              Ask anything about this case. Every answer is grounded in the unified findings,
+              theories, opportunities, witnesses, and trial prep produced for this case.
             </p>
             <div className="flex flex-wrap gap-2">
               {suggestions.map((s) => (
@@ -2154,7 +2379,9 @@ function ChatTab({ caseId }: { caseId: string }) {
                 m.role === "user" ? "bg-accent text-accent-foreground" : "text-foreground"
               }`}
             >
-              <pre className={`whitespace-pre-wrap font-sans ${m.role === "user" ? "" : "leading-relaxed"}`}>
+              <pre
+                className={`whitespace-pre-wrap font-sans ${m.role === "user" ? "" : "leading-relaxed"}`}
+              >
                 {m.content}
               </pre>
             </div>
@@ -2269,12 +2496,24 @@ function Cite({ c }: { c: any }) {
       <span className="font-mono font-semibold">
         [DOC {doc} p.{page}]
       </span>
-      {quote && <span className="mt-0.5 max-w-md italic text-muted-foreground">"{quote.slice(0, 220)}"</span>}
+      {quote && (
+        <span className="mt-0.5 max-w-md italic text-muted-foreground">
+          "{quote.slice(0, 220)}"
+        </span>
+      )}
     </span>
   );
 }
 
-function ScoreCard({ label, value, tone }: { label: string; value: number | null; tone: "good" | "risk" }) {
+function ScoreCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number | null;
+  tone: "good" | "risk";
+}) {
   if (value == null) return null;
   const color =
     tone === "good"
@@ -2290,7 +2529,9 @@ function ScoreCard({ label, value, tone }: { label: string; value: number | null
           : "text-emerald-700";
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
       <div className={`mt-1 text-3xl font-bold ${color}`}>
         {value}
         <span className="text-base font-normal text-muted-foreground">/100</span>
@@ -2299,7 +2540,15 @@ function ScoreCard({ label, value, tone }: { label: string; value: number | null
   );
 }
 
-function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Panel({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-lg border border-border bg-card/60 p-5">
       <div className="mb-3 flex items-baseline justify-between">
@@ -2324,7 +2573,13 @@ type ReportVersionRow = {
   change_log: Record<string, unknown> | null;
 };
 
-function ReportHistoryPanel({ caseId, currentVersion }: { caseId: string; currentVersion: number }) {
+function ReportHistoryPanel({
+  caseId,
+  currentVersion,
+}: {
+  caseId: string;
+  currentVersion: number;
+}) {
   const listFn = useServerFn(listReportVersions);
   const { data: versions } = useQuery({
     queryKey: ["report-versions", caseId, currentVersion],
@@ -2333,7 +2588,10 @@ function ReportHistoryPanel({ caseId, currentVersion }: { caseId: string; curren
   const rows = versions ?? [];
   if (rows.length === 0) return null;
   return (
-    <Panel title="Version History" subtitle={`${rows.length} immutable snapshot${rows.length === 1 ? "" : "s"}`}>
+    <Panel
+      title="Version History"
+      subtitle={`${rows.length} immutable snapshot${rows.length === 1 ? "" : "s"}`}
+    >
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -2352,13 +2610,18 @@ function ReportHistoryPanel({ caseId, currentVersion }: { caseId: string; curren
             {rows.map((v) => (
               <tr key={v.id} className="border-b border-border/40">
                 <td className="py-2 pr-3 font-mono">v{v.version}</td>
-                <td className="py-2 pr-3 text-muted-foreground">{new Date(v.created_at).toLocaleString()}</td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {new Date(v.created_at).toLocaleString()}
+                </td>
                 <td className="py-2 pr-3 text-right">{v.document_count ?? "—"}</td>
                 <td className="py-2 pr-3 text-right">{v.findings_count ?? "—"}</td>
                 <td className="py-2 pr-3 text-right">{v.contradiction_count ?? "—"}</td>
                 <td className="py-2 pr-3 text-right">{v.ess ?? "—"}</td>
                 <td className="py-2 pr-3 text-right">{v.score ?? "—"}</td>
-                <td className="py-2 pr-3 font-mono text-xs text-muted-foreground" title={v.report_hash ?? ""}>
+                <td
+                  className="py-2 pr-3 font-mono text-xs text-muted-foreground"
+                  title={v.report_hash ?? ""}
+                >
                   {v.report_hash ? v.report_hash.slice(0, 8) : "—"}
                 </td>
               </tr>
@@ -2367,15 +2630,17 @@ function ReportHistoryPanel({ caseId, currentVersion }: { caseId: string; curren
         </table>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Snapshots are immutable: the database revokes UPDATE/DELETE on report_versions. The hash column is a SHA-256
-        over the canonical report content — identical hashes mean identical reports.
+        Snapshots are immutable: the database revokes UPDATE/DELETE on report_versions. The hash
+        column is a SHA-256 over the canonical report content — identical hashes mean identical
+        reports.
       </p>
     </Panel>
   );
 }
 
 function ReportTab({ r }: { r: Report | null | undefined }) {
-  if (!r) return <Empty msg="No report generated yet. Complete the pipeline then Generate Report." />;
+  if (!r)
+    return <Empty msg="No report generated yet. Complete the pipeline then Generate Report." />;
 
   // Honor ESS suppression: if the report flagged scores_suppressed or
   // motions_suppressed, never surface numeric scores or candidate motions.
@@ -2476,11 +2741,12 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
               : "Narrative Generation Partially Recovered"}
           </div>
           <p className="mt-1">{narrativeStatus.banner}</p>
-          {narrativeStatus.partially_failed && (narrativeStatus.salvaged_sections?.length ?? 0) > 0 && (
-            <p className="mt-1 text-xs opacity-80">
-              Recovered sections: {narrativeStatus.salvaged_sections!.join(", ")}
-            </p>
-          )}
+          {narrativeStatus.partially_failed &&
+            (narrativeStatus.salvaged_sections?.length ?? 0) > 0 && (
+              <p className="mt-1 text-xs opacity-80">
+                Recovered sections: {narrativeStatus.salvaged_sections!.join(", ")}
+              </p>
+            )}
         </div>
       )}
       {qualityBlocked && (
@@ -2492,8 +2758,9 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
             ))}
           </ul>
           <p className="mt-2 text-xs opacity-80">
-            Resolve the issues above (re-run extraction on failed documents, or re-run analyzers/agents so every finding
-            carries a doc + page + quote citation) before treating this report as final.
+            Resolve the issues above (re-run extraction on failed documents, or re-run
+            analyzers/agents so every finding carries a doc + page + quote citation) before treating
+            this report as final.
           </p>
         </div>
       )}
@@ -2505,25 +2772,35 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
         >
           <ul className="grid gap-2 text-sm sm:grid-cols-2">
             <li className="rounded border border-border bg-card p-3">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Case Strength</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Case Strength
+              </div>
               <div>
-                {changeLog.score_delta?.strength?.prev ?? "—"} → {changeLog.score_delta?.strength?.now ?? "—"}
+                {changeLog.score_delta?.strength?.prev ?? "—"} →{" "}
+                {changeLog.score_delta?.strength?.now ?? "—"}
               </div>
             </li>
             <li className="rounded border border-border bg-card p-3">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Risk Score</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Risk Score
+              </div>
               <div>
-                {changeLog.score_delta?.risk?.prev ?? "—"} → {changeLog.score_delta?.risk?.now ?? "—"}
+                {changeLog.score_delta?.risk?.prev ?? "—"} →{" "}
+                {changeLog.score_delta?.risk?.now ?? "—"}
               </div>
             </li>
             <li className="rounded border border-border bg-card p-3">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Contradictions</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Contradictions
+              </div>
               <div>
                 {changeLog.contradictions?.prev ?? 0} → {changeLog.contradictions?.now ?? 0}
               </div>
             </li>
             <li className="rounded border border-border bg-card p-3">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Totals (current)</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Totals (current)
+              </div>
               <div>
                 {changeLog.documents_total ?? 0} docs · {changeLog.findings_total ?? 0} findings ·{" "}
                 {changeLog.witnesses_total ?? 0} witnesses
@@ -2536,18 +2813,22 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
 
       {ess.scoresSuppressed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-          Quantitative case-strength and risk scores are suppressed for this case — the evidence-sufficiency validator
-          did not reach the threshold required for reliable scoring. Upload more source documents to enable scoring.
+          Quantitative case-strength and risk scores are suppressed for this case — the
+          evidence-sufficiency validator did not reach the threshold required for reliable scoring.
+          Upload more source documents to enable scoring.
         </div>
       )}
       {ess.motionsSuppressed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-          Motion recommendations are suppressed for this case — evidence sufficiency did not reach the threshold
-          required to recommend motions.
+          Motion recommendations are suppressed for this case — evidence sufficiency did not reach
+          the threshold required to recommend motions.
         </div>
       )}
       {disputedIssues.length > 0 && (
-        <Panel title="Disputed Issues Between Parties" subtitle="Party positions, not factual contradictions">
+        <Panel
+          title="Disputed Issues Between Parties"
+          subtitle="Party positions, not factual contradictions"
+        >
           <ul className="space-y-2">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {(disputedIssues as any[]).map((d, i) => (
@@ -2556,7 +2837,9 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
                   <ClaimBadge hint="analysis" />
                   <span className="font-medium">{rStr(d?.title, "Disputed issue")}</span>
                 </div>
-                {d?.description && <div className="mt-1 text-foreground/80">{rStr(d.description)}</div>}
+                {d?.description && (
+                  <div className="mt-1 text-foreground/80">{rStr(d.description)}</div>
+                )}
               </li>
             ))}
           </ul>
@@ -2584,7 +2867,9 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
                       {rStr(a.owner)}
                     </span>
                   )}
-                  {a?.deadline_hint && <span className="text-xs text-muted-foreground">· {rStr(a.deadline_hint)}</span>}
+                  {a?.deadline_hint && (
+                    <span className="text-xs text-muted-foreground">· {rStr(a.deadline_hint)}</span>
+                  )}
                 </div>
                 {a?.why && <div className="mt-1 text-sm text-foreground/80">{rStr(a.why)}</div>}
               </li>
@@ -2765,7 +3050,9 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
             {crossExam.map((w, i) => (
               <div key={i} className="rounded-md border border-border bg-card p-3">
                 <div className="font-semibold">{rStr(w?.witness, "Witness")}</div>
-                {w?.objective && <div className="text-xs text-muted-foreground">{rStr(w.objective)}</div>}
+                {w?.objective && (
+                  <div className="text-xs text-muted-foreground">{rStr(w.objective)}</div>
+                )}
                 {rArr(w?.lines).map((ln, j) => (
                   <div key={j} className="mt-2 rounded border border-border bg-secondary/30 p-2">
                     {ln?.topic && (
@@ -2843,7 +3130,8 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
                   const summary = rStr(e?.summary);
                   const pageCount = rNum(e?.page_count);
                   const filename = rStr(e?.filename);
-                  const isMetaOnly = summarySource === "metadata_only" || (!summary && pageCount != null);
+                  const isMetaOnly =
+                    summarySource === "metadata_only" || (!summary && pageCount != null);
                   const rendered = isMetaOnly
                     ? `${filename || "Unnamed document"} — ${pageCount ?? "?"} page${pageCount === 1 ? "" : "s"} — no AI classification available this run`
                     : summary;
@@ -2855,7 +3143,9 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
                         <SevBadge s={rStr(e?.role)} />
                       </td>
                       <td className="p-2 font-mono">{rArr(e?.key_pages).join(", ")}</td>
-                      <td className={`p-2 ${isMetaOnly ? "italic text-muted-foreground" : ""}`}>{rendered}</td>
+                      <td className={`p-2 ${isMetaOnly ? "italic text-muted-foreground" : ""}`}>
+                        {rendered}
+                      </td>
                     </tr>
                   );
                 })}
@@ -2877,8 +3167,8 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
 
       {!hasIntel && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800">
-          This report was generated before the litigation-intelligence upgrade. Re-run "Generate Report" to populate
-          citations, motions, cross-exam, and risk scores.
+          This report was generated before the litigation-intelligence upgrade. Re-run "Generate
+          Report" to populate citations, motions, cross-exam, and risk scores.
         </div>
       )}
 
@@ -2897,11 +3187,14 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
           // Hide constitutional analysis on civil matters; relabel
           // "Prosecution Theory" → "Plaintiff Theory" on civil matters.
           if (key === "constitutional_issues" && !isCrim) return null;
-          const renderedTitle = key === "prosecution_theory_report" && !isCrim ? "Plaintiff Theory" : title;
+          const renderedTitle =
+            key === "prosecution_theory_report" && !isCrim ? "Plaintiff Theory" : title;
           return (
             <div key={key} className="rounded-lg border border-border bg-card p-5">
               <h3 className="text-lg font-semibold">{renderedTitle}</h3>
-              <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{body}</div>
+              <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+                {body}
+              </div>
             </div>
           );
         };
@@ -2923,7 +3216,9 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-3">
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </div>
       {children}
     </div>
   );
@@ -2996,7 +3291,13 @@ function InlineCancelButton({ caseId, invalidate }: { caseId: string; invalidate
 // Strategic Findings — ranked view of priority 1–2 findings with neutral
 // classification chips. Pure presentation; reads CASE_STATE.
 // ---------------------------------------------------------------------------
-function ChipBadge({ label, tone }: { label: string; tone: "neutral" | "warn" | "danger" | "success" | "accent" }) {
+function ChipBadge({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "neutral" | "warn" | "danger" | "success" | "accent";
+}) {
   const cls =
     tone === "danger"
       ? "bg-destructive/15 text-destructive border-destructive/30"
@@ -3030,7 +3331,13 @@ function StrategicFindingsTab({ findings }: { findings: any[] }) {
     );
   }
   const pLabel = (p: number) =>
-    p === 1 ? "P1 · Case-Dispositive" : p === 2 ? "P2 · Admissibility" : p === 3 ? "P3 · Credibility" : "P4";
+    p === 1
+      ? "P1 · Case-Dispositive"
+      : p === 2
+        ? "P2 · Admissibility"
+        : p === 3
+          ? "P3 · Credibility"
+          : "P4";
   const pTone = (p: number): "danger" | "warn" | "accent" | "neutral" =>
     p === 1 ? "danger" : p === 2 ? "warn" : p === 3 ? "accent" : "neutral";
   return (
@@ -3075,7 +3382,9 @@ function StrategicFindingsTab({ findings }: { findings: any[] }) {
             )}
           </div>
           <div className="mt-2 text-base font-semibold">{f.title}</div>
-          {f.strategic_significance && <p className="mt-1 text-sm italic text-accent">{f.strategic_significance}</p>}
+          {f.strategic_significance && (
+            <p className="mt-1 text-sm italic text-accent">{f.strategic_significance}</p>
+          )}
           {f.description && <p className="mt-2 text-sm text-muted-foreground">{f.description}</p>}
           {f.source_quote && (
             <blockquote className="mt-3 border-l-2 border-accent/40 pl-3 text-xs text-muted-foreground">
@@ -3121,7 +3430,9 @@ function AttackSurfaceTab({ surface }: { surface: any }) {
       </div>
     );
   }
-  const populated = ATTACK_LANES.filter((l) => Array.isArray(surface[l.k]) && surface[l.k].length > 0);
+  const populated = ATTACK_LANES.filter(
+    (l) => Array.isArray(surface[l.k]) && surface[l.k].length > 0,
+  );
   if (populated.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
@@ -3132,8 +3443,8 @@ function AttackSurfaceTab({ surface }: { surface: any }) {
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-border bg-card/40 p-3 text-xs text-muted-foreground">
-        Derived deterministically from CASE_STATE — every item links back to a finding. No new analysis is performed
-        here.
+        Derived deterministically from CASE_STATE — every item links back to a finding. No new
+        analysis is performed here.
       </div>
       {populated.map((lane) => (
         <div key={lane.k} className="rounded-xl border border-border bg-card p-4">
@@ -3147,7 +3458,10 @@ function AttackSurfaceTab({ surface }: { surface: any }) {
           <ul className="space-y-2">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {(surface[lane.k] as any[]).slice(0, 20).map((it) => (
-              <li key={it.finding_id} className="rounded-md border border-border bg-background/40 p-3">
+              <li
+                key={it.finding_id}
+                className="rounded-md border border-border bg-background/40 p-3"
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   {it.priority && (
                     <ChipBadge
@@ -3158,7 +3472,9 @@ function AttackSurfaceTab({ surface }: { surface: any }) {
                   {it.severity && (
                     <ChipBadge
                       label={it.severity}
-                      tone={it.severity === "critical" || it.severity === "high" ? "danger" : "neutral"}
+                      tone={
+                        it.severity === "critical" || it.severity === "high" ? "danger" : "neutral"
+                      }
                     />
                   )}
                   {it.evidence_type && <ChipBadge label={it.evidence_type} tone="accent" />}

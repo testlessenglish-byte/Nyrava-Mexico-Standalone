@@ -77,7 +77,9 @@ function TraceRow({ row }: { row: PipelineTraceEntry }) {
         ) : (
           <span className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         )}
-        <span className="w-[70px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">{time}</span>
+        <span className="w-[70px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+          {time}
+        </span>
         <span
           className={cn(
             "shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide",
@@ -86,7 +88,9 @@ function TraceRow({ row }: { row: PipelineTraceEntry }) {
         >
           {row.phase}
         </span>
-        <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{row.step}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+          {row.step}
+        </span>
         {row.provider && (
           <span className="hidden shrink-0 font-mono text-[10px] text-muted-foreground sm:inline">
             {row.provider}
@@ -117,7 +121,13 @@ function TraceRow({ row }: { row: PipelineTraceEntry }) {
   );
 }
 
-export function PipelineTracePanel({ caseId, isProcessing }: { caseId: string; isProcessing?: boolean }) {
+export function PipelineTracePanel({
+  caseId,
+  isProcessing,
+}: {
+  caseId: string;
+  isProcessing?: boolean;
+}) {
   const { t } = useI18n();
   const fetchTrace = useServerFn(getPipelineTrace);
   const [rows, setRows] = useState<PipelineTraceEntry[]>([]);
@@ -134,7 +144,11 @@ export function PipelineTracePanel({ caseId, isProcessing }: { caseId: string; i
       setLoading(true);
       try {
         const res = await fetchTrace({
-          data: { caseId, ...(incremental && sinceId.current ? { sinceId: sinceId.current } : {}), limit: 300 },
+          data: {
+            caseId,
+            ...(incremental && sinceId.current ? { sinceId: sinceId.current } : {}),
+            limit: 300,
+          },
         });
         const incoming = (res.rows ?? []) as PipelineTraceEntry[];
         if (!incremental) {
@@ -199,7 +213,12 @@ export function PipelineTracePanel({ caseId, isProcessing }: { caseId: string; i
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-        <Activity className={cn("h-4 w-4", live && isProcessing ? "animate-pulse text-primary" : "text-muted-foreground")} />
+        <Activity
+          className={cn(
+            "h-4 w-4",
+            live && isProcessing ? "animate-pulse text-primary" : "text-muted-foreground",
+          )}
+        />
         <h3 className="text-sm font-semibold">{t("trace.title")}</h3>
         <Badge variant="outline" className="font-mono text-[10px]">
           {rows.length}
@@ -217,7 +236,11 @@ export function PipelineTracePanel({ caseId, isProcessing }: { caseId: string; i
           </Badge>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <Button size="sm" variant={errorsOnly ? "default" : "outline"} onClick={() => setErrorsOnly((v) => !v)}>
+          <Button
+            size="sm"
+            variant={errorsOnly ? "default" : "outline"}
+            onClick={() => setErrorsOnly((v) => !v)}
+          >
             {t("trace.errorsOnly")}
           </Button>
           <Button size="sm" variant="outline" onClick={() => setLive((v) => !v)}>
@@ -241,7 +264,9 @@ export function PipelineTracePanel({ caseId, isProcessing }: { caseId: string; i
           onClick={() => setPhase("all")}
           className={cn(
             "rounded border px-2 py-0.5 font-mono text-[10px] uppercase",
-            phase === "all" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground",
+            phase === "all"
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border text-muted-foreground",
           )}
         >
           {t("trace.all")}
@@ -255,7 +280,9 @@ export function PipelineTracePanel({ caseId, isProcessing }: { caseId: string; i
               onClick={() => setPhase(p)}
               className={cn(
                 "rounded border px-2 py-0.5 font-mono text-[10px] uppercase",
-                phase === p ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground",
+                phase === p
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground",
                 n === 0 && "opacity-40",
               )}
             >
@@ -283,7 +310,9 @@ export function PipelineTracePanel({ caseId, isProcessing }: { caseId: string; i
           ))}
         </div>
       )}
-      <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">{t("trace.hint")}</p>
+      <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+        {t("trace.hint")}
+      </p>
     </Card>
   );
 }
