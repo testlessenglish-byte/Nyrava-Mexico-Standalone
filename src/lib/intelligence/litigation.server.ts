@@ -176,7 +176,17 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
   // concurrency cuts wall-clock time while still checking the checkpoint
   // budget between batches (not between every single item, so an
   // in-flight batch always finishes together rather than being cut mid-way).
-  const PERSPECTIVE_CONCURRENCY = 3;
+  // Sequential, not concurrent — see MIGRATION NOTE below. Was 3 (three
+  // simultaneous calls per batch); a 3-way concurrent burst against
+  // free-tier/limited-quota provider keys is much more likely to trip a
+  // rate limiter than the same total work spread out sequentially, even
+  // when the raw token volume is identical. This matches the more
+  // conservative choice already made for the "agents" stage
+  // (AGENT_CONCURRENCY = 1 in pipeline.server.ts) — perspectives was the
+  // one inconsistent outlier still running bursty. Trades some wall-clock
+  // time for reliability, which is the right tradeoff while running on
+  // constrained keys; revisit if/when provider headroom genuinely allows it.
+  const PERSPECTIVE_CONCURRENCY = 1;
   const batches: Perspective[][] = [];
   for (let i = 0; i < PERSPECTIVES.length; i += PERSPECTIVE_CONCURRENCY) {
     batches.push(PERSPECTIVES.slice(i, i + PERSPECTIVE_CONCURRENCY));

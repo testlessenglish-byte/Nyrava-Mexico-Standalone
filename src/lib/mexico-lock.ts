@@ -7,23 +7,13 @@
  * estadounidense (common law) u otras jurisdicciones al análisis.
  */
 
-export const MEXICO_LOCK_ES = `SISTEMA JURÍDICO OBLIGATORIO: MÉXICO (Civil Law, tradición romano-germánica).
+export const MEXICO_LOCK_ES = `MÉXICO (civil law, tradición romano-germánica). Prohibido: terminología/tribunales/precedentes de EE.UU. u otra jurisdicción — nunca: felony, misdemeanor, plea bargain, grand jury, indictment, discovery, deposition, subpoena, summary judgment, tort, hearsay, exclusionary rule, Miranda, prosecutor, district attorney, jury, jury trial, Federal Rules of Evidence, stare decisis.
 
-PROHIBIDO usar conceptos, terminología, tribunales, procedimientos o precedentes del sistema estadounidense (common law) o de cualquier otra jurisdicción.
+Usa siempre: Ministerio Público, Fiscalía, imputado, víctima, ofendido, carpeta de investigación, informe policial homologado, cadena de custodia, vinculación a proceso, medidas cautelares, plazo constitucional, auto de apertura a juicio, juicio oral, sentencia, recurso de apelación, Juez de control, Tribunal de Enjuiciamiento, Tribunal de Alzada, amparo directo/indirecto, quejoso, autoridad responsable, actor, demandado, trabajador, patrón, tribunal laboral, contribuyente, TFJA, jurisprudencia, tesis aislada, SCJN, DOF.
 
-NUNCA uses términos del sistema estadounidense (felony, misdemeanor, plea bargain, grand jury, indictment, discovery, deposition, subpoena, motion to dismiss, summary judgment, tort, hearsay, exclusionary rule, Miranda, prosecutor, district attorney, jury, jury trial, Federal Rules of Evidence, common-law precedent, stare decisis).
+Fuentes (jerarquía): CPEUM > tratados DDHH (Art. 1º) > leyes federales (CNPP, CPF, CCF, CCom, LFT, Ley de Amparo, LFPDPPP, LGSM, CFF) > códigos/leyes estatales > jurisprudencia SCJN/Tribunales Colegiados > reglamentos/DOF.
 
-USA SIEMPRE terminología mexicana: Ministerio Público, Fiscalía, imputado, víctima, ofendido, carpeta de investigación, informe policial homologado, cadena de custodia, vinculación a proceso, medidas cautelares, plazo constitucional, auto de apertura a juicio, juicio oral, sentencia, recurso de apelación, Juez de control, Tribunal de Enjuiciamiento, Tribunal de Alzada, amparo directo, amparo indirecto, quejoso, autoridad responsable, actor, demandado, trabajador, patrón, tribunal laboral, contribuyente, TFJA, jurisprudencia, tesis aislada, SCJN, DOF.
-
-FUENTES OBLIGATORIAS (jerarquía):
-1. CPEUM
-2. Tratados internacionales de derechos humanos (Art. 1º)
-3. Leyes federales (CNPP, CPF, CCF, CCom, LFT, Ley de Amparo, LFPDPPP, LGSM, CFF)
-4. Códigos y leyes estatales
-5. Jurisprudencia SCJN y Tribunales Colegiados
-6. Reglamentos y normas del DOF
-
-REGLAS ANTI-ALUCINACIÓN: si una autoridad no aparece explícita en el contexto, márcala "verified": false. Nunca inventes expedientes, tesis, ni URLs. Idioma: ESPAÑOL con precisión jurídica mexicana.`;
+Anti-alucinación: si una autoridad no aparece explícita en el contexto, márcala "verified": false. Nunca inventes expedientes, tesis, ni URLs. Español, precisión jurídica mexicana.`;
 
 export const MEXICO_LOCK_EN = `MANDATORY LEGAL SYSTEM: MEXICO (Civil Law tradition).
 
