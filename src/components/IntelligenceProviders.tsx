@@ -66,6 +66,7 @@ import {
 } from "@/lib/ai-keys.functions";
 import {
   listProviderOrder,
+  listProviderCooldownStatus,
   setProviderOrder,
   listFeatureRouting,
   setFeatureRouting,
@@ -254,6 +255,7 @@ export function IntelligenceProviders() {
   const deleteProviderFn = useServerFn(deleteProviderAIKeys);
   const testFn = useServerFn(testUserAIKey);
   const listOrderFn = useServerFn(listProviderOrder);
+  const listCooldownsFn = useServerFn(listProviderCooldownStatus);
   const setOrderFn = useServerFn(setProviderOrder);
   const listFeaturesFn = useServerFn(listFeatureRouting);
   const setFeatureFn = useServerFn(setFeatureRouting);
@@ -264,6 +266,11 @@ export function IntelligenceProviders() {
     refetchInterval: 20_000,
   });
   const orderQ = useQuery({ queryKey: ["providerOrder"], queryFn: () => listOrderFn() });
+  const cooldownsQ = useQuery({
+    queryKey: ["providerCooldowns"],
+    queryFn: () => listCooldownsFn(),
+    refetchInterval: 10_000,
+  });
   const featuresQ = useQuery({ queryKey: ["featureRouting"], queryFn: () => listFeaturesFn() });
 
   const invalidateKeys = () => qc.invalidateQueries({ queryKey: ["userAIKeys"] });
@@ -277,6 +284,9 @@ export function IntelligenceProviders() {
 
   const order = orderQ.data ?? PROVIDER_LIST;
   const connectedCount = PROVIDER_LIST.filter((p) => (byProvider.get(p)?.length ?? 0) > 0).length;
+  const providerCooldowns = (cooldownsQ.data?.cooldowns ?? []).filter((c) =>
+    PROVIDER_LIST.includes(c.provider as Provider),
+  );
 
   // First healthy provider in failover order = "current provider"
   const currentProvider = useMemo(() => {
@@ -581,6 +591,34 @@ export function IntelligenceProviders() {
           </div>
         </div>
       </section>
+
+      {providerCooldowns.length > 0 && (
+        <section className="rounded-2xl border border-warning/40 bg-warning/10 p-5">
+          <div className="flex items-start gap-3">
+            <RotateCw className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+            <div>
+              <h3 className="font-semibold">{t("providers.cooldown.title")}</h3>
+              <p className="text-sm text-muted-foreground">{t("providers.cooldown.desc")}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
+            {providerCooldowns.slice(0, 4).map((c) => (
+              <div
+                key={`${c.provider}-${c.model}-${c.key}`}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">{PROVIDER_META[c.provider as Provider].label}</div>
+                  <div className="truncate text-xs text-muted-foreground">{c.model}</div>
+                </div>
+                <Badge variant="outline" className="shrink-0 text-[10px]">
+                  {t("providers.cooldown.retry", { n: Math.ceil(c.retryAfterMs / 1000) })}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* SECTION 4 — Intelligence Features */}
       <section className="rounded-2xl border border-border bg-card p-5">
