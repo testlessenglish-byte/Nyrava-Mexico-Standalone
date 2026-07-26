@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import type { AIProvider, AITask, ChatOpts, ChatResult, ProviderType } from "./providers/types";
 import { buildProvider, ProviderRow } from "./providers/factory";
 import { aiCallTimeoutForCheckpoint, assertCheckpointBudget, isCheckpointError } from "../pipeline-checkpoint.server";
+import { traceAsync } from "@/lib/pipeline-trace.server";
 
 export interface RouteOpts extends ChatOpts {
   task?: AITask;
@@ -523,6 +524,23 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   // message so "tried: x, y" reflects reality instead of the full chain.
   const attemptedProviders = new Set<ProviderType>();
 
+  traceAsync({
+    phase: "ai",
+    step: "router.chain_built",
+    status: "info",
+    model: opts.model ?? null,
+    detail: {
+      chain: chain.map((r, idx) => ({
+        order: idx + 1,
+        provider: r.provider_type,
+        model: r.default_model ?? null,
+        runtime_key: r.runtimeKeyIndex != null ? `key#${r.runtimeKeyIndex + 1}` : "(env)",
+      })),
+      skipped_providers: [...skippedProviders],
+      requested_model: opts.model ?? null,
+    },
+  });
+
   for (let i = 0; i < chain.length; i++) {
     const row = chain[i];
     // Mid-loop cooldown guard: only applies to Groq (its org-wide TPM/TPD
@@ -533,6 +551,14 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         console.warn(
           `[router.key] skipping remaining Groq key(s) — cooldown active for ${Math.max(0, cd - Date.now())}ms`,
         );
+        traceAsync({
+          phase: "ai",
+          step: "router.provider_skipped",
+          status: "warn",
+          provider: "groq",
+          model: opts.model ?? null,
+          detail: { reason: "cooldown_active", cooldown_ms: Math.max(0, cd - Date.now()) },
+        });
         while (i < chain.length && chain[i].provider_type === "groq") i++;
         if (i >= chain.length) break;
         // fall through to try chain[i], which is now a non-Groq provider
@@ -546,6 +572,15 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     const keyLabel = row.runtimeKeyIndex != null ? `key#${row.runtimeKeyIndex + 1} ${maskedKey}` : maskedKey;
     const t0 = Date.now();
     attemptedProviders.add(row.provider_type);
+    traceAsync({
+      phase: "ai",
+      step: "router.attempt",
+      status: "start",
+      provider: row.provider_type,
+      model: opts.model ?? row.default_model ?? null,
+      attempt: i + 1,
+      detail: { key: keyLabel, chain_position: `${i + 1}/${chain.length}` },
+    });
     try {
       // The requested opts.model may be provider-specific (e.g. a Groq model
       // like "meta-llama/llama-4-scout..."). When we fail over to a different
@@ -698,6 +733,21 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       console.info(
         `[router.key] served ok provider=${row.provider_type} ${keyLabel} tokens=${r.totalTokens ?? 0} ms=${r.latencyMs}`,
       );
+      traceAsync({
+        phase: "ai",
+        step: "router.served",
+        status: "ok",
+        provider: row.provider_type,
+        model: r.model ?? opts.model ?? row.default_model ?? null,
+        attempt: i + 1,
+        durationMs: r.latencyMs ?? Date.now() - t0,
+        detail: {
+          key: keyLabel,
+          total_tokens: r.totalTokens ?? null,
+          retries: retryCount,
+          fell_back_from: fellBackFrom.length ? fellBackFrom : null,
+        },
+      });
       if (!row.runtimeApiKey)
         void stampProvider(row.id, true).catch((e) => console.warn("[router] stampProvider failed", e));
       const result: RouteResult = {
@@ -733,6 +783,17 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       console.warn(
         `[router.key] failed provider=${row.provider_type} ${keyLabel} kind=${kind} err=${msg.slice(0, 200)}`,
       );
+      traceAsync({
+        phase: "ai",
+        step: "router.attempt_failed",
+        status: "error",
+        provider: row.provider_type,
+        model: opts.model ?? row.default_model ?? null,
+        attempt: i + 1,
+        durationMs: Date.now() - t0,
+        error: msg,
+        detail: { key: keyLabel, kind },
+      });
       record({
         ts: Date.now(),
         provider: row.provider_type,
@@ -835,6 +896,14 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   const chainProviders = [...new Set(chain.map((r) => r.provider_type))];
   const untried = chainProviders.filter((p) => !attemptedProviders.has(p));
   const untriedNote = untried.length ? ` (configured but never attempted: ${untried.join(", ")})` : "";
+  traceAsync({
+    phase: "ai",
+    step: "router.exhausted",
+    status: "error",
+    model: opts.model ?? null,
+    error: `All configured provider keys failed (tried: ${triedProviders})`,
+    detail: { tried: [...attemptedProviders], never_attempted: untried, errors: errors.slice(0, 5) },
+  });
   throw new Error(
     `All configured provider keys failed (tried: ${triedProviders}${untriedNote}). ${errors.join(" | ")}`,
   );
