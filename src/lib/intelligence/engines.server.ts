@@ -950,10 +950,16 @@ ${ctx.corpus}`,
     };
   }
   await db.from("case_witnesses").delete().eq("case_id", caseId);
-  // Deterministic credibility_risk per witness — computed once here so both
-  // the DB row and the finding below use the same canonical, auditable
-  // number instead of the LLM's independent (and previously unchecked) guess.
-  const computedRisk = witnesses.map((w) => computeCredibilityRisk(w));
+  // Deterministic, ROLE-AWARE credibility_risk per witness — computed once
+  // here so both the DB row and the finding below use the same canonical,
+  // auditable number instead of the LLM's independent guess. The Mexican
+  // procedural role (perito, policía primer respondiente, autoridad
+  // responsable, víctima, MP, patrón…) sets the dimension weights and the
+  // structural bias floor the law itself presumes — see mx-witness-roles.ts.
+  const witnessLocale = await getReportLocale(db, caseId);
+  const computedRisk = witnesses.map((w) =>
+    computeRoleAwareCredibility({ ...w, locale: witnessLocale === "en" ? "en" : "es" }),
+  );
   {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await db.from("case_witnesses").insert(
