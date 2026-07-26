@@ -1125,9 +1125,46 @@ async function _runPipelineForCase(
         return { ok: false, cancelled: true, failedAt: s.key, completedStages: i };
       }
       if (e instanceof Error && e.name === "CheckpointRequired") {
+        // Loop-breaker: if this stage has already checkpointed repeatedly it is
+        // not making progress (typically: every AI provider key is out of
+        // quota). Fail truthfully instead of re-queueing forever.
+        const priorCheckpoints = await stageCheckpointCount(s.key);
+        if (priorCheckpoints >= MAX_STAGE_CHECKPOINTS) {
+          const detail =
+            `${s.label}: la etapa no avanzó tras ${priorCheckpoints + 1} reintentos. ` +
+            `Causa probable: sin capacidad de IA disponible (todas las llaves configuradas ` +
+            `agotaron su cuota). Revise Admin → Llaves de IA y vuelva a ejecutar.`;
+          trace("stage.checkpoint_loop_aborted", {
+            stage: s.key,
+            checkpoints: priorCheckpoints + 1,
+            error: detail,
+          });
+          try {
+            await prog.emitEvent(supabase, caseId, s.key, detail, { level: "error" });
+          } catch {
+            /* noop */
+          }
+          await updateCase(
+            {
+              status: "failed",
+              status_message: `Sin capacidad de IA — detenido en ${s.label}`,
+              error: detail.slice(0, 2000),
+              next_stage: s.key,
+              queued_at: null,
+              worker_lease_until: null,
+              stall_reason: "ai_capacity_exhausted",
+            },
+            `stage.checkpoint_loop:${s.key}`,
+          );
+          return { ok: false, failedAt: s.key, completedStages: i };
+        }
         try {
           const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
           await requeueForContinuation(supabase, caseId, s.key);
+        } catch (rqErr) {
+          console.warn(`[pipeline] re-queue after checkpoint failed`, rqErr);
+        }
+
         } catch (rqErr) {
           console.warn(`[pipeline] re-queue after checkpoint failed`, rqErr);
         }
