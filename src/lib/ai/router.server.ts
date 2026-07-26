@@ -246,7 +246,17 @@ function cacheKey(model: string, opts: RouteOpts) {
 
 // ---- DB access (uses admin client; this is server-only infra) ----
 
+// A full pipeline run calls routeAI() ~25-30 times, and until now each one
+// independently re-queried ai_providers AND user_ai_keys from scratch —
+// this data cannot change mid-run in any way that matters for routing a
+// single case, so re-fetching it every single call was pure redundant
+// latency. Short TTL (not a long one) so the admin AI Providers page still
+// reflects a just-added/edited key reasonably quickly.
+const PROVIDER_ROWS_CACHE_TTL_MS = 20_000;
+let _providerRowsCache: { rows: ProviderRow[]; expiresAt: number } | null = null;
+
 async function loadProviderRows(): Promise<ProviderRow[]> {
+  if (_providerRowsCache && _providerRowsCache.expiresAt > Date.now()) return _providerRowsCache.rows;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("ai_providers")
@@ -257,7 +267,9 @@ async function loadProviderRows(): Promise<ProviderRow[]> {
   // such as "lovable"). Left in, they build an undefined provider and take the
   // whole chain down with a TypeError instead of failing over.
   const SUPPORTED: ProviderType[] = ["groq", "openai", "anthropic", "gemini", "openrouter", "ollama", "lmstudio"];
-  return ((data ?? []) as ProviderRow[]).filter((r) => SUPPORTED.includes(r.provider_type));
+  const rows = ((data ?? []) as ProviderRow[]).filter((r) => SUPPORTED.includes(r.provider_type));
+  _providerRowsCache = { rows, expiresAt: Date.now() + PROVIDER_ROWS_CACHE_TTL_MS };
+  return rows;
 }
 
 /**
@@ -268,7 +280,18 @@ async function loadProviderRows(): Promise<ProviderRow[]> {
  * Gemini + OpenAI etc. and have the router fall through across providers
  * (not just across keys within one provider) when one runs out of quota.
  */
+const _userProviderGroupsCache = new Map<string, { groups: Array<{ provider: ProviderType; keys: string[] }>; expiresAt: number }>();
+const USER_PROVIDER_GROUPS_CACHE_TTL_MS = 20_000;
+
 async function loadUserProviderKeyGroups(userId: string): Promise<Array<{ provider: ProviderType; keys: string[] }>> {
+  const cached = _userProviderGroupsCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached.groups;
+  const groups = await _loadUserProviderKeyGroupsUncached(userId);
+  _userProviderGroupsCache.set(userId, { groups, expiresAt: Date.now() + USER_PROVIDER_GROUPS_CACHE_TTL_MS });
+  return groups;
+}
+
+async function _loadUserProviderKeyGroupsUncached(userId: string): Promise<Array<{ provider: ProviderType; keys: string[] }>> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { decryptKey } = await import("@/lib/canonical/encryption.server");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
