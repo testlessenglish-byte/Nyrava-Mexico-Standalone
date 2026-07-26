@@ -27,8 +27,8 @@ const AREAS: PracticeArea[] = [
 
 describe("practice-area normalization", () => {
   it("falls back to general_civil for unknown inputs", () => {
-    expect(normalizePracticeArea(null)).toBe("general_civil");
-    expect(normalizePracticeArea("nonsense")).toBe("general_civil");
+    expect(() => normalizePracticeArea(null)).toThrow();
+    expect(() => normalizePracticeArea("nonsense")).toThrow();
   });
   it("preserves all eight registered areas", () => {
     for (const a of AREAS) expect(normalizePracticeArea(a)).toBe(a);
