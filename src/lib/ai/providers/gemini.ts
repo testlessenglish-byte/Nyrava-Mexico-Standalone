@@ -1,10 +1,13 @@
 // Google Gemini (Generative Language API) adapter.
+import { createHash } from "node:crypto";
 import {
   AIProvider, ChatOpts, ChatResult, ProviderConfig, ProviderConfigError,
   PROVIDER_DEFAULTS, PROVIDER_TIMEOUT_MS, withTimeout,
 } from "./types";
 import { withCapabilities } from "./capabilities";
 import { aiCallTimeoutForCheckpoint, assertCheckpointBudget } from "../../pipeline-checkpoint.server";
+import { currentTelemetryScope } from "../telemetry.server";
+import { traceAsync } from "../../pipeline-trace.server";
 
 /**
  * Live Flash-class ids tried, in order, when the configured id answers 404
@@ -33,6 +36,10 @@ function retryAfterHeaderMs(value: string | null): number | undefined {
   const dateMs = Date.parse(value);
   if (Number.isFinite(dateMs)) return Math.max(1000, dateMs - Date.now());
   return undefined;
+}
+
+function hashBody(body: Record<string, unknown>): string {
+  return createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 
 
@@ -106,8 +113,19 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
         },
       };
       if (o.systemInstruction) body.systemInstruction = { parts: [{ text: o.systemInstruction }] };
+      const aiCallId = `gemini-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const promptSha256 = hashBody(body);
+      const engine = currentTelemetryScope()?.replay?.engine;
       let res: Response;
       try {
+        traceAsync({
+          phase: "ai",
+          step: "provider.request",
+          status: "start",
+          provider: "gemini",
+          model,
+          detail: { ai_call_id: aiCallId, engine: typeof engine === "string" ? engine : null, prompt_sha256: promptSha256 },
+        });
         res = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -116,7 +134,18 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
         });
       } catch (e) {
         to.cancel();
-        throw new Error(to.timedOut() ? `gemini timed out after ${timeoutMs}ms` : (e instanceof Error ? e.message : String(e)));
+        const message = to.timedOut() ? `gemini timed out after ${timeoutMs}ms` : (e instanceof Error ? e.message : String(e));
+        traceAsync({
+          phase: "ai",
+          step: "provider.request",
+          status: "error",
+          provider: "gemini",
+          model,
+          durationMs: Date.now() - t0,
+          error: message,
+          detail: { ai_call_id: aiCallId, engine: typeof engine === "string" ? engine : null, prompt_sha256: promptSha256 },
+        });
+        throw new Error(message);
       }
       to.cancel();
       assertCheckpointBudget(`after gemini fetch ${model}`);
@@ -132,6 +161,22 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
         (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).retryAfterMs = retryAfterHeaderMs(
           res.headers.get("retry-after"),
         );
+        traceAsync({
+          phase: "ai",
+          step: "provider.request",
+          status: "error",
+          provider: "gemini",
+          model,
+          durationMs: latencyMs,
+          error: err.message,
+          detail: {
+            ai_call_id: aiCallId,
+            engine: typeof engine === "string" ? engine : null,
+            prompt_sha256: promptSha256,
+            http_status: res.status,
+            retry_after_ms: (err as unknown as { retryAfterMs?: number }).retryAfterMs ?? null,
+          },
+        });
         throw err;
       }
       const json = await res.json() as {
@@ -140,6 +185,23 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
       };
       const text = (json.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? "").join("");
       if (!text) throw new Error("gemini: empty response");
+      traceAsync({
+        phase: "ai",
+        step: "provider.request",
+        status: "ok",
+        provider: "gemini",
+        model,
+        durationMs: latencyMs,
+        detail: {
+          ai_call_id: aiCallId,
+          engine: typeof engine === "string" ? engine : null,
+          prompt_sha256: promptSha256,
+          input_tokens: json.usageMetadata?.promptTokenCount ?? null,
+          output_tokens: json.usageMetadata?.candidatesTokenCount ?? null,
+          total_tokens: json.usageMetadata?.totalTokenCount ?? null,
+          provider_request_id: providerRequestId ?? null,
+        },
+      });
       return {
         text, model, latencyMs,
         inputTokens: json.usageMetadata?.promptTokenCount,
