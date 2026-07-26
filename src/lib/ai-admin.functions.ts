@@ -170,7 +170,7 @@ export const reorderAiProviders = createServerFn({ method: "POST" })
 
 // ---- TEST (Live Provider Probe) ----
 // Probes credentials via the SAME resolution path production uses:
-//   resolveGroqKeys(user) → user_groq_keys rows → runtime apiKeys override.
+//   resolveProviderKeys(user, provider) → user_ai_keys rows → runtime keys.
 // The old path probed ai_providers.api_key_encrypted, which the router
 // bypasses whenever runtime keys are supplied — that produced the 401 vs
 // 429 mismatch the operator was seeing (probe hit a stale encrypted key,
@@ -194,7 +194,6 @@ export const testAiProvider = createServerFn({ method: "POST" })
     if (error || !row) throw new Error(error?.message ?? "Provider not found");
 
     const { resolveProviderKeys, maskKey } = await import("./ai-key-router.server");
-    const { makeOpenAICompatible } = await import("./ai/providers/openai-compatible");
     const { buildProvider } = await import("./ai/providers/factory");
 
     // Same source-of-truth the pipeline uses. Admin probes THEIR own saved
@@ -207,7 +206,7 @@ export const testAiProvider = createServerFn({ method: "POST" })
 
     type PerKey = {
       keyIndex: number;
-      source: "user_groq_keys" | "platform_env" | "ai_providers_stored";
+      source: "user_ai_keys" | "platform_env" | "ai_providers_stored";
       masked: string;
       keyPrefix: string;
       keySuffix: string;
@@ -224,10 +223,9 @@ export const testAiProvider = createServerFn({ method: "POST" })
     async function probeKey(k: string, keyIndex: number, source: PerKey["source"]) {
       if (seen.has(k)) return;
       seen.add(k);
-      const provider = makeOpenAICompatible(
-        { type: row.provider_type as ProviderType, apiKey: k, baseUrl: row?.base_url ?? null, defaultModel: row?.default_model ?? null },
-        { requiresKey: true },
-      );
+      // Build via the factory so each provider family is probed with its own
+      // adapter (Gemini/Anthropic are NOT OpenAI-compatible).
+      const provider = buildProvider(row as never, k);
       const r = await provider.testConnection();
       const prefix = k.slice(0, 8);
       const suffix = k.slice(-6);
@@ -252,19 +250,16 @@ export const testAiProvider = createServerFn({ method: "POST" })
       perKey.push(entry);
     }
 
-    // Probe every user_groq_keys entry in order (skipping invalid, not stopping).
+    // Probe every user_ai_keys entry in order (skipping invalid, not stopping).
     for (let i = 0; i < keys.length; i++) {
-      const src: PerKey["source"] = userKeyCount > 0 && i < userKeyCount ? "user_groq_keys" : "platform_env";
+      const src: PerKey["source"] = userKeyCount > 0 && i < userKeyCount ? "user_ai_keys" : "platform_env";
       await probeKey(keys[i], i, src);
     }
 
     // Also probe the ai_providers row's stored key when present — this is the
     // credential the legacy probe used, kept here purely for diagnostic parity
     // so operators can see explicitly whether it matches the active user key set.
-    const storedKey = row.api_key_encrypted
-      ? (buildProvider(row as never) as unknown as { chat: unknown } | null)
-      : null;
-    if (storedKey && row.api_key_encrypted) {
+    if (row.api_key_encrypted) {
       const { resolveApiKey } = await import("./ai/providers/factory");
       const legacyKey = resolveApiKey(row as never);
       if (legacyKey && !seen.has(legacyKey)) {
@@ -287,10 +282,10 @@ export const testAiProvider = createServerFn({ method: "POST" })
       // Legacy shape (kept for backwards compat with existing UI):
       ok: anyOk,
       latencyMs: firstOk?.latencyMs ?? firstErr?.latencyMs ?? 0,
-      error: anyOk ? undefined : (firstErr?.error ?? "No Groq keys configured"),
+      error: anyOk ? undefined : (firstErr?.error ?? `No ${row.provider_type} keys configured`),
       // New diagnostic block — identical credential resolution to production.
       diagnostics: {
-        credentialSource: userKeyCount > 0 ? "user_groq_keys" : hasPlatform ? "platform_env" : "none",
+        credentialSource: userKeyCount > 0 ? "user_ai_keys" : hasPlatform ? "platform_env" : "none",
         userKeyCount,
         hasPlatformFallback: hasPlatform,
         keysProbed: perKey.length,
