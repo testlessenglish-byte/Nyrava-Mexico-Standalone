@@ -3,7 +3,7 @@
  *
  * Generates realistic Mexican-law benchmark matters (Penal, Amparo, Civil,
  * Laboral, Familiar, Mercantil, Fiscal, etc.) into the caller's active
- * organization. Uses the Lovable AI Gateway with the Mexico legal lock so
+ * organization. Uses the shared AI router (ai_providers + user_ai_keys) with the Mexico legal lock so
  * every fixture stays inside Mexican civil-law terminology (Ministerio
  * Público, imputado, amparo, actor/demandado, LFT, CNPP...).
  *
