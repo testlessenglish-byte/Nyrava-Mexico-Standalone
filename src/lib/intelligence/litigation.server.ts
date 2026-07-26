@@ -300,7 +300,10 @@ ${briefText}`,
           console.warn(
             `[perspectives] Groq cooldown/rate limit reached after ${done} of ${PERSPECTIVES.length}; yielding for worker retry`,
           );
-          throw new CheckpointRequired("perspectives", `${res.perspective} Groq cooldown after ${done - 1} successful`);
+          throw new CheckpointRequired(
+            "perspectives",
+            `${res.perspective} after ${done - 1} successful — ${res.msg.slice(0, 300)}`,
+          );
         }
         failures.push(`${res.perspective}: ${res.msg}`);
       }
