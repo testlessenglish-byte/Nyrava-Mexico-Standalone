@@ -179,8 +179,12 @@ export const seedFixtureCorpus = createServerFn({ method: "POST" })
       detectedLabel: MX_CASE_TYPE_LABELS[detected.caseType].es,
       detectionSource: detected.source,
       detectionConfidence: detected.classification.confidence,
+      detectedJurisdiction,
+      detectedFuero: jurProfile.fuero,
+      analysisMode: "exploratory" as const,
       documentCount: (docs ?? []).length,
       extractedChars: uploads.reduce((acc, u) => acc + u.bytes.byteLength, 0),
     };
+
   });
 
