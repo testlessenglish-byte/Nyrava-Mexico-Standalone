@@ -508,9 +508,16 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
     queryKey: ["fixtureCorpora"],
     queryFn: () => fetchList(),
   });
-  const [selected, setSelected] = useState<string>("");
+  // "auto" = let the platform classify the materia from the seeded corpus.
+  const [selected, setSelected] = useState<string>("auto");
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ caseId: string; documentCount: number; extractedChars: number } | null>(null);
+  const [result, setResult] = useState<{
+    caseId: string;
+    documentCount: number;
+    extractedChars: number;
+    detectedLabel?: string;
+    detectionSource?: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const seed = async () => {
@@ -519,8 +526,16 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
     setError(null);
     setResult(null);
     try {
-      const r = await seedFn({ data: { practiceArea: selected } });
-      setResult({ caseId: r.caseId, documentCount: r.documentCount, extractedChars: r.extractedChars });
+      const r = await seedFn({
+        data: { practiceArea: selected === "auto" ? null : selected },
+      });
+      setResult({
+        caseId: r.caseId,
+        documentCount: r.documentCount,
+        extractedChars: r.extractedChars,
+        detectedLabel: r.detectedLabel,
+        detectionSource: r.detectionSource,
+      });
       onSeeded();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -548,7 +563,9 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
                 disabled={isLoading || busy}
                 className="rounded-md border border-border bg-background px-3 py-2 text-sm"
               >
-                <option value="">{isLoading ? "Loading corpora…" : "Select a practice area…"}</option>
+                <option value="auto">
+                  {isLoading ? "Cargando acervos…" : "Automático — detectar materia"}
+                </option>
                 {(corpora ?? []).map((c) => (
                   <option key={c.practiceArea} value={c.practiceArea}>
                     {c.practiceArea} ({c.fileCount} files)
@@ -576,6 +593,13 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
                 <div className="font-medium text-success">
                   Uploaded {result.documentCount} documents · {result.extractedChars.toLocaleString()} bytes total.
                 </div>
+                {result.detectedLabel && (
+                  <div className="mt-1 text-muted-foreground">
+                    Materia detectada automáticamente:{" "}
+                    <span className="font-medium text-foreground">{result.detectedLabel}</span>
+                    {result.detectionSource ? ` (${result.detectionSource})` : ""}
+                  </div>
+                )}
                 <div className="mt-1 font-mono text-muted-foreground">case_id: {result.caseId}</div>
                 <div className="mt-1 text-muted-foreground">
                   Open the case and click <span className="font-medium">Run Case</span> to extract + analyze against
