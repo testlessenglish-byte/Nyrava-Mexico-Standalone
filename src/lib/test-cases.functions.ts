@@ -77,6 +77,8 @@ export const generateMexicoTestCase = createServerFn({ method: "POST" })
     }
 
     const provider = getAIProvider();
+    // Single provider manager, using this admin's own configured keys.
+    const aiOpts = { userId };
     const userPrompt = `Genera UN caso ficticio realista de prueba (benchmark) para Nyrava Intelligence México.
 
 Parámetros:

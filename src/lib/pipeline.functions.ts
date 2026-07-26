@@ -162,7 +162,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
           { role: "system", content: CLASSIFY_SYSTEM },
           { role: "user", content: `Título: ${doc.title}\nTexto:\n${classifyText}` },
         ],
-        { temperature: 0.1 },
+        { ...aiOpts, temperature: 0.1 },
       );
       await updateDoc({
         classification: cls,
@@ -177,7 +177,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
           { role: "system", content: ENTITY_SYSTEM },
           { role: "user", content: classifyText || `Título: ${doc.title}` },
         ],
-        { temperature: 0.1 },
+        { ...aiOpts, temperature: 0.1 },
       );
 
       // Persist entities as matter_knowledge rows (engine="case", kind varies).
