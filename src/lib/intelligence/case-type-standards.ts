@@ -90,6 +90,7 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
       "Reparación integral en términos del Art. 1 CPEUM y de la Ley General de Víctimas: restitución, rehabilitación, compensación, satisfacción y medidas de no repetición; nulidad o inaplicación del acto o norma; responsabilidad patrimonial del Estado y, en su caso, responsabilidad administrativa o penal de los servidores públicos involucrados.",
     drafting_notes:
       "Identificar el derecho humano afectado, la autoridad responsable y el acto u omisión concretos. Aplicar interpretación conforme y test de proporcionalidad, y citar el parámetro de regularidad constitucional. NUNCA uses figuras estadounidenses (§ 1983, qualified immunity, Monell, Bivens) — el marco es CPEUM, tratados, Ley de Amparo y jurisprudencia de la SCJN y la Corte IDH.",
+  },
   civil: {
     label: "Derecho Civil (Federal y Local)",
     controlling_standards:
@@ -175,6 +176,7 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
       "Reinstalación o indemnización constitucional de tres meses (Art. 48 LFT), salarios caídos con el límite de doce meses más intereses del dos por ciento mensual sobre quince meses, prima de antigüedad (Art. 162 LFT), vacaciones, prima vacacional, aguinaldo, horas extra, y prestaciones de seguridad social omitidas.",
     drafting_notes:
       "Precisar fecha de ingreso, salario integrado, jornada y fecha y forma del despido. Verificar la constancia de conciliación prejudicial antes de la demanda. NUNCA uses categorías estadounidenses (Title VII, EEOC, at-will employment, FMLA, wrongful termination) — el marco es la LFT, la CPEUM y la jurisprudencia laboral de la SCJN.",
+  },
   mercantil: {
     label: "Derecho Mercantil (Código de Comercio, LGTOC, LGSM)",
     controlling_standards:
@@ -205,6 +207,7 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
       "Pago de la suerte principal, intereses ordinarios y moratorios pactados (con el límite del interés usurario conforme a CT 350/2013), gastos y costas, ejecución del embargo y remate, cumplimiento forzoso o rescisión contractual con daños y perjuicios, y nulidad de actos societarios.",
     drafting_notes:
       "Verificar primero la literalidad del título y la vía procedente (ejecutiva mercantil, oral mercantil u ordinaria por cuantía). Analizar el interés pactado bajo el estándar de usura. NUNCA uses figuras del derecho estadounidense (UCC, Restatement, Delaware, promissory estoppel) — el marco es el Código de Comercio, la LGTOC, la LGSM y la jurisprudencia mercantil de la SCJN.",
+  },
   fiscal: {
     label: "Derecho Fiscal (CFF, LFPCA, TFJA)",
     controlling_standards:
@@ -235,6 +238,7 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
       "Nulidad lisa y llana o para efectos de la resolución determinante, cancelación del crédito fiscal, devolución de cantidades pagadas indebidamente con actualización e intereses (Arts. 22 y 22-A CFF), condonación o reducción de multas y, en su caso, reducción de recargos y acuerdos conclusivos ante la PRODECON.",
     drafting_notes:
       "Precisar el acto impugnado, su fecha de notificación y la etapa de la facultad de comprobación. Vincular cada agravio a una fracción del Art. 51 LFPCA y verificar caducidad y prescripción. NUNCA uses el marco estadounidense (IRC, IRS, Tax Court, Notice of Deficiency, § 7201) — el marco es el CFF, la LISR, la LIVA, la LFPCA y la jurisprudencia del TFJA y la SCJN.",
+  },
   amparo: {
     label: "Juicio de Amparo",
     controlling_standards:
