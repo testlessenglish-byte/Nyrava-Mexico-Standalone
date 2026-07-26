@@ -31,6 +31,7 @@ import {
   normalizeLlmFindings,
 } from "./findings.server";
 import type { Theory, Opportunity, WitnessProfile, TrialPrep, WorkProductDoc } from "./types";
+import { computeRoleAwareCredibility } from "./mx-witness-roles";
 
 // Findings created by the engines below feed computeCanonicalFindingId()
 // (see canonical-id.ts), which uses source_doc_ids as its primary merge
