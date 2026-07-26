@@ -9,6 +9,7 @@ export const PRICING: Record<ProviderType, Price> = {
   anthropic:  { input: 3.00, output: 15.00 },
   gemini:     { input: 0.10, output: 0.40 },
   openrouter: { input: 0.50, output: 1.50 },
+  lovable:    { input: 0.10, output: 0.40 },
   ollama:     { input: 0,    output: 0 },
   lmstudio:   { input: 0,    output: 0 },
 };

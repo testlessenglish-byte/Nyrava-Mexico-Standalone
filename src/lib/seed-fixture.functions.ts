@@ -60,7 +60,7 @@ export const listFixtureCorpora = createServerFn({ method: "GET" })
 
 export const seedFixtureCorpus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { practiceArea: string }) => input)
+  .inputValidator((input: { practiceArea?: string | null } | undefined) => input ?? {})
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context as {
       supabase: import("@supabase/supabase-js").SupabaseClient;
@@ -74,7 +74,24 @@ export const seedFixtureCorpus = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!adminRole) throw new Error("Forbidden — admin role required");
 
-    const uploads = loadCorpusFromBundle(data.practiceArea).map((u) => ({
+    // Auto mode: no practiceArea supplied. Pick a bundled corpus ourselves so
+    // the operator never has to choose a materia — the platform classifies the
+    // seeded content afterwards and locks case_type from the evidence itself.
+    const available = Array.from(
+      new Set(
+        Object.keys(CORPUS_FILES)
+          .map((path) => path.match(/^\/tests\/fixtures\/corpora\/([^/]+)\//)?.[1])
+          .filter((a): a is string => Boolean(a)),
+      ),
+    ).sort();
+    const requestedArea = (data.practiceArea ?? "").trim();
+    const corpusArea =
+      requestedArea.length > 0
+        ? requestedArea
+        : (available[Math.floor(Math.random() * available.length)] ?? "");
+    if (!corpusArea) throw new Error("No bundled fixture corpora available.");
+
+    const uploads = loadCorpusFromBundle(corpusArea).map((u) => ({
       ...u,
       // pipeline.uploadFiles infers mime from filename; ensure caller-supplied
       // bytes get a sensible default content type when stored.
@@ -82,25 +99,41 @@ export const seedFixtureCorpus = createServerFn({ method: "POST" })
     }));
     if (uploads.length === 0) {
       throw new Error(
-        `No bundled corpus found for '${data.practiceArea}'. ` +
-          `Author it under tests/fixtures/corpora/${data.practiceArea}/ and redeploy.`,
+        `No bundled corpus found for '${corpusArea}'. ` +
+          `Author it under tests/fixtures/corpora/${corpusArea}/ and redeploy.`,
       );
     }
+
+    // Classify the materia from the corpus content (Mexican vocabulary), so a
+    // seeded case arrives with the same auto-detected case_type a real upload
+    // would get. Folder label is only a fallback.
+    const dec = new TextDecoder();
+    const corpusText = uploads
+      .map((u) => dec.decode(u.bytes))
+      .join("\n\n")
+      .slice(0, 120_000);
+    const { resolveMxCaseType, MX_CASE_TYPE_LABELS } = await import("@/lib/mx-case-classifier");
+    const detected = resolveMxCaseType({ text: corpusText, declaredArea: corpusArea });
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { uploadFiles } = await import("@/lib/pipeline.server");
 
-    const name = `[fixture:${data.practiceArea}] ${new Date().toISOString().slice(0, 19)}`;
+    const name = `[fixture:${MX_CASE_TYPE_LABELS[detected.caseType].es}] ${new Date()
+      .toISOString()
+      .slice(0, 19)}`;
     const { data: created, error } = await supabaseAdmin
       .from("cases")
       .insert({
         user_id: userId,
         name,
-        description: `Substantive evidence-depth fixture for ${data.practiceArea}. Seeded from tests/fixtures/corpora/${data.practiceArea}/.`,
+        description:
+          `Caso semilla con acervo probatorio real. Corpus: tests/fixtures/corpora/${corpusArea}/. ` +
+          `Materia detectada automáticamente: ${MX_CASE_TYPE_LABELS[detected.caseType].es} ` +
+          `(origen: ${detected.source}, confianza ${detected.classification.confidence}).`,
         status: "uploaded",
         progress: 0,
         analysis_mode: "strict",
-        case_type: data.practiceArea,
+        case_type: detected.caseType,
       } as never)
       .select("id")
       .single();
@@ -126,7 +159,11 @@ export const seedFixtureCorpus = createServerFn({ method: "POST" })
 
     return {
       caseId,
-      practiceArea: data.practiceArea,
+      practiceArea: corpusArea,
+      detectedCaseType: detected.caseType,
+      detectedLabel: MX_CASE_TYPE_LABELS[detected.caseType].es,
+      detectionSource: detected.source,
+      detectionConfidence: detected.classification.confidence,
       documentCount: (docs ?? []).length,
       extractedChars: uploads.reduce((acc, u) => acc + u.bytes.byteLength, 0),
     };

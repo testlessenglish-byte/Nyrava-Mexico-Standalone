@@ -102,6 +102,33 @@ async function _runPipelineForCase(
     });
   };
 
+  // ---------------------------------------------------------------------------
+  // Checkpoint loop-breaker.
+  //
+  // A stage that yields with CheckpointRequired is re-queued and retried on the
+  // next worker tick. When the cause is "no AI capacity left" (every provider
+  // key 429s), the stage burns its whole budget on failing calls and yields
+  // again — forever. Count how many times this stage has already checkpointed
+  // for this case and terminate the run with a truthful message instead of
+  // looping.
+  // ---------------------------------------------------------------------------
+  const MAX_STAGE_CHECKPOINTS = 4;
+  const stageCheckpointCount = async (stageKey: string): Promise<number> => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count } = await (supabase as any)
+        .from("pipeline_trace")
+        .select("id", { count: "exact", head: true })
+        .eq("case_id", caseId)
+        .in("step", ["stage.checkpoint", "stage.checkpoint_before_start"])
+        .contains("detail", { stage: stageKey })
+        .gte("created_at", new Date(Date.now() - 6 * 60 * 60_000).toISOString());
+      return typeof count === "number" ? count : 0;
+    } catch {
+      return 0;
+    }
+  };
+
   const updateCase = async (patch: Record<string, unknown>, source: string) => {
     const withHeartbeat: Record<string, unknown> = { ...patch };
     const statusValue = typeof patch.status === "string" ? patch.status : null;
@@ -1098,6 +1125,39 @@ async function _runPipelineForCase(
         return { ok: false, cancelled: true, failedAt: s.key, completedStages: i };
       }
       if (e instanceof Error && e.name === "CheckpointRequired") {
+        // Loop-breaker: if this stage has already checkpointed repeatedly it is
+        // not making progress (typically: every AI provider key is out of
+        // quota). Fail truthfully instead of re-queueing forever.
+        const priorCheckpoints = await stageCheckpointCount(s.key);
+        if (priorCheckpoints >= MAX_STAGE_CHECKPOINTS) {
+          const detail =
+            `${s.label}: la etapa no avanzó tras ${priorCheckpoints + 1} reintentos. ` +
+            `Causa probable: sin capacidad de IA disponible (todas las llaves configuradas ` +
+            `agotaron su cuota). Revise Admin → Llaves de IA y vuelva a ejecutar.`;
+          trace("stage.checkpoint_loop_aborted", {
+            stage: s.key,
+            checkpoints: priorCheckpoints + 1,
+            error: detail,
+          });
+          try {
+            await prog.emitEvent(supabase, caseId, s.key, detail, { level: "error" });
+          } catch {
+            /* noop */
+          }
+          await updateCase(
+            {
+              status: "failed",
+              status_message: `Sin capacidad de IA — detenido en ${s.label}`,
+              error: detail.slice(0, 2000),
+              next_stage: s.key,
+              queued_at: null,
+              worker_lease_until: null,
+              stall_reason: "ai_capacity_exhausted",
+            },
+            `stage.checkpoint_loop:${s.key}`,
+          );
+          return { ok: false, failedAt: s.key, completedStages: i };
+        }
         try {
           const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
           await requeueForContinuation(supabase, caseId, s.key);
