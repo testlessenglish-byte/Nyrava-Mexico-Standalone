@@ -58,10 +58,10 @@ export async function runProceduralCompliance(args: {
     const rows = missing.map((i) => ({
       case_id: caseId,
       user_id: userId,
-      title: `Requisito procesal no documentado: ${i.label_es}`,
+      title: `Elemento no identificado en el corpus: ${i.label_es}`,
       description:
-        `El expediente no acredita "${i.label_es}", exigido por ${i.authority} en materia ${materia}. ` +
-        "Debe subsanarse o justificarse antes de la siguiente etapa procesal.",
+        `No se identificó una argumentación expresa y desarrollada sobre "${i.label_es}" (${i.authority}, materia ${materia}) en los documentos proporcionados. ` +
+        "Esto refleja lo que consta en el corpus analizado, no necesariamente una omisión en un escrito ya presentado ante el órgano jurisdiccional — verifique contra el expediente oficial antes de asumir un defecto procesal.",
       finding_type: "EVIDENCE_BASED_INFERENCE",
       category: "cumplimiento_procesal",
       severity: "high",

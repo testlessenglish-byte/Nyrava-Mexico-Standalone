@@ -1527,7 +1527,14 @@ async function _runExtractionInner(args: {
     .select("id,filename,mime_type,storage_path,content_hash,status,extraction_retry_count")
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
-  const list = docs ?? [];
+  // Exclude files that are conventionally instructions/metadata about the
+  // test fixture itself, not legal evidence — a README/manifest counted as
+  // a "corpus document" inflates document counts and pollutes the Evidence
+  // Sufficiency Score with non-evidentiary content. Conservative pattern:
+  // only matches clearly-conventional non-evidence filenames, never a real
+  // party/court document (which won't be named "README" or "MANIFEST").
+  const NON_EVIDENCE_FILENAME = /^(readme|manifest|case[-_]?manifest|test[-_]?metadata|\.gitkeep)/i;
+  const list = (docs ?? []).filter((d) => !NON_EVIDENCE_FILENAME.test(d.filename ?? ""));
   const total = list.length;
   if (total === 0) throw new Error("No documents uploaded");
 
