@@ -116,6 +116,8 @@ export const processDocumentJob = createServerFn({ method: "POST" })
 
       const mime = doc.mime_type ?? "application/octet-stream";
       const provider = getAIProvider();
+      // Routed through the single provider manager using THIS user's keys.
+      const aiOpts = { userId };
 
       // === Stage 2: extract ===
       await updateJob({ stage: "extract", progress: 15 });
@@ -139,7 +141,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
               ],
             },
           ],
-          { temperature: 0 },
+          { ...aiOpts, temperature: 0 },
         );
         extractedText = content.text ?? "";
         pageCount = content.page_count ?? null;
