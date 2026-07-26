@@ -286,18 +286,20 @@ async function loadProviderRows(): Promise<ProviderRow[]> {
     )
     .order("priority", { ascending: true });
   if (error) throw new Error(`ai_providers load failed: ${error.message}`);
-  // Drop rows whose provider_type has no adapter in the factory (legacy seeds
-  // such as "lovable"). Left in, they build an undefined provider and take the
-  // whole chain down with a TypeError instead of failing over.
+  // Drop rows whose provider_type has no adapter in the factory. Left in, they
+  // build an undefined provider and take the whole chain down with a TypeError
+  // instead of failing over.
   const SUPPORTED: ProviderType[] = [
     "groq",
     "openai",
     "anthropic",
     "gemini",
     "openrouter",
+    "lovable",
     "ollama",
     "lmstudio",
   ];
+
   const rows = ((data ?? []) as ProviderRow[]).filter((r) => SUPPORTED.includes(r.provider_type));
   _providerRowsCache = { rows, expiresAt: Date.now() + PROVIDER_ROWS_CACHE_TTL_MS };
   return rows;
