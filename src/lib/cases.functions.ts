@@ -111,6 +111,8 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
       throw new Error("Total upload size exceeds 200 MB limit");
     }
 
+    const { trace, traceSpan, newCorrelationId } = await import("@/lib/pipeline-trace.server");
+
     const { data: created, error } = await supabase
       .from("cases")
 
@@ -127,17 +129,67 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
       } as any)
       .select("id")
       .single();
-    if (error || !created) throw new Error(error?.message ?? "Failed to create case");
+    if (error || !created) {
+      await trace({
+        phase: "upload",
+        step: "case.insert",
+        status: "error",
+        error: error?.message ?? "insert returned no row",
+        detail: { pg_code: error?.code ?? null, pg_details: error?.details ?? null, name, case_type, jurisdiction },
+      });
+      throw new Error(error?.message ?? "Failed to create case");
+    }
     const caseId = created.id;
+    const correlationId = newCorrelationId(caseId);
+    const traceTarget = { db: supabase, caseId, userId, correlationId };
 
-    const uploads = await Promise.all(
-      files.map(async (f) => ({
-        name: f.name,
-        bytes: new Uint8Array(await f.arrayBuffer()),
-      })),
+    await trace({
+      ...traceTarget,
+      phase: "upload",
+      step: "case.created",
+      status: "ok",
+      detail: {
+        name,
+        case_type,
+        jurisdiction,
+        analysis_mode,
+        file_count: files.length,
+        total_bytes: totalBytes,
+        files: files.map((f) => ({ name: f.name, bytes: f.size, mime: f.type || null })),
+      },
+    });
+
+    const uploads = await traceSpan(
+      { ...traceTarget, phase: "upload", step: "files.read_into_memory", detail: { file_count: files.length } },
+      async () =>
+        await Promise.all(
+          files.map(async (f) => ({
+            name: f.name,
+            bytes: new Uint8Array(await f.arrayBuffer()),
+          })),
+        ),
     );
     const { uploadFiles } = await import("@/lib/pipeline.server");
-    await uploadFiles({ db: supabase, caseId, userId, uploads });
+    await traceSpan(
+      {
+        ...traceTarget,
+        phase: "upload",
+        step: "storage.upload_and_document_rows",
+        detail: { file_count: uploads.length, bytes: uploads.reduce((a, u) => a + u.bytes.byteLength, 0) },
+      },
+      () => uploadFiles({ db: supabase, caseId, userId, uploads }),
+    );
+    const { count: docCount } = await supabase
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("case_id", caseId);
+    await trace({
+      ...traceTarget,
+      phase: "upload",
+      step: "documents.verified",
+      status: (docCount ?? 0) === uploads.length ? "ok" : "warn",
+      detail: { expected: uploads.length, stored: docCount ?? 0 },
+    });
     return { caseId };
   });
 
