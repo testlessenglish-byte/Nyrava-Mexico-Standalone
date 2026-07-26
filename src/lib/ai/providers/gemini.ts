@@ -64,7 +64,7 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
       const requested = o.model ?? defaultModel;
       const fallback = GEMINI_MODEL_FALLBACKS.find((m) => m !== requested);
       const candidates = [requested, fallback].filter(
-        (m, i, arr) => !!m && arr.indexOf(m) === i,
+        (m, i, arr): m is string => typeof m === "string" && m.length > 0 && arr.indexOf(m) === i,
       );
       let lastModelError: Error | null = null;
       for (const candidate of candidates) {

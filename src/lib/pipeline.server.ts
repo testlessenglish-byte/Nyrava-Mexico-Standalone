@@ -262,8 +262,8 @@ export async function runPipelineForCase(
   warnings?: Array<{ key: string; error: string }>;
   failedAt?: string;
 }> {
-  const { withAIUser } = await import("@/lib/ai/user-scope.server");
-  return withAIUser(userId, () => _runPipelineForCase(supabase, userId, opts));
+  const runner = await import("@/lib/pipeline-runner.server");
+  return runner.runPipelineForCase(supabase, userId, opts);
 }
 
 async function _runPipelineForCase(

@@ -88,6 +88,9 @@ const _state = {
   >,
 };
 
+const MAX_LOGICAL_PROVIDER_ATTEMPTS = 4;
+const MAX_PROVIDER_RETRIES_PER_CALL = 1;
+
 function bumpProvider(p: ProviderType) {
   return (_state.byProvider[p] ??= { totalOk: 0, totalErr: 0 });
 }
@@ -596,8 +599,26 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     },
   });
 
+  let realAttempts = 0;
   for (let i = 0; i < chain.length; i++) {
     const row = chain[i];
+    if (realAttempts >= MAX_LOGICAL_PROVIDER_ATTEMPTS) {
+      traceAsync({
+        phase: "ai",
+        step: "router.attempt_budget_exhausted",
+        status: "warn",
+        model: opts.model ?? null,
+        detail: {
+          max_attempts: MAX_LOGICAL_PROVIDER_ATTEMPTS,
+          attempted_providers: [...attemptedProviders],
+          remaining_chain: chain.length - i,
+        },
+      });
+      errors.push(
+        `router attempt budget exhausted after ${MAX_LOGICAL_PROVIDER_ATTEMPTS} real provider calls`,
+      );
+      break;
+    }
     const effectiveModel = effectiveModelFor(row);
     const candidateCooldown = getProviderCooldown({
       provider: row.provider_type,
@@ -627,6 +648,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     const keyLabel =
       row.runtimeKeyIndex != null ? `key#${row.runtimeKeyIndex + 1} ${maskedKey}` : maskedKey;
     const t0 = Date.now();
+    realAttempts++;
     attemptedProviders.add(row.provider_type);
     traceAsync({
       phase: "ai",
@@ -650,7 +672,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       // cannot hammer a fresh Gemini/Groq key repeatedly.
       let r: ChatResult | undefined;
       let lastErr: unknown;
-      const RETRY_DELAYS_MS = [400, 900];
+      const RETRY_DELAYS_MS = [400].slice(0, MAX_PROVIDER_RETRIES_PER_CALL);
       let retryCount = 0;
       const retryReasons: string[] = [];
       for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
@@ -840,7 +862,12 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         attempt: i + 1,
         durationMs: Date.now() - t0,
         error: msg,
-        detail: { key: keyLabel, kind },
+        detail: {
+          key: keyLabel,
+          kind,
+          real_attempts: realAttempts,
+          max_real_attempts: MAX_LOGICAL_PROVIDER_ATTEMPTS,
+        },
       });
       record({
         ts: Date.now(),

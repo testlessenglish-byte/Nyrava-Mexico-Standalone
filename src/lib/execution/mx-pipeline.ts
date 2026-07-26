@@ -71,25 +71,37 @@ export function resolveMxProfile(caseType: string | null | undefined): MxPipelin
  * dependency graph — a profile only removes stages, never reorders them, so
  * upstream dependencies can never be violated.
  */
+const QUOTA_HEAVY_OPTIONAL_STAGES = [
+  "perspectives",
+  "theories",
+  "opportunities",
+  "trial_prep",
+  "strategy",
+  "litigation_strategy_center",
+  "work_product",
+  "hallucination",
+  "multi_agent",
+] as const;
+
 const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // Proceso penal acusatorio (CNPP): everything is relevant, including
   // audiencia/juicio oral preparation and control constitucional.
-  penal: [],
+  penal: [...QUOTA_HEAVY_OPTIONAL_STAGES],
   // Juicio de amparo: se resuelve sobre el acto reclamado y el expediente —
   // no hay desahogo de testigos ni juicio oral.
-  amparo: ["witness", "trial_prep"],
+  amparo: [...QUOTA_HEAVY_OPTIONAL_STAGES, "witness"],
   // Violaciones a derechos humanos por autoridad: mismo alcance que penal.
-  derechos_humanos: [],
+  derechos_humanos: [...QUOTA_HEAVY_OPTIONAL_STAGES],
   // Materia laboral (LFT / tribunales laborales): sí hay audiencia, no hay
   // control constitucional directo en el juicio ordinario.
-  laboral: ["constitutional"],
-  civil: ["constitutional"],
-  familiar: ["constitutional"],
-  mercantil: ["constitutional"],
-  fiscal: ["constitutional"],
-  administrativo: ["constitutional"],
+  laboral: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
+  civil: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
+  familiar: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
+  mercantil: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
+  fiscal: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
+  administrativo: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
-  apelacion: ["constitutional", "trial_prep", "witness"],
+  apelacion: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional", "witness"],
 };
 
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */

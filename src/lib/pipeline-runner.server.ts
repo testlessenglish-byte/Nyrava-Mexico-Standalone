@@ -293,12 +293,12 @@ async function _runPipelineForCase(
   const persist = await import("@/lib/intelligence/engine-persistence.server");
   const audit = await import("@/lib/intelligence/engine-audit.server");
 
-  // Bug 2 (fix A): witness / discovery / evidence_intel are wired to the
-  // REAL LLM engines (runWitnessEngine / runDiscoveryGapEngine /
-  // runEvidenceIntelEngine). The prior `derive*` stubs counted findings
-  // categories that no upstream stage actually produced, so every dashboard
-  // count returned 0. The real engines already batch, gate, and cite; they
-  // just were never wired into this runner map.
+  // Quota hardening: analyzers/agents already perform the grounded corpus pass
+  // that produces witness, missing-document/discovery, evidence, contradiction,
+  // and procedural findings. These follow-up stages must therefore summarize
+  // persisted outputs deterministically instead of launching new broad LLM
+  // sweeps over the same case. This keeps Mexico runs aligned with the U.S.
+  // one-pass architecture and prevents a single matter from multiplying calls.
   //
   // Phase 3 (reliability freeze): every audit.runEngine call for an engine
   // that writes to the database is routed through persist.runCatalogedEngine,
@@ -453,25 +453,23 @@ async function _runPipelineForCase(
           supabase,
           { caseId, userId, engine: "witness_intelligence" },
           async () => {
-            const value = (await eng.runWitnessEngine(baseArgs)) as {
-              witnesses?: unknown[];
-              audit?: { input?: number; accepted?: number };
-            };
+            const d = await import("@/lib/intelligence/derived-engines.server");
+            const result = await d.deriveWitnessIntel(supabase, caseId);
             const { count } = await supabase
               .from("case_witnesses")
               .select("id", { count: "exact", head: true })
               .eq("case_id", caseId);
-            const rows = count ?? value.witnesses?.length ?? 0;
-            const gen = Math.max(value.audit?.input ?? 0, rows);
-            const acc = Math.max(value.audit?.accepted ?? 0, rows);
+            const rows = count ?? 0;
+            const generated = Math.max(result.stats.generated ?? 0, rows);
+            const accepted = Math.max(result.stats.accepted ?? 0, rows);
             return {
-              value,
+              value: result.value,
               stats: {
-                generated: gen,
-                accepted: acc,
-                rejected: Math.max(0, gen - acc),
+                generated,
+                accepted,
+                rejected: Math.max(0, generated - accepted),
                 rows_written: rows,
-                meta: { source: "hybrid" },
+                meta: { source: "derived", no_llm: true },
               },
             };
           },
@@ -484,34 +482,22 @@ async function _runPipelineForCase(
           supabase,
           { caseId, userId, engine: "evidence_intelligence" },
           async () => {
-            const value = (await lit.runEvidenceIntelEngine(baseArgs)) as {
-              classifications?: number;
-              promoted_findings?: number;
-              promotion_gate?: unknown;
-              promotion_mode?: unknown;
-              promotion_corpus?: unknown;
-            };
-            const gen = value.classifications ?? 0;
-            const acc = value.promoted_findings ?? gen;
+            const d = await import("@/lib/intelligence/derived-engines.server");
+            const result = await d.deriveEvidenceIntel(supabase, caseId);
+            const gen = result.stats.generated ?? 0;
+            const acc = result.stats.accepted ?? gen;
             await updateCase(
               { evidence_intel_at: new Date().toISOString() },
               "pipeline.evidence_intel",
             );
             return {
-              value,
+              value: result.value,
               stats: {
                 generated: gen,
                 accepted: acc,
                 rejected: Math.max(0, gen - acc),
                 rows_written: gen,
-                meta: {
-                  source: "hybrid",
-                  evidence_gate: {
-                    mode: value.promotion_mode,
-                    audit: value.promotion_gate,
-                    corpus: value.promotion_corpus,
-                  },
-                },
+                meta: { source: "derived", no_llm: true },
               },
             };
           },
@@ -569,32 +555,17 @@ async function _runPipelineForCase(
           supabase,
           { caseId, userId, engine: "discovery_gaps" },
           async () => {
-            const value = (await eng.runDiscoveryGapEngine(baseArgs)) as {
-              findings_gate?: unknown;
-              findings_gate_mode?: unknown;
-              findings_gate_corpus?: unknown;
-            };
-            const { count } = await supabase
-              .from("case_findings")
-              .select("id", { count: "exact", head: true })
-              .eq("case_id", caseId)
-              .like("source_module", "engine:discovery%");
-            const n = count ?? 0;
+            const d = await import("@/lib/intelligence/derived-engines.server");
+            const result = await d.deriveDiscoveryGaps(supabase, caseId);
+            const n = result.stats.generated ?? 0;
             await updateCase({ discovery_at: new Date().toISOString() }, "pipeline.discovery");
             return {
-              value,
+              value: result.value,
               stats: {
                 generated: n,
                 accepted: n,
                 rows_written: n,
-                meta: {
-                  source: "engine",
-                  evidence_gate: {
-                    mode: value.findings_gate_mode,
-                    audit: value.findings_gate,
-                    corpus: value.findings_gate_corpus,
-                  },
-                },
+                meta: { source: "derived", no_llm: true },
               },
             };
           },
