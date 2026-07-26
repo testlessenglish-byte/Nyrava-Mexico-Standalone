@@ -742,10 +742,6 @@ ${ctx.corpus}`,
 // determines the weighting of the five dimensions and the structural bias
 // floor the law itself presumes. See computeRoleAwareCredibility.
 
-function clamp0to100(n: number | null | undefined): number {
-  if (typeof n !== "number" || Number.isNaN(n)) return 50; // neutral default when the model omits a score
-  return Math.max(0, Math.min(100, n));
-}
 
 export async function runWitnessEngine(args: {
   db: Db;
