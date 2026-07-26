@@ -62,7 +62,7 @@ export async function runProceduralCompliance(args: {
       description:
         `El expediente no acredita "${i.label_es}", exigido por ${i.authority} en materia ${materia}. ` +
         "Debe subsanarse o justificarse antes de la siguiente etapa procesal.",
-      finding_type: "procedural_gap",
+      finding_type: "EVIDENCE_BASED_INFERENCE",
       category: "cumplimiento_procesal",
       severity: "high",
       legal_significance: i.authority,
