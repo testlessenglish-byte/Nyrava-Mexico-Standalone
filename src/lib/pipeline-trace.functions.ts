@@ -16,7 +16,7 @@ export type PipelineTraceRow = {
   model: string | null;
   attempt: number | null;
   duration_ms: number | null;
-  detail: Record<string, unknown> | null;
+  detail: unknown;
   error: string | null;
   created_at: string;
 };
@@ -44,8 +44,26 @@ export const getPipelineTrace = createServerFn({ method: "POST" })
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     const list = ((rows ?? []) as PipelineTraceRow[]).slice().reverse();
+    // Serialize `detail` to a string — the RPC boundary only accepts fully
+    // typed serializable shapes, and jsonb is arbitrary by definition.
+    const serialized = list.map((r) => ({
+      id: r.id,
+      case_id: r.case_id,
+      correlation_id: r.correlation_id,
+      phase: r.phase,
+      step: r.step,
+      status: r.status,
+      level: r.level,
+      provider: r.provider,
+      model: r.model,
+      attempt: r.attempt,
+      duration_ms: r.duration_ms,
+      detail: r.detail ? JSON.stringify(r.detail) : null,
+      error: r.error,
+      created_at: r.created_at,
+    }));
     return {
-      rows: list,
+      rows: serialized,
       maxId: list.length ? list[list.length - 1].id : (data.sinceId ?? 0),
     };
   });
