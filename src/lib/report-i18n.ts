@@ -300,7 +300,6 @@ const ES: Record<string, string> = {
 
   // ---- Jurisdiction Intelligence block ----
   "Legal Basis": "Fundamento legal",
-  "Legal Basis": "Fundamento legal",
   "Governing Court": "Órgano jurisdiccional",
 
   // ---- Priority action center (final section) ----
