@@ -482,38 +482,6 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
 
   if (!rows.length && runtimeGroups.length === 0) throw new Error("No AI providers configured.");
 
-  // Groq org-scoped cooldown: only short-circuits the whole call when Groq
-  // is the ONLY provider available. If the user has other providers
-  // configured as fallback, just drop Groq's group below and keep going.
-  const groqCooldownUntil = getGroqModelCooldownUntil(opts.model);
-  if (groqCooldownUntil) {
-    const retryAfterMs = Math.max(0, groqCooldownUntil - Date.now());
-    const msg = `Groq model cooldown active; retry_after_ms=${retryAfterMs}; no provider request made.`;
-    try {
-      const { pushTelemetryCall } = await import("./telemetry.server");
-      pushTelemetryCall({
-        ts: Date.now(),
-        provider: "groq",
-        providerId: "groq-cooldown",
-        model: opts.model ?? "default",
-        ok: false,
-        latencyMs: 0,
-        error: msg,
-        errorKind: "quota",
-        cooldownState: `active:${retryAfterMs}`,
-        consideredProviders: ["groq"],
-        keySelectionReason: "org_model_cooldown",
-      });
-    } catch {
-      /* noop */
-    }
-    const hasNonGroqFallback =
-      runtimeGroups.some((g) => g.provider !== "groq") ||
-      rows.some((r) => r.enabled && r.provider_type !== "groq");
-    if (!hasNonGroqFallback) throw new Error(msg);
-    runtimeGroups = runtimeGroups.filter((g) => g.provider !== "groq");
-  }
-
   // Build the ordered chain across every runtime group.
   let chain: RuntimeGroqRow[] = [];
   if (runtimeGroups.length > 0) {
