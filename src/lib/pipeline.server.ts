@@ -2136,16 +2136,21 @@ async function _runAnalyzersInner(args: {
     "You are a senior legal analyst. Every finding MUST cite at least one verbatim quote (<=200 chars) copied exactly from the corpus, with the source DOCUMENT filename. If you cannot cite verbatim evidence, DO NOT include the finding. " +
     'For every "legal_significance" field: do not restate the fact or the finding\'s title. Instead, in one sentence, explain the legal mechanism — WHY this fact matters (e.g. which element it undermines or supports, what evidentiary rule or doctrine it implicates, what it would let opposing counsel argue or what motion it supports). A reader who has not seen the underlying document should understand the legal consequence, not just the fact pattern. Output STRICT JSON only.';
 
+  const analyzerLocale = await getReportLocale(db, caseId);
+  const { mxPartyRoleEnum } = await import("./execution/mx-pipeline");
+
   const buildPrompt = (corpusText: string) =>
     `Return STRICT JSON. EVERY item in contradictions, missing_evidence, procedural_issues, and key_findings MUST include an evidence_refs array of { doc_id?: string, doc_n?: number, quote: string (verbatim from corpus, <=200 chars) }. Every "legal_significance" value must explain the legal consequence of the fact (why it matters), not just restate the fact itself.
 
+CRITICAL: every string VALUE in this JSON (title, description, legal_significance, potential_impact, rule) MUST be written entirely in ${analyzerLocale === "en" ? "English" : "Spanish"} — regardless of what language the underlying source documents/corpus are written in. Never carry over English from an English-language source document (e.g. a WhatsApp message, bank statement, or email quoted in the corpus) into these fields; translate the legal analysis, only verbatim quotes inside evidence_refs may stay in their original language since they must match the source exactly.
+
 {
   "timeline": [ { "date": string, "event": string, "source_document": string } ],
-  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
-  "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
-  "procedural_issues": [ { "title": string, "description": string, "rule": string|null, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "procedural_issues": [ { "title": string, "description": string, "rule": string|null, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
   "evidence_relationships": [ { "from": string, "to": string, "relationship": string } ],
-  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
+  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
 }
 
 CASE CORPUS:
@@ -2415,9 +2420,9 @@ ${corpusText}`;
       `citing AT LEAST TWO different documents where possible — that's the point of this pass.
 
 {
-  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
-  "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
-  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
+  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
 }
 
 DOCUMENT DIGESTS (short excerpts — full text was already analyzed in a prior pass; you are only cross-referencing):
@@ -2664,7 +2669,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
       "You are a witness credibility investigator. Examine statements for consistency, motive, bias, and corroboration. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "chain_of_custody",
@@ -2673,7 +2678,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
       "You are a chain-of-custody investigator. Examine evidence handling for gaps, breaks, and documentation failures. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "item": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "item": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "constitutional_compliance",
@@ -2682,7 +2687,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
       "You are a constitutional rights investigator. Examine for 4th/5th/6th Amendment issues, Miranda, search/seizure, due process. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "right": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "right": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "procedural_violations",
@@ -2691,7 +2696,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
       "You are a procedural rules investigator. Examine for FRCP/FRCrP/local rule violations, deadline failures, service defects. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defense"|"prosecution"|"both", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
 ];
 

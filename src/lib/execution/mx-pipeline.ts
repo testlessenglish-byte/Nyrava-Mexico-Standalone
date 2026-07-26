@@ -112,6 +112,33 @@ export function isStageRelevantForCaseType(caseType: string | null | undefined, 
 }
 
 /**
+ * Real Mexican procedural party-role labels per profile, replacing the
+ * hardcoded "defense"/"prosecution"/"both" enum that several engine prompts
+ * used regardless of materia — that enum is meaningless (and wrong) for
+ * every civil/family/labor/tax/amparo case, which is most of them. Used to
+ * build the AI-facing JSON schema's affected_party enum dynamically instead
+ * of a fixed English pair.
+ */
+export const MX_PARTY_ROLES: Record<MxPipelineProfile, { a: string; b: string; neutral: string }> = {
+  penal: { a: "ministerio_publico", b: "defensa", neutral: "ambas" },
+  amparo: { a: "quejoso", b: "autoridad_responsable", neutral: "ambas" },
+  derechos_humanos: { a: "quejoso", b: "autoridad_responsable", neutral: "ambas" },
+  laboral: { a: "trabajador", b: "patron", neutral: "ambas" },
+  civil: { a: "parte_actora", b: "parte_demandada", neutral: "ambas" },
+  familiar: { a: "parte_actora", b: "parte_demandada", neutral: "ambas" },
+  mercantil: { a: "parte_actora", b: "parte_demandada", neutral: "ambas" },
+  fiscal: { a: "contribuyente", b: "autoridad_fiscal", neutral: "ambas" },
+  administrativo: { a: "particular", b: "autoridad", neutral: "ambas" },
+  apelacion: { a: "apelante", b: "apelado", neutral: "ambas" },
+};
+
+/** JSON-schema-ready enum string, e.g. `"parte_actora"|"parte_demandada"|"ambas"`, for a given case type. */
+export function mxPartyRoleEnum(caseType: string | null | undefined): string {
+  const r = MX_PARTY_ROLES[resolveMxProfile(caseType)];
+  return `"${r.a}"|"${r.b}"|"${r.neutral}"`;
+}
+
+/**
  * Specific, human-readable explanation for why a stage was skipped for this
  * profile — replaces the old bare "OMITIDO"/SKIP_REASON_NOT_RELEVANT_MX
  * generic code with actual legal reasoning a user can read. Returns the
