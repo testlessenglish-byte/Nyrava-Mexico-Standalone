@@ -49,11 +49,26 @@ type MinimalDb = { from: (table: string) => any };
  * so this is called internally at each mexicoLock() call rather than
  * threading a new parameter through every function signature and caller.
  */
+// A full pipeline run calls getReportLocale() ~20 separate times across
+// pipeline.server.ts and the 5 engine files (each AI-prompt call site
+// resolves it independently) — all for the SAME unchanging value for the
+// SAME case. That's ~20 redundant DB round-trips added per run purely by
+// this locale-threading work. Cache per caseId for a short window (long
+// enough to cover one pipeline run, short enough that a user changing
+// report_language mid-run — rare, but possible via the case settings
+// panel — doesn't get stuck on a stale value for long).
+const _localeCache = new Map<string, { value: "es" | "en"; expiresAt: number }>();
+const LOCALE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — comfortably covers one run
+
 export async function getReportLocale(db: MinimalDb, caseId: string): Promise<"es" | "en"> {
+  const cached = _localeCache.get(caseId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
   try {
     const { data } = await db.from("cases").select("report_language").eq("id", caseId).maybeSingle();
     const lang = (data as { report_language?: string } | null)?.report_language;
-    return lang === "en" ? "en" : "es";
+    const value: "es" | "en" = lang === "en" ? "en" : "es";
+    _localeCache.set(caseId, { value, expiresAt: Date.now() + LOCALE_CACHE_TTL_MS });
+    return value;
   } catch {
     return "es";
   }

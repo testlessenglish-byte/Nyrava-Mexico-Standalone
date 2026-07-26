@@ -931,6 +931,7 @@
   "providers.order.backup": "Respaldo",
   "providers.order.finalBackup": "Respaldo final",
   "providers.order.hint": "Arrastre para reordenar. Nyrava usará los proveedores en este orden con conmutación automática.",
+  "providers.order.notConfigured": "No configurado",
   "providers.order.primary": "Principal",
   "providers.order.secondary": "Secundario",
   "providers.order.third": "Tercero",

@@ -291,7 +291,35 @@ async function loadUserProviderKeyGroups(userId: string): Promise<Array<{ provid
       /* skip undecryptable */
     }
   }
-  return order.map((provider) => ({ provider, keys: byProvider.get(provider) ?? [] })).filter((g) => g.keys.length > 0);
+  const groups = order.map((provider) => ({ provider, keys: byProvider.get(provider) ?? [] })).filter((g) => g.keys.length > 0);
+  if (groups.length <= 1) return groups; // nothing to reorder
+
+  // Apply the user's saved provider-order preference (Intelligence Providers
+  // page), if any — previously this preference was saved and displayed but
+  // never actually consulted here, so reordering it had zero real effect.
+  // Only reorders among providers that actually have a working key; a
+  // provider with no key was never in `groups` to begin with, so this can't
+  // resurrect an unconfigured provider into the chain.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: orderRows } = await (supabaseAdmin as any)
+      .from("user_provider_order")
+      .select("provider,order_index")
+      .eq("user_id", userId)
+      .order("order_index", { ascending: true });
+    if (orderRows && orderRows.length > 0) {
+      const preferredOrder = (orderRows as Array<{ provider: string }>).map((r) => r.provider);
+      const byPreference = (p: ProviderType) => {
+        const idx = preferredOrder.indexOf(p);
+        return idx === -1 ? preferredOrder.length : idx; // unlisted providers keep their created_at position, after all listed ones
+      };
+      groups.sort((a, b) => byPreference(a.provider) - byPreference(b.provider));
+    }
+  } catch {
+    /* saved order is a preference layer, not a credential — never fail the call over it */
+  }
+
+  return groups;
 }
 
 async function loadTaskRoute(task: AITask): Promise<{ provider_id: string | null; model: string | null } | null> {

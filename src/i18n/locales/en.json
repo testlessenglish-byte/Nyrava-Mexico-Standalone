@@ -931,6 +931,7 @@
   "providers.order.backup": "Backup",
   "providers.order.finalBackup": "Final Backup",
   "providers.order.hint": "Drag to reorder. Nyrava will use providers in this order with automatic failover.",
+  "providers.order.notConfigured": "Not configured",
   "providers.order.primary": "Primary",
   "providers.order.secondary": "Secondary",
   "providers.order.third": "Third",

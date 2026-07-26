@@ -513,8 +513,18 @@ export function IntelligenceProviders() {
             >
               <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-accent">
-                  {ORDER_KEYS[i] ? t(ORDER_KEYS[i]) : `#${i + 1}`}
+                <div
+                  className={
+                    (byProvider.get(p)?.length ?? 0) === 0
+                      ? "text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                      : "text-[10px] font-semibold uppercase tracking-wide text-accent"
+                  }
+                >
+                  {(byProvider.get(p)?.length ?? 0) === 0
+                    ? t("providers.order.notConfigured")
+                    : ORDER_KEYS[i]
+                      ? t(ORDER_KEYS[i])
+                      : `#${i + 1}`}
                 </div>
                 <div className="flex items-center gap-1.5 truncate text-sm font-medium">
                   <ProviderMark provider={p} size={18} />

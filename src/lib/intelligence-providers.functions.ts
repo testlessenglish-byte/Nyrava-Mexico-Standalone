@@ -10,12 +10,18 @@ const PROVIDERS = ["groq", "openai", "gemini", "anthropic", "openrouter"] as con
 export type Provider = (typeof PROVIDERS)[number];
 const ProviderSchema = z.enum(PROVIDERS);
 
+// Mexico-appropriate default — OpenAI/Anthropic keys are rarely configured
+// out of the box here (unlike the USA product this was ported from); the
+// providers actually likely to have real keys go first so a fresh user's
+// display and initial routing aren't misleadingly OpenAI-first before
+// they've configured anything. A user's own saved order (if any) always
+// takes priority over this — see listProviderOrder below.
 export const DEFAULT_PROVIDER_ORDER: Provider[] = [
-  "openai",
-  "anthropic",
   "gemini",
   "groq",
   "openrouter",
+  "openai",
+  "anthropic",
 ];
 
 export const listProviderOrder = createServerFn({ method: "POST" })
