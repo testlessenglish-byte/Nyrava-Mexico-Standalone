@@ -318,7 +318,6 @@ async function loadProviderRows(): Promise<ProviderRow[]> {
     "anthropic",
     "gemini",
     "openrouter",
-    "lovable",
     "ollama",
     "lmstudio",
   ];
@@ -521,16 +520,21 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         })),
       );
     }
-    // Platform fallback: after every user/runtime key has been tried, fall
-    // through to enabled DB providers whose key comes from a server-side
-    // secret (e.g. the Lovable AI Gateway). Without this, a user with their
-    // own Groq/Gemini keys had NO capacity left the moment those keys hit
-    // their daily quota — the run stalled instead of failing over.
+    // Server-secret fallback: after every user/runtime key has been tried,
+    // fall through to enabled ai_providers rows whose key comes from a
+    // server-side secret. This never includes a platform/credit-billed
+    // gateway — the Lovable provider was removed from ProviderType, from the
+    // factory and from the database, so only self-hosted or self-funded
+    // provider secrets (GROQ_API_KEY, GEMINI_API_KEY, ...) can appear here.
+    // A provider already tried above as a user key is skipped so the same
+    // provider is not walked twice per call.
+    const alreadyTried = new Set(runtimeGroups.map((g) => g.provider));
     const { resolveApiKey } = await import("./providers/factory");
     for (const r of rows) {
       if (!r.enabled) continue;
+      if (alreadyTried.has(r.provider_type)) continue;
       if (!resolveApiKey(r)) continue; // no server key configured — nothing to try
-      chain.push({ ...r, selectionReason: "platform_fallback" });
+      chain.push({ ...r, selectionReason: "server_secret_fallback" });
     }
   } else if (opts.forceProvider) {
     chain = rows.filter((r) => r.provider_type === opts.forceProvider && r.enabled);
