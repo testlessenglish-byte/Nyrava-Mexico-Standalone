@@ -684,8 +684,18 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
     // This is the real enforcement point (not createCaseAndUpload) because
     // uploading files costs nothing; queuing for the pipeline is what
     // actually spends AI credits.
+    const { trace } = await import("@/lib/pipeline-trace.server");
+    const traceTarget = { db: supabase, caseId: data.caseId, userId };
+
     const { getBillingAccess, consumeFreeCase } = await import("./billing.functions");
     const billingAccess = await getBillingAccess(userId, data.caseId);
+    await trace({
+      ...traceTarget,
+      phase: "queue",
+      step: "billing.gate",
+      status: billingAccess.allowed ? "ok" : "warn",
+      detail: { allowed: billingAccess.allowed, reason: billingAccess.reason ?? null, reset: !!data.reset },
+    });
     if (!billingAccess.allowed) {
       return { ok: false, billingRequired: true as const, queued: false };
     }
@@ -730,6 +740,20 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
     ]);
     const isRunning = leaseActive || runningStatuses.has(String(existing.status ?? ""));
 
+    await trace({
+      ...traceTarget,
+      phase: "queue",
+      step: "concurrency.check",
+      status: isRunning ? "warn" : "ok",
+      detail: {
+        current_status: existing.status ?? null,
+        lease_until: existing.worker_lease_until ?? null,
+        lease_active: leaseActive,
+        is_running: isRunning,
+        reset: !!data.reset,
+      },
+    });
+
     if (isRunning) {
       if (data.reset) {
         // Explicit Rerun: cooperatively cancel the in-flight run via the
@@ -758,6 +782,18 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
         cancel_requested: false,
       })
       .eq("id", data.caseId);
+    await trace({
+      ...traceTarget,
+      phase: "queue",
+      step: "case.enqueued",
+      status: error ? "error" : "ok",
+      error: error?.message ?? null,
+      detail: {
+        next_stage: data.reset ? "reset" : "extraction",
+        pg_code: error?.code ?? null,
+        pg_details: error?.details ?? null,
+      },
+    });
     if (error) throw new Error(error.message);
 
     // On an explicit Rerun, also clear derived tables here — synchronously,
