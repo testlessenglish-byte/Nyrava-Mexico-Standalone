@@ -10,10 +10,9 @@ import { currentTelemetryScope } from "../telemetry.server";
 import { traceAsync } from "../../pipeline-trace.server";
 
 /**
- * Live Flash-class ids tried, in order, when the configured id answers 404
- * NOT_FOUND. Ordered cheapest-and-most-available first. Keeping this here
- * (rather than in the DB row) means a retired id can never permanently break
- * an engine: the adapter self-heals on the next call.
+ * Single live Flash-class fallback tried when the configured id answers 404
+ * NOT_FOUND. We deliberately cap this to one fallback so a retired model slug
+ * cannot multiply one logical engine call into several real Gemini requests.
  */
 const GEMINI_MODEL_FALLBACKS = [
   "gemini-2.0-flash",
@@ -60,12 +59,11 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
     type: "gemini",
     async chat(o: ChatOpts): Promise<ChatResult> {
       // Google retires Generative Language model ids without notice, and a
-      // retired id answers with HTTP 404 NOT_FOUND ("no longer available to
-      // new users") — a permanent failure that used to kill the whole engine
-      // even though other, live Flash ids work with the exact same key.
-      // Try the configured id first, then a small ladder of current ids.
+      // retired id answers with HTTP 404 NOT_FOUND. Try the configured id once,
+      // then exactly one fallback; do not walk the whole ladder and burn quota.
       const requested = o.model ?? defaultModel;
-      const candidates = [requested, ...GEMINI_MODEL_FALLBACKS].filter(
+      const fallback = GEMINI_MODEL_FALLBACKS.find((m) => m !== requested);
+      const candidates = [requested, fallback].filter(
         (m, i, arr) => !!m && arr.indexOf(m) === i,
       );
       let lastModelError: Error | null = null;
