@@ -987,6 +987,16 @@ ${ctx.corpus}`,
           // useful signal, just no longer the number that drives severity.
           llm_credibility_risk_estimate: w.credibility_risk ?? null,
           credibility_risk_computed: computedRisk[i].breakdown,
+          // Mexican procedural role resolved deterministically from the
+          // engine's free-text role, with the authority that governs how the
+          // declaration is valued and the structural bias the law presumes.
+          mx_role: computedRisk[i].profile.role,
+          mx_role_label_es: computedRisk[i].profile.label_es,
+          mx_role_label_en: computedRisk[i].profile.label_en,
+          mx_role_authority: computedRisk[i].profile.authority,
+          mx_role_bias_note: computedRisk[i].profile.bias_note_es,
+          mx_role_scrutiny: computedRisk[i].profile.scrutiny_es,
+          mx_bias_applied: computedRisk[i].bias_applied,
         } as J,
         finding_type: gated[i]?.finding_type ?? "DIRECT_EVIDENCE",
         citations: (gated[i]?.citations ?? []) as J,
