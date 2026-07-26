@@ -92,6 +92,25 @@ export async function runEngine<T>(
 ): Promise<T> {
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
+  const staleCutoff = new Date(Date.now() - 20 * 60_000).toISOString();
+  const { data: activeRun, error: activeRunErr } = await db
+    .from("pipeline_engine_runs")
+    .select("id,started_at")
+    .eq("case_id", args.caseId)
+    .eq("engine", args.engine)
+    .eq("status", "running")
+    .gte("started_at", staleCutoff)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (activeRunErr) {
+    throw new Error(`runEngine(${args.engine}): duplicate-run guard failed — ${activeRunErr.message}`);
+  }
+  if (activeRun?.id) {
+    throw new Error(
+      `runEngine(${args.engine}): duplicate run prevented — engine already running since ${activeRun.started_at}`,
+    );
+  }
   await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} started`, {
     meta: { engine: args.engine, status: "running" },
   });

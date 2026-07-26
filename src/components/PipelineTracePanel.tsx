@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Activity,
   AlertTriangle,
+  BarChart3,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -27,6 +28,22 @@ import { cn } from "@/lib/utils";
  */
 
 const PHASES = ["upload", "queue", "worker", "pipeline", "stage", "engine", "ai", "db"] as const;
+
+type TraceDetail = Record<string, unknown>;
+
+function parseDetail(row: PipelineTraceEntry): TraceDetail {
+  if (!row.detail || row.detail === "{}") return {};
+  try {
+    const parsed = JSON.parse(row.detail);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function includes429(row: PipelineTraceEntry): boolean {
+  return /HTTP 429|too many requests|rate.?limit|quota/i.test(`${row.error ?? ""} ${row.detail ?? ""}`);
+}
 
 function statusTone(status: string): string {
   switch (status) {
@@ -117,6 +134,92 @@ function TraceRow({ row }: { row: PipelineTraceEntry }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function AuditReport({ rows }: { rows: PipelineTraceEntry[] }) {
+  const { t } = useI18n();
+  const audit = useMemo(() => {
+    const providerRows = rows.filter((r) => r.phase === "ai" && r.step === "provider.request");
+    const starts = providerRows.filter((r) => r.status === "start");
+    const terminal = providerRows.filter((r) => r.status === "ok" || r.status === "error");
+    const byEngine = new Map<string, number>();
+    const byProvider = new Map<string, number>();
+    const callHashes = new Map<string, number>();
+    let retries = 0;
+    let responses429 = 0;
+    for (const row of starts) {
+      const detail = parseDetail(row);
+      const engine = typeof detail.engine === "string" && detail.engine ? detail.engine : t("trace.audit.unknown");
+      const provider = row.provider ?? t("trace.audit.unknown");
+      byEngine.set(engine, (byEngine.get(engine) ?? 0) + 1);
+      byProvider.set(provider, (byProvider.get(provider) ?? 0) + 1);
+      const hash = typeof detail.prompt_sha256 === "string" ? detail.prompt_sha256 : null;
+      if (hash) callHashes.set(`${provider}:${row.model ?? ""}:${hash}`, (callHashes.get(`${provider}:${row.model ?? ""}:${hash}`) ?? 0) + 1);
+    }
+    for (const row of terminal) {
+      if (includes429(row)) responses429++;
+    }
+    for (const row of rows) {
+      const detail = parseDetail(row);
+      const n = typeof detail.retries === "number" ? detail.retries : 0;
+      retries += n;
+    }
+    const duplicateRequests = Array.from(callHashes.values()).reduce((sum, n) => sum + Math.max(0, n - 1), 0);
+    let maxConcurrent = 0;
+    let active = 0;
+    for (const row of providerRows.slice().sort((a, b) => a.id - b.id)) {
+      if (row.status === "start") active++;
+      if (row.status === "ok" || row.status === "error") active = Math.max(0, active - 1);
+      maxConcurrent = Math.max(maxConcurrent, active);
+    }
+    const engineRows = Array.from(byEngine.entries()).sort((a, b) => b[1] - a[1]);
+    const providerRowsSummary = Array.from(byProvider.entries()).sort((a, b) => b[1] - a[1]);
+    return { total: starts.length, engineRows, providerRowsSummary, maxConcurrent, retries, duplicateRequests, responses429 };
+  }, [rows, t]);
+
+  return (
+    <div className="border-b border-border bg-muted/20 px-4 py-3">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">
+        <BarChart3 className="h-3.5 w-3.5 text-primary" />
+        {t("trace.audit.title")}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          [t("trace.audit.total"), audit.total],
+          [t("trace.audit.concurrent"), audit.maxConcurrent],
+          [t("trace.audit.retries"), audit.retries],
+          [t("trace.audit.duplicates"), audit.duplicateRequests],
+          [t("trace.audit.rateLimits"), audit.responses429],
+          [t("trace.audit.providers"), audit.providerRowsSummary.length],
+        ].map(([label, value]) => (
+          <div key={String(label)} className="rounded border border-border bg-background px-2 py-1.5">
+            <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
+            <div className="font-mono text-sm font-semibold text-foreground">{value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div className="rounded border border-border bg-background p-2">
+          <div className="mb-1 text-[10px] uppercase text-muted-foreground">{t("trace.audit.byEngine")}</div>
+          {audit.engineRows.length ? audit.engineRows.slice(0, 8).map(([engine, count]) => (
+            <div key={engine} className="flex items-center justify-between gap-2 py-0.5 font-mono text-[11px]">
+              <span className="truncate text-foreground">{engine}</span>
+              <span className="text-muted-foreground">{count}</span>
+            </div>
+          )) : <div className="text-[11px] text-muted-foreground">{t("trace.audit.none")}</div>}
+        </div>
+        <div className="rounded border border-border bg-background p-2">
+          <div className="mb-1 text-[10px] uppercase text-muted-foreground">{t("trace.audit.byProvider")}</div>
+          {audit.providerRowsSummary.length ? audit.providerRowsSummary.map(([provider, count]) => (
+            <div key={provider} className="flex items-center justify-between gap-2 py-0.5 font-mono text-[11px]">
+              <span className="truncate text-foreground">{provider}</span>
+              <span className="text-muted-foreground">{count}</span>
+            </div>
+          )) : <div className="text-[11px] text-muted-foreground">{t("trace.audit.none")}</div>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -257,6 +360,8 @@ export function PipelineTracePanel({
           </Button>
         </div>
       </div>
+
+      <AuditReport rows={rows} />
 
       <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2">
         <button
