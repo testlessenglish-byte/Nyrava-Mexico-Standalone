@@ -11,11 +11,11 @@ export type PartyRoleLabels = {
   responding: string;
 };
 
-const AMPARO_GROUP = new Set<PracticeArea>(["amparo", "civil_rights"]);
-const CRIMINAL_GROUP = new Set<PracticeArea>(["criminal"]);
-const LABOR_GROUP = new Set<PracticeArea>(["employment"]);
-const FAMILY_GROUP = new Set<PracticeArea>(["family"]);
-const FISCAL_GROUP = new Set<PracticeArea>(["tax_law"]);
+const AMPARO_GROUP = new Set<PracticeArea>(["amparo", "constitucional"]);
+const CRIMINAL_GROUP = new Set<PracticeArea>(["penal"]);
+const LABOR_GROUP = new Set<PracticeArea>(["laboral"]);
+const FAMILY_GROUP = new Set<PracticeArea>(["familiar"]);
+const FISCAL_GROUP = new Set<PracticeArea>(["fiscal", "administrativo"]);
 
 /**
  * @param caseType the case's materia (`cases.case_type`), or null/undefined if unset.
