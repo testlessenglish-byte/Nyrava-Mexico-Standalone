@@ -3,7 +3,7 @@
  *
  * Generates realistic Mexican-law benchmark matters (Penal, Amparo, Civil,
  * Laboral, Familiar, Mercantil, Fiscal, etc.) into the caller's active
- * organization. Uses the Lovable AI Gateway with the Mexico legal lock so
+ * organization. Uses the shared AI router (ai_providers + user_ai_keys) with the Mexico legal lock so
  * every fixture stays inside Mexican civil-law terminology (Ministerio
  * Público, imputado, amparo, actor/demandado, LFT, CNPP...).
  *
@@ -77,6 +77,8 @@ export const generateMexicoTestCase = createServerFn({ method: "POST" })
     }
 
     const provider = getAIProvider();
+    // Single provider manager, using this admin's own configured keys.
+    const aiOpts = { userId };
     const userPrompt = `Genera UN caso ficticio realista de prueba (benchmark) para Nyrava Intelligence México.
 
 Parámetros:
@@ -115,7 +117,7 @@ Devuelve SOLO JSON con esta forma exacta:
         { role: "system", content: "Devuelve ÚNICAMENTE JSON válido con la estructura solicitada. No incluyas explicaciones fuera del JSON." },
         { role: "user", content: userPrompt },
       ],
-      { temperature: 0.7 },
+      { ...aiOpts, temperature: 0.7 },
     );
 
     // Persist the matter under the caller's identity (RLS applies).

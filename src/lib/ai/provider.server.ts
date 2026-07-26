@@ -1,14 +1,23 @@
 /**
- * Provider shim — Phase 1 landing zone.
+ * Thin adapter over the ONE provider manager (`routeAI`).
  *
- * The full US multi-provider fallback router lives under `src/lib/ai/router.server.ts`
- * (ported in Phase 1, excluded from typecheck until Phase 4 schema parity is done).
- * This shim keeps `pipeline.functions.ts` and `test-cases.functions.ts` running
- * against the Lovable AI Gateway with the previous single-provider behavior.
- * It will be replaced by the ported router in Phase 2.
+ * History / why this file changed:
+ * Until now this was a standalone shim that POSTed directly to
+ * `https://ai.gateway.lovable.dev/v1/chat/completions` with
+ * `process.env.LOVABLE_API_KEY`, completely bypassing `ai_providers`,
+ * `user_ai_keys`, cooldowns, rotation and usage accounting. That made it a
+ * second, invisible AI routing layer: every document extract/classify/entity
+ * call during case execution billed platform credits instead of using the
+ * user's own Groq/Gemini keys — which is exactly the divergence from the USA
+ * branch that this audit found.
+ *
+ * It is now a pure translation layer: OpenAI-style `messages[]` in, `routeAI`
+ * out. No gateway URL, no LOVABLE_API_KEY, no provider selection of its own.
+ * Providers come solely from `ai_providers` + the caller's `user_ai_keys`.
  */
 
-const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+import { routeAI } from "./router.server";
+import type { AITask, AIContent } from "./providers/types";
 
 export type AIContentPart =
   | { type: "text"; text: string }
@@ -22,6 +31,10 @@ export type AIMessage = {
 export type AIChatOptions = {
   model?: string;
   temperature?: number;
+  /** Routes through the calling user's own provider keys (user_ai_keys). */
+  userId?: string;
+  /** Optional task pin, resolved against ai_task_routing. */
+  task?: AITask;
 };
 
 export type AIProvider = {
@@ -35,38 +48,37 @@ export type AIProvider = {
   ): Promise<{ content: T; model: string }>;
 };
 
-async function raw(
-  messages: AIMessage[],
-  opts: AIChatOptions & { response_format?: { type: "json_object" } },
-): Promise<{ content: string; model: string }> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY not configured");
-  const model = opts.model ?? "google/gemini-2.5-flash";
-  const res = await fetch(GATEWAY_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: opts.temperature,
-      response_format: opts.response_format,
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`AI gateway ${res.status}: ${body.slice(0, 400)}`);
+/**
+ * Collapse an OpenAI-style message array into the router's
+ * { systemInstruction, userContent } shape. System messages are concatenated;
+ * non-system messages are flattened in order, preserving image parts so PDF /
+ * image OCR still works.
+ */
+function toRouteInput(messages: AIMessage[]): {
+  systemInstruction?: string;
+  userContent: AIContent;
+} {
+  const systemParts: string[] = [];
+  const parts: AIContentPart[] = [];
+
+  for (const m of messages) {
+    if (m.role === "system") {
+      if (typeof m.content === "string") systemParts.push(m.content);
+      else
+        for (const p of m.content) if (p.type === "text") systemParts.push(p.text);
+      continue;
+    }
+    if (typeof m.content === "string") parts.push({ type: "text", text: m.content });
+    else parts.push(...m.content);
   }
-  const json = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-    model?: string;
-  };
-  return {
-    content: json.choices?.[0]?.message?.content ?? "",
-    model: json.model ?? model,
-  };
+
+  const systemInstruction = systemParts.join("\n\n").trim() || undefined;
+  const onlyText = parts.every((p) => p.type === "text");
+  const userContent: AIContent = onlyText
+    ? parts.map((p) => (p as { text: string }).text).join("\n\n")
+    : parts;
+
+  return { systemInstruction, userContent };
 }
 
 function extractJSON(text: string): string {
@@ -81,15 +93,26 @@ function extractJSON(text: string): string {
 export function getAIProvider(): AIProvider {
   return {
     async chat(messages, opts = {}) {
-      return raw(messages, opts);
+      const res = await routeAI({
+        ...toRouteInput(messages),
+        model: opts.model,
+        temperature: opts.temperature,
+        userId: opts.userId,
+        task: opts.task,
+      });
+      return { content: res.text, model: res.model };
     },
     async chatJSON<T>(messages: AIMessage[], opts: AIChatOptions = {}) {
-      const { content, model } = await raw(messages, {
-        ...opts,
-        response_format: { type: "json_object" },
+      const res = await routeAI({
+        ...toRouteInput(messages),
+        model: opts.model,
+        temperature: opts.temperature,
+        userId: opts.userId,
+        task: opts.task,
+        json: true,
       });
-      const parsed = JSON.parse(extractJSON(content)) as T;
-      return { content: parsed, model };
+      const parsed = JSON.parse(extractJSON(res.text)) as T;
+      return { content: parsed, model: res.model };
     },
   };
 }

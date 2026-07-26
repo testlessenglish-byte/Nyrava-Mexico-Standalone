@@ -71,7 +71,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RunInput.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
 
     // Load job + doc.
     const { data: job, error: jobErr } = await supabase
@@ -116,6 +116,8 @@ export const processDocumentJob = createServerFn({ method: "POST" })
 
       const mime = doc.mime_type ?? "application/octet-stream";
       const provider = getAIProvider();
+      // Routed through the single provider manager using THIS user's keys.
+      const aiOpts = { userId };
 
       // === Stage 2: extract ===
       await updateJob({ stage: "extract", progress: 15 });
@@ -139,7 +141,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
               ],
             },
           ],
-          { temperature: 0 },
+          { ...aiOpts, temperature: 0 },
         );
         extractedText = content.text ?? "";
         pageCount = content.page_count ?? null;
@@ -160,7 +162,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
           { role: "system", content: CLASSIFY_SYSTEM },
           { role: "user", content: `Título: ${doc.title}\nTexto:\n${classifyText}` },
         ],
-        { temperature: 0.1 },
+        { ...aiOpts, temperature: 0.1 },
       );
       await updateDoc({
         classification: cls,
@@ -175,7 +177,7 @@ export const processDocumentJob = createServerFn({ method: "POST" })
           { role: "system", content: ENTITY_SYSTEM },
           { role: "user", content: classifyText || `Título: ${doc.title}` },
         ],
-        { temperature: 0.1 },
+        { ...aiOpts, temperature: 0.1 },
       );
 
       // Persist entities as matter_knowledge rows (engine="case", kind varies).
