@@ -925,8 +925,13 @@ async function _runPipelineForCase(
   // dependency never completed. Reconstruct the missing history from the
   // persisted ledger for exactly the stages this tick will NOT re-attempt.
   const resumeIdx = startFrom ? PIPELINE_STAGES.findIndex((s) => s.key === startFrom) : 0;
-  if (resumeIdx > 0) {
-    const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
+  // Terminal ledger state for every engine, read once. Used both to seed
+  // cross-tick dependency state AND to skip re-executing stages that already
+  // reached a terminal success/skipped state on an earlier tick (Task 3:
+  // no redundant re-evaluation, no re-billed AI calls, much faster runs).
+  const latestStatusByEngine = new Map<string, string>();
+  const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
+  if (!reset) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: priorRuns, error: priorErr } = await (supabase as any)
       .from("pipeline_engine_runs")
@@ -941,10 +946,11 @@ async function _runPipelineForCase(
         `failed to read pipeline_engine_runs history for resume: ${priorErr.message}`,
       );
     }
-    const latestStatusByEngine = new Map<string, string>();
     for (const row of (priorRuns ?? []) as Array<{ engine: string; status: string }>) {
       latestStatusByEngine.set(row.engine, row.status); // ascending order → last write wins
     }
+  }
+  if (resumeIdx > 0) {
     const { seedResumeState } = await import("./pipeline-checkpoint.server");
     const seeded = seedResumeState({
       priorStageKeys: PIPELINE_STAGES.slice(0, resumeIdx).map((s) => s.key),
@@ -959,6 +965,9 @@ async function _runPipelineForCase(
       seeded_blocked: [...blocked],
     });
   }
+  const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
+  const alreadyDone = (k: PipelineStageKey) =>
+    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
 
   trace("pipeline.start", {
     total_stages: stages.length,
