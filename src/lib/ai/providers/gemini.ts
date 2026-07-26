@@ -22,7 +22,43 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
   return withCapabilities({
     type: "gemini",
     async chat(o: ChatOpts): Promise<ChatResult> {
-      const model = o.model ?? defaultModel;
+      // Google retires Generative Language model ids without notice, and a
+      // retired id answers with HTTP 404 NOT_FOUND ("no longer available to
+      // new users") — a permanent failure that used to kill the whole engine
+      // even though other, live Flash ids work with the exact same key.
+      // Try the configured id first, then a small ladder of current ids.
+      const requested = o.model ?? defaultModel;
+      const candidates = [requested, ...GEMINI_MODEL_FALLBACKS].filter(
+        (m, i, arr) => !!m && arr.indexOf(m) === i,
+      );
+      let lastModelError: Error | null = null;
+      for (const candidate of candidates) {
+        try {
+          return await callModel(candidate, o);
+        } catch (e) {
+          const err = e instanceof Error ? e : new Error(String(e));
+          if (isModelNotFound(err.message)) {
+            lastModelError = err;
+            continue; // retired/unavailable id — try the next one
+          }
+          throw err;
+        }
+      }
+      throw lastModelError ?? new Error("gemini: no usable model");
+    },
+    async testConnection() {
+      const t0 = Date.now();
+      try {
+        const r = await fetch(`${baseUrl}/models?key=${encodeURIComponent(key)}`, { signal: withTimeout(undefined, 8000).signal });
+        return { ok: r.ok, latencyMs: Date.now() - t0, error: r.ok ? undefined : `HTTP ${r.status}` };
+      } catch (e) {
+        return { ok: false, latencyMs: Date.now() - t0, error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+  });
+
+  async function callModel(model: string, o: ChatOpts): Promise<ChatResult> {
+    {
       const t0 = Date.now();
       assertCheckpointBudget(`before gemini fetch ${model}`);
       const scopedTimeoutMs = aiCallTimeoutForCheckpoint(`gemini fetch ${model}`);
@@ -78,15 +114,6 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
         totalTokens: json.usageMetadata?.totalTokenCount,
         providerRequestId,
       };
-    },
-    async testConnection() {
-      const t0 = Date.now();
-      try {
-        const r = await fetch(`${baseUrl}/models?key=${encodeURIComponent(key)}`, { signal: withTimeout(undefined, 8000).signal });
-        return { ok: r.ok, latencyMs: Date.now() - t0, error: r.ok ? undefined : `HTTP ${r.status}` };
-      } catch (e) {
-        return { ok: false, latencyMs: Date.now() - t0, error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  });
+    }
+  }
 }
