@@ -249,6 +249,24 @@ export const processDocumentJob = createServerFn({ method: "POST" })
         }),
       );
 
+      // Baseline knowledge guarantee: a document that yields zero discrete
+      // entities would otherwise leave the matter knowledge base empty, and
+      // every downstream engine then skips instantly (0 ms). Persist a summary
+      // row so the analysis stages always have something to reason over.
+      if (rows.length === 0 && extractedText) {
+        rows.push({
+          org_id: doc.org_id,
+          matter_id: doc.matter_id,
+          engine: "case",
+          kind: "summary",
+          title: doc.title,
+          data: { summary: classifyText, doc_type: cls.doc_type, fallback: true },
+          source_document_id: doc.id,
+          confidence: 0.5,
+          language: lang,
+        });
+      }
+
       if (rows.length) {
         const { error: kErr } = await supabase.from("matter_knowledge").insert(rows as never);
         if (kErr) throw kErr;
