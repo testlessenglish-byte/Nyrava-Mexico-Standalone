@@ -1140,11 +1140,70 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
     acquittal != null ||
     vinculacion != null ||
     civilSettlement != null;
+  // Graceful degradation. Previously an empty AI plan threw, which failed the
+  // whole stage (and blocked its dependents) even though every other engine
+  // had already produced usable output. Instead, synthesize a deterministic
+  // "litigation readiness" plan out of the persisted engine outputs — the
+  // attorney always gets something actionable, and the stage completes.
+  let degraded = false;
   if (!hasContent) {
-    throw new Error(
-      "Trial prep engine produced no usable plan (empty themes, risks, and outcome estimates). Prior trial prep preserved.",
-    );
+    degraded = true;
+    const es = (await getReportLocale(db, caseId)) !== "en";
+    const [{ data: theoryRows }, { data: witnessRows }, { data: strategyRows }, { data: docRows }] =
+      await Promise.all([
+        db.from("case_theories").select("*").eq("case_id", caseId),
+        db.from("case_witnesses").select("*").eq("case_id", caseId),
+        db.from("case_strategy").select("*").eq("case_id", caseId),
+        db.from("documents").select("filename").eq("case_id", caseId).eq("status", "extracted"),
+      ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const asText = (v: any): string | null =>
+      typeof v === "string" && v.trim() ? v.trim() : null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const strList = (v: any): string[] =>
+      Array.isArray(v) ? v.map((x) => (typeof x === "string" ? x : asText(x?.title) ?? asText(x?.summary) ?? "")).filter(Boolean) : [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const theories = (theoryRows ?? []) as any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const witnesses = (witnessRows ?? []) as any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const strategies = (strategyRows ?? []) as any[];
+
+    p.opening_themes = theories
+      .map((t) => asText(t.title) ?? asText(t.theory) ?? asText(t.summary))
+      .filter(Boolean)
+      .slice(0, 6) as string[];
+    p.closing_themes = strategies
+      .flatMap((s) => strList(s.recommendations ?? s.key_actions))
+      .slice(0, 6);
+    p.trial_risks = strategies.flatMap((s) => strList(s.weaknesses ?? s.risks)).slice(0, 8);
+    p.trial_strengths = strategies.flatMap((s) => strList(s.strengths)).slice(0, 8);
+    p.witness_order = witnesses
+      .map((w) => ({
+        name: asText(w.name) ?? asText(w.witness_name) ?? "",
+        reason: asText(w.role) ?? asText(w.summary) ?? (es ? "Derivado del análisis de testigos" : "Derived from witness analysis"),
+      }))
+      .filter((w) => w.name)
+      .slice(0, 12) as never;
+    p.exhibit_order = (docRows ?? [])
+      .map((d) => ({
+        exhibit: d.filename as string,
+        reason: es ? "Documento extraído del expediente" : "Document extracted from the case file",
+      }))
+      .filter((e) => e.exhibit)
+      .slice(0, 20) as never;
+
+    const readiness = es
+      ? `Plan de preparación generado de forma determinista a partir de los motores completados (teorías: ${theories.length}, testigos: ${witnesses.length}, estrategia: ${strategies.length}, documentos: ${(docRows ?? []).length}). El modelo de IA no devolvió un plan utilizable en esta ejecución; revise y complete manualmente antes de la audiencia.`
+      : `Readiness plan derived deterministically from completed engines (theories: ${theories.length}, witnesses: ${witnesses.length}, strategy: ${strategies.length}, documents: ${(docRows ?? []).length}). The AI model returned no usable plan on this run; review and complete manually before the hearing.`;
+    p.trial_risks = [...(p.trial_risks ?? []), readiness];
   }
+  if (degraded) {
+    console.warn(`[engine:trial_prep] case=${caseId} degraded=true — plan derived from completed engine outputs`);
+  }
+
+
 
 
   const { error: trialPrepWriteError } = await db.from("case_trial_prep").upsert(

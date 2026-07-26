@@ -44,20 +44,38 @@ export function PipelineStatusGrid({ caseRow }: { caseRow: Case; runs?: unknown 
         <span className="text-xs text-muted-foreground">{t("pipeline.grid.subtitle")}</span>
       </div>
       <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {displayStages.map((s, i) => (
-          <li
-            key={s.key}
-            className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${tone(s.state)}`}
-          >
-            <span className="flex items-center gap-2">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[10px] font-semibold tabular-nums">
-                {i + 1}
-              </span>
-              <span className="font-medium">{t(stageLabelKey(s.key, caseType))}</span>
-            </span>
-            <span className="text-xs uppercase tracking-wide">{t(statusLabelKey(s.state))}</span>
-          </li>
-        ))}
+        {displayStages.map((s, i) => {
+          // "OMITIDO" on its own tells the attorney nothing. The ledger row
+          // carries the reason the stage was skipped (or blocked/failed);
+          // render it under the label so the grid explains itself.
+          const detail =
+            s.state === "skipped"
+              ? (s.row?.skipped_reason ?? null)
+              : s.state === "blocked" || s.state === "failed"
+                ? (s.row?.error ?? null)
+                : null;
+          return (
+            <li
+              key={s.key}
+              className={`flex flex-col gap-1 rounded-md border px-3 py-2 text-sm ${tone(s.state)}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[10px] font-semibold tabular-nums">
+                    {i + 1}
+                  </span>
+                  <span className="font-medium">{t(stageLabelKey(s.key, caseType))}</span>
+                </span>
+                <span className="text-xs uppercase tracking-wide">{t(statusLabelKey(s.state))}</span>
+              </div>
+              {detail ? (
+                <p className="pl-7 text-xs leading-snug opacity-80" title={detail}>
+                  {detail.length > 160 ? `${detail.slice(0, 160)}…` : detail}
+                </p>
+              ) : null}
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
