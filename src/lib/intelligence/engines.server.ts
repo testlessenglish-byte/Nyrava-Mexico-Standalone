@@ -1199,6 +1199,9 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       : `Readiness plan derived deterministically from completed engines (theories: ${theories.length}, witnesses: ${witnesses.length}, strategy: ${strategies.length}, documents: ${(docRows ?? []).length}). The AI model returned no usable plan on this run; review and complete manually before the hearing.`;
     p.trial_risks = [...(p.trial_risks ?? []), readiness];
   }
+  if (degraded) {
+    console.warn(`[engine:trial_prep] case=${caseId} degraded=true — plan derived from completed engine outputs`);
+  }
 
 
 
