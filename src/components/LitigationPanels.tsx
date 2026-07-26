@@ -51,7 +51,8 @@ type PerspectiveRow = {
 };
 
 const PERSPECTIVE_ICON: Record<string, typeof Shield> = {
-  defense: Shield, prosecution: Gavel, plaintiff: Scale, respondent: Scale,
+  defensa: Shield, ministerio_publico: Gavel, parte_actora: Scale, parte_demandada: Scale,
+  quejoso: Scale, autoridad_responsable: Gavel, juzgador: Gavel, independiente: Scale,
   appellate: Scale, jury: Users, independent: FileSearch,
   judicial: Gavel, investigator: FileSearch,
 };
@@ -311,7 +312,7 @@ export function StrategyPanel({
   onRun: (perspective: string) => void;
   running: boolean;
 }) {
-  const allP = ["independent","defense","prosecution","plaintiff","respondent","appellate","jury"] as const;
+  const allP = ["independiente","juzgador","ministerio_publico","defensa","parte_actora","parte_demandada","quejoso","autoridad_responsable"] as const;
   const existing = new Set(strategy.map((s) => s.perspective));
   const [active, setActive] = useState<string>(strategy[0]?.perspective ?? "independent");
   const current = strategy.find((s) => s.perspective === active);

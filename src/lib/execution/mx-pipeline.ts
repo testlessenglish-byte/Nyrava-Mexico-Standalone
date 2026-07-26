@@ -18,8 +18,18 @@
 // =============================================================================
 
 import { CANONICAL_STAGES, type StageDef } from "./canonical";
+import {
+  normalizeMexicanCaseType,
+  requireMexicanCaseType,
+  type MexicanCaseType,
+} from "@/lib/jurisdiction/mexico";
 
-/** Mexican pipeline profiles, keyed by materia. */
+/**
+ * Mexican PROCEDURAL profiles. These are execution profiles (which procedural
+ * code and which audiencias govern the run), not a second case-type
+ * taxonomy — the only case-type vocabulary in the platform is
+ * `MexicanCaseType` (src/lib/jurisdiction/mexico-types.ts).
+ */
 export type MxPipelineProfile =
   | "penal"
   | "amparo"
@@ -35,35 +45,53 @@ export type MxPipelineProfile =
 export const MX_JURISDICTION = "MX" as const;
 
 /**
- * Practice area (cases.case_type) → pipeline profile.
- * Unknown/empty values fall back to `civil`, the broadest ordinary-litigation
- * profile.
+ * THE single materia → procedural-profile mapping. Every stage-relevance,
+ * label, party-role and skip-reason decision flows through it, so there is
+ * exactly one place where a materia's procedural framing is decided.
  */
-const PROFILE_BY_CASE_TYPE: Record<string, MxPipelineProfile> = {
-  criminal: "penal",
+const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
+  penal: "penal",
   amparo: "amparo",
-  civil_rights: "derechos_humanos",
-  employment: "laboral",
-  family: "familiar",
-  general_civil: "civil",
-  personal_injury: "civil",
-  medical_malpractice: "civil",
-  real_estate: "civil",
-  estate: "familiar",
-  commercial: "mercantil",
-  corporate: "mercantil",
-  ip: "mercantil",
-  securities: "mercantil",
-  banking: "mercantil",
-  fintech: "mercantil",
-  tax_law: "fiscal",
-  appellate: "apelacion",
+  constitucional: "derechos_humanos",
+  laboral: "laboral",
+  civil: "civil",
+  familiar: "familiar",
+  mercantil: "mercantil",
+  fiscal: "fiscal",
+  administrativo: "administrativo",
+  // Materias con procedimiento contencioso administrativo/especial: se
+  // ejecutan con el perfil administrativo (juicio de nulidad, agravios).
+  electoral: "administrativo",
+  agrario: "civil",
 };
 
-export function resolveMxProfile(caseType: string | null | undefined): MxPipelineProfile {
-  if (!caseType) return "civil";
-  return PROFILE_BY_CASE_TYPE[caseType] ?? "civil";
+/**
+ * Strict resolution for execution paths: an unrecognized materia is a routing
+ * error, never a silent fallback to `civil`.
+ */
+export function requireMxProfile(caseType: unknown): MxPipelineProfile {
+  return PROFILE_BY_MATERIA[requireMexicanCaseType(caseType, "requireMxProfile")];
 }
+
+/**
+ * Tolerant resolution for rendering/summarizing paths. Returns null when the
+ * case has no materia stamped yet (auto-detection runs before execution), so
+ * callers can degrade honestly instead of pretending the case is civil.
+ */
+export function mxProfileOrNull(caseType: unknown): MxPipelineProfile | null {
+  const materia = normalizeMexicanCaseType(caseType);
+  return materia ? PROFILE_BY_MATERIA[materia] : null;
+}
+
+/**
+ * Back-compat resolver used by procedural modules that require a profile to
+ * key their tables. Strict by design — call `mxProfileOrNull` when the input
+ * may legitimately be unset.
+ */
+export function resolveMxProfile(caseType: string | null | undefined): MxPipelineProfile {
+  return requireMxProfile(caseType);
+}
+
 
 /**
  * Stages that are NOT legally relevant per profile. Everything else in
@@ -107,8 +135,15 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */
 export const SKIP_REASON_NOT_RELEVANT_MX = "not_relevant_to_mx_case_type";
 
+/** Exclusions for a case whose materia is not resolved yet: only the
+ *  quota-heavy optional stages are off, nothing materia-specific is assumed. */
+function exclusionsFor(caseType: unknown): readonly string[] {
+  const profile = mxProfileOrNull(caseType);
+  return profile ? EXCLUDED_STAGES[profile] : QUOTA_HEAVY_OPTIONAL_STAGES;
+}
+
 export function isStageRelevantForCaseType(caseType: string | null | undefined, stageKey: string): boolean {
-  return !EXCLUDED_STAGES[resolveMxProfile(caseType)].includes(stageKey);
+  return !exclusionsFor(caseType).includes(stageKey);
 }
 
 /**
@@ -134,7 +169,7 @@ export const MX_PARTY_ROLES: Record<MxPipelineProfile, { a: string; b: string; n
 
 /** JSON-schema-ready enum string, e.g. `"parte_actora"|"parte_demandada"|"ambas"`, for a given case type. */
 export function mxPartyRoleEnum(caseType: string | null | undefined): string {
-  const r = MX_PARTY_ROLES[resolveMxProfile(caseType)];
+  const r = MX_PARTY_ROLES[requireMxProfile(caseType)];
   return `"${r.a}"|"${r.b}"|"${r.neutral}"`;
 }
 
@@ -168,13 +203,14 @@ const SKIP_REASON_KEYS: Record<string, Partial<Record<MxPipelineProfile, string>
 /** i18n key for why a stage was skipped for this case type, or a generic
  *  fallback if this exact (stage, profile) pair isn't specifically documented. */
 export function stageSkipReasonKey(stageKey: string, caseType: string | null | undefined): string {
-  const profile = resolveMxProfile(caseType);
+  const profile = mxProfileOrNull(caseType);
+  if (!profile) return "pipeline.skip.generic";
   return SKIP_REASON_KEYS[stageKey]?.[profile] ?? "pipeline.skip.generic";
 }
 
 /** Ordered, profile-filtered stage list for a case type. */
 export function mxPipelineStages(caseType: string | null | undefined): StageDef[] {
-  const excluded = EXCLUDED_STAGES[resolveMxProfile(caseType)];
+  const excluded = exclusionsFor(caseType);
   return CANONICAL_STAGES.filter((s) => !excluded.includes(s.key));
 }
 
@@ -202,9 +238,9 @@ const STAGE_LABEL_VARIANTS: Record<string, readonly MxPipelineProfile[]> = {
 
 /** i18n key for a stage's label, materia-aware. */
 export function stageLabelKey(stageKey: string, caseType?: string | null): string {
-  const profile = resolveMxProfile(caseType);
+  const profile = mxProfileOrNull(caseType);
   const variants = STAGE_LABEL_VARIANTS[stageKey];
-  if (variants && variants.includes(profile)) return `pipeline.stage.${stageKey}.${profile}`;
+  if (profile && variants && variants.includes(profile)) return `pipeline.stage.${stageKey}.${profile}`;
   return `pipeline.stage.${stageKey}`;
 }
 

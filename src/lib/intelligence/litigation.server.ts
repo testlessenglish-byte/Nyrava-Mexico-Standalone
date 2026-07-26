@@ -44,15 +44,14 @@ async function getSharedBriefResilient(args: {
 }
 
 const ALL_PERSPECTIVES = [
-  "defense",
-  "prosecution",
-  "plaintiff",
-  "respondent",
-  "appellate",
-  "jury",
-  "independent",
-  "judicial",
-  "investigator",
+  "ministerio_publico",
+  "defensa",
+  "parte_actora",
+  "parte_demandada",
+  "quejoso",
+  "autoridad_responsable",
+  "juzgador",
+  "independiente",
 ] as const;
 type Perspective = (typeof ALL_PERSPECTIVES)[number];
 
@@ -336,14 +335,14 @@ ${briefText}`,
   // as a weakness entry on both rows, using the existing `weaknesses` JSON
   // column rather than a new schema field.
   const OPPOSING_PAIRS: Array<[Perspective, Perspective]> = [
-    ["defense", "prosecution"],
-    ["plaintiff", "respondent"],
+    ["ministerio_publico", "defensa"],
+    ["quejoso", "autoridad_responsable"],
     // Added after checking real report output: general civil case types
     // (employment, personal injury, general_civil, medical_malpractice) use
     // "defense" as the opposing side for "plaintiff", not "respondent" —
     // the original two pairs above never fired for any of those case
     // types, which is most of the platform's civil fixture corpus.
-    ["plaintiff", "defense"],
+    ["parte_actora", "parte_demandada"],
   ];
   const RECONCILE_HIGH_THRESHOLD = 65;
   const RECONCILE_CLOSE_MARGIN = 15;
@@ -713,7 +712,7 @@ export async function runStrategyEngine(args: {
   perspective?: Perspective;
 }) {
   const { db, caseId, userId } = args;
-  const perspective: Perspective = args.perspective ?? "independent";
+  const perspective: Perspective = args.perspective ?? "independiente";
 
   // STRICT-mode firewall — strategy/motion synthesis is not allowed.
   const { getAnalysisMode } = await import("./evidence-gate.server");

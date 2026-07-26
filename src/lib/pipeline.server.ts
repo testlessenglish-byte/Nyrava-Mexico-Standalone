@@ -2,6 +2,8 @@
 // both from an authenticated server function (user click) and from the
 // background worker route (cron / queue drain) with an admin client.
 import { unzipSync } from "fflate";
+import { classifyMexicanCaseType } from "@/lib/mx-case-classifier";
+import { normalizeMexicanCaseType } from "@/lib/jurisdiction/mexico";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
@@ -3606,53 +3608,17 @@ function dedupeFindings<T extends Record<string, unknown>>(
   return out;
 }
 
+/**
+ * Materia detection for cases whose `case_type` is not stamped yet. Delegates
+ * to the single Mexican classifier (src/lib/mx-case-classifier.ts) — there is
+ * no second keyword taxonomy and no foreign case-type vocabulary here.
+ */
 export function detectCaseType(text: string): string {
-  const t = text.toLowerCase();
-  // Civil/medical/employment must run BEFORE criminal — generic words like
-  // "defendant" or "prosecution" can appear in any pleading template and
-  // historically mis-routed civil matters into the criminal engine.
-  if (
-    /\b(medical malpractice|standard of care|physician|attending|nurse|hospital|riverside general|paging log|badge log|medical records?|chart(?:ing)?|surgical|operative report|er triage|ed triage|patient|icu|or note)\b/.test(
-      t,
-    )
-  )
-    return "medical_malpractice";
-  if (/\b(commercial vehicle|tractor[- ]trailer|trucking|fmcsa|cdl|delivery truck|fleet)\b/.test(t))
-    return "personal_injury";
-  if (/\b(personal injury|auto accident|premises liability|slip and fall|bodily injury)\b/.test(t))
-    return "personal_injury";
-  if (
-    /\b(employment|wrongful termination|discrimination|title vii|harassment|eeoc|hostile work environment)\b/.test(
-      t,
-    )
-  )
-    return "employment";
-  if (
-    /\b(civil rights|§\s*1983|42 u\.?s\.?c\.?\s*1983|qualified immunity|color of law|excessive force|unlawful arrest)\b/.test(
-      t,
-    )
-  )
-    return "civil_rights";
-  if (/\b(family law|divorce|child custody|child support|paternity)\b/.test(t)) return "family";
-  if (/\b(appellant|appellee|brief on appeal|notice of appeal)\b/.test(t)) return "appellate";
-  if (
-    /\b(irs|internal revenue service|notice of deficiency|tax court|tax deficiency|innocent spouse|offer in compromise|collection due process|form 1040|form 1120|income tax return|tax lien|tax levy|tax evasion|tax fraud|criminal investigation division|failure to file|failure to pay|revenue agent|form 4549)\b/.test(
-      t,
-    )
-  )
-    return "tax_law";
-  // Criminal requires strong, criminal-specific markers — NOT bare "defendant"/"prosecution".
-  if (
-    /\b(felony|misdemeanor|indictment|grand jury|miranda|dui|dwi|arraignment|plea agreement|sentencing|probation|parole|state v\.|people v\.|commonwealth v\.|us v\.|charged with|criminal complaint|search warrant)\b/.test(
-      t,
-    )
-  )
-    return "criminal";
-  return "general_civil";
+  return classifyMexicanCaseType(text).caseType;
 }
 
 export function isCriminalCaseType(caseType: string | undefined | null): boolean {
-  return caseType === "criminal" || caseType === "civil_rights";
+  return normalizeMexicanCaseType(caseType) === "penal";
 }
 
 /**
@@ -4058,7 +4024,7 @@ async function _runReportInner(args: {
       await runAttackSurfaceEngine({ db, caseId, userId });
     } else {
       const { recordSkipped } = await import("./intelligence/engine-audit.server");
-      const reason = `Skipped — Attack Surface categories are criminal-procedure specific and not applicable to ${caseTypeForAS}.`;
+      const reason = `Omitido — el análisis de superficie de ataque es específico del proceso penal acusatorio y no aplica a la materia ${caseTypeForAS}.`;
       await recordSkipped(db, { caseId, userId, engine: "attack_surface" as never, reason });
 
       await db
@@ -4082,7 +4048,10 @@ async function _runReportInner(args: {
     caseId,
     String(JSON.stringify(analysis ?? {})).slice(0, 4000),
   );
-  const isCriminalOrCivilRights = caseType === "criminal" || caseType === "civil_rights";
+  // Control constitucional aplica en materia penal, amparo y constitucional.
+  const materiaForReport = normalizeMexicanCaseType(caseType);
+  const isCriminalOrCivilRights =
+    materiaForReport === "penal" || materiaForReport === "amparo" || materiaForReport === "constitucional";
 
   const docLegend = docIndex
     .map((d) => `DOC ${d.doc_n} = "${d.filename}" (id=${d.document_id}, ${d.pages} pages)`)

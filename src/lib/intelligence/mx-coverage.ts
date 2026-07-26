@@ -83,11 +83,11 @@ export type MxDomainSpec = {
   label_es: string;
   label_en: string;
   /**
-   * Underlying `PracticeArea` this domain maps into. Multiple MX domains
-   * legitimately share a base area (e.g. Amparo currently rides on
-   * `civil_rights` because it is constitutional review; Fiscal maps to
-   * `tax_law`). `null` means no base area exists yet — the domain is
-   * unrepresented in the engine framework.
+   * Canonical Mexican materia (`MexicanCaseType`) this domain executes as.
+   * Several MX domains legitimately share one materia (e.g. derechos_humanos
+   * executes as `constitucional`; propiedad intelectual executes as
+   * `mercantil`). `null` means no materia covers it yet — the domain is
+   * still unrepresented in the engine framework.
    */
   base_area: PracticeArea | null;
   /** Required primary sources per Mexican legal hierarchy. */
@@ -103,7 +103,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "penal",
     label_es: "Derecho Penal",
     label_en: "Criminal Law",
-    base_area: "criminal",
+    base_area: "penal",
     required_laws: ["CPEUM", "CNPP", "Código Penal Federal", "Ley General de Víctimas"],
     required_document_types: [
       "carpeta de investigación",
@@ -120,7 +120,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "amparo",
     label_es: "Juicio de Amparo",
     label_en: "Amparo Trial",
-    base_area: "civil_rights",
+    base_area: "amparo",
     required_laws: ["CPEUM", "Ley de Amparo", "Jurisprudencia SCJN"],
     required_document_types: [
       "demanda de amparo",
@@ -135,7 +135,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "civil",
     label_es: "Derecho Civil",
     label_en: "Civil Law",
-    base_area: "general_civil",
+    base_area: "civil",
     required_laws: ["CCF", "Códigos civiles estatales", "CFPC"],
     required_document_types: [
       "contrato",
@@ -151,7 +151,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "familiar",
     label_es: "Derecho Familiar",
     label_en: "Family Law",
-    base_area: "family",
+    base_area: "familiar",
     required_laws: [
       "CCF (Libro Primero)",
       "Códigos familiares estatales",
@@ -171,7 +171,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "laboral",
     label_es: "Derecho Laboral",
     label_en: "Employment Law",
-    base_area: "employment",
+    base_area: "laboral",
     required_laws: [
       "LFT",
       "Ley del Seguro Social",
@@ -192,7 +192,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "mercantil",
     label_es: "Derecho Mercantil",
     label_en: "Commercial Law",
-    base_area: "corporate",
+    base_area: "mercantil",
     required_laws: ["Código de Comercio", "LGSM", "LGTOC", "Ley de Concursos Mercantiles"],
     required_document_types: [
       "pagaré",
@@ -207,7 +207,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "administrativo",
     label_es: "Derecho Administrativo",
     label_en: "Administrative Law",
-    base_area: null,
+    base_area: "administrativo",
     required_laws: ["LFPA", "Ley Federal de Procedimiento Contencioso Administrativo"],
     required_document_types: ["resolución administrativa", "recurso de revisión", "acta de notificación"],
     wave: "stub",
@@ -216,7 +216,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "constitucional",
     label_es: "Derecho Constitucional",
     label_en: "Constitutional Law",
-    base_area: "civil_rights",
+    base_area: "constitucional",
     required_laws: ["CPEUM", "Tratados internacionales de derechos humanos", "Jurisprudencia SCJN"],
     required_document_types: ["controversia constitucional", "acción de inconstitucionalidad"],
     wave: "stub",
@@ -225,7 +225,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "derechos_humanos",
     label_es: "Derechos Humanos",
     label_en: "Human Rights",
-    base_area: "civil_rights",
+    base_area: "constitucional",
     required_laws: ["CPEUM Art. 1", "Convención Americana sobre Derechos Humanos", "Recomendaciones CNDH"],
     required_document_types: ["queja ante CNDH", "recomendación", "informe de organismo internacional"],
     wave: "stub",
@@ -234,7 +234,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "fiscal",
     label_es: "Derecho Fiscal",
     label_en: "Tax Law",
-    base_area: "tax_law",
+    base_area: "fiscal",
     required_laws: ["CFF", "LISR", "LIVA", "Resolución Miscelánea Fiscal"],
     required_document_types: [
       "resolución determinante de crédito fiscal",
@@ -265,7 +265,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "agrario",
     label_es: "Derecho Agrario",
     label_en: "Agrarian Law",
-    base_area: null,
+    base_area: "agrario",
     required_laws: ["Ley Agraria", "CPEUM Art. 27"],
     required_document_types: ["carpeta agraria", "resolución del Tribunal Unitario Agrario"],
     wave: "future",
@@ -274,7 +274,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "electoral",
     label_es: "Derecho Electoral",
     label_en: "Electoral Law",
-    base_area: null,
+    base_area: "electoral",
     required_laws: ["LGIPE", "Ley General del Sistema de Medios de Impugnación en Materia Electoral"],
     required_document_types: ["juicio de inconformidad", "juicio ciudadano (JDC)"],
     wave: "future",
@@ -301,7 +301,7 @@ export const MX_DOMAINS: MxDomainSpec[] = [
     code: "propiedad_intelectual",
     label_es: "Propiedad Intelectual",
     label_en: "Intellectual Property",
-    base_area: null,
+    base_area: "mercantil",
     required_laws: ["Ley Federal de Protección a la Propiedad Industrial", "Ley Federal del Derecho de Autor"],
     required_document_types: ["registro de marca IMPI", "certificado de derechos de autor INDAUTOR"],
     wave: "future",
