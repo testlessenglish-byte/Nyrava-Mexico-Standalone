@@ -1465,7 +1465,13 @@ export const runFailoverTest = createServerFn({ method: "POST" })
         apiKeys: keys,
         systemInstruction: sys,
         userContent: prompt,
-        maxTokens: 60,
+        // openai/gpt-oss-120b is a reasoning model — it spends tokens on
+        // internal reasoning before the visible answer, and those count
+        // against the same budget. 60 was too tight even for this trivial
+        // prompt (empty output, finish_reason=length, confirmed via a real
+        // failing probe run). 500 leaves real headroom without materially
+        // changing the cost of a one-off diagnostic call.
+        maxTokens: 500,
         cache: false,
       });
       results.push({
