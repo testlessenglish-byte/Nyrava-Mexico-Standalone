@@ -11,6 +11,8 @@ import { aiCallTimeoutForCheckpoint, assertCheckpointBudget } from "../../pipeli
 export interface OAICompatOpts {
   requiresKey: boolean;
   extraHeaders?: Record<string, string>;
+  /** Skip the `Authorization: Bearer <key>` header (gateways with custom auth headers). */
+  suppressAuthorization?: boolean;
 }
 
 export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): AIProvider {
@@ -41,7 +43,7 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(key ? { Authorization: `Bearer ${key}` } : {}),
+          ...(key && !opts.suppressAuthorization ? { Authorization: `Bearer ${key}` } : {}),
           ...(opts.extraHeaders ?? {}),
         },
         body: JSON.stringify(body),
@@ -117,7 +119,7 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(key ? { Authorization: `Bearer ${key}` } : {}),
+            ...(key && !opts.suppressAuthorization ? { Authorization: `Bearer ${key}` } : {}),
             ...(opts.extraHeaders ?? {}),
           },
           body: JSON.stringify({

@@ -1,7 +1,7 @@
 // Groq provider interface. Server-only.
 // Runtime execution is Groq-only; legacy adapters are not registered in the router.
 
-export type ProviderType = "groq" | "openai" | "anthropic" | "gemini" | "openrouter" | "ollama" | "lmstudio";
+export type ProviderType = "groq" | "openai" | "anthropic" | "gemini" | "openrouter" | "lovable" | "ollama" | "lmstudio";
 
 export type AITask = "extraction" | "analysis" | "reasoning" | "report" | "chat";
 
@@ -113,6 +113,14 @@ export const PROVIDER_CAPABILITIES: Record<ProviderType, ProviderCapabilities> =
     vision: true,
     maxContextTokens: 128_000,
   },
+  lovable: {
+    jsonMode: true,
+    reasoning: true,
+    streaming: true,
+    toolCalling: true,
+    vision: true,
+    maxContextTokens: 1_000_000,
+  },
   ollama: {
     jsonMode: true,
     reasoning: false,
@@ -155,6 +163,14 @@ export const PROVIDER_DEFAULTS: Record<ProviderType, { baseUrl: string; model: s
     baseUrl: "https://openrouter.ai/api/v1",
     model: "openai/gpt-4o-mini",
     secretName: "OPENROUTER_API_KEY",
+  },
+  // Lovable AI Gateway — platform-managed capacity. No user key required:
+  // LOVABLE_API_KEY is injected server-side, so this provider is the
+  // always-available fallback when user keys hit quota.
+  lovable: {
+    baseUrl: "https://ai.gateway.lovable.dev/v1",
+    model: "google/gemini-3.6-flash",
+    secretName: "LOVABLE_API_KEY",
   },
   ollama: { baseUrl: "http://localhost:11434", model: "llama3.1:8b", secretName: null },
   lmstudio: { baseUrl: "http://localhost:1234/v1", model: "qwen2.5-7b-instruct", secretName: null },

@@ -59,6 +59,14 @@ export function buildProvider(row: ProviderRow, apiKeyOverride?: string | null):
     case "ollama":
     case "lmstudio":
       return makeOpenAICompatible(cfg, { requiresKey: row.provider_type !== "ollama" && row.provider_type !== "lmstudio" });
+    case "lovable":
+      // The Lovable AI Gateway authenticates with a `Lovable-API-Key` header
+      // instead of `Authorization: Bearer`.
+      return makeOpenAICompatible(cfg, {
+        requiresKey: true,
+        suppressAuthorization: true,
+        extraHeaders: cfg.apiKey ? { "Lovable-API-Key": cfg.apiKey } : {},
+      });
     case "anthropic":
       return makeAnthropic(cfg);
     case "gemini":
