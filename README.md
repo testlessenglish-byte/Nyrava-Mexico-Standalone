@@ -1,29 +1,44 @@
-# Welcome to your Lovable project
+# Nyrava México
 
-This project was built with [Lovable](https://lovable.dev).
+Nyrava México is an AI-powered Legal Intelligence Operating System designed specifically for the Mexican legal system.
 
-## Build with Lovable
+## Features
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+- Evidence Intelligence
+- Procedural Analysis
+- Constitutional Analysis
+- Timeline Reconstruction
+- Witness Intelligence
+- Legal Research
+- Motion Intelligence
+- Strategic Case Analysis
+- AI-Powered Report Generation
+- Multi-Agent Legal Intelligence
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+## Jurisdiction
 
-## Development
+Built exclusively for Mexican law including:
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+- Constitución Política de los Estados Unidos Mexicanos
+- Ley de Amparo
+- Código Nacional de Procedimientos Penales
+- Código Civil Federal
+- Código de Comercio
+- Código Fiscal de la Federación
+- Jurisprudencia de la Suprema Corte de Justicia de la Nación
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
+## Technology
 
-## Built with
-
-- TanStack Start
-- TypeScript
 - React
+- TypeScript
 - Tailwind CSS
+- Supabase
+- AI Multi-Agent Architecture
+
+## Security & Privacy
+
+Nyrava México is designed with privacy and attorney confidentiality as core principles. User case files remain under the control of the account owner, and the platform is built to support secure legal document analysis and AI-assisted case intelligence.
+
+## License
+
+© Nyrava. All rights reserved.
