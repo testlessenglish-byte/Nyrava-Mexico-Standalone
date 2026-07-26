@@ -1,0 +1,604 @@
+// =============================================================================
+// PROCEDURAL STAGE MAP — pure module.
+//
+// For every materia (Mexican pipeline profile) this module defines the
+// ordered sequence of procedural stages a matter passes through, each with
+// its statutory hook and the corpus text patterns that evidence it was
+// reached. `resolveProceduralStage` walks the sequence against the extracted
+// document corpus and reports where the matter currently stands: which
+// stages are documented as completed, which one is "current" (the furthest
+// stage evidenced), what should come next, and which earlier stages in the
+// sequence were never documented (a procedural risk — e.g. a case that shows
+// a sentencia but no constancia of emplazamiento).
+//
+// Deterministic, pattern-driven — no model calls, so it can never invent a
+// procedural history that isn't in the record.
+// =============================================================================
+
+import type { MxPipelineProfile } from "../execution/mx-pipeline";
+
+export type ProceduralStageDef = {
+  id: string;
+  label_es: string;
+  label_en: string;
+  /** Statutory hook, e.g. "CNPP Art. 313-316". */
+  authority: string;
+  /** Corpus text patterns (accent/case-insensitive) that evidence this stage was reached. */
+  patterns: readonly string[];
+};
+
+export type ProceduralStageStatus = ProceduralStageDef & {
+  detected: boolean;
+  evidence: string | null;
+};
+
+export type ProceduralStageResolution = {
+  materia: MxPipelineProfile;
+  stages: ProceduralStageStatus[];
+  /** Furthest stage evidenced in the corpus, or null if none was detected. */
+  current: ProceduralStageStatus | null;
+  /** All detected stages, in sequence order. */
+  completed: ProceduralStageStatus[];
+  /** The stage immediately following `current` in the sequence, or null at the end. */
+  next: ProceduralStageDef | null;
+  /** Stages that precede `current` in the sequence but were never documented — a gap. */
+  missing_requirements: ProceduralStageDef[];
+  /** Spanish, attorney-facing risk narratives derived from the gaps above. */
+  procedural_risks: string[];
+};
+
+function normalize(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
+  penal: [
+    {
+      id: "denuncia_querella",
+      label_es: "Denuncia o querella",
+      label_en: "Criminal complaint filed",
+      authority: "CNPP Art. 221-222",
+      patterns: ["denuncia", "querella", "noticia criminal"],
+    },
+    {
+      id: "carpeta_investigacion",
+      label_es: "Carpeta de investigación iniciada",
+      label_en: "Investigation file opened",
+      authority: "CNPP Art. 213-221",
+      patterns: ["carpeta de investigacion", "numero unico de caso", "nuc "],
+    },
+    {
+      id: "control_detencion",
+      label_es: "Control de la detención / audiencia inicial",
+      label_en: "Detention review / initial hearing",
+      authority: "CNPP Art. 307-308",
+      patterns: ["control de la detencion", "audiencia inicial", "calificacion de la detencion"],
+    },
+    {
+      id: "vinculacion_proceso",
+      label_es: "Vinculación a proceso",
+      label_en: "Binding-over order",
+      authority: "CNPP Art. 313-316",
+      patterns: ["vinculacion a proceso", "auto de vinculacion"],
+    },
+    {
+      id: "medidas_cautelares",
+      label_es: "Imposición de medidas cautelares",
+      label_en: "Precautionary measures imposed",
+      authority: "CNPP Art. 153-158",
+      patterns: ["medidas cautelares", "prision preventiva", "garantia economica"],
+    },
+    {
+      id: "investigacion_complementaria",
+      label_es: "Cierre de investigación complementaria",
+      label_en: "Supplemental investigation closed",
+      authority: "CNPP Art. 321",
+      patterns: ["cierre de investigacion", "investigacion complementaria"],
+    },
+    {
+      id: "etapa_intermedia",
+      label_es: "Etapa intermedia / auto de apertura a juicio",
+      label_en: "Intermediate stage / order opening trial",
+      authority: "CNPP Art. 334-347",
+      patterns: ["auto de apertura a juicio", "etapa intermedia", "acusacion"],
+    },
+    {
+      id: "juicio_oral",
+      label_es: "Juicio oral / audiencia de debate",
+      label_en: "Oral trial / debate hearing",
+      authority: "CNPP Art. 348-401",
+      patterns: ["audiencia de juicio oral", "audiencia de debate"],
+    },
+    {
+      id: "sentencia",
+      label_es: "Sentencia dictada",
+      label_en: "Judgment rendered",
+      authority: "CNPP Art. 399-409",
+      patterns: ["sentencia condenatoria", "sentencia absolutoria", "individualizacion de la sancion"],
+    },
+    {
+      id: "ejecucion",
+      label_es: "Ejecución de sanciones",
+      label_en: "Sentence enforcement",
+      authority: "Ley Nacional de Ejecución Penal",
+      patterns: ["juez de ejecucion", "ejecucion de la pena"],
+    },
+  ],
+  amparo: [
+    {
+      id: "acto_reclamado",
+      label_es: "Identificación del acto reclamado",
+      label_en: "Challenged act identified",
+      authority: "Ley de Amparo Art. 108 fr. IV",
+      patterns: ["acto reclamado"],
+    },
+    {
+      id: "demanda_amparo",
+      label_es: "Presentación de la demanda de amparo",
+      label_en: "Amparo claim filed",
+      authority: "Ley de Amparo Art. 108",
+      patterns: ["demanda de amparo"],
+    },
+    {
+      id: "auto_admision",
+      label_es: "Auto que admite la demanda",
+      label_en: "Order admitting the claim",
+      authority: "Ley de Amparo Art. 112-113",
+      patterns: ["auto admisorio", "se admite a tramite la demanda de amparo"],
+    },
+    {
+      id: "suspension",
+      label_es: "Resolución de la suspensión",
+      label_en: "Ruling on the stay (suspensión)",
+      authority: "Ley de Amparo Art. 125-129",
+      patterns: ["suspension provisional", "suspension definitiva", "incidente de suspension"],
+    },
+    {
+      id: "informe_justificado",
+      label_es: "Rendición del informe justificado",
+      label_en: "Authority's justifying report filed",
+      authority: "Ley de Amparo Art. 117-119",
+      patterns: ["informe justificado"],
+    },
+    {
+      id: "audiencia_constitucional",
+      label_es: "Audiencia constitucional",
+      label_en: "Constitutional hearing",
+      authority: "Ley de Amparo Art. 119-124",
+      patterns: ["audiencia constitucional"],
+    },
+    {
+      id: "sentencia_amparo",
+      label_es: "Sentencia de amparo",
+      label_en: "Amparo judgment",
+      authority: "Ley de Amparo Art. 73-79",
+      patterns: ["sentencia que concede el amparo", "sentencia que niega el amparo", "sentencia de amparo"],
+    },
+    {
+      id: "cumplimiento_ejecutoria",
+      label_es: "Cumplimiento de la ejecutoria",
+      label_en: "Compliance with the amparo ruling",
+      authority: "Ley de Amparo Art. 192-198",
+      patterns: ["cumplimiento de la ejecutoria", "cumplimiento sustituto"],
+    },
+  ],
+  derechos_humanos: [
+    {
+      id: "hechos_violatorios",
+      label_es: "Registro de los hechos presuntamente violatorios",
+      label_en: "Alleged violation recorded",
+      authority: "Ley de la CNDH Art. 3",
+      patterns: ["hechos violatorios", "presunta violacion a derechos humanos"],
+    },
+    {
+      id: "queja",
+      label_es: "Presentación de la queja",
+      label_en: "Complaint filed",
+      authority: "Ley de la CNDH Art. 25-27",
+      patterns: ["queja ante la comision", "cndh", "comision estatal de derechos humanos"],
+    },
+    {
+      id: "investigacion_comision",
+      label_es: "Investigación por la comisión",
+      label_en: "Commission investigation",
+      authority: "Ley de la CNDH Art. 34-40",
+      patterns: ["expediente de queja", "investigacion de la comision"],
+    },
+    {
+      id: "recomendacion",
+      label_es: "Emisión de recomendación",
+      label_en: "Recommendation issued",
+      authority: "Ley de la CNDH Art. 44-46",
+      patterns: ["recomendacion", "punto recomendatorio"],
+    },
+    {
+      id: "seguimiento_reparacion",
+      label_es: "Seguimiento y reparación integral",
+      label_en: "Follow-up and integral reparation",
+      authority: "Ley General de Víctimas Art. 26-27",
+      patterns: ["reparacion integral", "seguimiento a la recomendacion"],
+    },
+  ],
+  laboral: [
+    {
+      id: "conciliacion_prejudicial",
+      label_es: "Conciliación prejudicial",
+      label_en: "Mandatory pre-trial conciliation",
+      authority: "LFT Art. 684-A a 684-E",
+      patterns: ["centro de conciliacion", "constancia de no conciliacion", "conciliacion prejudicial"],
+    },
+    {
+      id: "demanda_laboral",
+      label_es: "Presentación de la demanda laboral",
+      label_en: "Labor claim filed",
+      authority: "LFT Art. 872",
+      patterns: ["demanda laboral"],
+    },
+    {
+      id: "contestacion_laboral",
+      label_es: "Contestación de la demanda",
+      label_en: "Answer to the claim filed",
+      authority: "LFT Art. 873, 878",
+      patterns: ["contestacion de demanda", "excepciones y defensas"],
+    },
+    {
+      id: "audiencia_preliminar",
+      label_es: "Audiencia preliminar",
+      label_en: "Preliminary hearing",
+      authority: "LFT Art. 873-879",
+      patterns: ["audiencia preliminar"],
+    },
+    {
+      id: "ofrecimiento_pruebas_laboral",
+      label_es: "Ofrecimiento y admisión de pruebas",
+      label_en: "Evidence offered and admitted",
+      authority: "LFT Art. 880-885",
+      patterns: ["ofrecimiento de pruebas", "admision de pruebas"],
+    },
+    {
+      id: "audiencia_juicio_laboral",
+      label_es: "Audiencia de juicio",
+      label_en: "Trial hearing",
+      authority: "LFT Art. 873",
+      patterns: ["audiencia de juicio"],
+    },
+    {
+      id: "laudo",
+      label_es: "Dictado del laudo o sentencia laboral",
+      label_en: "Labor award/judgment rendered",
+      authority: "LFT Art. 889-891",
+      patterns: ["laudo", "sentencia laboral"],
+    },
+    {
+      id: "ejecucion_laudo",
+      label_es: "Ejecución del laudo",
+      label_en: "Enforcement of the labor award",
+      authority: "LFT Art. 940-950",
+      patterns: ["ejecucion del laudo", "embargo laboral"],
+    },
+  ],
+  civil: [
+    {
+      id: "demanda_civil",
+      label_es: "Presentación de la demanda",
+      label_en: "Complaint filed",
+      authority: "CNPCyF Art. 267",
+      patterns: ["escrito de demanda", "demanda civil"],
+    },
+    {
+      id: "emplazamiento",
+      label_es: "Emplazamiento a la parte demandada",
+      label_en: "Service of process on the defendant",
+      authority: "CNPCyF Art. 128-137",
+      patterns: ["emplazamiento", "cedula de notificacion", "razon actuarial"],
+    },
+    {
+      id: "contestacion_civil",
+      label_es: "Contestación de demanda",
+      label_en: "Answer filed",
+      authority: "CNPCyF Art. 279",
+      patterns: ["contestacion de demanda"],
+    },
+    {
+      id: "ofrecimiento_pruebas_civil",
+      label_es: "Ofrecimiento y admisión de pruebas",
+      label_en: "Evidence offered and admitted",
+      authority: "CNPCyF Art. 293-300",
+      patterns: ["ofrecimiento de pruebas", "auto admisorio de pruebas"],
+    },
+    {
+      id: "desahogo_pruebas",
+      label_es: "Desahogo de pruebas",
+      label_en: "Evidence taken",
+      authority: "CNPCyF Art. 301-330",
+      patterns: ["desahogo de pruebas", "audiencia de pruebas"],
+    },
+    {
+      id: "alegatos",
+      label_es: "Formulación de alegatos",
+      label_en: "Closing arguments filed",
+      authority: "CNPCyF Art. 348",
+      patterns: ["alegatos"],
+    },
+    {
+      id: "sentencia_civil",
+      label_es: "Sentencia definitiva",
+      label_en: "Final judgment",
+      authority: "CNPCyF Art. 350-360",
+      patterns: ["sentencia definitiva"],
+    },
+    {
+      id: "ejecucion_sentencia",
+      label_es: "Ejecución de sentencia",
+      label_en: "Judgment enforcement",
+      authority: "CNPCyF Art. 400-420",
+      patterns: ["via de apremio", "ejecucion de sentencia"],
+    },
+  ],
+  familiar: [
+    {
+      id: "demanda_familiar",
+      label_es: "Presentación de la demanda familiar",
+      label_en: "Family claim filed",
+      authority: "CNPCyF Art. 618",
+      patterns: ["demanda de divorcio", "demanda familiar"],
+    },
+    {
+      id: "medidas_provisionales",
+      label_es: "Medidas provisionales decretadas",
+      label_en: "Provisional measures ordered",
+      authority: "CNPCyF Art. 626",
+      patterns: ["medidas provisionales", "guarda y custodia", "pension alimenticia"],
+    },
+    {
+      id: "contestacion_familiar",
+      label_es: "Contestación de la demanda familiar",
+      label_en: "Answer to the family claim filed",
+      authority: "CNPCyF Art. 619",
+      patterns: ["contestacion de demanda"],
+    },
+    {
+      id: "estudios_psicosociales",
+      label_es: "Práctica de estudios psicosociales",
+      label_en: "Psychosocial assessments conducted",
+      authority: "CNPCyF Art. 638",
+      patterns: ["estudio psicologico", "estudio socioeconomico"],
+    },
+    {
+      id: "audiencia_familiar",
+      label_es: "Audiencia de juicio familiar",
+      label_en: "Family trial hearing",
+      authority: "CNPCyF Art. 640",
+      patterns: ["audiencia de juicio familiar", "audiencia de juicio"],
+    },
+    {
+      id: "sentencia_familiar",
+      label_es: "Sentencia familiar",
+      label_en: "Family judgment",
+      authority: "CNPCyF Art. 645",
+      patterns: ["sentencia definitiva", "sentencia de divorcio"],
+    },
+  ],
+  mercantil: [
+    {
+      id: "demanda_mercantil",
+      label_es: "Presentación de la demanda mercantil",
+      label_en: "Commercial claim filed",
+      authority: "Código de Comercio Art. 1061",
+      patterns: ["demanda mercantil", "juicio ejecutivo mercantil", "juicio oral mercantil"],
+    },
+    {
+      id: "auto_exequendo",
+      label_es: "Auto de exequendo / requerimiento de pago",
+      label_en: "Payment demand order issued",
+      authority: "Código de Comercio Art. 1392",
+      patterns: ["auto de exequendo", "requerimiento de pago", "embargo"],
+    },
+    {
+      id: "contestacion_mercantil",
+      label_es: "Contestación y oposición de excepciones",
+      label_en: "Answer and defenses filed",
+      authority: "Código de Comercio Art. 1399",
+      patterns: ["contestacion de demanda", "excepciones"],
+    },
+    {
+      id: "pruebas_mercantil",
+      label_es: "Ofrecimiento y desahogo de pruebas",
+      label_en: "Evidence offered and taken",
+      authority: "Código de Comercio Art. 1401",
+      patterns: ["ofrecimiento de pruebas", "desahogo de pruebas"],
+    },
+    {
+      id: "sentencia_mercantil",
+      label_es: "Sentencia mercantil",
+      label_en: "Commercial judgment",
+      authority: "Código de Comercio Art. 1406-1410",
+      patterns: ["sentencia definitiva"],
+    },
+    {
+      id: "ejecucion_mercantil",
+      label_es: "Ejecución de sentencia / remate",
+      label_en: "Judgment enforcement / auction",
+      authority: "Código de Comercio Art. 1410-1414",
+      patterns: ["remate", "via de apremio"],
+    },
+  ],
+  fiscal: [
+    {
+      id: "acto_fiscalizacion",
+      label_es: "Acto de fiscalización (orden de visita/revisión)",
+      label_en: "Audit act (visit/desk-review order)",
+      authority: "CFF Art. 42-49",
+      patterns: ["orden de visita", "revision de gabinete", "orden de auditoria"],
+    },
+    {
+      id: "resolucion_determinante",
+      label_es: "Resolución determinante del crédito fiscal",
+      label_en: "Tax assessment ruling issued",
+      authority: "CFF Art. 50",
+      patterns: ["resolucion determinante", "credito fiscal", "liquidacion"],
+    },
+    {
+      id: "recurso_revocacion",
+      label_es: "Recurso de revocación interpuesto",
+      label_en: "Administrative appeal (revocación) filed",
+      authority: "CFF Art. 116-133",
+      patterns: ["recurso de revocacion"],
+    },
+    {
+      id: "juicio_contencioso",
+      label_es: "Juicio contencioso administrativo (TFJA)",
+      label_en: "Contentious administrative claim (TFJA)",
+      authority: "LFPCA Art. 1-14",
+      patterns: ["juicio contencioso administrativo", "tribunal federal de justicia administrativa", "tfja"],
+    },
+    {
+      id: "sentencia_tfja",
+      label_es: "Sentencia del TFJA",
+      label_en: "TFJA judgment",
+      authority: "LFPCA Art. 49-52",
+      patterns: ["sentencia definitiva", "sala regional"],
+    },
+  ],
+  administrativo: [
+    {
+      id: "acto_administrativo",
+      label_es: "Emisión del acto administrativo",
+      label_en: "Administrative act issued",
+      authority: "LFPA Art. 3",
+      patterns: ["acto administrativo", "resolucion administrativa", "oficio"],
+    },
+    {
+      id: "notificacion_administrativa",
+      label_es: "Notificación del acto",
+      label_en: "Act served on the interested party",
+      authority: "LFPA Art. 35",
+      patterns: ["notificacion personal", "cedula de notificacion"],
+    },
+    {
+      id: "recurso_revision_administrativo",
+      label_es: "Recurso de revisión administrativo",
+      label_en: "Administrative review appeal",
+      authority: "LFPA Art. 83",
+      patterns: ["recurso de revision"],
+    },
+    {
+      id: "juicio_contencioso_administrativo",
+      label_es: "Juicio contencioso administrativo",
+      label_en: "Contentious administrative claim",
+      authority: "LFPCA Art. 13",
+      patterns: ["juicio contencioso administrativo"],
+    },
+    {
+      id: "sentencia_administrativa",
+      label_es: "Sentencia administrativa",
+      label_en: "Administrative judgment",
+      authority: "LFPCA Art. 49-52",
+      patterns: ["sentencia definitiva"],
+    },
+  ],
+  apelacion: [
+    {
+      id: "sentencia_recurrida",
+      label_es: "Sentencia o auto recurrido",
+      label_en: "Appealed judgment or order",
+      authority: "Código procesal aplicable",
+      patterns: ["sentencia recurrida", "auto recurrido", "resolucion apelada"],
+    },
+    {
+      id: "interposicion_apelacion",
+      label_es: "Interposición del recurso de apelación",
+      label_en: "Appeal filed",
+      authority: "CNPP Art. 471 / código local",
+      patterns: ["interposicion del recurso", "recurso de apelacion"],
+    },
+    {
+      id: "admision_apelacion",
+      label_es: "Admisión del recurso",
+      label_en: "Appeal admitted",
+      authority: "CNPP Art. 473",
+      patterns: ["se admite el recurso", "admision del recurso"],
+    },
+    {
+      id: "expresion_agravios",
+      label_es: "Expresión de agravios",
+      label_en: "Statement of grievances filed",
+      authority: "CNPP Art. 471; CNPCyF",
+      patterns: ["expresion de agravios", "agravios"],
+    },
+    {
+      id: "vista_contraparte",
+      label_es: "Vista a la contraparte / contestación de agravios",
+      label_en: "Opposing party's response to grievances",
+      authority: "CNPCyF (segunda instancia)",
+      patterns: ["contestacion de agravios", "vista a la contraparte"],
+    },
+    {
+      id: "resolucion_segunda_instancia",
+      label_es: "Resolución de segunda instancia",
+      label_en: "Second-instance ruling",
+      authority: "CNPCyF / CNPP (apelación)",
+      patterns: ["confirma la sentencia", "revoca la sentencia", "modifica la sentencia", "resolucion de segunda instancia"],
+    },
+  ],
+};
+
+export function proceduralStageMap(materia: MxPipelineProfile): readonly ProceduralStageDef[] {
+  return STAGE_MAPS[materia];
+}
+
+/**
+ * Resolve where a matter currently stands in its procedural sequence based
+ * on the extracted document corpus. Pure, deterministic pattern matching —
+ * the "current" stage is the furthest-along stage evidenced in the record;
+ * any earlier stage in the sequence that was never documented is flagged as
+ * a procedural risk (a gap in the record, not necessarily a gap in reality,
+ * but one the attorney must be able to explain).
+ */
+export function resolveProceduralStage(
+  materia: MxPipelineProfile,
+  corpusText: string,
+): ProceduralStageResolution {
+  const defs = proceduralStageMap(materia);
+  const hay = normalize(corpusText ?? "");
+  const hasCorpus = hay.trim().length > 0;
+
+  const stages: ProceduralStageStatus[] = defs.map((def) => {
+    if (!hasCorpus) return { ...def, detected: false, evidence: null };
+    let evidence: string | null = null;
+    for (const p of def.patterns) {
+      const at = hay.indexOf(normalize(p));
+      if (at >= 0) {
+        evidence = corpusText.slice(Math.max(0, at - 80), at + 160).replace(/\s+/g, " ").trim();
+        break;
+      }
+    }
+    return { ...def, detected: evidence !== null, evidence };
+  });
+
+  let currentIdx = -1;
+  for (let i = stages.length - 1; i >= 0; i--) {
+    if (stages[i].detected) {
+      currentIdx = i;
+      break;
+    }
+  }
+
+  const current = currentIdx >= 0 ? stages[currentIdx] : null;
+  const completed = stages.filter((s) => s.detected);
+  const next = currentIdx >= 0 && currentIdx < stages.length - 1 ? defs[currentIdx + 1] : currentIdx === -1 ? defs[0] ?? null : null;
+
+  const missing_requirements: ProceduralStageDef[] =
+    currentIdx >= 0 ? stages.slice(0, currentIdx).filter((s) => !s.detected).map(({ detected: _d, evidence: _e, ...def }) => def) : [];
+
+  const procedural_risks = missing_requirements.map(
+    (m) =>
+      `El expediente evidencia la etapa "${current?.label_es}" sin documentar previamente "${m.label_es}" (${m.authority}); ` +
+      "debe verificarse que dicha etapa se haya cumplido para no exponer el trámite a una reposición del procedimiento.",
+  );
+
+  return { materia, stages, current, completed, next, missing_requirements, procedural_risks };
+}
