@@ -14,11 +14,43 @@ import type { Database } from "@/integrations/supabase/types";
 const LEASE_MS = 20 * 60 * 1000; // 20 minutes
 
 function workerTrace(event: string, extra: Record<string, unknown> = {}) {
-  console.info(`[pipeline-worker] ${JSON.stringify({
-    t: new Date().toISOString(),
-    event,
-    ...extra,
-  })}`);
+  console.info(
+    `[pipeline-worker] ${JSON.stringify({
+      t: new Date().toISOString(),
+      event,
+      ...extra,
+    })}`,
+  );
+}
+
+/**
+ * Persist a worker-phase trace row so the case's Live Debug panel shows queue
+ * pickup / lease / requeue events, not just in-stage activity. Best-effort.
+ */
+async function workerTracePersist(
+  admin: ReturnType<typeof createClient<Database>>,
+  caseId: string | null | undefined,
+  step: string,
+  status: "start" | "ok" | "warn" | "error" | "info",
+  detail: Record<string, unknown> = {},
+  error?: string | null,
+) {
+  workerTrace(step, { caseId: caseId ?? null, status, ...detail, error: error ?? null });
+  if (!caseId) return;
+  try {
+    const { trace } = await import("@/lib/pipeline-trace.server");
+    await trace({
+      db: admin as never,
+      caseId,
+      phase: "worker",
+      step,
+      status,
+      detail,
+      error: error ?? null,
+    });
+  } catch (e) {
+    console.warn("[pipeline-worker] trace persist failed", e);
+  }
 }
 
 async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
@@ -38,8 +70,9 @@ async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
       .order("queued_at", { ascending: true })
       .limit(1);
   const nullLease = await buildBase().is("worker_lease_until", null);
-  let cand: { id: string; user_id: string; worker_lease_until: string | null; next_stage: string | null } | undefined =
-    Array.isArray(nullLease.data) ? nullLease.data[0] : undefined;
+  let cand:
+    | { id: string; user_id: string; worker_lease_until: string | null; next_stage: string | null }
+    | undefined = Array.isArray(nullLease.data) ? nullLease.data[0] : undefined;
   if (!cand) {
     const expired = await buildBase().lt("worker_lease_until", now.toISOString());
     cand = Array.isArray(expired.data) ? expired.data[0] : undefined;
@@ -53,19 +86,35 @@ async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const q = (admin as any)
     .from("cases")
-    .update({ worker_lease_until: leaseUntil, status: "intelligence_running", status_message: "Worker leased" })
+    .update({
+      worker_lease_until: leaseUntil,
+      status: "intelligence_running",
+      status_message: "Worker leased",
+    })
     .eq("id", cand.id);
   const claimed = cand.worker_lease_until
-    ? await q.eq("worker_lease_until", cand.worker_lease_until).select("id,user_id,next_stage").maybeSingle()
+    ? await q
+        .eq("worker_lease_until", cand.worker_lease_until)
+        .select("id,user_id,next_stage")
+        .maybeSingle()
     : await q.is("worker_lease_until", null).select("id,user_id,next_stage").maybeSingle();
   if (claimed.error || !claimed.data) {
-    workerTrace("worker.lease_cas_failed", { caseId: cand.id, error: claimed.error?.message ?? null });
+    await workerTracePersist(
+      admin,
+      cand.id,
+      "worker.lease_cas_failed",
+      "warn",
+      {},
+      claimed.error?.message ?? null,
+    );
     return null;
   }
-  workerTrace("worker.lease_acquired", { caseId: claimed.data.id, next_stage: claimed.data.next_stage ?? null, lease_until: leaseUntil });
+  await workerTracePersist(admin, claimed.data.id, "worker.lease_acquired", "ok", {
+    next_stage: claimed.data.next_stage ?? null,
+    lease_until: leaseUntil,
+  });
   return claimed.data as { id: string; user_id: string; next_stage: string | null };
 }
-
 
 export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
   server: {
@@ -74,12 +123,18 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
       POST: async ({ request }) => {
         const provided = request.headers.get("x-worker-secret");
         if (!provided) {
-          return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ error: "unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
         }
         const url = process.env.SUPABASE_URL;
         const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (!url || !serviceKey) {
-          return new Response(JSON.stringify({ error: "backend env unavailable" }), { status: 500, headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ error: "backend env unavailable" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
         }
         const admin = createClient<Database>(url, serviceKey, {
           auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
@@ -87,9 +142,16 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
 
         // Validate the worker secret against the private table (service_role only).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: sec, error: secErr } = await (admin as any).from("worker_secrets").select("secret").eq("name", "pipeline_worker").maybeSingle();
+        const { data: sec, error: secErr } = await (admin as any)
+          .from("worker_secrets")
+          .select("secret")
+          .eq("name", "pipeline_worker")
+          .maybeSingle();
         if (secErr || !sec?.secret) {
-          return new Response(JSON.stringify({ error: "worker not configured" }), { status: 500, headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ error: "worker not configured" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
         }
         // Constant-time compare
         const a = new TextEncoder().encode(provided);
@@ -97,9 +159,11 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
         let ok = a.length === b.length;
         for (let i = 0; i < Math.min(a.length, b.length); i++) ok = ok && a[i] === b[i];
         if (!ok) {
-          return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ error: "unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
         }
-
 
         // Sweep stalled cases FIRST — recover any case whose lease died between
         // ticks so the next lease pass can pick it up (or the owner sees the
@@ -113,15 +177,24 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
 
         const leased = await leaseOneCase(admin);
         if (!leased) {
-          return new Response(JSON.stringify({ ok: true, processed: 0 }), { headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ ok: true, processed: 0 }), {
+            headers: { "Content-Type": "application/json" },
+          });
         }
 
         const reset = leased.next_stage === "reset";
         const startFrom = reset ? undefined : (leased.next_stage ?? undefined);
         try {
           const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
-          workerTrace("worker.pipeline_start", { caseId: leased.id, reset, startFrom: startFrom ?? null });
-          const result = await runPipelineForCase(admin, leased.user_id, { caseId: leased.id, reset, startFrom });
+          await workerTracePersist(admin, leased.id, "worker.pipeline_start", "start", {
+            reset,
+            startFrom: startFrom ?? null,
+          });
+          const result = await runPipelineForCase(admin, leased.user_id, {
+            caseId: leased.id,
+            reset,
+            startFrom,
+          });
           // If the pipeline voluntarily checkpointed (a stage hit its wall-clock
           // budget), `requeueForContinuation` has already re-set `queued_at` so
           // the next worker tick picks this case back up. Do NOT clear the
@@ -129,26 +202,57 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
           // out that re-queue and orphaned the case (it would never be leased
           // again, appearing stuck at "queued" forever).
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const checkpointed = (result as any)?.warnings?.some((w: any) => w?.error === "checkpoint");
+          const checkpointed = (result as any)?.warnings?.some(
+            (w: any) => w?.error === "checkpoint",
+          );
           if (!checkpointed) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (admin as any).from("cases").update({
-              queued_at: null, worker_lease_until: null, next_stage: null,
-            }).eq("id", leased.id);
-            workerTrace("worker.queue_cleared", { caseId: leased.id });
+            await (admin as any)
+              .from("cases")
+              .update({
+                queued_at: null,
+                worker_lease_until: null,
+                next_stage: null,
+              })
+              .eq("id", leased.id);
+            await workerTracePersist(admin, leased.id, "worker.queue_cleared", "ok");
           } else {
-            workerTrace("worker.checkpoint_preserved", { caseId: leased.id, startFrom: startFrom ?? null });
+            await workerTracePersist(admin, leased.id, "worker.checkpoint_preserved", "warn", {
+              startFrom: startFrom ?? null,
+            });
           }
-          return new Response(JSON.stringify({ ok: true, processed: 1, caseId: leased.id, result }), { headers: { "Content-Type": "application/json" } });
+          return new Response(
+            JSON.stringify({ ok: true, processed: 1, caseId: leased.id, result }),
+            { headers: { "Content-Type": "application/json" } },
+          );
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          workerTrace("worker.pipeline_failed", { caseId: leased.id, error: msg.slice(0, 500) });
+          await workerTracePersist(
+            admin,
+            leased.id,
+            "worker.pipeline_failed",
+            "error",
+            {
+              stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 6).join("\n") : null,
+            },
+            msg.slice(0, 2000),
+          );
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (admin as any).from("cases").update({
-            queued_at: null, worker_lease_until: null, next_stage: null,
-            status: "failed", status_message: "Worker error", error: msg.slice(0, 2000),
-          }).eq("id", leased.id);
-          return new Response(JSON.stringify({ ok: false, processed: 1, caseId: leased.id, error: msg }), { status: 500, headers: { "Content-Type": "application/json" } });
+          await (admin as any)
+            .from("cases")
+            .update({
+              queued_at: null,
+              worker_lease_until: null,
+              next_stage: null,
+              status: "failed",
+              status_message: "Worker error",
+              error: msg.slice(0, 2000),
+            })
+            .eq("id", leased.id);
+          return new Response(
+            JSON.stringify({ ok: false, processed: 1, caseId: leased.id, error: msg }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          );
         }
       },
     },

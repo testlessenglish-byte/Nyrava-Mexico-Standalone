@@ -8,7 +8,12 @@
 import { createHash } from "node:crypto";
 import type { AIProvider, AITask, ChatOpts, ChatResult, ProviderType } from "./providers/types";
 import { buildProvider, ProviderRow } from "./providers/factory";
-import { aiCallTimeoutForCheckpoint, assertCheckpointBudget, isCheckpointError } from "../pipeline-checkpoint.server";
+import {
+  aiCallTimeoutForCheckpoint,
+  assertCheckpointBudget,
+  isCheckpointError,
+} from "../pipeline-checkpoint.server";
+import { traceAsync } from "@/lib/pipeline-trace.server";
 
 export interface RouteOpts extends ChatOpts {
   task?: AITask;
@@ -138,7 +143,10 @@ const _groqCooldown = new Map<string, number>(); // key = `${model}::${org}`
 function cooldownKey(model: string | undefined | null, org: string | undefined | null): string {
   return `${(model ?? "default").toLowerCase()}::${org ?? "*"}`;
 }
-function getGroqCooldownUntil(model: string | undefined | null, org?: string | null): number | undefined {
+function getGroqCooldownUntil(
+  model: string | undefined | null,
+  org?: string | null,
+): number | undefined {
   const k = cooldownKey(model, org);
   const until = _groqCooldown.get(k);
   if (!until) return undefined;
@@ -153,7 +161,12 @@ function markGroqCoolingDown(
   org: string | undefined | null,
   kind: "tpm" | "tpd" | "unknown",
 ): void {
-  const ms = kind === "tpm" ? GROQ_COOLDOWN_TPM_MS : kind === "tpd" ? GROQ_COOLDOWN_TPD_MS : GROQ_COOLDOWN_DEFAULT_MS;
+  const ms =
+    kind === "tpm"
+      ? GROQ_COOLDOWN_TPM_MS
+      : kind === "tpd"
+        ? GROQ_COOLDOWN_TPD_MS
+        : GROQ_COOLDOWN_DEFAULT_MS;
   _groqCooldown.set(cooldownKey(model, org), Date.now() + ms);
 }
 /** Parse `on tokens per min` / `on tokens per day` / `on requests per …` out of a Groq 429 body. */
@@ -185,7 +198,12 @@ function getGroqModelCooldownUntil(model: string | undefined | null): number | u
  * Admin: list active Groq cooldowns.
  * Returns one entry per (model, org) pair whose cooldown has not yet expired.
  */
-export function listGroqCooldowns(): Array<{ model: string; org: string; until: number; retryAfterMs: number }> {
+export function listGroqCooldowns(): Array<{
+  model: string;
+  org: string;
+  until: number;
+  retryAfterMs: number;
+}> {
   const now = Date.now();
   const out: Array<{ model: string; org: string; until: number; retryAfterMs: number }> = [];
   for (const [k, until] of _groqCooldown) {
@@ -236,7 +254,9 @@ function cacheKey(model: string, opts: RouteOpts) {
   h.update("\0");
   h.update(opts.systemInstruction ?? "");
   h.update("\0");
-  h.update(typeof opts.userContent === "string" ? opts.userContent : JSON.stringify(opts.userContent));
+  h.update(
+    typeof opts.userContent === "string" ? opts.userContent : JSON.stringify(opts.userContent),
+  );
   h.update("\0");
   h.update(opts.json ? "json" : "text");
   h.update("\0");
@@ -256,17 +276,28 @@ const PROVIDER_ROWS_CACHE_TTL_MS = 20_000;
 let _providerRowsCache: { rows: ProviderRow[]; expiresAt: number } | null = null;
 
 async function loadProviderRows(): Promise<ProviderRow[]> {
-  if (_providerRowsCache && _providerRowsCache.expiresAt > Date.now()) return _providerRowsCache.rows;
+  if (_providerRowsCache && _providerRowsCache.expiresAt > Date.now())
+    return _providerRowsCache.rows;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("ai_providers")
-    .select("id,provider_type,display_name,enabled,priority,base_url,default_model,secret_name,api_key_encrypted")
+    .select(
+      "id,provider_type,display_name,enabled,priority,base_url,default_model,secret_name,api_key_encrypted",
+    )
     .order("priority", { ascending: true });
   if (error) throw new Error(`ai_providers load failed: ${error.message}`);
   // Drop rows whose provider_type has no adapter in the factory (legacy seeds
   // such as "lovable"). Left in, they build an undefined provider and take the
   // whole chain down with a TypeError instead of failing over.
-  const SUPPORTED: ProviderType[] = ["groq", "openai", "anthropic", "gemini", "openrouter", "ollama", "lmstudio"];
+  const SUPPORTED: ProviderType[] = [
+    "groq",
+    "openai",
+    "anthropic",
+    "gemini",
+    "openrouter",
+    "ollama",
+    "lmstudio",
+  ];
   const rows = ((data ?? []) as ProviderRow[]).filter((r) => SUPPORTED.includes(r.provider_type));
   _providerRowsCache = { rows, expiresAt: Date.now() + PROVIDER_ROWS_CACHE_TTL_MS };
   return rows;
@@ -280,18 +311,28 @@ async function loadProviderRows(): Promise<ProviderRow[]> {
  * Gemini + OpenAI etc. and have the router fall through across providers
  * (not just across keys within one provider) when one runs out of quota.
  */
-const _userProviderGroupsCache = new Map<string, { groups: Array<{ provider: ProviderType; keys: string[] }>; expiresAt: number }>();
+const _userProviderGroupsCache = new Map<
+  string,
+  { groups: Array<{ provider: ProviderType; keys: string[] }>; expiresAt: number }
+>();
 const USER_PROVIDER_GROUPS_CACHE_TTL_MS = 20_000;
 
-async function loadUserProviderKeyGroups(userId: string): Promise<Array<{ provider: ProviderType; keys: string[] }>> {
+async function loadUserProviderKeyGroups(
+  userId: string,
+): Promise<Array<{ provider: ProviderType; keys: string[] }>> {
   const cached = _userProviderGroupsCache.get(userId);
   if (cached && cached.expiresAt > Date.now()) return cached.groups;
   const groups = await _loadUserProviderKeyGroupsUncached(userId);
-  _userProviderGroupsCache.set(userId, { groups, expiresAt: Date.now() + USER_PROVIDER_GROUPS_CACHE_TTL_MS });
+  _userProviderGroupsCache.set(userId, {
+    groups,
+    expiresAt: Date.now() + USER_PROVIDER_GROUPS_CACHE_TTL_MS,
+  });
   return groups;
 }
 
-async function _loadUserProviderKeyGroupsUncached(userId: string): Promise<Array<{ provider: ProviderType; keys: string[] }>> {
+async function _loadUserProviderKeyGroupsUncached(
+  userId: string,
+): Promise<Array<{ provider: ProviderType; keys: string[] }>> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { decryptKey } = await import("@/lib/canonical/encryption.server");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -318,7 +359,9 @@ async function _loadUserProviderKeyGroupsUncached(userId: string): Promise<Array
       /* skip undecryptable */
     }
   }
-  const groups = order.map((provider) => ({ provider, keys: byProvider.get(provider) ?? [] })).filter((g) => g.keys.length > 0);
+  const groups = order
+    .map((provider) => ({ provider, keys: byProvider.get(provider) ?? [] }))
+    .filter((g) => g.keys.length > 0);
   if (groups.length <= 1) return groups; // nothing to reorder
 
   // Apply the user's saved provider-order preference (Intelligence Providers
@@ -349,7 +392,9 @@ async function _loadUserProviderKeyGroupsUncached(userId: string): Promise<Array
   return groups;
 }
 
-async function loadTaskRoute(task: AITask): Promise<{ provider_id: string | null; model: string | null } | null> {
+async function loadTaskRoute(
+  task: AITask,
+): Promise<{ provider_id: string | null; model: string | null } | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("ai_task_routing")
@@ -441,7 +486,8 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       /* noop */
     }
     const hasNonGroqFallback =
-      runtimeGroups.some((g) => g.provider !== "groq") || rows.some((r) => r.enabled && r.provider_type !== "groq");
+      runtimeGroups.some((g) => g.provider !== "groq") ||
+      rows.some((r) => r.enabled && r.provider_type !== "groq");
     if (!hasNonGroqFallback) throw new Error(msg);
     runtimeGroups = runtimeGroups.filter((g) => g.provider !== "groq");
   }
@@ -484,7 +530,8 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     }
   } else if (opts.forceProvider) {
     chain = rows.filter((r) => r.provider_type === opts.forceProvider && r.enabled);
-    if (!chain.length) throw new Error(`Provider '${opts.forceProvider}' is not enabled or not configured.`);
+    if (!chain.length)
+      throw new Error(`Provider '${opts.forceProvider}' is not enabled or not configured.`);
   } else {
     let pinned: ProviderRow | undefined;
     if (opts.task) {
@@ -523,6 +570,23 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   // message so "tried: x, y" reflects reality instead of the full chain.
   const attemptedProviders = new Set<ProviderType>();
 
+  traceAsync({
+    phase: "ai",
+    step: "router.chain_built",
+    status: "info",
+    model: opts.model ?? null,
+    detail: {
+      chain: chain.map((r, idx) => ({
+        order: idx + 1,
+        provider: r.provider_type,
+        model: r.default_model ?? null,
+        runtime_key: r.runtimeKeyIndex != null ? `key#${r.runtimeKeyIndex + 1}` : "(env)",
+      })),
+      skipped_providers: [...skippedProviders],
+      requested_model: opts.model ?? null,
+    },
+  });
+
   for (let i = 0; i < chain.length; i++) {
     const row = chain[i];
     // Mid-loop cooldown guard: only applies to Groq (its org-wide TPM/TPD
@@ -533,6 +597,14 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         console.warn(
           `[router.key] skipping remaining Groq key(s) — cooldown active for ${Math.max(0, cd - Date.now())}ms`,
         );
+        traceAsync({
+          phase: "ai",
+          step: "router.provider_skipped",
+          status: "warn",
+          provider: "groq",
+          model: opts.model ?? null,
+          detail: { reason: "cooldown_active", cooldown_ms: Math.max(0, cd - Date.now()) },
+        });
         while (i < chain.length && chain[i].provider_type === "groq") i++;
         if (i >= chain.length) break;
         // fall through to try chain[i], which is now a non-Groq provider
@@ -542,16 +614,29 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     }
 
     const provider: AIProvider = buildProvider(row, row.runtimeApiKey);
-    const maskedKey = row.runtimeApiKey ? `${row.runtimeApiKey.slice(0, 4)}…${row.runtimeApiKey.slice(-4)}` : "(env)";
-    const keyLabel = row.runtimeKeyIndex != null ? `key#${row.runtimeKeyIndex + 1} ${maskedKey}` : maskedKey;
+    const maskedKey = row.runtimeApiKey
+      ? `${row.runtimeApiKey.slice(0, 4)}…${row.runtimeApiKey.slice(-4)}`
+      : "(env)";
+    const keyLabel =
+      row.runtimeKeyIndex != null ? `key#${row.runtimeKeyIndex + 1} ${maskedKey}` : maskedKey;
     const t0 = Date.now();
     attemptedProviders.add(row.provider_type);
+    traceAsync({
+      phase: "ai",
+      step: "router.attempt",
+      status: "start",
+      provider: row.provider_type,
+      model: opts.model ?? row.default_model ?? null,
+      attempt: i + 1,
+      detail: { key: keyLabel, chain_position: `${i + 1}/${chain.length}` },
+    });
     try {
       // The requested opts.model may be provider-specific (e.g. a Groq model
       // like "meta-llama/llama-4-scout..."). When we fail over to a different
       // provider family, strip opts.model so that provider's default_model is
       // used instead of forwarding an unknown model name.
-      const baseProviderOpts = row.provider_type === "groq" ? opts : { ...opts, model: row.default_model ?? undefined };
+      const baseProviderOpts =
+        row.provider_type === "groq" ? opts : { ...opts, model: row.default_model ?? undefined };
       // Retry-with-backoff for transient 5xx/network errors on Groq. For
       // HTTP 429 we now attempt a single short retry that honors the
       // provider's "Please try again in X.XXXs" hint (Groq surfaces this in
@@ -580,7 +665,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           assertCheckpointBudget(`before AI call attempt ${attempt + 1}`);
           const providerOpts = {
             ...baseProviderOpts,
-            timeoutMs: baseProviderOpts.timeoutMs ?? aiCallTimeoutForCheckpoint(`AI call attempt ${attempt + 1}`),
+            timeoutMs:
+              baseProviderOpts.timeoutMs ??
+              aiCallTimeoutForCheckpoint(`AI call attempt ${attempt + 1}`),
           };
           r = await provider.chat(providerOpts);
           assertCheckpointBudget(`after AI call attempt ${attempt + 1}`);
@@ -590,11 +677,14 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           if (isCheckpointError(err)) throw err;
           lastErr = err;
           const em = err instanceof Error ? err.message : String(err);
-          const isPayment = /HTTP 402|payment_required|not enough credits|insufficient credits/i.test(em);
+          const isPayment =
+            /HTTP 402|payment_required|not enough credits|insufficient credits/i.test(em);
           const isRateLimit = !isPayment && /HTTP 429|rate.?limit|too many requests/i.test(em);
           const isTransport =
             /HTTP 5\d\d|timeout|ETIMEDOUT|ECONNRESET/i.test(em) &&
-            !/HTTP 413|request too large|payload too large|context.*length|maximum context/i.test(em) &&
+            !/HTTP 413|request too large|payload too large|context.*length|maximum context/i.test(
+              em,
+            ) &&
             !/HTTP 401|HTTP 403|invalid_api_key|unauthor/i.test(em);
 
           // Only retry-in-place when the provider gave us a concrete
@@ -620,7 +710,10 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           if (!isTransport || attempt >= RETRY_DELAYS_MS.length) throw err;
           retryCount++;
           retryReasons.push(em.slice(0, 120));
-          assertCheckpointBudget(`before retry backoff ${attempt + 1}`, RETRY_DELAYS_MS[attempt] + 2_000);
+          assertCheckpointBudget(
+            `before retry backoff ${attempt + 1}`,
+            RETRY_DELAYS_MS[attempt] + 2_000,
+          );
           console.warn(
             `[router.key] retry attempt=${attempt + 1} after ${RETRY_DELAYS_MS[attempt]}ms provider=${row.provider_type} ${keyLabel} err=${em.slice(0, 120)}`,
           );
@@ -670,8 +763,11 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           keyFingerprint: row.runtimeKeyFingerprint,
           keySelectionReason:
             row.selectionReason ??
-            (row.runtimeApiKey ? `${row.provider_type}_runtime_key` : `${row.provider_type}_configured_provider`),
-          consideredProviders: runtimeGroups.length > 0 ? runtimeGroups.map((g) => g.provider) : [row.provider_type],
+            (row.runtimeApiKey
+              ? `${row.provider_type}_runtime_key`
+              : `${row.provider_type}_configured_provider`),
+          consideredProviders:
+            runtimeGroups.length > 0 ? runtimeGroups.map((g) => g.provider) : [row.provider_type],
           consideredKeyIndexes: row.consideredKeyIndexes,
           rotationStartIndex: row.rotationStartIndex,
           rotationAdvanced: row.rotationAdvanced,
@@ -698,8 +794,25 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       console.info(
         `[router.key] served ok provider=${row.provider_type} ${keyLabel} tokens=${r.totalTokens ?? 0} ms=${r.latencyMs}`,
       );
+      traceAsync({
+        phase: "ai",
+        step: "router.served",
+        status: "ok",
+        provider: row.provider_type,
+        model: r.model ?? opts.model ?? row.default_model ?? null,
+        attempt: i + 1,
+        durationMs: r.latencyMs ?? Date.now() - t0,
+        detail: {
+          key: keyLabel,
+          total_tokens: r.totalTokens ?? null,
+          retries: retryCount,
+          fell_back_from: fellBackFrom.length ? fellBackFrom : null,
+        },
+      });
       if (!row.runtimeApiKey)
-        void stampProvider(row.id, true).catch((e) => console.warn("[router] stampProvider failed", e));
+        void stampProvider(row.id, true).catch((e) =>
+          console.warn("[router] stampProvider failed", e),
+        );
       const result: RouteResult = {
         ...r,
         provider: row.provider_type,
@@ -720,19 +833,40 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       // Classify failure so operators can distinguish transient / retryable
       // faults from quota-exhaustion (whole KEY is out) and payload-too-large
       // (which should be split-and-retried by the caller, not by rotating keys).
-      const isPayload = /HTTP 413|request too large|payload too large|context.*length|maximum context/i.test(msg);
+      const isPayload =
+        /HTTP 413|request too large|payload too large|context.*length|maximum context/i.test(msg);
       // Groq returns code:"rate_limit_exceeded" in the JSON body for TPM-exceeded
       // 413s. Require an actual HTTP 429 (or an explicit quota keyword that is
       // NOT co-occurring with 413) so genuine payload-too-large errors aren't
       // mislabeled as quota and don't defeat payload splitting.
-      const isPayment = /HTTP 402|payment_required|not enough credits|insufficient credits/i.test(msg);
+      const isPayment = /HTTP 402|payment_required|not enough credits|insufficient credits/i.test(
+        msg,
+      );
       const isQuota =
-        !isPayload && (/HTTP 429/i.test(msg) || /insufficient_quota|too many requests|quota exceeded/i.test(msg));
+        !isPayload &&
+        (/HTTP 429/i.test(msg) || /insufficient_quota|too many requests|quota exceeded/i.test(msg));
       const isAuth = /HTTP 401|HTTP 403|invalid_api_key|unauthor/i.test(msg);
-      const kind = isPayload ? "payload_too_large" : isPayment || isQuota ? "quota" : isAuth ? "auth" : "other";
+      const kind = isPayload
+        ? "payload_too_large"
+        : isPayment || isQuota
+          ? "quota"
+          : isAuth
+            ? "auth"
+            : "other";
       console.warn(
         `[router.key] failed provider=${row.provider_type} ${keyLabel} kind=${kind} err=${msg.slice(0, 200)}`,
       );
+      traceAsync({
+        phase: "ai",
+        step: "router.attempt_failed",
+        status: "error",
+        provider: row.provider_type,
+        model: opts.model ?? row.default_model ?? null,
+        attempt: i + 1,
+        durationMs: Date.now() - t0,
+        error: msg,
+        detail: { key: keyLabel, kind },
+      });
       record({
         ts: Date.now(),
         provider: row.provider_type,
@@ -758,8 +892,11 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           keyFingerprint: row.runtimeKeyFingerprint,
           keySelectionReason:
             row.selectionReason ??
-            (row.runtimeApiKey ? `${row.provider_type}_runtime_key` : `${row.provider_type}_configured_provider`),
-          consideredProviders: runtimeGroups.length > 0 ? runtimeGroups.map((g) => g.provider) : [row.provider_type],
+            (row.runtimeApiKey
+              ? `${row.provider_type}_runtime_key`
+              : `${row.provider_type}_configured_provider`),
+          consideredProviders:
+            runtimeGroups.length > 0 ? runtimeGroups.map((g) => g.provider) : [row.provider_type],
           consideredKeyIndexes: row.consideredKeyIndexes,
           rotationStartIndex: row.rotationStartIndex,
           rotationAdvanced: row.rotationAdvanced,
@@ -771,7 +908,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       }
 
       if (!row.runtimeApiKey)
-        void stampProvider(row.id, false, msg).catch((e) => console.warn("[router] stampProvider failed", e));
+        void stampProvider(row.id, false, msg).catch((e) =>
+          console.warn("[router] stampProvider failed", e),
+        );
       errors.push(`${row.display_name} [${kind}]: ${msg}`);
       fellBackFrom.push(row.provider_type);
       if (isPayment || isQuota) {
@@ -803,7 +942,12 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         // from Groq says nothing about Gemini/OpenAI/etc.'s limits, and
         // those later groups deserve a real attempt, not a skip.
         let j = i + 1;
-        while (j < chain.length && chain[j].runtimeApiKey && chain[j].provider_type === row.provider_type) j++;
+        while (
+          j < chain.length &&
+          chain[j].runtimeApiKey &&
+          chain[j].provider_type === row.provider_type
+        )
+          j++;
         if (j > i + 1) {
           console.warn(
             `[router.key] skipping ${j - i - 1} remaining ${row.provider_type} key(s) — payload too large is not per-key`,
@@ -834,7 +978,21 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   const triedProviders = [...attemptedProviders].join(", ") || "none";
   const chainProviders = [...new Set(chain.map((r) => r.provider_type))];
   const untried = chainProviders.filter((p) => !attemptedProviders.has(p));
-  const untriedNote = untried.length ? ` (configured but never attempted: ${untried.join(", ")})` : "";
+  const untriedNote = untried.length
+    ? ` (configured but never attempted: ${untried.join(", ")})`
+    : "";
+  traceAsync({
+    phase: "ai",
+    step: "router.exhausted",
+    status: "error",
+    model: opts.model ?? null,
+    error: `All configured provider keys failed (tried: ${triedProviders})`,
+    detail: {
+      tried: [...attemptedProviders],
+      never_attempted: untried,
+      errors: errors.slice(0, 5),
+    },
+  });
   throw new Error(
     `All configured provider keys failed (tried: ${triedProviders}${untriedNote}). ${errors.join(" | ")}`,
   );

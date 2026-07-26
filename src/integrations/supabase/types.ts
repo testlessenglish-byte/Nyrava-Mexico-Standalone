@@ -4140,6 +4140,60 @@ export type Database = {
           },
         ]
       }
+      pipeline_trace: {
+        Row: {
+          attempt: number | null
+          case_id: string
+          correlation_id: string | null
+          created_at: string
+          detail: Json
+          duration_ms: number | null
+          error: string | null
+          id: number
+          level: string
+          model: string | null
+          phase: string
+          provider: string | null
+          status: string
+          step: string
+          user_id: string | null
+        }
+        Insert: {
+          attempt?: number | null
+          case_id: string
+          correlation_id?: string | null
+          created_at?: string
+          detail?: Json
+          duration_ms?: number | null
+          error?: string | null
+          id?: number
+          level?: string
+          model?: string | null
+          phase: string
+          provider?: string | null
+          status?: string
+          step: string
+          user_id?: string | null
+        }
+        Update: {
+          attempt?: number | null
+          case_id?: string
+          correlation_id?: string | null
+          created_at?: string
+          detail?: Json
+          duration_ms?: number | null
+          error?: string | null
+          id?: number
+          level?: string
+          model?: string | null
+          phase?: string
+          provider?: string | null
+          status?: string
+          step?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       plan_entitlements: {
         Row: {
           id: string

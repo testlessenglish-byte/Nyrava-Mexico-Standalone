@@ -16,11 +16,16 @@
 // inferred — fields the provider omits are stored as null/undefined.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { runEngine, type EngineName, type EngineResult, type EngineStats } from "./engine-audit.server";
+import {
+  runEngine,
+  type EngineName,
+  type EngineResult,
+  type EngineStats,
+} from "./engine-audit.server";
 import { withTelemetryScope, summarizeScope } from "../ai/telemetry.server";
 import { snapshotCorpus } from "./corpus-snapshot.server";
 import { engineVersion } from "./engine-fingerprint";
-
+import { trace, traceAsync } from "../pipeline-trace.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -87,7 +92,12 @@ export async function verifyPersistence(
     }
     const rows = (data ?? []) as Array<Record<string, unknown>>;
     const ids = rows.map((r) => String(r[pkColumn] ?? "")).filter(Boolean);
-    tables.push({ name: exp.table, expected_min: exp.expectedMin, actual: rows.length, primary_keys: ids });
+    tables.push({
+      name: exp.table,
+      expected_min: exp.expectedMin,
+      actual: rows.length,
+      primary_keys: ids,
+    });
     allKeys.push(...ids);
     if (rows.length < exp.expectedMin) {
       errors.push(
@@ -134,6 +144,16 @@ export async function runVerifiedEngine<T>(
   return runEngine<T>(db, args, async () => {
     const runId = `${args.engine}-${args.caseId}-${Date.now().toString(36)}`;
     const engVer = engineVersion(args.engine as string);
+    const engineStartedAt = Date.now();
+    traceAsync({
+      phase: "engine",
+      step: `${args.engine}.start`,
+      status: "start",
+      detail: { run_id: runId, engine_version: engVer },
+      db,
+      caseId: args.caseId,
+      userId: args.userId,
+    });
     // Open a telemetry scope so every routeAI call inside `fn` is captured.
     const { value: raw, scope } = await withTelemetryScope(
       {
@@ -149,17 +169,17 @@ export async function runVerifiedEngine<T>(
           const snap = await snapshotCorpus(db, args.caseId);
           s.corpus = snap;
           s.replay.corpus_hash = snap.corpus_hash;
-          if (snap.case_snapshot_version) s.replay.case_snapshot_version = snap.case_snapshot_version;
+          if (snap.case_snapshot_version)
+            s.replay.case_snapshot_version = snap.case_snapshot_version;
         } catch (e) {
           s.replay.corpus_snapshot_error = (e as Error)?.message ?? String(e);
         }
         return fn();
       },
     );
-    const isWrapped =
-      raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>);
-    const value = (isWrapped ? (raw as EngineResult<T>).value : (raw as T));
-    const priorStats = (isWrapped ? (raw as EngineResult<T>).stats ?? {} : {}) as EngineStats;
+    const isWrapped = raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>);
+    const value = isWrapped ? (raw as EngineResult<T>).value : (raw as T);
+    const priorStats = (isWrapped ? ((raw as EngineResult<T>).stats ?? {}) : {}) as EngineStats;
 
     const telemetry = summarizeScope(scope);
     // Fields we surface into top-level ledger columns. Provider-omitted
@@ -213,8 +233,46 @@ export async function runVerifiedEngine<T>(
       replay: scope.replay,
     };
 
+    await trace({
+      phase: "engine",
+      step: `${args.engine}.model_calls`,
+      status: telemetry.failedCalls > 0 ? "warn" : "ok",
+      provider: telemetry.provider ?? null,
+      model: telemetry.model ?? null,
+      durationMs: telemetry.totalLatencyMs || null,
+      detail: {
+        total_calls: telemetry.totalCalls,
+        success_calls: telemetry.successCalls,
+        failed_calls: telemetry.failedCalls,
+        tokens_in: telemetry.tokensIn,
+        tokens_out: telemetry.tokensOut,
+        retry_count: telemetry.retryCount,
+        retry_reasons: telemetry.retryReasons,
+        response_valid_json: telemetry.responseValidJson,
+        schema_validation_passed: telemetry.schemaValidationPassed,
+        repair_attempts: telemetry.repairAttempts,
+        errors: telemetry.errors?.slice(0, 3) ?? [],
+      },
+      db,
+      caseId: args.caseId,
+      userId: args.userId,
+    });
+
     const expectations = spec(value);
     if (expectations.length === 0) {
+      traceAsync({
+        phase: "engine",
+        step: `${args.engine}.complete`,
+        status: "ok",
+        durationMs: Date.now() - engineStartedAt,
+        detail: {
+          persistence: "no table writes declared",
+          rows_written: priorStats.rows_written ?? 0,
+        },
+        db,
+        caseId: args.caseId,
+        userId: args.userId,
+      });
       const stats: EngineStats = {
         ...priorStats,
         ...telemetryStats,
@@ -230,15 +288,34 @@ export async function runVerifiedEngine<T>(
     }
 
     const report = await verifyPersistence(db, { caseId: args.caseId, expectations });
+    await trace({
+      phase: "db",
+      step: `${args.engine}.persistence_verified`,
+      status: report.ok ? "ok" : "error",
+      error: report.ok ? null : (report.error ?? "verification failed"),
+      detail: { rows_written: report.rows_written, tables: report.tables },
+      db,
+      caseId: args.caseId,
+      userId: args.userId,
+    });
     if (!report.ok) {
-      const err = new Error(
-        `Persistence verification failed for ${args.engine}: ${report.error}`,
-      );
-      (err as unknown as { persistence?: PersistenceReport; telemetry?: unknown }).persistence = report;
+      const err = new Error(`Persistence verification failed for ${args.engine}: ${report.error}`);
+      (err as unknown as { persistence?: PersistenceReport; telemetry?: unknown }).persistence =
+        report;
       (err as unknown as { telemetry?: unknown }).telemetry = telemetry;
       throw err;
     }
 
+    traceAsync({
+      phase: "engine",
+      step: `${args.engine}.complete`,
+      status: "ok",
+      durationMs: Date.now() - engineStartedAt,
+      detail: { rows_written: report.rows_written },
+      db,
+      caseId: args.caseId,
+      userId: args.userId,
+    });
     const stats: EngineStats = {
       ...priorStats,
       ...telemetryStats,
@@ -259,7 +336,6 @@ export async function runVerifiedEngine<T>(
   });
 }
 
-
 /**
  * Central catalog of engine → tables it MUST populate. Keeping this in one
  * place means a single audit surface for future engines. `expected` is a
@@ -274,7 +350,7 @@ export async function runVerifiedEngine<T>(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ENGINE_TABLE_SPECS: Record<string, VerificationSpec<any>> = {
   theory: (v: { theories?: unknown[] }) => [
-    { table: "case_theories", expectedMin: (v?.theories?.length ?? 0) },
+    { table: "case_theories", expectedMin: v?.theories?.length ?? 0 },
   ],
   opportunity: () => [
     // Optional engine — a legitimately thin corpus may yield zero
@@ -282,7 +358,7 @@ export const ENGINE_TABLE_SPECS: Record<string, VerificationSpec<any>> = {
     { table: "case_opportunities", expectedMin: 0 },
   ],
   witness_intelligence: (v: { witnesses?: unknown[] }) => [
-    { table: "case_witnesses", expectedMin: (v?.witnesses?.length ?? 0) },
+    { table: "case_witnesses", expectedMin: v?.witnesses?.length ?? 0 },
   ],
   trial_prep: () => [
     // Singleton row per case (PK = case_id). Optional — engine may skip
@@ -293,24 +369,18 @@ export const ENGINE_TABLE_SPECS: Record<string, VerificationSpec<any>> = {
     // Optional — see opportunity/trial_prep.
     { table: "case_strategy", expectedMin: 0 },
   ],
-  work_product: () => [
-    { table: "case_work_product", expectedMin: 0 },
-  ],
+  work_product: () => [{ table: "case_work_product", expectedMin: 0 }],
   perspectives: () => [
     // At least one perspective row is expected; if all failed the engine
     // will have thrown before we get here.
     { table: "case_perspectives", expectedMin: 1 },
   ],
-  evidence_intelligence: () => [
-    { table: "evidence_classifications", expectedMin: 0 },
-  ],
+  evidence_intelligence: () => [{ table: "evidence_classifications", expectedMin: 0 }],
   discovery_gaps: () => [
     // discovery gaps live in case_findings under source_module = engine:discovery
     { table: "case_findings", expectedMin: 0 },
   ],
-  contradictions: () => [
-    { table: "case_findings", expectedMin: 0 },
-  ],
+  contradictions: () => [{ table: "case_findings", expectedMin: 0 }],
   // No table writes — cases.* column updates only.
   evidence_map: () => [],
   constitutional_compliance: () => [],
