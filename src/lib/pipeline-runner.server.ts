@@ -1164,10 +1164,6 @@ async function _runPipelineForCase(
         } catch (rqErr) {
           console.warn(`[pipeline] re-queue after checkpoint failed`, rqErr);
         }
-
-        } catch (rqErr) {
-          console.warn(`[pipeline] re-queue after checkpoint failed`, rqErr);
-        }
         trace("stage.checkpoint", { stage: s.key, runtime_ms: Date.now() - stageStart });
         try {
           await prog.emitEvent(
