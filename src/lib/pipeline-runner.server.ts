@@ -981,6 +981,20 @@ async function _runPipelineForCase(
     const r = runners[key];
     const pct = Math.floor((i / total) * 95);
 
+    // Idempotence gate — a stage that already reached a terminal
+    // success/skipped state on an earlier tick is never re-executed.
+    if (alreadyDone(key)) {
+      completed.add(key);
+      trace("stage.skipped_already_terminal", {
+        stage: s.key,
+        index: i + 1,
+        prior_status: latestStatusByEngine.get(engineForStage(key)) ?? null,
+      });
+      continue;
+    }
+
+
+
     // Dependency gate — record a `blocked` row so the ledger, UI, and report
     // gate all see the truth: this engine did not run because upstream failed.
     const unmet = (DEPENDS_ON[key] ?? []).filter((d) => failed.has(d) || blocked.has(d));
