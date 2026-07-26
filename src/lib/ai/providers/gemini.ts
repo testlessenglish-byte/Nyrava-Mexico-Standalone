@@ -6,6 +6,27 @@ import {
 import { withCapabilities } from "./capabilities";
 import { aiCallTimeoutForCheckpoint, assertCheckpointBudget } from "../../pipeline-checkpoint.server";
 
+/**
+ * Live Flash-class ids tried, in order, when the configured id answers 404
+ * NOT_FOUND. Ordered cheapest-and-most-available first. Keeping this here
+ * (rather than in the DB row) means a retired id can never permanently break
+ * an engine: the adapter self-heals on the next call.
+ */
+const GEMINI_MODEL_FALLBACKS = [
+  "gemini-2.0-flash",
+  "gemini-flash-latest",
+  "gemini-2.0-flash-lite",
+  "gemini-2.5-flash-lite",
+] as const;
+
+function isModelNotFound(message: string): boolean {
+  return (
+    /HTTP 404/.test(message) &&
+    /(NOT_FOUND|not found|no longer available|is not supported)/i.test(message)
+  );
+}
+
+
 export function makeGemini(cfg: ProviderConfig): AIProvider {
   const baseUrl = (cfg.baseUrl ?? PROVIDER_DEFAULTS.gemini.baseUrl).replace(/\/+$/, "");
   const defaultModel = cfg.defaultModel ?? PROVIDER_DEFAULTS.gemini.model;
