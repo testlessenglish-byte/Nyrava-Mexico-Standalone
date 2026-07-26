@@ -1009,17 +1009,31 @@ ${ctx.corpus}`,
     db,
     witnesses.map((w, i) => {
       const risk = computedRisk[i].risk;
+      const prof = computedRisk[i].profile;
+      const es = witnessLocale !== "en";
       const sev = risk >= 75 ? "high" : risk >= 50 ? "medium" : "low";
+      const roleLabel = es ? prof.label_es : prof.label_en;
       return {
         case_id: caseId,
         user_id: userId,
         source_module: `engine:witness`,
         category: "witness",
-        title: `Witness profile: ${w.name}${w.role ? ` (${w.role})` : ""}`,
-        description: `Reliability ${w.reliability ?? "?"}/100 · Bias ${w.bias ?? "?"} · Credibility risk ${risk}/100 (computed)`,
+        title: es
+          ? `Perfil de declarante: ${w.name} (${roleLabel})`
+          : `Witness profile: ${w.name} (${roleLabel})`,
+        description: es
+          ? `Confiabilidad ${w.reliability ?? "?"}/100 · Parcialidad ${computedRisk[i].bias_applied} · Riesgo de credibilidad ${risk}/100 (calculado conforme al rol procesal). ${prof.scrutiny_es}`
+          : `Reliability ${w.reliability ?? "?"}/100 · Bias ${computedRisk[i].bias_applied} · Credibility risk ${risk}/100 (role-aware computation). ${prof.scrutiny_en}`,
         severity: sev as "high" | "medium" | "low",
         confidence: 0.7,
-        legal_significance: risk >= 50 ? "Witness credibility may be challenged on cross" : "Witness appears credible",
+        legal_significance:
+          (risk >= 50
+            ? es
+              ? "La credibilidad de este declarante puede ser controvertida en el interrogatorio y contrainterrogatorio."
+              : "This declarant's credibility can be challenged on examination."
+            : es
+              ? "El declarante se aprecia creíble conforme a los elementos del expediente."
+              : "The declarant appears credible on the record.") + ` Fundamento: ${prof.authority}.`,
         potential_impact: null,
         affected_party: "both" as const,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1030,7 +1044,11 @@ ${ctx.corpus}`,
           source_quote: gated[i]?.source_quote,
           source_page: gated[i]?.source_page,
         } as any),
-        metadata: { witness: w as unknown as Record<string, unknown> },
+        metadata: {
+          witness: w as unknown as Record<string, unknown>,
+          mx_role: prof.role,
+          mx_role_authority: prof.authority,
+        },
       };
     }),
   );
