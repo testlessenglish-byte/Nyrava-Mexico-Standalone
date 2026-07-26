@@ -40,6 +40,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { CaseActionsMenu } from "@/components/CaseActionsMenu";
 import { AttorneyAssistancePanel } from "@/components/AttorneyAssistancePanel";
 import { LivePipelinePanel } from "@/components/LivePipelinePanel";
+import { PipelineTracePanel } from "@/components/PipelineTracePanel";
 import { CommandCenterDashboard } from "@/components/CommandCenterDashboard";
 import { useI18n } from "@/i18n";
 import { PipelinePanel } from "@/components/PipelinePanel";
@@ -669,6 +670,7 @@ function Workspace() {
         </section>
       </div>
       <LivePipelinePanel caseId={c.id} isProcessing={running} caseType={(c as any).case_type ?? null} />
+      <PipelineTracePanel caseId={c.id} isProcessing={running} />
     </div>
   );
 }
