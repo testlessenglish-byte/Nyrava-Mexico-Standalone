@@ -26,6 +26,15 @@ function isModelNotFound(message: string): boolean {
   );
 }
 
+function retryAfterHeaderMs(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds * 1000);
+  const dateMs = Date.parse(value);
+  if (Number.isFinite(dateMs)) return Math.max(1000, dateMs - Date.now());
+  return undefined;
+}
+
 
 export function makeGemini(cfg: ProviderConfig): AIProvider {
   const baseUrl = (cfg.baseUrl ?? PROVIDER_DEFAULTS.gemini.baseUrl).replace(/\/+$/, "");
@@ -119,7 +128,10 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
       if (!res.ok) {
         const text = (await res.text().catch(() => "")).slice(0, 500);
         const err = new Error(`gemini HTTP ${res.status}: ${text}`);
-        (err as unknown as { providerRequestId?: string }).providerRequestId = providerRequestId;
+        (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).providerRequestId = providerRequestId;
+        (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).retryAfterMs = retryAfterHeaderMs(
+          res.headers.get("retry-after"),
+        );
         throw err;
       }
       const json = await res.json() as {

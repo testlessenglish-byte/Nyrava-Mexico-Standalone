@@ -28,6 +28,15 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
     });
   }
 
+  const retryAfterHeaderMs = (value: string | null): number | undefined => {
+    if (!value) return undefined;
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds * 1000);
+    const dateMs = Date.parse(value);
+    if (Number.isFinite(dateMs)) return Math.max(1000, dateMs - Date.now());
+    return undefined;
+  };
+
   async function rawCall(body: Record<string, unknown>, signal?: AbortSignal): Promise<ChatResult> {
     const model = String(body.model);
     const t0 = Date.now();
@@ -70,7 +79,10 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
     if (!res.ok) {
       const text = (await res.text().catch(() => "")).slice(0, 500);
       const err = new Error(`${cfg.type} HTTP ${res.status}: ${text}`);
-      (err as unknown as { providerRequestId?: string }).providerRequestId = providerRequestId ?? undefined;
+      (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).providerRequestId = providerRequestId ?? undefined;
+      (err as unknown as { providerRequestId?: string; retryAfterMs?: number }).retryAfterMs = retryAfterHeaderMs(
+        res.headers.get("retry-after"),
+      );
       throw err;
     }
     const json = await res.json() as {

@@ -32,7 +32,9 @@ function cooldownKey(provider: ProviderType, model: string | null | undefined, k
 export function parseRetryHintMs(message: string): number | null {
   const m =
     message.match(/(?:try again|retry(?:\s+after)?)\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|sec|secs|second|seconds|m|min|minute|minutes)?/i) ??
-    message.match(/retry(?:-|\s+)after[:\s]+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|sec|secs|second|seconds|m|min|minute|minutes)?/i);
+    message.match(/retry(?:-|\s+)after[:\s]+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|sec|secs|second|seconds|m|min|minute|minutes)?/i) ??
+    message.match(/retryDelay["'\s:]+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|sec|secs|second|seconds|m|min|minute|minutes)?/i) ??
+    message.match(/"retryDelay"\s*:\s*"([0-9]+(?:\.[0-9]+)?)(s|m)?"/i);
   if (!m?.[1]) return null;
   const n = Number.parseFloat(m[1]);
   if (!Number.isFinite(n) || n <= 0) return null;
