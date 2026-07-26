@@ -1632,7 +1632,7 @@ async function _runExtractionInner(args: {
         );
       }
 
-      await db
+      const { error: docWriteErr } = await db
         .from("documents")
         .update({
           status: "extracted",
@@ -1642,6 +1642,28 @@ async function _runExtractionInner(args: {
           error: null,
         })
         .eq("id", d.id);
+      {
+        const { trace } = await import("./pipeline-trace.server");
+        await trace({
+          phase: "engine",
+          step: "extraction.document",
+          status: docWriteErr ? "error" : extractedText.trim().length === 0 ? "warn" : "ok",
+          error: docWriteErr?.message ?? null,
+          detail: {
+            document_id: d.id,
+            filename: d.filename,
+            mime_type: d.mime_type,
+            bytes: bytes.byteLength,
+            chars_extracted: extractedText.length,
+            pages: pageTexts?.length ?? null,
+            index: `${processed}/${total}`,
+            pg_code: docWriteErr?.code ?? null,
+          },
+          db,
+          caseId,
+          userId,
+        });
+      }
 
       // Persist per-page text for citation verification. Replace any prior pages
       // for this document so re-extraction stays consistent.
@@ -1670,6 +1692,26 @@ async function _runExtractionInner(args: {
     } catch (e) {
       rethrowIfCheckpoint(e);
       const msg = e instanceof Error ? e.message : String(e);
+      {
+        const { trace } = await import("./pipeline-trace.server");
+        await trace({
+          phase: "engine",
+          step: "extraction.document",
+          status: "error",
+          error: msg,
+          detail: {
+            document_id: d.id,
+            filename: d.filename,
+            mime_type: d.mime_type,
+            index: `${processed}/${total}`,
+            retry_count: (d.extraction_retry_count ?? 0) + 1,
+            stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 5).join("\n") : null,
+          },
+          db,
+          caseId,
+          userId,
+        });
+      }
       const newCount = (d.extraction_retry_count ?? 0) + 1;
       await db
         .from("documents")
