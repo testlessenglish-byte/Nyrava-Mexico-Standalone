@@ -4,6 +4,7 @@ import {
   PROVIDER_DEFAULTS, PROVIDER_TIMEOUT_MS, withTimeout,
 } from "./types";
 import { withCapabilities } from "./capabilities";
+import { aiCallTimeoutForCheckpoint, assertCheckpointBudget } from "../../pipeline-checkpoint.server";
 
 export function makeGemini(cfg: ProviderConfig): AIProvider {
   const baseUrl = (cfg.baseUrl ?? PROVIDER_DEFAULTS.gemini.baseUrl).replace(/\/+$/, "");
@@ -23,7 +24,10 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
     async chat(o: ChatOpts): Promise<ChatResult> {
       const model = o.model ?? defaultModel;
       const t0 = Date.now();
-      const to = withTimeout(o.signal, PROVIDER_TIMEOUT_MS);
+      assertCheckpointBudget(`before gemini fetch ${model}`);
+      const scopedTimeoutMs = aiCallTimeoutForCheckpoint(`gemini fetch ${model}`);
+      const timeoutMs = Math.max(1_000, Math.min(o.timeoutMs ?? scopedTimeoutMs ?? PROVIDER_TIMEOUT_MS, PROVIDER_TIMEOUT_MS));
+      const to = withTimeout(o.signal, timeoutMs);
       const userText = typeof o.userContent === "string"
         ? o.userContent
         : o.userContent.map(p => p.type === "text" ? p.text : "").join("\n");
@@ -46,13 +50,20 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
         });
       } catch (e) {
         to.cancel();
-        throw new Error(to.timedOut() ? `gemini timed out after ${PROVIDER_TIMEOUT_MS}ms` : (e instanceof Error ? e.message : String(e)));
+        throw new Error(to.timedOut() ? `gemini timed out after ${timeoutMs}ms` : (e instanceof Error ? e.message : String(e)));
       }
       to.cancel();
+      assertCheckpointBudget(`after gemini fetch ${model}`);
       const latencyMs = Date.now() - t0;
+      const providerRequestId =
+        res.headers.get("x-request-id") ??
+        res.headers.get("x-goog-request-id") ??
+        undefined;
       if (!res.ok) {
         const text = (await res.text().catch(() => "")).slice(0, 500);
-        throw new Error(`gemini HTTP ${res.status}: ${text}`);
+        const err = new Error(`gemini HTTP ${res.status}: ${text}`);
+        (err as unknown as { providerRequestId?: string }).providerRequestId = providerRequestId;
+        throw err;
       }
       const json = await res.json() as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -65,6 +76,7 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
         inputTokens: json.usageMetadata?.promptTokenCount,
         outputTokens: json.usageMetadata?.candidatesTokenCount,
         totalTokens: json.usageMetadata?.totalTokenCount,
+        providerRequestId,
       };
     },
     async testConnection() {

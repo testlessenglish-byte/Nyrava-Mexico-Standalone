@@ -105,6 +105,24 @@ function clamp01(n: unknown): number {
   return Math.max(0, Math.min(1, v));
 }
 
+const VALID_FINDING_TYPES = new Set(["DIRECT_EVIDENCE", "EVIDENCE_BASED_INFERENCE", "AI_THEORY"]);
+
+function normalizeFindingType(value: unknown, hasCompleteCitation: boolean): "DIRECT_EVIDENCE" | "EVIDENCE_BASED_INFERENCE" | "AI_THEORY" {
+  const raw = String(value ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  const mapped =
+    raw === "DIRECT" || raw === "EVIDENCE" || raw === "FACT" || raw === "FACTUAL"
+      ? "DIRECT_EVIDENCE"
+      : raw === "INFERENCE" || raw === "EVIDENCE_INFERENCE" || raw === "INFERRED"
+        ? "EVIDENCE_BASED_INFERENCE"
+        : raw === "THEORY" || raw === "AI" || raw === "SPECULATION"
+          ? "AI_THEORY"
+          : raw;
+  if (VALID_FINDING_TYPES.has(mapped)) {
+    return mapped as "DIRECT_EVIDENCE" | "EVIDENCE_BASED_INFERENCE" | "AI_THEORY";
+  }
+  return hasCompleteCitation ? "EVIDENCE_BASED_INFERENCE" : "AI_THEORY";
+}
+
 async function buildCaseCorpus(db: Db, caseId: string): Promise<GroundingCorpus> {
   const { data: docs } = await db
     .from("documents")
@@ -663,8 +681,11 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     const resolvedDocId = extra.source_document_id ?? primaryDocId;
     const resolvedPage = extra.source_page ?? primaryPage;
     const hasCompleteCitation = !!resolvedQuote && !!resolvedDocId;
+    const normalizedType = normalizeFindingType(declaredType, hasCompleteCitation);
     const finding_type =
-      declaredType === "DIRECT_EVIDENCE" && !hasCompleteCitation ? "EVIDENCE_BASED_INFERENCE" : declaredType;
+      normalizedType === "DIRECT_EVIDENCE" && !hasCompleteCitation
+        ? "EVIDENCE_BASED_INFERENCE"
+        : normalizedType;
     // Lift canonical identity out of metadata onto the top-level column so
     // joins/exports/audit tools can resolve findings by canonical_finding_id
     // without walking JSON. (Priority 2 fix — metadata → top-level.)

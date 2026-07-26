@@ -4,6 +4,7 @@ import {
   PROVIDER_DEFAULTS, PROVIDER_TIMEOUT_MS, withTimeout,
 } from "./types";
 import { withCapabilities } from "./capabilities";
+import { aiCallTimeoutForCheckpoint, assertCheckpointBudget } from "../../pipeline-checkpoint.server";
 
 export function makeAnthropic(cfg: ProviderConfig): AIProvider {
   const baseUrl = (cfg.baseUrl ?? PROVIDER_DEFAULTS.anthropic.baseUrl).replace(/\/+$/, "");
@@ -23,7 +24,10 @@ export function makeAnthropic(cfg: ProviderConfig): AIProvider {
     async chat(o: ChatOpts): Promise<ChatResult> {
       const model = o.model ?? defaultModel;
       const t0 = Date.now();
-      const to = withTimeout(o.signal, PROVIDER_TIMEOUT_MS);
+      assertCheckpointBudget(`before anthropic fetch ${model}`);
+      const scopedTimeoutMs = aiCallTimeoutForCheckpoint(`anthropic fetch ${model}`);
+      const timeoutMs = Math.max(1_000, Math.min(o.timeoutMs ?? scopedTimeoutMs ?? PROVIDER_TIMEOUT_MS, PROVIDER_TIMEOUT_MS));
+      const to = withTimeout(o.signal, timeoutMs);
       const userText = typeof o.userContent === "string"
         ? o.userContent
         : o.userContent.map(p => p.type === "text" ? p.text : "").join("\n");
@@ -48,13 +52,17 @@ export function makeAnthropic(cfg: ProviderConfig): AIProvider {
         });
       } catch (e) {
         to.cancel();
-        throw new Error(to.timedOut() ? `anthropic timed out after ${PROVIDER_TIMEOUT_MS}ms` : (e instanceof Error ? e.message : String(e)));
+        throw new Error(to.timedOut() ? `anthropic timed out after ${timeoutMs}ms` : (e instanceof Error ? e.message : String(e)));
       }
       to.cancel();
+      assertCheckpointBudget(`after anthropic fetch ${model}`);
       const latencyMs = Date.now() - t0;
+      const providerRequestId = res.headers.get("request-id") ?? res.headers.get("x-request-id") ?? undefined;
       if (!res.ok) {
         const text = (await res.text().catch(() => "")).slice(0, 500);
-        throw new Error(`anthropic HTTP ${res.status}: ${text}`);
+        const err = new Error(`anthropic HTTP ${res.status}: ${text}`);
+        (err as unknown as { providerRequestId?: string }).providerRequestId = providerRequestId;
+        throw err;
       }
       const json = await res.json() as {
         content?: Array<{ type: string; text?: string }>;
@@ -67,6 +75,7 @@ export function makeAnthropic(cfg: ProviderConfig): AIProvider {
         inputTokens: json.usage?.input_tokens,
         outputTokens: json.usage?.output_tokens,
         totalTokens: (json.usage?.input_tokens ?? 0) + (json.usage?.output_tokens ?? 0),
+        providerRequestId,
       };
     },
     async testConnection() {
