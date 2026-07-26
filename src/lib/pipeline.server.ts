@@ -2378,13 +2378,24 @@ ${corpusText}`;
   }
 
   if (successes === 0) {
-    throw new Error(`Analyzers failed on every batch. Details:\n${providerErrors.join("\n")}`);
+    // Soft-catch: a transient batch failure (malformed JSON, provider capacity,
+    // transport hiccup) must not hard-fail the stage and cascade every
+    // downstream engine into `blocked`. Only a real configuration error
+    // (bad/absent API key) is fatal here.
+    const fatalConfig = providerErrors.some((m) => isAuthProviderError(m));
+    if (fatalConfig) {
+      throw new Error(`Analyzers failed on every batch. Details:\n${providerErrors.join("\n")}`);
+    }
+    console.warn(
+      `[analyzers] every batch failed transiently — continuing with empty analyzer buckets so downstream stages still run. Details:\n${providerErrors.join("\n")}`,
+    );
   }
   if (providerErrors.length) {
     console.warn(
       `[analyzers] completed with ${providerErrors.length} failed batch(es); ${successes} succeeded`,
     );
   }
+
 
   // ── Cross-batch synthesis pass ───────────────────────────────────────────
   // The per-batch loop above only ever shows the model ONE ~60K-char slice
