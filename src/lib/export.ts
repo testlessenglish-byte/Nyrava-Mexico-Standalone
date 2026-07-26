@@ -1762,20 +1762,27 @@ function jurisdictionIntelDocxParas(data: CaseExportData): Paragraph[] {
 
 function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) {
   const r = asObj(data.report);
-  b.h1("Executive Summary");
+  const execLocale = resolveReportLocale(data.report, data.case);
+  b.h1(execLocale === "en" ? "Executive Summary" : "Resumen Ejecutivo");
   if (mode === "LIMITED") {
     const docCount = data.documents.length;
     const findingCount = (data.findings ?? []).length;
     b.text(
-      "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations. " +
-        `The intake included ${docCount} source document${docCount === 1 ? "" : "s"} and produced ${findingCount} verified finding${findingCount === 1 ? "" : "s"}. ` +
-        "An evidence-grounded narrative is rendered below for every section in which the corpus supplied sufficient verbatim material. Sections that would otherwise rely on inferred legal theories — quantitative scorecards, motion drafting, theory selection, and prioritized recommendations — have been withheld so that no claim in this report rests on speculation.",
+      execLocale === "en"
+        ? "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations. " +
+          `The intake included ${docCount} source document${docCount === 1 ? "" : "s"} and produced ${findingCount} verified finding${findingCount === 1 ? "" : "s"}. ` +
+          "An evidence-grounded narrative is rendered below for every section in which the corpus supplied sufficient verbatim material. Sections that would otherwise rely on inferred legal theories — quantitative scorecards, motion drafting, theory selection, and prioritized recommendations — have been withheld so that no claim in this report rests on speculation."
+        : "Este expediente se analizó en modo LIMITADO porque el corpus disponible no alcanzó el umbral de Suficiencia Probatoria (ESS) requerido para sustentar puntajes cuantitativos o recomendaciones formales de promociones. " +
+          `La ingesta incluyó ${docCount} documento(s) fuente y produjo ${findingCount} hallazgo(s) verificado(s). ` +
+          "A continuación se presenta una narrativa sustentada en evidencia para cada sección en la que el corpus aportó material textual suficiente. Las secciones que dependerían de teorías jurídicas inferidas — puntajes cuantitativos, redacción de promociones, selección de teoría del caso y recomendaciones priorizadas — se retuvieron para que ninguna afirmación de este reporte descanse en especulación.",
       { size: 11, gap: 8 },
     );
     const { checklistText } = buildMissingDocumentChecklist(data);
     b.text(checklistText, { size: 11, gap: 8 });
     b.text(
-      "Every finding rendered in this report has been validated against the source corpus and is safe to rely on. The suppressions below are conservative by design — they protect the work product from hallucinated legal conclusions while preserving the verified factual record.",
+      execLocale === "en"
+        ? "Every finding rendered in this report has been validated against the source corpus and is safe to rely on. The suppressions below are conservative by design — they protect the work product from hallucinated legal conclusions while preserving the verified factual record."
+        : "Todo hallazgo incluido en este reporte fue validado contra el corpus fuente y puede sustentarse. Las supresiones siguientes son conservadoras por diseño: protegen el producto de trabajo frente a conclusiones jurídicas alucinadas y preservan el registro fáctico verificado.",
       { size: 11, gap: 8 },
     );
     return;

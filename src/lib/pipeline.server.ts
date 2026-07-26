@@ -5174,6 +5174,28 @@ ${paginationTail}`;
     // No per-section "sumLine" prefix. The single banner above says it once;
     // sections render only their own content.
 
+    const locale = await getReportLocale(db, caseId);
+    const { MX_PARTY_ROLES, resolveMxProfile } = await import("./execution/mx-pipeline");
+    const partyRoles = MX_PARTY_ROLES[resolveMxProfile(caseType)];
+    const ROLE_LABELS: Record<string, { es: string; en: string }> = {
+      ministerio_publico: { es: "Ministerio Público", en: "Public Prosecutor" },
+      defensa: { es: "Defensa", en: "Defense" },
+      quejoso: { es: "Quejoso", en: "Petitioner (Quejoso)" },
+      autoridad_responsable: { es: "Autoridad Responsable", en: "Responsible Authority" },
+      trabajador: { es: "Trabajador", en: "Employee" },
+      patron: { es: "Patrón", en: "Employer" },
+      parte_actora: { es: "Parte Actora", en: "Plaintiff" },
+      parte_demandada: { es: "Parte Demandada", en: "Defendant" },
+      contribuyente: { es: "Contribuyente", en: "Taxpayer" },
+      autoridad_fiscal: { es: "Autoridad Fiscal", en: "Tax Authority" },
+      particular: { es: "Particular", en: "Private Party" },
+      autoridad: { es: "Autoridad", en: "Authority" },
+      apelante: { es: "Apelante", en: "Appellant" },
+      apelado: { es: "Apelado", en: "Appellee" },
+      ambas: { es: "Ambas Partes", en: "Both Parties" },
+    };
+    const roleLabel = (key: string) => ROLE_LABELS[key]?.[locale] ?? key;
+
     // Category-filtered finding lists so each section shows only relevant findings
     const byCategory = (cats: string[]) =>
       [...findings]
@@ -5185,89 +5207,123 @@ ${paginationTail}`;
 
     const byParty = (party: string) =>
       [...findings]
-        .filter((f) => (f as any).affected_party === party || (f as any).affected_party === "both")
+        .filter((f) => (f as any).affected_party === party || (f as any).affected_party === partyRoles.neutral)
         .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
         .slice(0, 5)
         .map((f) => `- (${f.severity}) ${f.title}`)
         .join("\n");
 
     const noContent =
-      "No verified findings in this category. Upload additional source documents and re-run the pipeline.";
+      locale === "en"
+        ? "No verified findings in this category. Upload additional source documents and re-run the pipeline."
+        : "No se identificaron hallazgos verificados en esta categoría. Suba fuentes documentales adicionales y vuelva a ejecutar el proceso.";
 
     prose.executive_summary =
       prose.executive_summary ||
-      `This report identifies ${findings.length} verified finding(s) across ${docIndex.length} source document(s). The highest-priority issues requiring attorney attention:\n\n${bullets || noContent}`;
+      (locale === "en"
+        ? `This report identifies ${findings.length} verified finding(s) across ${docIndex.length} source document(s). The highest-priority issues requiring attorney attention:\n\n${bullets || noContent}`
+        : `Este informe identifica ${findings.length} hallazgo(s) verificado(s) en ${docIndex.length} documento(s) fuente. Las cuestiones de mayor prioridad que requieren atención del abogado:\n\n${bullets || noContent}`);
 
     prose.attorney_summary =
       prose.attorney_summary ||
-      `Verified findings requiring attorney review (${findings.length} total):\n\n${bullets || noContent}`;
+      (locale === "en"
+        ? `Verified findings requiring attorney review (${findings.length} total):\n\n${bullets || noContent}`
+        : `Hallazgos verificados que requieren revisión del abogado (${findings.length} en total):\n\n${bullets || noContent}`);
 
     prose.investigator_summary =
       prose.investigator_summary ||
-      `Agent analysis summary:\n${agentLines || "No agent output available."}\n\nTop verified findings:\n${bullets || noContent}`;
+      (locale === "en"
+        ? `Agent analysis summary:\n${agentLines || "No agent output available."}\n\nTop verified findings:\n${bullets || noContent}`
+        : `Resumen del análisis de agentes:\n${agentLines || "No hay resultados de agentes disponibles."}\n\nPrincipales hallazgos verificados:\n${bullets || noContent}`);
 
     prose.case_overview =
       prose.case_overview ||
-      `Case type: ${caseType}. Document corpus: ${docIndex.length} document(s) reviewed.\n${docLines || "No documents indexed."}\n\nVerified issues identified: ${findings.length}.`;
+      (locale === "en"
+        ? `Case type: ${caseType}. Document corpus: ${docIndex.length} document(s) reviewed.\n${docLines || "No documents indexed."}\n\nVerified issues identified: ${findings.length}.`
+        : `Materia: ${caseType}. Corpus documental: ${docIndex.length} documento(s) revisado(s).\n${docLines || "No hay documentos indexados."}\n\nCuestiones verificadas identificadas: ${findings.length}.`);
 
     prose.evidence_summary =
       prose.evidence_summary ||
-      `Evidence Inventory\n${docLines || "No extracted document index available."}`;
+      (locale === "en"
+        ? `Evidence Inventory\n${docLines || "No extracted document index available."}`
+        : `Inventario de Evidencia\n${docLines || "No hay índice de documentos extraídos disponible."}`);
 
     prose.timeline_summary =
       prose.timeline_summary ||
-      `Timeline Reconstruction\n${timelineLines || "No dated timeline events were extracted from the uploaded documents."}`;
+      (locale === "en"
+        ? `Timeline Reconstruction\n${timelineLines || "No dated timeline events were extracted from the uploaded documents."}`
+        : `Reconstrucción Cronológica\n${timelineLines || "No se extrajeron eventos cronológicos con fecha de los documentos proporcionados."}`);
 
     prose.contradiction_report =
       prose.contradiction_report ||
       (byCategory(["contradiction"])
-        ? `Verified Contradictions\n${byCategory(["contradiction"])}`
-        : "No verified factual contradictions survived evidence validation. This may reflect consistent accounts or insufficient document coverage.");
+        ? `${locale === "en" ? "Verified Contradictions" : "Contradicciones Verificadas"}\n${byCategory(["contradiction"])}`
+        : locale === "en"
+          ? "No verified factual contradictions survived evidence validation. This may reflect consistent accounts or insufficient document coverage."
+          : "Ninguna contradicción fáctica verificada superó la validación de evidencia. Esto puede reflejar relatos consistentes o cobertura documental insuficiente.");
 
     prose.discovery_analysis =
       prose.discovery_analysis ||
       (byCategory(["missing_evidence", "discovery_gap"])
-        ? `Discovery Gaps\n${byCategory(["missing_evidence", "discovery_gap"])}`
-        : "No verified discovery gaps were identified in the uploaded documents.");
+        ? `${locale === "en" ? "Discovery Gaps" : "Vacíos Probatorios"}\n${byCategory(["missing_evidence", "discovery_gap"])}`
+        : locale === "en"
+          ? "No verified discovery gaps were identified in the uploaded documents."
+          : "No se identificaron vacíos probatorios verificados en los documentos proporcionados.");
 
     prose.missing_evidence_report =
       prose.missing_evidence_report ||
-      "Review the Evidence Coverage section for missing or unextracted documents. Upload additional materials and re-run the pipeline to expand this analysis.";
+      (locale === "en"
+        ? "Review the Evidence Coverage section for missing or unextracted documents. Upload additional materials and re-run the pipeline to expand this analysis."
+        : "Consulte la sección de Cobertura de Evidencia para conocer los documentos faltantes o no extraídos. Suba materiales adicionales y vuelva a ejecutar el proceso para ampliar este análisis.");
 
     prose.procedural_issues_report =
       prose.procedural_issues_report ||
       (byCategory(["procedural"])
-        ? `Procedural Issues\n${byCategory(["procedural"])}`
-        : "No verified procedural issues survived evidence validation.");
+        ? `${locale === "en" ? "Procedural Issues" : "Cuestiones Procesales"}\n${byCategory(["procedural"])}`
+        : locale === "en"
+          ? "No verified procedural issues survived evidence validation."
+          : "Ninguna cuestión procesal verificada superó la validación de evidencia.");
 
     prose.witness_analysis =
       prose.witness_analysis ||
       (byCategory(["witness"])
-        ? `Witness Findings\n${byCategory(["witness"])}`
+        ? `${locale === "en" ? "Witness Findings" : "Hallazgos de Testigos"}\n${byCategory(["witness"])}`
         : agentLines
-          ? `Agent Summary\n${agentLines}`
-          : "No witness-specific findings were produced. Upload witness statements, depositions, or interview transcripts and re-run.");
+          ? `${locale === "en" ? "Agent Summary" : "Resumen del Agente"}\n${agentLines}`
+          : locale === "en"
+            ? "No witness-specific findings were produced. Upload witness statements, depositions, or interview transcripts and re-run."
+            : "No se generaron hallazgos específicos de testigos. Suba declaraciones de testigos, testimoniales o transcripciones de entrevistas y vuelva a ejecutar.");
 
     prose.prosecution_theory_report =
       prose.prosecution_theory_report ||
-      `${isCriminalOrCivilRights ? "Prosecution" : "Plaintiff"} Theory\nFindings that may support the ${isCriminalOrCivilRights ? "prosecution" : "plaintiff"}:\n\n${byParty("prosecution") || noContent}`;
+      (locale === "en"
+        ? `${roleLabel(partyRoles.a)} Theory\nFindings that may support ${roleLabel(partyRoles.a)}:\n\n${byParty(partyRoles.a) || noContent}`
+        : `Teoría de la ${roleLabel(partyRoles.a)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.a)}:\n\n${byParty(partyRoles.a) || noContent}`);
 
     prose.defense_theory_report =
       prose.defense_theory_report ||
-      `Defense Theory\nFindings that may support the defense:\n\n${byParty("defense") || noContent}`;
+      (locale === "en"
+        ? `${roleLabel(partyRoles.b)} Theory\nFindings that may support ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`
+        : `Teoría de la ${roleLabel(partyRoles.b)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`);
 
     prose.alternative_theory_report =
       prose.alternative_theory_report ||
-      "Alternative Theory\nInsufficient verified evidence for alternative theory generation. Upload additional documents and re-run.";
+      (locale === "en"
+        ? "Alternative Theory\nInsufficient verified evidence for alternative theory generation. Upload additional documents and re-run."
+        : "Teoría Alternativa\nEvidencia verificada insuficiente para generar una teoría alternativa. Suba documentos adicionales y vuelva a ejecutar.");
 
-    prose.risk_analysis = prose.risk_analysis || `Risk Analysis\n${scoreLine}`;
+    prose.risk_analysis =
+      prose.risk_analysis || `${locale === "en" ? "Risk Analysis" : "Análisis de Riesgo"}\n${scoreLine}`;
 
     prose.facts =
       prose.facts ||
-      "Insufficient evidence to draft a facts narrative without verbatim source quotes.";
+      (locale === "en"
+        ? "Insufficient evidence to draft a facts narrative without verbatim source quotes."
+        : "Evidencia insuficiente para redactar una narrativa de hechos sin citas textuales de la fuente.");
 
     prose.recommendations =
-      prose.recommendations || `Prioritized Recommendations\n${bullets || noContent}`;
+      prose.recommendations ||
+      `${locale === "en" ? "Prioritized Recommendations" : "Recomendaciones Prioritarias"}\n${bullets || noContent}`;
 
     prose.score_breakdown =
       prose.score_breakdown ||
