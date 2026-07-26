@@ -422,33 +422,42 @@ export function applyEvidenceGate<T extends EvidenceItem>(
   return { items: result.accepted.map((x) => x.gated), audit: result.audit };
 }
 
-export function determineApplicablePerspectives(
-  caseType: string,
-): Array<
-  | "defense"
-  | "prosecution"
-  | "plaintiff"
-  | "respondent"
-  | "appellate"
-  | "jury"
-  | "independent"
-  | "judicial"
-  | "investigator"
-> {
+export type MxPerspective =
+  | "ministerio_publico"
+  | "defensa"
+  | "parte_actora"
+  | "parte_demandada"
+  | "quejoso"
+  | "autoridad_responsable"
+  | "juzgador"
+  | "independiente";
+
+/**
+ * Perspectivas procesales aplicables según la materia mexicana. Sin roles
+ * extranjeros (no hay "jury": en México no existe jurado en el proceso
+ * ordinario) y sin default silencioso a otra materia.
+ */
+export function determineApplicablePerspectives(caseType: string): MxPerspective[] {
   switch (caseType) {
-    case "criminal":
-    case "civil_rights":
-      return ["prosecution", "defense", "judicial", "investigator", "jury", "independent"];
-    case "appellate":
-      return ["appellate", "judicial", "independent"];
-    case "medical_malpractice":
-    case "personal_injury":
-    case "employment":
-    case "general_civil":
-    case "family":
-    case "tax_law":
+    case "penal":
+      return ["ministerio_publico", "defensa", "juzgador", "independiente"];
+    case "amparo":
+    case "constitucional":
+      return ["quejoso", "autoridad_responsable", "juzgador", "independiente"];
+    case "fiscal":
+    case "administrativo":
+    case "electoral":
+      return ["parte_actora", "autoridad_responsable", "juzgador", "independiente"];
+    case "civil":
+    case "familiar":
+    case "mercantil":
+    case "laboral":
+    case "agrario":
+      return ["parte_actora", "parte_demandada", "juzgador", "independiente"];
     default:
-      return ["plaintiff", "defense", "judicial", "investigator", "independent"];
+      // Materia no resuelta: sólo perspectivas neutrales, nunca se asume una
+      // materia concreta.
+      return ["juzgador", "independiente"];
   }
 }
 

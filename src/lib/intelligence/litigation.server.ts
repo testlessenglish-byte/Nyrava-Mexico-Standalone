@@ -44,15 +44,14 @@ async function getSharedBriefResilient(args: {
 }
 
 const ALL_PERSPECTIVES = [
-  "defense",
-  "prosecution",
-  "plaintiff",
-  "respondent",
-  "appellate",
-  "jury",
-  "independent",
-  "judicial",
-  "investigator",
+  "ministerio_publico",
+  "defensa",
+  "parte_actora",
+  "parte_demandada",
+  "quejoso",
+  "autoridad_responsable",
+  "juzgador",
+  "independiente",
 ] as const;
 type Perspective = (typeof ALL_PERSPECTIVES)[number];
 

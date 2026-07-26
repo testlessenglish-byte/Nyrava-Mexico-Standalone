@@ -616,13 +616,14 @@ export const runStrategyStep = createServerFn({ method: "POST" })
         caseId: z.string().uuid(),
         perspective: z
           .enum([
-            "defense",
-            "prosecution",
-            "plaintiff",
-            "respondent",
-            "appellate",
-            "jury",
-            "independent",
+            "ministerio_publico",
+            "defensa",
+            "parte_actora",
+            "parte_demandada",
+            "quejoso",
+            "autoridad_responsable",
+            "juzgador",
+            "independiente",
           ])
           .optional(),
       })
