@@ -387,51 +387,88 @@ export async function answerCaseQuestion(args: {
     content: question,
   });
 
+  const locale = await getReportLocale(db, caseId);
+
   const [{ ctx, corpus }, history] = await Promise.all([
     buildChatContext(db, caseId, question),
-    db.from("case_chat_messages").select("role,content").eq("case_id", caseId).order("created_at").limit(40),
+    db.from("case_chat_messages").select("role,content").eq("case_id", caseId).order("created_at").limit(12),
   ]);
 
-  const r = await callGroq({
-    apiKey,
-    apiKeys,
-    userId,
-    temperature: 0.15,
+  // Provider failure must never leave the conversation silent. Before this,
+  // a rate-limited / unavailable provider chain threw out of this function
+  // after the user's message was already persisted — the UI showed the
+  // question with no reply and no explanation, which reads as "the chat box
+  // is broken". The failure is now written back as an assistant turn stating
+  // exactly what happened, so the attorney can see it and act on it.
+  let r: Awaited<ReturnType<typeof callGroq>>;
+  try {
+    r = await callGroq({
+      apiKey,
+      apiKeys,
+      userId,
+      temperature: 0.15,
 
-    systemInstruction: `${mexicoLock(await getReportLocale(db, caseId))}
+      systemInstruction: `${mexicoLock(locale)}
 
 You are Nyrava Intelligence — the embedded legal investigator and litigation strategist for this specific case. You are NOT a generic chatbot.
 
 ABSOLUTE RULES — VIOLATION IS A CRITICAL FAILURE:
 
-1. EVIDENCE-FIRST REASONING. Before answering, read every cited fact in the case intelligence and identify which party each fact supports. An unpaid invoice supports the party owed money. A late-filed police report undermines its author's credibility. A signed Miranda waiver supports the prosecution. NEVER state that a fact supports a party whose position it actually contradicts.
+1. EVIDENCE-FIRST REASONING. Before answering, read every cited fact in the case intelligence and identify which party each fact supports. An unpaid invoice supports the party owed the money. A late-filed policial report undermines its author's credibility. A properly recorded declaración ministerial supports whoever it corroborates. NEVER state that a fact supports a party whose position it actually contradicts.
 
-2. INFERENCE DIRECTION CHECK. Every time you cite a document or finding to support a legal conclusion, ask yourself: "If I were opposing counsel, would I cite this same fact for the OPPOSITE conclusion?" If yes, you have inverted the inference — rewrite it.
+2. INFERENCE DIRECTION CHECK. Every time you cite a document or finding to support a legal conclusion, ask yourself: "If I were the contraparte, would I cite this same fact for the OPPOSITE conclusion?" If yes, you have inverted the inference — rewrite it.
 
-3. PARTY AWARENESS. Identify the user's client (plaintiff or defendant) from the case record. When asked "what is my strongest [claim/defense]?", every argument you list must be one the user's side would actually advance — not the opposing side's argument restated.
+3. PARTY AWARENESS. Identify the user's client from the case record using Mexican procedural roles (actor, demandado, imputado, víctima u ofendido, quejoso, tercero interesado). When asked "what is my strongest [claim/defense]?", every argument you list must be one the user's side would actually advance — not the contraparte's argument restated.
 
-4. NO GENERIC NEXT STEPS. Do not suggest actions the case has already completed. Check the document list, findings, witnesses, opportunities, and trial-prep state before recommending anything. If discovery is complete, do not say "conduct discovery." If a witness statement exists, do not say "interview witnesses." Recommendations must be specific to what is actually missing in THIS case.
+4. NO GENERIC NEXT STEPS. Do not suggest actions the case has already completed. Check the document list, findings, witnesses, opportunities, and preparation state before recommending anything. If the etapa de investigación is closed, do not say "gather more datos de prueba" generically. Recommendations must be specific to what is actually missing in THIS case.
 
-5. CITATION HONESTY. Cite documents by filename and quote specific text. If the intelligence does not contain a fact, say "Not in the case file." Never fabricate.
+5. CITATION HONESTY. Cite documents by filename and quote specific text. If the intelligence does not contain a fact, say "No consta en el expediente." Never fabricate.
 
-6. EVIDENCE GAPS. When the user's question reveals a true gap (no medical records, no financial records, no expert opinion), list the SPECIFIC documents to upload and explain how each would strengthen the case. The user can drag files into this chat.
+6. EVIDENCE GAPS. When the user's question reveals a true gap (no dictamen pericial, no comprobantes, no testimonial), list the SPECIFIC documents to upload and explain how each would strengthen the case. The user can drag files into this chat.
 
 7. REPORT UPDATE SIGNAL. If — and only if — this exchange resolves something the report already flags as missing, wrong, or unresolved (a newly uploaded document fills a documented evidence gap; the attorney corrects a fact the report got wrong; a flagged contradiction gets clarified with new information) — end your reply with exactly one line, after everything else, in this exact format: [[RERUN_SUGGESTED: <one sentence, under 25 words, naming what changed>]]. Do not include this line for ordinary questions, hypotheticals, requests for explanation, or anything that doesn't change the underlying case record. Never mention this marker to the user or explain that you're adding it — it is stripped before display.
 
-OUTPUT FORMAT: Markdown. Concise. Concrete. Attorney-grade. Use Nyrava Intelligence terminology (Evidence Intelligence, Witness Intelligence, Motion Intelligence) — never "AI" language. Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to".`,
+OUTPUT FORMAT: Markdown. Concise. Concrete. Attorney-grade. Use Nyrava Intelligence terminology (Evidence Intelligence, Witness Intelligence, Motion Intelligence) — never "AI" language. Write like a senior litigator, direct and confident, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to".`,
 
-    userContent: `CASE INTELLIGENCE:
+      userContent: `CASE INTELLIGENCE:
 ${ctx}
 
 CONVERSATION SO FAR:
 ${(history.data ?? [])
   .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
   .join("\n\n")
-  .slice(-12000)}
+  .slice(-MAX_HISTORY_CHARS)}
 
 CURRENT QUESTION:
 ${question}`,
-  });
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    const isSpanish = locale !== "en";
+    const notice = isSpanish
+      ? `⚠️ **No fue posible generar la respuesta en este momento.**\n\nNingún proveedor de inteligencia configurado pudo atender la consulta (límite de cuota, clave inactiva o servicio no disponible).\n\nRevise **Proveedores de Inteligencia** para confirmar que al menos una clave activa tenga cuota disponible, y vuelva a enviar la pregunta.\n\nDetalle técnico: ${detail.slice(0, 400)}`
+      : `⚠️ **The answer could not be generated right now.**\n\nNo configured intelligence provider was able to serve this question (quota limit, inactive key, or service unavailable).\n\nOpen **Intelligence Providers** to confirm at least one active key has quota available, then send the question again.\n\nTechnical detail: ${detail.slice(0, 400)}`;
+
+    await db.from("case_chat_messages").insert({
+      case_id: caseId,
+      user_id: userId,
+      role: "assistant",
+      content: notice,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...({ metadata: { error: true, provider_error: detail.slice(0, 800) } } as any),
+    });
+
+    await db.from("ai_usage").insert({
+      user_id: userId,
+      case_id: caseId,
+      model: "unavailable",
+      operation: "chat",
+      success: false,
+    });
+
+    return { answer: notice, suggestsRerun: false, rerunReason: null, error: true };
+  }
+
 
   // Strip the report-update marker (rule 7 above) before anything else
   // touches the text — grounding checks and the stored/displayed content
