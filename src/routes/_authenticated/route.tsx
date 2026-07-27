@@ -165,12 +165,24 @@ function AppLayout() {
       .join("")
       .slice(0, 2) || "U"
   ).toUpperCase();
-  const greeting = (() => {
-    const h = new Date().getHours();
-    if (h < 12) return t("shell.greeting.morning");
-    if (h < 18) return t("shell.greeting.afternoon");
-    return t("shell.greeting.evening");
-  })();
+  // The greeting depends on the *viewer's* clock. Computing it during render
+  // makes SSR use the server's hour and the browser use the attorney's local
+  // hour, which is a guaranteed hydration mismatch whenever the two fall in
+  // different buckets (the "Buenos días" / "Buenas noches" React error).
+  // Resolve it only after hydration; before that both sides render "".
+  const [localHour, setLocalHour] = useState<number | null>(null);
+  useEffect(() => {
+    setLocalHour(new Date().getHours());
+  }, []);
+  const greeting =
+    localHour === null
+      ? ""
+      : localHour < 12
+        ? t("shell.greeting.morning")
+        : localHour < 18
+          ? t("shell.greeting.afternoon")
+          : t("shell.greeting.evening");
+
   const firstName = fullName.split(/\s+/)[0] || email.split("@")[0]?.split(".")[0] || t("shell.counsel");
 
   const NavItem = ({
@@ -399,8 +411,9 @@ function AppLayout() {
             <div className="grid h-9 w-9 place-items-center rounded-full bg-warning/15 text-warning">☀</div>
             <div>
               <div className="text-base font-semibold text-foreground">
-                {greeting}, {firstName}.
+                {greeting ? `${greeting}, ${firstName}.` : `${firstName}.`}
               </div>
+
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3">

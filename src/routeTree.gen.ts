@@ -58,6 +58,7 @@ import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedEvidenceRouteImport } from './routes/_authenticated/evidence'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCasesRouteImport } from './routes/_authenticated/cases'
+import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedAiKeysRouteImport } from './routes/_authenticated/ai-keys'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -326,6 +327,11 @@ const AuthenticatedCasesRoute = AuthenticatedCasesRouteImport.update({
   path: '/cases',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedBillingRoute = AuthenticatedBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
   id: '/alerts',
   path: '/alerts',
@@ -481,6 +487,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/ai-keys': typeof AuthenticatedAiKeysRoute
   '/alerts': typeof AuthenticatedAlertsRoute
+  '/billing': typeof AuthenticatedBillingRoute
   '/cases': typeof AuthenticatedCasesRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/evidence': typeof AuthenticatedEvidenceRoute
@@ -553,6 +560,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/ai-keys': typeof AuthenticatedAiKeysRoute
   '/alerts': typeof AuthenticatedAlertsRoute
+  '/billing': typeof AuthenticatedBillingRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/evidence': typeof AuthenticatedEvidenceRoute
   '/health': typeof AuthenticatedHealthRoute
@@ -626,6 +634,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/ai-keys': typeof AuthenticatedAiKeysRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
+  '/_authenticated/billing': typeof AuthenticatedBillingRoute
   '/_authenticated/cases': typeof AuthenticatedCasesRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/evidence': typeof AuthenticatedEvidenceRoute
@@ -700,6 +709,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ai-keys'
     | '/alerts'
+    | '/billing'
     | '/cases'
     | '/dashboard'
     | '/evidence'
@@ -772,6 +782,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/ai-keys'
     | '/alerts'
+    | '/billing'
     | '/dashboard'
     | '/evidence'
     | '/health'
@@ -844,6 +855,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/ai-keys'
     | '/_authenticated/alerts'
+    | '/_authenticated/billing'
     | '/_authenticated/cases'
     | '/_authenticated/dashboard'
     | '/_authenticated/evidence'
@@ -1268,6 +1280,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCasesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/billing': {
+      id: '/_authenticated/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedBillingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/alerts': {
       id: '/_authenticated/alerts'
       path: '/alerts'
@@ -1474,6 +1493,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAiKeysRoute: typeof AuthenticatedAiKeysRoute
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
+  AuthenticatedBillingRoute: typeof AuthenticatedBillingRoute
   AuthenticatedCasesRoute: typeof AuthenticatedCasesRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEvidenceRoute: typeof AuthenticatedEvidenceRoute
@@ -1495,6 +1515,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedAiKeysRoute: AuthenticatedAiKeysRoute,
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
+  AuthenticatedBillingRoute: AuthenticatedBillingRoute,
   AuthenticatedCasesRoute: AuthenticatedCasesRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEvidenceRoute: AuthenticatedEvidenceRoute,
