@@ -70,29 +70,35 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
   return withCapabilities({
     type: "gemini",
     async chat(o: ChatOpts): Promise<ChatResult> {
-      // Google retires Generative Language model ids without notice, and a
-      // retired id answers with HTTP 404 NOT_FOUND. Try the configured id once,
-      // then exactly one fallback; do not walk the whole ladder and burn quota.
+      // Google retires model ids and withdraws free-tier quota without notice:
+      // a retired id answers 404 NOT_FOUND, a withdrawn free tier answers 429
+      // with `limit: 0`. Both are rejected before any tokens are billed, so we
+      // may walk a short ladder (max 3 ids) without burning real quota.
       const requested = o.model ?? defaultModel;
-      const fallback = GEMINI_MODEL_FALLBACKS.find((m) => m !== requested);
-      const candidates = [requested, fallback].filter(
-        (m, i, arr): m is string => typeof m === "string" && m.length > 0 && arr.indexOf(m) === i,
-      );
+      const candidates = [requested, ...GEMINI_MODEL_FALLBACKS]
+        .filter((m, i, arr): m is string => typeof m === "string" && m.length > 0 && arr.indexOf(m) === i)
+        .filter((m) => !UNUSABLE_MODELS.has(m) || m === requested)
+        .slice(0, 3);
       let lastModelError: Error | null = null;
       for (const candidate of candidates) {
         try {
-          return await callModel(candidate, o);
+          const result = await callModel(candidate, o);
+          UNUSABLE_MODELS.delete(candidate);
+          return result;
         } catch (e) {
           const err = e instanceof Error ? e : new Error(String(e));
-          if (isModelNotFound(err.message)) {
+          if (isModelNotFound(err.message) || isZeroQuotaModel(err.message)) {
+            // Remember it so later calls in this process skip the dead id.
+            UNUSABLE_MODELS.add(candidate);
             lastModelError = err;
-            continue; // retired/unavailable id — try the next one
+            continue;
           }
           throw err;
         }
       }
       throw lastModelError ?? new Error("gemini: no usable model");
     },
+
     async testConnection() {
       const t0 = Date.now();
       try {
