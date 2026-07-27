@@ -474,9 +474,13 @@ export function CaseChatPanel({
               m.role === "assistant"
                 ? ([...history.slice(0, idx)].reverse().find((h) => h.role === "user")?.content ?? null)
                 : null;
-            const suggestsRerun = m.role === "assistant" && !!m.metadata?.suggests_rerun;
+            // A provider-failure notice is not an answer — it must never offer
+            // to be pushed into the report.
+            const isErrorNotice = m.role === "assistant" && !!m.metadata?.error;
+            const suggestsRerun = m.role === "assistant" && !isErrorNotice && !!m.metadata?.suggests_rerun;
             const alreadyRegenerated = Object.prototype.hasOwnProperty.call(regeneratedVersions, m.id);
             const isRegeneratingThis = regeneratingId === m.id;
+
 
             return (
               <div
