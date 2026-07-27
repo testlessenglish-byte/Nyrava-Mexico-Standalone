@@ -29,7 +29,12 @@ export class CheckpointRequired extends Error {
 // always be a few seconds under the real platform ceiling, never above it.
 export const WORKER_INVOCATION_BUDGET_MS = 42_000;
 export const CHECKPOINT_SAFETY_BUFFER_MS = 7_000;
-export const MIN_AI_CALL_BUDGET_MS = 4_000;
+// 2026-07-27: was 4_000. With only ~4-5s left in the tick, the router still
+// issued a full-size call that could never finish (observed: repeated
+// "gemini timed out after 4888ms" on the report stage), burning the tail of
+// every tick and producing zero progress. Yield instead: a call that cannot
+// realistically complete is worse than checkpointing early.
+export const MIN_AI_CALL_BUDGET_MS = 12_000;
 // 2026-07 audit: was 16_000ms. A single report chunk call asks gpt-oss-120b
 // for up to 10,000 output tokens, and the model spends additional (invisible)
 // time on internal reasoning before emitting any of it. 16s was reliably
