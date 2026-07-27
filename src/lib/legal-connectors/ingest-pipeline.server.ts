@@ -60,6 +60,12 @@ export async function runConnectorIngest(
   let rawDocs: IngestedDocument[] = [];
 
   try {
+    connector.alreadyIngested = await loadIngestedIds(db, connector.code);
+  } catch (e) {
+    console.warn(`[ingest] could not load ingested ids for ${connector.code}: ${String(e)}`);
+  }
+
+  try {
     rawDocs = await withRetry(() => connector.fetchUpdates(since), `${connector.code}.fetchUpdates`);
   } catch (e) {
     errors.push(String(e));
