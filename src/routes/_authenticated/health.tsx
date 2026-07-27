@@ -88,8 +88,9 @@ function HealthPage() {
             <Activity className="h-7 w-7 text-accent" /> System Health
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            AI requests run through <strong>Groq only</strong>. Rate limits enter cooldown and resume later; no fallback provider is used. Auto-refreshes every 30s.
+            Every configured AI provider is probed with the same keys the pipeline uses. Rate limits enter cooldown and the router fails over to the next key/provider. Auto-refreshes every 30s.
           </p>
+
         </div>
         <button
           onClick={() => { refetch(); router.invalidate(); }}
