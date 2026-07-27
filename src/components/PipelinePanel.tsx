@@ -3,9 +3,10 @@
 // screen shows identical data. Adds an "out of date" state when a new
 // document has been uploaded after the last completed run.
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { resumeFullPipelineStep } from "@/lib/cases.functions";
+import { clearPipelineStuckState, resumeFullPipelineStep } from "@/lib/cases.functions";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { PIPELINE_STAGE_TO_ENGINE } from "@/lib/execution/canonical";
 import { mxPipelineStages, stageLabelKey, statusLabelKey, resolveMxProfile } from "@/lib/execution/mx-pipeline";
@@ -96,6 +97,7 @@ export function PipelinePanel({
   invalidate?: () => void;
 }) {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const { runs, latestByEngine } = useCaseExecution(caseId);
   // Jurisdiction-aware pipeline: the case's materia decides which engines are
   // legally relevant, and how each one is named for a Mexican attorney.
@@ -107,6 +109,7 @@ export function PipelinePanel({
   const [latestDocAt, setLatestDocAt] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -233,9 +236,11 @@ export function PipelinePanel({
                     toast.success(t("pipeline.toast.resumed"));
                   }
                   invalidate?.();
+                  queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
                 } catch (err) {
                   toast.error(String((err as Error)?.message ?? err));
                   invalidate?.();
+                  queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
                 } finally {
                   setResuming(false);
                 }
@@ -243,6 +248,37 @@ export function PipelinePanel({
               className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-50"
             >
               {resuming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />} {t("pipeline.panel.resume")}
+            </button>
+          )}
+          {incomplete && !activelyRunning && (
+            <button
+              disabled={resuming || clearing}
+              onClick={async () => {
+                setClearing(true);
+                try {
+                  const res = (await clearPipelineStuckState({ data: { caseId } })) as {
+                    ok?: boolean;
+                    alreadyRunning?: boolean;
+                    resumeKey?: string | null;
+                  };
+                  if (res?.alreadyRunning) {
+                    toast.info(t("pipeline.panel.running"));
+                  } else {
+                    toast.success(t("pipeline.toast.cleared"));
+                  }
+                  invalidate?.();
+                  queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
+                } catch (err) {
+                  toast.error(String((err as Error)?.message ?? err));
+                  invalidate?.();
+                  queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
+                } finally {
+                  setClearing(false);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50"
+            >
+              {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} {t("pipeline.panel.clearStuck")}
             </button>
           )}
           <button
