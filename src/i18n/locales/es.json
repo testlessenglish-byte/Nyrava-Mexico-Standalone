@@ -701,6 +701,8 @@
   "mod.strategy.tab.opportunities": "Oportunidades",
   "mod.strategy.tab.theories": "Teorías",
   "mod.strategy.title": "Centro de Estrategia",
+  "mod.suppressed.detail": "El Validador de Suficiencia Probatoria bloqueó la generación de esta sección. Cargue evidencia adicional para habilitarla.",
+  "mod.suppressed.title": "Evidencia insuficiente",
   "mod.timeline.dateUnknown": "Fecha desconocida",
   "mod.timeline.empty.hint": "Ejecute el análisis en este asunto para poblar la línea de tiempo.",
   "mod.timeline.empty.title": "Aún no hay eventos en la línea de tiempo",

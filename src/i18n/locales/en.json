@@ -701,6 +701,8 @@
   "mod.strategy.tab.opportunities": "Opportunities",
   "mod.strategy.tab.theories": "Theories",
   "mod.strategy.title": "Strategy Center",
+  "mod.suppressed.detail": "The Evidence Sufficiency Validator blocked generation for this section. Upload additional evidence to enable it.",
+  "mod.suppressed.title": "Insufficient evidence",
   "mod.timeline.dateUnknown": "Date unknown",
   "mod.timeline.empty.hint": "Run the analysis on this matter to populate the timeline.",
   "mod.timeline.empty.title": "No timeline events yet",
