@@ -43,8 +43,9 @@ type ChatMsg = {
   role: string;
   content: string;
   created_at: string;
-  metadata?: { suggests_rerun?: boolean; rerun_reason?: string } | null;
+  metadata?: { suggests_rerun?: boolean; rerun_reason?: string; error?: boolean } | null;
 };
+
 type Doc = {
   id: string;
   filename: string;
@@ -473,9 +474,13 @@ export function CaseChatPanel({
               m.role === "assistant"
                 ? ([...history.slice(0, idx)].reverse().find((h) => h.role === "user")?.content ?? null)
                 : null;
-            const suggestsRerun = m.role === "assistant" && !!m.metadata?.suggests_rerun;
+            // A provider-failure notice is not an answer — it must never offer
+            // to be pushed into the report.
+            const isErrorNotice = m.role === "assistant" && !!m.metadata?.error;
+            const suggestsRerun = m.role === "assistant" && !isErrorNotice && !!m.metadata?.suggests_rerun;
             const alreadyRegenerated = Object.prototype.hasOwnProperty.call(regeneratedVersions, m.id);
             const isRegeneratingThis = regeneratingId === m.id;
+
 
             return (
               <div
@@ -529,7 +534,7 @@ export function CaseChatPanel({
                     ones the model itself flagged via [[RERUN_SUGGESTED]]. Lets
                     the attorney push a correction into the report on their own
                     judgment even when the AI didn't think to suggest it. */}
-                  {m.role === "assistant" && !suggestsRerun && (
+                  {m.role === "assistant" && !suggestsRerun && !isErrorNotice && (
                     <div className="mt-2">
                       {alreadyRegenerated ? (
                         <div className="flex items-center gap-1.5 text-xs text-emerald-500">
