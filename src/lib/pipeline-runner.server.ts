@@ -197,6 +197,15 @@ async function _runPipelineForCase(
   };
 
   if (reset) {
+    try {
+      const { clearProviderCooldowns } = await import("@/lib/ai/cooldown.server");
+      const cleared = clearProviderCooldowns();
+      trace("ai.cooldowns.cleared_for_reset", { cleared });
+    } catch (cooldownErr) {
+      trace("ai.cooldowns.clear_failed", {
+        error: cooldownErr instanceof Error ? cooldownErr.message : String(cooldownErr),
+      });
+    }
     const derivedTables = [
       "analyses",
       "agent_findings",
