@@ -205,7 +205,9 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
           const checkpointed = (result as any)?.warnings?.some(
             (w: any) => w?.error === "checkpoint",
           );
-          if (!checkpointed) {
+          const failedAt = typeof (result as any)?.failedAt === "string" ? (result as any).failedAt : null;
+          const ok = (result as any)?.ok !== false;
+          if (!checkpointed && ok && !failedAt) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (admin as any)
               .from("cases")
@@ -216,6 +218,11 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
               })
               .eq("id", leased.id);
             await workerTracePersist(admin, leased.id, "worker.queue_cleared", "ok");
+          } else if (!checkpointed) {
+            await workerTracePersist(admin, leased.id, "worker.queue_preserved_terminal_state", "warn", {
+              ok,
+              failedAt,
+            });
           } else {
             await workerTracePersist(admin, leased.id, "worker.checkpoint_preserved", "warn", {
               startFrom: startFrom ?? null,
