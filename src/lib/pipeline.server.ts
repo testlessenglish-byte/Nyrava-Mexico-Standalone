@@ -4110,7 +4110,7 @@ async function _runReportInner(args: {
   // boilerplate even on a healthy corpus. Retry with progressive
   // payload-shrinking, then only fall back after all attempts fail.
   const buildUserContent = (scale: number) => {
-    const s = (n: number) => Math.max(2000, Math.floor(n * scale));
+    const s = (n: number) => Math.max(1200, Math.floor(n * scale));
     return `Return STRICT JSON with this exact shape. Markdown prose fields MUST contain inline citations like \`[DOC 3 p.2]\` for every concrete claim. Structured arrays MUST include doc_n, page, and quote for every citation object.
 
 {
@@ -4759,13 +4759,13 @@ ${shape}
   }
 }
 
-${buildUserContent(0.25).split("PAGINATION RULES:")[1] ? "PAGINATION RULES:" + buildUserContent(0.25).split("PAGINATION RULES:")[1] : buildUserContent(0.25)}`;
+${buildUserContent(0.17).split("PAGINATION RULES:")[1] ? "PAGINATION RULES:" + buildUserContent(0.17).split("PAGINATION RULES:")[1] : buildUserContent(0.17)}`;
     };
 
     // Dedicated legal_memorandum salvage prompt — same corpus, structured
     // object shape, no prose fields. Runs in parallel with the prose groups.
     const buildMemoPrompt = () => {
-      const rest = buildUserContent(0.25);
+      const rest = buildUserContent(0.17);
       const paginationTail = rest.split("PAGINATION RULES:")[1]
         ? "PAGINATION RULES:" + rest.split("PAGINATION RULES:")[1]
         : rest;
