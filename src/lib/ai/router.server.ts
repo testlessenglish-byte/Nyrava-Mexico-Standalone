@@ -106,7 +106,13 @@ const PROVIDER_INPUT_TOKEN_BUDGET: Partial<Record<ProviderType, number>> = {
   // far larger single requests than its per-minute ceiling suggests, and a
   // 413/429 is already self-healed (split + failover), so the conservative
   // gate cost far more than it saved.
-  groq: 12_000,
+  // 2026-07-27: raised again to 30_000. The report stage builds a ~17k-token
+  // prompt, which was still over the 12k gate — so Groq was skipped on EVERY
+  // report chunk and the whole stage fell onto Gemini, which then 503'd
+  // ("model experiencing high demand") or blew the 26s call timeout, giving
+  // zero forward progress until the checkpoint loop-breaker aborted the run.
+  // gpt-oss-120b has a 131k context window; a 413/429 is already self-healed.
+  groq: 30_000,
 
   openrouter: 60_000,
   gemini: 900_000,
