@@ -91,7 +91,10 @@ const _state = {
 };
 
 const MAX_LOGICAL_PROVIDER_ATTEMPTS = 4;
-const MAX_PROVIDER_RETRIES_PER_CALL = 1;
+// 2026-07-27: was 1. Gemini's free tier answers a transient 503 ("model
+// experiencing high demand") on the first try often enough that a single
+// attempt per key wastes the whole chain on infra noise, not quota.
+const MAX_PROVIDER_RETRIES_PER_CALL = 2;
 
 /**
  * Per-request INPUT token budget by provider. This is not the model context
@@ -106,13 +109,14 @@ const PROVIDER_INPUT_TOKEN_BUDGET: Partial<Record<ProviderType, number>> = {
   // far larger single requests than its per-minute ceiling suggests, and a
   // 413/429 is already self-healed (split + failover), so the conservative
   // gate cost far more than it saved.
-  // 2026-07-27: raised again to 30_000. The report stage builds a ~17k-token
-  // prompt, which was still over the 12k gate — so Groq was skipped on EVERY
-  // report chunk and the whole stage fell onto Gemini, which then 503'd
-  // ("model experiencing high demand") or blew the 26s call timeout, giving
-  // zero forward progress until the checkpoint loop-breaker aborted the run.
-  // gpt-oss-120b has a 131k context window; a 413/429 is already self-healed.
-  groq: 30_000,
+  // 2026-07-27: kept at 12_000, NOT raised to 30_000. gpt-oss-120b on Groq's
+  // free tier is capped at ~8k tokens/MINUTE per account — a hard org-level
+  // ceiling that key rotation cannot get around. A ~17k-token report prompt
+  // was never going to succeed there; raising the gate would only convert a
+  // clean client-side skip into a real 429/413 + cooldown before failing over
+  // anyway. The report task is instead pinned to Gemini via ai_task_routing.
+  // 12k stays useful for mid-size engine prompts that DO fit.
+  groq: 12_000,
 
   openrouter: 60_000,
   gemini: 900_000,
