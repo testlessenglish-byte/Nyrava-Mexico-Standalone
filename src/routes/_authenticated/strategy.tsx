@@ -7,15 +7,17 @@ import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty, SuppressedNotice } from "@/components/modules/SuppressedNotice";
 import { isDeterministicFallback } from "@/lib/intelligence/canonical";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/strategy")({
-  head: () => ({ meta: [{ title: "Strategy Center — Nyrava" }] }),
+  head: () => ({ meta: [{ title: "Centro de Estrategia — Nyrava" }] }),
   component: StrategyPage,
 });
 
 type Tab = "theories" | "attack" | "defense" | "opportunities";
 
 function StrategyPage() {
+  const { t } = useI18n();
   const { cases, activeId, isLoading } = useActiveCase();
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("theories");
@@ -39,64 +41,64 @@ function StrategyPage() {
   const nonMotion = opps.filter((o) => !/motion/i.test(o.opportunity_type ?? ""));
 
   const tabs: Array<{ id: Tab; label: string; count: number }> = [
-    { id: "theories", label: "Theories", count: theories.length },
-    { id: "attack", label: "Attack", count: attack.length },
-    { id: "defense", label: "Defense", count: defense.length },
-    { id: "opportunities", label: "Opportunities", count: nonMotion.length },
+    { id: "theories", label: t("mod.strategy.tab.theories"), count: theories.length },
+    { id: "attack", label: t("mod.strategy.tab.attack"), count: attack.length },
+    { id: "defense", label: t("mod.strategy.tab.defense"), count: defense.length },
+    { id: "opportunities", label: t("mod.strategy.tab.opportunities"), count: nonMotion.length },
   ];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
         icon={<Target className="h-5 w-5" />}
-        title="Strategy Center"
-        subtitle="Theories, attack and defense strategy, and evidence-supported opportunities."
+        title={t("mod.strategy.title")}
+        subtitle={t("mod.strategy.subtitle")}
       />
       {isLoading ? (
-        <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">Loading cases…</div>
+        <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.loadingCases")}</div>
       ) : (
         <div className="space-y-5">
           <CasePicker cases={cases} activeId={caseId} onChange={setSelected} />
           {caseId ? (
             caseLoading ? (
-              <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">Loading strategy…</div>
+              <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.strategy.loading")}</div>
             ) : (
               <>
-                {detFallback ? <SuppressedNotice title="Limited analysis — narrative pass unavailable. Strategy below reflects evidence-grounded findings only; attorney review required." /> : null}
-                {scoresSuppressed ? <SuppressedNotice title="Quantitative scoring suppressed" /> : null}
+                {detFallback ? <SuppressedNotice title={t("mod.strategy.limited")} /> : null}
+                {scoresSuppressed ? <SuppressedNotice title={t("mod.strategy.scoresSuppressed")} /> : null}
                 <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card/60 p-1">
-                  {tabs.map((t) => (
+                  {tabs.map((tb) => (
                     <button
-                      key={t.id}
-                      onClick={() => setTab(t.id)}
-                      className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium ${tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      key={tb.id}
+                      onClick={() => setTab(tb.id)}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium ${tab === tb.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
                     >
-                      {t.label} <span className="ml-1 opacity-70">({t.count})</span>
+                      {tb.label} <span className="ml-1 opacity-70">({tb.count})</span>
                     </button>
                   ))}
                 </div>
                 <div className="grid gap-3">
                   {tab === "theories" && (theories.length === 0 ? (
-                    <ModuleEmpty title="No theories generated" />
-                  ) : theories.map((t) => (
-                    <article key={t.id} className="rounded-xl border border-border bg-card/60 p-4">
+                    <ModuleEmpty title={t("mod.strategy.empty.theories")} />
+                  ) : theories.map((th) => (
+                    <article key={th.id} className="rounded-xl border border-border bg-card/60 p-4">
                       <div className="flex items-baseline justify-between">
-                        <h3 className="font-semibold capitalize">{t.theory_type?.replace(/_/g, " ")}</h3>
-                        <span className="text-[11px] text-muted-foreground">conf {Math.round((t.confidence ?? 0) * 100)}%</span>
+                        <h3 className="font-semibold capitalize">{th.theory_type?.replace(/_/g, " ")}</h3>
+                        <span className="text-[11px] text-muted-foreground">{t("mod.conf")} {Math.round((th.confidence ?? 0) * 100)}%</span>
                       </div>
-                      <p className="mt-2 text-sm">{t.narrative}</p>
-                      {t.risk ? <p className="mt-2 text-xs text-amber-400">Risk: {t.risk}</p> : null}
+                      <p className="mt-2 text-sm">{th.narrative}</p>
+                      {th.risk ? <p className="mt-2 text-xs text-amber-400">{t("mod.strategy.risk")}: {th.risk}</p> : null}
                     </article>
                   )))}
                   {(tab === "attack" || tab === "defense") && (
                     (tab === "attack" ? attack : defense).length === 0 ? (
-                      <ModuleEmpty title={`No ${tab} strategy generated`} />
+                      <ModuleEmpty title={tab === "attack" ? t("mod.strategy.empty.attack") : t("mod.strategy.empty.defense")} />
                     ) : (tab === "attack" ? attack : defense).map((s) => (
                       <article key={s.id} className="rounded-xl border border-border bg-card/60 p-4">
                         <div className="flex items-baseline justify-between">
                           <h3 className="font-semibold capitalize">{s.perspective}</h3>
                           {!scoresSuppressed && s.case_strength_score != null ? (
-                            <span className="text-[11px] text-muted-foreground">strength {s.case_strength_score}/100</span>
+                            <span className="text-[11px] text-muted-foreground">{t("mod.strategy.strength")} {s.case_strength_score}/100</span>
                           ) : null}
                         </div>
                         {s.summary ? <p className="mt-2 text-sm whitespace-pre-wrap">{s.summary}</p> : null}
@@ -111,7 +113,7 @@ function StrategyPage() {
                     ))
                   )}
                   {tab === "opportunities" && (nonMotion.length === 0 ? (
-                    <ModuleEmpty title="No opportunities identified" />
+                    <ModuleEmpty title={t("mod.strategy.empty.opportunities")} />
                   ) : nonMotion.map((o) => (
                     <article key={o.id} className="rounded-xl border border-border bg-card/60 p-4">
                       <div className="flex items-baseline justify-between">
