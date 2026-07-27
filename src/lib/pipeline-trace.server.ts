@@ -77,16 +77,37 @@ function clip(value: string | null | undefined, max: number): string | null {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 }
 
+/**
+ * Numeric diagnostics whose names merely contain "token"/"key" but hold no
+ * credential material. Redacting these hid the exact data needed to debug
+ * provider budget skips, so they are explicitly allow-listed.
+ */
+const SAFE_DETAIL_KEYS = new Set([
+  "estimated_input_tokens",
+  "total_tokens",
+  "input_tokens",
+  "output_tokens",
+  "prompt_tokens",
+  "completion_tokens",
+  "provider_input_budget",
+  "token_budget",
+  "max_tokens",
+  "key_label",
+  "key_index",
+  "key_count",
+]);
+
 /** Strip anything that looks like a credential before persisting. */
 function sanitize(detail: Record<string, unknown> | undefined): Record<string, unknown> {
   if (!detail) return {};
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(detail)) {
-    if (/key|secret|token|password|authorization/i.test(k)) {
+    if (!SAFE_DETAIL_KEYS.has(k) && /key|secret|token|password|authorization/i.test(k)) {
       out[k] =
         typeof v === "string" && v.length > 8 ? `${v.slice(0, 3)}…${v.slice(-3)}` : "[redacted]";
       continue;
     }
+
     if (typeof v === "string") out[k] = clip(v, 2000);
     else if (v instanceof Error) out[k] = clip(v.message, 2000);
     else out[k] = v;
