@@ -4328,28 +4328,32 @@ ${corpus.slice(0, s(160000))}`;
   // Each chunk gets its full token budget → no truncation, deeper analysis,
   // rate-limit friendly on the free tier (calls rotate across `apiKeys`
   // inside callGroq).
-  // Input budget is halved from the earlier design so a single report chunk
-  // fits comfortably under Groq's per-minute token ceiling for
-  // `llama-4-scout-17b-16e-instruct` (~30k TPM). At the previous sizes the
-  // shared context alone was ~57k tokens and every request returned 413
-  // "Request too large", regardless of how many keys/orgs we rotated
-  // through. Total shared context is now capped around ~12–13k input
-  // tokens, leaving headroom for the JSON shape header and the model's
-  // output allowance within the same minute bucket.
+  // 2026-07-27 — report input budget cut roughly in half again (corpus
+  // 55k→22k chars, findings 18k→9k, engine block 12k→7k, etc.). Two hard
+  // limits force this, and both were being violated:
+  //   1. At ~19.6k input tokens the report chunk was over EVERY fast
+  //      provider's per-request budget, so it was routed to Gemini every
+  //      time and Groq never saw it.
+  //   2. Gemini then had to generate up to 10k output tokens, which cannot
+  //      finish inside the 26s per-call ceiling — every attempt died with
+  //      "gemini timed out after 26000ms", producing zero forward progress
+  //      until the checkpoint loop-breaker killed the run.
+  // Trimmed to ~9-10k input tokens the chunk fits Groq's request budget, so
+  // the fast provider takes it first and Gemini is only a fallback.
   const sharedContext = `DOCUMENT LEGEND:
 ${docLegend}
 
 KNOWN (DEDUPLICATED) FINDINGS (${findings.length}) — reference by id where relevant; DO NOT restate them:
-${JSON.stringify(findingsLite).slice(0, 18000)}
+${JSON.stringify(findingsLite).slice(0, 9000)}
 
 ANALYSIS:
-${JSON.stringify(analysis).slice(0, 5000)}
+${JSON.stringify(analysis).slice(0, 3000)}
 
 AGENT OUTPUT:
-${JSON.stringify(agents ?? []).slice(0, 4000)}
+${JSON.stringify(agents ?? []).slice(0, 2500)}
 
 CASE SCORE (explainable):
-${JSON.stringify(score).slice(0, 3000)}
+${JSON.stringify(score).slice(0, 2000)}
 
 ENGINE OUTPUT (perspectives / evidence intel / strategy / witnesses / trial prep / theories / opportunities):
 ${JSON.stringify({
@@ -4361,7 +4365,7 @@ ${JSON.stringify({
   theories: theories ?? [],
   opportunities: opps ?? [],
   prior_contradictions: contradictionsExisting ?? [],
-}).slice(0, 12000)}
+}).slice(0, 7000)}
 
 PAGINATION RULES:
 - The corpus below is split into pages. Each page block is prefixed with \`--- DOC N p.M ---\`.
@@ -4370,7 +4374,7 @@ PAGINATION RULES:
 - Do NOT fabricate page numbers, quotes, or document ids.
 
 CORPUS (paginated):
-${corpus.slice(0, 55000)}`;
+${corpus.slice(0, 22000)}`;
 
   const narrativeShape = `Return STRICT JSON with this exact shape. Every prose field is a substantive narrative with inline \`[DOC N p.M]\` citations for every concrete claim — length per the LENGTH TARGETS already given above (scaled to this case's evidence volume; do not pad past what the evidence supports).
 
