@@ -1125,10 +1125,10 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   const skipNote = preAttemptSkips.length
     ? ` Skipped before attempt: ${preAttemptSkips.slice(0, 8).join(" | ")}`
     : "";
+  // No provider was actually called and at least one was held back by a
+  // cooldown: waiting is the only path that can still succeed.
   const allAttemptsSkippedByCooldown =
-    attemptedProviders.size === 0 &&
-    cooldownSkips.length > 0 &&
-    preAttemptSkips.every((s) => s.includes("[cooldown]"));
+    attemptedProviders.size === 0 && cooldownSkips.length > 0;
   const soonestCooldownMs = cooldownSkips.reduce<number | null>(
     (min, s) => (min == null ? s.retryAfterMs : Math.min(min, s.retryAfterMs)),
     null,
