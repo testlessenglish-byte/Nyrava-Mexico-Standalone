@@ -42,6 +42,24 @@ export type IngestRunResult = {
   errors: string[];
 };
 
+/** External ids this connector has already stored, so runs don't re-fetch them. */
+async function loadIngestedIds(db: Db, connectorCode: string): Promise<Set<string>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (db as any)
+    .from("legal_authorities")
+    .select("metadata")
+    .eq("metadata->>connector_code", connectorCode)
+    .limit(5000);
+  if (error) throw new Error(error.message);
+  const ids = new Set<string>();
+  for (const row of (data ?? []) as { metadata: Record<string, unknown> | null }[]) {
+    const id = row.metadata?.external_id;
+    if (typeof id === "string") ids.add(id);
+  }
+  return ids;
+}
+
+
 /**
  * Run one connector's incremental sync end-to-end. Never throws — failures
  * are captured in the result and logged to legal_ingest_runs so a bad
