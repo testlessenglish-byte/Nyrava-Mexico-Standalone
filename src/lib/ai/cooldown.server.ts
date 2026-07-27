@@ -60,7 +60,8 @@ function defaultMs(reason: CooldownReason, message: string): number {
   const hinted = parseRetryHintMs(message);
   if (hinted != null) return hinted;
   if (reason === "payment") return DEFAULT_PAYMENT_MS;
-  if (reason === "quota") return DEFAULT_QUOTA_MS;
+  if (reason === "quota") return isDailyExhaustion(message) ? DEFAULT_DAILY_QUOTA_MS : DEFAULT_QUOTA_MS;
+
   if (reason === "transport") return DEFAULT_TRANSPORT_MS;
   return DEFAULT_RATE_LIMIT_MS;
 }
