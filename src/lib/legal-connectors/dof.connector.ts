@@ -38,16 +38,21 @@ import { extractCitationsFromText } from "./citation-extract";
 const BASE = "https://www.dof.gob.mx";
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const DAY_LOOKBACK_ON_INITIAL = 3; // first-run backfill window when `since` is null
-const MAX_DAYS_PER_RUN = 14;       // cap incremental runs so a long outage doesn't blow up one invocation
+const DAY_LOOKBACK_ON_INITIAL = 1; // first-run backfill window when `since` is null
+const MAX_DAYS_PER_RUN = 3;        // cap incremental runs so a long outage doesn't blow up one invocation
+// A sync runs inside a single request, and dof.gob.mx throttles/blocks bursts
+// of sequential page fetches. Keep every run small, slow-ish and bounded so it
+// finishes well within a request budget and doesn't get us rate-limited.
+const MAX_NOTES_PER_RUN = 12;
+const RUN_BUDGET_MS = 45_000;
+const THROTTLE_MS = 300;
+const FETCH_TIMEOUT_MS = 12_000;
 
-type NoteRef = {
-  codNota: string;
-  title: string;
-  issuer?: string;
-  fecha: string; // DD/MM/YYYY as the site expects it
-  date: Date;
-};
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type Deadline = { at: number };
+const newDeadline = (): Deadline => ({ at: Date.now() + RUN_BUDGET_MS });
+const expired = (d: Deadline) => Date.now() >= d.at;
 
 /** DOF serves ISO-8859-1 while advertising UTF-8 in the header — decode by hand. */
 async function fetchHtml(url: string): Promise<string | null> {
@@ -59,16 +64,15 @@ async function fetchHtml(url: string): Promise<string | null> {
     },
     // Real page fetches over real government infrastructure — without a
     // timeout, one slow/hanging response stalls the entire sync run
-    // indefinitely with no way to recover. 20s is generous for a single
-    // page fetch while still failing fast enough to let retry/backoff
-    // (in ingest-pipeline.server.ts) actually kick in.
-    signal: AbortSignal.timeout(20_000),
+    // indefinitely with no way to recover.
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`DOF ${res.status} at ${url}`);
   const buf = await res.arrayBuffer();
   return new TextDecoder("iso-8859-1").decode(buf);
 }
+
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
