@@ -2729,9 +2729,11 @@ export type Database = {
       }
       legal_authorities: {
         Row: {
+          authority_level: number | null
           body: string | null
           citation: string | null
           connector_code: string | null
+          content_hash: string | null
           created_at: string
           effective_at: string | null
           id: string
@@ -2751,9 +2753,11 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
+          authority_level?: number | null
           body?: string | null
           citation?: string | null
           connector_code?: string | null
+          content_hash?: string | null
           created_at?: string
           effective_at?: string | null
           id?: string
@@ -2773,9 +2777,11 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
+          authority_level?: number | null
           body?: string | null
           citation?: string | null
           connector_code?: string | null
+          content_hash?: string | null
           created_at?: string
           effective_at?: string | null
           id?: string
@@ -2809,6 +2815,7 @@ export type Database = {
           archived_at: string
           authority_id: string
           body: string | null
+          content_hash: string | null
           id: string
           metadata: Json
         }
@@ -2816,6 +2823,7 @@ export type Database = {
           archived_at?: string
           authority_id: string
           body?: string | null
+          content_hash?: string | null
           id?: string
           metadata?: Json
         }
@@ -2823,6 +2831,7 @@ export type Database = {
           archived_at?: string
           authority_id?: string
           body?: string | null
+          content_hash?: string | null
           id?: string
           metadata?: Json
         }
