@@ -144,14 +144,12 @@ export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [
   tfjaConnector,
   stateGazettesConnector,
   cjfConnector,
-  // The following 2 are STUBS — every data method throws until someone
-  // with real network access inspects the actual source and implements
-  // discover/sync/fetchUpdates/fetchDocument against a confirmed shape
-  // (see each file's header). Registering them here is safe even as
-  // stubs: if legal_source_connectors.status is ever flipped to 'active'
-  // before that work is done, runConnectorIngest's error handling records
-  // a 'failed' run rather than silently pretending to succeed.
-  tepjfConnector,
   stateScjConnector,
+  // tepjfConnector is a STUB: te.gob.mx sits behind a Radware WAF that
+  // answers every server-side request with a 303 to an internal security
+  // page, so there is no reachable interface to build against yet. Left
+  // registered (and status='planned') so a future run records a real
+  // 'failed' run instead of silently pretending to succeed.
+  tepjfConnector,
 ];
 
