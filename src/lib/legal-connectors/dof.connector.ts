@@ -57,6 +57,12 @@ async function fetchHtml(url: string): Promise<string | null> {
       "Accept-Language": "es-MX,es;q=0.9",
       "User-Agent": BROWSER_UA,
     },
+    // Real page fetches over real government infrastructure — without a
+    // timeout, one slow/hanging response stalls the entire sync run
+    // indefinitely with no way to recover. 20s is generous for a single
+    // page fetch while still failing fast enough to let retry/backoff
+    // (in ingest-pipeline.server.ts) actually kick in.
+    signal: AbortSignal.timeout(20_000),
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`DOF ${res.status} at ${url}`);
@@ -303,6 +309,7 @@ export const dofConnector: LegalSourceConnector = {
       const res = await fetch(dayUrl(today), {
         method: "GET",
         headers: { Accept: "text/html", "User-Agent": BROWSER_UA },
+        signal: AbortSignal.timeout(20_000),
       });
       return {
         connectorCode: "dof",

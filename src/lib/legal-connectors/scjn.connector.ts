@@ -137,6 +137,7 @@ async function searchPage(page: number): Promise<{ items: SjfTesis[]; total: num
     method: "POST",
     headers: headers(`${SITE}/busqueda-principal-tesis`, true),
     body: JSON.stringify(searchBody()),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new Error(`SCJN ${res.status} at ${API}?page=${page}`);
   const data = (await res.json()) as SearchResponse;
@@ -145,7 +146,7 @@ async function searchPage(page: number): Promise<{ items: SjfTesis[]; total: num
 
 async function fetchDetail(ius: string): Promise<SjfTesis | null> {
   const url = `${API}/${ius}?isSemanal=true&hostName=${encodeURIComponent(SITE)}`;
-  const res = await fetch(url, { headers: headers(`${DETAIL_VIEW}/${ius}`) });
+  const res = await fetch(url, { headers: headers(`${DETAIL_VIEW}/${ius}`), signal: AbortSignal.timeout(20_000) });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`SCJN ${res.status} at ${url}`);
   return (await res.json()) as SjfTesis;
@@ -296,6 +297,7 @@ export const scjnConnector: LegalSourceConnector = {
         method: "POST",
         headers: headers(`${SITE}/busqueda-principal-tesis`, true),
         body: JSON.stringify(searchBody()),
+        signal: AbortSignal.timeout(20_000),
       });
       return {
         connectorCode: "scjn",
