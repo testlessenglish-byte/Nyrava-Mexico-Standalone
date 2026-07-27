@@ -45,6 +45,15 @@ const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGES_PER_RUN = 4; // conservative — the corpus feed is large
+// A sync runs inside one request. Each document needs its own detail call, so
+// an unbounded run means hundreds of sequential HTTP calls and a timeout that
+// looks like "the connector doesn't work". Bound both count and wall clock.
+const MAX_DOCS_PER_RUN = 25;
+const RUN_BUDGET_MS = 45_000;
+const THROTTLE_MS = 150;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 
 type SjfTesis = {
   ius?: string | number;
@@ -222,11 +231,14 @@ export const scjnConnector: LegalSourceConnector = {
     const seen = new Set<string>();
     const out: IngestedDocument[] = [];
     const floor = since ? new Date(since).getTime() : null;
+    const deadline = Date.now() + RUN_BUDGET_MS;
     for (let page = 0; page < MAX_PAGES_PER_RUN; page++) {
+      if (out.length >= MAX_DOCS_PER_RUN || Date.now() >= deadline) break;
       const { items } = await searchPage(page);
       if (items.length === 0) break;
       let crossedFloor = false;
       for (const s of items) {
+        if (out.length >= MAX_DOCS_PER_RUN || Date.now() >= deadline) break;
         const ius = iusOf(s);
         if (!ius || seen.has(ius)) continue;
         seen.add(ius);
@@ -236,6 +248,7 @@ export const scjnConnector: LegalSourceConnector = {
           continue;
         }
         try {
+          await sleep(THROTTLE_MS);
           const detail = await fetchDetail(ius);
           const doc = toIngested({ ...s, ...(detail ?? {}) });
           if (doc) out.push(doc);
@@ -247,6 +260,7 @@ export const scjnConnector: LegalSourceConnector = {
     }
     return out;
   },
+
 
   async fetchDocument(externalId) {
     const ius = externalId.replace(/^scjn:tesis:/, "");

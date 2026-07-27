@@ -35,12 +35,6 @@ import type {
 } from "./types";
 import { extractCitationsFromText } from "./citation-extract";
 
-const BASE = "https://www.dof.gob.mx";
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const DAY_LOOKBACK_ON_INITIAL = 3; // first-run backfill window when `since` is null
-const MAX_DAYS_PER_RUN = 14;       // cap incremental runs so a long outage doesn't blow up one invocation
-
 type NoteRef = {
   codNota: string;
   title: string;
@@ -48,6 +42,26 @@ type NoteRef = {
   fecha: string; // DD/MM/YYYY as the site expects it
   date: Date;
 };
+
+
+const BASE = "https://www.dof.gob.mx";
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const DAY_LOOKBACK_ON_INITIAL = 1; // first-run backfill window when `since` is null
+const MAX_DAYS_PER_RUN = 3;        // cap incremental runs so a long outage doesn't blow up one invocation
+// A sync runs inside a single request, and dof.gob.mx throttles/blocks bursts
+// of sequential page fetches. Keep every run small, slow-ish and bounded so it
+// finishes well within a request budget and doesn't get us rate-limited.
+const MAX_NOTES_PER_RUN = 12;
+const RUN_BUDGET_MS = 45_000;
+const THROTTLE_MS = 300;
+const FETCH_TIMEOUT_MS = 12_000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type Deadline = { at: number };
+const newDeadline = (): Deadline => ({ at: Date.now() + RUN_BUDGET_MS });
+const expired = (d: Deadline) => Date.now() >= d.at;
 
 /** DOF serves ISO-8859-1 while advertising UTF-8 in the header — decode by hand. */
 async function fetchHtml(url: string): Promise<string | null> {
@@ -59,16 +73,15 @@ async function fetchHtml(url: string): Promise<string | null> {
     },
     // Real page fetches over real government infrastructure — without a
     // timeout, one slow/hanging response stalls the entire sync run
-    // indefinitely with no way to recover. 20s is generous for a single
-    // page fetch while still failing fast enough to let retry/backoff
-    // (in ingest-pipeline.server.ts) actually kick in.
-    signal: AbortSignal.timeout(20_000),
+    // indefinitely with no way to recover.
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`DOF ${res.status} at ${url}`);
   const buf = await res.arrayBuffer();
   return new TextDecoder("iso-8859-1").decode(buf);
 }
+
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
@@ -199,13 +212,15 @@ async function fetchNote(ref: NoteRef): Promise<IngestedDocument | null> {
   return buildIngested(ref, text, title);
 }
 
-async function fetchOneDay(d: Date): Promise<IngestedDocument[]> {
+async function fetchOneDay(d: Date, deadline: Deadline, remaining: number): Promise<IngestedDocument[]> {
   const html = await fetchHtml(dayUrl(d));
   if (!html) return [];
-  const refs = parseDayIndex(html, d);
+  const refs = parseDayIndex(html, d).slice(0, Math.max(0, remaining));
   const out: IngestedDocument[] = [];
   for (const ref of refs) {
+    if (expired(deadline)) break;
     try {
+      await sleep(THROTTLE_MS);
       const doc = await fetchNote(ref);
       if (doc) out.push(doc);
     } catch (e) {
@@ -241,14 +256,33 @@ export const dofConnector: LegalSourceConnector = {
   },
 
   async fetchUpdates(since) {
-    const days = enumerateDays(since);
+    const days = enumerateDays(since).reverse(); // newest edition first
+    const deadline = newDeadline();
     const out: IngestedDocument[] = [];
+    let indexReached = false;
+    let lastIndexError: unknown = null;
     for (const d of days) {
-      const perDay = await fetchOneDay(d);
-      out.push(...perDay);
+      if (expired(deadline) || out.length >= MAX_NOTES_PER_RUN) break;
+      try {
+        const perDay = await fetchOneDay(d, deadline, MAX_NOTES_PER_RUN - out.length);
+        indexReached = true;
+        out.push(...perDay);
+      } catch (e) {
+        lastIndexError = e;
+        console.warn(`[dof] day ${toDateOnly(d)} unavailable: ${String(e)}`);
+      }
+    }
+    if (!indexReached && lastIndexError) {
+      // Surface a clear cause instead of silently reporting "0 documents":
+      // dof.gob.mx blocks/throttles bursty clients, and that looks identical
+      // to "no publications" unless we say so.
+      throw new Error(
+        `DOF is not reachable right now (${String(lastIndexError)}). www.dof.gob.mx rate-limits repeated automated requests — retry later.`,
+      );
     }
     return out;
   },
+
 
   async fetchDocument(externalId) {
     const codNota = externalId.replace(/^dof:/, "");
