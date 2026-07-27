@@ -6110,6 +6110,35 @@ ${paginationTail}`;
           const { runAlgorithmBundle } = await import("./intelligence/algorithms");
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const tl = Array.isArray((analysis as any)?.timeline) ? (analysis as any).timeline : [];
+          // Derive Mexican procedural-remedy signals from the findings the
+          // pipeline has already produced — no new AI call, no new upstream
+          // data source, just mapping what's already there onto the real
+          // Mexican tags. Keyword matching on title/description is a
+          // deliberately conservative first pass (only fires on fairly
+          // explicit language) — false negatives (missing a real signal)
+          // are the safe failure mode here, not false positives.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const motionSignals = (findings as any[])
+            .map((f) => {
+              const cat = String(f.category ?? "").toLowerCase();
+              const text = `${f.title ?? ""} ${f.description ?? ""}`.toLowerCase();
+              const sev = (["low", "medium", "high", "critical"].includes(f.severity) ? f.severity : "medium") as
+                | "low"
+                | "medium"
+                | "high"
+                | "critical";
+              if (cat === "chain_of_custody") return { tag: "cadena_custodia_rota", severity: sev };
+              if (cat === "missing_evidence" || cat === "discovery_gap") return { tag: "descubrimiento_probatorio_incompleto", severity: sev };
+              if (cat === "cumplimiento_procesal") {
+                if (/vinculaci[oó]n a proceso/.test(text)) return { tag: "vinculacion_proceso_defectuosa", severity: sev };
+                if (/control de detenci[oó]n|detenci[oó]n (ilegal|arbitraria)/.test(text)) return { tag: "control_detencion_defectuoso", severity: sev };
+                if (/medidas? cautelares?/.test(text)) return { tag: "medidas_cautelares_desproporcionadas", severity: sev };
+                if (/prueba il[ií]cita|il[ií]citamente obtenid/.test(text)) return { tag: "prueba_ilicita", severity: sev };
+                return { tag: "defecto_procesal", severity: sev };
+              }
+              return null;
+            })
+            .filter((s): s is { tag: string; severity: "low" | "medium" | "high" | "critical" } => s !== null);
           return runAlgorithmBundle({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             evidence: (findings as any[]).map((f) => ({
@@ -6129,12 +6158,17 @@ ${paginationTail}`;
             })),
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             timeline: tl.map((t: any) => ({ date: t.date, event: t.event ?? t.description })),
+            motionSignals,
             risk: {
               unresolved_contradictions: factualContradictions.length,
               missing_evidence: missingGuarded.items.length,
               constitutional_issues: constGuarded.items.length,
-              unfavorable_witnesses: 0,
-              procedural_defects: 0,
+              unfavorable_witnesses: ((witnesses ?? []) as any[]).filter(
+                (w) => typeof w.credibility_risk === "number" && w.credibility_risk >= 60,
+              ).length,
+              procedural_defects: (findings as any[]).filter(
+                (f) => String(f.category ?? "").toLowerCase() === "cumplimiento_procesal",
+              ).length,
             },
           });
         } catch (e) {
