@@ -132,7 +132,8 @@ import { stateScjConnector } from "./state_scj.connector";
 export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [
   dofConnector,
   scjnConnector,
-  // The following 6 are STUBS — every data method throws until someone
+  congresoConnector,
+  // The following 5 are STUBS — every data method throws until someone
   // with real network access inspects the actual source and implements
   // discover/sync/fetchUpdates/fetchDocument against a confirmed shape
   // (see each file's header). Registering them here is safe even as
@@ -142,7 +143,6 @@ export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [
   cjfConnector,
   tfjaConnector,
   tepjfConnector,
-  congresoConnector,
   stateGazettesConnector,
   stateScjConnector,
 ];
