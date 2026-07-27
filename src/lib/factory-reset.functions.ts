@@ -138,14 +138,17 @@ export const factoryResetCaseData = createServerFn({ method: "POST" })
       storage[bucket] = await emptyBucket(supabaseAdmin, bucket);
     }
 
-    // 2) Database rows (+ audit entry) via the guarded SQL routine.
-    const { data: deleted, error } = await (context as any).supabase.rpc(
+    // 2) Database rows (+ audit entry) via the guarded SQL routine. The routine
+    //    is service_role-only; the super-admin identity was verified above and
+    //    is passed through so the audit entry names the real actor.
+    const { data: deleted, error } = await supabaseAdmin.rpc(
       "admin_factory_reset_case_data",
       {
         p_include_demo: data.includeDemo,
         p_include_audit: data.includeAudit,
         p_include_ai_usage: data.includeAiUsage,
-      },
+        p_actor_id: context.userId,
+      } as any,
     );
     if (error) throw new Error(`[FactoryReset] database reset failed: ${error.message}`);
 

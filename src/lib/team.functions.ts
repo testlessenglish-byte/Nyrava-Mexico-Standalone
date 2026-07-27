@@ -86,7 +86,12 @@ export const getFirmSeatSummary = createServerFn({ method: "GET" })
     if (!caller.firmId) {
       return { firmId: null, planKey: null, seatLimit: 1, seatsUsed: 1, seatsAvailable: 0 };
     }
-    const { data, error } = await supabase.rpc("firm_seat_usage", { _firm_id: caller.firmId }).maybeSingle();
+    // firm_seat_usage is a privileged aggregate (no longer callable by end users);
+    // the caller's own firm id was resolved from their session above.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .rpc("firm_seat_usage", { _firm_id: caller.firmId })
+      .maybeSingle();
     if (error) throw new Error(error.message);
     const seatLimit = data?.seat_limit ?? 1;
     const seatsUsed = data?.seats_used ?? 0;
