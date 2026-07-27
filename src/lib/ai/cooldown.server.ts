@@ -13,10 +13,23 @@ export type ProviderCooldown = {
 };
 
 const DEFAULT_RATE_LIMIT_MS = 60_000;
-const DEFAULT_QUOTA_MS = 60 * 60_000;
-const DEFAULT_PAYMENT_MS = 60 * 60_000;
+// A 429 is almost always a PER-MINUTE window (RPM/TPM), not an exhausted
+// plan. Parking the key for an hour on the first minute-window bounce is what
+// made fresh Gemini/Groq keys look "burnt" one stage into a run: every later
+// engine skipped the provider entirely and the pipeline failed with keys that
+// were healthy again seconds later. Default short; only genuinely daily or
+// billing-level exhaustion gets a long cooldown.
+const DEFAULT_QUOTA_MS = 90_000;
+const DEFAULT_DAILY_QUOTA_MS = 15 * 60_000;
+const DEFAULT_PAYMENT_MS = 30 * 60_000;
 const DEFAULT_TRANSPORT_MS = 20_000;
 const MAX_HINTED_RETRY_MS = 10 * 60_000;
+
+/** True when the provider message names a per-day/lifetime limit rather than a per-minute window. */
+function isDailyExhaustion(message: string): boolean {
+  return /per\s*day|perday|daily|per\s*24\s*hours|requests per day|RPD\b/i.test(message);
+}
+
 
 const cooldowns = new Map<string, ProviderCooldown>();
 
