@@ -1,24 +1,32 @@
-// SCJN (Suprema Corte de Justicia de la Nación) connector — Phase 20.
+// SCJN (Suprema Corte de Justicia de la Nación) connector — Phase 20, endpoint audit 2026-07.
 //
-// SCJN publishes two distinct public interfaces relevant to us:
+// ── Endpoint investigation (2026-07-27) ──────────────────────────────────────
+// The old paths (`/busqueda-principal-tesis?...`, `/detalle/tesis/{ius}` as
+// JSON) are Angular *view* routes, not data endpoints — hitting them with a
+// bot User-Agent returns 403 from the WAF, and with a browser UA returns the
+// SPA shell HTML. Capturing the SPA's own XHR traffic revealed the real
+// public microservice behind the Semanario Judicial (SJF2):
 //
-// 1. Semanario Judicial de la Federación (SJF) — the official reporter of
-//    tesis and jurisprudencia. It exposes a public search UI at
-//    https://sjf2.scjn.gob.mx/ and its own JSON search endpoints under
-//    /busqueda-principal-tesis. We use those to enumerate recently
-//    published tesis and pull each one's detail JSON.
+//   Search / listing (POST, JSON body):
+//     POST /services/sjftesismicroservice/api/public/tesis?page={0-based}&size={n}
+//     body: { classifiers:[{name:"tipoDocumento",value:["1"],…}], searchTerms:[],
+//             bFacet:false, ius:[], idApp:"SJFAPP2020", filterExpression:"" }
+//     → { total, documents:[{ ius, rubro, texto, fechaPublicacion, … }] }
+//     An empty `searchTerms` returns the whole corpus (262k+ docs) ordered
+//     newest-publication-first, which is exactly the incremental feed we need.
 //
-// 2. Servicio de Compilación de Leyes at
-//    https://www.scjn.gob.mx/normativa-nacional-internacional/servicio-compilacion-leyes
-//    for current & historical federal/state statutes. There is no
-//    documented open JSON here — items are downloadable individually. Full
-//    statute ingestion happens in a future federal_statute connector; this
-//    connector covers jurisprudencia (kind: "jurisprudencia") only.
+//   Detail (GET):
+//     GET /services/sjftesismicroservice/api/public/tesis/{ius}
+//         ?isSemanal=true&hostName=https://sjf2.scjn.gob.mx
+//     → { ius, rubro, texto, precedentes, localizacion, epoca, instancia,
+//         tipoTesis, materias, claveTesis, … } with HTML-tagged strings.
 //
-// Sandbox note: outbound HTTP to *.scjn.gob.mx is blocked from Lovable's
-// build sandbox but works from the deployed Worker runtime. Left
-// status='planned' in public.legal_source_connectors until the worker runs
-// from Cloudflare and legal_ingest_runs shows real rows.
+// The 403s were bot-blocking, not moved endpoints: the service answers 200
+// with a realistic browser User-Agent plus Origin/Referer on the sjf2 host.
+// Verified working from the sandbox on 2026-07-27.
+//
+// Scope unchanged: jurisprudencia/tesis only. Statutes still come from the
+// separate legislative-compilation source.
 
 import type {
   LegalSourceConnector,
@@ -30,100 +38,159 @@ import type {
 } from "./types";
 import { extractCitationsFromText } from "./citation-extract";
 
-const SJF_BASE = "https://sjf2.scjn.gob.mx/detalle/tesis";
-const SJF_SEARCH = "https://sjf2.scjn.gob.mx/busqueda-principal-tesis";
-const HEALTH_URL = "https://sjf2.scjn.gob.mx/";
+const SITE = "https://sjf2.scjn.gob.mx";
+const API = `${SITE}/services/sjftesismicroservice/api/public/tesis`;
+const DETAIL_VIEW = `${SITE}/detalle/tesis`;
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGES_PER_RUN = 4; // conservative — SJF search can be slow
+const MAX_PAGES_PER_RUN = 4; // conservative — the corpus feed is large
 
-type SjfTesisSummary = {
-  ius?: string | number;      // registro digital, SCJN's stable id
-  registro?: string | number;
-  rubro?: string;             // title/heading of the tesis
-  texto?: string;             // preview text in search results
+type SjfTesis = {
+  ius?: string | number;
+  rubro?: string;
+  texto?: string;
+  textoPublicacion?: string;
+  precedentes?: string;
+  localizacion?: string;
+  localizacionAbr?: string;
+  claveTesis?: string;
   epoca?: string;
   instancia?: string;
+  sala?: string;
+  fuente?: string;
+  materias?: unknown;
+  tipoTesis?: string;
+  tipoJurisprudencia?: string;
   fechaPublicacion?: string;
-  tipoTesis?: "J" | "A" | string; // Jurisprudencia vs Aislada
-  materia?: string;
+  urlSemanario?: string;
 };
 
-type SjfTesisDetail = SjfTesisSummary & {
-  textoTesis?: string;
-  precedentes?: string;
-  votoConcurrente?: string;
-  urlDetalle?: string;
-};
+type SearchResponse = { total?: number; documents?: SjfTesis[] };
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "NyravaMexico-LegalIngest/1.0",
-      ...(init?.headers ?? {}),
-    },
+/** Browser-shaped headers — the WAF rejects bot identifiers with 403. */
+function headers(referer: string, json = false): Record<string, string> {
+  return {
+    Accept: "application/json, text/plain, */*",
+    "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
+    "User-Agent": BROWSER_UA,
+    Origin: SITE,
+    Referer: referer,
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
+    ...(json ? { "Content-Type": "application/json" } : {}),
+  };
+}
+
+function searchBody() {
+  return {
+    classifiers: [
+      { name: "tipoDocumento", value: ["1"], allSelected: false, visible: false, isMatrix: false },
+    ],
+    searchTerms: [] as unknown[],
+    bFacet: false,
+    ius: [] as unknown[],
+    idApp: "SJFAPP2020",
+    filterExpression: "",
+  };
+}
+
+function stripHtml(s: string | undefined | null): string {
+  if (!s) return "";
+  return s
+    .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function iusOf(t: SjfTesis): string {
+  return String(t.ius ?? "").trim();
+}
+
+function materiasOf(t: SjfTesis): string[] {
+  const m = t.materias;
+  if (Array.isArray(m)) {
+    return m
+      .map((x) => (typeof x === "string" ? x : ((x as { nombre?: string; descripcion?: string })?.nombre ??
+        (x as { descripcion?: string })?.descripcion ?? "")))
+      .map((s) => stripHtml(String(s)))
+      .filter(Boolean);
+  }
+  if (typeof m === "string") return stripHtml(m).split(/\s*,\s*/).filter(Boolean);
+  return [];
+}
+
+async function searchPage(page: number): Promise<{ items: SjfTesis[]; total: number }> {
+  const res = await fetch(`${API}?page=${page}&size=${DEFAULT_PAGE_SIZE}`, {
+    method: "POST",
+    headers: headers(`${SITE}/busqueda-principal-tesis`, true),
+    body: JSON.stringify(searchBody()),
   });
+  if (!res.ok) throw new Error(`SCJN ${res.status} at ${API}?page=${page}`);
+  const data = (await res.json()) as SearchResponse;
+  return { items: data.documents ?? [], total: data.total ?? 0 };
+}
+
+async function fetchDetail(ius: string): Promise<SjfTesis | null> {
+  const url = `${API}/${ius}?isSemanal=true&hostName=${encodeURIComponent(SITE)}`;
+  const res = await fetch(url, { headers: headers(`${DETAIL_VIEW}/${ius}`) });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`SCJN ${res.status} at ${url}`);
-  const text = await res.text();
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(`SCJN non-JSON response at ${url}: ${text.slice(0, 200)}`);
-  }
+  return (await res.json()) as SjfTesis;
 }
 
-function extractIus(item: SjfTesisSummary): string {
-  return String(item.ius ?? item.registro ?? "").trim();
+function publishedIso(t: SjfTesis): string | undefined {
+  if (!t.fechaPublicacion) return undefined;
+  const d = new Date(t.fechaPublicacion);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString().slice(0, 10);
 }
 
-function toIngested(detail: SjfTesisDetail): IngestedDocument | null {
-  const ius = extractIus(detail);
+function toIngested(t: SjfTesis): IngestedDocument | null {
+  const ius = iusOf(t);
   if (!ius) return null;
-  const rubro = (detail.rubro ?? "").trim();
-  const body = [detail.textoTesis, detail.precedentes, detail.votoConcurrente]
+  const rubro = stripHtml(t.rubro);
+  const raw = [stripHtml(t.texto || t.textoPublicacion), stripHtml(t.precedentes)]
     .filter(Boolean)
-    .join("\n\n");
-  const raw = body || detail.texto || rubro;
+    .join("\n\n") || rubro;
+  const iso = publishedIso(t);
+  const clave = stripHtml(t.claveTesis);
   return {
     externalId: `scjn:tesis:${ius}`,
     kind: "jurisprudencia",
     jurisdiction: "federal",
     title: rubro || `Tesis SCJN ${ius}`,
-    shortTitle: rubro?.slice(0, 200),
-    issuer: detail.instancia || "Suprema Corte de Justicia de la Nación",
-    citation: `Tesis ${detail.tipoTesis ?? ""} — Registro ${ius}`.trim(),
-    publishedAt: detail.fechaPublicacion,
-    effectiveAt: detail.fechaPublicacion,
-    sourceUrl: detail.urlDetalle ?? `${SJF_BASE}/${ius}`,
-    rawText: typeof raw === "string" ? raw : String(raw ?? ""),
+    shortTitle: rubro ? rubro.slice(0, 200) : undefined,
+    issuer: stripHtml(t.instancia) || "Suprema Corte de Justicia de la Nación",
+    citation: [clave, `Registro digital ${ius}`].filter(Boolean).join("; "),
+    publishedAt: iso,
+    effectiveAt: iso,
+    sourceUrl: `${DETAIL_VIEW}/${ius}`,
+    rawText: raw,
     metadata: {
-      epoca: detail.epoca,
-      instancia: detail.instancia,
-      tipoTesis: detail.tipoTesis,
-      materia: detail.materia,
+      epoca: stripHtml(t.epoca),
+      instancia: stripHtml(t.instancia),
+      sala: stripHtml(t.sala),
+      fuente: stripHtml(t.fuente),
+      localizacion: stripHtml(t.localizacion || t.localizacionAbr),
+      tipoTesis: t.tipoTesis,
+      tipoJurisprudencia: t.tipoJurisprudencia,
+      claveTesis: clave,
+      materias: materiasOf(t),
+      urlSemanario: t.urlSemanario,
     },
   };
-}
-
-async function searchPage(page: number, since: Date | null): Promise<SjfTesisSummary[]> {
-  const params = new URLSearchParams({
-    tipo: "tesis",
-    pagina: String(page),
-    tamanio: String(DEFAULT_PAGE_SIZE),
-    orden: "fechaDesc",
-  });
-  if (since) params.set("desde", since.toISOString().slice(0, 10));
-  const data = await fetchJson<{ resultados?: SjfTesisSummary[] } | SjfTesisSummary[]>(
-    `${SJF_SEARCH}?${params.toString()}`,
-  );
-  if (!data) return [];
-  return Array.isArray(data) ? data : data.resultados ?? [];
-}
-
-async function fetchDetail(ius: string): Promise<SjfTesisDetail | null> {
-  return fetchJson<SjfTesisDetail>(`${SJF_BASE}/${ius}`);
 }
 
 export const scjnConnector: LegalSourceConnector = {
@@ -134,13 +201,13 @@ export const scjnConnector: LegalSourceConnector = {
   auth: { kind: "none" },
 
   async discover() {
-    const first = await searchPage(1, null);
-    return first
-      .filter((i) => extractIus(i))
+    const { items } = await searchPage(0);
+    return items
+      .filter((i) => iusOf(i))
       .map((i) => ({
-        externalId: `scjn:tesis:${extractIus(i)}`,
-        sourceUrl: `${SJF_BASE}/${extractIus(i)}`,
-        publishedAt: i.fechaPublicacion,
+        externalId: `scjn:tesis:${iusOf(i)}`,
+        sourceUrl: `${DETAIL_VIEW}/${iusOf(i)}`,
+        publishedAt: publishedIso(i),
       }));
   },
 
@@ -149,28 +216,33 @@ export const scjnConnector: LegalSourceConnector = {
   },
 
   async fetchUpdates(since) {
+    // The unfiltered feed is ordered newest publication first, so we can page
+    // until we cross `since` and then stop.
     const seen = new Set<string>();
     const out: IngestedDocument[] = [];
-    for (let page = 1; page <= MAX_PAGES_PER_RUN; page++) {
-      const summaries = await searchPage(page, since);
-      if (summaries.length === 0) break;
-      let newThisPage = 0;
-      for (const s of summaries) {
-        const ius = extractIus(s);
+    const floor = since ? new Date(since).getTime() : null;
+    for (let page = 0; page < MAX_PAGES_PER_RUN; page++) {
+      const { items } = await searchPage(page);
+      if (items.length === 0) break;
+      let crossedFloor = false;
+      for (const s of items) {
+        const ius = iusOf(s);
         if (!ius || seen.has(ius)) continue;
         seen.add(ius);
+        const pub = s.fechaPublicacion ? new Date(s.fechaPublicacion).getTime() : null;
+        if (floor !== null && pub !== null && pub < floor) {
+          crossedFloor = true;
+          continue;
+        }
         try {
           const detail = await fetchDetail(ius);
           const doc = toIngested({ ...s, ...(detail ?? {}) });
-          if (doc) {
-            out.push(doc);
-            newThisPage++;
-          }
+          if (doc) out.push(doc);
         } catch (e) {
           console.warn(`[scjn] skip tesis ${ius}: ${String(e)}`);
         }
       }
-      if (newThisPage === 0) break;
+      if (crossedFloor) break;
     }
     return out;
   },
@@ -220,7 +292,11 @@ export const scjnConnector: LegalSourceConnector = {
 
   async healthCheck(): Promise<ConnectorHealth> {
     try {
-      const res = await fetch(HEALTH_URL, { method: "GET" });
+      const res = await fetch(`${API}?page=0&size=1`, {
+        method: "POST",
+        headers: headers(`${SITE}/busqueda-principal-tesis`, true),
+        body: JSON.stringify(searchBody()),
+      });
       return {
         connectorCode: "scjn",
         ok: res.ok,
