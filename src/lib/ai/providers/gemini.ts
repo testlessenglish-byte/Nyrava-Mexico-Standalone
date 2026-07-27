@@ -17,7 +17,6 @@ import { traceAsync } from "../../pipeline-trace.server";
  * instantly on a brand-new key, so it must switch models, not cool down the key.
  */
 const GEMINI_MODEL_FALLBACKS = [
-  "gemini-2.5-flash",
   "gemini-flash-latest",
   "gemini-2.5-flash-lite",
   "gemini-2.0-flash-lite",
