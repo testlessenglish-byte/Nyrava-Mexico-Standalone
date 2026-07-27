@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getNlknStats } from "@/lib/legal-knowledge-admin.functions";
-import { BookOpen, Database, ShieldCheck, ShieldAlert, RefreshCw, Clock, AlertTriangle } from "lucide-react";
+import { getNlknStats, testConnectorSync, type TestConnectorSyncResult } from "@/lib/legal-knowledge-admin.functions";
+import { BookOpen, Database, ShieldCheck, ShieldAlert, RefreshCw, Clock, AlertTriangle, PlayCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/legal-knowledge")({
   head: () => ({ meta: [{ title: "Legal Knowledge Network — Nyrava" }] }),
@@ -21,6 +22,19 @@ function LegalKnowledgePage() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["nlkn-stats"],
     queryFn: () => fetchStats(),
+  });
+
+  const testFn = useServerFn(testConnectorSync);
+  const [testResults, setTestResults] = useState<Record<string, TestConnectorSyncResult | { errors: string[] }>>({});
+  const testSync = useMutation({
+    mutationFn: (code: string) => testFn({ data: code }),
+    onSuccess: (result, code) => {
+      setTestResults((prev) => ({ ...prev, [code]: result }));
+      refetch(); // pick up any new authorities/runs the test actually stored
+    },
+    onError: (err, code) => {
+      setTestResults((prev) => ({ ...prev, [code]: { errors: [err instanceof Error ? err.message : String(err)] } }));
+    },
   });
 
   return (
@@ -85,29 +99,61 @@ function LegalKnowledgePage() {
               Conectores ({data.connectors.length})
             </h2>
             <div className="space-y-2">
-              {data.connectors.map((c) => (
-                <div
-                  key={c.code}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background/40 px-3 py-2 text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-xs text-muted-foreground">({c.code})</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {c.lastSyncAt && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" /> {new Date(c.lastSyncAt).toLocaleString()}
-                      </span>
+              {data.connectors.map((c) => {
+                const result = testResults[c.code];
+                const isTesting = testSync.isPending && testSync.variables === c.code;
+                return (
+                  <div key={c.code} className="rounded-lg border border-border bg-background/40 px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-xs text-muted-foreground">({c.code})</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {c.lastSyncAt && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" /> {new Date(c.lastSyncAt).toLocaleString()}
+                          </span>
+                        )}
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${CONNECTOR_STATUS_COLOR[c.status] ?? CONNECTOR_STATUS_COLOR.planned}`}
+                        >
+                          {c.status}
+                        </span>
+                        <button
+                          onClick={() => testSync.mutate(c.code)}
+                          disabled={isTesting}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                        >
+                          <PlayCircle className={`h-3.5 w-3.5 ${isTesting ? "animate-pulse" : ""}`} />
+                          {isTesting ? "Probando…" : "Probar"}
+                        </button>
+                      </div>
+                    </div>
+                    {result && (
+                      <div
+                        className={`mt-2 rounded border px-2 py-1.5 text-xs ${
+                          "errors" in result && result.errors.length > 0 && !("documentsStored" in result && result.documentsStored > 0)
+                            ? "border-destructive/40 bg-destructive/5 text-destructive"
+                            : "border-emerald-500/30 bg-emerald-500/5 text-emerald-600"
+                        }`}
+                      >
+                        {"documentsFetched" in result ? (
+                          <>
+                            {result.status}: {result.documentsFetched} obtenidos · {result.documentsStored} guardados ·{" "}
+                            {result.documentsVersioned} nuevas versiones
+                            {result.errors.length > 0 && (
+                              <div className="mt-1">{result.errors.slice(0, 3).join(" | ")}</div>
+                            )}
+                          </>
+                        ) : (
+                          result.errors.join(" | ")
+                        )}
+                      </div>
                     )}
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${CONNECTOR_STATUS_COLOR[c.status] ?? CONNECTOR_STATUS_COLOR.planned}`}
-                    >
-                      {c.status}
-                    </span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

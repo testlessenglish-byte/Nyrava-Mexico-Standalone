@@ -95,3 +95,60 @@ export const getNlknStats = createServerFn({ method: "POST" })
       failedJobsLast7Days,
     };
   });
+
+export type TestConnectorSyncResult = {
+  connectorCode: string;
+  status: "completed" | "completed_with_errors" | "failed";
+  documentsFetched: number;
+  documentsStored: number;
+  documentsVersioned: number;
+  errors: string[];
+  startedAt: string;
+  endedAt: string;
+};
+
+/**
+ * Manually trigger a real sync for one connector, on demand — not on a
+ * schedule, not tied to case processing. This is the "Test" button gap
+ * identified during Phase 1 verification: the admin dashboard could show
+ * connector status but had no way to actually try a live sync and see a
+ * real result. Deliberately available regardless of the connector's
+ * current DB status ("planned" is fine to test) — testing is exactly how
+ * a connector earns being flipped to "active".
+ */
+export const testConnectorSync = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((code: unknown) => {
+    if (typeof code !== "string" || code.length === 0) throw new Error("connector code required");
+    return code;
+  })
+  .handler(async ({ data: code, context }): Promise<TestConnectorSyncResult> => {
+    const { supabase: db, userId } = context;
+    await requireAdmin({ supabase: db, userId });
+
+    const { IMPLEMENTED_CONNECTORS } = await import("./legal-connectors/types");
+    const connector = IMPLEMENTED_CONNECTORS.find((c) => c.code === code);
+    if (!connector) {
+      throw new Error(
+        `No implementation found for connector "${code}" — it exists in the registry but has no working code yet (still a stub).`,
+      );
+    }
+
+    const { runConnectorIngest, recordIngestRun } = await import("./legal-connectors/ingest-pipeline.server");
+    // since = null → the connector's own bounded initial-lookback window
+    // (e.g. DOF looks back a fixed number of days, capped per run) — never
+    // "fetch everything since the beginning of time".
+    const result = await runConnectorIngest(db, connector, null);
+    await recordIngestRun(db, result);
+
+    return {
+      connectorCode: result.connectorCode,
+      status: result.status,
+      documentsFetched: result.documentsFetched,
+      documentsStored: result.documentsStored,
+      documentsVersioned: result.documentsVersioned,
+      errors: result.errors,
+      startedAt: result.startedAt,
+      endedAt: result.endedAt ?? new Date().toISOString(),
+    };
+  });
