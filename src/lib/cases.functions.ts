@@ -1049,65 +1049,226 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase, userId: _userId } = await getAuthedContext(context, "ResumePipeline");
-    void _userId;
+    const { supabase, userId } = await getAuthedContext(context, "ResumePipeline");
     const { PIPELINE_STAGE_TO_ENGINE } = await import("@/lib/execution/canonical");
+    const stageKeys = new Set<string>(PIPELINE_STAGES.map((s) => s.key));
     // Honor a persisted checkpoint first. The background worker stores the
     // exact next stage in cases.next_stage; recomputing from the ledger alone
     // can fall back to extraction when a checkpoint row is queued/skipped or a
     // prior ledger row was swept.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: caseRow } = await (supabase as any)
+    const { data: caseRow, error: caseErr } = await (supabase as any)
       .from("cases")
-      .select("next_stage")
+      .select("status,next_stage,worker_lease_until")
       .eq("id", data.caseId)
       .maybeSingle();
-    const persistedNext = typeof caseRow?.next_stage === "string" ? caseRow.next_stage : null;
-    if (persistedNext && persistedNext !== "reset") {
-      return await runFullPipelineStep({ data: { caseId: data.caseId, startFrom: persistedNext } });
+    if (caseErr) throw new Error(caseErr.message);
+    if (!caseRow) throw new Error("Case not found");
+
+    const leaseUntil = caseRow.worker_lease_until ? new Date(caseRow.worker_lease_until as string).getTime() : 0;
+    if (leaseUntil > Date.now()) {
+      return {
+        ok: false,
+        alreadyRunning: true as const,
+        status: (caseRow.status as string | null) ?? null,
+        leaseUntil: (caseRow.worker_lease_until as string | null) ?? null,
+      };
     }
+
+    const persistedNext = typeof caseRow.next_stage === "string" ? caseRow.next_stage : null;
+    let resumeKey = persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext) ? persistedNext : undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rows } = await (supabase as any)
+    const { data: rows, error: rowsErr } = await (supabase as any)
       .from("pipeline_engine_runs")
       .select("engine,status,ended_at,created_at")
       .eq("case_id", data.caseId);
-    const latest = new Map<
-      string,
-      { status: string; created_at?: string | null; ended_at?: string | null }
-    >();
-    for (const r of (rows ?? []) as Array<{
-      engine: string;
-      status: string;
-      created_at?: string | null;
-      ended_at?: string | null;
-    }>) {
-      const prev = latest.get(r.engine);
-      const pt = new Date(prev?.created_at ?? prev?.ended_at ?? 0).getTime();
-      const rt = new Date(r.created_at ?? r.ended_at ?? 0).getTime();
-      if (!prev || rt >= pt) latest.set(r.engine, r);
-    }
-    const completed = new Set<string>();
-    for (const [engine, row] of latest) {
-      if (
-        row.status === "completed" ||
-        row.status === "completed_negative" ||
-        row.status === "skipped"
-      )
-        completed.add(engine);
-    }
-    // Walk stages in order; first stage whose mapped engine isn't completed is the resume point.
-    let resumeKey: string | undefined;
-    for (const s of PIPELINE_STAGES) {
-      const engine = PIPELINE_STAGE_TO_ENGINE[s.key];
-      if (!engine || !completed.has(engine)) {
-        resumeKey = s.key;
-        break;
+    if (rowsErr) throw new Error(rowsErr.message);
+    if (!resumeKey) {
+      const latest = new Map<
+        string,
+        { status: string; created_at?: string | null; ended_at?: string | null }
+      >();
+      for (const r of (rows ?? []) as Array<{
+        engine: string;
+        status: string;
+        created_at?: string | null;
+        ended_at?: string | null;
+      }>) {
+        const prev = latest.get(r.engine);
+        const pt = new Date(prev?.created_at ?? prev?.ended_at ?? 0).getTime();
+        const rt = new Date(r.created_at ?? r.ended_at ?? 0).getTime();
+        if (!prev || rt >= pt) latest.set(r.engine, r);
+      }
+      const completed = new Set<string>();
+      for (const [engine, row] of latest) {
+        if (
+          row.status === "completed" ||
+          row.status === "completed_negative" ||
+          row.status === "skipped"
+        )
+          completed.add(engine);
+      }
+      // Walk stages in order; first stage whose mapped engine isn't completed is the resume point.
+      for (const s of PIPELINE_STAGES) {
+        const engine = PIPELINE_STAGE_TO_ENGINE[s.key];
+        if (!engine || !completed.has(engine)) {
+          resumeKey = s.key;
+          break;
+        }
       }
     }
     if (!resumeKey) {
       return { ok: true, alreadyComplete: true };
     }
-    return await runFullPipelineStep({ data: { caseId: data.caseId, startFrom: resumeKey } });
+
+    const resumeEngine = PIPELINE_STAGE_TO_ENGINE[resumeKey];
+    if (resumeEngine) {
+      // Clear only stale in-progress marker rows for the stage we are about to
+      // resume. Completed upstream work is preserved, so this is not a rerun.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("pipeline_engine_runs")
+        .update({
+          status: "failed",
+          ended_at: new Date().toISOString(),
+          error: "Stale checkpoint cleared before resume",
+        })
+        .eq("case_id", data.caseId)
+        .eq("engine", resumeEngine)
+        .in("status", ["queued", "running"]);
+    }
+
+    const queuedAt = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updateErr } = await (supabase as any)
+      .from("cases")
+      .update({
+        status: "queued",
+        status_message: `Queued to resume at ${resumeKey}`,
+        queued_at: queuedAt,
+        worker_lease_until: null,
+        next_stage: resumeKey,
+        cancel_requested: false,
+        stall_reason: null,
+        error: null,
+      })
+      .eq("id", data.caseId);
+    if (updateErr) throw new Error(updateErr.message);
+
+    const { trace } = await import("@/lib/pipeline-trace.server");
+    await trace({
+      db: supabase,
+      caseId: data.caseId,
+      userId,
+      phase: "queue",
+      step: "resume.enqueued",
+      status: "ok",
+      detail: { startFrom: resumeKey, queued_at: queuedAt },
+    });
+    return { ok: true, queued: true, startFrom: resumeKey };
+  });
+
+export const clearPipelineStuckState = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = await getAuthedContext(context, "ClearPipelineStuckState");
+    const { PIPELINE_STAGE_TO_ENGINE } = await import("@/lib/execution/canonical");
+    const stageKeys = new Set<string>(PIPELINE_STAGES.map((s) => s.key));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: caseRow, error: caseErr } = await (supabase as any)
+      .from("cases")
+      .select("status,next_stage,worker_lease_until")
+      .eq("id", data.caseId)
+      .maybeSingle();
+    if (caseErr) throw new Error(caseErr.message);
+    if (!caseRow) throw new Error("Case not found");
+    const leaseUntil = caseRow.worker_lease_until ? new Date(caseRow.worker_lease_until as string).getTime() : 0;
+    if (leaseUntil > Date.now()) {
+      return {
+        ok: false,
+        alreadyRunning: true as const,
+        status: (caseRow.status as string | null) ?? null,
+        leaseUntil: (caseRow.worker_lease_until as string | null) ?? null,
+      };
+    }
+
+    const persistedNext = typeof caseRow.next_stage === "string" ? caseRow.next_stage : null;
+    let resumeKey = persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext) ? persistedNext : undefined;
+    if (!resumeKey) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rows, error: rowsErr } = await (supabase as any)
+        .from("pipeline_engine_runs")
+        .select("engine,status,ended_at,created_at")
+        .eq("case_id", data.caseId);
+      if (rowsErr) throw new Error(rowsErr.message);
+      const latest = new Map<string, { status: string; created_at?: string | null; ended_at?: string | null }>();
+      for (const r of (rows ?? []) as Array<{
+        engine: string;
+        status: string;
+        created_at?: string | null;
+        ended_at?: string | null;
+      }>) {
+        const prev = latest.get(r.engine);
+        const pt = new Date(prev?.created_at ?? prev?.ended_at ?? 0).getTime();
+        const rt = new Date(r.created_at ?? r.ended_at ?? 0).getTime();
+        if (!prev || rt >= pt) latest.set(r.engine, r);
+      }
+      const completed = new Set<string>();
+      for (const [engine, row] of latest) {
+        if (row.status === "completed" || row.status === "completed_negative" || row.status === "skipped") {
+          completed.add(engine);
+        }
+      }
+      for (const s of PIPELINE_STAGES) {
+        const engine = PIPELINE_STAGE_TO_ENGINE[s.key];
+        if (!engine || !completed.has(engine)) {
+          resumeKey = s.key;
+          break;
+        }
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("pipeline_engine_runs")
+      .update({
+        status: "failed",
+        ended_at: new Date().toISOString(),
+        error: "Manual stuck-state clear",
+      })
+      .eq("case_id", data.caseId)
+      .in("status", ["queued", "running"]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updateErr } = await (supabase as any)
+      .from("cases")
+      .update({
+        status: "failed",
+        status_message: resumeKey
+          ? `Stuck state cleared — click Resume to continue at ${resumeKey}`
+          : "Stuck state cleared — no incomplete stage found",
+        queued_at: null,
+        worker_lease_until: null,
+        next_stage: resumeKey ?? null,
+        cancel_requested: false,
+        stall_reason: "manual_clear",
+        error: null,
+      })
+      .eq("id", data.caseId);
+    if (updateErr) throw new Error(updateErr.message);
+    const { trace } = await import("@/lib/pipeline-trace.server");
+    await trace({
+      db: supabase,
+      caseId: data.caseId,
+      userId,
+      phase: "queue",
+      step: "stuck_state.cleared",
+      status: "ok",
+      detail: { resumeKey: resumeKey ?? null },
+    });
+    return { ok: true, resumeKey: resumeKey ?? null };
   });
 
 // -------- Case AI Chat --------
