@@ -53,13 +53,10 @@ const ES: Record<string, string> = {
   "Grouped by severity so the issues most likely to affect the outcome are read first. Each finding lists a confidence level (how sure the classification is), an evidence strength (how well-sourced it is), and any related findings elsewhere in this report.":
     "Agrupados por gravedad para que las cuestiones con mayor probabilidad de incidir en el resultado se lean primero. Cada hallazgo indica un nivel de confianza (qué tan segura es la clasificación), una fuerza probatoria (qué tan sustentado está) y los hallazgos relacionados en otras partes de este reporte.",
   // statCards dashboard tile labels/values (executive summary metric grid)
-  "Status": "Estado",
   "Scores": "Puntajes",
-  "Recommendations": "Recomendaciones",
   "Limited": "Limitado",
   "Suppressed": "Suprimido",
   "Documents Analyzed": "Documentos Analizados",
-  "Findings": "Hallazgos",
   "Constitutional Issues": "Cuestiones Constitucionales",
   "Missing Evidence": "Evidencia Faltante",
   "Agents Producing Output": "Agentes con Resultados",
@@ -69,7 +66,6 @@ const ES: Record<string, string> = {
   "CONFIDENCE": "CONFIANZA",
   "EVIDENCE STRENGTH": "FUERZA PROBATORIA",
   "SOURCES": "FUENTES",
-  "Party": "Parte",
   "ATTORNEY WORK PRODUCT  \u00b7  PRIVILEGED & CONFIDENTIAL":
     "PRODUCTO DE TRABAJO DEL ABOGADO  \u00b7  PRIVILEGIADO Y CONFIDENCIAL",
   "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations.":
