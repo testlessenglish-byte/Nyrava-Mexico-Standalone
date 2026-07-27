@@ -333,13 +333,45 @@ function buildIngested(law: LawRef, text: string, sourceUrl: string): IngestedDo
   };
 }
 
+/** The Cámara has shuffled this path before; try the known variants in order. */
+const INDEX_CANDIDATES = [
+  INDEX_URL,
+  `${BASE}/index.htm?ver=1`,
+  `${BASE}/ley_fed.htm`,
+  `${BASE}/`,
+  "https://www.diputados.gob.mx/LeyesBiblio/index.htm",
+];
+
 async function loadIndex(): Promise<LawRef[]> {
-  const html = await fetchHtml(INDEX_URL);
-  if (!html) throw new Error("Congreso index not available (LeyesBiblio/index.htm returned 404)");
-  const laws = parseIndex(html);
-  if (!laws.length) throw new Error("Congreso index parsed but contained no law links — page layout changed");
-  return laws;
+  const diagnostics: string[] = [];
+
+  for (const url of INDEX_CANDIDATES) {
+    let html: string | null = null;
+    try {
+      html = await fetchHtml(url);
+    } catch (e) {
+      diagnostics.push(`${url}: ${String(e)}`);
+      continue;
+    }
+    if (!html) {
+      diagnostics.push(`${url}: 404`);
+      continue;
+    }
+
+    const laws = parseIndex(html);
+    if (laws.length) return laws;
+
+    const pdfLinks = (html.match(/href=["'][^"']*\.pdf["']/gi) ?? []).length;
+    const rows = (html.match(/<tr\b/gi) ?? []).length;
+    const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1]?.trim().slice(0, 80) ?? "?";
+    diagnostics.push(
+      `${url}: ${html.length} chars, title="${title}", ${rows} rows, ${pdfLinks} pdf links, 0 parsed`,
+    );
+  }
+
+  throw new Error(`Congreso index unusable — ${diagnostics.join(" | ")}`);
 }
+
 
 /** Newest reforms first so incremental runs surface what actually changed. */
 function orderForRun(laws: LawRef[], since: Date | null): LawRef[] {
