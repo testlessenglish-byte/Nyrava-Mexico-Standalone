@@ -52,12 +52,23 @@ const sectionsCache = new Map<string, { builtAt: number; sections: ChatSections;
 // Backward-compat alias so any external references to the old name still resolve.
 const contextCache = sectionsCache;
 
-// Overall character budget for the assembled context string. Previously each
-// field was truncated independently (8K + 40K + 20K + 15K + 8K + 15K + 15K +
-// 15K + 10K ≈ 146K chars of *ceilings*, with no combined cap), so a
-// data-heavy case could still sum well past the model's effective context
-// even though no single field looked oversized on its own.
-const MAX_TOTAL_CONTEXT_CHARS = 100_000;
+// Overall character budget for the assembled context string.
+//
+// This is sized deliberately small. The AI router refuses to send a prompt
+// to a provider whose input budget it would blow (Groq = 6,000 tokens), and
+// a chat prompt is system instruction + context + recent history. At the old
+// 100,000-char ceiling every single Talk-to-Case question was over budget,
+// so Groq was skipped 100% of the time and the question fell straight
+// through to fallback providers — the reason chat produced no answer at all
+// whenever those were rate-limited. 14,000 chars (~3.5k tokens) leaves room
+// for the ~3k-char system prompt and the history tail inside Groq's window,
+// so the user's own Groq keys can actually serve chat. Per-question
+// relevance ranking below decides WHAT survives this budget.
+const MAX_TOTAL_CONTEXT_CHARS = 14_000;
+
+// Recent-conversation tail sent with each question, in characters.
+const MAX_HISTORY_CHARS = 4_000;
+
 
 async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: ChatSections; corpus: string }> {
   const [findings, analysis, agents, score, theories, opps, witnesses, trial, docs] = await Promise.all([
