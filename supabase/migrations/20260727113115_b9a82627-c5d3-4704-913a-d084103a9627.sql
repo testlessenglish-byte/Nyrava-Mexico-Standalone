@@ -1,0 +1,1 @@
+UPDATE public.legal_source_connectors SET status = 'active' WHERE code = 'congreso';
