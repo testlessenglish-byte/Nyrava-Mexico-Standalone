@@ -224,37 +224,42 @@ function assembleChatContext(sections: ChatSections, question: string): string {
   const witnesses = rankByQuestion(sections.witnesses, question, (w) => JSON.stringify(w));
   const agents = rankByQuestion(sections.agents, question, (a) => `${a.agent_type ?? ""} ${a.summary ?? ""}`);
 
+  // Per-section ceilings are proportional to MAX_TOTAL_CONTEXT_CHARS so no
+  // single section can eat the whole budget and starve the rest before the
+  // final combined cap even applies. Items inside each section are already
+  // ordered most-relevant-first, so a ceiling drops the least relevant items.
   let ctx = `
 EVIDENCE IN CASE FILE (${sections.docList.length} documents):
-${JSON.stringify(sections.docList).slice(0, 8000)}
+${JSON.stringify(sections.docList).slice(0, 1500)}
 
-ALL FINDINGS (${findings.length}, most relevant to this question first):
-${JSON.stringify(findings).slice(0, 40000)}
+FINDINGS (${findings.length} total, most relevant to this question first):
+${JSON.stringify(findings).slice(0, 4500)}
 
 ANALYSIS:
-${JSON.stringify(sections.analysis).slice(0, 20000)}
+${JSON.stringify(sections.analysis).slice(0, 2500)}
 
 AGENT FINDINGS (most relevant first):
-${JSON.stringify(agents).slice(0, 15000)}
+${JSON.stringify(agents).slice(0, 1500)}
 
 SCORE:
-${JSON.stringify(sections.score).slice(0, 8000)}
+${JSON.stringify(sections.score).slice(0, 800)}
 
 THEORIES (most relevant first):
-${JSON.stringify(theories).slice(0, 15000)}
+${JSON.stringify(theories).slice(0, 1200)}
 
 OPPORTUNITIES (most relevant first):
-${JSON.stringify(opportunities).slice(0, 15000)}
+${JSON.stringify(opportunities).slice(0, 1200)}
 
 WITNESSES (most relevant first):
-${JSON.stringify(witnesses).slice(0, 15000)}
+${JSON.stringify(witnesses).slice(0, 1200)}
 
 TRIAL PREP:
-${JSON.stringify(sections.trial).slice(0, 10000)}`;
+${JSON.stringify(sections.trial).slice(0, 1200)}`;
 
   if (ctx.length > MAX_TOTAL_CONTEXT_CHARS) {
     ctx = `${ctx.slice(0, MAX_TOTAL_CONTEXT_CHARS)}\n\n[...case intelligence truncated to fit context budget...]`;
   }
+
   return ctx;
 }
 
