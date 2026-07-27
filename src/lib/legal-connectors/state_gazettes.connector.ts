@@ -220,7 +220,9 @@ const u32 = (b: Uint8Array, o: number) =>
   (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | b[o + 3] * 16777216) >>> 0;
 
 async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  const copy = new ArrayBuffer(data.byteLength);
+  new Uint8Array(copy).set(data);
+  const stream = new Blob([copy]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
