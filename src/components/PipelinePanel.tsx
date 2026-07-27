@@ -210,14 +210,24 @@ export function PipelinePanel({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {(failedCount > 0 || (completedCount > 0 && completedCount < stageDefs.length && !anyRunning)) && (
+          {incomplete && (
             <button
-              disabled={resuming || anyRunning}
+              disabled={resuming || activelyRunning}
               onClick={async () => {
                 setResuming(true);
                 try {
-                  const res = await resumeFullPipelineStep({ data: { caseId } });
-                  if ((res as { alreadyComplete?: boolean })?.alreadyComplete) {
+                  const res = (await resumeFullPipelineStep({ data: { caseId } })) as {
+                    alreadyComplete?: boolean;
+                    ok?: boolean;
+                    alreadyRunning?: boolean;
+                    done?: boolean;
+                    status?: string | null;
+                  };
+                  if (res?.alreadyComplete) {
+                    toast.info(t("pipeline.toast.alreadyComplete"));
+                  } else if (res?.ok === false && res?.alreadyRunning) {
+                    toast.info(t("pipeline.panel.running"));
+                  } else if (res?.ok === false && res?.done) {
                     toast.info(t("pipeline.toast.alreadyComplete"));
                   } else {
                     toast.success(t("pipeline.toast.resumed"));
