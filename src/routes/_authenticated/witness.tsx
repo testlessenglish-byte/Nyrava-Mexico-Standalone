@@ -6,9 +6,10 @@ import { Users } from "lucide-react";
 import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/witness")({
-  head: () => ({ meta: [{ title: "Witness Intelligence — Nyrava" }] }),
+  head: () => ({ meta: [{ title: "Inteligencia de Testigos — Nyrava" }] }),
   component: WitnessPage,
 });
 
@@ -28,6 +29,7 @@ function Bar({ label, value }: { label: string; value: number | null | undefined
 }
 
 function WitnessPage() {
+  const { t } = useI18n();
   const { cases, activeId, isLoading } = useActiveCase();
   const [selected, setSelected] = useState<string | null>(null);
   const caseId = selected ?? activeId;
@@ -45,24 +47,24 @@ function WitnessPage() {
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
         icon={<Users className="h-5 w-5" />}
-        title="Witness Intelligence"
-        subtitle="Per-witness reliability, bias, consistency, corroboration, and impeachment opportunities."
+        title={t("mod.witness.title")}
+        subtitle={t("mod.witness.subtitle")}
       />
       {isLoading ? (
-        <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">Loading cases…</div>
+        <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.loadingCases")}</div>
       ) : (
         <div className="space-y-5">
           <CasePicker cases={cases} activeId={caseId} onChange={setSelected} />
           {caseId ? (
             caseLoading ? (
-              <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">Loading witnesses…</div>
+              <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.witness.loading")}</div>
             ) : witnesses.length === 0 ? (
-              <ModuleEmpty title="No witnesses identified yet" hint="Run witness intelligence on this case." />
+              <ModuleEmpty title={t("mod.witness.empty.title")} hint={t("mod.witness.empty.hint")} />
             ) : (
               <>
                 {credibilityAgent?.summary ? (
                   <div className="rounded-xl border border-border bg-card/60 p-4">
-                    <p className="text-xs font-semibold uppercase text-muted-foreground">Credibility analysis</p>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">{t("mod.witness.credibility")}</p>
                     <p className="mt-1.5 text-sm">{credibilityAgent.summary}</p>
                   </div>
                 ) : null}
@@ -74,16 +76,16 @@ function WitnessPage() {
                         {w.role ? <span className="text-xs text-muted-foreground">{w.role}</span> : null}
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-3">
-                        <Bar label="Reliability" value={w.reliability} />
-                        <Bar label="Consistency" value={w.consistency} />
-                        <Bar label="Corroboration" value={w.corroboration} />
-                        <Bar label="Bias risk" value={w.bias} />
-                        <Bar label="Observation" value={w.observation_opportunity} />
-                        <Bar label="Credibility risk" value={w.credibility_risk} />
+                        <Bar label={t("mod.witness.reliability")} value={w.reliability} />
+                        <Bar label={t("mod.witness.consistency")} value={w.consistency} />
+                        <Bar label={t("mod.witness.corroboration")} value={w.corroboration} />
+                        <Bar label={t("mod.witness.bias")} value={w.bias} />
+                        <Bar label={t("mod.witness.observation")} value={w.observation_opportunity} />
+                        <Bar label={t("mod.witness.credibilityRisk")} value={w.credibility_risk} />
                       </div>
                       {Array.isArray(w.cross_exam_questions) && w.cross_exam_questions.length > 0 ? (
                         <details className="mt-3">
-                          <summary className="cursor-pointer text-xs font-semibold text-primary">Cross-examination questions ({w.cross_exam_questions.length})</summary>
+                          <summary className="cursor-pointer text-xs font-semibold text-primary">{t("mod.witness.crossExam", { count: w.cross_exam_questions.length })}</summary>
                           <ul className="mt-2 space-y-1.5 text-xs text-foreground/90">
                             {w.cross_exam_questions.slice(0, 8).map((q: any, i: number) => (
                               <li key={i} className="rounded bg-background/60 p-2">{typeof q === "string" ? q : q.question ?? JSON.stringify(q)}</li>
@@ -93,7 +95,7 @@ function WitnessPage() {
                       ) : null}
                       {Array.isArray(w.impeachment_questions) && w.impeachment_questions.length > 0 ? (
                         <details className="mt-2">
-                          <summary className="cursor-pointer text-xs font-semibold text-amber-400">Impeachment ({w.impeachment_questions.length})</summary>
+                          <summary className="cursor-pointer text-xs font-semibold text-amber-400">{t("mod.witness.impeachment", { count: w.impeachment_questions.length })}</summary>
                           <ul className="mt-2 space-y-1.5 text-xs text-foreground/90">
                             {w.impeachment_questions.slice(0, 8).map((q: any, i: number) => (
                               <li key={i} className="rounded bg-background/60 p-2">{typeof q === "string" ? q : q.question ?? JSON.stringify(q)}</li>

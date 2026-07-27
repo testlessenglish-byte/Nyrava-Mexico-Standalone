@@ -7,9 +7,10 @@ import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
 import { EvidenceCitation } from "@/components/modules/EvidenceCitation";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/evidence")({
-  head: () => ({ meta: [{ title: "Evidence Explorer — Nyrava" }] }),
+  head: () => ({ meta: [{ title: "Explorador de Evidencia — Nyrava" }] }),
   component: EvidencePage,
 });
 
@@ -29,6 +30,7 @@ type Finding = {
 };
 
 function EvidencePage() {
+  const { t } = useI18n();
   const { cases, activeId, isLoading } = useActiveCase();
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -64,11 +66,11 @@ function EvidencePage() {
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
         icon={<FileSearch className="h-5 w-5" />}
-        title="Evidence Explorer"
-        subtitle="Every classified finding, source document, page reference, and verbatim quote across this case."
+        title={t("mod.evidence.title")}
+        subtitle={t("mod.evidence.subtitle")}
       />
       {isLoading ? (
-        <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">Loading cases…</div>
+        <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.loadingCases")}</div>
       ) : (
         <div className="space-y-5">
           <CasePicker cases={cases} activeId={caseId} onChange={setSelected} />
@@ -78,7 +80,7 @@ function EvidencePage() {
                 <div className="relative flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
-                    placeholder="Search findings, quotes, descriptions…"
+                    placeholder={t("mod.evidence.search")}
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                     className="w-full rounded-lg border border-border bg-background py-2.5 pl-9 pr-3 text-sm outline-none focus:border-primary"
@@ -89,18 +91,18 @@ function EvidencePage() {
                   onChange={(e) => setSeverity(e.target.value)}
                   className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
                 >
-                  <option value="all">All severities</option>
-                  <option value="critical">Critical</option>
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
+                  <option value="all">{t("mod.evidence.sev.all")}</option>
+                  <option value="critical">{t("mod.evidence.sev.critical")}</option>
+                  <option value="high">{t("mod.evidence.sev.high")}</option>
+                  <option value="medium">{t("mod.evidence.sev.medium")}</option>
+                  <option value="low">{t("mod.evidence.sev.low")}</option>
                 </select>
               </div>
 
               {caseLoading ? (
-                <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">Loading evidence…</div>
+                <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.evidence.loading")}</div>
               ) : filtered.length === 0 ? (
-                <ModuleEmpty title="No evidence findings match these filters" hint="Try clearing filters or run the analysis pipeline on the case." />
+                <ModuleEmpty title={t("mod.evidence.empty.title")} hint={t("mod.evidence.empty.hint")} />
               ) : (
                 <div className="grid gap-3">
                   {filtered.map((f) => (
@@ -114,7 +116,7 @@ function EvidencePage() {
                             {f.finding_type ? (
                               <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">{f.finding_type.replace(/_/g, " ").toLowerCase()}</span>
                             ) : null}
-                            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">conf {Math.round((f.confidence ?? 0) * 100)}%</span>
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">{t("mod.conf")} {Math.round((f.confidence ?? 0) * 100)}%</span>
                           </div>
                         </div>
                       </div>
