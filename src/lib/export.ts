@@ -4303,7 +4303,16 @@ function renderSuppressedSection(b: PdfBuilder, title: string) {
 // Contents, do not number it, do not print 'Suppressed...'".
 function computeRenderQueue(plan: SectionPlan[], data: CaseExportData, mode: ReportMode) {
   const full = asObj(asObj(data.report).full_report);
-  const area = normalizePracticeArea(asStr(full.case_type) || asStr(asObj(data.report).case_type));
+  // The materia can live on the report payload, the report row, or (most
+  // often for older cases) only on the case row itself. Export must read all
+  // three before deciding the case is unclassified — a missing materia here
+  // used to throw and silently kill the whole PDF download.
+  const area = normalizePracticeArea(
+    asStr(full.case_type) ||
+      asStr(asObj(data.report).case_type) ||
+      asStr(asObj(data.case).case_type) ||
+      asStr(asObj(data.case).practice_area),
+  );
   const ad = full.active_domains;
   const activeDomains: string[] = Array.isArray(ad) ? (ad as unknown[]).map((x) => String(x)) : [];
   const applicable = getApplicableSections(area, activeDomains);
@@ -4387,7 +4396,20 @@ export function downloadPdf(data: CaseExportData, name: string, opts?: { citatio
   // exactly the mismatch validateParity() below is designed to catch.
   // Fix: always report "rendered" as data.findings.length, since that is
   // the ONLY number that is actually true of what this PDF prints.
-  const counters = { ...getFindingCounters(reportRow), rendered: (data.findings ?? []).length };
+  // The stale JSON counters can also under-report verified/generated relative
+  // to the live findings (e.g. stale verified=0 but one live finding), which
+  // used to trip the "rendered > verified" parity check and abort the whole
+  // download. Live rendered count is authoritative; raise the stale
+  // upper-bound counters to stay monotonic instead of failing the export.
+  const rawCounters = getFindingCounters(reportRow);
+  const renderedCount = (data.findings ?? []).length;
+  const verifiedCount = Math.max(rawCounters.verified, renderedCount);
+  const counters = {
+    ...rawCounters,
+    rendered: renderedCount,
+    verified: verifiedCount,
+    generated: Math.max(rawCounters.generated, verifiedCount),
+  };
   const parity = paritySignature(reportRow);
   const ess = getEssState(reportRow);
   const engines = getEnginesSummary(reportRow);

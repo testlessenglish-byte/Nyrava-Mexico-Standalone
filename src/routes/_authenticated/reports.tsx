@@ -70,6 +70,7 @@ function ReportsPage() {
     try {
       fn();
     } catch (e) {
+      console.error("[export] failed", labelKey, e);
       toast.error(
         t("reports.toast.exportFailed", {
           label: t(labelKey),
