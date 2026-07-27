@@ -102,6 +102,7 @@ export type TestConnectorSyncResult = {
   documentsFetched: number;
   documentsStored: number;
   documentsVersioned: number;
+  entitiesProjected: number;
   errors: string[];
   startedAt: string;
   endedAt: string;
@@ -152,6 +153,7 @@ export const testConnectorSync = createServerFn({ method: "POST" })
       documentsFetched: result.documentsFetched,
       documentsStored: result.documentsStored,
       documentsVersioned: result.documentsVersioned,
+      entitiesProjected: result.entitiesProjected,
       errors: result.errors,
       startedAt: result.startedAt,
       endedAt: result.endedAt ?? new Date().toISOString(),

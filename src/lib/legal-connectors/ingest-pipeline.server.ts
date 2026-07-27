@@ -38,6 +38,7 @@ export type IngestRunResult = {
   documentsFetched: number;
   documentsStored: number;
   documentsVersioned: number;
+  entitiesProjected: number;
   errors: string[];
 };
 
@@ -55,6 +56,7 @@ export async function runConnectorIngest(
   const errors: string[] = [];
   let documentsStored = 0;
   let documentsVersioned = 0;
+  let entitiesProjected = 0;
   let rawDocs: IngestedDocument[] = [];
 
   try {
@@ -72,17 +74,25 @@ export async function runConnectorIngest(
         errors.push(`${normalized.externalId}: validation failed — ${validation.errors.join("; ")}`);
         continue;
       }
-      const { versioned } = await withRetry(
+      const { authorityId, versioned } = await withRetry(
         () => upsertAuthorityWithVersioning(db, connector.code, normalized),
         `${connector.code}.store(${normalized.externalId})`,
         1, // a write failure is almost always permanent (RLS/constraint) — don't burn 21s per doc
       );
       documentsStored += 1;
       if (versioned) documentsVersioned += 1;
+
+      // Parse the stored authority into typed entities (tesis /
+      // jurisprudencia / articles). Never fatal to the run.
+      const { projectDocument } = await import("./projection.server");
+      const projection = await projectDocument(db, connector, normalized, authorityId);
+      entitiesProjected += projection.theses + projection.jurisprudencia + projection.articles;
+      errors.push(...projection.errors);
     } catch (e) {
       errors.push(`${raw.externalId}: ${String(e)}`);
     }
   }
+
 
   return finalize(errors.length === 0 ? "completed" : documentsStored > 0 ? "completed_with_errors" : "failed");
 
@@ -95,6 +105,7 @@ export async function runConnectorIngest(
       documentsFetched: rawDocs.length,
       documentsStored,
       documentsVersioned,
+      entitiesProjected,
       errors,
     };
   }
