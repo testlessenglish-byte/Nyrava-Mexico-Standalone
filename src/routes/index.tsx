@@ -12,7 +12,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useI18n } from "@/i18n";
 import { listPublishedDemoCases } from "@/lib/demo-cases.functions";
 
-const SITE_URL = "https://nyrava.com";
+const SITE_URL = "https://nyravamexico.lovable.app";
 const LOGO_URL = `${SITE_URL}/nyrava-shield.png`;
 
 const ORGANIZATION_JSON_LD = JSON.stringify({
@@ -22,15 +22,15 @@ const ORGANIZATION_JSON_LD = JSON.stringify({
   url: SITE_URL,
   logo: LOGO_URL,
   description:
-    "The most advanced Legal Intelligence Operating System. Built for attorneys, investigators, and organizations that demand truth, precision, and results.",
+    "El sistema operativo de inteligencia jurídica más avanzado. Diseñado para abogados, investigadores y organizaciones que exigen precisión, rigor y resultados.",
 });
 
 const WEBSITE_JSON_LD = JSON.stringify({
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "Nyrava Intelligence OS",
+  name: "Nyrava México — Inteligencia Jurídica",
   url: SITE_URL,
-  description: "Legal Intelligence beyond human analysis.",
+  description: "Inteligencia jurídica más allá del análisis humano.",
   publisher: {
     "@type": "Organization",
     name: "Nyrava",
@@ -42,16 +42,16 @@ const WEBSITE_JSON_LD = JSON.stringify({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Nyrava Intelligence OS — Legal Intelligence Operating System" },
-      { property: "og:url", content: "https://nyrava.com/" },
-      { name: "twitter:url", content: "https://nyrava.com/" },
+      { title: "Nyrava México — Sistema Operativo de Inteligencia Jurídica" },
+      { property: "og:url", content: `${SITE_URL}/` },
+      { name: "twitter:url", content: `${SITE_URL}/` },
       {
         name: "description",
         content:
-          "The most advanced Legal Intelligence Operating System. Built for attorneys, investigators, and organizations that demand truth, precision, and results.",
+          "El sistema operativo de inteligencia jurídica más avanzado. Diseñado para abogados, investigadores y organizaciones que exigen precisión, rigor y resultados.",
       },
-      { property: "og:title", content: "Nyrava Intelligence OS" },
-      { property: "og:description", content: "Legal Intelligence beyond human analysis." },
+      { property: "og:title", content: "Nyrava México — Inteligencia Jurídica" },
+      { property: "og:description", content: "Inteligencia jurídica más allá del análisis humano." },
     ],
     scripts: [
       { type: "application/ld+json", children: ORGANIZATION_JSON_LD },
