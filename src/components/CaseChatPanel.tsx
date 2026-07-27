@@ -534,7 +534,7 @@ export function CaseChatPanel({
                     ones the model itself flagged via [[RERUN_SUGGESTED]]. Lets
                     the attorney push a correction into the report on their own
                     judgment even when the AI didn't think to suggest it. */}
-                  {m.role === "assistant" && !suggestsRerun && (
+                  {m.role === "assistant" && !suggestsRerun && !isErrorNotice && (
                     <div className="mt-2">
                       {alreadyRegenerated ? (
                         <div className="flex items-center gap-1.5 text-xs text-emerald-500">
