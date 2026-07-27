@@ -362,6 +362,41 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
     drafting_notes:
       "Precisar el régimen de la tierra (ejidal, comunal o pequeña propiedad) y la calidad del promovente (ejidatario, avecindado, posesionario). Acompañar siempre la documentación del RAN y solicitar la suplencia de la queja.",
   },
+  ambiental: {
+    label: "Derecho Ambiental (LGEEPA y legislación conexa; PROFEPA, SEMARNAT, CONAGUA, ASEA, CONANP, CONAFOR; TFJA)",
+    controlling_standards:
+      "La materia ambiental federal se rige principalmente por la Ley General del Equilibrio Ecológico y la Protección al Ambiente (LGEEPA), la Ley General de Vida Silvestre, la Ley General para la Prevención y Gestión Integral de los Residuos (LGPGIR), la Ley de Aguas Nacionales, la Ley General de Cambio Climático y las NOM ambientales aplicables. Según el recurso o actividad involucrada, la autoridad competente puede ser PROFEPA (inspección y sanción general), SEMARNAT (autorizaciones y permisos, incluyendo la manifestación de impacto ambiental), CONAGUA (aguas nacionales y descargas), ASEA (seguridad industrial y ambiental del sector hidrocarburos) o CONANP/CONAFOR (áreas naturales protegidas y aprovechamiento forestal). Los actos de estas autoridades (actas de inspección, medidas de seguridad, clausuras, negativas de permiso, multas) se impugnan mediante recurso de revisión ante la propia autoridad o directamente mediante juicio de nulidad ante el Tribunal Federal de Justicia Administrativa (LFPCA), con posible amparo directo o indirecto posterior — incluyendo, cuando proceda, planteamientos fundados en el Art. 4 CPEUM (derecho a un medio ambiente sano). El daño ambiental puede además dar lugar a responsabilidad bajo la Ley Federal de Responsabilidad Ambiental (LFRA).",
+    key_cases: [
+      "LGEEPA — régimen sustantivo de protección ambiental, evaluación de impacto ambiental y facultades de inspección y sanción",
+      "Ley Federal de Responsabilidad Ambiental (LFRA) — responsabilidad por daño ambiental",
+      "LFPCA — juicio de nulidad contra resoluciones de PROFEPA/SEMARNAT/CONAGUA/ASEA/CONANP/CONAFOR ante el TFJA",
+      "Ley General de Vida Silvestre — régimen de especies y hábitat protegidos",
+      "Ley de Aguas Nacionales — concesiones, descargas y aprovechamiento de aguas nacionales (CONAGUA)",
+      "Ley General de Cambio Climático — obligaciones de mitigación y reporte de emisiones",
+      "Art. 4 CPEUM — derecho a un medio ambiente sano, invocable en amparo",
+      "Aún no se han incorporado tesis o precedentes jurisprudenciales verificados para esta materia; no citar jurisprudencia ambiental hasta integrar fuentes verificadas al corpus.",
+    ],
+    canonical_motions: [
+      "Recurso de revisión contra acta de inspección o resolución de la autoridad ambiental competente",
+      "Demanda de juicio de nulidad ante el TFJA contra sanción, clausura o negativa de permiso ambiental",
+      "Solicitud de suspensión de medidas de seguridad o clausura",
+      "Denuncia popular ambiental (LGEEPA)",
+      "Escrito de manifestación de impacto ambiental o su impugnación",
+      "Impugnación de negativa de concesión o permiso de descarga ante CONAGUA",
+      "Impugnación de negativa o revocación de permiso forestal ante CONAFOR",
+      "Amparo indirecto fundado en el derecho a un medio ambiente sano (Art. 4 CPEUM)",
+    ],
+    evidentiary_rules: [
+      "El acta de inspección de la autoridad ambiental competente goza de presunción de legalidad, desvirtuable por el particular con prueba en contrario.",
+      "Los dictámenes periciales ambientales (calidad de agua, suelo, aire, manejo de residuos) son la prueba técnica central en la mayoría de los expedientes.",
+      "Las manifestaciones de impacto ambiental, estudios de riesgo, estudios hidrológicos e informes de monitoreo previamente presentados ante la autoridad son documentales relevantes para acreditar o desvirtuar el incumplimiento.",
+      "El muestreo ambiental, los reportes de laboratorio acreditado, la cartografía/SIG, las imágenes satelitales y la fotografía o video con drones son medios de prueba técnica admisibles para acreditar el estado del sitio o la extensión del daño.",
+    ],
+    damages_or_remedies:
+      "Nulidad lisa y llana o para efectos de la resolución impugnada, levantamiento de medidas de seguridad o clausura, otorgamiento del permiso o concesión indebidamente negado, y remediación del daño ambiental conforme a la LFRA (incluyendo restauración del ecosistema afectado) en los casos que la propia ley califica.",
+    drafting_notes:
+      "Identificar con precisión el acto impugnado (acta de inspección, medida de seguridad, resolución sancionadora, negativa de permiso), la autoridad emisora (PROFEPA, SEMARNAT, CONAGUA, ASEA, CONANP o CONAFOR), su fecha de notificación y el plazo aplicable. Distinguir la vía de recurso de revisión de la vía directa de juicio de nulidad ante el TFJA, y evaluar si procede amparo indirecto fundado en el Art. 4 CPEUM. Aviso: este perfil de materia se incorporó recientemente al motor; el abogado responsable debe confirmar contra la fuente primaria vigente los números de artículo, la sala/ponencia competente del TFJA y cualquier tesis o precedente antes de que se incluyan en el producto de trabajo final.",
+  },
 };
 
 /**

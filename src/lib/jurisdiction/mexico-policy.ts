@@ -130,6 +130,17 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "scorecard",
     "strategy_synthesis",
     "theories"
+  ],
+  "ambiental": [
+    "cross_exam",
+    "discovery",
+    "opportunities",
+    "perspectives",
+    "recommendations",
+    "risk",
+    "scorecard",
+    "strategy_synthesis",
+    "theories"
   ]
 };
 
@@ -220,6 +231,14 @@ export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
     "strategy",
     "theories",
     "trial"
+  ],
+  "ambiental": [
+    "opportunities",
+    "perspectives",
+    "scorecard",
+    "strategy",
+    "theories",
+    "trial"
   ]
 };
 
@@ -273,6 +292,11 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "trial_prep"
   ],
   "agrario": [
+    "cross_examination",
+    "trial_prep"
+  ],
+  "ambiental": [
+    "constitutional_compliance",
     "cross_examination",
     "trial_prep"
   ]
@@ -970,6 +994,29 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "responsabilidad_civil_objetiva",
     "responsabilidad_civil_subjetiva",
     "vicios_del_consentimiento"
+  ],
+  "ambiental": [
+    "autorizacion_cambio_uso_suelo",
+    "clausura_profepa",
+    "concesion_agua_conagua",
+    "dano_ambiental",
+    "denuncia_popular_ambiental",
+    "descarga_aguas_residuales",
+    "emisiones_contaminantes",
+    "estudio_riesgo_ambiental",
+    "gases_efecto_invernadero",
+    "licencia_ambiental_unica",
+    "manifestacion_impacto_ambiental",
+    "medidas_de_seguridad_profepa",
+    "nom_ambiental_incumplimiento",
+    "permiso_forestal_conafor",
+    "procedimiento_administrativo_profepa",
+    "proteccion_areas_naturales_conanp",
+    "recurso_de_revision_ambiental",
+    "regulacion_industria_hidrocarburos_asea",
+    "remediacion_ambiental",
+    "residuos_peligrosos",
+    "responsabilidad_ambiental_objetiva"
   ]
 };
 
@@ -1165,6 +1212,17 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "providencias_precautorias",
     "reconvencion",
     "recurso_de_apelacion_civil"
+  ],
+  "ambiental": [
+    "amparo_indirecto_ambiental",
+    "denuncia_popular",
+    "impugnacion_negativa_concesion_conagua",
+    "impugnacion_permiso_forestal_conafor",
+    "incidente_suspension_profepa",
+    "juicio_de_nulidad_ambiental",
+    "medidas_cautelares_ambientales",
+    "ofrecimiento_pruebas",
+    "recurso_de_revision"
   ]
 };
 
@@ -1369,6 +1427,34 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "tortious interference",
     "twombly",
     "wrongful termination"
+  ],
+  "ambiental": [
+    "brady violation",
+    "celotex",
+    "child custody",
+    "criminal procedure",
+    "deposition",
+    "discovery request",
+    "eeoc",
+    "grand jury",
+    "hearsay",
+    "indictment",
+    "iqbal",
+    "miranda",
+    "motion to dismiss",
+    "punitive damages",
+    "rule 12(b)(6)",
+    "rule 56",
+    "search and seizure",
+    "sentencing",
+    "specific performance of unique goods",
+    "spousal support",
+    "subpoena",
+    "summary judgment",
+    "title vii",
+    "tortious interference",
+    "twombly",
+    "wrongful termination"
   ]
 };
 
@@ -1406,6 +1492,7 @@ export const MX_FORBIDDEN_REPORT_FIELDS: Record<MexicanCaseType, readonly string
   "agrario": [
     "constitutional_issues",
     "constitutional_issues_struct"
-  ]
+  ],
+  "ambiental": []
 };
 

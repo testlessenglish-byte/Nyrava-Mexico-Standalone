@@ -289,6 +289,20 @@ const PROCEDURAL: Record<MexicanCaseType, MxProceduralRules> = {
     stages: ["demanda (controversia / acción)", "contestación", "instrucción", "sentencia del Pleno de la SCJN"],
     oral: false,
   },
+  ambiental: {
+    procedural_code: "LGEEPA",
+    procedural_code_name: "Ley General del Equilibrio Ecológico y la Protección al Ambiente / LFPCA para el juicio contencioso",
+    substantive_codes: [
+      "LGEEPA",
+      "Ley General de Vida Silvestre",
+      "Ley General para la Prevención y Gestión Integral de los Residuos (LGPGIR)",
+      "Ley de Aguas Nacionales",
+      "Ley General de Cambio Climático",
+      "NOM ambientales",
+    ],
+    stages: ["procedimiento de inspección y vigilancia (PROFEPA, CONAGUA, ASEA, CONANP o CONAFOR según la autoridad competente)", "medidas de seguridad / clausura", "recurso de revisión (LGEEPA)", "juicio de nulidad ante el TFJA", "amparo directo o indirecto"],
+    oral: false,
+  },
 };
 
 export function getProceduralRules(caseType: unknown): MxProceduralRules {
@@ -362,6 +376,11 @@ const COURTS: Record<MexicanCaseType, MxCourtHierarchy> = {
     court_level: "federal",
     first_instance: "Suprema Corte de Justicia de la Nación",
     ladder: ["Pleno de la SCJN"],
+  },
+  ambiental: {
+    court_level: "federal",
+    first_instance: "Sala Regional del TFJA competente por territorio (la sala/ponencia específica depende de la autoridad emisora - PROFEPA, SEMARNAT, CONAGUA, ASEA, CONANP, CONAFOR - y debe confirmarse caso por caso; no se afirma la existencia de una sala especializada única en materia ambiental)",
+    ladder: ["Sala Superior del TFJA", "Tribunal Colegiado de Circuito"],
   },
 };
 
@@ -438,6 +457,25 @@ const EVIDENCE: Record<MexicanCaseType, MxEvidenceRules> = {
     medios: ["norma impugnada", "proceso legislativo", "informes de autoridad", "jurisprudencia SCJN y Corte IDH"],
     carga_probatoria: "El promovente expone conceptos de invalidez; la SCJN suple la deficiencia de la queja.",
   },
+  ambiental: {
+    valoracion: "Presunción de legalidad del acta de inspección y de la resolución de la autoridad ambiental competente (PROFEPA, CONAGUA, ASEA, CONANP o CONAFOR según el caso) conforme a la LFPA (aplicable supletoriamente), desvirtuable por el particular; valoración técnica reforzada por dictamen pericial ambiental. La cita del artículo específico debe confirmarse con el abogado responsable.",
+    medios: [
+      "acta de inspección (PROFEPA/CONAGUA/ASEA/CONANP/CONAFOR según la autoridad)",
+      "manifestación de impacto ambiental",
+      "dictamen pericial ambiental",
+      "estudio de riesgo",
+      "informes de monitoreo de emisiones",
+      "bitácoras de manejo de residuos",
+      "muestreo ambiental (agua, suelo, aire)",
+      "reportes de laboratorio acreditado",
+      "cartografía y sistemas de información geográfica (SIG)",
+      "imágenes satelitales",
+      "fotografía y video con drones",
+      "informes de ingeniería ambiental",
+      "estudios hidrológicos",
+    ],
+    carga_probatoria: "El particular debe desvirtuar la presunción de legalidad del acta/resolución de la autoridad ambiental; en daño ambiental la Ley Federal de Responsabilidad Ambiental (LFRA) establece un régimen de responsabilidad objetiva en supuestos calificados por la propia ley (materiales o residuos peligrosos, entre otros).",
+  },
 };
 
 export function getEvidenceRules(caseType: unknown): MxEvidenceRules {
@@ -470,6 +508,7 @@ const PARTY_ROLES: Record<MexicanCaseType, { a: string; b: string; neutral: stri
   electoral: { a: "actor", b: "autoridad_responsable", neutral: "ambas" },
   agrario: { a: "nucleo_ejidal", b: "parte_demandada", neutral: "ambas" },
   constitucional: { a: "promovente", b: "autoridad_responsable", neutral: "ambas" },
+  ambiental: { a: "particular", b: "autoridad_ambiental", neutral: "ambas" },
 };
 
 export function getPartyRoles(caseType: unknown) {

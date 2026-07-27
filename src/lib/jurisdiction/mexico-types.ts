@@ -22,6 +22,7 @@ export const MX_CASE_TYPES = [
   "electoral",
   "agrario",
   "constitucional",
+  "ambiental",
 ] as const;
 
 export type MexicanCaseType = (typeof MX_CASE_TYPES)[number];
@@ -39,6 +40,7 @@ export const MX_CASE_TYPE_LABELS: Record<MexicanCaseType, { es: string; en: stri
   electoral: { es: "Derecho Electoral", en: "Electoral Law" },
   agrario: { es: "Derecho Agrario", en: "Agrarian Law" },
   constitucional: { es: "Derecho Constitucional / Derechos Humanos", en: "Constitutional Law / Human Rights" },
+  ambiental: { es: "Derecho Ambiental", en: "Environmental Law" },
 };
 
 export function isMexicanCaseType(v: unknown): v is MexicanCaseType {

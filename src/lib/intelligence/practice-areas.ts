@@ -377,6 +377,7 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
     options: [
       { value: "electoral", label: "Derecho Electoral (medios de impugnación, TEPJF)" },
       { value: "agrario", label: "Derecho Agrario (tribunales unitarios agrarios)" },
+      { value: "ambiental", label: "Derecho Ambiental (LGEEPA, PROFEPA, impacto ambiental)" },
     ],
   },
 ];

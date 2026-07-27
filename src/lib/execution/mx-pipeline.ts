@@ -63,6 +63,10 @@ const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
   // ejecutan con el perfil administrativo (juicio de nulidad, agravios).
   electoral: "administrativo",
   agrario: "civil",
+  // Ambiental: contentious-administrative track (PROFEPA sanction ->
+  // recurso de revisión -> juicio de nulidad ante el TFJA), same profile
+  // rationale as electoral above.
+  ambiental: "administrativo",
 };
 
 /**

@@ -66,6 +66,25 @@ export const LEGAL_TERMS: Record<string, string> = {
   "legal.term.actaNacimiento": "Acta de nacimiento",
   "legal.term.lgdnna": "Ley General de los Derechos de Niñas, Niños y Adolescentes",
 
+  // Ambiental
+  "legal.term.lgeepa": "LGEEPA",
+  "legal.term.profepa": "PROFEPA",
+  "legal.term.semarnat": "SEMARNAT",
+  "legal.term.conagua": "CONAGUA",
+  "legal.term.asea": "ASEA",
+  "legal.term.conanp": "CONANP",
+  "legal.term.conafor": "CONAFOR",
+  "legal.term.mia": "Manifestación de Impacto Ambiental",
+  "legal.term.lgvs": "Ley General de Vida Silvestre",
+  "legal.term.lgpgir": "LGPGIR",
+  "legal.term.leyAguasNacionales": "Ley de Aguas Nacionales",
+  "legal.term.leyCambioClimatico": "Ley General de Cambio Climático",
+  "legal.term.nomAmbiental": "Norma Oficial Mexicana ambiental",
+  "legal.term.denunciaPopularAmbiental": "Denuncia popular ambiental",
+  "legal.term.licenciaAmbientalUnica": "Licencia Ambiental Única",
+  "legal.term.clausuraProfepa": "Clausura (PROFEPA)",
+  "legal.term.danoAmbiental": "Daño ambiental",
+
   // Ordenamientos
   "legal.term.cpeum": "CPEUM",
   "legal.term.cnpp": "CNPP",
