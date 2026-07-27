@@ -198,7 +198,7 @@ function HealthPage() {
                   Active AI cooldowns
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  In-memory router circuit breakers. When set, all Groq requests for that (model, org) are refused with <code>retry_after_ms</code> until it expires. Clearing releases the block immediately.
+                  In-memory router circuit breakers. When set, requests for that (model, org) are refused with <code>retry_after_ms</code> until it expires. Clearing releases the block immediately.
                 </p>
               </div>
               <button
