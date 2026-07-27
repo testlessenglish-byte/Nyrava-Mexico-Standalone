@@ -39,6 +39,14 @@ function isZeroQuotaModel(message: string): boolean {
   return /HTTP 429/.test(message) && /limit:\s*0\b/.test(message);
 }
 
+/**
+ * Model ids proven unusable on this deployment (retired, or free tier removed).
+ * Process-local so one discovery spares every later call the wasted round-trip.
+ */
+const UNUSABLE_MODELS = new Set<string>();
+
+
+
 
 function retryAfterHeaderMs(value: string | null): number | undefined {
   if (!value) return undefined;
