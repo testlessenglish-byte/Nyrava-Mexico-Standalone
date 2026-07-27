@@ -629,6 +629,13 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
 
   const fellBackFrom: ProviderType[] = [];
   const errors: string[] = [];
+  const preAttemptSkips: string[] = [];
+  const cooldownSkips: Array<{
+    provider: ProviderType;
+    model: string | null;
+    retryAfterMs: number;
+    reason: string;
+  }> = [];
   // Track Groq orgs proven exhausted this call and the (fingerprint→org)
   // attribution learned from their 429 responses. Lets us skip only
   // known-same-org keys while still trying keys from other Groq accounts.
@@ -683,6 +690,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   for (let i = 0; i < chain.length; i++) {
     const row = chain[i];
     if (anySizeEligible && !sizeEligible[i]) {
+      preAttemptSkips.push(
+        `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerInputBudget(row.provider_type)} token provider budget`,
+      );
       traceAsync({
         phase: "ai",
         step: "router.provider_skipped",
@@ -698,7 +708,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       continue;
     }
 
-    if (realAttempts >= MAX_LOGICAL_PROVIDER_ATTEMPTS) {
+    if (realAttempts >= MAX_LOGICAL_PROVIDER_ATTEMPTS && attemptedProviders.has(row.provider_type)) {
       traceAsync({
         phase: "ai",
         step: "router.attempt_budget_exhausted",
@@ -710,10 +720,10 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           remaining_chain: chain.length - i,
         },
       });
-      errors.push(
-        `router attempt budget exhausted after ${MAX_LOGICAL_PROVIDER_ATTEMPTS} real provider calls`,
+      preAttemptSkips.push(
+        `${row.display_name} [attempt_budget]: skipped duplicate ${row.provider_type} key after ${MAX_LOGICAL_PROVIDER_ATTEMPTS} real provider calls`,
       );
-      break;
+      continue;
     }
     const effectiveModel = effectiveModelFor(row);
     const candidateCooldown = getProviderCooldown({
@@ -722,6 +732,15 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       key: cooldownIdentityFor(row),
     });
     if (candidateCooldown) {
+      cooldownSkips.push({
+        provider: row.provider_type,
+        model: effectiveModel,
+        retryAfterMs: candidateCooldown.retryAfterMs,
+        reason: candidateCooldown.reason,
+      });
+      preAttemptSkips.push(
+        `${row.display_name} [cooldown]: ${row.provider_type}/${effectiveModel ?? "default"} key ${row.runtimeKeyIndex != null ? `#${row.runtimeKeyIndex + 1}` : "env"} retry in ${Math.ceil(candidateCooldown.retryAfterMs / 1000)}s (${candidateCooldown.reason})`,
+      );
       traceAsync({
         phase: "ai",
         step: "router.provider_skipped",
@@ -1101,6 +1120,17 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   const untriedNote = untried.length
     ? ` (configured but never attempted: ${untried.join(", ")})`
     : "";
+  const skipNote = preAttemptSkips.length
+    ? ` Skipped before attempt: ${preAttemptSkips.slice(0, 8).join(" | ")}`
+    : "";
+  const allAttemptsSkippedByCooldown =
+    attemptedProviders.size === 0 &&
+    cooldownSkips.length > 0 &&
+    preAttemptSkips.every((s) => s.includes("[cooldown]"));
+  const soonestCooldownMs = cooldownSkips.reduce<number | null>(
+    (min, s) => (min == null ? s.retryAfterMs : Math.min(min, s.retryAfterMs)),
+    null,
+  );
   traceAsync({
     phase: "ai",
     step: "router.exhausted",
@@ -1111,9 +1141,17 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       tried: [...attemptedProviders],
       never_attempted: untried,
       errors: errors.slice(0, 5),
+      skipped_before_attempt: preAttemptSkips.slice(0, 8),
+      cooldowns: cooldownSkips.slice(0, 8),
     },
   });
+  if (allAttemptsSkippedByCooldown) {
+    const retryText = soonestCooldownMs != null ? ` Retry after ${Math.ceil(soonestCooldownMs / 1000)}s.` : "";
+    throw new Error(
+      `All configured provider keys are cooling down after HTTP 429/rate-limit responses (tried: none${untriedNote}).${retryText}${skipNote}`,
+    );
+  }
   throw new Error(
-    `All configured provider keys failed (tried: ${triedProviders}${untriedNote}). ${errors.join(" | ")}`,
+    `All configured provider keys failed (tried: ${triedProviders}${untriedNote}). ${errors.join(" | ")}${skipNote}`,
   );
 }
