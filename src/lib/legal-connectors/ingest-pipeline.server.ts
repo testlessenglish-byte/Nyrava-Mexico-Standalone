@@ -15,19 +15,19 @@ type Db = SupabaseClient<Database>;
 const MAX_RETRIES = 3;
 const RETRY_BACKOFF_MS = [1000, 5000, 15000];
 
-async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, label: string, maxRetries = MAX_RETRIES): Promise<T> {
   let lastErr: unknown;
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (e) {
       lastErr = e;
-      if (attempt < MAX_RETRIES) {
+      if (attempt < maxRetries) {
         await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS[attempt] ?? 15000));
       }
     }
   }
-  throw new Error(`${label} failed after ${MAX_RETRIES + 1} attempts: ${String(lastErr)}`);
+  throw new Error(`${label} failed after ${maxRetries + 1} attempts: ${String(lastErr)}`);
 }
 
 export type IngestRunResult = {
@@ -75,6 +75,7 @@ export async function runConnectorIngest(
       const { versioned } = await withRetry(
         () => upsertAuthorityWithVersioning(db, connector.code, normalized),
         `${connector.code}.store(${normalized.externalId})`,
+        1, // a write failure is almost always permanent (RLS/constraint) — don't burn 21s per doc
       );
       documentsStored += 1;
       if (versioned) documentsVersioned += 1;

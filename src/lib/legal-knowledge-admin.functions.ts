@@ -135,11 +135,16 @@ export const testConnectorSync = createServerFn({ method: "POST" })
     }
 
     const { runConnectorIngest, recordIngestRun } = await import("./legal-connectors/ingest-pipeline.server");
+    // Writes (legal_authorities, legal_authority_versions, legal_ingest_runs)
+    // have no INSERT/UPDATE RLS policies — they are ingestion-owned tables.
+    // The caller is already verified as an admin above, so persist with the
+    // service client; using the user client makes every store throw on RLS.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // since = null → the connector's own bounded initial-lookback window
     // (e.g. DOF looks back a fixed number of days, capped per run) — never
     // "fetch everything since the beginning of time".
-    const result = await runConnectorIngest(db, connector, null);
-    await recordIngestRun(db, result);
+    const result = await runConnectorIngest(supabaseAdmin as never, connector, null);
+    await recordIngestRun(supabaseAdmin as never, result);
 
     return {
       connectorCode: result.connectorCode,
