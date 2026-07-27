@@ -198,11 +198,34 @@ export function auditChainOfCustody(entries: CustodyEntry[]): {
 }
 
 // ---------------------------------------------------------------------
-// 7. Burden of Proof Engine
+// 7. Standard of Proof Engine (Estándar Probatorio)
 // ---------------------------------------------------------------------
-export type BurdenStandard = "preponderance" | "clear_and_convincing" | "beyond_reasonable_doubt";
+// Mexican law does not use the US three-tier system (preponderance /
+// clear and convincing / beyond reasonable doubt) as named standards.
+// The closest real equivalents, used here:
+//   - mas_alla_duda_razonable: the CNPP Art. 402 standard a tribunal must
+//     reach ("convicción") to issue a sentencia condenatoria in a penal
+//     matter — comparably demanding to "beyond reasonable doubt" in
+//     substance, correctly named and sourced here rather than borrowed.
+//   - preponderancia_indiciaria: the general civil/mercantil/familiar
+//     burden (carga de la prueba — quien afirma un hecho debe probarlo)
+//     — no single named "51%" standard exists in Mexican civil doctrine;
+//     this models the ordinary civil threshold, not a specific codified
+//     percentage.
+//   - interes_juridico_acreditado: the threshold an amparo quejoso must
+//     meet to establish interés jurídico/legítimo and the existencia del
+//     acto reclamado before the substantive analysis proceeds.
+// The exact numeric thresholds below are a first-pass calibration, not a
+// codified legal percentage (Mexican law does not assign numeric
+// percentages to these standards the way US evidence law sometimes
+// informally does) — flag for attorney review before relying on the
+// specific threshold values in a filed document.
+// ---------------------------------------------------------------------
+export type BurdenStandard = "mas_alla_duda_razonable" | "preponderancia_indiciaria" | "interes_juridico_acreditado";
 const STANDARD_THRESHOLD: Record<BurdenStandard, number> = {
-  preponderance: 51, clear_and_convincing: 75, beyond_reasonable_doubt: 90,
+  mas_alla_duda_razonable: 90,
+  preponderancia_indiciaria: 60,
+  interes_juridico_acreditado: 70,
 };
 export interface ElementSupport { element: string; evidence_score: number; }
 export function evaluateBurden(standard: BurdenStandard, elements: ElementSupport[]): {
@@ -242,28 +265,76 @@ export function assessRisk(r: RiskInputs): { score: number; band: Severity; fact
 }
 
 // ---------------------------------------------------------------------
-// 9. Motion Opportunity Detector
+// 9. Procedural Remedy Detector (Promociones y Recursos Procedentes)
 // ---------------------------------------------------------------------
+// Replaces the former US motion-practice mapping (Brady/Fourth Amendment/
+// Motion in Limine — none of which exist as filed remedies in Mexican
+// procedure) with the actual Mexican procedural remedies triggered by
+// each signal, per the CNPP and Ley de Amparo.
 export interface MotionSignal { tag: string; severity: Severity; }
 const MOTION_RULES: Array<{ when: (s: MotionSignal[]) => boolean; motion: string; basis: string }> = [
-  { when: (s) => s.some((x) => x.tag === "brady_violation" && SEV_RANK[x.severity] >= 3), motion: "Motion to Dismiss / Brady sanctions", basis: "Brady disclosure failure" },
-  { when: (s) => s.some((x) => x.tag === "fourth_amendment_violation"), motion: "Motion to Suppress", basis: "Fourth Amendment violation" },
-  { when: (s) => s.some((x) => x.tag === "discovery_withholding"), motion: "Motion to Compel", basis: "Discovery withholding" },
-  { when: (s) => s.some((x) => x.tag === "chain_of_custody_break"), motion: "Motion in Limine", basis: "Chain of custody break" },
-  { when: (s) => s.filter((x) => x.tag === "procedural_defect").length >= 2, motion: "Motion to Dismiss (procedural)", basis: "Cumulative procedural defects" },
+  {
+    when: (s) => s.some((x) => x.tag === "prueba_ilicita" && SEV_RANK[x.severity] >= 3),
+    motion: "Solicitud de exclusión de prueba ilícita",
+    basis: "Prueba obtenida con violación de derechos fundamentales (Art. 20, apartado A, fracc. IX CPEUM; Art. 264 CNPP)",
+  },
+  {
+    when: (s) => s.some((x) => x.tag === "control_detencion_defectuoso"),
+    motion: "Incidente de nulidad por control de detención defectuoso",
+    basis: "Defectos en la audiencia de control de detención (Art. 16 CPEUM; Art. 308 CNPP)",
+  },
+  {
+    when: (s) => s.some((x) => x.tag === "descubrimiento_probatorio_incompleto"),
+    motion: "Solicitud de descubrimiento probatorio complementario",
+    basis: "Descubrimiento probatorio incompleto de la contraparte (Art. 337 y ss. CNPP)",
+  },
+  {
+    when: (s) => s.some((x) => x.tag === "cadena_custodia_rota"),
+    motion: "Objeción a la cadena de custodia / solicitud de exclusión",
+    basis: "Ruptura de cadena de custodia (Art. 227 y ss. CNPP)",
+  },
+  {
+    when: (s) => s.some((x) => x.tag === "medidas_cautelares_desproporcionadas"),
+    motion: "Solicitud de revisión o modificación de medidas cautelares",
+    basis: "Medida cautelar desproporcionada o no ajustada a los criterios del Art. 156 CNPP",
+  },
+  {
+    when: (s) => s.some((x) => x.tag === "vinculacion_proceso_defectuosa"),
+    motion: "Recurso de apelación contra el auto de vinculación a proceso",
+    basis: "Defectos en la vinculación a proceso (Art. 316 y ss. CNPP)",
+  },
+  {
+    when: (s) => s.some((x) => x.tag === "violacion_constitucional" && SEV_RANK[x.severity] >= 3),
+    motion: "Juicio de amparo indirecto",
+    basis: "Violación de derechos fundamentales susceptible de amparo (Arts. 103 y 107 CPEUM; Ley de Amparo)",
+  },
+  {
+    when: (s) => s.filter((x) => x.tag === "defecto_procesal").length >= 2,
+    motion: "Incidente de nulidad procesal",
+    basis: "Defectos procesales acumulados que afectan el debido proceso",
+  },
 ];
 export function detectMotions(signals: MotionSignal[]): Array<{ motion: string; basis: string }> {
   return MOTION_RULES.filter((r) => r.when(signals)).map(({ motion, basis }) => ({ motion, basis }));
 }
 
 // ---------------------------------------------------------------------
-// 10. Appeal Issue Detector
+// 10. Grounds for Appeal / Amparo Detector (Agravios y Conceptos de Violación)
 // ---------------------------------------------------------------------
+// Replaces the former US appellate-issue taxonomy. Notably removes
+// "jury_instruction_error" outright rather than renaming it — Mexican
+// criminal procedure has no jury system, so there is no equivalent
+// concept to map it to; it is not a translation gap, the underlying
+// mechanism does not exist here.
 export interface TrialEvent { kind: string; preserved?: boolean; severity?: Severity; description?: string; }
 export function detectAppealIssues(events: TrialEvent[]): Array<{ issue: string; preserved: boolean; severity: Severity; description?: string }> {
   const APPEAL_KINDS = new Set([
-    "evidentiary_ruling", "jury_instruction_error", "prosecutorial_misconduct",
-    "ineffective_assistance", "constitutional_violation", "sentencing_error",
+    "valoracion_prueba_erronea",       // erroneous evidence valuation by the tribunal
+    "motivacion_insuficiente_sentencia", // insufficient grounding/reasoning — Art. 16 CPEUM requires all acts of authority to be fundados y motivados
+    "conducta_indebida_ministerio_publico", // prosecutorial (Ministerio Público) misconduct
+    "defensa_inadecuada",              // inadequate defense — Art. 20, apartado B, fracc. VIII CPEUM (defensa adecuada)
+    "violacion_constitucional",
+    "error_individualizacion_pena",    // sentencing/individualización de la pena error
   ]);
   return events
     .filter((e) => APPEAL_KINDS.has(e.kind))

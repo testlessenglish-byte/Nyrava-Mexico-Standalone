@@ -58,7 +58,7 @@ describe("Layer 2 — deterministic legal algorithms", () => {
   });
 
   it("evaluateBurden enforces standard thresholds", () => {
-    const r = evaluateBurden("beyond_reasonable_doubt", [
+    const r = evaluateBurden("mas_alla_duda_razonable", [
       { element: "mens rea", evidence_score: 95 },
       { element: "actus reus", evidence_score: 60 },
     ]);
@@ -73,13 +73,13 @@ describe("Layer 2 — deterministic legal algorithms", () => {
     expect(["high", "critical"]).toContain(hi.band);
   });
 
-  it("detectMotions fires Brady → dismiss when signals exist", () => {
-    const r = detectMotions([{ tag: "brady_violation", severity: "high" }]);
-    expect(r.find((m) => m.basis.includes("Brady"))).toBeTruthy();
+  it("detectMotions fires exclusión de prueba ilícita when signals exist", () => {
+    const r = detectMotions([{ tag: "prueba_ilicita", severity: "high" }]);
+    expect(r.find((m) => m.motion.includes("exclusión de prueba"))).toBeTruthy();
   });
 
   it("detectAppealIssues preserves the preservation flag", () => {
-    const r = detectAppealIssues([{ kind: "jury_instruction_error", preserved: true, severity: "high" }]);
+    const r = detectAppealIssues([{ kind: "motivacion_insuficiente_sentencia", preserved: true, severity: "high" }]);
     expect(r[0].preserved).toBe(true);
   });
 
