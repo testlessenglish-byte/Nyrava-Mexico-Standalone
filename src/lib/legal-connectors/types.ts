@@ -141,7 +141,8 @@ export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [
   dofConnector,
   scjnConnector,
   congresoConnector,
-  // The following 5 are STUBS — every data method throws until someone
+  tfjaConnector,
+  // The following 4 are STUBS — every data method throws until someone
   // with real network access inspects the actual source and implements
   // discover/sync/fetchUpdates/fetchDocument against a confirmed shape
   // (see each file's header). Registering them here is safe even as
@@ -149,7 +150,6 @@ export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [
   // before that work is done, runConnectorIngest's error handling records
   // a 'failed' run rather than silently pretending to succeed.
   cjfConnector,
-  tfjaConnector,
   tepjfConnector,
   stateGazettesConnector,
   stateScjConnector,
