@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getCurrentOrgId } from "@/lib/workspace";
@@ -36,7 +36,6 @@ const STATES = [
 ] as const;
 
 function TestCasesAdmin() {
-  const navigate = useNavigate();
   const orgId = getCurrentOrgId();
   const generate = useServerFn(generateMexicoTestCase);
   const [area, setArea] = useState<typeof AREAS[number]["code"]>("penal");
