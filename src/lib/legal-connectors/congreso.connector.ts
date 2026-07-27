@@ -140,42 +140,109 @@ function parseDofDate(s: string | undefined): string | undefined {
  * that previously mislabelled laws as "Años anteriores".
  */
 export function parseIndex(html: string): LawRef[] {
+  const rows = parseIndexRows(html);
+  if (rows.length) return rows;
+  return parseIndexLoose(html);
+}
+
+/** Strategy 1 — strict table rows (historical layout). */
+function parseIndexRows(html: string): LawRef[] {
   const out: LawRef[] = [];
   const rowRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   let row: RegExpExecArray | null;
 
   while ((row = rowRe.exec(html)) !== null) {
-    const cellsHtml = [...row[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((c) => c[1]);
-    if (cellsHtml.length < 3) continue;
+    const cellsHtml = [...row[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((c) => c[1]);
+    if (cellsHtml.length < 2) continue;
 
     const numberText = htmlToText(cellsHtml[0]).trim();
     const number = /^\d{1,4}$/.test(numberText) ? numberText : "";
-    if (!number) continue;
 
-    const titleCell = cellsHtml[1] ?? "";
-    const refMatch = /href=["']([^"']*\/ref\/([a-z0-9_]+)\.html?)["'][^>]*>([\s\S]*?)<\/a>/i.exec(titleCell);
-    if (!refMatch) continue;
-    const title = htmlToText(refMatch[3]).replace(/\s+/g, " ").trim();
+    const rowHtml = row[1];
+    const pdf = /href=["']([^"']*pdf[^"']*\.pdf)["']/i.exec(rowHtml);
+    if (!pdf) continue;
+    const doc = /href=["']([^"']*\.docx?)["']/i.exec(rowHtml);
+    const ref = /href=["']([^"']*ref\/([A-Za-z0-9_-]+)\.html?)["']/i.exec(rowHtml);
+
+    const title = pickTitle(cellsHtml, rowHtml, pdf[1]);
     if (!title) continue;
 
-    const rest = cellsHtml.slice(2).join(" ");
-    const pdf = /href=["']([^"']*\/pdf\/[^"']+\.pdf)["']/i.exec(rest);
-    const doc = /href=["']([^"']*\/doc\/[^"']+\.docx?)["']/i.exec(rest);
+    const dates = [...htmlToText(rowHtml).matchAll(/(\d{2}\/\d{2}\/\d{4})/g)].map((d) => d[1]);
 
     out.push({
-      number,
-      abbr: refMatch[2].toLowerCase(),
+      number: number || String(out.length + 1),
+      abbr: (ref?.[2] ?? stemOf(pdf[1])).toLowerCase(),
       title,
-      refUrl: absolute(refMatch[1]),
-      pdfUrl: pdf ? absolute(pdf[1]) : undefined,
+      refUrl: ref ? absolute(ref[1]) : undefined,
+      pdfUrl: absolute(pdf[1]),
       docUrl: doc ? absolute(doc[1]) : undefined,
-      publishedAt: parseDofDate(htmlToText(titleCell)),
-      lastReform: parseDofDate(htmlToText(cellsHtml[2] ?? "")),
+      publishedAt: parseDofDate(dates[0]),
+      lastReform: parseDofDate(dates[dates.length - 1]),
     });
   }
 
   return out.filter((l) => l.pdfUrl);
 }
+
+/**
+ * Strategy 2 — layout-agnostic fallback: scan every PDF link on the page and
+ * take the nearest preceding anchor/plain text as the title. Survives the
+ * table→div/list rewrites the Cámara periodically ships.
+ */
+function parseIndexLoose(html: string): LawRef[] {
+  const out: LawRef[] = [];
+  const seen = new Set<string>();
+  const linkRe = /href=["']([^"']*\.pdf)["']/gi;
+  let m: RegExpExecArray | null;
+
+  while ((m = linkRe.exec(html)) !== null) {
+    const href = m[1];
+    if (/pdf_mov/i.test(href)) continue;
+    const url = absolute(href);
+    const stem = stemOf(href);
+    if (!stem || seen.has(stem)) continue;
+
+    // Look backwards for a human title: anchor text or table/list cell text.
+    const before = html.slice(Math.max(0, m.index - 1500), m.index);
+    const anchors = [...before.matchAll(/>([^<>]{12,220})</g)]
+      .map((a) => htmlToText(a[1]).replace(/\s+/g, " ").trim())
+      .filter((t) => /^(Ley|C[óo]digo|Constituci[óo]n|Estatuto|Reglamento|Decreto)\b/i.test(t));
+    const title = anchors[anchors.length - 1];
+    if (!title) continue;
+
+    seen.add(stem);
+    const dates = [...htmlToText(before.slice(-400)).matchAll(/(\d{2}\/\d{2}\/\d{4})/g)].map((d) => d[1]);
+    out.push({
+      number: String(out.length + 1),
+      abbr: stem.toLowerCase(),
+      title,
+      pdfUrl: url,
+      publishedAt: parseDofDate(dates[0]),
+      lastReform: parseDofDate(dates[dates.length - 1]),
+    });
+  }
+
+  return out;
+}
+
+function stemOf(href: string): string {
+  const base = href.split("/").pop() ?? "";
+  return base.replace(/\.pdf$/i, "").replace(/[^A-Za-z0-9_-]/g, "");
+}
+
+function pickTitle(cellsHtml: string[], rowHtml: string, pdfHref: string): string | undefined {
+  const anchorTitles = [...rowHtml.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)]
+    .map((a) => htmlToText(a[1]).replace(/\s+/g, " ").trim())
+    .filter((t) => t.length > 8 && !/^\.?(pdf|doc|docx|word)$/i.test(t));
+  if (anchorTitles.length) return anchorTitles[0];
+
+  for (const cell of cellsHtml) {
+    const t = htmlToText(cell).replace(/\s+/g, " ").trim();
+    if (t.length > 12 && /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(t) && !/^\d/.test(t)) return t;
+  }
+  return stemOf(pdfHref) || undefined;
+}
+
 
 /** Every PDF page repeats the Cámara de Diputados banner — strip it. */
 function cleanPdfText(text: string): string {
