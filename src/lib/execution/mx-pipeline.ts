@@ -134,7 +134,7 @@ export const SKIP_REASON_NOT_RELEVANT_MX = "not_relevant_to_mx_case_type";
  *  quota-heavy optional stages are off, nothing materia-specific is assumed. */
 function exclusionsFor(caseType: unknown): readonly string[] {
   const profile = mxProfileOrNull(caseType);
-  return profile ? EXCLUDED_STAGES[profile] : QUOTA_HEAVY_OPTIONAL_STAGES;
+  return profile ? EXCLUDED_STAGES[profile] : [];
 }
 
 export function isStageRelevantForCaseType(caseType: string | null | undefined, stageKey: string): boolean {
