@@ -43,8 +43,9 @@ type ChatMsg = {
   role: string;
   content: string;
   created_at: string;
-  metadata?: { suggests_rerun?: boolean; rerun_reason?: string } | null;
+  metadata?: { suggests_rerun?: boolean; rerun_reason?: string; error?: boolean } | null;
 };
+
 type Doc = {
   id: string;
   filename: string;
