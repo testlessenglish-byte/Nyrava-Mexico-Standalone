@@ -46,8 +46,8 @@ const BROWSER_UA =
 // Federal statutes are large PDFs (CPEUM is ~1.5 MB / ~400 KB of text), so a
 // run stays deliberately small and bounded — the corpus is ~320 laws and is
 // meant to be backfilled across many runs, not in one request.
-const MAX_LAWS_PER_RUN = 4;
-const RUN_BUDGET_MS = 45_000;
+const MAX_LAWS_PER_RUN = 6;
+const RUN_BUDGET_MS = 60_000;
 const THROTTLE_MS = 300;
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_TEXT_CHARS = 400_000;
@@ -373,14 +373,24 @@ async function loadIndex(): Promise<LawRef[]> {
 }
 
 
-/** Newest reforms first so incremental runs surface what actually changed. */
-function orderForRun(laws: LawRef[], since: Date | null): LawRef[] {
+/**
+ * Backfill order: laws not yet ingested come first (newest reform first), so
+ * repeated runs walk the whole ~320-law corpus instead of re-fetching the same
+ * few. Once everything is stored, runs fall back to refresh mode (newest
+ * reforms first) to pick up amendments.
+ */
+function orderForRun(laws: LawRef[], since: Date | null, known?: Set<string>): LawRef[] {
+  const byReform = (a: LawRef, b: LawRef) => (b.lastReform ?? "").localeCompare(a.lastReform ?? "");
+
+  const pending = known ? laws.filter((l) => !known.has(`congreso:${lawKey(l)}`)) : laws;
+  if (pending.length) return [...pending].sort(byReform);
+
   const filtered = since
     ? laws.filter((l) => !l.lastReform || new Date(l.lastReform) >= since)
     : laws;
-  const pool = filtered.length ? filtered : laws;
-  return [...pool].sort((a, b) => (b.lastReform ?? "").localeCompare(a.lastReform ?? ""));
+  return [...(filtered.length ? filtered : laws)].sort(byReform);
 }
+
 
 async function collect(laws: LawRef[]): Promise<IngestedDocument[]> {
   const deadline = newDeadline();
@@ -423,7 +433,7 @@ export const congresoConnector: LegalSourceConnector = {
 
   async fetchUpdates(since) {
     const laws = await loadIndex();
-    return collect(orderForRun(laws, since));
+    return collect(orderForRun(laws, since, this.alreadyIngested));
   },
 
   async fetchDocument(externalId) {

@@ -93,6 +93,14 @@ export interface LegalSourceConnector {
   /** Full sync — used for first run / backfill. */
   sync(): Promise<IngestedDocument[]>;
 
+  /**
+   * External ids already stored for this connector. The orchestrator fills
+   * this in before each run so corpus-style connectors (e.g. Congreso, whose
+   * ~320-law corpus is backfilled a few laws per run) can skip what they
+   * already have instead of re-fetching the same documents forever.
+   */
+  alreadyIngested?: Set<string>;
+
   /** Incremental sync since the last successful run. */
   fetchUpdates(since: Date | null): Promise<IngestedDocument[]>;
 
