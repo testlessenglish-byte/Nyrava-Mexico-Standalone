@@ -433,7 +433,7 @@ export const congresoConnector: LegalSourceConnector = {
 
   async fetchUpdates(since) {
     const laws = await loadIndex();
-    return collect(orderForRun(laws, since));
+    return collect(orderForRun(laws, since, this.alreadyIngested));
   },
 
   async fetchDocument(externalId) {
