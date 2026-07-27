@@ -126,25 +126,31 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
   },
 
   familiar: {
-    label: "Family Law",
+    label: "Derecho Familiar",
     controlling_standards:
-      "Custody governed by best-interests-of-the-child standard with state-specific factor lists (e.g., Cal. Fam. Code § 3011; UMDA § 402). Child support calculated by state guideline (income shares or percentage). Property division: community property or equitable distribution depending on jurisdiction. Domestic violence findings alter presumptions.",
-    key_cases: ["Troxel v. Granville, 530 U.S. 57 (2000) — parental rights in custody disputes"],
+      "El interés superior de la niñez es el principio rector de toda decisión que afecte a menores (Art. 4° CPEUM; Art. 2 LGDNNA) y prevalece sobre cualquier interés de los progenitores. La guarda y custodia se determina conforme a la idoneidad parental real (no presunciones automáticas a favor de la madre), valorando estudios de trabajo social y dictámenes periciales en psicología cuando obren en el expediente. La pensión alimenticia se calcula conforme a la necesidad del acreedor alimentario y la capacidad económica real del deudor (incluyendo ingresos variables/por comisión cuando aplique), conforme al Código Civil o Código Familiar de la entidad federativa correspondiente (p. ej. Arts. 301–309 CCF; Art. 4.1 y ss. Código Familiar del Estado de México — el código local exacto depende de la jurisdicción del caso). El divorcio incausado (sin necesidad de acreditar causal) procede en la mayoría de las entidades tras reforma, sujeto al régimen del código local. El régimen patrimonial del matrimonio (sociedad conyugal o separación de bienes) determina la liquidación de bienes al disolverse el vínculo.",
+    key_cases: [
+      "No invente un número de tesis o registro de jurisprudencia de la SCJN. Existe jurisprudencia real y consolidada sobre interés superior de la niñez y sobre criterios de guarda y custodia — cítela solo si el corpus del expediente la aporta con registro verificable; de lo contrario, márquela como no verificada en lugar de fabricar una cita.",
+    ],
     canonical_motions: [
-      "Motion for Temporary Custody / Support Orders",
-      "Motion to Modify Custody (substantial change in circumstances)",
-      "Motion for Contempt (support arrears, visitation interference)",
-      "Motion for Protective Order (DV)",
+      "Demanda de divorcio incausado",
+      "Convenio regulador (guarda y custodia, régimen de convivencias, pensión alimenticia, liquidación de sociedad conyugal)",
+      "Solicitud de medidas provisionales (guarda y custodia provisional, pensión alimenticia provisional, régimen de convivencias provisional)",
+      "Incidente de incumplimiento de pensión alimenticia",
+      "Solicitud de modificación de convenio por cambio sustancial de circunstancias",
+      "Solicitud de restricción o suspensión de convivencias (violencia familiar o riesgo acreditado)",
     ],
     evidentiary_rules: [
-      "Financial affidavits and income statements are core discovery",
-      "Custody evaluations by neutral evaluators admissible under state rules",
-      "Communications between parents (text, email) frequently central impeachment",
+      "Estudio de trabajo social e informe de convivencias, elaborados por perito adscrito al juzgado, son prueba central para determinar idoneidad parental y entorno del menor",
+      "Dictamen pericial en psicología (vínculo afectivo, indicadores de alienación parental, estado emocional del menor)",
+      "Comprobantes de ingresos del deudor alimentario (recibos de nómina, estados de cuenta, informe de trabajo ante el empleador) — distinguir ingreso fijo de comisiones variables",
+      "Comunicaciones entre las partes (mensajes de texto, WhatsApp) frecuentemente centrales para acreditar o contradecir incumplimientos de convivencia o de pago",
+      "Actas de nacimiento y matrimonio como documentales públicas base del expediente",
     ],
     damages_or_remedies:
-      "Custody / visitation orders, child support, spousal support (rehabilitative or long-term), equitable division of assets and debts, attorney's fees where statute provides.",
+      "Guarda y custodia (exclusiva o compartida), régimen de convivencias con horarios y puntos de entrega definidos, pensión alimenticia definitiva (con posible aseguramiento vía retención en fuente de trabajo), compensación económica por dedicación al hogar cuando el código local la contemple (p. ej. Art. 267 fracc. VI CCDF), liquidación de la sociedad conyugal, y medidas de protección en casos de violencia familiar acreditada.",
     drafting_notes:
-      "Frame every custody argument through best-interests factors with citations to specific evidence (evaluations, incident reports, communications). Support calculations must show guideline math. Do NOT invoke criminal, employment, or medical-malpractice frameworks.",
+      "Fundamentar SIEMPRE cada pretensión en el artículo específico del Código Civil/Familiar de la entidad correspondiente — no basta invocar 'pensión alimenticia' sin citar el artículo que la regula en esa jurisdicción. Encuadrar todo argumento de guarda y custodia a través del interés superior de la niñez, con citas a evidencia concreta (estudios, dictámenes, comunicaciones), no como fórmula genérica. Los cálculos de pensión deben mostrar la operación aritmética sobre ingresos acreditados, distinguiendo fijo de variable. NUNCA uses terminología o marcos estadounidenses (best-interests factors enumerados por state code, community property/equitable distribution, custody/visitation en el sentido de derecho estadounidense, child support guidelines por income shares) — usa siempre guarda y custodia, régimen de convivencias, sociedad conyugal/separación de bienes y pensión alimenticia conforme al código civil o familiar local aplicable. Si citas jurisprudencia de la SCJN, incluye rubro, número de registro y tesis; si el corpus no los aporta, márcala como no verificada en lugar de presentarla como cita firme.",
   },
 
   laboral: {
