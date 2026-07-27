@@ -1,8 +1,8 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getAiHealth, runFailoverTest, listAiCooldowns, clearAiCooldowns } from "@/lib/cases.functions";
-import { CheckCircle2, XCircle, RefreshCw, Activity, Database, Cpu, PlayCircle, AlertTriangle } from "lucide-react";
+import { getAiHealth, runFailoverTest, listAiCooldowns, clearAiCooldowns, getAiErrorLog } from "@/lib/cases.functions";
+import { CheckCircle2, XCircle, RefreshCw, Activity, Database, Cpu, PlayCircle, AlertTriangle, Download } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/health")({
   component: HealthPage,
@@ -20,6 +20,24 @@ function fmtTs(ts?: number | null) {
   return new Date(ts).toLocaleString();
 }
 
+/** RFC4180-safe CSV cell. */
+function csvCell(v: unknown): string {
+  const s = v === null || v === undefined ? "" : String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(filename: string, rows: Array<Record<string, unknown>>, headers?: string[]) {
+  const cols = headers ?? (rows.length ? Object.keys(rows[0]) : []);
+  const body = [cols.join(","), ...rows.map((r) => cols.map((c) => csvCell(r[c])).join(","))].join("\r\n");
+  const blob = new Blob(["\uFEFF" + body], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function HealthPage() {
   const router = useRouter();
   const fetchHealth = useServerFn(getAiHealth);
@@ -30,7 +48,23 @@ function HealthPage() {
     refetchInterval: 30_000,
     retry: false,
   });
-  const probe = useMutation({ mutationFn: () => runTest() });
+  const probe = useMutation({
+    mutationFn: (provider?: string) => runTest({ data: { provider: provider ?? null } }),
+  });
+
+  const fetchErrorLog = useServerFn(getAiErrorLog);
+  const errorLog = useMutation({
+    mutationFn: (opts: { days: number; onlyFailures: boolean }) =>
+      fetchErrorLog({ data: { days: opts.days, onlyFailures: opts.onlyFailures, limit: 5000 } }),
+    onSuccess: (res) => {
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      downloadCsv(
+        `nyrava-ai-${res.onlyFailures ? "failures" : "activity"}-${res.days}d-${stamp}.csv`,
+        res.rows,
+        ["created_at", "provider", "model", "operation", "success", "reason", "error", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "case_id"],
+      );
+    },
+  });
 
   const fetchCooldowns = useServerFn(listAiCooldowns);
   const clearCooldownsFn = useServerFn(clearAiCooldowns);
@@ -44,6 +78,7 @@ function HealthPage() {
     mutationFn: (model?: string) => clearCooldownsFn({ data: { model: model ?? null } }),
     onSuccess: () => cooldowns.refetch(),
   });
+
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
