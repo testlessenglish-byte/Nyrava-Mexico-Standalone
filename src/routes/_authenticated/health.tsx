@@ -262,17 +262,18 @@ function HealthPage() {
                   Live provider probe
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Sends a real prompt through Groq and records latency, tokens, model, and output.
+                  Sends a real prompt through every configured provider and records latency, tokens, model, and output. Use the Test button on a card to probe just that provider.
                 </p>
               </div>
               <button
-                onClick={() => probe.mutate()}
+                onClick={() => probe.mutate(undefined)}
                 disabled={probe.isPending}
                 className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
               >
                 <PlayCircle className={`h-4 w-4 ${probe.isPending ? "animate-pulse" : ""}`} />
-                {probe.isPending ? "Running…" : "Run probe"}
+                {probe.isPending ? "Running…" : "Test all providers"}
               </button>
+
             </div>
             {probe.data && (
               <div className="mt-4 overflow-x-auto">
