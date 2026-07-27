@@ -33,12 +33,12 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           <LanguageSwitcher />
           {user ? (
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary transition hover:bg-primary/20"
+              className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary transition hover:bg-primary/20 sm:px-4"
             >
               {t("nav.openWorkspace")}
             </Link>
@@ -52,13 +52,14 @@ export function SiteHeader() {
               </Link>
               <Link
                 to="/auth"
-                className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary transition hover:bg-primary/20"
+                className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary transition hover:bg-primary/20 sm:px-4"
               >
                 {t("nav.requestAccess")}
               </Link>
             </>
           )}
         </div>
+
       </div>
     </header>
   );
