@@ -131,12 +131,15 @@ function TestCasesAdmin() {
               </div>
             </div>
 
-            <button
-              onClick={() => navigate({ to: "/cases/$caseId", params: { caseId: result.caseId } })}
-              className="mt-6 inline-flex items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary"
-            >
-              Abrir asunto →
-            </button>
+            {/* The benchmark generator writes a row into `matters`, and the
+                matter workspace has no page route in this build, so the old
+                "Abrir asunto" button pointed at a URL that does not exist.
+                The matter is queryable from the matters registry; the button
+                is removed rather than left broken. */}
+            <div className="mt-6 rounded border border-border/60 bg-background/40 px-4 py-2 font-mono text-[11px] text-muted-foreground">
+              Asunto registrado · ID {result.matterId}
+            </div>
+
           </div>
         )}
       </div>
