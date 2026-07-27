@@ -6,15 +6,16 @@ import { Clock, Download } from "lucide-react";
 import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/timeline")({
-  head: () => ({ meta: [{ title: "Timeline Builder — Nyrava" }] }),
+  head: () => ({ meta: [{ title: "Constructor de Línea de Tiempo — Nyrava" }] }),
   component: TimelinePage,
 });
 
 type Event = { date: string | null; title: string; description?: string; source?: string };
 
-function extractEvents(data: any): Event[] {
+function extractEvents(data: any, fallbackTitle: string): Event[] {
   const out: Event[] = [];
   const fr = (data?.report?.full_report ?? {}) as any;
   const sources = [fr.timeline, fr.events, fr.case_timeline].filter(Array.isArray);
@@ -23,7 +24,7 @@ function extractEvents(data: any): Event[] {
       if (!ev) continue;
       out.push({
         date: ev.date ?? ev.when ?? ev.event_date ?? null,
-        title: ev.title ?? ev.event ?? ev.name ?? "Event",
+        title: ev.title ?? ev.event ?? ev.name ?? fallbackTitle,
         description: ev.description ?? ev.detail ?? ev.summary,
         source: ev.source ?? ev.citation,
       });
@@ -40,6 +41,7 @@ function extractEvents(data: any): Event[] {
 }
 
 function TimelinePage() {
+  const { t } = useI18n();
   const { cases, activeId, isLoading } = useActiveCase();
   const [selected, setSelected] = useState<string | null>(null);
   const caseId = selected ?? activeId;
@@ -50,7 +52,7 @@ function TimelinePage() {
     enabled: !!caseId,
   });
 
-  const events = useMemo(() => (data ? extractEvents(data) : []), [data]);
+  const events = useMemo(() => (data ? extractEvents(data, t("mod.timeline.event")) : []), [data, t]);
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(events, null, 2)], { type: "application/json" });
@@ -64,24 +66,24 @@ function TimelinePage() {
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
         icon={<Clock className="h-5 w-5" />}
-        title="Timeline Builder"
-        subtitle="Chronological event reconstruction from extracted facts and evidence."
+        title={t("mod.timeline.title")}
+        subtitle={t("mod.timeline.subtitle")}
       />
       {isLoading ? (
-        <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">Loading cases…</div>
+        <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.loadingCases")}</div>
       ) : (
         <div className="space-y-5">
           <CasePicker cases={cases} activeId={caseId} onChange={setSelected} />
           {caseId ? (
             caseLoading ? (
-              <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">Loading timeline…</div>
+              <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.timeline.loading")}</div>
             ) : events.length === 0 ? (
-              <ModuleEmpty title="No timeline events yet" hint="Run the pipeline on this case to populate the timeline." />
+              <ModuleEmpty title={t("mod.timeline.empty.title")} hint={t("mod.timeline.empty.hint")} />
             ) : (
               <>
                 <div className="flex justify-end">
                   <button onClick={exportJson} className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs hover:bg-card/80">
-                    <Download className="h-3.5 w-3.5" /> Export JSON
+                    <Download className="h-3.5 w-3.5" /> {t("mod.timeline.export")}
                   </button>
                 </div>
                 <ol className="relative space-y-3 border-l border-border pl-5">
@@ -91,10 +93,10 @@ function TimelinePage() {
                       <div className="rounded-xl border border-border bg-card/60 p-4">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                           <h3 className="font-semibold leading-tight">{e.title}</h3>
-                          <span className="text-xs text-muted-foreground">{e.date ?? "Date unknown"}</span>
+                          <span className="text-xs text-muted-foreground">{e.date ?? t("mod.timeline.dateUnknown")}</span>
                         </div>
                         {e.description ? <p className="mt-1.5 text-sm text-foreground/90">{e.description}</p> : null}
-                        {e.source ? <p className="mt-2 text-xs italic text-muted-foreground">Source: {e.source}</p> : null}
+                        {e.source ? <p className="mt-2 text-xs italic text-muted-foreground">{t("mod.timeline.source")}: {e.source}</p> : null}
                       </div>
                     </li>
                   ))}
