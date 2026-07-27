@@ -4560,12 +4560,12 @@ ${corpus.slice(0, 22000)}`;
         apiKey,
         apiKeys,
         signal: ac.signal,
-        // Pin every report chunk to whatever provider `ai_task_routing.report`
-        // names (Gemini). The report prompt is ~17k input + up to 10k output
-        // tokens — physically impossible on Groq free tier's ~8k TPM org
-        // ceiling — so consulting the default chain first only burns time on
-        // a guaranteed skip/429 before failing over.
-        task: "report",
+        // No task pin any more. The report prompt now fits inside Groq's
+        // request budget (~9-10k input tokens), and Groq generates several
+        // times faster than Gemini — which matters because a call has only
+        // 26s before the provider timeout. Pinning to Gemini guaranteed the
+        // slowest provider took every report chunk and timed out on all of
+        // them. Gemini stays in the chain as fallback.
         systemInstruction: systemInstruction + "\n" + sysSuffix,
         userContent: extraContext
           ? `${shape}\n\n${extraContext}\n\n${sharedContext}`
@@ -4678,7 +4678,7 @@ ${corpus.slice(0, 22000)}`;
     console.warn(
       "[report:chunk] memo chunk failed but narrative ok — attempting isolated memo salvage",
     );
-    await runChunk("memo", memoSysSuffix, memoShape, 8000);
+    await runChunk("memo", memoSysSuffix, memoShape, 3000);
     if (chunkStatus.memo.ok) pipelineWarnings.push("legal_memorandum_recovered_by_salvage");
   }
 
@@ -4691,7 +4691,7 @@ ${corpus.slice(0, 22000)}`;
       "intelligence",
       "You generate ONLY structured intelligence outputs. Return the shape below and nothing else.",
       intelShape,
-      5000,
+      2500,
     );
     if (chunkStatus.intelligence.ok) pipelineWarnings.push("intelligence_recovered_by_salvage");
   }
