@@ -36,6 +36,8 @@ export interface RouteOpts extends ChatOpts {
   runtimeProvider?: ProviderType;
   /** When set, loads the user's active provider keys from user_ai_keys and prepends them to the chain. */
   userId?: string;
+  /** Internal: how many times this call already waited out a provider cooldown. */
+  _cooldownWaits?: number;
 }
 
 export interface RouteResult extends ChatResult {
