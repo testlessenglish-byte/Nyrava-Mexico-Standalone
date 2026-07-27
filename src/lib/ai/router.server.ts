@@ -805,7 +805,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       // cannot hammer a fresh Gemini/Groq key repeatedly.
       let r: ChatResult | undefined;
       let lastErr: unknown;
-      const RETRY_DELAYS_MS = [400].slice(0, MAX_PROVIDER_RETRIES_PER_CALL);
+      const RETRY_DELAYS_MS = [400, 1_200].slice(0, MAX_PROVIDER_RETRIES_PER_CALL);
       let retryCount = 0;
       const retryReasons: string[] = [];
       for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {

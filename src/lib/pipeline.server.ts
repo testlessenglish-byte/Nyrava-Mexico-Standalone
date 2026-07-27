@@ -4556,6 +4556,12 @@ ${corpus.slice(0, 55000)}`;
         apiKey,
         apiKeys,
         signal: ac.signal,
+        // Pin every report chunk to whatever provider `ai_task_routing.report`
+        // names (Gemini). The report prompt is ~17k input + up to 10k output
+        // tokens — physically impossible on Groq free tier's ~8k TPM org
+        // ceiling — so consulting the default chain first only burns time on
+        // a guaranteed skip/429 before failing over.
+        task: "report",
         systemInstruction: systemInstruction + "\n" + sysSuffix,
         userContent: extraContext
           ? `${shape}\n\n${extraContext}\n\n${sharedContext}`
