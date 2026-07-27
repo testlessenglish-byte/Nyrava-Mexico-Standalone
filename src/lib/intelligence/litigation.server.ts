@@ -244,7 +244,11 @@ ${briefText}`,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const p = parseJsonLoose<any>(r.text) ?? {};
-      await db.from("case_perspectives").insert({
+      // supabase-js does NOT throw on a rejected insert — it returns { error }.
+      // Swallowing it made a constraint/RLS rejection look like a successful
+      // model call, so the stage reported "4/4 calls ok" and then died on
+      // persistence verification with zero rows and no cause.
+      const { error: insertError } = await db.from("case_perspectives").insert({
         case_id: caseId,
         user_id: userId,
         perspective,
@@ -260,6 +264,11 @@ ${briefText}`,
         key_evidence: (p.key_evidence ?? []) as J,
         recommended_actions: (p.recommended_actions ?? []) as J,
       });
+      if (insertError) {
+        throw new Error(
+          `case_perspectives insert failed for "${perspective}": ${insertError.message}`,
+        );
+      }
       return { perspective, ok: true as const };
     } catch (e) {
       const { rethrowIfCheckpoint } = await import("../pipeline-checkpoint.server");
