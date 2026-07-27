@@ -477,6 +477,33 @@ export async function listProviderRows() {
   return loadProviderRows();
 }
 
+/**
+ * Largest per-request payload (in CHARS) that EVERY configured provider can
+ * accept, capped at `ceilingChars`.
+ *
+ * Why this exists: the pre-flight size gate in `routeAI` skips any provider
+ * whose input budget is smaller than the prompt. With a 60k-char batch, Groq
+ * (6k-token budget) is skipped on every single call — so all load lands on the
+ * wide-context providers, and when those are rate-limited or out of credits the
+ * whole run dies even though a perfectly healthy Groq key is sitting idle.
+ * Packing to the narrowest configured provider keeps every provider in the
+ * fallback chain eligible. The corpus size is unchanged; it is simply split
+ * into more, smaller requests.
+ */
+export async function packingCharBudget(ceilingChars: number): Promise<number> {
+  const rows = await loadProviderRows();
+  let narrowest = Infinity;
+  for (const r of rows) {
+    narrowest = Math.min(narrowest, providerInputBudget(r.provider_type) * 3.5);
+  }
+  if (!Number.isFinite(narrowest)) return ceilingChars;
+  return Math.max(MIN_PACKING_CHARS, Math.min(ceilingChars, Math.floor(narrowest)));
+}
+
+/** Never pack below this — tiny batches multiply request count for no gain. */
+const MIN_PACKING_CHARS = 8_000;
+
+
 export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   _state.totalCalls++;
   const skippedProviders = new Set(opts.skipProviders ?? []);
