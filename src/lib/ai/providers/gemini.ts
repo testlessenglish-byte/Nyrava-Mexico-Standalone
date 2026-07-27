@@ -10,15 +10,17 @@ import { currentTelemetryScope } from "../telemetry.server";
 import { traceAsync } from "../../pipeline-trace.server";
 
 /**
- * Single live Flash-class fallback tried when the configured id answers 404
- * NOT_FOUND. We deliberately cap this to one fallback so a retired model slug
- * cannot multiply one logical engine call into several real Gemini requests.
+ * Live Flash-class ids tried when the configured id is unusable on this key —
+ * either retired (HTTP 404 NOT_FOUND) or carrying a hard-zero free-tier quota
+ * (HTTP 429 with `limit: 0`, which Google returns for models whose free tier
+ * has been withdrawn, e.g. gemini-2.0-flash). A zero-quota model 429s
+ * instantly on a brand-new key, so it must switch models, not cool down the key.
  */
 const GEMINI_MODEL_FALLBACKS = [
-  "gemini-2.0-flash",
+  "gemini-2.5-flash",
   "gemini-flash-latest",
-  "gemini-2.0-flash-lite",
   "gemini-2.5-flash-lite",
+  "gemini-2.0-flash-lite",
 ] as const;
 
 function isModelNotFound(message: string): boolean {
@@ -27,6 +29,16 @@ function isModelNotFound(message: string): boolean {
     /(NOT_FOUND|not found|no longer available|is not supported)/i.test(message)
   );
 }
+
+/**
+ * True when a 429 says this *model* has no free-tier allowance at all
+ * (`limit: 0`). This is not rate limiting — retrying or waiting never helps;
+ * only a different model id does.
+ */
+function isZeroQuotaModel(message: string): boolean {
+  return /HTTP 429/.test(message) && /limit:\s*0\b/.test(message);
+}
+
 
 function retryAfterHeaderMs(value: string | null): number | undefined {
   if (!value) return undefined;
