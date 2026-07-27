@@ -411,8 +411,9 @@ function AppLayout() {
             <div className="grid h-9 w-9 place-items-center rounded-full bg-warning/15 text-warning">☀</div>
             <div>
               <div className="text-base font-semibold text-foreground">
-                {greeting}, {firstName}.
+                {greeting ? `${greeting}, ${firstName}.` : `${firstName}.`}
               </div>
+
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3">
