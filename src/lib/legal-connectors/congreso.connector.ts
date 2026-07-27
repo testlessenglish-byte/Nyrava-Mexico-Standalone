@@ -373,14 +373,24 @@ async function loadIndex(): Promise<LawRef[]> {
 }
 
 
-/** Newest reforms first so incremental runs surface what actually changed. */
-function orderForRun(laws: LawRef[], since: Date | null): LawRef[] {
+/**
+ * Backfill order: laws not yet ingested come first (newest reform first), so
+ * repeated runs walk the whole ~320-law corpus instead of re-fetching the same
+ * few. Once everything is stored, runs fall back to refresh mode (newest
+ * reforms first) to pick up amendments.
+ */
+function orderForRun(laws: LawRef[], since: Date | null, known?: Set<string>): LawRef[] {
+  const byReform = (a: LawRef, b: LawRef) => (b.lastReform ?? "").localeCompare(a.lastReform ?? "");
+
+  const pending = known ? laws.filter((l) => !known.has(`congreso:${lawKey(l)}`)) : laws;
+  if (pending.length) return [...pending].sort(byReform);
+
   const filtered = since
     ? laws.filter((l) => !l.lastReform || new Date(l.lastReform) >= since)
     : laws;
-  const pool = filtered.length ? filtered : laws;
-  return [...pool].sort((a, b) => (b.lastReform ?? "").localeCompare(a.lastReform ?? ""));
+  return [...(filtered.length ? filtered : laws)].sort(byReform);
 }
+
 
 async function collect(laws: LawRef[]): Promise<IngestedDocument[]> {
   const deadline = newDeadline();
