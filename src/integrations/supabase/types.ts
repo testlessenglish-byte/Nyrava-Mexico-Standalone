@@ -4919,6 +4919,7 @@ export type Database = {
     Functions: {
       admin_factory_reset_case_data: {
         Args: {
+          p_actor_id?: string
           p_include_ai_usage?: boolean
           p_include_audit?: boolean
           p_include_demo?: boolean
