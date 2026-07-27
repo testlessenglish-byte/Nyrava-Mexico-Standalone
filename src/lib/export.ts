@@ -4303,7 +4303,16 @@ function renderSuppressedSection(b: PdfBuilder, title: string) {
 // Contents, do not number it, do not print 'Suppressed...'".
 function computeRenderQueue(plan: SectionPlan[], data: CaseExportData, mode: ReportMode) {
   const full = asObj(asObj(data.report).full_report);
-  const area = normalizePracticeArea(asStr(full.case_type) || asStr(asObj(data.report).case_type));
+  // The materia can live on the report payload, the report row, or (most
+  // often for older cases) only on the case row itself. Export must read all
+  // three before deciding the case is unclassified — a missing materia here
+  // used to throw and silently kill the whole PDF download.
+  const area = normalizePracticeArea(
+    asStr(full.case_type) ||
+      asStr(asObj(data.report).case_type) ||
+      asStr(asObj(data.case).case_type) ||
+      asStr(asObj(data.case).practice_area),
+  );
   const ad = full.active_domains;
   const activeDomains: string[] = Array.isArray(ad) ? (ad as unknown[]).map((x) => String(x)) : [];
   const applicable = getApplicableSections(area, activeDomains);
