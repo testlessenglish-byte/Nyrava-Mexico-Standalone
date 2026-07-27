@@ -1,24 +1,29 @@
-// DOF (Diario Oficial de la Federación) connector — Phase 20.
+// DOF (Diario Oficial de la Federación) connector — Phase 20, endpoint audit 2026-07.
 //
-// Real implementation against Segob's sidof open-data JSON service. The
-// canonical shape (documented at https://sidof.segob.gob.mx/datos_abiertos):
+// ── Endpoint investigation (2026-07-27) ──────────────────────────────────────
+// 1. datos.gob.mx (CKAN, https://www.datos.gob.mx/api/3/action/package_search)
+//    is live and returns JSON, but a search for "diario oficial" yields only 5
+//    unrelated CSV datasets (SENASICA's "Resumen del DOF", FIFONAFE decrees…).
+//    The DOF corpus itself is NOT catalogued there → not usable as a source.
+// 2. https://sidof.segob.gob.mx/notas/{yyyy}/{mm}/{dd} — the previously coded
+//    "JSON" endpoint — now returns a server-rendered HTML page (Google
+//    Analytics + jQuery/Bootstrap). There is no JSON service behind it.
+// 3. Date-browsing on the canonical site DOES work and is stable:
+//      GET https://www.dof.gob.mx/index.php?year=YYYY&month=MM&day=DD
+//        → HTML index of the edition; each note is
+//          <a href="/nota_detalle.php?codigo={codNota}&fecha=DD/MM/YYYY"
+//             class="enlaces">Título</a>, grouped under issuer headings
+//          (<td class="subtitle_azul">SECRETARIA DE …</td>).
+//      GET https://www.dof.gob.mx/nota_detalle.php?codigo={cod}&fecha=DD/MM/YYYY
+//        → HTML detail; the full official text lives inside
+//          <div id="DivDetalleNota"> … </div>.
+//    Pages are ISO-8859-1 with HTML entities, so we decode explicitly.
+// 4. PDF fallback is unnecessary: nota_detalle.php exposes the same text as
+//    the printed ejemplar, without OCR.
 //
-//   GET https://sidof.segob.gob.mx/notas/{yyyy}/{mm}/{dd}
-//     → JSON list of "notas" for that gazette edition; each note has
-//       { codNota, titulo, codDependencia, nombreDependencia, tipoNota, ... }
-//
-//   GET https://sidof.segob.gob.mx/notas/{codNota}
-//     → full detail incl. { titulo, dependencia, textoNota, fechaPublicacion }
-//
-// The service is public — no auth. Rate limiting is not documented; we
-// pace by iterating dates sequentially. Weekend/holiday editions may 404;
-// treat that as an empty-day, not an error.
-//
-// Sandbox note: outbound HTTP to *.segob.gob.mx and dof.gob.mx is blocked
-// from Lovable's build sandbox but works from the deployed Worker runtime.
-// That's why this connector is registered in IMPLEMENTED_CONNECTORS in code
-// but left status='planned' in public.legal_source_connectors until the
-// worker runs from Cloudflare and legal_ingest_runs shows real rows.
+// Access method is therefore html_scrape (last resort per the connector
+// priority rule) because no official machine-readable interface exists.
+// Verified reachable from the sandbox and from the Worker runtime.
 
 import type {
   LegalSourceConnector,
@@ -30,43 +35,75 @@ import type {
 } from "./types";
 import { extractCitationsFromText } from "./citation-extract";
 
-const BASE = "https://sidof.segob.gob.mx";
+const BASE = "https://www.dof.gob.mx";
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const DAY_LOOKBACK_ON_INITIAL = 3; // first-run backfill window when `since` is null
-const MAX_DAYS_PER_RUN = 14;        // cap incremental runs so a long outage doesn't blow up one invocation
+const MAX_DAYS_PER_RUN = 14;       // cap incremental runs so a long outage doesn't blow up one invocation
 
-type SidofNoteListItem = {
-  codNota?: string | number;
-  titulo?: string;
-  codDependencia?: string | number;
-  nombreDependencia?: string;
-  tipoNota?: string;
-  fechaPublicacion?: string;
+type NoteRef = {
+  codNota: string;
+  title: string;
+  issuer?: string;
+  fecha: string; // DD/MM/YYYY as the site expects it
+  date: Date;
 };
 
-type SidofNoteDetail = SidofNoteListItem & {
-  textoNota?: string;
-  contenido?: string;
-  urlPublicacion?: string;
-};
-
-async function fetchJson<T>(url: string): Promise<T | null> {
+/** DOF serves ISO-8859-1 while advertising UTF-8 in the header — decode by hand. */
+async function fetchHtml(url: string): Promise<string | null> {
   const res = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "NyravaMexico-LegalIngest/1.0" },
+    headers: {
+      Accept: "text/html,application/xhtml+xml",
+      "Accept-Language": "es-MX,es;q=0.9",
+      "User-Agent": BROWSER_UA,
+    },
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`DOF ${res.status} at ${url}`);
-  const text = await res.text();
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(`DOF non-JSON response at ${url}: ${text.slice(0, 200)}`);
-  }
+  const buf = await res.arrayBuffer();
+  return new TextDecoder("iso-8859-1").decode(buf);
+}
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú", uuml: "ü", ntilde: "ñ",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú", Uuml: "Ü", Ntilde: "Ñ",
+  iquest: "¿", iexcl: "¡", deg: "°", ordm: "º", ordf: "ª", laquo: "«", raquo: "»", middot: "·",
+};
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&([a-zA-Z]+);/g, (m, name: string) => NAMED_ENTITIES[name] ?? m);
+}
+
+function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function pad2(n: number) { return String(n).padStart(2, "0"); }
 function toDateOnly(d: Date) { return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; }
-function dayUrl(d: Date) { return `${BASE}/notas/${d.getUTCFullYear()}/${pad2(d.getUTCMonth() + 1)}/${pad2(d.getUTCDate())}`; }
-function noteUrl(codNota: string | number) { return `${BASE}/notas/${codNota}`; }
+function toDofFecha(d: Date) { return `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`; }
+function dayUrl(d: Date) {
+  return `${BASE}/index.php?year=${d.getUTCFullYear()}&month=${pad2(d.getUTCMonth() + 1)}&day=${pad2(d.getUTCDate())}`;
+}
+function noteUrl(codNota: string, fecha: string) {
+  return `${BASE}/nota_detalle.php?codigo=${codNota}&fecha=${encodeURIComponent(fecha)}`;
+}
 
 function enumerateDays(since: Date | null): Date[] {
   const today = new Date();
@@ -80,43 +117,94 @@ function enumerateDays(since: Date | null): Date[] {
   return days;
 }
 
-function toIngested(detail: SidofNoteDetail): IngestedDocument | null {
-  const codNota = detail.codNota != null ? String(detail.codNota) : "";
-  if (!codNota) return null;
-  const raw = detail.textoNota ?? detail.contenido ?? "";
+/** Parse an edition index page into note references, carrying the issuer heading down. */
+function parseDayIndex(html: string, d: Date): NoteRef[] {
+  const out: NoteRef[] = [];
+  // Interleave issuer headings and note links in document order.
+  const token = /class=["']subtitle_azul["'][^>]*>([\s\S]*?)<\/td>|href=["']\/?nota_detalle\.php\?codigo=(\d+)&(?:amp;)?fecha=([^"'&]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let issuer: string | undefined;
+  let m: RegExpExecArray | null;
+  const seen = new Set<string>();
+  while ((m = token.exec(html)) !== null) {
+    if (m[1] !== undefined) {
+      const heading = htmlToText(m[1]).trim();
+      if (heading) issuer = heading;
+      continue;
+    }
+    const codNota = m[2];
+    if (!codNota || seen.has(codNota)) continue;
+    seen.add(codNota);
+    const title = htmlToText(m[4] ?? "").trim();
+    out.push({
+      codNota,
+      title: title || `DOF nota ${codNota}`,
+      issuer,
+      fecha: decodeURIComponent(m[3] ?? toDofFecha(d)),
+      date: d,
+    });
+  }
+  return out;
+}
+
+/** Pull the official text out of <div id="DivDetalleNota">. */
+function parseNoteDetail(html: string): { text: string; title?: string } {
+  const start = html.search(/<div[^>]*id=["']DivDetalleNota["'][^>]*>/i);
+  let body = html;
+  if (start >= 0) {
+    const afterOpen = html.indexOf(">", start) + 1;
+    // The note body is a full nested document; cut at the closing table cell.
+    const endMarkers = ["</td>", "id='DivMenuDetalle'", 'id="DivMenuDetalle"'];
+    let end = html.length;
+    for (const marker of endMarkers) {
+      const idx = html.indexOf(marker, afterOpen);
+      if (idx > 0 && idx < end) end = idx;
+    }
+    body = html.slice(afterOpen, end);
+  }
+  const titleMatch = /<title>([\s\S]*?)<\/title>/i.exec(body);
   return {
-    externalId: `dof:${codNota}`,
-    kind: "federal_gazette",
-    jurisdiction: "federal",
-    title: (detail.titulo ?? "").trim() || `DOF nota ${codNota}`,
-    shortTitle: undefined,
-    issuer: detail.nombreDependencia?.trim(),
-    citation: `DOF ${detail.fechaPublicacion ?? ""}`.trim(),
-    publishedAt: detail.fechaPublicacion,
-    effectiveAt: detail.fechaPublicacion,
-    sourceUrl: detail.urlPublicacion ?? noteUrl(codNota),
-    rawText: typeof raw === "string" ? raw : String(raw ?? ""),
-    metadata: {
-      codDependencia: detail.codDependencia,
-      tipoNota: detail.tipoNota,
-    },
+    text: htmlToText(body),
+    title: titleMatch ? htmlToText(titleMatch[1]).trim() : undefined,
   };
 }
 
+function buildIngested(ref: NoteRef, text: string, detailTitle?: string): IngestedDocument {
+  const isoDate = toDateOnly(ref.date);
+  return {
+    externalId: `dof:${ref.codNota}`,
+    kind: "federal_gazette",
+    jurisdiction: "federal",
+    title: ref.title || detailTitle || `DOF nota ${ref.codNota}`,
+    shortTitle: (ref.title || detailTitle || "").slice(0, 200) || undefined,
+    issuer: ref.issuer,
+    citation: `DOF ${ref.fecha}`,
+    publishedAt: isoDate,
+    effectiveAt: isoDate,
+    sourceUrl: noteUrl(ref.codNota, ref.fecha),
+    rawText: text,
+    metadata: { codNota: ref.codNota, fecha: ref.fecha, dependencia: ref.issuer },
+  };
+}
+
+async function fetchNote(ref: NoteRef): Promise<IngestedDocument | null> {
+  const html = await fetchHtml(noteUrl(ref.codNota, ref.fecha));
+  if (!html) return null;
+  const { text, title } = parseNoteDetail(html);
+  return buildIngested(ref, text, title);
+}
+
 async function fetchOneDay(d: Date): Promise<IngestedDocument[]> {
-  const list = await fetchJson<SidofNoteListItem[] | { notas?: SidofNoteListItem[] }>(dayUrl(d));
-  if (!list) return [];
-  const items: SidofNoteListItem[] = Array.isArray(list) ? list : list.notas ?? [];
+  const html = await fetchHtml(dayUrl(d));
+  if (!html) return [];
+  const refs = parseDayIndex(html, d);
   const out: IngestedDocument[] = [];
-  for (const item of items) {
-    if (item.codNota == null) continue;
+  for (const ref of refs) {
     try {
-      const detail = await fetchJson<SidofNoteDetail>(noteUrl(item.codNota));
-      const doc = toIngested({ ...item, ...(detail ?? {}) });
+      const doc = await fetchNote(ref);
       if (doc) out.push(doc);
     } catch (e) {
       // one bad note shouldn't tank the whole day
-      console.warn(`[dof] skip nota ${item.codNota} on ${toDateOnly(d)}: ${String(e)}`);
+      console.warn(`[dof] skip nota ${ref.codNota} on ${toDateOnly(d)}: ${String(e)}`);
     }
   }
   return out;
@@ -126,21 +214,19 @@ export const dofConnector: LegalSourceConnector = {
   code: "dof",
   displayName: "Diario Oficial de la Federación",
   kind: "federal_gazette",
-  accessMethod: "official_json_endpoint",
+  accessMethod: "html_scrape",
   auth: { kind: "none" },
 
   async discover() {
-    // Latest day only — a lightweight ping used by the worker to see what's currently listed.
+    // Latest edition only — a lightweight ping used by the worker to see what's currently listed.
     const today = new Date();
-    const list = await fetchJson<SidofNoteListItem[] | { notas?: SidofNoteListItem[] }>(dayUrl(today));
-    const items = Array.isArray(list) ? list : list?.notas ?? [];
-    return items
-      .filter((i) => i.codNota != null)
-      .map((i) => ({
-        externalId: `dof:${i.codNota}`,
-        sourceUrl: noteUrl(i.codNota!),
-        publishedAt: i.fechaPublicacion,
-      }));
+    const html = await fetchHtml(dayUrl(today));
+    if (!html) return [];
+    return parseDayIndex(html, today).map((r) => ({
+      externalId: `dof:${r.codNota}`,
+      sourceUrl: noteUrl(r.codNota, r.fecha),
+      publishedAt: toDateOnly(r.date),
+    }));
   },
 
   async sync() {
@@ -160,11 +246,20 @@ export const dofConnector: LegalSourceConnector = {
 
   async fetchDocument(externalId) {
     const codNota = externalId.replace(/^dof:/, "");
-    const detail = await fetchJson<SidofNoteDetail>(noteUrl(codNota));
-    if (!detail) throw new Error(`DOF nota not found: ${externalId}`);
-    const doc = toIngested(detail);
-    if (!doc) throw new Error(`DOF nota malformed: ${externalId}`);
-    return doc;
+    // nota_detalle.php tolerates an empty `fecha`; the page still resolves by codigo.
+    const html = await fetchHtml(`${BASE}/nota_detalle.php?codigo=${codNota}`);
+    if (!html) throw new Error(`DOF nota not found: ${externalId}`);
+    const { text, title } = parseNoteDetail(html);
+    const fechaMatch = /DOF:\s*(\d{2}\/\d{2}\/\d{4})/.exec(htmlToText(html));
+    const fecha = fechaMatch?.[1] ?? "";
+    const [dd, mm, yyyy] = fecha ? fecha.split("/") : ["01", "01", "1970"];
+    const ref: NoteRef = {
+      codNota,
+      title: title ?? `DOF nota ${codNota}`,
+      fecha: fecha || toDofFecha(new Date()),
+      date: new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd))),
+    };
+    return buildIngested(ref, text, title);
   },
 
   async extractMetadata(doc) {
@@ -205,11 +300,13 @@ export const dofConnector: LegalSourceConnector = {
   async healthCheck(): Promise<ConnectorHealth> {
     try {
       const today = new Date();
-      // A HEAD would be nicer but sidof serves JSON on GET; keep it cheap.
-      const res = await fetch(dayUrl(today), { method: "GET", headers: { Accept: "application/json" } });
+      const res = await fetch(dayUrl(today), {
+        method: "GET",
+        headers: { Accept: "text/html", "User-Agent": BROWSER_UA },
+      });
       return {
         connectorCode: "dof",
-        ok: res.ok || res.status === 404, // 404 = no edition today (weekend/holiday) is still "service up"
+        ok: res.ok,
         checkedAt: new Date().toISOString(),
         detail: `HTTP ${res.status}`,
       };
