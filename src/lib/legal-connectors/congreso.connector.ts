@@ -1,28 +1,32 @@
 // Congreso de la Unión connector — Cámara de Diputados "Leyes Federales
-// Vigentes" compilation (LeyesBiblio). Endpoint audit 2026-07.
+// Vigentes" compilation (LeyesBiblio). Endpoint audit 2026-07 (verified against
+// the live markup).
 //
 // ── Endpoint investigation ───────────────────────────────────────────────────
 // 1. There is no API, JSON feed or RSS for the federal statute corpus. The
 //    canonical machine-reachable surface is the compilation index:
 //      GET https://www.diputados.gob.mx/LeyesBiblio/index.htm
-//        → HTML table of every vigente federal law. Each row links to the
-//          same law in several formats:
-//            ref/<abbr>.htm   → reform history (fecha de última reforma)
-//            pdf/<stem>.pdf   → official consolidated text (PDF)
-//            doc/<stem>.doc   → same text as DOC
-//            htm/<stem>.htm   → same text as HTML (when published)
-//          where <stem> is the law's compilation number, optionally suffixed
-//          with the last-reform date (e.g. "1_240124").
-// 2. Only the .htm variant is parseable inside the Worker runtime (no PDF
-//    binaries there), so we prefer htm/, and derive htm/<number>.htm from the
-//    pdf stem when the index doesn't link the HTML form directly.
-// 3. Pages are served as ISO-8859-1 with HTML entities, same as DOF.
+//    Each <tr> is one law and carries exactly four cells:
+//      [No.] | <a href="ref/<abbr>.htm">TITLE</a> + "DOF dd/mm/yyyy" (original)
+//            | "DOF dd/mm/yyyy" (última reforma)
+//            | <a href="pdf/<STEM>.pdf">, <a href="doc/<STEM>.doc">,
+//              <a href="pdf_mov/<name>.pdf"> (mobile reprint — ignored)
+// 2. There is NO htm/ full-text variant: `ref/<abbr>.htm` is only the reform
+//    history table ("Años anteriores"), which is why the first implementation
+//    stored history pages and extracted zero articles. The consolidated text
+//    exists only as PDF (and an equivalent .doc), so the real articulado has to
+//    come out of pdf/<STEM>.pdf.
+// 3. PDF text is extracted with `unpdf` (pure-JS pdf.js build that runs in the
+//    Worker runtime — no native binaries). Every page repeats a header/footer
+//    banner, stripped in cleanPdfText().
+// 4. Index pages are served as ISO-8859-1 with HTML entities, same as DOF.
 //
 // Access method is html_scrape (last resort per the connector priority rule)
 // because no official machine-readable interface exists for this corpus.
 //
 // This is the only source that yields real articulado, so extractArticles()
 // does the real work here and feeds the Artículos tile via the projection pass.
+
 
 import type {
   LegalSourceConnector,
@@ -39,14 +43,15 @@ const INDEX_URL = `${BASE}/index.htm`;
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-// Federal statutes are large documents (CPEUM alone is ~400 KB of text), so a
+// Federal statutes are large PDFs (CPEUM is ~1.5 MB / ~400 KB of text), so a
 // run stays deliberately small and bounded — the corpus is ~320 laws and is
 // meant to be backfilled across many runs, not in one request.
-const MAX_LAWS_PER_RUN = 8;
+const MAX_LAWS_PER_RUN = 4;
 const RUN_BUDGET_MS = 45_000;
 const THROTTLE_MS = 300;
-const FETCH_TIMEOUT_MS = 15_000;
+const FETCH_TIMEOUT_MS = 20_000;
 const MAX_TEXT_CHARS = 400_000;
+const MAX_PDF_BYTES = 12 * 1024 * 1024;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -55,14 +60,17 @@ const newDeadline = (): Deadline => ({ at: Date.now() + RUN_BUDGET_MS });
 const expired = (d: Deadline) => Date.now() >= d.at;
 
 type LawRef = {
-  /** compilation stem, e.g. "1" or "125" */
+  /** compilation number as printed in the index, e.g. "001" */
   number: string;
-  /** short abbreviation from ref/<abbr>.htm when present, e.g. "cpeum" */
+  /** short abbreviation from ref/<abbr>.htm, e.g. "cpeum" */
   abbr?: string;
   title: string;
-  /** best available text URL (htm preferred) */
-  htmUrl?: string;
+  /** consolidated text (PDF) — the only full-text format published */
   pdfUrl?: string;
+  docUrl?: string;
+  /** reform-history page (ref/<abbr>.htm) */
+  refUrl?: string;
+  publishedAt?: string; // ISO date of original publication
   lastReform?: string; // ISO date
 };
 
@@ -118,110 +126,108 @@ function absolute(href: string): string {
   return `${BASE}/${href.replace(/^\.?\//, "")}`;
 }
 
-/** "1_240124" → { number: "1", reform: "2024-01-24" } */
-function parseStem(stem: string): { number: string; lastReform?: string } {
-  const m = /^(\d+)(?:_(\d{6}))?/.exec(stem);
-  if (!m) return { number: stem };
-  let lastReform: string | undefined;
-  if (m[2]) {
-    const yy = Number(m[2].slice(0, 2));
-    const mm = m[2].slice(2, 4);
-    const dd = m[2].slice(4, 6);
-    const year = yy >= 70 ? 1900 + yy : 2000 + yy;
-    lastReform = `${year}-${mm}-${dd}`;
-  }
-  return { number: m[1], lastReform };
+/** "05/02/1917" → "1917-02-05" */
+function parseDofDate(s: string | undefined): string | undefined {
+  if (!s) return undefined;
+  const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(s);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : undefined;
 }
 
 /**
- * Parse the compilation index into one LawRef per statute. The index groups
- * each law's format links together, so we key by compilation number and merge
- * whichever links appear, then recover the title from the surrounding row text.
+ * Parse the compilation index. Verified markup: one <tr> per law with cells
+ * [No.] [title anchor to ref/<abbr>.htm + original DOF date] [última reforma]
+ * [pdf / doc / pdf_mov links]. Parsing per row avoids the cross-row leakage
+ * that previously mislabelled laws as "Años anteriores".
  */
-function parseIndex(html: string): LawRef[] {
-  const byNumber = new Map<string, LawRef>();
-  const anchor = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  let m: RegExpExecArray | null;
-  let pendingTitle = "";
+export function parseIndex(html: string): LawRef[] {
+  const out: LawRef[] = [];
+  const rowRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  let row: RegExpExecArray | null;
 
-  while ((m = anchor.exec(html)) !== null) {
-    const href = m[1];
-    const label = htmlToText(m[2]).trim();
-    const ref = /(?:^|\/)ref\/([a-z0-9_]+)\.html?/i.exec(href);
-    const pdf = /(?:^|\/)pdf\/([\w.]+?)\.pdf/i.exec(href);
-    const htm = /(?:^|\/)htm\/([\w.]+?)\.html?/i.exec(href);
-    const doc = /(?:^|\/)doc\/([\w.]+?)\.docx?/i.exec(href);
+  while ((row = rowRe.exec(html)) !== null) {
+    const cellsHtml = [...row[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((c) => c[1]);
+    if (cellsHtml.length < 3) continue;
 
-    if (!ref && !pdf && !htm && !doc) {
-      if (label.length > 8) pendingTitle = label;
-      continue;
-    }
-
-    const stem = (pdf?.[1] ?? htm?.[1] ?? doc?.[1] ?? "").trim();
-    const { number, lastReform } = stem ? parseStem(stem) : { number: "", lastReform: undefined };
-
-    // ref/ links carry the abbreviation but not the number; attach them to the
-    // most recently seen numbered entry from the same row.
-    if (ref && !number) {
-      const last = [...byNumber.values()].pop();
-      if (last && !last.abbr) last.abbr = ref[1].toLowerCase();
-      continue;
-    }
+    const numberText = htmlToText(cellsHtml[0]).trim();
+    const number = /^\d{1,4}$/.test(numberText) ? numberText : "";
     if (!number) continue;
 
-    const existing = byNumber.get(number) ?? { number, title: "" };
-    if (pdf) existing.pdfUrl = absolute(href);
-    if (htm) existing.htmUrl = absolute(href);
-    if (lastReform) existing.lastReform = lastReform;
-    if (!existing.title) {
-      existing.title = /ley|c[óo]digo|constituci[óo]n|estatuto|reglamento/i.test(label)
-        ? label
-        : pendingTitle;
-    }
-    byNumber.set(number, existing);
+    const titleCell = cellsHtml[1] ?? "";
+    const refMatch = /href=["']([^"']*\/ref\/([a-z0-9_]+)\.html?)["'][^>]*>([\s\S]*?)<\/a>/i.exec(titleCell);
+    if (!refMatch) continue;
+    const title = htmlToText(refMatch[3]).replace(/\s+/g, " ").trim();
+    if (!title) continue;
+
+    const rest = cellsHtml.slice(2).join(" ");
+    const pdf = /href=["']([^"']*\/pdf\/[^"']+\.pdf)["']/i.exec(rest);
+    const doc = /href=["']([^"']*\/doc\/[^"']+\.docx?)["']/i.exec(rest);
+
+    out.push({
+      number,
+      abbr: refMatch[2].toLowerCase(),
+      title,
+      refUrl: absolute(refMatch[1]),
+      pdfUrl: pdf ? absolute(pdf[1]) : undefined,
+      docUrl: doc ? absolute(doc[1]) : undefined,
+      publishedAt: parseDofDate(htmlToText(titleCell)),
+      lastReform: parseDofDate(htmlToText(cellsHtml[2] ?? "")),
+    });
   }
 
-  return [...byNumber.values()]
-    .filter((l) => l.htmUrl || l.pdfUrl)
-    .map((l) => ({ ...l, title: l.title || `Ley federal ${l.number}` }));
+  return out.filter((l) => l.pdfUrl);
 }
 
-/** htm/<number>.htm is published for most laws even when the index links only the PDF. */
-function candidateTextUrls(law: LawRef): string[] {
-  const urls: string[] = [];
-  if (law.htmUrl) urls.push(law.htmUrl);
-  urls.push(`${BASE}/htm/${law.number}.htm`);
-  if (law.pdfUrl) {
-    const stem = law.pdfUrl.split("/").pop()?.replace(/\.pdf$/i, "");
-    if (stem) urls.push(`${BASE}/htm/${stem}.htm`);
+/** Every PDF page repeats the Cámara de Diputados banner — strip it. */
+function cleanPdfText(text: string): string {
+  const banner =
+    /^(C[ÁA]MARA DE DIPUTADOS.*|Secretar[íi]a General.*|Secretar[íi]a de Servicios Parlamentarios.*|[ÚU]ltima Reforma DOF.*|Nueva Ley (?:DOF|publicada).*|\d+\s+de\s+\d+)$/i;
+  return text
+    .split("\n")
+    .map((l) => l.replace(/\u00a0/g, " ").trim())
+    .filter((l) => l && !banner.test(l))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Consolidated text lives only as PDF. `unpdf` is a pure-JS pdf.js build, so it
+ * runs inside the Worker runtime; imported lazily to keep it out of hot paths.
+ */
+async function fetchPdfText(url: string): Promise<string | null> {
+  const res = await fetch(url, {
+    headers: { Accept: "application/pdf", "User-Agent": BROWSER_UA },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Congreso ${res.status} at ${url}`);
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > MAX_PDF_BYTES) {
+    throw new Error(`Congreso PDF too large (${buf.byteLength} bytes) at ${url}`);
   }
-  return [...new Set(urls)];
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(buf));
+  const { text } = await extractText(pdf, { mergePages: true });
+  const cleaned = cleanPdfText(Array.isArray(text) ? text.join("\n") : text);
+  return cleaned.length > 500 ? cleaned.slice(0, MAX_TEXT_CHARS) : null;
 }
 
 async function fetchLawText(law: LawRef): Promise<{ text: string; sourceUrl: string } | null> {
-  for (const url of candidateTextUrls(law)) {
-    try {
-      const html = await fetchHtml(url);
-      if (!html) continue;
-      const text = htmlToText(html).slice(0, MAX_TEXT_CHARS);
-      if (text.length > 500) return { text, sourceUrl: url };
-    } catch (e) {
-      console.warn(`[congreso] text fetch failed ${url}: ${String(e)}`);
-    }
+  if (!law.pdfUrl) return null;
+  try {
+    const text = await fetchPdfText(law.pdfUrl);
+    if (text) return { text, sourceUrl: law.pdfUrl };
+  } catch (e) {
+    console.warn(`[congreso] pdf text failed ${law.pdfUrl}: ${String(e)}`);
   }
   return null;
 }
 
-/** Reform history page — used as fallback content when only a PDF exists. */
-async function fetchReformHistory(law: LawRef): Promise<string | null> {
-  if (!law.abbr) return null;
-  try {
-    const html = await fetchHtml(`${BASE}/ref/${law.abbr}.htm`);
-    return html ? htmlToText(html).slice(0, MAX_TEXT_CHARS) : null;
-  } catch {
-    return null;
-  }
-}
+
+// NOTE: ref/<abbr>.htm is deliberately NOT used as a text fallback. It is the
+// reform-history table, not the law, and storing it produced worthless
+// "Años anteriores" documents with zero articulado.
+
 
 function abbreviate(title: string): string | undefined {
   const words = title
@@ -232,17 +238,20 @@ function abbreviate(title: string): string | undefined {
   return words.map((w) => w[0].toUpperCase()).join("").slice(0, 12);
 }
 
+/** Stable key: the abbreviation, which survives index renumbering. */
+const lawKey = (law: LawRef) => (law.abbr ?? law.number).toLowerCase();
+
 function buildIngested(law: LawRef, text: string, sourceUrl: string): IngestedDocument {
   return {
-    externalId: `congreso:${law.number}`,
+    externalId: `congreso:${lawKey(law)}`,
     kind: "federal_statute",
     jurisdiction: "federal",
     title: law.title,
     shortTitle: law.abbr ? law.abbr.toUpperCase() : abbreviate(law.title),
     issuer: "Congreso de la Unión",
     citation: law.lastReform ? `${law.title} (última reforma DOF ${law.lastReform})` : law.title,
-    publishedAt: law.lastReform,
-    effectiveAt: law.lastReform,
+    publishedAt: law.publishedAt ?? law.lastReform,
+    effectiveAt: law.lastReform ?? law.publishedAt,
     sourceUrl,
     rawText: text,
     metadata: {
@@ -250,6 +259,8 @@ function buildIngested(law: LawRef, text: string, sourceUrl: string): IngestedDo
       abbr: law.abbr,
       lastReform: law.lastReform,
       pdfUrl: law.pdfUrl,
+      docUrl: law.docUrl,
+      reformHistoryUrl: law.refUrl,
       compilation: "LeyesBiblio",
     },
   };
@@ -280,14 +291,7 @@ async function collect(laws: LawRef[]): Promise<IngestedDocument[]> {
     try {
       await sleep(THROTTLE_MS);
       const found = await fetchLawText(law);
-      if (found) {
-        out.push(buildIngested(law, found.text, found.sourceUrl));
-        continue;
-      }
-      const history = await fetchReformHistory(law);
-      if (history) {
-        out.push(buildIngested(law, history, `${BASE}/ref/${law.abbr}.htm`));
-      }
+      if (found) out.push(buildIngested(law, found.text, found.sourceUrl));
     } catch (e) {
       console.warn(`[congreso] skip law ${law.number}: ${String(e)}`);
     }
@@ -308,9 +312,9 @@ export const congresoConnector: LegalSourceConnector = {
   async discover() {
     const laws = await loadIndex();
     return laws.map((l) => ({
-      externalId: `congreso:${l.number}`,
-      sourceUrl: l.htmUrl ?? l.pdfUrl ?? `${BASE}/htm/${l.number}.htm`,
-      publishedAt: l.lastReform,
+      externalId: `congreso:${lawKey(l)}`,
+      sourceUrl: l.pdfUrl ?? l.refUrl ?? INDEX_URL,
+      publishedAt: l.lastReform ?? l.publishedAt,
     }));
   },
 
@@ -324,17 +328,15 @@ export const congresoConnector: LegalSourceConnector = {
   },
 
   async fetchDocument(externalId) {
-    const number = externalId.replace(/^congreso:/, "");
+    const key = externalId.replace(/^congreso:/, "").toLowerCase();
     const laws = await loadIndex();
-    const law = laws.find((l) => l.number === number);
+    const law = laws.find((l) => lawKey(l) === key || l.number === key);
     if (!law) throw new Error(`Congreso law not found in compilation index: ${externalId}`);
-    const found = (await fetchLawText(law)) ??
-      (await fetchReformHistory(law).then((t) =>
-        t ? { text: t, sourceUrl: `${BASE}/ref/${law.abbr}.htm` } : null,
-      ));
-    if (!found) throw new Error(`Congreso law ${externalId} has no HTML text published`);
+    const found = await fetchLawText(law);
+    if (!found) throw new Error(`Congreso law ${externalId} has no extractable consolidated text`);
     return buildIngested(law, found.text, found.sourceUrl);
   },
+
 
   async extractMetadata(doc) {
     return {
@@ -347,7 +349,12 @@ export const congresoConnector: LegalSourceConnector = {
 
   /** Real articulado extraction — this is the corpus that fills the Artículos tile. */
   async extractArticles(doc): Promise<ExtractedArticle[]> {
-    const lines = doc.rawText.split("\n");
+    // PDF extraction often glues an article heading onto the previous
+    // paragraph, so force a line break before every "Artículo N" marker.
+    const lines = doc.rawText
+      .replace(/([^\n])\s+(?=(?:ART[ÍI]CULO|Art[íi]culo|ARTICULO)\s+\d)/g, "$1\n")
+      .replace(/([^\n])\s+(?=(?:T[ÍI]TULO|CAP[ÍI]TULO|SECCI[ÓO]N|LIBRO)\s+[IVXLCDM]+\b)/g, "$1\n")
+      .split("\n");
     const articles: ExtractedArticle[] = [];
     let current: ExtractedArticle | null = null;
     let heading: string | undefined;
