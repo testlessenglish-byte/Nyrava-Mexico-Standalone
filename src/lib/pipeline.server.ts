@@ -2170,10 +2170,15 @@ CASE CORPUS:
 ${corpusText}`;
 
   // Batch-level execution with dynamic sizing + 413 auto-split.
-  const initialBatches = packChunks(chunks, ANALYZER_CORPUS_BUDGET_CHARS);
+  // The budget is capped by the NARROWEST configured provider so Groq stays in
+  // the fallback chain instead of being skipped as oversize on every call.
+  const { packingCharBudget } = await import("@/lib/ai/router.server");
+  const analyzerBudgetChars = await packingCharBudget(ANALYZER_CORPUS_BUDGET_CHARS);
+  const initialBatches = packChunks(chunks, analyzerBudgetChars);
   console.log(
-    `[analyzers] docs=${chunks.length} totalChars=${corpus.length} batches=${initialBatches.length} budgetChars=${ANALYZER_CORPUS_BUDGET_CHARS}`,
+    `[analyzers] docs=${chunks.length} totalChars=${corpus.length} batches=${initialBatches.length} budgetChars=${analyzerBudgetChars}`,
   );
+
 
   // Resume support: skip batches already completed in a prior run.
 
