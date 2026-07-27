@@ -38,6 +38,7 @@ export type IngestRunResult = {
   documentsFetched: number;
   documentsStored: number;
   documentsVersioned: number;
+  entitiesProjected: number;
   errors: string[];
 };
 
@@ -104,6 +105,7 @@ export async function runConnectorIngest(
       documentsFetched: rawDocs.length,
       documentsStored,
       documentsVersioned,
+      entitiesProjected,
       errors,
     };
   }
