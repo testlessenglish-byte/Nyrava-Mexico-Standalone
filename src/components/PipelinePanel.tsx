@@ -178,9 +178,17 @@ export function PipelinePanel({
     ].includes(caseStatus)
   );
 
+  // A "running" case whose worker lease has expired is stalled, not running.
+  // Resume must stay clickable in that state so the user can restart from the
+  // exact stage the case died on.
+  const leaseUntil = caseRow?.worker_lease_until as string | null | undefined;
+  const leaseActive = !!leaseUntil && new Date(leaseUntil).getTime() > Date.now();
+  const activelyRunning = anyRunning && leaseActive;
+
   const completedCount = stageDefs.filter((s) => visuals[s.key]?.state === "completed").length;
   const failedCount = stageDefs.filter((s) => visuals[s.key]?.state === "failed").length;
   const outOfDateCount = stageDefs.filter((s) => visuals[s.key]?.state === "out_of_date").length;
+  const incomplete = completedCount < stageDefs.length;
 
   return (
     <div className="rounded-2xl border border-cyan-400/15 bg-slate-950/60 p-4 sm:p-5 space-y-4">
@@ -202,14 +210,24 @@ export function PipelinePanel({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {(failedCount > 0 || (completedCount > 0 && completedCount < stageDefs.length && !anyRunning)) && (
+          {incomplete && (
             <button
-              disabled={resuming || anyRunning}
+              disabled={resuming || activelyRunning}
               onClick={async () => {
                 setResuming(true);
                 try {
-                  const res = await resumeFullPipelineStep({ data: { caseId } });
-                  if ((res as { alreadyComplete?: boolean })?.alreadyComplete) {
+                  const res = (await resumeFullPipelineStep({ data: { caseId } })) as {
+                    alreadyComplete?: boolean;
+                    ok?: boolean;
+                    alreadyRunning?: boolean;
+                    done?: boolean;
+                    status?: string | null;
+                  };
+                  if (res?.alreadyComplete) {
+                    toast.info(t("pipeline.toast.alreadyComplete"));
+                  } else if (res?.ok === false && res?.alreadyRunning) {
+                    toast.info(t("pipeline.panel.running"));
+                  } else if (res?.ok === false && res?.done) {
                     toast.info(t("pipeline.toast.alreadyComplete"));
                   } else {
                     toast.success(t("pipeline.toast.resumed"));

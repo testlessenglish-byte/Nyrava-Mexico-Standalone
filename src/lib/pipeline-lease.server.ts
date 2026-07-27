@@ -54,7 +54,11 @@ export async function claimPipelineLease(
 
   const leaseUntilMs = row.worker_lease_until ? new Date(row.worker_lease_until as string).getTime() : 0;
   const leaseActive = leaseUntilMs > Date.now();
-  if (leaseActive || isRunningStatus(status)) {
+  // Only an ACTIVE lease means someone else is really working the case. A
+  // running-looking status with an expired (or missing) lease is a stale run
+  // that died mid-stage — resume must be able to take it over, otherwise the
+  // "Resume pipeline" button silently does nothing forever.
+  if (leaseActive) {
     return {
       claimed: false,
       alreadyRunning: true,
@@ -62,15 +66,17 @@ export async function claimPipelineLease(
       leaseUntil: (row.worker_lease_until as string | null) ?? null,
     };
   }
+  const staleRunning = isRunningStatus(status);
 
   const claimUntil = new Date(Date.now() + (opts?.leaseMs ?? 60_000)).toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updatePatch = { worker_lease_until: claimUntil };
-  const base = (db as any)
-    .from("cases")
-    .update(updatePatch)
-    .eq("id", caseId)
-    .not("status", "in", `(${[...RUNNING_STATUSES].join(",")})`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let base = (db as any).from("cases").update(updatePatch).eq("id", caseId);
+  if (!staleRunning) {
+    base = base.not("status", "in", `(${[...RUNNING_STATUSES].join(",")})`);
+  }
+  // Compare-and-swap on the lease column keeps two concurrent takeovers apart.
   const claim = row.worker_lease_until
     ? await base.eq("worker_lease_until", row.worker_lease_until).select("id").maybeSingle()
     : await base.is("worker_lease_until", null).select("id").maybeSingle();
