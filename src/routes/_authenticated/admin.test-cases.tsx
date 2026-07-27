@@ -132,7 +132,7 @@ function TestCasesAdmin() {
             </div>
 
             <button
-              onClick={() => navigate({ to: "/matters/$id", params: { id: result.matterId } })}
+              onClick={() => navigate({ to: "/cases/$caseId", params: { caseId: result.caseId } })}
               className="mt-6 inline-flex items-center gap-2 rounded border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary"
             >
               Abrir asunto →
