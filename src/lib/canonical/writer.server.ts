@@ -189,7 +189,9 @@ export async function projectCanonical(
       witness_reliability: (scoresRow.witness_reliability as number | null) ?? null,
       timeline_integrity: (scoresRow.timeline_integrity as number | null) ?? null,
       overall_confidence: (scoresRow.overall_confidence as number | null) ?? null,
-      rationale: (scoresRow.rationale as string | null) ?? null,
+      // `case_scores.rationale` may arrive as jsonb (object/array) from some
+      // engines; the canonical schema and report renderer expect a string.
+      rationale: coerceText(scoresRow.rationale),
       suppressed: false,
     };
   }
