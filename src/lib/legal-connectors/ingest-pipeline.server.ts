@@ -55,6 +55,7 @@ export async function runConnectorIngest(
   const errors: string[] = [];
   let documentsStored = 0;
   let documentsVersioned = 0;
+  let entitiesProjected = 0;
   let rawDocs: IngestedDocument[] = [];
 
   try {
