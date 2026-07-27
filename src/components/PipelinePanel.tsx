@@ -178,9 +178,17 @@ export function PipelinePanel({
     ].includes(caseStatus)
   );
 
+  // A "running" case whose worker lease has expired is stalled, not running.
+  // Resume must stay clickable in that state so the user can restart from the
+  // exact stage the case died on.
+  const leaseUntil = caseRow?.worker_lease_until as string | null | undefined;
+  const leaseActive = !!leaseUntil && new Date(leaseUntil).getTime() > Date.now();
+  const activelyRunning = anyRunning && leaseActive;
+
   const completedCount = stageDefs.filter((s) => visuals[s.key]?.state === "completed").length;
   const failedCount = stageDefs.filter((s) => visuals[s.key]?.state === "failed").length;
   const outOfDateCount = stageDefs.filter((s) => visuals[s.key]?.state === "out_of_date").length;
+  const incomplete = completedCount < stageDefs.length;
 
   return (
     <div className="rounded-2xl border border-cyan-400/15 bg-slate-950/60 p-4 sm:p-5 space-y-4">
