@@ -1555,29 +1555,80 @@ export const getGroqUsageSummary = createServerFn({ method: "GET" })
     };
   });
 
-// -------- Health Check / Diagnostics (Groq-only) --------
+// -------- Health Check / Diagnostics (all configured providers) --------
+async function assertHealthAdmin(context: unknown, label: string) {
+  const { supabase, userId } = await getAuthedContext(context as never, label);
+  const { data: adminRole } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (!adminRole) throw new Error("Forbidden");
+  return { supabase, userId };
+}
+
 export const getAiHealth = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = await getAuthedContext(context, "Health");
-    const { data: adminRole } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    if (!adminRole) throw new Error("Forbidden");
+    const { supabase, userId } = await assertHealthAdmin(context, "Health");
     const { getLlmDiagnostics, pingProvider, assertEnv } = await import("@/lib/groq.server");
     const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
+    const { listProviderRows, getProviderInputBudget } = await import("@/lib/ai/router.server");
 
-    // CRITICAL: probe the SAME credential set production uses. The old path
-    // called pingProvider("groq") with no key, which fell back to the row's
-    // stored ai_providers.api_key_encrypted — a stale key the router never
-    // actually reaches because runtime user_groq_keys always override it.
-    // This mismatch was the root cause of the "401 on probe / 429 in
-    // production" divergence (two different Groq orgs).
-    const { keys } = await resolveProviderKeys(supabase, userId, "groq");
-    const groq = keys.length > 0 ? await pingProvider("groq", keys[0]) : await pingProvider("groq"); // no user keys → fall back to stored/env for a clear "not configured" signal
+    const rows = await listProviderRows();
+    const diag = getLlmDiagnostics();
+
+    // Probe EVERY enabled provider with the SAME credential set production
+    // uses (user_ai_keys first, stored/env row only as a fallback signal).
+    const probes = await Promise.all(
+      rows
+        .filter((r) => r.enabled !== false)
+        .map(async (r) => {
+          const type = r.provider_type as
+            | "groq" | "openai" | "anthropic" | "gemini" | "openrouter" | "ollama" | "lmstudio";
+          let keys: string[] = [];
+          try {
+            ({ keys } = await resolveProviderKeys(supabase, userId, type as never));
+          } catch {
+            keys = [];
+          }
+          let ping: { ok: boolean; latencyMs: number; error?: string };
+          try {
+            ping = keys.length > 0 ? await pingProvider(type, keys[0]) : await pingProvider(type);
+          } catch (e) {
+            ping = { ok: false, latencyMs: 0, error: e instanceof Error ? e.message : String(e) };
+          }
+          const stats = diag.byProvider?.[type] ?? { totalOk: 0, totalErr: 0 };
+          return [
+            type,
+            {
+              ...ping,
+              provider: type,
+              displayName: r.display_name ?? type,
+              model: r.default_model ?? null,
+              priority: r.priority ?? null,
+              configured: keys.length > 0 || Boolean(r.api_key_encrypted) || Boolean(r.secret_name),
+              keyCount: keys.length,
+              inputTokenBudget: getProviderInputBudget(type),
+              totalOk: stats.totalOk ?? 0,
+              totalErr: stats.totalErr ?? 0,
+              lastError: (stats as { lastError?: string }).lastError ?? null,
+              lastErrorTs: (stats as { lastErrorTs?: number }).lastErrorTs ?? null,
+            },
+          ] as const;
+        }),
+    );
+
+    const providers = Object.fromEntries(probes) as Record<
+      string,
+      {
+        ok: boolean; latencyMs: number; error?: string; provider: string; displayName: string;
+        model: string | null; priority: number | null; configured: boolean; keyCount: number;
+        inputTokenBudget: number; totalOk: number; totalErr: number;
+        lastError: string | null; lastErrorTs: number | null;
+      }
+    >;
 
     let backendOk = false;
     let backendErr: string | undefined;
@@ -1593,24 +1644,15 @@ export const getAiHealth = createServerFn({ method: "GET" })
       backendErr = e instanceof Error ? e.message : String(e);
     }
     const backendLatency = Date.now() - t0;
-    const diag = getLlmDiagnostics();
     const env = assertEnv();
+    const configuredList = Object.values(providers).filter((p) => p.configured);
     const active =
-      keys.length > 0
-        ? "groq only (user keys)"
-        : diag.providers.groq.configured
-          ? "groq only (env)"
-          : null;
+      configuredList.length > 0
+        ? `${configuredList.length} provider${configuredList.length === 1 ? "" : "s"} configured`
+        : null;
+
     return {
-      providers: {
-        groq: {
-          ...groq,
-          configured: keys.length > 0 || diag.providers.groq.configured,
-          totalOk: diag.providers.groq.totalOk,
-          totalErr: diag.providers.groq.totalErr,
-          keyCount: keys.length,
-        },
-      },
+      providers,
       backend: { ok: backendOk, latencyMs: backendLatency, error: backendErr },
       supabase: { ok: backendOk, latencyMs: backendLatency, error: backendErr },
       env,
@@ -1626,87 +1668,179 @@ export const getAiHealth = createServerFn({ method: "GET" })
     };
   });
 
-// -------- Groq verification probe --------
-// Forces a real prompt through Groq using the SAME per-user key set that
-// production actually uses (resolveGroqKeys → user_groq_keys). No fallback
-// providers are exercised.
+// -------- Live provider probe (single provider or all) --------
+// Forces a real prompt through each provider using the SAME per-user key set
+// production uses (user_ai_keys), with no cross-provider fallback so a failure
+// is attributed to the provider that actually failed.
+type ProbeResult =
+  | {
+      provider: string;
+      ok: true;
+      model: string;
+      latencyMs: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      output: string;
+      keyIndex?: number;
+    }
+  | { provider: string; ok: false; error: string };
+
 export const runFailoverTest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = await getAuthedContext(context, "Failover test");
-    const { data: adminRole } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    if (!adminRole) throw new Error("Forbidden");
+  .inputValidator((input: unknown) => {
+    const v = (input ?? {}) as { provider?: string | null };
+    return { provider: typeof v.provider === "string" && v.provider ? v.provider : null };
+  })
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = await assertHealthAdmin(context, "Provider probe");
     const { callGroq } = await import("@/lib/groq.server");
     const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
-    const { keys } = await resolveProviderKeys(supabase, userId, "groq");
+    const { listProviderRows } = await import("@/lib/ai/router.server");
+
+    const rows = (await listProviderRows()).filter((r) => r.enabled !== false);
+    const targets = data.provider ? rows.filter((r) => r.provider_type === data.provider) : rows;
 
     const prompt =
       "Return a single sentence confirming you are responding. Include the word 'online'.";
     const sys = "You are a diagnostic responder. Keep replies under 30 words.";
-    const results: Array<
-      | {
-          provider: "groq";
-          ok: true;
-          model: string;
-          latencyMs: number;
-          inputTokens?: number;
-          outputTokens?: number;
-          output: string;
-          keyIndex?: number;
-        }
-      | { provider: "groq"; ok: false; error: string }
-    > = [];
+    const results: ProbeResult[] = [];
 
-    if (keys.length === 0) {
-      results.push({
-        provider: "groq",
-        ok: false,
-        error: "No Groq API key configured for this user. Add one in Settings → API Keys.",
-      });
-      return { ts: Date.now(), results };
+    for (const row of targets) {
+      const type = row.provider_type;
+      let keys: string[] = [];
+      try {
+        ({ keys } = await resolveProviderKeys(supabase, userId, type as never));
+      } catch {
+        keys = [];
+      }
+      if (keys.length === 0) {
+        results.push({
+          provider: type,
+          ok: false,
+          error: `No ${type} API key configured for this user. Add one in Intelligence Providers.`,
+        });
+        continue;
+      }
+      try {
+        const r = await callGroq({
+          forceProvider: type,
+          runtimeProvider: type,
+          apiKeys: keys,
+          systemInstruction: sys,
+          userContent: prompt,
+          // Reasoning models spend tokens internally before the visible
+          // answer; 500 leaves headroom for a one-off diagnostic call.
+          maxTokens: 500,
+          cache: false,
+        });
+        results.push({
+          provider: type,
+          ok: true,
+          model: r.model,
+          latencyMs: r.latencyMs,
+          inputTokens: r.inputTokens,
+          outputTokens: r.outputTokens,
+          output: r.text.slice(0, 240),
+          keyIndex: r.keyIndex,
+        });
+      } catch (e) {
+        results.push({
+          provider: type,
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
 
-    try {
-      // Pass the exact same apiKeys array production passes — this exercises
-      // the runtime-key chain in router.server.ts, not the stale ai_providers row.
-      const r = await callGroq({
-        forceProvider: "groq",
-        apiKeys: keys,
-        systemInstruction: sys,
-        userContent: prompt,
-        // openai/gpt-oss-120b is a reasoning model — it spends tokens on
-        // internal reasoning before the visible answer, and those count
-        // against the same budget. 60 was too tight even for this trivial
-        // prompt (empty output, finish_reason=length, confirmed via a real
-        // failing probe run). 500 leaves real headroom without materially
-        // changing the cost of a one-off diagnostic call.
-        maxTokens: 500,
-        cache: false,
-      });
-      results.push({
-        provider: "groq",
-        ok: true,
-        model: r.model,
-        latencyMs: r.latencyMs,
-        inputTokens: r.inputTokens,
-        outputTokens: r.outputTokens,
-        output: r.text.slice(0, 240),
-        keyIndex: r.keyIndex,
-      });
-    } catch (e) {
-      results.push({
-        provider: "groq",
-        ok: false,
-        error: e instanceof Error ? e.message : String(e),
-      });
+    if (results.length === 0) {
+      results.push({ provider: data.provider ?? "none", ok: false, error: "No enabled providers found." });
     }
     return { ts: Date.now(), results };
   });
+
+// -------- Downloadable AI failure log (CSV source rows) --------
+export const getAiErrorLog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const v = (input ?? {}) as { days?: number; onlyFailures?: boolean; limit?: number };
+    return {
+      days: Number.isFinite(v.days) ? Math.min(90, Math.max(1, Number(v.days))) : 7,
+      onlyFailures: v.onlyFailures !== false,
+      limit: Number.isFinite(v.limit) ? Math.min(5000, Math.max(1, Number(v.limit))) : 2000,
+    };
+  })
+  .handler(async ({ data, context }) => {
+    const { supabase } = await assertHealthAdmin(context, "AI error log");
+    const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
+    let q = supabase
+      .from("ai_usage")
+      .select(
+        "created_at,provider_type,model,operation,success,error,latency_ms,input_tokens,output_tokens,total_tokens,case_id",
+      )
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(data.limit);
+    if (data.onlyFailures) q = q.eq("success", false);
+    const { data: rowsRaw, error } = await q;
+    if (error) throw new Error(error.message);
+    const rows = (rowsRaw ?? []) as Array<Record<string, unknown>>;
+
+    // Group failures by (provider, reason) so the export doubles as a summary.
+    const classify = (msg: string): string => {
+      const m = msg.toLowerCase();
+      if (/429|rate.?limit|quota|tokens per/.test(m)) return "rate_limit_or_quota";
+      if (/413|too large|payload|context length|exceeds/.test(m)) return "payload_too_large";
+      if (/401|403|unauthor|invalid api key|permission/.test(m)) return "auth_or_key";
+      if (/404|not found|model/.test(m)) return "model_unavailable";
+      if (/timeout|timed out|abort/.test(m)) return "timeout";
+      if (/5\d\d|overload|unavailable|high demand/.test(m)) return "provider_unavailable";
+      if (/json|parse/.test(m)) return "bad_response_format";
+      return "other";
+    };
+
+    const summaryMap = new Map<string, { provider: string; reason: string; count: number; lastAt: string; sample: string }>();
+    const enriched = rows.map((r) => {
+      const provider = String(r.provider_type ?? "unknown");
+      const err = String(r.error ?? "");
+      const reason = r.success ? "ok" : classify(err);
+      if (!r.success) {
+        const key = `${provider}::${reason}`;
+        const prev = summaryMap.get(key);
+        if (prev) prev.count += 1;
+        else
+          summaryMap.set(key, {
+            provider,
+            reason,
+            count: 1,
+            lastAt: String(r.created_at ?? ""),
+            sample: err.slice(0, 300),
+          });
+      }
+      return {
+        created_at: String(r.created_at ?? ""),
+        provider,
+        model: String(r.model ?? ""),
+        operation: String(r.operation ?? ""),
+        success: Boolean(r.success),
+        reason,
+        error: err.slice(0, 500),
+        latency_ms: (r.latency_ms as number) ?? null,
+        input_tokens: (r.input_tokens as number) ?? null,
+        output_tokens: (r.output_tokens as number) ?? null,
+        total_tokens: (r.total_tokens as number) ?? null,
+        case_id: (r.case_id as string) ?? null,
+      };
+    });
+
+    return {
+      ts: Date.now(),
+      days: data.days,
+      onlyFailures: data.onlyFailures,
+      rows: enriched,
+      summary: [...summaryMap.values()].sort((a, b) => b.count - a.count),
+    };
+  });
+
 
 // -------- AI cooldown admin (in-memory router circuit-breaker) --------
 export const listAiCooldowns = createServerFn({ method: "GET" })

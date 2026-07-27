@@ -130,6 +130,10 @@ const PROVIDER_INPUT_TOKEN_BUDGET: Partial<Record<ProviderType, number>> = {
 };
 const DEFAULT_PROVIDER_INPUT_BUDGET = 60_000;
 
+export function getProviderInputBudget(p: ProviderType): number {
+  return PROVIDER_INPUT_TOKEN_BUDGET[p] ?? DEFAULT_PROVIDER_INPUT_BUDGET;
+}
+
 function providerInputBudget(p: ProviderType): number {
   return PROVIDER_INPUT_TOKEN_BUDGET[p] ?? DEFAULT_PROVIDER_INPUT_BUDGET;
 }

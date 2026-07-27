@@ -1,8 +1,8 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getAiHealth, runFailoverTest, listAiCooldowns, clearAiCooldowns } from "@/lib/cases.functions";
-import { CheckCircle2, XCircle, RefreshCw, Activity, Database, Cpu, PlayCircle, AlertTriangle } from "lucide-react";
+import { getAiHealth, runFailoverTest, listAiCooldowns, clearAiCooldowns, getAiErrorLog } from "@/lib/cases.functions";
+import { CheckCircle2, XCircle, RefreshCw, Activity, Database, Cpu, PlayCircle, AlertTriangle, Download } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/health")({
   component: HealthPage,
@@ -20,6 +20,24 @@ function fmtTs(ts?: number | null) {
   return new Date(ts).toLocaleString();
 }
 
+/** RFC4180-safe CSV cell. */
+function csvCell(v: unknown): string {
+  const s = v === null || v === undefined ? "" : String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(filename: string, rows: Array<Record<string, unknown>>, headers?: string[]) {
+  const cols = headers ?? (rows.length ? Object.keys(rows[0]) : []);
+  const body = [cols.join(","), ...rows.map((r) => cols.map((c) => csvCell(r[c])).join(","))].join("\r\n");
+  const blob = new Blob(["\uFEFF" + body], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function HealthPage() {
   const router = useRouter();
   const fetchHealth = useServerFn(getAiHealth);
@@ -30,7 +48,23 @@ function HealthPage() {
     refetchInterval: 30_000,
     retry: false,
   });
-  const probe = useMutation({ mutationFn: () => runTest() });
+  const probe = useMutation({
+    mutationFn: (provider?: string) => runTest({ data: { provider: provider ?? null } }),
+  });
+
+  const fetchErrorLog = useServerFn(getAiErrorLog);
+  const errorLog = useMutation({
+    mutationFn: (opts: { days: number; onlyFailures: boolean }) =>
+      fetchErrorLog({ data: { days: opts.days, onlyFailures: opts.onlyFailures, limit: 5000 } }),
+    onSuccess: (res) => {
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      downloadCsv(
+        `nyrava-ai-${res.onlyFailures ? "failures" : "activity"}-${res.days}d-${stamp}.csv`,
+        res.rows,
+        ["created_at", "provider", "model", "operation", "success", "reason", "error", "latency_ms", "input_tokens", "output_tokens", "total_tokens", "case_id"],
+      );
+    },
+  });
 
   const fetchCooldowns = useServerFn(listAiCooldowns);
   const clearCooldownsFn = useServerFn(clearAiCooldowns);
@@ -45,6 +79,7 @@ function HealthPage() {
     onSuccess: () => cooldowns.refetch(),
   });
 
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex items-center justify-between">
@@ -53,8 +88,9 @@ function HealthPage() {
             <Activity className="h-7 w-7 text-accent" /> System Health
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            AI requests run through <strong>Groq only</strong>. Rate limits enter cooldown and resume later; no fallback provider is used. Auto-refreshes every 30s.
+            Every configured AI provider is probed with the same keys the pipeline uses. Rate limits enter cooldown and the router fails over to the next key/provider. Auto-refreshes every 30s.
           </p>
+
         </div>
         <button
           onClick={() => { refetch(); router.invalidate(); }}
@@ -101,14 +137,23 @@ function HealthPage() {
             </div>
           )}
 
-          <section className="mt-8 grid gap-4 md:grid-cols-2">
-            <ProviderCard
-              name="Groq only" icon={<Cpu className="h-4 w-4" />}
-              configured={data.providers.groq.configured}
-              ok={data.providers.groq.ok} latencyMs={data.providers.groq.latencyMs}
-              error={data.providers.groq.error}
-              note={`gpt-oss-120b · ${data.providers.groq.totalOk ?? 0} ok / ${data.providers.groq.totalErr ?? 0} err`}
-            />
+          <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {Object.values(data.providers)
+              .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
+              .map((p) => (
+                <ProviderCard
+                  key={p.provider}
+                  name={p.displayName || p.provider}
+                  icon={<Cpu className="h-4 w-4" />}
+                  configured={p.configured}
+                  ok={p.ok}
+                  latencyMs={p.latencyMs}
+                  error={p.error ?? p.lastError ?? undefined}
+                  note={`${p.model ?? "—"} · ${p.keyCount} key${p.keyCount === 1 ? "" : "s"} · ${p.totalOk} ok / ${p.totalErr} err · ${Math.round(p.inputTokenBudget / 1000)}k tok budget`}
+                  onTest={() => probe.mutate(p.provider)}
+                  testing={probe.isPending}
+                />
+              ))}
             <ProviderCard
               name="Backend" icon={<Database className="h-4 w-4" />}
               configured={true}
@@ -117,6 +162,7 @@ function HealthPage() {
               note="Database & auth"
             />
           </section>
+
 
           <section className="mt-8 rounded-xl border border-border bg-card p-5">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -152,7 +198,7 @@ function HealthPage() {
                   Active AI cooldowns
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  In-memory router circuit breakers. When set, all Groq requests for that (model, org) are refused with <code>retry_after_ms</code> until it expires. Clearing releases the block immediately.
+                  In-memory router circuit breakers. When set, requests for that (model, org) are refused with <code>retry_after_ms</code> until it expires. Clearing releases the block immediately.
                 </p>
               </div>
               <button
@@ -216,17 +262,18 @@ function HealthPage() {
                   Live provider probe
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Sends a real prompt through Groq and records latency, tokens, model, and output.
+                  Sends a real prompt through every configured provider and records latency, tokens, model, and output. Use the Test button on a card to probe just that provider.
                 </p>
               </div>
               <button
-                onClick={() => probe.mutate()}
+                onClick={() => probe.mutate(undefined)}
                 disabled={probe.isPending}
                 className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
               >
                 <PlayCircle className={`h-4 w-4 ${probe.isPending ? "animate-pulse" : ""}`} />
-                {probe.isPending ? "Running…" : "Run probe"}
+                {probe.isPending ? "Running…" : "Test all providers"}
               </button>
+
             </div>
             {probe.data && (
               <div className="mt-4 overflow-x-auto">
@@ -326,9 +373,94 @@ function HealthPage() {
             )}
           </section>
 
+          <section className="mt-8 rounded-xl border border-border bg-card p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Error &amp; failure report (CSV)
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Exports persisted AI calls from the usage log with a classified failure reason
+                  (rate limit / payload too large / auth / timeout / model unavailable), provider,
+                  model, operation, tokens, latency and case id.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => errorLog.mutate({ days: 7, onlyFailures: true })}
+                  disabled={errorLog.isPending}
+                  className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" /> Failures · 7d
+                </button>
+                <button
+                  onClick={() => errorLog.mutate({ days: 30, onlyFailures: true })}
+                  disabled={errorLog.isPending}
+                  className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" /> Failures · 30d
+                </button>
+                <button
+                  onClick={() => errorLog.mutate({ days: 7, onlyFailures: false })}
+                  disabled={errorLog.isPending}
+                  className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" /> All activity · 7d
+                </button>
+              </div>
+            </div>
+            {errorLog.isPending && (
+              <div className="mt-3 text-xs text-muted-foreground">Building report…</div>
+            )}
+            {errorLog.error && (
+              <div className="mt-3 text-xs text-red-600">
+                {errorLog.error instanceof Error ? errorLog.error.message : String(errorLog.error)}
+              </div>
+            )}
+            {errorLog.data && (
+              <div className="mt-4">
+                <div className="text-xs text-muted-foreground">
+                  {errorLog.data.rows.length} row(s) exported over {errorLog.data.days} day(s).
+                </div>
+                {errorLog.data.summary.length > 0 && (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-xs uppercase text-muted-foreground">
+                        <tr className="border-b border-border">
+                          <th className="px-2 py-2 text-left">Provider</th>
+                          <th className="px-2 py-2 text-left">Reason</th>
+                          <th className="px-2 py-2 text-right">Count</th>
+                          <th className="px-2 py-2 text-left">Last</th>
+                          <th className="px-2 py-2 text-left">Sample</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {errorLog.data.summary.map((s) => (
+                          <tr key={`${s.provider}-${s.reason}`} className="border-b border-border/60">
+                            <td className="px-2 py-2 font-medium">{s.provider}</td>
+                            <td className="px-2 py-2 font-mono text-xs">{s.reason}</td>
+                            <td className="px-2 py-2 text-right tabular-nums">{s.count}</td>
+                            <td className="px-2 py-2 text-xs text-muted-foreground">
+                              {s.lastAt ? new Date(s.lastAt).toLocaleString() : "—"}
+                            </td>
+                            <td className="px-2 py-2 text-xs text-red-600 max-w-[24rem] truncate" title={s.sample}>
+                              {s.sample}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
           <p className="mt-6 text-xs text-muted-foreground">
-            Provider policy: <strong>Groq only</strong>. Rate limits enter cooldown and resume later;
-            requests are not retried through another provider. Identical prompts are served from an in-memory cache.
+            Provider policy: the router tries providers by priority and rotates every saved key.
+            Rate-limited (model, org) pairs enter cooldown and are skipped until it expires;
+            oversized prompts are routed to a wider-context provider. Identical prompts are served
+            from an in-memory cache.
           </p>
         </>
       )}
@@ -337,10 +469,11 @@ function HealthPage() {
 }
 
 function ProviderCard({
-  name, icon, configured, ok, latencyMs, error, note,
+  name, icon, configured, ok, latencyMs, error, note, onTest, testing,
 }: {
   name: string; icon: React.ReactNode; configured: boolean;
   ok: boolean; latencyMs: number; error?: string; note?: string;
+  onTest?: () => void; testing?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -353,9 +486,18 @@ function ProviderCard({
         </div>
         <StatusDot ok={configured && ok} />
       </div>
-      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
         <span>{configured ? "configured" : "not configured"}</span>
         <span>{ok ? `${latencyMs} ms` : "unreachable"}</span>
+        {onTest && (
+          <button
+            onClick={onTest}
+            disabled={testing}
+            className="ml-auto rounded border border-input bg-background px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
+          >
+            {testing ? "Testing…" : "Test"}
+          </button>
+        )}
       </div>
       {error && (
         <div className="mt-2 text-xs text-red-600 break-all">{error}</div>
@@ -363,6 +505,7 @@ function ProviderCard({
     </div>
   );
 }
+
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
