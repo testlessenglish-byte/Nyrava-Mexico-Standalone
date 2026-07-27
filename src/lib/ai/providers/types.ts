@@ -172,7 +172,11 @@ export const PROVIDER_DEFAULTS: Record<ProviderType, { baseUrl: string; model: s
 // need more than 16s to produce several thousand tokens of structured JSON,
 // so report calls timed out on every attempt, deterministically, forever.
 // Keep this in sync with MAX_AI_CALL_TIMEOUT_MS in pipeline-checkpoint.server.ts.
-export const PROVIDER_TIMEOUT_MS = 26_000;
+// 2026-07-27: 26s was still short for the report chunks on Gemini (observed:
+// "gemini timed out after 26000ms" on every report attempt). 33s is the most
+// that fits inside WORKER_INVOCATION_BUDGET_MS (42s) minus the checkpoint
+// safety buffer.
+export const PROVIDER_TIMEOUT_MS = 33_000;
 
 export function withTimeout(parent: AbortSignal | undefined, ms: number) {
   const ac = new AbortController();

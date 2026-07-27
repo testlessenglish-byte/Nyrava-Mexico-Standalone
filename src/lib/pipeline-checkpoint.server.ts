@@ -41,7 +41,7 @@ export const MIN_AI_CALL_BUDGET_MS = 12_000;
 // insufficient — every attempt timed out, retries burned the rest of the
 // tick's budget, and the stage could checkpoint forever with zero forward
 // progress. Raised to 26s, still safely inside WORKER_INVOCATION_BUDGET_MS.
-export const MAX_AI_CALL_TIMEOUT_MS = 26_000;
+export const MAX_AI_CALL_TIMEOUT_MS = 33_000;
 
 // Per-stage wall-clock budget. Deliberately conservative so a busy stage
 // still yields well before the outer HTTP timeout, letting the worker pick
