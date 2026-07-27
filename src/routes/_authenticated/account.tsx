@@ -3,7 +3,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   getAccount, updateProfile, updateVoicePrefs, updateNotificationPrefs,
@@ -13,9 +13,10 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   User, Mail, Lock, Mic, Bell, Bot, History, Save, Loader2, Volume2, PlayCircle,
 } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/account")({
-  head: () => ({ meta: [{ title: "Account — Nyrava" }] }),
+  head: () => ({ meta: [{ title: "Cuenta — Nyrava" }] }),
   component: AccountPage,
 });
 
@@ -33,27 +34,20 @@ const VOICES: { id: string; label: string; accent: string; gender: "F" | "M" }[]
   { id: "verse",   label: "Verse",   accent: "Neutral · Expressive",    gender: "M" },
 ];
 
-const ACCENTS: { id: string; label: string }[] = [
-  { id: "us",    label: "American English" },
-  { id: "uk",    label: "British English" },
-  { id: "au",    label: "Australian English" },
-  { id: "ca",    label: "Canadian English" },
-  { id: "es-mx", label: "Mexican Spanish" },
-  { id: "es-es", label: "Spain Spanish" },
-  { id: "neutral", label: "Neutral / Auto" },
-];
+const ACCENT_IDS = ["us", "uk", "au", "ca", "es-mx", "es-es", "neutral"] as const;
 
 function AccountPage() {
+  const { t } = useI18n();
   const getAcc = useServerFn(getAccount);
   const getAct = useServerFn(getRecentActivity);
   const accQ = useQuery({ queryKey: ["account"], queryFn: () => getAcc() });
   const actQ = useQuery({ queryKey: ["account-activity"], queryFn: () => getAct() });
 
   if (accQ.isLoading) {
-    return <div className="p-10 text-center text-sm text-muted-foreground">Loading account…</div>;
+    return <div className="p-10 text-center text-sm text-muted-foreground">{t("acct.loading")}</div>;
   }
   if (accQ.error || !accQ.data) {
-    return <div className="p-10 text-center text-sm text-destructive">Failed to load account.</div>;
+    return <div className="p-10 text-center text-sm text-destructive">{t("acct.loadFailed")}</div>;
   }
 
   const acc = accQ.data;
@@ -61,10 +55,8 @@ function AccountPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
       <header>
-        <h1 className="text-2xl font-bold text-white sm:text-3xl">Account</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Manage your profile, security, voice, notifications, and Nyrava Intelligence Companion preferences.
-        </p>
+        <h1 className="text-2xl font-bold text-white sm:text-3xl">{t("acct.title")}</h1>
+        <p className="mt-1 text-sm text-slate-400">{t("acct.subtitle")}</p>
         {acc.roles.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {acc.roles.map((r: string) => (
@@ -87,6 +79,7 @@ function AccountPage() {
 // ============================================================ Profile
 
 function ProfileCard({ acc, onSaved }: { acc: { profile: { full_name?: string | null; avatar_url?: string | null } | null; settings: Record<string, unknown> | null }; onSaved: () => void }) {
+  const { t } = useI18n();
   const update = useServerFn(updateProfile);
   const s = (acc.settings ?? {}) as Record<string, string | null>;
   const [form, setForm] = useState({
@@ -99,18 +92,18 @@ function ProfileCard({ acc, onSaved }: { acc: { profile: { full_name?: string | 
   });
   const m = useMutation({
     mutationFn: () => update({ data: form }),
-    onSuccess: () => { toast.success("Profile saved"); onSaved(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Save failed"),
+    onSuccess: () => { toast.success(t("acct.profile.saved")); onSaved(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("acct.saveFailed")),
   });
   return (
-    <Card icon={<User className="h-4 w-4" />} title="Profile">
+    <Card icon={<User className="h-4 w-4" />} title={t("acct.profile")}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Full name"    value={form.full_name}    onChange={(v) => setForm({ ...form, full_name: v })} />
-        <Field label="Display name" value={form.display_name} onChange={(v) => setForm({ ...form, display_name: v })} />
-        <Field label="Phone"        value={form.phone}        onChange={(v) => setForm({ ...form, phone: v })} />
-        <Field label="Firm"         value={form.firm_name}    onChange={(v) => setForm({ ...form, firm_name: v })} />
-        <Field label="Title"        value={form.title}        onChange={(v) => setForm({ ...form, title: v })} />
-        <Field label="Avatar URL"   value={form.avatar_url}   onChange={(v) => setForm({ ...form, avatar_url: v })} />
+        <Field label={t("acct.profile.fullName")}    value={form.full_name}    onChange={(v) => setForm({ ...form, full_name: v })} />
+        <Field label={t("acct.profile.displayName")} value={form.display_name} onChange={(v) => setForm({ ...form, display_name: v })} />
+        <Field label={t("acct.profile.phone")}       value={form.phone}        onChange={(v) => setForm({ ...form, phone: v })} />
+        <Field label={t("acct.profile.firm")}        value={form.firm_name}    onChange={(v) => setForm({ ...form, firm_name: v })} />
+        <Field label={t("acct.profile.title")}       value={form.title}        onChange={(v) => setForm({ ...form, title: v })} />
+        <Field label={t("acct.profile.avatar")}      value={form.avatar_url}   onChange={(v) => setForm({ ...form, avatar_url: v })} />
       </div>
       <SaveButton pending={m.isPending} onClick={() => m.mutate()} />
     </Card>
@@ -120,43 +113,44 @@ function ProfileCard({ acc, onSaved }: { acc: { profile: { full_name?: string | 
 // ============================================================ Security
 
 function SecurityCard({ email }: { email: string }) {
+  const { t } = useI18n();
   const setEmailFn = useServerFn(changeEmail);
   const setPwdFn = useServerFn(changePassword);
   const [newEmail, setNewEmail] = useState(email);
   const [newPwd, setNewPwd] = useState("");
   const emailM = useMutation({
     mutationFn: () => setEmailFn({ data: { newEmail } }),
-    onSuccess: (r: { message?: string }) => toast.success(r.message ?? "Email update requested"),
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Email update failed"),
+    onSuccess: (r: { message?: string }) => toast.success(r.message ?? t("acct.security.emailRequested")),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("acct.security.emailFailed")),
   });
   const pwdM = useMutation({
     mutationFn: () => setPwdFn({ data: { newPassword: newPwd } }),
-    onSuccess: () => { toast.success("Password changed"); setNewPwd(""); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Password update failed"),
+    onSuccess: () => { toast.success(t("acct.security.pwdChanged")); setNewPwd(""); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("acct.security.pwdFailed")),
   });
   return (
-    <Card icon={<Lock className="h-4 w-4" />} title="Security">
+    <Card icon={<Lock className="h-4 w-4" />} title={t("acct.security")}>
       <div className="space-y-4">
         <div>
-          <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-300"><Mail className="h-3 w-3" /> Email</label>
+          <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-300"><Mail className="h-3 w-3" /> {t("acct.security.email")}</label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
               className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
             <button onClick={() => emailM.mutate()} disabled={emailM.isPending || !newEmail || newEmail === email}
               className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-50">
-              {emailM.isPending ? "Sending…" : "Update email"}
+              {emailM.isPending ? t("acct.security.sending") : t("acct.security.updateEmail")}
             </button>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">You'll receive a confirmation link at the new address.</p>
+          <p className="mt-1 text-[11px] text-slate-500">{t("acct.security.emailHint")}</p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-300">New password</label>
+          <label className="mb-1 block text-xs font-medium text-slate-300">{t("acct.security.newPassword")}</label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder="At least 8 characters"
+            <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder={t("acct.security.pwdPlaceholder")}
               className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
             <button onClick={() => pwdM.mutate()} disabled={pwdM.isPending || newPwd.length < 8}
               className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-50">
-              {pwdM.isPending ? "Saving…" : "Change password"}
+              {pwdM.isPending ? t("acct.security.saving") : t("acct.security.changePassword")}
             </button>
           </div>
         </div>
@@ -168,6 +162,7 @@ function SecurityCard({ email }: { email: string }) {
 // ============================================================ Voice
 
 function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | null; onSaved: () => void }) {
+  const { t } = useI18n();
   const update = useServerFn(updateVoicePrefs);
   const s = (settings ?? {}) as {
     voice_id?: string; voice_speed?: number; voice_muted?: boolean; voice_autoplay?: boolean;
@@ -190,12 +185,12 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
       voice_accent: accent as "us" | "uk" | "au" | "ca" | "es-mx" | "es-es" | "neutral",
       voice_gender: genderFilter === "M" ? "male" : genderFilter === "F" ? "female" : undefined,
     } }),
-    onSuccess: () => { toast.success("Voice preferences saved"); onSaved(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Save failed"),
+    onSuccess: () => { toast.success(t("acct.voice.saved")); onSaved(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("acct.saveFailed")),
   });
 
   function instructionsFor(): string {
-    const accentLabel = ACCENTS.find((a) => a.id === accent)?.label ?? "American English";
+    const accentLabel = t(`acct.accent.${accent}`);
     const pitchPhrase = pitch === "low" ? "with a lower pitch" : pitch === "high" ? "with a higher pitch" : "with a natural pitch";
     return `Speak in ${accentLabel} ${pitchPhrase}, warm, clear, and professional.`;
   }
@@ -205,7 +200,7 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData.session?.access_token;
-      if (!authToken) throw new Error("Sign in required");
+      if (!authToken) throw new Error(t("acct.voice.signInRequired"));
       const res = await fetch("/api/voice/speak", {
         method: "POST",
         headers: {
@@ -213,15 +208,15 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
           Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          text: "This is Nyrava — your evidence-grounded legal intelligence companion.",
+          text: t("acct.voice.previewText"),
           voice: id, speed, instructions: instructionsFor(),
         }),
       });
-      if (!res.ok) throw new Error(await res.text().catch(() => "Preview failed"));
+      if (!res.ok) throw new Error(await res.text().catch(() => t("acct.voice.previewFailed")));
       const url = URL.createObjectURL(await res.blob());
       const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); await a.play();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Preview failed");
+      toast.error(e instanceof Error ? e.message : t("acct.voice.previewFailed"));
     } finally {
       setPreview(null);
     }
@@ -230,23 +225,23 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
   const filteredVoices = VOICES.filter((v) => genderFilter === "all" || v.gender === genderFilter);
 
   return (
-    <Card icon={<Mic className="h-4 w-4" />} title="Voice Companion">
-      <p className="mb-3 text-xs text-slate-400">Choose how Nyrava sounds and how it converses with you. Preferences sync across web and mobile.</p>
+    <Card icon={<Mic className="h-4 w-4" />} title={t("acct.voice")}>
+      <p className="mb-3 text-xs text-slate-400">{t("acct.voice.intro")}</p>
 
       <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Select label="Voice gender" value={genderFilter} onChange={(v) => setGenderFilter(v as typeof genderFilter)}
+        <Select label={t("acct.voice.gender")} value={genderFilter} onChange={(v) => setGenderFilter(v as typeof genderFilter)}
           options={[
-            { value: "all", label: "All voices" },
-            { value: "F",   label: "Female voices" },
-            { value: "M",   label: "Male voices" },
+            { value: "all", label: t("acct.voice.gender.all") },
+            { value: "F",   label: t("acct.voice.gender.female") },
+            { value: "M",   label: t("acct.voice.gender.male") },
           ]} />
-        <Select label="Accent / Language" value={accent} onChange={setAccent}
-          options={ACCENTS.map((a) => ({ value: a.id, label: a.label }))} />
-        <Select label="Pitch" value={pitch} onChange={(v) => setPitch(v as typeof pitch)}
+        <Select label={t("acct.voice.accent")} value={accent} onChange={setAccent}
+          options={ACCENT_IDS.map((a) => ({ value: a as string, label: t(`acct.accent.${a}`) }))} />
+        <Select label={t("acct.voice.pitch")} value={pitch} onChange={(v) => setPitch(v as typeof pitch)}
           options={[
-            { value: "low",    label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high",   label: "High" },
+            { value: "low",    label: t("acct.voice.pitch.low") },
+            { value: "medium", label: t("acct.voice.pitch.medium") },
+            { value: "high",   label: t("acct.voice.pitch.high") },
           ]} />
       </div>
 
@@ -259,13 +254,13 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
             <div className="flex items-center gap-2">
               <input type="radio" name="voice" checked={voiceId === v.id} onChange={() => setVoiceId(v.id)} className="accent-cyan-400" />
               <div>
-                <div className="text-sm font-medium text-white">{v.label} <span className="ml-1 text-[10px] text-slate-400">({v.gender === "F" ? "Female" : "Male"})</span></div>
+                <div className="text-sm font-medium text-white">{v.label} <span className="ml-1 text-[10px] text-slate-400">({v.gender === "F" ? t("acct.voice.female") : t("acct.voice.male")})</span></div>
                 <div className="text-[11px] text-slate-400">{v.accent}</div>
               </div>
             </div>
             <button onClick={(e) => { e.preventDefault(); previewVoice(v.id); }} disabled={previewing === v.id}
               className="flex items-center gap-1 rounded-md border border-slate-600 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800 disabled:opacity-50">
-              {previewing === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <PlayCircle className="h-3 w-3" />} Preview
+              {previewing === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <PlayCircle className="h-3 w-3" />} {t("acct.voice.preview")}
             </button>
           </label>
         ))}
@@ -273,16 +268,16 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-xs font-medium text-slate-300">Speaking speed: {speed.toFixed(2)}×</label>
+          <label className="block text-xs font-medium text-slate-300">{t("acct.voice.speed", { speed: speed.toFixed(2) })}</label>
           <input type="range" min={0.5} max={1.5} step={0.05} value={speed}
             onChange={(e) => setSpeed(parseFloat(e.target.value))}
             className="mt-1 w-full accent-cyan-400" />
-          <div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>Slow</span><span>Normal</span><span>Fast</span></div>
+          <div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>{t("acct.voice.slow")}</span><span>{t("acct.voice.normal")}</span><span>{t("acct.voice.fast")}</span></div>
         </div>
         <div className="space-y-2">
-          <Toggle label="Auto-speak responses"        checked={autoplay}   onChange={setAuto} />
-          <Toggle label="Continuous conversation mode" checked={continuous} onChange={setCont} />
-          <Toggle label="Mute voice (text-only)"       checked={muted}      onChange={setMuted} icon={<Volume2 className="h-3 w-3" />} />
+          <Toggle label={t("acct.voice.autoplay")}   checked={autoplay}   onChange={setAuto} />
+          <Toggle label={t("acct.voice.continuous")} checked={continuous} onChange={setCont} />
+          <Toggle label={t("acct.voice.mute")}       checked={muted}      onChange={setMuted} icon={<Volume2 className="h-3 w-3" />} />
         </div>
       </div>
       <SaveButton pending={m.isPending} onClick={() => m.mutate()} />
@@ -293,6 +288,7 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
 // ============================================================ Notifications
 
 function NotificationCard({ settings, onSaved }: { settings: Record<string, unknown> | null; onSaved: () => void }) {
+  const { t } = useI18n();
   const update = useServerFn(updateNotificationPrefs);
   const s = (settings ?? {}) as Record<string, boolean | undefined>;
   const [form, setForm] = useState({
@@ -303,16 +299,16 @@ function NotificationCard({ settings, onSaved }: { settings: Record<string, unkn
   });
   const m = useMutation({
     mutationFn: () => update({ data: form }),
-    onSuccess: () => { toast.success("Notifications saved"); onSaved(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Save failed"),
+    onSuccess: () => { toast.success(t("acct.notif.saved")); onSaved(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("acct.saveFailed")),
   });
   return (
-    <Card icon={<Bell className="h-4 w-4" />} title="Notifications">
+    <Card icon={<Bell className="h-4 w-4" />} title={t("acct.notif")}>
       <div className="space-y-2">
-        <Toggle label="Email notifications"             checked={form.notify_email}              onChange={(v) => setForm({ ...form, notify_email: v })} />
-        <Toggle label="Pipeline completed"              checked={form.notify_pipeline_complete}  onChange={(v) => setForm({ ...form, notify_pipeline_complete: v })} />
-        <Toggle label="Pipeline failed"                 checked={form.notify_pipeline_failed}    onChange={(v) => setForm({ ...form, notify_pipeline_failed: v })} />
-        <Toggle label="New evidence uploaded to a case" checked={form.notify_new_evidence}       onChange={(v) => setForm({ ...form, notify_new_evidence: v })} />
+        <Toggle label={t("acct.notif.email")}       checked={form.notify_email}             onChange={(v) => setForm({ ...form, notify_email: v })} />
+        <Toggle label={t("acct.notif.complete")}    checked={form.notify_pipeline_complete} onChange={(v) => setForm({ ...form, notify_pipeline_complete: v })} />
+        <Toggle label={t("acct.notif.failed")}      checked={form.notify_pipeline_failed}   onChange={(v) => setForm({ ...form, notify_pipeline_failed: v })} />
+        <Toggle label={t("acct.notif.newEvidence")} checked={form.notify_new_evidence}      onChange={(v) => setForm({ ...form, notify_new_evidence: v })} />
       </div>
       <SaveButton pending={m.isPending} onClick={() => m.mutate()} />
     </Card>
@@ -322,6 +318,7 @@ function NotificationCard({ settings, onSaved }: { settings: Record<string, unkn
 // ============================================================ AI Companion
 
 function AICompanionCard({ settings, onSaved }: { settings: Record<string, unknown> | null; onSaved: () => void }) {
+  const { t } = useI18n();
   const update = useServerFn(updateAIPrefs);
   const s = (settings ?? {}) as { ai_default_mode?: string; ai_response_style?: string; ai_max_response_chars?: number };
   const [mode, setMode] = useState((s.ai_default_mode as "evidence_grounded" | "exploratory" | "strategic") ?? "evidence_grounded");
@@ -329,26 +326,26 @@ function AICompanionCard({ settings, onSaved }: { settings: Record<string, unkno
   const [maxChars, setMaxChars] = useState(Number(s.ai_max_response_chars ?? 1500));
   const m = useMutation({
     mutationFn: () => update({ data: { ai_default_mode: mode, ai_response_style: style, ai_max_response_chars: maxChars } }),
-    onSuccess: () => { toast.success("Nyrava Intelligence Companion saved"); onSaved(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Save failed"),
+    onSuccess: () => { toast.success(t("acct.ai.saved")); onSaved(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("acct.saveFailed")),
   });
   return (
-    <Card icon={<Bot className="h-4 w-4" />} title="Nyrava Intelligence Companion">
+    <Card icon={<Bot className="h-4 w-4" />} title={t("acct.ai")}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Select label="Default mode" value={mode} onChange={(v) => setMode(v as typeof mode)}
+        <Select label={t("acct.ai.mode")} value={mode} onChange={(v) => setMode(v as typeof mode)}
           options={[
-            { value: "evidence_grounded", label: "Evidence-grounded (default)" },
-            { value: "exploratory",       label: "Exploratory" },
-            { value: "strategic",         label: "Strategic" },
+            { value: "evidence_grounded", label: t("acct.ai.mode.evidence") },
+            { value: "exploratory",       label: t("acct.ai.mode.exploratory") },
+            { value: "strategic",         label: t("acct.ai.mode.strategic") },
           ]} />
-        <Select label="Response style" value={style} onChange={(v) => setStyle(v as typeof style)}
+        <Select label={t("acct.ai.style")} value={style} onChange={(v) => setStyle(v as typeof style)}
           options={[
-            { value: "professional",   label: "Professional" },
-            { value: "conversational", label: "Conversational" },
-            { value: "concise",        label: "Concise" },
+            { value: "professional",   label: t("acct.ai.style.professional") },
+            { value: "conversational", label: t("acct.ai.style.conversational") },
+            { value: "concise",        label: t("acct.ai.style.concise") },
           ]} />
         <div>
-          <label className="block text-xs font-medium text-slate-300">Max response length: {maxChars} chars</label>
+          <label className="block text-xs font-medium text-slate-300">{t("acct.ai.maxChars", { n: maxChars })}</label>
           <input type="range" min={200} max={4000} step={100} value={maxChars}
             onChange={(e) => setMaxChars(parseInt(e.target.value))}
             className="mt-1 w-full accent-cyan-400" />
@@ -367,25 +364,26 @@ function ActivityCard({ data, loading }: {
           chats: Array<{ id: string; role: string; created_at: string; case_id: string }>; } | undefined;
   loading: boolean;
 }) {
+  const { t } = useI18n();
   return (
-    <Card icon={<History className="h-4 w-4" />} title="Recent activity">
+    <Card icon={<History className="h-4 w-4" />} title={t("acct.activity")}>
       {loading
-        ? <p className="text-xs text-slate-400">Loading…</p>
+        ? <p className="text-xs text-slate-400">{t("acct.activity.loading")}</p>
         : !data
-          ? <p className="text-xs text-slate-400">No activity yet.</p>
+          ? <p className="text-xs text-slate-400">{t("acct.activity.none")}</p>
           : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <ActivityCol title="Cases">
+              <ActivityCol title={t("acct.activity.cases")}>
                 {data.cases.length === 0 ? <Empty/> : data.cases.map((c) => (
                   <li key={c.id} className="truncate text-xs"><span className="text-white">{c.name}</span> <span className="text-slate-500">· {c.status}</span></li>
                 ))}
               </ActivityCol>
-              <ActivityCol title="Engine runs">
+              <ActivityCol title={t("acct.activity.runs")}>
                 {data.runs.length === 0 ? <Empty/> : data.runs.map((r) => (
                   <li key={r.id} className="truncate text-xs"><span className="font-mono text-slate-200">{r.engine}</span> <span className="text-slate-500">· {r.status}</span></li>
                 ))}
               </ActivityCol>
-              <ActivityCol title="Chat messages">
+              <ActivityCol title={t("acct.activity.chats")}>
                 {data.chats.length === 0 ? <Empty/> : data.chats.map((c) => (
                   <li key={c.id} className="truncate text-xs"><span className="text-slate-300">{c.role}</span> <span className="text-slate-500">· {new Date(c.created_at).toLocaleString()}</span></li>
                 ))}
@@ -403,7 +401,10 @@ function ActivityCol({ title, children }: { title: string; children: React.React
     </div>
   );
 }
-function Empty() { return <li className="text-xs text-slate-500">No items.</li>; }
+function Empty() {
+  const { t } = useI18n();
+  return <li className="text-xs text-slate-500">{t("acct.activity.empty")}</li>;
+}
 
 // ============================================================ Primitives
 
@@ -447,16 +448,14 @@ function Select<T extends string>({ label, value, onChange, options }: { label: 
   );
 }
 function SaveButton({ pending, onClick }: { pending: boolean; onClick: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="mt-4 flex justify-end">
       <button onClick={onClick} disabled={pending}
         className="inline-flex items-center gap-1.5 rounded-md border border-cyan-400/40 bg-cyan-400/15 px-4 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-400/25 disabled:opacity-50">
         {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-        Save changes
+        {t("acct.save")}
       </button>
     </div>
   );
 }
-
-// Silence unused warning for useEffect import (kept for future side-effects)
-void useEffect;
