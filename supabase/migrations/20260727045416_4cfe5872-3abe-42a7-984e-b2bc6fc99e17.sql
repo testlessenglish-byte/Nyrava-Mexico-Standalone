@@ -1,0 +1,1 @@
+UPDATE public.ai_providers SET default_model = 'gemini-2.5-flash' WHERE provider_type = 'gemini' AND default_model IN ('gemini-2.0-flash', 'gemini-1.5-flash');

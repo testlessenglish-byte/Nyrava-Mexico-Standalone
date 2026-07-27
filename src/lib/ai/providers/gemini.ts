@@ -10,15 +10,17 @@ import { currentTelemetryScope } from "../telemetry.server";
 import { traceAsync } from "../../pipeline-trace.server";
 
 /**
- * Single live Flash-class fallback tried when the configured id answers 404
- * NOT_FOUND. We deliberately cap this to one fallback so a retired model slug
- * cannot multiply one logical engine call into several real Gemini requests.
+ * Live Flash-class ids tried when the configured id is unusable on this key —
+ * either retired (HTTP 404 NOT_FOUND) or carrying a hard-zero free-tier quota
+ * (HTTP 429 with `limit: 0`, which Google returns for models whose free tier
+ * has been withdrawn, e.g. gemini-2.0-flash). A zero-quota model 429s
+ * instantly on a brand-new key, so it must switch models, not cool down the key.
  */
 const GEMINI_MODEL_FALLBACKS = [
-  "gemini-2.0-flash",
+  "gemini-2.5-flash",
   "gemini-flash-latest",
-  "gemini-2.0-flash-lite",
   "gemini-2.5-flash-lite",
+  "gemini-2.0-flash-lite",
 ] as const;
 
 function isModelNotFound(message: string): boolean {
@@ -27,6 +29,24 @@ function isModelNotFound(message: string): boolean {
     /(NOT_FOUND|not found|no longer available|is not supported)/i.test(message)
   );
 }
+
+/**
+ * True when a 429 says this *model* has no free-tier allowance at all
+ * (`limit: 0`). This is not rate limiting — retrying or waiting never helps;
+ * only a different model id does.
+ */
+function isZeroQuotaModel(message: string): boolean {
+  return /HTTP 429/.test(message) && /limit:\s*0\b/.test(message);
+}
+
+/**
+ * Model ids proven unusable on this deployment (retired, or free tier removed).
+ * Process-local so one discovery spares every later call the wasted round-trip.
+ */
+const UNUSABLE_MODELS = new Set<string>();
+
+
+
 
 function retryAfterHeaderMs(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -58,29 +78,35 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
   return withCapabilities({
     type: "gemini",
     async chat(o: ChatOpts): Promise<ChatResult> {
-      // Google retires Generative Language model ids without notice, and a
-      // retired id answers with HTTP 404 NOT_FOUND. Try the configured id once,
-      // then exactly one fallback; do not walk the whole ladder and burn quota.
+      // Google retires model ids and withdraws free-tier quota without notice:
+      // a retired id answers 404 NOT_FOUND, a withdrawn free tier answers 429
+      // with `limit: 0`. Both are rejected before any tokens are billed, so we
+      // may walk a short ladder (max 3 ids) without burning real quota.
       const requested = o.model ?? defaultModel;
-      const fallback = GEMINI_MODEL_FALLBACKS.find((m) => m !== requested);
-      const candidates = [requested, fallback].filter(
-        (m, i, arr): m is string => typeof m === "string" && m.length > 0 && arr.indexOf(m) === i,
-      );
+      const candidates = [requested, ...GEMINI_MODEL_FALLBACKS]
+        .filter((m, i, arr): m is string => typeof m === "string" && m.length > 0 && arr.indexOf(m) === i)
+        .filter((m) => !UNUSABLE_MODELS.has(m) || m === requested)
+        .slice(0, 3);
       let lastModelError: Error | null = null;
       for (const candidate of candidates) {
         try {
-          return await callModel(candidate, o);
+          const result = await callModel(candidate, o);
+          UNUSABLE_MODELS.delete(candidate);
+          return result;
         } catch (e) {
           const err = e instanceof Error ? e : new Error(String(e));
-          if (isModelNotFound(err.message)) {
+          if (isModelNotFound(err.message) || isZeroQuotaModel(err.message)) {
+            // Remember it so later calls in this process skip the dead id.
+            UNUSABLE_MODELS.add(candidate);
             lastModelError = err;
-            continue; // retired/unavailable id — try the next one
+            continue;
           }
           throw err;
         }
       }
       throw lastModelError ?? new Error("gemini: no usable model");
     },
+
     async testConnection() {
       const t0 = Date.now();
       try {
