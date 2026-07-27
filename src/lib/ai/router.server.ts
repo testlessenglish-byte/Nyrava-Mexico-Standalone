@@ -1148,6 +1148,34 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     },
   });
   if (allAttemptsSkippedByCooldown) {
+    // Rate-limit cooldowns are short-lived. Failing the whole stage the instant
+    // every key is cooling down is what makes a run collapse seconds after a
+    // single 429. Wait the shortest cooldown out (when the checkpoint budget
+    // allows) and try the chain again before giving up.
+    const waits = opts._cooldownWaits ?? 0;
+    const MAX_COOLDOWN_WAITS = 3;
+    const MAX_WAIT_MS = 95_000;
+    if (waits < MAX_COOLDOWN_WAITS && soonestCooldownMs != null && soonestCooldownMs <= MAX_WAIT_MS) {
+      const waitMs = Math.min(MAX_WAIT_MS, soonestCooldownMs + 1_000);
+      let budgetOk = true;
+      try {
+        assertCheckpointBudget("before provider cooldown wait", waitMs + 5_000);
+      } catch (err) {
+        if (isCheckpointError(err)) budgetOk = false;
+        else throw err;
+      }
+      if (budgetOk) {
+        traceAsync({
+          phase: "ai",
+          step: "router.cooldown_wait",
+          status: "warn",
+          model: opts.model ?? null,
+          detail: { wait_ms: waitMs, attempt: waits + 1, cooldowns: cooldownSkips.slice(0, 8) },
+        });
+        await new Promise((res) => setTimeout(res, waitMs));
+        return routeAI({ ...opts, _cooldownWaits: waits + 1 });
+      }
+    }
     const retryText = soonestCooldownMs != null ? ` Retry after ${Math.ceil(soonestCooldownMs / 1000)}s.` : "";
     throw new Error(
       `All configured provider keys are cooling down after HTTP 429/rate-limit responses (tried: none${untriedNote}).${retryText}${skipNote}`,
