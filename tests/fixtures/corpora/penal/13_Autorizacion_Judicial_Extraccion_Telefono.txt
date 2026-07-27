@@ -1,0 +1,25 @@
+JUZGADO SEGUNDO DE CONTROL Y JUICIO ORAL DEL PRIMER DISTRITO JUDICIAL EN JALISCO
+Carpeta administrativa 456/2026 — Incidente de autorización judicial
+Solicitud del Ministerio Público de acceso a información contenida en equipo de comunicación móvil
+Fundamento: arts. 16, párrafos décimo segundo y décimo tercero, CPEUM; arts. 291 y 303 del CNPP.
+
+I. SOLICITUD
+El Agente del Ministerio Público solicitó autorización para la extracción y análisis forense del contenido del indicio IND-01 (teléfono Samsung Galaxy S23, IMEI 356789102345678), a fin de establecer la ubicación del equipo entre las 22:00 y las 23:30 horas del 14 de marzo de 2026 y verificar intentos de restablecimiento de fábrica o de desactivación posteriores al apoderamiento.
+
+II. RESOLUCIÓN JUDICIAL
+Se CONCEDE la autorización, limitada estrictamente a: (a) registros de conexión a antenas de radiobase entre las 21:30 y las 23:59 hrs. del 14/03/2026; (b) registro de eventos del sistema (encendido, apagado, cambio de SIM, intentos de restablecimiento) del 14 al 15 de marzo de 2026. Se NIEGA el acceso a mensajería, galería multimedia, correo electrónico y contactos, por no guardar relación de necesidad ni proporcionalidad con el objeto de la investigación. La extracción deberá practicarse con método que preserve la integridad del dispositivo y con generación de valor hash del volcado.
+
+III. INFORME PERICIAL DERIVADO
+INSTITUTO JALISCIENSE DE CIENCIAS FORENSES — Informática Forense
+Dictamen IJCF/INF/00641/2026. Perito: Ing. Omar Alejandro Ceja Buenrostro, cédula 9127455.
+Herramienta: extracción lógica con suite forense certificada; hash SHA-256 del volcado: 9f3c1a7b0e5d2846b1c7a3f90d4e6b82c5417ae0d93bb27f16c8054a2e7d3f11.
+
+HALLAZGOS
+1. El equipo permaneció bloqueado por patrón; se accedió únicamente a la partición de registros del sistema mediante el modo de servicio autorizado por el fabricante.
+2. Registros de radiobase: el dispositivo se conectó a la antena TELCEL-GDL-4471 (cobertura: colonia Americana, radio aproximado 600 m) entre las 21:47 y las 22:41 hrs.; posteriormente a la antena TELCEL-GDL-4459 (cobertura: colonia Americana sur / Moderna) a las 22:46 hrs., manteniéndose en ella hasta las 01:14 hrs. del 15/03/2026.
+3. A las 22:44 hrs. se registró un intento fallido de desbloqueo (evento auth_fail) y a las 22:45 hrs. la activación del modo avión, desactivado a las 22:46 hrs.
+4. No se registró cambio de tarjeta SIM ni intento de restablecimiento de fábrica.
+5. La resolución de la ubicación por antena de radiobase NO permite determinar la posición exacta del dispositivo, sino únicamente su presencia dentro del área de cobertura de la celda, que en zona urbana densa puede abarcar varias manzanas.
+
+OBSERVACIÓN DEL PERITO
+El equipo fue recibido en el área de informática forense el 19/03/2026, es decir, cuatro días después del aseguramiento, sin bolsa de Faraday ni aislamiento de red documentado en el registro de cadena de custodia, lo que no permite descartar conexiones o comandos remotos durante ese lapso.
