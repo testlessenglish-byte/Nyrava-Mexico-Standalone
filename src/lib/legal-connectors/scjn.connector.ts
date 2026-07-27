@@ -45,6 +45,15 @@ const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGES_PER_RUN = 4; // conservative — the corpus feed is large
+// A sync runs inside one request. Each document needs its own detail call, so
+// an unbounded run means hundreds of sequential HTTP calls and a timeout that
+// looks like "the connector doesn't work". Bound both count and wall clock.
+const MAX_DOCS_PER_RUN = 25;
+const RUN_BUDGET_MS = 45_000;
+const THROTTLE_MS = 150;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 
 type SjfTesis = {
   ius?: string | number;
