@@ -4328,28 +4328,32 @@ ${corpus.slice(0, s(160000))}`;
   // Each chunk gets its full token budget → no truncation, deeper analysis,
   // rate-limit friendly on the free tier (calls rotate across `apiKeys`
   // inside callGroq).
-  // Input budget is halved from the earlier design so a single report chunk
-  // fits comfortably under Groq's per-minute token ceiling for
-  // `llama-4-scout-17b-16e-instruct` (~30k TPM). At the previous sizes the
-  // shared context alone was ~57k tokens and every request returned 413
-  // "Request too large", regardless of how many keys/orgs we rotated
-  // through. Total shared context is now capped around ~12–13k input
-  // tokens, leaving headroom for the JSON shape header and the model's
-  // output allowance within the same minute bucket.
+  // 2026-07-27 — report input budget cut roughly in half again (corpus
+  // 55k→22k chars, findings 18k→9k, engine block 12k→7k, etc.). Two hard
+  // limits force this, and both were being violated:
+  //   1. At ~19.6k input tokens the report chunk was over EVERY fast
+  //      provider's per-request budget, so it was routed to Gemini every
+  //      time and Groq never saw it.
+  //   2. Gemini then had to generate up to 10k output tokens, which cannot
+  //      finish inside the 26s per-call ceiling — every attempt died with
+  //      "gemini timed out after 26000ms", producing zero forward progress
+  //      until the checkpoint loop-breaker killed the run.
+  // Trimmed to ~9-10k input tokens the chunk fits Groq's request budget, so
+  // the fast provider takes it first and Gemini is only a fallback.
   const sharedContext = `DOCUMENT LEGEND:
 ${docLegend}
 
 KNOWN (DEDUPLICATED) FINDINGS (${findings.length}) — reference by id where relevant; DO NOT restate them:
-${JSON.stringify(findingsLite).slice(0, 18000)}
+${JSON.stringify(findingsLite).slice(0, 9000)}
 
 ANALYSIS:
-${JSON.stringify(analysis).slice(0, 5000)}
+${JSON.stringify(analysis).slice(0, 3000)}
 
 AGENT OUTPUT:
-${JSON.stringify(agents ?? []).slice(0, 4000)}
+${JSON.stringify(agents ?? []).slice(0, 2500)}
 
 CASE SCORE (explainable):
-${JSON.stringify(score).slice(0, 3000)}
+${JSON.stringify(score).slice(0, 2000)}
 
 ENGINE OUTPUT (perspectives / evidence intel / strategy / witnesses / trial prep / theories / opportunities):
 ${JSON.stringify({
@@ -4361,7 +4365,7 @@ ${JSON.stringify({
   theories: theories ?? [],
   opportunities: opps ?? [],
   prior_contradictions: contradictionsExisting ?? [],
-}).slice(0, 12000)}
+}).slice(0, 7000)}
 
 PAGINATION RULES:
 - The corpus below is split into pages. Each page block is prefixed with \`--- DOC N p.M ---\`.
@@ -4370,7 +4374,7 @@ PAGINATION RULES:
 - Do NOT fabricate page numbers, quotes, or document ids.
 
 CORPUS (paginated):
-${corpus.slice(0, 55000)}`;
+${corpus.slice(0, 22000)}`;
 
   const narrativeShape = `Return STRICT JSON with this exact shape. Every prose field is a substantive narrative with inline \`[DOC N p.M]\` citations for every concrete claim — length per the LENGTH TARGETS already given above (scaled to this case's evidence volume; do not pad past what the evidence supports).
 
@@ -4556,12 +4560,12 @@ ${corpus.slice(0, 55000)}`;
         apiKey,
         apiKeys,
         signal: ac.signal,
-        // Pin every report chunk to whatever provider `ai_task_routing.report`
-        // names (Gemini). The report prompt is ~17k input + up to 10k output
-        // tokens — physically impossible on Groq free tier's ~8k TPM org
-        // ceiling — so consulting the default chain first only burns time on
-        // a guaranteed skip/429 before failing over.
-        task: "report",
+        // No task pin any more. The report prompt now fits inside Groq's
+        // request budget (~9-10k input tokens), and Groq generates several
+        // times faster than Gemini — which matters because a call has only
+        // 26s before the provider timeout. Pinning to Gemini guaranteed the
+        // slowest provider took every report chunk and timed out on all of
+        // them. Gemini stays in the chain as fallback.
         systemInstruction: systemInstruction + "\n" + sysSuffix,
         userContent: extraContext
           ? `${shape}\n\n${extraContext}\n\n${sharedContext}`
@@ -4623,11 +4627,15 @@ ${corpus.slice(0, 55000)}`;
   // content. At the old budgets it was reliably exhausting max_tokens on
   // reasoning alone (finish_reason=length, empty text) on every attempt,
   // which is deterministic given the same prompt — retries never succeeded.
+  // 2026-07-27: output budgets cut (10000/10000/7000 → 4000/4000/3000).
+  // A single call has 26s before the provider timeout fires; 10k output
+  // tokens cannot be generated in 26s by any of the configured providers
+  // except a warm Groq key, so on Gemini it timed out 100% of the time.
   const narrativeRes = await runChunk(
     "narrative",
     "You generate ONLY narrative prose sections in this call. Return the shape below and nothing else.",
     narrativeShape,
-    10000,
+    4000,
   );
 
   // --- STAGE 2: memo + intelligence run sequentially, referencing narrative.
@@ -4637,8 +4645,8 @@ ${corpus.slice(0, 55000)}`;
   const canonicalContext = buildCanonicalReportContext(chunkParsedByName.narrative ?? null);
   const canonicalContextBlock = serializeCanonicalContextForPrompt(canonicalContext);
 
-  await runChunk("memo", memoSysSuffix, memoShape, 10000, canonicalContextBlock);
-  await runChunk("intelligence", intelSysSuffix, intelShape, 7000, canonicalContextBlock);
+  await runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock);
+  await runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock);
 
   // `r` drives downstream logic (parsed, fallback banner). Anchor on narrative
   // since prose is the visible surface; memo/intelligence merge in below.
@@ -4670,7 +4678,7 @@ ${corpus.slice(0, 55000)}`;
     console.warn(
       "[report:chunk] memo chunk failed but narrative ok — attempting isolated memo salvage",
     );
-    await runChunk("memo", memoSysSuffix, memoShape, 8000);
+    await runChunk("memo", memoSysSuffix, memoShape, 3000);
     if (chunkStatus.memo.ok) pipelineWarnings.push("legal_memorandum_recovered_by_salvage");
   }
 
@@ -4683,7 +4691,7 @@ ${corpus.slice(0, 55000)}`;
       "intelligence",
       "You generate ONLY structured intelligence outputs. Return the shape below and nothing else.",
       intelShape,
-      5000,
+      2500,
     );
     if (chunkStatus.intelligence.ok) pipelineWarnings.push("intelligence_recovered_by_salvage");
   }

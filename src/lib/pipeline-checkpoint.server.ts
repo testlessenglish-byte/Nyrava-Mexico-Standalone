@@ -80,7 +80,11 @@ export const STAGE_BUDGET_MS: Record<string, number> = {
 // finish" symptom. This is a backstop, not the primary fix; it guarantees
 // the case always terminates even if the timing fixes above aren't enough
 // for a particular case.
-export const MAX_REPORT_CHECKPOINTS = 6;
+// 2026-07-27: was 6, the exact same number as the pipeline runner's
+// loop-breaker — so the runner aborted the whole run on the very tick the
+// report was going to salvage-finalize with whatever chunks it had. Must
+// stay strictly below the runner's limit for the salvage path to exist.
+export const MAX_REPORT_CHECKPOINTS = 4;
 
 export function budgetFor(stage: string): number {
   return STAGE_BUDGET_MS[stage] ?? STAGE_BUDGET_MS.default;
