@@ -24,6 +24,29 @@ function safeArr<T>(x: T[] | null | undefined): T[] {
   return Array.isArray(x) ? x : [];
 }
 
+/**
+ * Coerce a DB value that *should* be text but may be jsonb (object, array,
+ * number) into a plain string, so downstream string ops never crash.
+ */
+function coerceText(x: unknown): string | null {
+  if (x == null) return null;
+  if (typeof x === "string") return x;
+  if (typeof x === "number" || typeof x === "boolean") return String(x);
+  if (Array.isArray(x)) {
+    const parts = x.map((v) => coerceText(v)).filter((v): v is string => !!v && v.length > 0);
+    return parts.length > 0 ? parts.join(" ") : null;
+  }
+  if (typeof x === "object") {
+    const o = x as Record<string, unknown>;
+    for (const k of ["text", "summary", "rationale", "value", "description"]) {
+      const v = o[k];
+      if (typeof v === "string" && v.trim()) return v;
+    }
+    try { return JSON.stringify(x); } catch { return null; }
+  }
+  return null;
+}
+
 function citationsFromRow(row: {
   source_document_id?: string | null;
   source_page?: number | null;
@@ -189,7 +212,9 @@ export async function projectCanonical(
       witness_reliability: (scoresRow.witness_reliability as number | null) ?? null,
       timeline_integrity: (scoresRow.timeline_integrity as number | null) ?? null,
       overall_confidence: (scoresRow.overall_confidence as number | null) ?? null,
-      rationale: (scoresRow.rationale as string | null) ?? null,
+      // `case_scores.rationale` may arrive as jsonb (object/array) from some
+      // engines; the canonical schema and report renderer expect a string.
+      rationale: coerceText(scoresRow.rationale),
       suppressed: false,
     };
   }

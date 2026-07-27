@@ -152,7 +152,9 @@ export const PROVIDER_DEFAULTS: Record<ProviderType, { baseUrl: string; model: s
   },
   gemini: {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    model: "gemini-2.5-flash",
+    // `gemini-2.5-flash` now answers 404 "no longer available" on current keys;
+    // `gemini-flash-latest` is the live alias and always resolves.
+    model: "gemini-flash-latest",
     secretName: "GEMINI_API_KEY",
   },
   openrouter: {

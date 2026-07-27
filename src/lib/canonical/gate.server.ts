@@ -37,7 +37,7 @@ export async function runCanonicalGate(
 
   // Suppression messaging — always attach an explanatory rationale so the
   // renderer never displays a bare "Suppressed" with no reason.
-  if (analysis.Scores?.suppressed && !analysis.Scores.rationale?.trim()) {
+  if (analysis.Scores?.suppressed && !String(analysis.Scores.rationale ?? "").trim()) {
     analysis.Scores.rationale = SUPPRESSION_REASON;
   }
 

@@ -157,7 +157,7 @@ export function validateBeforeRender(analysis: CaseAnalysis): QaIssue[] {
   validateScores(analysis, issues);
 
   // Score consistency — Scores.suppressed must come with a rationale.
-  if (analysis.Scores?.suppressed && !analysis.Scores.rationale?.trim()) {
+  if (analysis.Scores?.suppressed && !String(analysis.Scores.rationale ?? "").trim()) {
     issues.push({
       code: "SUPPRESSION_NO_REASON",
       severity: "warning",
