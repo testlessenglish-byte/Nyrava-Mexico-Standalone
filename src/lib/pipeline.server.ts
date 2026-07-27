@@ -2027,14 +2027,15 @@ async function buildCorpus(db: Db, caseId: string) {
   return { corpus, chunks, docMap: new Map(extracted.map((d) => [d.filename, d.id as string])) };
 }
 
-// Safe per-request corpus payload budget (chars). Sized against the STRICTEST
-// tier we route to (Groq free tier: 8,000 tokens per minute, shared between
-// prompt and completion). 16k chars ≈ 4.5k prompt tokens, leaving room for the
-// system prompt, JSON schema and the completion inside one TPM window — a
-// 60k-char batch was ~18k tokens and got an instant HTTP 413/429 on every run,
-// which is what made cases look like they "burn the quota immediately".
-const ANALYZER_CORPUS_BUDGET_CHARS = 16_000;
-const ANALYZER_MIN_BATCH_CHARS = 4_000;
+// Per-request corpus payload budget (chars). Held at PARITY with the US build
+// (Nyrava.com: 60_000 / 8_000), which runs all day on two keys. Lowering this
+// does NOT save quota: the corpus is the same size either way, so a smaller
+// budget just splits it into 3-4x more requests — more per-request overhead,
+// more rotations, and more chances to trip a per-minute request cap. The
+// correct guard is the runtime 413/429 auto-split below (splitOversizeChunk),
+// which shrinks only the batches that actually get rejected.
+const ANALYZER_CORPUS_BUDGET_CHARS = 60_000;
+const ANALYZER_MIN_BATCH_CHARS = 8_000;
 
 type CorpusChunk = { docId: string; filename: string; index: number; text: string; size: number };
 
