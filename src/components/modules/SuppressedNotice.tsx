@@ -1,27 +1,27 @@
 import { ShieldAlert } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 export function SuppressedNotice({
-  title = "Insufficient evidence",
+  title,
   detail,
 }: {
   title?: string;
   detail?: string | null;
 }) {
+  const { t } = useI18n();
   return (
     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
       <div className="flex items-start gap-3">
         <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
         <div>
-          <p className="text-sm font-semibold text-amber-200">{title}</p>
-          <p className="mt-1 text-xs text-amber-100/80">
-            {detail ??
-              "The Evidence Sufficiency Validator blocked generation for this section. Upload additional evidence to enable it."}
-          </p>
+          <p className="text-sm font-semibold text-amber-200">{title ?? t("mod.suppressed.title")}</p>
+          <p className="mt-1 text-xs text-amber-100/80">{detail ?? t("mod.suppressed.detail")}</p>
         </div>
       </div>
     </div>
   );
 }
+
 
 export function ModuleEmpty({ title, hint }: { title: string; hint?: string }) {
   return (
