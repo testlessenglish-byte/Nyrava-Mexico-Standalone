@@ -231,11 +231,14 @@ export const scjnConnector: LegalSourceConnector = {
     const seen = new Set<string>();
     const out: IngestedDocument[] = [];
     const floor = since ? new Date(since).getTime() : null;
+    const deadline = Date.now() + RUN_BUDGET_MS;
     for (let page = 0; page < MAX_PAGES_PER_RUN; page++) {
+      if (out.length >= MAX_DOCS_PER_RUN || Date.now() >= deadline) break;
       const { items } = await searchPage(page);
       if (items.length === 0) break;
       let crossedFloor = false;
       for (const s of items) {
+        if (out.length >= MAX_DOCS_PER_RUN || Date.now() >= deadline) break;
         const ius = iusOf(s);
         if (!ius || seen.has(ius)) continue;
         seen.add(ius);
@@ -245,6 +248,7 @@ export const scjnConnector: LegalSourceConnector = {
           continue;
         }
         try {
+          await sleep(THROTTLE_MS);
           const detail = await fetchDetail(ius);
           const doc = toIngested({ ...s, ...(detail ?? {}) });
           if (doc) out.push(doc);
@@ -256,6 +260,7 @@ export const scjnConnector: LegalSourceConnector = {
     }
     return out;
   },
+
 
   async fetchDocument(externalId) {
     const ius = externalId.replace(/^scjn:tesis:/, "");
