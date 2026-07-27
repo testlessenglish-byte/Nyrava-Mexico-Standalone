@@ -152,7 +152,7 @@ export const PROVIDER_DEFAULTS: Record<ProviderType, { baseUrl: string; model: s
   },
   gemini: {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     secretName: "GEMINI_API_KEY",
   },
   openrouter: {
