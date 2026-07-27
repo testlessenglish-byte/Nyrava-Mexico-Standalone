@@ -98,38 +98,33 @@ export function resolveMxProfile(caseType: string | null | undefined): MxPipelin
  * CANONICAL_STAGES runs. Execution order always follows the canonical
  * dependency graph — a profile only removes stages, never reorders them, so
  * upstream dependencies can never be violated.
+ *
+ * NOTE: exclusions here must be LEGAL, never budgetary. A previous revision
+ * excluded nine "quota-heavy" stages (perspectives, theories, opportunities,
+ * trial_prep, strategy, litigation_strategy_center, work_product,
+ * hallucination, multi_agent) from every materia, which is why every case
+ * reported most engines — including the 13-agent run — as skipped. Quota is
+ * handled where it belongs: payload budgeting and provider cooldowns.
  */
-const QUOTA_HEAVY_OPTIONAL_STAGES = [
-  "perspectives",
-  "theories",
-  "opportunities",
-  "trial_prep",
-  "strategy",
-  "litigation_strategy_center",
-  "work_product",
-  "hallucination",
-  "multi_agent",
-] as const;
-
 const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // Proceso penal acusatorio (CNPP): everything is relevant, including
   // audiencia/juicio oral preparation and control constitucional.
-  penal: [...QUOTA_HEAVY_OPTIONAL_STAGES],
+  penal: [],
   // Juicio de amparo: se resuelve sobre el acto reclamado y el expediente —
   // no hay desahogo de testigos ni juicio oral.
-  amparo: [...QUOTA_HEAVY_OPTIONAL_STAGES, "witness"],
+  amparo: ["witness", "trial_prep"],
   // Violaciones a derechos humanos por autoridad: mismo alcance que penal.
-  derechos_humanos: [...QUOTA_HEAVY_OPTIONAL_STAGES],
+  derechos_humanos: [],
   // Materia laboral (LFT / tribunales laborales): sí hay audiencia, no hay
   // control constitucional directo en el juicio ordinario.
-  laboral: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
-  civil: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
-  familiar: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
-  mercantil: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
-  fiscal: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
-  administrativo: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional"],
+  laboral: ["constitutional"],
+  civil: ["constitutional"],
+  familiar: ["constitutional"],
+  mercantil: ["constitutional"],
+  fiscal: ["constitutional"],
+  administrativo: ["constitutional"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
-  apelacion: [...QUOTA_HEAVY_OPTIONAL_STAGES, "constitutional", "witness"],
+  apelacion: ["constitutional", "witness", "trial_prep"],
 };
 
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */
