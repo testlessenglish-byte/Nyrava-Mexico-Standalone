@@ -46,6 +46,26 @@ export const LEGAL_TERMS: Record<string, string> = {
   "legal.term.asunto": "Asunto",
   "legal.term.dof": "Diario Oficial de la Federación",
 
+  // Familiar
+  "legal.term.divorcioIncausado": "Divorcio incausado",
+  "legal.term.demandaDivorcio": "Demanda de divorcio",
+  "legal.term.convenioRegulador": "Convenio regulador",
+  "legal.term.guardaCustodia": "Guarda y custodia",
+  "legal.term.regimenConvivencias": "Régimen de convivencias",
+  "legal.term.pensionAlimenticia": "Pensión alimenticia",
+  "legal.term.interesSuperior": "Interés superior de la niñez",
+  "legal.term.patriaPotestad": "Patria potestad",
+  "legal.term.sociedadConyugal": "Sociedad conyugal",
+  "legal.term.separacionBienes": "Separación de bienes",
+  "legal.term.estudioTrabajoSocial": "Estudio de trabajo social",
+  "legal.term.estudioSocioeconomico": "Estudio socioeconómico",
+  "legal.term.dictamenPsicologico": "Dictamen pericial en psicología",
+  "legal.term.estudioPsicologico": "Estudio psicológico",
+  "legal.term.compensacionDedicacionHogar": "Compensación por dedicación al hogar",
+  "legal.term.actaMatrimonio": "Acta de matrimonio",
+  "legal.term.actaNacimiento": "Acta de nacimiento",
+  "legal.term.lgdnna": "Ley General de los Derechos de Niñas, Niños y Adolescentes",
+
   // Ordenamientos
   "legal.term.cpeum": "CPEUM",
   "legal.term.cnpp": "CNPP",
