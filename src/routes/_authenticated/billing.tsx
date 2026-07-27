@@ -1,0 +1,178 @@
+// Subscription page for the signed-in attorney.
+//
+// This route previously did not exist as a page at all: the file at this
+// path was a stale duplicate of src/lib/billing.functions.ts (server
+// functions only, no `Route` export), so every "Billing" link in the app
+// resolved to a route with no component. The server logic now lives solely
+// in src/lib/billing.functions.ts and this file is the actual page.
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { CreditCard, Check, Loader2, ShieldCheck, ExternalLink } from "lucide-react";
+import { getMyBillingStatus, createCheckoutSession, createBillingPortalSession } from "@/lib/billing.functions";
+import { BILLING_PLANS, type PlanKey } from "@/lib/billing-plans";
+import { useI18n } from "@/i18n";
+
+export const Route = createFileRoute("/_authenticated/billing")({
+  head: () => ({
+    meta: [
+      { title: "Suscripción — Nyrava Intelligence México" },
+      {
+        name: "description",
+        content:
+          "Administre su plan de Nyrava Intelligence México: estado de la suscripción, cambio de plan y facturación.",
+      },
+      { property: "og:title", content: "Suscripción — Nyrava Intelligence México" },
+      {
+        property: "og:description",
+        content: "Administre su plan y facturación de Nyrava Intelligence México.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: BillingPage,
+});
+
+function BillingPage() {
+  const { t } = useI18n();
+  const statusFn = useServerFn(getMyBillingStatus);
+  const checkoutFn = useServerFn(createCheckoutSession);
+  const portalFn = useServerFn(createBillingPortalSession);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["billing-status"],
+    queryFn: () => statusFn(),
+  });
+
+  const checkout = useMutation({
+    mutationFn: (planKey: PlanKey) =>
+      checkoutFn({ data: { planKey, origin: window.location.origin } }),
+    onSuccess: (res: { url?: string | null }) => {
+      if (res?.url) window.location.href = res.url;
+      else toast.error(t("billing.error.noCheckout"));
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+  });
+
+  const portal = useMutation({
+    mutationFn: () => portalFn({ data: { origin: window.location.origin } }),
+    onSuccess: (res: { url?: string | null }) => {
+      if (res?.url) window.location.href = res.url;
+      else toast.error(t("billing.error.noPortal"));
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+  });
+
+  const statusLabel = (() => {
+    if (!data) return "";
+    if (data.isBetaTester) return t("billing.status.beta");
+    if (data.status === "active" || data.status === "trialing") return t("billing.status.active");
+    if (data.status === "past_due") return t("billing.status.pastDue");
+    if (data.status === "canceled") return t("billing.status.canceled");
+    return t("billing.status.none");
+  })();
+
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+      <div className="flex items-center gap-3">
+        <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/15 text-primary">
+          <CreditCard className="h-5 w-5" />
+        </div>
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-foreground">{t("billing.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("billing.subtitle")}</p>
+        </div>
+      </div>
+
+      <section className="mt-6 rounded-lg border border-border/60 bg-card/60 p-5">
+        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          {t("billing.current.heading")}
+        </div>
+        {isLoading ? (
+          <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> {t("common.loading")}
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="text-lg font-semibold text-foreground">
+              {data?.plan ? BILLING_PLANS[data.plan as PlanKey]?.label : t("billing.plan.none")}
+            </div>
+            <span className="rounded-full border border-border/60 px-2.5 py-0.5 text-xs text-muted-foreground">
+              {statusLabel}
+            </span>
+            {data?.currentPeriodEnd && (
+              <span className="text-xs text-muted-foreground">
+                {data.cancelAtPeriodEnd ? t("billing.endsOn") : t("billing.renewsOn")}{" "}
+                {new Date(data.currentPeriodEnd).toLocaleDateString()}
+              </span>
+            )}
+            {!data?.plan && (
+              <span className="text-xs text-muted-foreground">
+                {data?.freeCaseUsed ? t("billing.freeCase.used") : t("billing.freeCase.available")}
+              </span>
+            )}
+          </div>
+        )}
+
+        {data?.plan && (
+          <button
+            onClick={() => portal.mutate()}
+            disabled={portal.isPending}
+            className="mt-4 inline-flex items-center gap-2 rounded border border-border/60 px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted/40 disabled:opacity-50"
+          >
+            {portal.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+            {t("billing.manage")}
+          </button>
+        )}
+      </section>
+
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        {(Object.values(BILLING_PLANS) as (typeof BILLING_PLANS)[PlanKey][]).map((plan) => {
+          const isCurrent = data?.plan === plan.key;
+          return (
+            <div
+              key={plan.key}
+              className={`flex flex-col rounded-lg border p-5 ${
+                isCurrent ? "border-primary/50 bg-primary/5" : "border-border/60 bg-card/40"
+              }`}
+            >
+              <div className="font-display text-lg font-semibold text-foreground">{plan.label}</div>
+              <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
+              <ul className="mt-4 flex-1 space-y-2 text-sm">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span className="text-muted-foreground">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              {isCurrent ? (
+                <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+                  <ShieldCheck className="h-4 w-4" /> {t("billing.currentPlan")}
+                </div>
+              ) : plan.selfServe ? (
+                <button
+                  onClick={() => checkout.mutate(plan.key)}
+                  disabled={checkout.isPending}
+                  className="mt-5 inline-flex items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                >
+                  {checkout.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t("billing.choose")}
+                </button>
+              ) : (
+                <a
+                  href="mailto:soporte@nyrava.com"
+                  className="mt-5 inline-flex items-center justify-center gap-2 rounded border border-border/60 px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted/40"
+                >
+                  {t("billing.contact")}
+                </a>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
