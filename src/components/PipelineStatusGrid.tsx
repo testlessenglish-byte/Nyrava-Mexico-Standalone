@@ -31,9 +31,9 @@ export function PipelineStatusGrid({ caseRow }: { caseRow: Case; runs?: unknown 
   const { t } = useI18n();
   const { stages } = useCaseExecution(caseRow.id);
   const caseType = (caseRow as { case_type?: string | null }).case_type ?? null;
-  // Hide the parallel multi-agent stage from the primary pipeline grid, plus
-  // any stage that isn't legally relevant for this materia.
-  const displayStages = stages.filter((s) => s.key !== "multi_agent" && isStageRelevantForCaseType(caseType, s.key));
+  // Show every stage that is legally relevant for this materia, including the
+  // 13-agent run that closes the pipeline after the report.
+  const displayStages = stages.filter((s) => isStageRelevantForCaseType(caseType, s.key));
 
   return (
     <section className="rounded-xl border border-border bg-card p-4">

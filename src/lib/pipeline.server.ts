@@ -2027,11 +2027,14 @@ async function buildCorpus(db: Db, caseId: string) {
   return { corpus, chunks, docMap: new Map(extracted.map((d) => [d.filename, d.id as string])) };
 }
 
-// Safe per-request corpus payload budget (chars). Well under Groq's per-request
-// cap for llama-4-scout after system prompt + JSON schema overhead. Not tuned
-// to any single case: batches are computed from actual doc sizes at runtime.
-const ANALYZER_CORPUS_BUDGET_CHARS = 60_000;
-const ANALYZER_MIN_BATCH_CHARS = 8_000;
+// Safe per-request corpus payload budget (chars). Sized against the STRICTEST
+// tier we route to (Groq free tier: 8,000 tokens per minute, shared between
+// prompt and completion). 16k chars ≈ 4.5k prompt tokens, leaving room for the
+// system prompt, JSON schema and the completion inside one TPM window — a
+// 60k-char batch was ~18k tokens and got an instant HTTP 413/429 on every run,
+// which is what made cases look like they "burn the quota immediately".
+const ANALYZER_CORPUS_BUDGET_CHARS = 16_000;
+const ANALYZER_MIN_BATCH_CHARS = 4_000;
 
 type CorpusChunk = { docId: string; filename: string; index: number; text: string; size: number };
 
