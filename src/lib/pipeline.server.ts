@@ -2893,7 +2893,9 @@ export async function runAgents(args: {
           // processes the FULL corpus in payload-safe chunks instead of a
           // single 180K-char slice that (a) blows past Groq's per-request TPM
           // cap and (b) silently drops every document past the truncation.
-          const agentBatches = packChunks(chunks, ANALYZER_CORPUS_BUDGET_CHARS);
+          const { packingCharBudget: agentBudgetFn } = await import("@/lib/ai/router.server");
+          const agentBatches = packChunks(chunks, await agentBudgetFn(ANALYZER_CORPUS_BUDGET_CHARS));
+
           console.log(
             `[agent:${agent.type}] docs=${chunks.length} totalChars=${corpus.length} batches=${agentBatches.length}`,
           );
