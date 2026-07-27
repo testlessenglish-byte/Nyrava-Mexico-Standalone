@@ -4627,11 +4627,15 @@ ${corpus.slice(0, 22000)}`;
   // content. At the old budgets it was reliably exhausting max_tokens on
   // reasoning alone (finish_reason=length, empty text) on every attempt,
   // which is deterministic given the same prompt — retries never succeeded.
+  // 2026-07-27: output budgets cut (10000/10000/7000 → 4000/4000/3000).
+  // A single call has 26s before the provider timeout fires; 10k output
+  // tokens cannot be generated in 26s by any of the configured providers
+  // except a warm Groq key, so on Gemini it timed out 100% of the time.
   const narrativeRes = await runChunk(
     "narrative",
     "You generate ONLY narrative prose sections in this call. Return the shape below and nothing else.",
     narrativeShape,
-    10000,
+    4000,
   );
 
   // --- STAGE 2: memo + intelligence run sequentially, referencing narrative.
