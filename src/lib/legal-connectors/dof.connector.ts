@@ -212,13 +212,15 @@ async function fetchNote(ref: NoteRef): Promise<IngestedDocument | null> {
   return buildIngested(ref, text, title);
 }
 
-async function fetchOneDay(d: Date): Promise<IngestedDocument[]> {
+async function fetchOneDay(d: Date, deadline: Deadline, remaining: number): Promise<IngestedDocument[]> {
   const html = await fetchHtml(dayUrl(d));
   if (!html) return [];
-  const refs = parseDayIndex(html, d);
+  const refs = parseDayIndex(html, d).slice(0, Math.max(0, remaining));
   const out: IngestedDocument[] = [];
   for (const ref of refs) {
+    if (expired(deadline)) break;
     try {
+      await sleep(THROTTLE_MS);
       const doc = await fetchNote(ref);
       if (doc) out.push(doc);
     } catch (e) {
@@ -254,14 +256,33 @@ export const dofConnector: LegalSourceConnector = {
   },
 
   async fetchUpdates(since) {
-    const days = enumerateDays(since);
+    const days = enumerateDays(since).reverse(); // newest edition first
+    const deadline = newDeadline();
     const out: IngestedDocument[] = [];
+    let indexReached = false;
+    let lastIndexError: unknown = null;
     for (const d of days) {
-      const perDay = await fetchOneDay(d);
-      out.push(...perDay);
+      if (expired(deadline) || out.length >= MAX_NOTES_PER_RUN) break;
+      try {
+        const perDay = await fetchOneDay(d, deadline, MAX_NOTES_PER_RUN - out.length);
+        indexReached = true;
+        out.push(...perDay);
+      } catch (e) {
+        lastIndexError = e;
+        console.warn(`[dof] day ${toDateOnly(d)} unavailable: ${String(e)}`);
+      }
+    }
+    if (!indexReached && lastIndexError) {
+      // Surface a clear cause instead of silently reporting "0 documents":
+      // dof.gob.mx blocks/throttles bursty clients, and that looks identical
+      // to "no publications" unless we say so.
+      throw new Error(
+        `DOF is not reachable right now (${String(lastIndexError)}). www.dof.gob.mx rate-limits repeated automated requests — retry later.`,
+      );
     }
     return out;
   },
+
 
   async fetchDocument(externalId) {
     const codNota = externalId.replace(/^dof:/, "");
