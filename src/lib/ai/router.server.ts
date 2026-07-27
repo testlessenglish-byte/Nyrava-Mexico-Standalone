@@ -603,9 +603,39 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     },
   });
 
+  // ---------------------------------------------------------------------
+  // Pre-flight request-size gate.
+  //
+  // Groq's free tier caps a SINGLE request at the tokens-per-minute ceiling
+  // (8k). A 17k-token engine prompt therefore returns HTTP 413 every single
+  // time — it burns an attempt, marks the key, and (worse) the run then dies
+  // even though Gemini, with a 1M-token window, could have served it fine.
+  // Estimate the payload once and route around providers that physically
+  // cannot accept it, instead of learning that from a guaranteed rejection.
+  // ---------------------------------------------------------------------
+  const estimatedInputTokens = estimateInputTokens(opts);
+  const sizeEligible = chain.map((r) => estimatedInputTokens <= providerInputBudget(r.provider_type));
+  const anySizeEligible = sizeEligible.some(Boolean);
+
   let realAttempts = 0;
   for (let i = 0; i < chain.length; i++) {
     const row = chain[i];
+    if (anySizeEligible && !sizeEligible[i]) {
+      traceAsync({
+        phase: "ai",
+        step: "router.provider_skipped",
+        status: "warn",
+        provider: row.provider_type,
+        model: effectiveModelFor(row),
+        detail: {
+          reason: "payload_exceeds_provider_limit",
+          estimated_input_tokens: estimatedInputTokens,
+          provider_input_budget: providerInputBudget(row.provider_type),
+        },
+      });
+      continue;
+    }
+
     if (realAttempts >= MAX_LOGICAL_PROVIDER_ATTEMPTS) {
       traceAsync({
         phase: "ai",
