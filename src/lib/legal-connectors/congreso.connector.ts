@@ -46,8 +46,8 @@ const BROWSER_UA =
 // Federal statutes are large PDFs (CPEUM is ~1.5 MB / ~400 KB of text), so a
 // run stays deliberately small and bounded — the corpus is ~320 laws and is
 // meant to be backfilled across many runs, not in one request.
-const MAX_LAWS_PER_RUN = 4;
-const RUN_BUDGET_MS = 45_000;
+const MAX_LAWS_PER_RUN = 6;
+const RUN_BUDGET_MS = 60_000;
 const THROTTLE_MS = 300;
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_TEXT_CHARS = 400_000;
