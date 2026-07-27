@@ -35,6 +35,41 @@ export type ReportLocale = "es" | "en";
  * proper names (SCJN, DOF, amparo, jurisprudencia) are never translated away.
  */
 const ES: Record<string, string> = {
+  // Found via a real generated report tonight — labels/tags that were never
+  // wrapped in rt() at their call site, so they rendered raw English right
+  // next to correctly-translated Spanish prose.
+  "Evidence:": "Evidencia:",
+  "Legal significance:": "Trascendencia jurídica:",
+  "[FACT]": "[HECHO]",
+  "Related findings:": "Hallazgos relacionados:",
+  "LEGAL BASIS": "FUNDAMENTO LEGAL",
+  "STATUS": "ESTADO",
+  "Critical Issues": "Cuestiones Críticas",
+  "High-Priority Issues": "Cuestiones de Alta Prioridad",
+  "Moderate Issues": "Cuestiones Moderadas",
+  "Minor & Administrative Issues": "Cuestiones Menores y Administrativas",
+  "Every citation below is verbatim from the case corpus. Use these to verify any claim in the report.":
+    "Cada cita a continuación es textual del corpus del expediente. Úselas para verificar cualquier afirmación de este reporte.",
+  "Grouped by severity so the issues most likely to affect the outcome are read first. Each finding lists a confidence level (how sure the classification is), an evidence strength (how well-sourced it is), and any related findings elsewhere in this report.":
+    "Agrupados por gravedad para que las cuestiones con mayor probabilidad de incidir en el resultado se lean primero. Cada hallazgo indica un nivel de confianza (qué tan segura es la clasificación), una fuerza probatoria (qué tan sustentado está) y los hallazgos relacionados en otras partes de este reporte.",
+  // statCards dashboard tile labels/values (executive summary metric grid)
+  "Status": "Estado",
+  "Scores": "Puntajes",
+  "Recommendations": "Recomendaciones",
+  "Limited": "Limitado",
+  "Suppressed": "Suprimido",
+  "Documents Analyzed": "Documentos Analizados",
+  "Findings": "Hallazgos",
+  "Constitutional Issues": "Cuestiones Constitucionales",
+  "Missing Evidence": "Evidencia Faltante",
+  "Agents Producing Output": "Agentes con Resultados",
+  "Engine Version": "Versión del Motor",
+  "Strong": "Sólida",
+  "Moderate": "Moderada",
+  "CONFIDENCE": "CONFIANZA",
+  "EVIDENCE STRENGTH": "FUERZA PROBATORIA",
+  "SOURCES": "FUENTES",
+  "Party": "Parte",
   "ATTORNEY WORK PRODUCT  \u00b7  PRIVILEGED & CONFIDENTIAL":
     "PRODUCTO DE TRABAJO DEL ABOGADO  \u00b7  PRIVILEGIADO Y CONFIDENCIAL",
   "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations.":

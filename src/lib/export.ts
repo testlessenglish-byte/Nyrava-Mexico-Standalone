@@ -422,9 +422,9 @@ function evidenceStrengthLabel(
   confidence: number,
   sourceCount: number,
 ): { label: string; color: [number, number, number] } {
-  if (confidence >= 0.85 && sourceCount >= 2) return { label: "Strong", color: SUCCESS };
-  if (confidence >= 0.6 && sourceCount >= 1) return { label: "Moderate", color: ACCENT };
-  return { label: "Limited", color: DANGER };
+  if (confidence >= 0.85 && sourceCount >= 2) return { label: rt("Strong"), color: SUCCESS };
+  if (confidence >= 0.6 && sourceCount >= 1) return { label: rt("Moderate"), color: ACCENT };
+  return { label: rt("Limited"), color: DANGER };
 }
 
 // Distinct source documents actually cited in a finding's evidence_refs —
@@ -783,6 +783,8 @@ class PdfBuilder {
         const x = this.margin + col * (w + gap);
         const yy = this.y;
         const item = items[i];
+        const cardLabel = rt(item.label);
+        const cardValue = rt(item.value);
         // Compact card: whisper-light border, no fill, small color dot
         // in the corner. Value font auto-shrinks so long labels like
         // "Below Average - 50/100" always fit within the card width.
@@ -797,7 +799,7 @@ class PdfBuilder {
         this.doc.setTextColor(...MUTED);
         const labelMaxW = w - padX * 2 - 10;
         const labelLine =
-          (this.doc.splitTextToSize(item.label.toUpperCase(), labelMaxW) as string[])[0] ?? "";
+          (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[])[0] ?? "";
         this.doc.text(labelLine, x + padX, yy + 16);
         // Value — shrink font-size until it fits the card width.
         const valueMaxW = w - padX * 2;
@@ -805,11 +807,11 @@ class PdfBuilder {
         this.doc.setTextColor(...PRIMARY);
         let vSize = 14;
         this.doc.setFontSize(vSize);
-        while (vSize > 8 && this.doc.getTextWidth(item.value) > valueMaxW) {
+        while (vSize > 8 && this.doc.getTextWidth(cardValue) > valueMaxW) {
           vSize -= 0.5;
           this.doc.setFontSize(vSize);
         }
-        let valueText = item.value;
+        let valueText = cardValue;
         if (this.doc.getTextWidth(valueText) > valueMaxW) {
           while (valueText.length > 3 && this.doc.getTextWidth(valueText + "…") > valueMaxW) {
             valueText = valueText.slice(0, -1);
@@ -993,7 +995,7 @@ class PdfBuilder {
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(10);
     this.doc.setTextColor(...PRIMARY);
-    this.doc.text(label.toUpperCase(), this.margin + 12, this.y);
+    this.doc.text(rt(label).toUpperCase(), this.margin + 12, this.y);
     this.y += 6;
     this.doc.setDrawColor(230, 233, 238);
     this.doc.setLineWidth(0.5);
@@ -1623,7 +1625,7 @@ function renderCover(
     const top = [...findings]
       .sort((fa, fb) => (order[asStr(fa.severity)] ?? 9) - (order[asStr(fb.severity)] ?? 9))
       .slice(0, 5);
-    b.h2("Top Findings");
+    b.h2(rt("Top Findings"));
     for (const f of top) b.findingChip(asStr(f.severity), asStr(f.title), Number(f.confidence ?? 0));
     b.y += 14;
   }
@@ -2096,7 +2098,7 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
       b.doc.setFont("helvetica", "bold");
       b.doc.setFontSize(9);
       b.doc.setTextColor(...PRIMARY);
-      b.doc.text("LEGAL BASIS", padX, b.y);
+      b.doc.text(rt("LEGAL BASIS"), padX, b.y);
       b.y += 12;
       b.doc.setFont("helvetica", "normal");
       b.doc.setFontSize(9);
@@ -2115,7 +2117,7 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
     b.doc.setFont("helvetica", "normal");
     b.doc.setFontSize(8.5);
     b.doc.setTextColor(...MUTED);
-    b.doc.text("STATUS", padX, statusY);
+    b.doc.text(rt("STATUS"), padX, statusY);
     b.pill(status.label, cardX + cardW - 16, statusY - 5, status.color, "right");
 
     b.y = cardTop + cardH + 4;
@@ -2719,11 +2721,13 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
 function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
   const findings = data.findings ?? [];
   if (!findings.length) return;
-  b.h1("Key Findings");
+  b.h1(rt("Key Findings"));
   b.text(
-    "Grouped by severity so the issues most likely to affect the outcome are read first. Each finding lists a " +
-      "confidence level (how sure the classification is), an evidence strength (how well-sourced it is), and any " +
-      "related findings elsewhere in this report.",
+    rt(
+      "Grouped by severity so the issues most likely to affect the outcome are read first. Each finding lists a " +
+        "confidence level (how sure the classification is), an evidence strength (how well-sourced it is), and any " +
+        "related findings elsewhere in this report.",
+    ),
     { size: 9.5, color: MUTED, gap: 8 },
   );
   const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 } as Record<string, number>;
@@ -2782,7 +2786,7 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 90) as string[];
       b.doc.text(titleLines[0] ?? "", b.margin + 10, b.y);
       const conf = Number(f.confidence ?? 0);
-      b.pill(`${asStr(f.severity)} · ${confidenceLabel(conf)} conf.`, b.pageW - b.margin, b.y + 1, sevColor, "right");
+      b.pill(`${asStr(f.severity)} · ${confidenceLabel(conf)} ${rt("conf.")}`, b.pageW - b.margin, b.y + 1, sevColor, "right");
       b.y += 16;
       for (const extra of titleLines.slice(1)) {
         b.doc.text(extra, b.margin + 10, b.y);
@@ -2793,7 +2797,7 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       // descriptions degrade to ANALYSIS.
       const fclass = classifyFindingForPdf(asStr(f.description), asArr(f.evidence_refs).length > 0);
       b.text(`[${fclass}]`, { size: 8, bold: true, color: fclass === "FACT" ? SUCCESS : ACCENT, gap: 4 });
-      if (f.affected_party) b.label("Party", asStr(f.affected_party));
+      if (f.affected_party) b.label(rt("Party"), asStr(f.affected_party));
       // Confidence / evidence strength / source count — lets an attorney
       // triage at a glance how much weight a finding can bear, rather
       // than treating every extracted item as equally reliable.
@@ -2802,9 +2806,9 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       b.doc.setFont("helvetica", "bold");
       b.doc.setFontSize(9);
       b.doc.setTextColor(...MUTED);
-      b.doc.text("CONFIDENCE", b.margin, b.y);
-      b.doc.text("EVIDENCE STRENGTH", b.margin + 140, b.y);
-      b.doc.text("SOURCES", b.margin + 300, b.y);
+      b.doc.text(rt("CONFIDENCE"), b.margin, b.y);
+      b.doc.text(rt("EVIDENCE STRENGTH"), b.margin + 140, b.y);
+      b.doc.text(rt("SOURCES"), b.margin + 300, b.y);
       b.y += 12;
       b.doc.setFont("helvetica", "bold");
       b.doc.setFontSize(10.5);
@@ -2816,11 +2820,11 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       b.doc.text(String(refCounts[i] || 0), b.margin + 300, b.y);
       b.y += 16;
       if (f.legal_significance)
-        b.text(`Legal significance: ${asStr(f.legal_significance)}`, { size: 10, color: MUTED, gap: 2 });
+        b.text(`${rt("Legal significance:")} ${asStr(f.legal_significance)}`, { size: 10, color: MUTED, gap: 2 });
       b.text(asStr(f.description), { size: 10, gap: 4 });
       const refs = asArr(f.evidence_refs);
       if (refs.length) {
-        b.text("Evidence:", { size: 9, bold: true, color: MUTED });
+        b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
         b.bullets(
           refs.slice(0, 4).map((r) => {
             const q = asStr(r.quote);
@@ -2837,7 +2841,7 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       const related = (byCategory.get(cat) ?? []).filter((ri) => ri !== i);
       if (cat && related.length) {
         b.text(
-          `Related findings: ${related
+          `${rt("Related findings:")} ${related
             .slice(0, 4)
             .map((ri) => `#${ri + 1} ${asStr(top[ri].title).slice(0, 40)}`)
             .join("; ")}`,
@@ -2904,7 +2908,7 @@ function renderContradictions(b: PdfBuilder, data: CaseExportData) {
   );
   for (const c of items) {
     b.h3(asStr(c.title, "Contradiction"));
-    b.text("[FACT]", { size: 8, bold: true, color: SUCCESS, gap: 2 });
+    b.text(rt("[FACT]"), { size: 8, bold: true, color: SUCCESS, gap: 2 });
     // Colored severity pill instead of a plain text label — this was the
     // only section in the report still rendering severity as uncolored
     // black text while every other section (Key Findings, tables) uses the
@@ -3177,7 +3181,7 @@ function renderConstitutional(b: PdfBuilder, data: CaseExportData) {
     if (c.remedy_sought) b.label("Remedy", asStr(c.remedy_sought));
     const cites = asArr(c.citations);
     if (cites.length) {
-      b.text("Evidence:", { size: 9, bold: true, color: MUTED });
+      b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
       b.bullets(cites.map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`));
     }
   }
@@ -3527,7 +3531,7 @@ function renderStrategy(b: PdfBuilder, data: CaseExportData) {
       }
       const mcites = asArr(m.citations);
       if (mcites.length) {
-        b.text("Evidence:", { size: 9, bold: true, color: MUTED });
+        b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
         b.bullets(
           mcites.slice(0, 4).map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`),
         );
@@ -3734,7 +3738,7 @@ function renderAppendix(b: PdfBuilder, data: CaseExportData) {
   const cites = asArr(r.citations);
   if (!cites.length) return;
   b.h1("Appendix: Source Citations");
-  b.text("Every citation below is verbatim from the case corpus. Use these to verify any claim in the report.", {
+  b.text(rt("Every citation below is verbatim from the case corpus. Use these to verify any claim in the report."), {
     size: 10,
     color: MUTED,
     gap: 8,
