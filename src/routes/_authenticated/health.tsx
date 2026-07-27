@@ -137,14 +137,23 @@ function HealthPage() {
             </div>
           )}
 
-          <section className="mt-8 grid gap-4 md:grid-cols-2">
-            <ProviderCard
-              name="Groq only" icon={<Cpu className="h-4 w-4" />}
-              configured={data.providers.groq.configured}
-              ok={data.providers.groq.ok} latencyMs={data.providers.groq.latencyMs}
-              error={data.providers.groq.error}
-              note={`gpt-oss-120b · ${data.providers.groq.totalOk ?? 0} ok / ${data.providers.groq.totalErr ?? 0} err`}
-            />
+          <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {Object.values(data.providers)
+              .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
+              .map((p) => (
+                <ProviderCard
+                  key={p.provider}
+                  name={p.displayName || p.provider}
+                  icon={<Cpu className="h-4 w-4" />}
+                  configured={p.configured}
+                  ok={p.ok}
+                  latencyMs={p.latencyMs}
+                  error={p.error ?? p.lastError ?? undefined}
+                  note={`${p.model ?? "—"} · ${p.keyCount} key${p.keyCount === 1 ? "" : "s"} · ${p.totalOk} ok / ${p.totalErr} err · ${Math.round(p.inputTokenBudget / 1000)}k tok budget`}
+                  onTest={() => probe.mutate(p.provider)}
+                  testing={probe.isPending}
+                />
+              ))}
             <ProviderCard
               name="Backend" icon={<Database className="h-4 w-4" />}
               configured={true}
@@ -153,6 +162,7 @@ function HealthPage() {
               note="Database & auth"
             />
           </section>
+
 
           <section className="mt-8 rounded-xl border border-border bg-card p-5">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
