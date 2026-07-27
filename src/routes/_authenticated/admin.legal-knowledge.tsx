@@ -141,7 +141,7 @@ function LegalKnowledgePage() {
                         {"documentsFetched" in result ? (
                           <>
                             {result.status}: {result.documentsFetched} obtenidos · {result.documentsStored} guardados ·{" "}
-                            {result.documentsVersioned} nuevas versiones
+                            {result.documentsVersioned} nuevas versiones · {result.entitiesProjected} entidades
                             {result.errors.length > 0 && (
                               <div className="mt-1">{result.errors.slice(0, 3).join(" | ")}</div>
                             )}
