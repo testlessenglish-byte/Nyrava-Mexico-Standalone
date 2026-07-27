@@ -145,11 +145,10 @@ export const IMPLEMENTED_CONNECTORS: LegalSourceConnector[] = [
   stateGazettesConnector,
   cjfConnector,
   stateScjConnector,
-  // tepjfConnector is a STUB: te.gob.mx sits behind a Radware WAF that
-  // answers every server-side request with a 303 to an internal security
-  // page, so there is no reachable interface to build against yet. Left
-  // registered (and status='planned') so a future run records a real
-  // 'failed' run instead of silently pretending to succeed.
+  // Electoral jurisdiction is served by TECDMX: the federal TEPJF
+  // (te.gob.mx) answers every server-side request with a Radware WAF
+  // redirect, and its tesis are not mirrored in SJF2.
   tepjfConnector,
+
 ];
 
