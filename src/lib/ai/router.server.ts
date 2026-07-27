@@ -101,7 +101,13 @@ const MAX_PROVIDER_RETRIES_PER_CALL = 1;
  * the completion and route bigger prompts to a wide-context provider instead.
  */
 const PROVIDER_INPUT_TOKEN_BUDGET: Partial<Record<ProviderType, number>> = {
-  groq: 6_000,
+  // 2026-07: was 6_000, which skipped Groq on virtually every engine prompt
+  // and serialized the whole pipeline onto Gemini at ~15s/call. Groq accepts
+  // far larger single requests than its per-minute ceiling suggests, and a
+  // 413/429 is already self-healed (split + failover), so the conservative
+  // gate cost far more than it saved.
+  groq: 12_000,
+
   openrouter: 60_000,
   gemini: 900_000,
   openai: 100_000,

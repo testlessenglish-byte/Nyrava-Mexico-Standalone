@@ -112,9 +112,30 @@ async function _runPipelineForCase(
   // for this case and terminate the run with a truthful message instead of
   // looping.
   // ---------------------------------------------------------------------------
-  const MAX_STAGE_CHECKPOINTS = 4;
+  // 2026-07: this used to count EVERY checkpoint of a stage in the last 6h,
+  // regardless of whether the stage was making progress. A long stage like
+  // `agents` (13 agents × ~15s/call) legitimately needs many worker ticks, so
+  // healthy runs were killed at the 5th tick with a false "sin capacidad de
+  // IA" message while every AI call was actually succeeding. Only checkpoints
+  // that produced NO successful AI call count now — i.e. genuinely stuck.
+  const MAX_STAGE_CHECKPOINTS = 5;
   const stageCheckpointCount = async (stageKey: string): Promise<number> => {
     try {
+      // Timestamp of the last successful AI call for this case. Anything the
+      // stage did before that is forward progress, not a stall.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: lastOk } = await (supabase as any)
+        .from("pipeline_trace")
+        .select("created_at")
+        .eq("case_id", caseId)
+        .eq("phase", "ai")
+        .eq("status", "ok")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const since =
+        (lastOk as { created_at?: string } | null)?.created_at ??
+        new Date(Date.now() - 6 * 60 * 60_000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count } = await (supabase as any)
         .from("pipeline_trace")
@@ -122,12 +143,13 @@ async function _runPipelineForCase(
         .eq("case_id", caseId)
         .in("step", ["stage.checkpoint", "stage.checkpoint_before_start"])
         .contains("detail", { stage: stageKey })
-        .gte("created_at", new Date(Date.now() - 6 * 60 * 60_000).toISOString());
+        .gte("created_at", since);
       return typeof count === "number" ? count : 0;
     } catch {
       return 0;
     }
   };
+
 
   const updateCase = async (patch: Record<string, unknown>, source: string) => {
     const withHeartbeat: Record<string, unknown> = { ...patch };
