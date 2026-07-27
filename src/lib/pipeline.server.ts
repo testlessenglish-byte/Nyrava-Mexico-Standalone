@@ -4344,7 +4344,7 @@ ${corpus.slice(0, s(160000))}`;
 ${docLegend}
 
 KNOWN (DEDUPLICATED) FINDINGS (${findings.length}) — reference by id where relevant; DO NOT restate them:
-${JSON.stringify(findingsLite).slice(0, 9000)}
+${JSON.stringify(findingsLite).slice(0, 6500)}
 
 ANALYSIS:
 ${JSON.stringify(analysis).slice(0, 3000)}
@@ -4365,7 +4365,7 @@ ${JSON.stringify({
   theories: theories ?? [],
   opportunities: opps ?? [],
   prior_contradictions: contradictionsExisting ?? [],
-}).slice(0, 7000)}
+}).slice(0, 5000)}
 
 PAGINATION RULES:
 - The corpus below is split into pages. Each page block is prefixed with \`--- DOC N p.M ---\`.
@@ -4374,7 +4374,7 @@ PAGINATION RULES:
 - Do NOT fabricate page numbers, quotes, or document ids.
 
 CORPUS (paginated):
-${corpus.slice(0, 22000)}`;
+${corpus.slice(0, 14000)}`;
 
   const narrativeShape = `Return STRICT JSON with this exact shape. Every prose field is a substantive narrative with inline \`[DOC N p.M]\` citations for every concrete claim — length per the LENGTH TARGETS already given above (scaled to this case's evidence volume; do not pad past what the evidence supports).
 

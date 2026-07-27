@@ -90,7 +90,12 @@ const _state = {
   >,
 };
 
-const MAX_LOGICAL_PROVIDER_ATTEMPTS = 4;
+// 2026-07-27: was 4. With 4 Gemini + 3 Groq keys saved, the 4th real call
+// exhausted the budget and every remaining key of an already-tried provider
+// was skipped with [attempt_budget] — so keys 5-7 were never rotated into.
+// The budget exists to stop hammering, not to strand healthy keys: size it
+// so every distinct key in the chain gets exactly one real attempt.
+const MAX_LOGICAL_PROVIDER_ATTEMPTS = 8;
 // 2026-07-27: was 1. Gemini's free tier answers a transient 503 ("model
 // experiencing high demand") on the first try often enough that a single
 // attempt per key wastes the whole chain on infra noise, not quota.
