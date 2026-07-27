@@ -4645,8 +4645,8 @@ ${corpus.slice(0, 22000)}`;
   const canonicalContext = buildCanonicalReportContext(chunkParsedByName.narrative ?? null);
   const canonicalContextBlock = serializeCanonicalContextForPrompt(canonicalContext);
 
-  await runChunk("memo", memoSysSuffix, memoShape, 10000, canonicalContextBlock);
-  await runChunk("intelligence", intelSysSuffix, intelShape, 7000, canonicalContextBlock);
+  await runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock);
+  await runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock);
 
   // `r` drives downstream logic (parsed, fallback banner). Anchor on narrative
   // since prose is the visible surface; memo/intelligence merge in below.
