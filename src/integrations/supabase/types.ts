@@ -5027,7 +5027,7 @@ export type Database = {
         | "platform_admin"
         | "firm_admin"
         | "case_manager"
-      canonical_status: "orchestrating" | "completed" | "failed"
+      canonical_status: "orchestrating" | "completed" | "failed" | "validated"
       case_status:
         | "uploaded"
         | "extracting"
@@ -5250,7 +5250,7 @@ export const Constants = {
         "firm_admin",
         "case_manager",
       ],
-      canonical_status: ["orchestrating", "completed", "failed"],
+      canonical_status: ["orchestrating", "completed", "failed", "validated"],
       case_status: [
         "uploaded",
         "extracting",
