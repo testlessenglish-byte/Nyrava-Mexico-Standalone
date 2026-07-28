@@ -18,7 +18,7 @@ import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
 import {
   getTransactionCenter,
   updateClosingMilestone,
-  upsertVerificationItem,
+
   type VerificationCategory,
   type VerificationItem,
 } from "@/lib/real-estate.functions";
