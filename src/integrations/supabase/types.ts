@@ -1749,6 +1749,7 @@ export type Database = {
           progress: number
           queued_at: string | null
           report_at: string | null
+          report_checkpoint_count: number
           report_language: string
           scored_at: string | null
           shared_brief: Json | null
@@ -1801,6 +1802,7 @@ export type Database = {
           progress?: number
           queued_at?: string | null
           report_at?: string | null
+          report_checkpoint_count?: number
           report_language?: string
           scored_at?: string | null
           shared_brief?: Json | null
@@ -1853,6 +1855,7 @@ export type Database = {
           progress?: number
           queued_at?: string | null
           report_at?: string | null
+          report_checkpoint_count?: number
           report_language?: string
           scored_at?: string | null
           shared_brief?: Json | null
