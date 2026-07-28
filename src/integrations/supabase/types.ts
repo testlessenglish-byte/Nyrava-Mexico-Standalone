@@ -833,6 +833,59 @@ export type Database = {
           },
         ]
       }
+      case_communications: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          body: string
+          case_id: string
+          channel: string
+          created_at: string
+          direction: string
+          id: string
+          status: string
+          subject: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body: string
+          case_id: string
+          channel?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string
+          case_id?: string
+          channel?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_communications_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_domain_activations: {
         Row: {
           case_id: string
