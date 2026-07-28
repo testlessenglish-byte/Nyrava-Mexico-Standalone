@@ -38,10 +38,10 @@ export function NyravaLogo({
       </div>
       {withWordmark && (
         <div className="flex flex-col leading-none">
-          <span className="font-display text-[15px] font-bold tracking-[0.22em] text-foreground">
+          <span className="font-display text-[15px] font-bold tracking-[0.22em] text-foreground" style={size >= 60 ? { fontSize: 20 } : undefined}>
             NYRAVA
           </span>
-          <span className="mt-1 text-[8.5px] font-medium tracking-[0.32em] text-muted-foreground">
+          <span className="mt-1 text-[8.5px] font-medium tracking-[0.32em] text-muted-foreground" style={size >= 60 ? { fontSize: 11, marginTop: 4 } : undefined}>
             LEGAL INTELLIGENCE OS · {edition}
           </span>
         </div>

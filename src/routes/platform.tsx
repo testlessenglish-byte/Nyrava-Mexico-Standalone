@@ -24,7 +24,7 @@ function PlatformPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <section className="mx-auto max-w-[88rem] px-6 py-20">
+      <section className="mx-auto max-w-[100rem] px-6 py-20">
         <span className="tag-bracket font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
           {t("platform.tag")}
         </span>

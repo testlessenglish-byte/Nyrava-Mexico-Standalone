@@ -42,7 +42,7 @@ function DemoCasePage() {
   return (
     <div className="min-h-screen text-foreground">
       <header className="border-b border-border/60">
-        <div className="mx-auto flex max-w-[88rem] items-center justify-between px-6 py-5">
+        <div className="mx-auto flex max-w-[100rem] items-center justify-between px-6 py-5">
           <Link to="/">
             <NyravaLogo size={38} withWordmark />
           </Link>
@@ -64,7 +64,7 @@ function DemoCasePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[88rem] px-6 py-10">
+      <main className="mx-auto max-w-[100rem] px-6 py-10">
         {isLoading && <div className="py-20 text-center text-muted-foreground">Loading demo…</div>}
 
         {error && (
