@@ -1,11 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { listCases } from "@/lib/cases.functions";
-import { FolderOpen, Plus, Archive as ArchiveIcon, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { listCases, deleteCase } from "@/lib/cases.functions";
+import { FolderOpen, Plus, Archive as ArchiveIcon, Search, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CaseActionsMenu } from "@/components/CaseActionsMenu";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/cases/")({
@@ -43,11 +49,16 @@ function fmtDate(iso: string, locale: string) {
 function CasesPage() {
   const { t, locale } = useI18n();
   const fetchCases = useServerFn(listCases);
+  const deleteOne = useServerFn(deleteCase);
+  const qc = useQueryClient();
   const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sort, setSort] = useState<string>("newest");
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState<{ done: number; total: number } | null>(null);
 
   const { data: cases, isLoading } = useQuery({
     queryKey: ["cases"],
@@ -78,10 +89,58 @@ function CasesPage() {
 
   // Reset to page 1 when filters change
   useEffect(() => { setPage(1); }, [query, statusFilter, sort, showArchived]);
+  // Selection is scoped to the current filtered view — if the filters change
+  // underneath an active selection, stale ids (no longer visible) would be
+  // confusing to keep checked, so clear it.
+  useEffect(() => { setSelected(new Set()); }, [query, statusFilter, sort, showArchived]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // "Select all" covers every case matching the current filters, not just
+  // the current page — the whole point is clearing out a batch of old
+  // fixture/test cases in one go without paging through them.
+  const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+  const toggleAll = (checked: boolean) => {
+    setSelected(checked ? new Set(filtered.map((c) => c.id)) : new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selected);
+    setConfirmOpen(false);
+    setDeleting({ done: 0, total: ids.length });
+    let successCount = 0;
+    let failCount = 0;
+    for (const id of ids) {
+      try {
+        await deleteOne({ data: { caseId: id } });
+        successCount++;
+      } catch (e) {
+        failCount++;
+        console.error("[cases] bulk delete failed for", id, e);
+      }
+      setDeleting((prev) => (prev ? { done: prev.done + 1, total: prev.total } : prev));
+    }
+    setDeleting(null);
+    setSelected(new Set());
+    qc.invalidateQueries({ queryKey: ["cases"] });
+    if (failCount === 0) {
+      toast.success(t("cases.bulk.toast.allDeleted", { count: successCount }));
+    } else if (successCount === 0) {
+      toast.error(t("cases.bulk.toast.allFailed"));
+    } else {
+      toast.error(t("cases.bulk.toast.partialFailure", { success: successCount, failed: failCount }));
+    }
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-10">
@@ -169,6 +228,33 @@ function CasesPage() {
         </div>
       ) : (
         <>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={allFilteredSelected} onCheckedChange={(v) => toggleAll(v === true)} />
+              {selected.size > 0 ? t("cases.bulk.selectedCount", { count: selected.size }) : t("cases.bulk.selectAll")}
+            </label>
+            {selected.size > 0 && (
+              <>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="text-sm text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  {t("cases.bulk.clear")}
+                </button>
+                <button
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={!!deleting}
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {deleting
+                    ? t("cases.bulk.deleting", { done: deleting.done, total: deleting.total })
+                    : t("cases.bulk.deleteSelected")}
+                </button>
+              </>
+            )}
+          </div>
+
           <div className="mb-3">
             <CasesPager
               page={safePage}
@@ -182,8 +268,13 @@ function CasesPage() {
             {pageItems.map((c) => (
               <div
                 key={c.id}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 hover:bg-secondary/60 sm:px-5 sm:py-4"
+                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 hover:bg-secondary/60 sm:px-5 sm:py-4"
               >
+                <Checkbox
+                  checked={selected.has(c.id)}
+                  onCheckedChange={(v) => toggleOne(c.id, v === true)}
+                  aria-label={c.name}
+                />
                 <Link
                   to="/cases/$caseId"
                   params={{ caseId: c.id }}
@@ -222,6 +313,22 @@ function CasesPage() {
           </div>
         </>
       )}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("cases.bulk.delete.title", { count: selected.size })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("cases.bulk.delete.description")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >{t("cases.delete.confirm")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
