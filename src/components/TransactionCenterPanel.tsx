@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle } from "lucide-react";
+import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
 import {
   getTransactionCenter,
   updateClosingMilestone,
@@ -217,6 +218,13 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      {/* Core Parties panel, second mount point (one component, no duplication). */}
+      <Card>
+        <CardContent className="pt-6">
+          <CasePartiesPanel caseId={caseId} embedded />
         </CardContent>
       </Card>
     </div>

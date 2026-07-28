@@ -132,3 +132,33 @@ suppression, parity signature, and (in `__tests__/case_type/`) the
 case-type execution policy + cross-domain activation rules. No
 deployment without this suite green.
 
+
+## 12. Universal Practice Area Architecture
+
+Nyrava is one Mexican legal operating system. Every capability is either
+**Core Platform** — present on every materia without exception — or a
+**Practice Area Module** declared in the registry
+(`src/lib/jurisdiction/mexico-modules.ts`, surfaced through
+`src/lib/intelligence/practice-areas.ts`).
+
+- Core capabilities (`CORE_CAPABILITIES` / `CORE_TABS`): case management,
+  documents, AI assistant, reports, timeline, tasks, calendar, parties,
+  communications, notes, work product, search, audit trail, versions.
+- Per-materia declarations: `MX_DASHBOARD_MODULES`, `MX_LIFECYCLE_STATUSES`,
+  `MX_PARTY_ROLES`, `MX_TASK_TEMPLATES`, `MX_AI_PERSONA`, each keyed by
+  `MexicanCaseType`.
+- Components never hard-code a materia. They ask the registry
+  (`partyRolesFor`, `taskTemplatesFor`, `lifecycleStatusesFor`,
+  `aiPersonaFor`, `materiaDashboardModules`).
+- One component, multiple mount points: `CasePartiesPanel` serves the core
+  Parties tab and is embedded inside `TransactionCenterPanel` for
+  inmobiliario — no duplicated UI.
+- Core casework tables (`case_parties`, `case_tasks`, `case_events`,
+  `case_communications`) are case-scoped with RLS + GRANTs and are materia
+  agnostic; the practice flavor lives in registry-supplied labels and
+  templates.
+- Parity is enforced by `__tests__/practice-registry.test.ts`: every materia
+  must declare every registry dimension and expose the core party roles.
+
+Adding a future Mexican materia is one registry entry — never a UI, engine,
+or pipeline change.
