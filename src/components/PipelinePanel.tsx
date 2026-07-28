@@ -60,7 +60,7 @@ function statusClass(v: Visual): string {
     case "out_of_date":
       return "text-amber-300 border-amber-500/30 bg-amber-500/10";
     default:
-      return "text-slate-400 border-slate-500/20 bg-slate-500/5";
+      return "text-muted-foreground border-border/20 bg-muted/5";
   }
 }
 
@@ -194,11 +194,11 @@ export function PipelinePanel({
   const incomplete = completedCount < stageDefs.length;
 
   return (
-    <div className="rounded-2xl border border-amber-400/15 bg-slate-950/60 p-4 sm:p-5 space-y-4">
+    <div className="rounded-2xl border border-amber-400/15 bg-background/60 p-4 sm:p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground">
             {t("pipeline.panel.engines", { done: completedCount, total: stageDefs.length })}
             {anyRunning && <span className="text-amber-300"> · {t("pipeline.panel.running")}</span>}
             {failedCount > 0 && (
@@ -208,7 +208,7 @@ export function PipelinePanel({
               <span className="text-amber-300"> · {t("pipeline.panel.outOfDate", { n: outOfDateCount })}</span>
             )}
           </p>
-          <p className="mt-0.5 text-[11px] text-slate-500">
+          <p className="mt-0.5 text-[11px] text-muted-foreground/70">
             {t("pipeline.panel.profile", { materia: materiaLabel })} · {resolveMxProfile(caseType)}
           </p>
         </div>
@@ -283,7 +283,7 @@ export function PipelinePanel({
           )}
           <button
             onClick={() => setShowLog((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-600/40 bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700/50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border/40 bg-card/40 px-3 py-1.5 text-xs text-foreground/80 hover:bg-card/50"
           >
             <FileText className="h-3.5 w-3.5" /> {showLog ? t("pipeline.panel.hideLog") : t("pipeline.panel.showLog")}
           </button>
@@ -302,13 +302,13 @@ export function PipelinePanel({
               <StatusIcon v={v} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium text-slate-100">
+                  <span className="truncate text-sm font-medium text-foreground">
                     {t(stageLabelKey(s.key, caseType))}
                   </span>
                   <span className="text-[10px] uppercase tracking-wider opacity-80">{t(statusKey(v))}</span>
                 </div>
                 {row && (
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[11px] text-muted-foreground">
                     {row.status === "completed" && (
                       <>
                         {fmtMs(row.runtime_ms)}
@@ -334,14 +334,14 @@ export function PipelinePanel({
       </ol>
 
       {showLog && (
-        <div className="rounded-lg border border-slate-700/40 bg-slate-900/60 p-3">
-          <h4 className="mb-2 text-xs font-semibold text-slate-200">{t("pipeline.panel.logTitle")}</h4>
+        <div className="rounded-lg border border-border/40 bg-card/60 p-3">
+          <h4 className="mb-2 text-xs font-semibold text-foreground/90">{t("pipeline.panel.logTitle")}</h4>
           {rows.length === 0 ? (
-            <p className="text-xs text-slate-500">{t("pipeline.panel.noRuns")}</p>
+            <p className="text-xs text-muted-foreground/70">{t("pipeline.panel.noRuns")}</p>
           ) : (
             <div className="max-h-80 overflow-auto">
               <table className="w-full text-[11px]">
-                <thead className="text-slate-400">
+                <thead className="text-muted-foreground">
                   <tr className="text-left">
                     <th className="py-1 pr-2">{t("pipeline.col.engine")}</th>
                     <th className="py-1 pr-2">{t("pipeline.col.status")}</th>
@@ -351,22 +351,22 @@ export function PipelinePanel({
                     <th className="py-1 pr-2">{t("pipeline.col.output")}</th>
                   </tr>
                 </thead>
-                <tbody className="text-slate-300">
+                <tbody className="text-foreground/80">
                   {rows
                     .slice()
                     .reverse()
                     .map((r) => (
-                      <tr key={r.id} className="border-t border-slate-800/60">
-                        <td className="py-1 pr-2 font-mono text-slate-200">{r.engine}</td>
+                      <tr key={r.id} className="border-t border-border/60">
+                        <td className="py-1 pr-2 font-mono text-foreground/90">{r.engine}</td>
                         <td
-                          className={`py-1 pr-2 ${r.status === "failed" ? "text-red-300" : r.status === "completed" ? "text-emerald-300" : "text-slate-400"}`}
+                          className={`py-1 pr-2 ${r.status === "failed" ? "text-red-300" : r.status === "completed" ? "text-emerald-300" : "text-muted-foreground"}`}
                         >
                           {r.status}
                         </td>
                         <td className="py-1 pr-2">{fmtTime(r.started_at)}</td>
                         <td className="py-1 pr-2">{fmtTime(r.ended_at)}</td>
                         <td className="py-1 pr-2">{fmtMs(r.runtime_ms)}</td>
-                        <td className="py-1 pr-2 text-slate-400">
+                        <td className="py-1 pr-2 text-muted-foreground">
                           {r.error ? (
                             <span className="text-red-300">{r.error.slice(0, 120)}</span>
                           ) : (

@@ -55,8 +55,8 @@ function AccountPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
       <header>
-        <h1 className="text-2xl font-bold text-white sm:text-3xl">{t("acct.title")}</h1>
-        <p className="mt-1 text-sm text-slate-400">{t("acct.subtitle")}</p>
+        <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{t("acct.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("acct.subtitle")}</p>
         {acc.roles.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {acc.roles.map((r: string) => (
@@ -132,22 +132,22 @@ function SecurityCard({ email }: { email: string }) {
     <Card icon={<Lock className="h-4 w-4" />} title={t("acct.security")}>
       <div className="space-y-4">
         <div>
-          <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-300"><Mail className="h-3 w-3" /> {t("acct.security.email")}</label>
+          <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-foreground/80"><Mail className="h-3 w-3" /> {t("acct.security.email")}</label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
-              className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
+              className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground" />
             <button onClick={() => emailM.mutate()} disabled={emailM.isPending || !newEmail || newEmail === email}
               className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50">
               {emailM.isPending ? t("acct.security.sending") : t("acct.security.updateEmail")}
             </button>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">{t("acct.security.emailHint")}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground/70">{t("acct.security.emailHint")}</p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-300">{t("acct.security.newPassword")}</label>
+          <label className="mb-1 block text-xs font-medium text-foreground/80">{t("acct.security.newPassword")}</label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder={t("acct.security.pwdPlaceholder")}
-              className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
+              className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground" />
             <button onClick={() => pwdM.mutate()} disabled={pwdM.isPending || newPwd.length < 8}
               className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50">
               {pwdM.isPending ? t("acct.security.saving") : t("acct.security.changePassword")}
@@ -226,7 +226,7 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
 
   return (
     <Card icon={<Mic className="h-4 w-4" />} title={t("acct.voice")}>
-      <p className="mb-3 text-xs text-slate-400">{t("acct.voice.intro")}</p>
+      <p className="mb-3 text-xs text-muted-foreground">{t("acct.voice.intro")}</p>
 
       <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Select label={t("acct.voice.gender")} value={genderFilter} onChange={(v) => setGenderFilter(v as typeof genderFilter)}
@@ -249,17 +249,17 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
         {filteredVoices.map((v) => (
           <label key={v.id}
             className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border p-3 transition ${
-              voiceId === v.id ? "border-amber-400/60 bg-amber-400/10" : "border-slate-700 bg-slate-900 hover:border-slate-600"
+              voiceId === v.id ? "border-amber-400/60 bg-amber-400/10" : "border-border bg-input hover:border-border/80"
             }`}>
             <div className="flex items-center gap-2">
               <input type="radio" name="voice" checked={voiceId === v.id} onChange={() => setVoiceId(v.id)} className="accent-primary" />
               <div>
-                <div className="text-sm font-medium text-white">{v.label} <span className="ml-1 text-[10px] text-slate-400">({v.gender === "F" ? t("acct.voice.female") : t("acct.voice.male")})</span></div>
-                <div className="text-[11px] text-slate-400">{v.accent}</div>
+                <div className="text-sm font-medium text-foreground">{v.label} <span className="ml-1 text-[10px] text-muted-foreground">({v.gender === "F" ? t("acct.voice.female") : t("acct.voice.male")})</span></div>
+                <div className="text-[11px] text-muted-foreground">{v.accent}</div>
               </div>
             </div>
             <button onClick={(e) => { e.preventDefault(); previewVoice(v.id); }} disabled={previewing === v.id}
-              className="flex items-center gap-1 rounded-md border border-slate-600 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800 disabled:opacity-50">
+              className="flex items-center gap-1 rounded-md border border-border/80 px-2 py-1 text-[11px] text-foreground/90 hover:bg-secondary disabled:opacity-50">
               {previewing === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <PlayCircle className="h-3 w-3" />} {t("acct.voice.preview")}
             </button>
           </label>
@@ -268,11 +268,11 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-xs font-medium text-slate-300">{t("acct.voice.speed", { speed: speed.toFixed(2) })}</label>
+          <label className="block text-xs font-medium text-foreground/80">{t("acct.voice.speed", { speed: speed.toFixed(2) })}</label>
           <input type="range" min={0.5} max={1.5} step={0.05} value={speed}
             onChange={(e) => setSpeed(parseFloat(e.target.value))}
             className="mt-1 w-full accent-primary" />
-          <div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>{t("acct.voice.slow")}</span><span>{t("acct.voice.normal")}</span><span>{t("acct.voice.fast")}</span></div>
+          <div className="mt-1 flex justify-between text-[10px] text-muted-foreground/70"><span>{t("acct.voice.slow")}</span><span>{t("acct.voice.normal")}</span><span>{t("acct.voice.fast")}</span></div>
         </div>
         <div className="space-y-2">
           <Toggle label={t("acct.voice.autoplay")}   checked={autoplay}   onChange={setAuto} />
@@ -345,7 +345,7 @@ function AICompanionCard({ settings, onSaved }: { settings: Record<string, unkno
             { value: "concise",        label: t("acct.ai.style.concise") },
           ]} />
         <div>
-          <label className="block text-xs font-medium text-slate-300">{t("acct.ai.maxChars", { n: maxChars })}</label>
+          <label className="block text-xs font-medium text-foreground/80">{t("acct.ai.maxChars", { n: maxChars })}</label>
           <input type="range" min={200} max={4000} step={100} value={maxChars}
             onChange={(e) => setMaxChars(parseInt(e.target.value))}
             className="mt-1 w-full accent-primary" />
@@ -368,24 +368,24 @@ function ActivityCard({ data, loading }: {
   return (
     <Card icon={<History className="h-4 w-4" />} title={t("acct.activity")}>
       {loading
-        ? <p className="text-xs text-slate-400">{t("acct.activity.loading")}</p>
+        ? <p className="text-xs text-muted-foreground">{t("acct.activity.loading")}</p>
         : !data
-          ? <p className="text-xs text-slate-400">{t("acct.activity.none")}</p>
+          ? <p className="text-xs text-muted-foreground">{t("acct.activity.none")}</p>
           : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <ActivityCol title={t("acct.activity.cases")}>
                 {data.cases.length === 0 ? <Empty/> : data.cases.map((c) => (
-                  <li key={c.id} className="truncate text-xs"><span className="text-white">{c.name}</span> <span className="text-slate-500">· {c.status}</span></li>
+                  <li key={c.id} className="truncate text-xs"><span className="text-foreground">{c.name}</span> <span className="text-muted-foreground/70">· {c.status}</span></li>
                 ))}
               </ActivityCol>
               <ActivityCol title={t("acct.activity.runs")}>
                 {data.runs.length === 0 ? <Empty/> : data.runs.map((r) => (
-                  <li key={r.id} className="truncate text-xs"><span className="font-mono text-slate-200">{r.engine}</span> <span className="text-slate-500">· {r.status}</span></li>
+                  <li key={r.id} className="truncate text-xs"><span className="font-mono text-foreground/90">{r.engine}</span> <span className="text-muted-foreground/70">· {r.status}</span></li>
                 ))}
               </ActivityCol>
               <ActivityCol title={t("acct.activity.chats")}>
                 {data.chats.length === 0 ? <Empty/> : data.chats.map((c) => (
-                  <li key={c.id} className="truncate text-xs"><span className="text-slate-300">{c.role}</span> <span className="text-slate-500">· {new Date(c.created_at).toLocaleString()}</span></li>
+                  <li key={c.id} className="truncate text-xs"><span className="text-foreground/80">{c.role}</span> <span className="text-muted-foreground/70">· {new Date(c.created_at).toLocaleString()}</span></li>
                 ))}
               </ActivityCol>
             </div>
@@ -395,23 +395,23 @@ function ActivityCard({ data, loading }: {
 }
 function ActivityCol({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-      <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</h4>
+    <div className="rounded-lg border border-border bg-card/60 p-3">
+      <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
       <ul className="space-y-1">{children}</ul>
     </div>
   );
 }
 function Empty() {
   const { t } = useI18n();
-  return <li className="text-xs text-slate-500">{t("acct.activity.empty")}</li>;
+  return <li className="text-xs text-muted-foreground/70">{t("acct.activity.empty")}</li>;
 }
 
 // ============================================================ Primitives
 
 function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:p-5">
-      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-white">
+    <section className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5">
+      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-amber-400/30 bg-amber-400/10 text-amber-300">{icon}</span>
         {title}
       </h2>
@@ -422,15 +422,15 @@ function Card({ icon, title, children }: { icon: React.ReactNode; title: string;
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-slate-300">{label}</span>
+      <span className="block text-xs font-medium text-foreground/80">{label}</span>
       <input type="text" value={value ?? ""} onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-amber-400/60" />
+        className="mt-1 w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-amber-400/60" />
     </label>
   );
 }
 function Toggle({ label, checked, onChange, icon }: { label: string; checked: boolean; onChange: (v: boolean) => void; icon?: React.ReactNode }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between rounded-md border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-200">
+    <label className="flex cursor-pointer items-center justify-between rounded-md border border-border bg-card/60 px-3 py-2 text-sm text-foreground/90">
       <span className="flex items-center gap-2">{icon}{label}</span>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" />
     </label>
@@ -439,9 +439,9 @@ function Toggle({ label, checked, onChange, icon }: { label: string; checked: bo
 function Select<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-slate-300">{label}</span>
+      <span className="block text-xs font-medium text-foreground/80">{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value as T)}
-        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-amber-400/60">
+        className="mt-1 w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-amber-400/60">
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>

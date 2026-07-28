@@ -112,9 +112,9 @@ function statusColor(s: EngineStatus | "idle"): string {
     case "skipped":
       return "text-amber-300 border-amber-300/40 bg-amber-300/10";
     case "queued":
-      return "text-slate-300 border-slate-400/30 bg-slate-400/10";
+      return "text-foreground/80 border-border/30 bg-muted/10";
     default:
-      return "text-slate-400 border-slate-500/20 bg-slate-500/5";
+      return "text-muted-foreground border-border/20 bg-muted/5";
   }
 }
 
@@ -222,12 +222,12 @@ export function CommandCenterDashboard({
     caseScore >= 80
       ? "#34d399"
       : caseScore >= 65
-        ? "#22d3ee"
+        ? "#D8B36A"
         : caseScore >= 50
           ? "#fbbf24"
           : caseScore > 0
             ? "#fb923c"
-            : "#64748b";
+            : "#7a8f84";
 
   const progressPct = engineRows.length > 0 ? execProgress.percent : Math.max(0, Math.min(100, progress ?? 0));
   const running =
@@ -263,7 +263,7 @@ export function CommandCenterDashboard({
 
       {/* ============ HEADER: Case Score + Status ============ */}
       <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-        <div className="rounded-2xl border border-amber-400/15 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 relative overflow-hidden">
+        <div className="rounded-2xl border border-amber-400/15 bg-gradient-to-br from-background via-card to-background p-5 relative overflow-hidden">
           <div
             className="absolute inset-0 opacity-30 pointer-events-none"
             style={{ background: "radial-gradient(800px 200px at 20% 0%, rgba(34,211,238,.18), transparent 60%)" }}
@@ -272,7 +272,7 @@ export function CommandCenterDashboard({
             <div className="min-w-0">
               <div className="text-[11px] uppercase tracking-[0.18em] text-amber-300/80">{t("cc.caseIntelligence")}</div>
               <h2 className="mt-1 truncate text-xl font-semibold text-white">{caseName}</h2>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span
                     className={`h-1.5 w-1.5 rounded-full ${running ? "bg-amber-300 animate-pulse" : "bg-emerald-400"}`}
@@ -282,7 +282,7 @@ export function CommandCenterDashboard({
                 <span>·</span>
                 <span>{t("cc.ess")} {t(`cc.ess.${ess.level}`)}</span>
                 <span>·</span>
-                <span className="font-mono text-[10px] text-slate-500">{t("cc.parity")} {parity.slice(0, 18)}…</span>
+                <span className="font-mono text-[10px] text-muted-foreground/70">{t("cc.parity")} {parity.slice(0, 18)}…</span>
               </div>
             </div>
             <ScoreGauge value={caseScore} color={scoreColor} label={scoreLabel} />
@@ -307,7 +307,7 @@ export function CommandCenterDashboard({
       </div>
 
       {/* ============ ANALYSIS COMMAND CENTER ============ */}
-      <div className="rounded-2xl border border-amber-400/15 bg-slate-950/60 p-5">
+      <div className="rounded-2xl border border-amber-400/15 bg-background/60 p-5">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
@@ -349,13 +349,13 @@ export function CommandCenterDashboard({
             <svg viewBox="0 0 100 100" className="w-full h-full">
               <defs>
                 <radialGradient id="nyrCore" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.55" />
-                  <stop offset="60%" stopColor="#0e7490" stopOpacity="0.15" />
-                  <stop offset="100%" stopColor="#020617" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#D8B36A" stopOpacity="0.55" />
+                  <stop offset="60%" stopColor="#0D241D" stopOpacity="0.15" />
+                  <stop offset="100%" stopColor="#0D241D" stopOpacity="0" />
                 </radialGradient>
                 <linearGradient id="nyrStroke" x1="0" x2="1">
-                  <stop offset="0%" stopColor="#22d3ee" />
-                  <stop offset="100%" stopColor="#6366f1" />
+                  <stop offset="0%" stopColor="#D8B36A" />
+                  <stop offset="100%" stopColor="#F3E3B8" />
                 </linearGradient>
               </defs>
 
@@ -381,7 +381,7 @@ export function CommandCenterDashboard({
                   cy="50"
                   r="34"
                   fill="none"
-                  stroke="#22d3ee"
+                  stroke="#D8B36A"
                   strokeWidth="0.3"
                   strokeDasharray="1 4"
                   opacity="0.6"
@@ -393,7 +393,7 @@ export function CommandCenterDashboard({
                   cy="50"
                   r="26"
                   fill="none"
-                  stroke="#a78bfa"
+                  stroke="#F0C674"
                   strokeWidth="0.25"
                   strokeDasharray="0.6 2"
                   opacity="0.45"
@@ -407,10 +407,10 @@ export function CommandCenterDashboard({
                   st === "completed"
                     ? "#34d399"
                     : st === "running"
-                      ? "#22d3ee"
+                      ? "#D8B36A"
                       : st === "failed"
                         ? "#f87171"
-                        : "#475569";
+                        : "#5c7268";
                 return (
                   <line
                     key={i}
@@ -433,10 +433,10 @@ export function CommandCenterDashboard({
                   st === "completed"
                     ? "#34d399"
                     : st === "running"
-                      ? "#22d3ee"
+                      ? "#D8B36A"
                       : st === "failed"
                         ? "#f87171"
-                        : "#64748b";
+                        : "#5c7268";
                 return (
                   <g key={i}>
                     <circle
@@ -519,14 +519,14 @@ export function CommandCenterDashboard({
             />
           )}
           <div className="flex-1">
-            <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-400">
+            <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
               <span>{t("pipeline.overallProgress")}</span>
               <span className="tabular-nums text-amber-300">{progressPct}%</span>
             </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-card">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-sky-400 to-indigo-500 transition-all duration-700"
-                style={{ width: `${progressPct}%`, boxShadow: "0 0 12px rgba(34,211,238,.6)" }}
+                className="h-full rounded-full bg-gradient-to-r from-amber-300 via-amber-400 to-amber-600 transition-all duration-700"
+                style={{ width: `${progressPct}%`, boxShadow: "0 0 12px rgba(216,179,106,.55)" }}
               />
             </div>
           </div>
@@ -536,7 +536,7 @@ export function CommandCenterDashboard({
       {/* ============ TALK TO THIS CASE ============ */}
       <button
         onClick={onOpenChat}
-        className="nyr-glow group flex w-full items-center gap-4 rounded-2xl border border-amber-400/30 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 text-left transition hover:border-amber-300/60"
+        className="nyr-glow group flex w-full items-center gap-4 rounded-2xl border border-amber-400/30 bg-gradient-to-r from-background via-card to-background p-5 text-left transition hover:border-amber-300/60"
       >
         <div className="grid h-12 w-12 place-items-center rounded-xl border border-amber-400/40 bg-amber-400/10 text-amber-300">
           <MessageCircle className="h-6 w-6" />
@@ -571,14 +571,14 @@ export function CommandCenterDashboard({
       </button>
 
       {/* ============ RECENT ACTIVITY ============ */}
-      <div className="rounded-2xl border border-slate-700/40 bg-slate-950/50 p-4">
+      <div className="rounded-2xl border border-border/40 bg-background/50 p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-white">{t("pipeline.activity.recent")}</h3>
-          <span className="text-[10px] uppercase tracking-wider text-slate-500">{t("pipeline.activity.liveFeed")}</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{t("pipeline.activity.liveFeed")}</span>
         </div>
-        <ul className="mt-3 divide-y divide-slate-800/60">
+        <ul className="mt-3 divide-y divide-border/60">
           {events.length === 0 && (
-            <li className="py-3 text-xs text-slate-500">{t("pipeline.activity.empty")}</li>
+            <li className="py-3 text-xs text-muted-foreground/70">{t("pipeline.activity.empty")}</li>
           )}
           {events.map((ev) => (
             <li key={ev.id} className="flex items-center gap-3 py-2 text-sm">
@@ -587,10 +587,10 @@ export function CommandCenterDashboard({
                   ev.level === "error" ? "bg-red-400" : ev.level === "warn" ? "bg-amber-300" : "bg-amber-300"
                 }`}
               />
-              <span className="min-w-0 flex-1 truncate text-slate-200">
+              <span className="min-w-0 flex-1 truncate text-foreground/90">
                 {localizeActivityMessage(ev.message, ev.stage, caseType, t, locale)}
               </span>
-              <span className="text-[11px] tabular-nums text-slate-500">{relTime(ev.created_at, t)}</span>
+              <span className="text-[11px] tabular-nums text-muted-foreground/70">{relTime(ev.created_at, t)}</span>
             </li>
           ))}
         </ul>
@@ -636,7 +636,7 @@ function ScoreGauge({ value, color, label }: { value: number; color: string; lab
   return (
     <div className="relative grid place-items-center">
       <svg width="120" height="120" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r={R} fill="none" stroke="#1e293b" strokeWidth="7" />
+        <circle cx="50" cy="50" r={R} fill="none" stroke="#234F3F" strokeWidth="7" />
         <circle
           cx="50"
           cy="50"
@@ -653,10 +653,10 @@ function ScoreGauge({ value, color, label }: { value: number; color: string; lab
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-slate-400">{t("cc.caseScore")}</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("cc.caseScore")}</div>
           <div className="text-2xl font-bold tabular-nums text-white">
             {value}
-            <span className="text-xs text-slate-400">/100</span>
+            <span className="text-xs text-muted-foreground">/100</span>
           </div>
           <div className="text-[10px] font-semibold" style={{ color }}>
             {label}
@@ -670,9 +670,9 @@ function ScoreGauge({ value, color, label }: { value: number; color: string; lab
 const TINTS: Record<string, string> = {
   cyan: "from-amber-500/20 to-amber-500/0 border-amber-400/30 text-amber-200",
   emerald: "from-emerald-500/20 to-emerald-500/0 border-emerald-400/30 text-emerald-200",
-  violet: "from-violet-500/20 to-violet-500/0 border-violet-400/30 text-violet-200",
+  violet: "from-amber-500/20 to-amber-500/0 border-amber-400/30 text-amber-200",
   amber: "from-amber-500/20 to-amber-500/0 border-amber-400/30 text-amber-200",
-  rose: "from-rose-500/20 to-rose-500/0 border-rose-400/30 text-rose-200",
+  rose: "from-destructive/20 to-destructive/0 border-destructive/30 text-destructive",
 };
 
 function SummaryTile({
@@ -705,9 +705,9 @@ function MiniBadge({
   value: number;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-slate-700/40 bg-slate-900/40 px-3 py-2">
+    <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/40 px-3 py-2">
       <Icon className="h-3.5 w-3.5 text-amber-300" />
-      <span className="flex-1 text-xs text-slate-300">{label}</span>
+      <span className="flex-1 text-xs text-foreground/80">{label}</span>
       <span className="text-sm font-semibold tabular-nums text-white">{value}</span>
     </div>
   );

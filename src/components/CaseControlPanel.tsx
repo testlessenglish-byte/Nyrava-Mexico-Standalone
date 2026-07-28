@@ -257,12 +257,12 @@ export function CaseControlPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-amber-400/20 bg-slate-950/60 p-4">
+      <div className="rounded-2xl border border-amber-400/20 bg-background/60 p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-300">{t("caseControl.title")}</h2>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-muted-foreground">
           {t("caseControl.subtitle")}
         </p>
-        <p className="mt-2 text-[11px] leading-snug text-slate-500">
+        <p className="mt-2 text-[11px] leading-snug text-muted-foreground/70">
           {t("caseControl.stagesNote", {
             stages: PIPELINE_STAGES.length,
             agents: AGENT_DEFINITIONS.length,

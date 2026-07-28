@@ -40,18 +40,18 @@ function statusIcon(status: string) {
   if (status === "running") return <Loader2 className="h-4 w-4 animate-spin text-amber-500" />;
   if (status === "failed") return <AlertCircle className="h-4 w-4 text-rose-500" />;
   if (status === "blocked") return <ShieldAlert className="h-4 w-4 text-amber-500" />;
-  if (status === "skipped") return <Circle className="h-4 w-4 text-slate-400" />;
-  return <Circle className="h-4 w-4 text-slate-500" />;
+  if (status === "skipped") return <Circle className="h-4 w-4 text-muted-foreground" />;
+  return <Circle className="h-4 w-4 text-muted-foreground/70" />;
 }
 
 function SummaryTile({ label, value, tone }: { label: string; value: number; tone: "slate" | "cyan" | "emerald" | "amber" }) {
   const toneClass =
     tone === "cyan" ? "text-amber-100" :
     tone === "emerald" ? "text-emerald-300" :
-    tone === "amber" ? "text-amber-300" : "text-slate-100";
+    tone === "amber" ? "text-amber-300" : "text-foreground";
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-3">
-      <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
+    <div className="rounded-lg border border-border bg-card/50 p-3">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{label}</p>
       <p className={`text-xl font-semibold ${toneClass}`}>{value}</p>
     </div>
   );
@@ -133,7 +133,7 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
   const summary: AgentSummary = canonical.executed > 0 ? canonical : derived;
 
   return (
-    <Card className="border-amber-500/20 bg-slate-950/40">
+    <Card className="border-amber-500/20 bg-background/40">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-amber-100">
           <ShieldCheck className="h-5 w-5 text-amber-400" />
@@ -145,7 +145,7 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
             <span className="ml-2">{running ? t("agents.running") : t("agents.rerun")}</span>
           </Button>
         ) : (
-          <span className="text-[11px] text-slate-500">{t("agents.autoNote")}</span>
+          <span className="text-[11px] text-muted-foreground/70">{t("agents.autoNote")}</span>
         )}
       </CardHeader>
       <CardContent>
@@ -166,14 +166,14 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
             return (
               <li
                 key={def.key}
-                className="flex items-start gap-3 rounded-md border border-slate-800/60 bg-slate-900/40 px-3 py-2"
+                className="flex items-start gap-3 rounded-md border border-border/60 bg-card/40 px-3 py-2"
               >
                 <div className="mt-0.5">{statusIcon(status)}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-slate-500">#{def.index}</span>
-                    <span className="font-medium text-slate-100">{t(`agent.${def.key}.name`)}</span>
-                    <code className="text-xs text-slate-500">{def.outputFile}</code>
+                    <span className="font-mono text-xs text-muted-foreground/70">#{def.index}</span>
+                    <span className="font-medium text-foreground">{t(`agent.${def.key}.name`)}</span>
+                    <code className="text-xs text-muted-foreground/70">{def.outputFile}</code>
                     {row?.confidence != null && (
                       <Badge variant="outline" className="text-[10px]">
                         {t("agents.conf", { pct: (Number(row.confidence) * 100).toFixed(0) })}
@@ -192,14 +192,14 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
                       </Badge>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-400">{t(`agent.${def.key}.desc`)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{t(`agent.${def.key}.desc`)}</p>
                   {row && (
-                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-slate-400">
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.docs", { count: Number(row.documents_analyzed ?? 0) })}</span>
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.generated", { count: Number(row.findings_generated ?? 0) })}</span>
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.promoted", { count: Number(row.findings_promoted ?? row.findings_produced ?? 0) })}</span>
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.suppressed", { count: Number(row.findings_suppressed ?? 0) })}</span>
-                      <span className="rounded bg-slate-950/60 px-2 py-0.5">{t("agents.chip.outputItems", { count: Number(row.output_items ?? 0) })}</span>
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.docs", { count: Number(row.documents_analyzed ?? 0) })}</span>
+                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.generated", { count: Number(row.findings_generated ?? 0) })}</span>
+                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.promoted", { count: Number(row.findings_promoted ?? row.findings_produced ?? 0) })}</span>
+                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.suppressed", { count: Number(row.findings_suppressed ?? 0) })}</span>
+                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.outputItems", { count: Number(row.output_items ?? 0) })}</span>
                     </div>
                   )}
                   {row?.no_output_reason && (
