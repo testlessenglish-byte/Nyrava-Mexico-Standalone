@@ -350,8 +350,8 @@ export function CommandCenterDashboard({
               <defs>
                 <radialGradient id="nyrCore" cx="50%" cy="50%" r="50%">
                   <stop offset="0%" stopColor="#D8B36A" stopOpacity="0.55" />
-                  <stop offset="60%" stopColor="#0D241D" stopOpacity="0.15" />
-                  <stop offset="100%" stopColor="#0D241D" stopOpacity="0" />
+                  <stop offset="60%" stopColor="#15150F" stopOpacity="0.15" />
+                  <stop offset="100%" stopColor="#15150F" stopOpacity="0" />
                 </radialGradient>
                 <linearGradient id="nyrStroke" x1="0" x2="1">
                   <stop offset="0%" stopColor="#D8B36A" />
@@ -464,7 +464,7 @@ export function CommandCenterDashboard({
 
               {/* center badge */}
               <g>
-                <circle cx="50" cy="50" r="8" fill="#0D241D" stroke="url(#nyrStroke)" strokeWidth="0.4" />
+                <circle cx="50" cy="50" r="8" fill="#15150F" stroke="url(#nyrStroke)" strokeWidth="0.4" />
                 <text
                   x="50"
                   y="52.5"
