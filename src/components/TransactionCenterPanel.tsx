@@ -219,6 +219,13 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
           })}
         </CardContent>
       </Card>
+
+      {/* Core Parties panel, second mount point (one component, no duplication). */}
+      <Card>
+        <CardContent className="pt-6">
+          <CasePartiesPanel caseId={caseId} embedded />
+        </CardContent>
+      </Card>
     </div>
   );
 }
