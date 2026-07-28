@@ -218,6 +218,25 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
         </CardContent>
       </Card>
 
+          <PropertyRecommendationsPanel
+            input={{
+              property: data.property,
+              verification: data.verification,
+              documents: caseDocuments ?? [],
+            }}
+            onOpenCategory={setOpenCategory}
+          />
+        </div>
+
+        <div className="space-y-4">
+          <OfficialResourcesPanel
+            place={data.property?.municipality || data.property?.state || null}
+          />
+        </div>
+      </div>
+
+
+
       {openCategory && (
         <VerificationItemWorkspace
           key={`${openCategory}-${locale}`}
