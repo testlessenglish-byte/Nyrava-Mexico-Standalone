@@ -17,6 +17,20 @@ const CONNECTOR_STATUS_COLOR: Record<string, string> = {
   error: "text-destructive bg-destructive/10 border-destructive/30",
 };
 
+const HEALTH_DOT: Record<string, string> = {
+  ok: "bg-success",
+  stale: "bg-warning",
+  failing: "bg-destructive",
+  never_run: "bg-muted-foreground",
+};
+
+const HEALTH_LABEL: Record<string, string> = {
+  ok: "Recibiendo datos",
+  stale: "Sin datos nuevos",
+  failing: "Última corrida falló",
+  never_run: "Nunca ejecutado",
+};
+
 function LegalKnowledgePage() {
   const fetchStats = useServerFn(getNlknStats);
   const { data, isLoading, refetch, isFetching } = useQuery({
