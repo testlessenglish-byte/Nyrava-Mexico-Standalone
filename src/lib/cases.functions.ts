@@ -1121,6 +1121,20 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
     }
 
     const queuedAt = new Date().toISOString();
+
+    // If we're resuming at or before the scoring stage, any existing
+    // scored_at is about to become stale: contradictions/evidence_intel/
+    // discovery (or scoring itself) are all upstream of the score-vs-report
+    // ordering check in scoring-selection.ts, which requires
+    // scored_at >= each of those timestamps. Without this, a re-run that
+    // bumps e.g. contradiction_at past the old scored_at silently trips
+    // InvalidPipelineOrderError on the next report — permanently forcing
+    // the case into LIMITED mode even after a fully successful resume,
+    // since nothing else ever clears the stale value afterward.
+    const scoringIdx = PIPELINE_STAGES.findIndex((s) => s.key === "scoring");
+    const resumeIdx = PIPELINE_STAGES.findIndex((s) => s.key === resumeKey);
+    const invalidatesScore = scoringIdx === -1 || resumeIdx === -1 || resumeIdx <= scoringIdx;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: updateErr } = await (supabase as any)
       .from("cases")
@@ -1133,6 +1147,7 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
         cancel_requested: false,
         stall_reason: null,
         error: null,
+        ...(invalidatesScore ? { scored_at: null } : {}),
       })
       .eq("id", data.caseId);
     if (updateErr) throw new Error(updateErr.message);
