@@ -107,6 +107,9 @@ import {
   RotateCcw,
   Undo2,
   Building2,
+  ListChecks,
+  CalendarDays,
+  Mail,
 } from "lucide-react";
 import { TransactionCenterPanel } from "@/components/TransactionCenterPanel";
 
