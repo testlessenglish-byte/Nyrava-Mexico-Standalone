@@ -1,5 +1,5 @@
 import { Scale, BookOpen, Gavel, GraduationCap, Landmark, FileText } from "lucide-react";
-import { TrustBadge } from "./TrustBadge";
+import { NyravaLogo } from "./NyravaLogo";
 import { useI18n } from "@/i18n";
 
 /**
@@ -98,7 +98,7 @@ export function HeroOSDashboard() {
               strokeWidth="0.6"
             />
           </svg>
-          <TrustBadge size={140} glow />
+          <NyravaLogo size={140} glow />
           <div className="mt-3 text-center text-[9.5px] font-bold uppercase tracking-[0.28em] text-foreground">
             {t("home.badge.name")}
           </div>
@@ -119,7 +119,7 @@ export function HeroOSDashboard() {
 
       {/* Mobile / tablet — badge on top, cards stacked below */}
       <div className="flex flex-col items-center lg:hidden">
-        <TrustBadge size={140} glow />
+        <NyravaLogo size={140} glow />
         <div className="mt-3 text-center text-[9.5px] font-bold uppercase tracking-[0.28em] text-foreground">
           {t("home.badge.name")}
         </div>

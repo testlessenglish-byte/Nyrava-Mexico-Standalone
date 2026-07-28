@@ -1,5 +1,3 @@
-import { TrustBadge } from "./TrustBadge";
-
 interface NyravaLogoProps {
   size?: number;
   withWordmark?: boolean;
@@ -25,7 +23,11 @@ export function NyravaLogo({
         className="relative"
         style={{ width: size, height: size }}
       >
-        <TrustBadge size={size} className="relative z-10 h-full w-full" />
+        <img
+          src="/brand/nyrava-eagle-logo.png"
+          alt="Nyrava"
+          className="relative z-10 h-full w-full object-contain"
+        />
         {glow && (
           <div
             aria-hidden
