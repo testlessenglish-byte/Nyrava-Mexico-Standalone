@@ -130,7 +130,13 @@ type Tab =
   | "scorecard"
   | "chat"
   | "report"
-  | "transaction_center";
+  | "transaction_center"
+  // Core platform capabilities — present on every materia.
+  | "parties"
+  | "tasks"
+  | "calendar"
+  | "communications";
+
 
 const RUNNING_STATUSES = new Set([
   "queued",
