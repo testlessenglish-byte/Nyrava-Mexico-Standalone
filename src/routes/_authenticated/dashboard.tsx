@@ -5,6 +5,8 @@ import { useMemo } from "react";
 import { listCases } from "@/lib/cases.functions";
 import { getAttorneyHome } from "@/lib/casework.functions";
 import { PipelineStatusGrid } from "@/components/PipelineStatusGrid";
+import { PipelineTracePanel } from "@/components/PipelineTracePanel";
+import { useRoles } from "@/hooks/use-roles";
 import { useI18n } from "@/i18n";
 import {
   FileText,
@@ -52,6 +54,7 @@ function DashboardPage() {
   const cases = useMemo(() => (data ?? []).filter((c) => !c.archived_at), [data]);
   const featured = cases.find((c) => c.status === "complete") ?? cases[0];
   const activeCount = cases.filter((c) => RUNNING.has(c.status)).length;
+  const { isAdmin } = useRoles();
   const completeCount = cases.filter((c) => c.status === "complete").length;
   const highPriorityCount = useMemo(
     () => cases.reduce((sum, c) => sum + ((c as { high_priority_findings?: number }).high_priority_findings ?? 0), 0),
@@ -169,6 +172,10 @@ function DashboardPage() {
               <PipelineStatusGrid caseRow={featured as any} />
             </div>
           ) : null}
+
+          {isAdmin && featured && (
+            <PipelineTracePanel caseId={featured.id} isProcessing={RUNNING.has(featured.status)} />
+          )}
 
           <Link
             to="/talk"
