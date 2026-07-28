@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, ExternalLink, Info, Lightbulb } from "lucide-react";
 import { useI18n } from "@/i18n";
-import { buildRecommendations, type RecommendationInput } from "@/lib/realestate/recommendations";
+import type { Recommendation } from "@/lib/realestate/recommendations";
 import { resourceById } from "@/lib/realestate/official-resources";
 import type { VerificationCategory } from "@/lib/real-estate.functions";
 
@@ -18,14 +18,14 @@ const SEVERITY_META = {
 } as const;
 
 export function PropertyRecommendationsPanel({
-  input,
+  recommendations,
   onOpenCategory,
 }: {
-  input: RecommendationInput;
+  recommendations: Recommendation[];
   onOpenCategory: (cat: VerificationCategory) => void;
 }) {
   const { t } = useI18n();
-  const recs = buildRecommendations(input);
+  const recs = recommendations;
 
   return (
     <Card>
@@ -57,8 +57,14 @@ export function PropertyRecommendationsPanel({
                     <Icon className="h-3 w-3" />
                     {t(`re.rec.severity.${r.severity}`)}
                   </Badge>
-                  <p className="text-sm">{t(r.messageKey, r.values)}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm">{t(r.messageKey, r.values)}</p>
+                    {r.whyKey && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">{t(r.whyKey)}</p>
+                    )}
+                  </div>
                 </div>
+
                 <div className="flex shrink-0 gap-2">
                   {r.category && (
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onOpenCategory(r.category!)}>

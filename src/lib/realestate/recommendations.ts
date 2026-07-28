@@ -1,14 +1,16 @@
 // Context-aware next-step recommendations for a real-estate transaction.
 //
 // Deterministic and evidence-driven: every recommendation is derived from the
-// case's own state (property record, verification items, uploaded document
-// filenames) — nothing is invented and no AI quota is spent. The AI assistant
-// inside the verification workspace remains the place for reasoning about a
-// document's *contents*; this layer answers the cheaper question an attorney
-// asks constantly: "what am I still missing, and where do I go to get it?"
+// case's own state (property record, verification items, and the instruments
+// actually detected inside the uploaded documents) — nothing is invented and
+// no AI quota is spent. A recommendation disappears the moment the thing it
+// asks for exists, which is what makes this an assistant rather than a static
+// checklist.
 
 import type { OfficialResourceId } from "./official-resources";
-import type { PropertyRecord, VerificationItem, VerificationCategory } from "@/lib/real-estate.functions";
+import type { VerificationCategory } from "@/lib/real-estate.functions";
+import { detectionMap } from "./document-detection";
+import { RFC_PATTERN, type PropertyFileState } from "./closing-checklist";
 
 export type RecommendationSeverity = "critical" | "warning" | "info";
 
@@ -17,6 +19,8 @@ export type Recommendation = {
   severity: RecommendationSeverity;
   /** i18n key: `re.rec.<id>` */
   messageKey: string;
+  /** i18n key explaining why the missing piece matters. */
+  whyKey?: string;
   /** Optional interpolation values for the message. */
   values?: Record<string, string>;
   /** Verification item this recommendation should open, when applicable. */
@@ -27,32 +31,35 @@ export type Recommendation = {
   url?: string;
 };
 
-export type RecommendationInput = {
-  property: PropertyRecord | null;
-  verification: VerificationItem[];
-  documents: Array<{ filename: string }>;
-};
-
-const RFC_PATTERN = /\b[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}\b/;
-
-function matches(documents: Array<{ filename: string }>, re: RegExp): boolean {
-  return documents.some((d) => re.test(d.filename.toLowerCase()));
-}
+export type RecommendationInput = PropertyFileState;
 
 export function buildRecommendations(input: RecommendationInput): Recommendation[] {
-  const { property, verification, documents } = input;
+  const { property, verification, detected } = input;
   const byCat = new Map(verification.map((v) => [v.category, v]));
+  const docs = detectionMap(detected);
   const out: Recommendation[] = [];
 
   const isSettled = (cat: VerificationCategory) => byCat.get(cat)?.status === "verified";
   const hasEvidence = (cat: VerificationCategory) => Boolean(byCat.get(cat)?.evidence_document_id);
 
-  const hasTitle = matches(documents, /escritura|titulo|título|compraventa|contrato/);
-  const hasRegistryCert = matches(documents, /libertad|gravamen|certificado|rpp|registro/);
-  const hasPredial = matches(documents, /predial|catastr/);
-  const hasMortgageRelease = matches(documents, /cancelaci[oó]n|liberaci[oó]n|hipoteca/);
-  const hasPoa = matches(documents, /poder|notarial|mandato/);
-  const hasId = matches(documents, /ine|curp|acta|identificaci[oó]n|pasaporte/);
+  const hasDeed = docs.has("deed");
+  const hasRegistryCert = docs.has("registry_certificate");
+  const hasPredial = docs.has("predial_receipt");
+  const hasMortgageRelease = docs.has("mortgage_release");
+  const hasPoa = docs.has("power_of_attorney");
+  const hasId = docs.has("identity");
+
+  // --- Ownership ------------------------------------------------------------
+  if (!isSettled("ownership") && !hasDeed) {
+    out.push({
+      id: "ownershipUnverified",
+      severity: "critical",
+      messageKey: "re.rec.ownershipUnverified",
+      whyKey: "re.rec.why.ownershipUnverified",
+      category: "ownership",
+      resource: "rpp_federal",
+    });
+  }
 
   // --- Registry -------------------------------------------------------------
   if (!isSettled("registry") && !hasRegistryCert) {
@@ -60,16 +67,18 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
       id: property?.folio_real ? "registryFromFolio" : "registrySearch",
       severity: "critical",
       messageKey: property?.folio_real ? "re.rec.registryFromFolio" : "re.rec.registrySearch",
+      whyKey: "re.rec.why.registry",
       values: property?.folio_real ? { folio: property.folio_real } : undefined,
       category: "registry",
       resource: "rpp_federal",
     });
   }
-  if (hasTitle && !hasRegistryCert) {
+  if (hasDeed && !hasRegistryCert && !isSettled("registry")) {
     out.push({
       id: "titleWithoutCertificate",
       severity: "warning",
       messageKey: "re.rec.titleWithoutCertificate",
+      whyKey: "re.rec.why.registry",
       category: "registry",
       resource: "rpp_federal",
     });
@@ -82,6 +91,7 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
       id: "verifySellerRfc",
       severity: "warning",
       messageKey: "re.rec.verifySellerRfc",
+      whyKey: "re.rec.why.rfc",
       values: { party: property.seller_name },
       resource: "sat",
       url: "https://portalsat.plataforma.sat.gob.mx/ConsultaRFC/",
@@ -92,6 +102,7 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
       id: "validateCfdi",
       severity: "info",
       messageKey: "re.rec.validateCfdi",
+      whyKey: "re.rec.why.cfdi",
       resource: "sat",
       url: "https://verificacfdi.facturaelectronica.sat.gob.mx/",
     });
@@ -104,39 +115,60 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
       id: place ? "locateNotaryIn" : "noNotaryAssigned",
       severity: "warning",
       messageKey: place ? "re.rec.locateNotaryIn" : "re.rec.noNotaryAssigned",
+      whyKey: "re.rec.why.notary",
       values: place ? { place } : undefined,
       resource: "notarios_nacionales",
+    });
+  } else {
+    out.push({
+      id: "confirmNotaryDirectory",
+      severity: "info",
+      messageKey: "re.rec.confirmNotaryDirectory",
+      values: { notary: property.notary },
+      resource: "notarios_federales",
     });
   }
 
   // --- Predial / catastro ---------------------------------------------------
-  if (!hasPredial && !hasEvidence("predial")) {
+  if (!hasPredial && !hasEvidence("predial") && !isSettled("predial")) {
     out.push({
       id: "predialMissing",
       severity: "warning",
       messageKey: "re.rec.predialMissing",
+      whyKey: "re.rec.why.predial",
       category: "predial",
+    });
+  }
+  if (!docs.has("catastro") && !property?.catastro_id && !isSettled("catastro")) {
+    out.push({
+      id: "catastroMissing",
+      severity: "info",
+      messageKey: "re.rec.catastroMissing",
+      whyKey: "re.rec.why.catastro",
+      category: "catastro",
     });
   }
 
   // --- Mortgage -------------------------------------------------------------
   const mortgage = byCat.get("mortgage");
-  if ((mortgage?.status === "issue_found" || !hasMortgageRelease) && !isSettled("mortgage")) {
+  if (!hasMortgageRelease && !isSettled("mortgage")) {
     out.push({
       id: "mortgageReleaseMissing",
       severity: mortgage?.status === "issue_found" ? "critical" : "info",
       messageKey: "re.rec.mortgageReleaseMissing",
+      whyKey: "re.rec.why.mortgage",
       category: "mortgage",
       resource: "rpp_federal",
     });
   }
 
   // --- Power of attorney / corporate authority ------------------------------
-  if (hasPoa) {
+  if (hasPoa && !isSettled("corporate_authority")) {
     out.push({
       id: "verifyPoa",
       severity: "warning",
       messageKey: "re.rec.verifyPoa",
+      whyKey: "re.rec.why.poa",
       category: "corporate_authority",
       resource: "notarios_nacionales",
     });
@@ -148,7 +180,19 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
       id: "identityVerification",
       severity: "info",
       messageKey: "re.rec.identityVerification",
+      whyKey: "re.rec.why.identity",
       resource: "registro_civil",
+    });
+  }
+
+  // --- Utilities ------------------------------------------------------------
+  if (!docs.has("water_clearance") && !isSettled("water")) {
+    out.push({
+      id: "waterClearanceMissing",
+      severity: "info",
+      messageKey: "re.rec.waterClearanceMissing",
+      whyKey: "re.rec.why.utilities",
+      category: "water",
     });
   }
 
@@ -158,20 +202,17 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
       id: "foreignBuyerFideicomiso",
       severity: "critical",
       messageKey: "re.rec.foreignBuyerFideicomiso",
-    });
-  }
-
-  // --- Federal-patrimony notary shortcut ------------------------------------
-  if (property?.notary) {
-    out.push({
-      id: "confirmNotaryDirectory",
-      severity: "info",
-      messageKey: "re.rec.confirmNotaryDirectory",
-      values: { notary: property.notary },
-      resource: "notarios_federales",
+      whyKey: "re.rec.why.fideicomiso",
     });
   }
 
   const order: Record<RecommendationSeverity, number> = { critical: 0, warning: 1, info: 2 };
   return out.sort((a, b) => order[a.severity] - order[b.severity]);
+}
+
+/** Official portals worth surfacing for the current state of this file. */
+export function relevantResources(recs: Recommendation[]): OfficialResourceId[] {
+  const ids = new Set<OfficialResourceId>();
+  for (const r of recs) if (r.resource) ids.add(r.resource);
+  return [...ids];
 }
