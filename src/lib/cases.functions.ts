@@ -1,4 +1,5 @@
 // Client-safe server-function module. Handlers run on the server only.
+import { CASE_RESET_FIELDS, clearCaseDerivedData } from "./pipeline-reset";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -877,28 +878,9 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
     // to display. Safe to run twice — runPipelineForCase's reset branch
     // still runs the same deletes; deleting an already-empty set is a no-op.
     if (data.reset) {
-      const derivedTables = [
-        "analyses",
-        "agent_findings",
-        "case_findings",
-        "case_scores",
-        "case_opportunities",
-        "case_perspectives",
-        "case_strategy",
-        "case_theories",
-        "case_trial_prep",
-        "case_witnesses",
-        "case_work_product",
-        "evidence_classifications",
-        "reports",
-        "pipeline_engine_runs",
-        "pipeline_events",
-        "agent_logs",
-      ];
-      for (const t of derivedTables) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from(t).delete().eq("case_id", data.caseId);
-      }
+      await clearCaseDerivedData(supabase, data.caseId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("cases").update({ ...CASE_RESET_FIELDS }).eq("id", data.caseId);
     }
     // Consume the free allowance only the first time THIS case is queued.
     if (billingAccess.reason === "free_case_available") {
