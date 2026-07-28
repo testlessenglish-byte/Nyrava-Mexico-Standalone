@@ -141,6 +141,8 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
         </CardContent>
       </Card>
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
       {/* Property Intelligence */}
       <Card>
         <CardHeader className="pb-2">
