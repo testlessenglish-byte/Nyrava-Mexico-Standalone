@@ -333,7 +333,13 @@ export async function runLegalQaGate(args: {
     }
   }
 
-  const deduped = dedupeViolations(violations) as (QaViolation & { table: string; field: string })[];
+  // Language is remediated by translation above. If a residue survives (model
+  // unavailable, mixed-language quote), it is a quality warning — never a hard
+  // block, because blocking here strands the whole report with no path forward.
+  const softened = violations.map((v) =>
+    v.kind === "untranslated_english" ? { ...v, severity: "warning" as const } : v,
+  );
+  const deduped = dedupeViolations(softened) as (QaViolation & { table: string; field: string })[];
   const blocking = deduped.filter((v) => v.severity === "blocking");
   const warnings = deduped.filter((v) => v.severity === "warning");
 
