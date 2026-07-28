@@ -73,7 +73,7 @@
   --background: #0E241D;
   --foreground: #F5F1E6;
 
-  --card: #275A47;
+  --card: rgba(39,90,71,0.55);
   --card-foreground: #F5F1E6;
   --popover: #234F3F;
   --popover-foreground: #F5F1E6;
