@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo } from "react";
 import { listCases } from "@/lib/cases.functions";
+import { getAttorneyHome } from "@/lib/casework.functions";
 import { PipelineStatusGrid } from "@/components/PipelineStatusGrid";
 import { useI18n } from "@/i18n";
 import {
@@ -20,6 +21,9 @@ import {
   Activity,
   Sparkles,
   Clock,
+  CalendarDays,
+  ListChecks,
+  ArrowRight,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -36,6 +40,13 @@ function DashboardPage() {
     queryKey: ["cases"],
     queryFn: () => fetchCases(),
     refetchInterval: 5000,
+  });
+
+  const fetchHome = useServerFn(getAttorneyHome);
+  const { data: home } = useQuery({
+    queryKey: ["attorney-home"],
+    queryFn: () => fetchHome(),
+    refetchInterval: 60000,
   });
 
   const cases = useMemo(() => (data ?? []).filter((c) => !c.archived_at), [data]);
@@ -81,6 +92,8 @@ function DashboardPage() {
           tone="danger"
         />
       </div>
+
+      <AttorneyHome home={home} />
 
       {isLoading ? (
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">
@@ -234,6 +247,149 @@ function DashboardPage() {
         <QuickAction to="/alerts" icon={<Bell className="h-5 w-5" />} label={t("dashboard.quickActions.alerts")} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Attorney Home — six real-data cards fed by a single batched aggregation.
+ * Universal by construction: nothing here is specific to one materia.
+ */
+type HomeData = Awaited<ReturnType<typeof getAttorneyHome>>;
+
+function AttorneyHome({ home }: { home: HomeData | undefined }) {
+  const { t, locale } = useI18n();
+  const dt = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const d = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-MX", { dateStyle: "medium" });
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold">{t("home.title")}</h2>
+        <p className="text-xs text-muted-foreground">{t("home.subtitle")}</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <HomeCard icon={<CalendarDays className="h-4 w-4" />} title={t("home.events")}>
+          {(home?.upcomingEvents ?? []).map((e) => (
+            <HomeRow
+              key={e.id}
+              caseId={e.case_id}
+              primary={e.title}
+              secondary={`${e.case_name} · ${dt.format(new Date(e.scheduled_at))}`}
+            />
+          ))}
+        </HomeCard>
+
+        <HomeCard icon={<ListChecks className="h-4 w-4" />} title={t("home.deadlines")}>
+          {(home?.deadlines ?? []).map((task) => (
+            <HomeRow
+              key={task.id}
+              caseId={task.case_id}
+              primary={task.title}
+              secondary={`${task.case_name} · ${task.due_date ? d.format(new Date(`${task.due_date}T12:00:00`)) : ""}`}
+              danger={!!task.due_date && task.due_date < new Date().toISOString().slice(0, 10)}
+            />
+          ))}
+        </HomeCard>
+
+        <HomeCard icon={<AlertTriangle className="h-4 w-4" />} title={t("home.alerts")}>
+          {(home?.aiAlerts ?? []).map((f) => (
+            <HomeRow key={f.id} caseId={f.case_id} primary={f.title ?? ""} secondary={f.case_name} danger />
+          ))}
+        </HomeCard>
+
+        <HomeCard icon={<FileText className="h-4 w-4" />} title={t("home.reports")}>
+          {(home?.recentReports ?? []).map((r) => (
+            <HomeRow
+              key={r.id}
+              caseId={r.case_id}
+              primary={r.case_name}
+              secondary={d.format(new Date(r.created_at))}
+            />
+          ))}
+        </HomeCard>
+
+        <HomeCard icon={<MessageSquare className="h-4 w-4" />} title={t("home.conversations")}>
+          {(home?.recentConversations ?? []).map((m) => (
+            <HomeRow
+              key={m.id}
+              caseId={m.case_id}
+              primary={String(m.content ?? "").slice(0, 90)}
+              secondary={m.case_name}
+            />
+          ))}
+        </HomeCard>
+
+        <HomeCard icon={<Activity className="h-4 w-4" />} title={t("home.resume")}>
+          {(home?.quickResume ?? []).map((c) => (
+            <HomeRow
+              key={c.id}
+              caseId={c.id}
+              primary={c.name}
+              secondary={c.lifecycle_status ?? c.status}
+            />
+          ))}
+        </HomeCard>
+      </div>
+    </section>
+  );
+}
+
+function HomeCard({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const { t } = useI18n();
+  const empty = !Array.isArray(children) || children.length === 0;
+  return (
+    <div className="rounded-xl border border-border bg-card/60 p-4">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-primary">{icon}</span>
+        {title}
+      </div>
+      {empty ? (
+        <p className="py-4 text-center text-xs text-muted-foreground">{t("home.empty")}</p>
+      ) : (
+        <ul className="space-y-1.5">{children}</ul>
+      )}
+    </div>
+  );
+}
+
+function HomeRow({
+  caseId,
+  primary,
+  secondary,
+  danger,
+}: {
+  caseId: string;
+  primary: string;
+  secondary?: string;
+  danger?: boolean;
+}) {
+  return (
+    <li>
+      <Link
+        to="/cases/$caseId"
+        params={{ caseId }}
+        className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-primary/5"
+      >
+        <span className="min-w-0 flex-1">
+          <span className={`block truncate font-medium ${danger ? "text-destructive" : "text-foreground"}`}>
+            {primary}
+          </span>
+          {secondary && <span className="block truncate text-muted-foreground">{secondary}</span>}
+        </span>
+        <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
+      </Link>
+    </li>
   );
 }
 
