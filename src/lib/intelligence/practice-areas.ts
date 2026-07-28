@@ -31,8 +31,17 @@ import {
   materiaMotionTypes,
   materiaSections,
   materiaTabs,
+  materiaDashboardModules,
+  materiaLifecycleStatuses,
+  materiaPartyRoles,
+  materiaTaskTemplates,
+  materiaAiPersona,
+  CORE_TABS,
+  CORE_CAPABILITIES,
+  type MxTaskTemplate,
   type MexicanCaseType,
 } from "@/lib/jurisdiction/mexico";
+
 
 /** Canonical Mexican materia. Alias retained for existing call sites. */
 export type PracticeArea = MexicanCaseType;
