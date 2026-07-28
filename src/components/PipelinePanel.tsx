@@ -50,17 +50,17 @@ function statusKey(v: Visual): string {
 function statusClass(v: Visual): string {
   switch (v.state) {
     case "completed":
-      return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
+      return "text-success border-success/30";
     case "running":
-      return "text-amber-300 border-amber-400/40 bg-amber-400/10";
+      return "text-primary border-primary/40";
     case "failed":
-      return "text-red-400 border-red-500/30 bg-red-500/10";
+      return "text-destructive border-destructive/30";
     case "skipped":
-      return "text-amber-300 border-amber-500/30 bg-amber-500/10";
+      return "text-warning border-warning/30";
     case "out_of_date":
-      return "text-amber-300 border-amber-500/30 bg-amber-500/10";
+      return "text-warning border-warning/30";
     default:
-      return "text-muted-foreground border-border/20 bg-muted/5";
+      return "text-muted-foreground border-border/20";
   }
 }
 
@@ -295,7 +295,7 @@ export function PipelinePanel({
           const v = visuals[s.key];
           const row = v.row;
           return (
-            <li key={s.key} className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${statusClass(v)}`}>
+            <li key={s.key} className={`flex items-center gap-3 rounded-lg border bg-secondary/40 px-3 py-2 ${statusClass(v)}`}>
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current text-[10px] font-mono">
                 {i + 1}
               </span>

@@ -104,17 +104,17 @@ function rollupStatus(row: { status: string } | undefined): EngineStatus | "idle
 function statusColor(s: EngineStatus | "idle"): string {
   switch (s) {
     case "completed":
-      return "text-emerald-400 border-emerald-400/40 bg-emerald-400/10";
+      return "text-success border-success/30";
     case "running":
-      return "text-amber-300 border-amber-300/40 bg-amber-300/10";
+      return "text-primary border-primary/40";
     case "failed":
-      return "text-red-400 border-red-400/40 bg-red-400/10";
+      return "text-destructive border-destructive/30";
     case "skipped":
-      return "text-amber-300 border-amber-300/40 bg-amber-300/10";
+      return "text-warning border-warning/30";
     case "queued":
-      return "text-foreground/80 border-border/30 bg-muted/10";
+      return "text-foreground/80 border-border/30";
     default:
-      return "text-muted-foreground border-border/20 bg-muted/5";
+      return "text-muted-foreground border-border/20";
   }
 }
 
@@ -733,11 +733,11 @@ function EngineChip({
   const labelKey = engineLabelKey(node.labelEngine, caseType);
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${statusColor(status)} ${align === "right" ? "flex-row-reverse text-right" : ""} ${className}`}
+      className={`flex items-center gap-2 rounded-lg border bg-secondary/40 px-3 py-2 ${statusColor(status)} ${align === "right" ? "flex-row-reverse text-right" : ""} ${className}`}
     >
       <Icon className="h-4 w-4 shrink-0" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium leading-tight">
+        <div className="truncate text-sm font-medium leading-tight text-foreground">
           {labelKey ? t(labelKey) : node.labelEngine}
         </div>
         <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider opacity-80">
