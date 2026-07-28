@@ -14,12 +14,14 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, Paperclip } from "lucide-react";
 import { VerificationItemWorkspace } from "@/components/realestate/VerificationItemWorkspace";
+import { OfficialResourcesPanel } from "@/components/realestate/OfficialResourcesPanel";
+import { PropertyRecommendationsPanel } from "@/components/realestate/PropertyRecommendationsPanel";
 import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
 import { useI18n } from "@/i18n";
 import {
   getTransactionCenter,
   updateClosingMilestone,
-
+  listVerificationDocuments,
   type VerificationCategory,
   type VerificationItem,
 } from "@/lib/real-estate.functions";
@@ -67,6 +69,11 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn: () => getTransactionCenter({ data: { caseId } }),
+  });
+
+  const { data: caseDocuments } = useQuery({
+    queryKey: ["transaction-center-docs", caseId],
+    queryFn: () => listVerificationDocuments({ data: { caseId } }),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey });
@@ -134,6 +141,8 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
         </CardContent>
       </Card>
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
       {/* Property Intelligence */}
       <Card>
         <CardHeader className="pb-2">
@@ -208,6 +217,25 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
           })}
         </CardContent>
       </Card>
+
+          <PropertyRecommendationsPanel
+            input={{
+              property: data.property,
+              verification: data.verification,
+              documents: caseDocuments ?? [],
+            }}
+            onOpenCategory={setOpenCategory}
+          />
+        </div>
+
+        <div className="space-y-4">
+          <OfficialResourcesPanel
+            place={data.property?.municipality || data.property?.state || null}
+          />
+        </div>
+      </div>
+
+
 
       {openCategory && (
         <VerificationItemWorkspace
