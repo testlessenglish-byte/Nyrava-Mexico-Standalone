@@ -370,11 +370,13 @@ function CollapsedCaseSettings({
     mutationFn: (patch: { case_type?: string; analysis_mode?: string; jurisdiction?: string | null }) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       updateFn({ data: { caseId, ...(patch as any) } }),
-    onSuccess: () => {
+    onSuccess: (res: { modeChanged?: boolean } | undefined) => {
       toast.success(t("caseSettings.toast.saved"));
+      if (res?.modeChanged) toast.info(t("caseSettings.toast.modeChanged"));
       setOpen(false);
       invalidate();
     },
+
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("caseSettings.toast.saveFailed")),
   });
 

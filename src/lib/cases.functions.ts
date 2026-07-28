@@ -1,4 +1,5 @@
 // Client-safe server-function module. Handlers run on the server only.
+import { CASE_RESET_FIELDS, clearCaseDerivedData } from "./pipeline-reset";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -877,28 +878,9 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
     // to display. Safe to run twice — runPipelineForCase's reset branch
     // still runs the same deletes; deleting an already-empty set is a no-op.
     if (data.reset) {
-      const derivedTables = [
-        "analyses",
-        "agent_findings",
-        "case_findings",
-        "case_scores",
-        "case_opportunities",
-        "case_perspectives",
-        "case_strategy",
-        "case_theories",
-        "case_trial_prep",
-        "case_witnesses",
-        "case_work_product",
-        "evidence_classifications",
-        "reports",
-        "pipeline_engine_runs",
-        "pipeline_events",
-        "agent_logs",
-      ];
-      for (const t of derivedTables) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from(t).delete().eq("case_id", data.caseId);
-      }
+      await clearCaseDerivedData(supabase, data.caseId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("cases").update({ ...CASE_RESET_FIELDS }).eq("id", data.caseId);
     }
     // Consume the free allowance only the first time THIS case is queued.
     if (billingAccess.reason === "free_case_available") {
@@ -2260,13 +2242,59 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     if (data.jurisdiction !== undefined) patch.jurisdiction = data.jurisdiction;
     if (Object.keys(patch).length === 0) return { ok: true };
 
+    // Read the current mode first so we can tell whether this save actually
+    // changes the analysis mode. Mode decides which engines are ALLOWED to
+    // write (see intelligence/case-state.server.ts): engines outside the
+    // active mode raise StageSkippedError and get recorded as `skipped`.
+    // Resume/rerun treats `skipped` as "already done", so without the
+    // invalidation below, switching strict -> balanced -> exploratory (in
+    // any direction) leaves every previously-skipped engine permanently
+    // skipped and the rerun looks like it did nothing.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: before } = await (supabase as any)
+      .from("cases")
+      .select("analysis_mode")
+      .eq("id", data.caseId)
+      .maybeSingle();
+    const previousMode = (before?.analysis_mode as string | null) ?? null;
+    const modeChanged =
+      data.analysis_mode !== undefined && data.analysis_mode !== previousMode;
+
+    if (modeChanged) {
+      // Interpretive stages must be re-evaluated under the new mode's rules.
+      patch.theories_at = null;
+      patch.opportunities_at = null;
+      patch.trial_prep_at = null;
+      patch.witnesses_at = null;
+      patch.perspectives_at = null;
+      patch.evidence_intel_at = null;
+      patch.strategy_at = null;
+      patch.work_product_at = null;
+      patch.report_at = null;
+      patch.next_stage = null;
+    }
+
     const { error } = await supabase
       .from("cases")
       .update(patch as any)
       .eq("id", data.caseId);
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    if (modeChanged) {
+      // Drop non-authoritative ledger rows so the next run re-executes those
+      // engines instead of resuming past them. Completed rows are preserved —
+      // real work is never thrown away by a mode switch.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("pipeline_engine_runs")
+        .delete()
+        .eq("case_id", data.caseId)
+        .in("status", ["skipped", "failed", "blocked", "queued", "running"]);
+    }
+
+    return { ok: true, modeChanged };
   });
+
 
 export const archiveCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

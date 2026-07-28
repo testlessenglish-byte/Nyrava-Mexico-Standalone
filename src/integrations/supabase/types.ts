@@ -1749,6 +1749,7 @@ export type Database = {
           progress: number
           queued_at: string | null
           report_at: string | null
+          report_checkpoint_count: number
           report_language: string
           scored_at: string | null
           shared_brief: Json | null
@@ -1801,6 +1802,7 @@ export type Database = {
           progress?: number
           queued_at?: string | null
           report_at?: string | null
+          report_checkpoint_count?: number
           report_language?: string
           scored_at?: string | null
           shared_brief?: Json | null
@@ -1853,6 +1855,7 @@ export type Database = {
           progress?: number
           queued_at?: string | null
           report_at?: string | null
+          report_checkpoint_count?: number
           report_language?: string
           scored_at?: string | null
           shared_brief?: Json | null
@@ -5027,7 +5030,7 @@ export type Database = {
         | "platform_admin"
         | "firm_admin"
         | "case_manager"
-      canonical_status: "orchestrating" | "completed" | "failed"
+      canonical_status: "orchestrating" | "completed" | "failed" | "validated"
       case_status:
         | "uploaded"
         | "extracting"
@@ -5250,7 +5253,7 @@ export const Constants = {
         "firm_admin",
         "case_manager",
       ],
-      canonical_status: ["orchestrating", "completed", "failed"],
+      canonical_status: ["orchestrating", "completed", "failed", "validated"],
       case_status: [
         "uploaded",
         "extracting",

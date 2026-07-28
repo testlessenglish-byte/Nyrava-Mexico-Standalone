@@ -24,6 +24,7 @@ import { resolveMxProfile, type MxPipelineProfile } from "@/lib/execution/mx-pip
 import {
   auditText,
   dedupeViolations,
+  findEnglishSentences,
   remediateText,
   type QaViolation,
 } from "./mx-terminology";
@@ -154,11 +155,39 @@ function collectStrings(value: JsonValue, out: string[]): void {
   }
 }
 
+/**
+ * Translates English prose into Mexican-Spanish legal prose. Returns null when
+ * the model is unavailable or returns something unusable — the caller then
+ * keeps the original text and records a warning instead of blocking.
+ */
+async function translateToSpanish(text: string, userId?: string): Promise<string | null> {
+  try {
+    const { routeAI } = await import("@/lib/ai/router.server");
+    const res = await routeAI({
+      userId,
+      cache: true,
+      temperature: 0,
+      timeoutMs: 30_000,
+      systemInstruction:
+        "Eres traductor jurídico mexicano. Traduce el texto al español jurídico de México, " +
+        "conservando cifras, nombres propios, artículos y términos legales mexicanos (amparo, quejosa, " +
+        "estrados, Ministerio Público, etc.). No agregues comentarios ni comillas. Devuelve SOLO la traducción.",
+      userContent: text,
+    });
+    const out = String(res.text ?? "").trim();
+    if (!out || out.length < Math.min(10, text.length / 4)) return null;
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 export async function runLegalQaGate(args: {
   db: Db;
   caseId: string;
+  userId?: string;
 }): Promise<LegalQaReport> {
-  const { db, caseId } = args;
+  const { db, caseId, userId } = args;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: caseRow } = await (db as any)
@@ -175,6 +204,34 @@ export async function runLegalQaGate(args: {
   let checked_rows = 0;
   let checked_fields = 0;
   let remediated_fields = 0;
+
+  // Translation cache — identical strings recur across rows/fields.
+  const translationCache = new Map<string, string | null>();
+  async function translateOnce(text: string): Promise<string | null> {
+    const key = text.trim();
+    if (translationCache.has(key)) return translationCache.get(key)!;
+    const out = await translateToSpanish(key, userId);
+    translationCache.set(key, out);
+    return out;
+  }
+
+  /**
+   * Language remediation: if a Spanish report still contains English prose,
+   * translate the whole field and re-apply terminology remediation. Returns
+   * the final text (translated when possible, original otherwise).
+   */
+  async function ensureSpanish(
+    text: string,
+    ctx: { table: string; field: string },
+  ): Promise<{ text: string; changed: boolean }> {
+    if (locale !== "es") return { text, changed: false };
+    if (findEnglishSentences(text).length === 0) return { text, changed: false };
+    const translated = await translateOnce(text);
+    if (!translated) return { text, changed: false };
+    const { text: fixed } = remediateText(translated, materia);
+    remediations.push({ table: ctx.table, field: ctx.field, from: text.slice(0, 200), to: fixed.slice(0, 200) });
+    return { text: fixed, changed: true };
+  }
 
   for (const target of TARGETS) {
     const columns = [...(target.idColumn ? [target.idColumn] : []), ...target.text, ...target.json];
@@ -197,26 +254,62 @@ export async function runLegalQaGate(args: {
         if (typeof value !== "string" || !value.trim()) continue;
         checked_fields += 1;
         const { text, replacements } = remediateText(value, materia);
+        let finalText = text;
+        let dirty = replacements.length > 0;
         if (replacements.length > 0) {
-          remediated_fields += 1;
-          patch[field] = text;
           for (const rep of replacements) remediations.push({ table: target.table, field, ...rep });
         }
-        for (const v of auditText(text, { profile: materia, locale })) {
+        const es = await ensureSpanish(finalText, { table: target.table, field });
+        if (es.changed) {
+          finalText = es.text;
+          dirty = true;
+        }
+        if (dirty) {
+          remediated_fields += 1;
+          patch[field] = finalText;
+        }
+        for (const v of auditText(finalText, { profile: materia, locale })) {
           violations.push({ ...v, table: target.table, field });
         }
       }
+
 
       for (const field of target.json) {
         const value = r[field] as JsonValue | undefined;
         if (value === undefined || value === null) continue;
         checked_fields += 1;
         const sink: { from: string; to: string }[] = [];
-        const next = remediateJson(value, materia, sink);
-        if (sink.length > 0) {
+        let next = remediateJson(value, materia, sink);
+        let dirty = sink.length > 0;
+        for (const rep of sink) remediations.push({ table: target.table, field, ...rep });
+
+        // Translate English string leaves in a Spanish report.
+        if (locale === "es") {
+          const translate = async (v: JsonValue): Promise<JsonValue> => {
+            if (typeof v === "string") {
+              if (!v.trim() || findEnglishSentences(v).length === 0) return v;
+              const es = await ensureSpanish(v, { table: target.table, field });
+              if (es.changed) dirty = true;
+              return es.text;
+            }
+            if (Array.isArray(v)) {
+              const out: JsonValue[] = [];
+              for (const item of v) out.push(await translate(item));
+              return out;
+            }
+            if (v && typeof v === "object") {
+              const out: { [k: string]: JsonValue } = {};
+              for (const [k, val] of Object.entries(v)) out[k] = await translate(val as JsonValue);
+              return out;
+            }
+            return v;
+          };
+          next = await translate(next);
+        }
+
+        if (dirty) {
           remediated_fields += 1;
           patch[field] = next as unknown;
-          for (const rep of sink) remediations.push({ table: target.table, field, ...rep });
         }
         const strings: string[] = [];
         collectStrings(next, strings);
@@ -226,6 +319,7 @@ export async function runLegalQaGate(args: {
           }
         }
       }
+
 
       if (Object.keys(patch).length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -239,7 +333,13 @@ export async function runLegalQaGate(args: {
     }
   }
 
-  const deduped = dedupeViolations(violations) as (QaViolation & { table: string; field: string })[];
+  // Language is remediated by translation above. If a residue survives (model
+  // unavailable, mixed-language quote), it is a quality warning — never a hard
+  // block, because blocking here strands the whole report with no path forward.
+  const softened = violations.map((v) =>
+    v.kind === "untranslated_english" ? { ...v, severity: "warning" as const } : v,
+  );
+  const deduped = dedupeViolations(softened) as (QaViolation & { table: string; field: string })[];
   const blocking = deduped.filter((v) => v.severity === "blocking");
   const warnings = deduped.filter((v) => v.severity === "warning");
 

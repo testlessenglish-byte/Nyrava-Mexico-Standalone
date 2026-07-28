@@ -1,6 +1,7 @@
 // Server-only extraction of the full-pipeline runner so it can be invoked
 // both from an authenticated server function (user click) and from the
 // background worker route (cron / queue drain) with an admin client.
+import { CASE_RESET_FIELDS, clearCaseDerivedData } from "./pipeline-reset";
 import { unzipSync } from "fflate";
 import { classifyMexicanCaseType } from "@/lib/mx-case-classifier";
 import { normalizeMexicanCaseType } from "@/lib/jurisdiction/mexico";
@@ -349,53 +350,9 @@ async function _runPipelineForCase(
   };
 
   if (reset) {
-    const derivedTables = [
-      "analyses",
-      "agent_findings",
-      "case_findings",
-      "case_scores",
-      "case_opportunities",
-      "case_perspectives",
-      "case_strategy",
-      "case_theories",
-      "case_trial_prep",
-      "case_witnesses",
-      "case_work_product",
-      "evidence_classifications",
-      "reports",
-      "pipeline_engine_runs",
-      "pipeline_events",
-      "agent_logs",
-    ];
-    for (const t of derivedTables) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from(t).delete().eq("case_id", caseId);
-    }
+    await clearCaseDerivedData(supabase, caseId);
     await updateCase(
-      {
-        extracted_at: null,
-        analysis_at: null,
-        agents_at: null,
-        scored_at: null,
-        report_at: null,
-        theories_at: null,
-        opportunities_at: null,
-        trial_prep_at: null,
-        witnesses_at: null,
-        perspectives_at: null,
-        evidence_intel_at: null,
-        strategy_at: null,
-        contradiction_at: null,
-        discovery_at: null,
-        hallucination_at: null,
-        work_product_at: null,
-        hallucination_report: null,
-        attack_surface: {},
-        error: null,
-        status_message: null,
-        progress: 0,
-        cancel_requested: false,
-      },
+      { ...CASE_RESET_FIELDS },
       "pipeline.reset",
     );
   } else {
@@ -490,7 +447,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
           const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-          const value = await runLegalQaGate({ db: supabase, caseId });
+          const value = await runLegalQaGate({ db: supabase, caseId, userId });
           return {
             value,
             stats: {
