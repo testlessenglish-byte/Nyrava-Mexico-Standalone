@@ -57,8 +57,14 @@ export function PropertyRecommendationsPanel({
                     <Icon className="h-3 w-3" />
                     {t(`re.rec.severity.${r.severity}`)}
                   </Badge>
-                  <p className="text-sm">{t(r.messageKey, r.values)}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm">{t(r.messageKey, r.values)}</p>
+                    {r.whyKey && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">{t(r.whyKey)}</p>
+                    )}
+                  </div>
                 </div>
+
                 <div className="flex shrink-0 gap-2">
                   {r.category && (
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onOpenCategory(r.category!)}>
