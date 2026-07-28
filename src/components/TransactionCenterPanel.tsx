@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, Paperclip } from "lucide-react";
+import { VerificationItemWorkspace } from "@/components/realestate/VerificationItemWorkspace";
 import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
 import {
   getTransactionCenter,
@@ -65,6 +66,7 @@ const VERIFICATION_CATEGORIES = Object.keys(CATEGORY_LABELS) as VerificationCate
 export function TransactionCenterPanel({ caseId }: { caseId: string }) {
   const qc = useQueryClient();
   const queryKey = ["transaction-center", caseId];
+  const [openCategory, setOpenCategory] = useState<VerificationCategory | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey,
