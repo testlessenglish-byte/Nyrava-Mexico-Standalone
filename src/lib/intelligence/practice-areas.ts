@@ -72,20 +72,23 @@ export const UNIVERSAL_SECTIONS = new Set<string>([
   "appendix",
 ]);
 
+/**
+ * Core Platform tabs — guaranteed on EVERY materia. Sourced from
+ * mexico-modules.ts::CORE_TABS so there is exactly one declaration of what
+ * "universal" means. A practice area may only ADD tabs on top of this set.
+ */
 export const UNIVERSAL_TABS = new Set<string>([
-  "dashboard",
+  ...CORE_TABS,
+  // legacy keys kept for existing workspace surfaces
   "strategic",
   "attack",
   "evidence",
-  "findings",
-  "intel",
-  "analyzers",
-  "agents",
   "witnesses",
   "work",
   "chat",
   "report",
 ]);
+
 
 export const UNIVERSAL_ENGINES = new Set<string>([
   "extraction",
