@@ -71,6 +71,11 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
     queryFn: () => getTransactionCenter({ data: { caseId } }),
   });
 
+  const { data: caseDocuments } = useQuery({
+    queryKey: ["transaction-center-docs", caseId],
+    queryFn: () => listVerificationDocuments({ data: { caseId } }),
+  });
+
   const invalidate = () => qc.invalidateQueries({ queryKey });
 
   const setMilestoneFn = useServerFn(updateClosingMilestone);
