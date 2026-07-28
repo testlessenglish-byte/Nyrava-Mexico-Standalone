@@ -41,8 +41,8 @@ describe("practice-area registry parity", () => {
       expect(new Set(roles).size).toBe(roles.length);
       expect(lifecycleStatusesFor(t).length).toBeGreaterThan(0);
       for (const task of taskTemplatesFor(t)) {
-        expect(task.title_es.length).toBeGreaterThan(0);
-        expect(task.title_en.length).toBeGreaterThan(0);
+        expect(task.title.es.length).toBeGreaterThan(0);
+        expect(task.title.en.length).toBeGreaterThan(0);
       }
     });
   }
