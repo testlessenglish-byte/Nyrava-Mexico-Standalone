@@ -285,6 +285,7 @@
   "caseSettings.title": "Configuración del Caso",
   "caseSettings.toast.saveFailed": "No se pudo guardar",
   "caseSettings.toast.saved": "Configuración guardada. Reejecute el caso para aplicarla.",
+  "caseSettings.toast.modeChanged": "Modo de análisis actualizado — reejecute el caso para volver a correr los motores afectados.",
   "caseTab.agents": "Agentes",
   "caseTab.analyzers": "Analizadores",
   "caseTab.attack": "Vías de Impugnación",

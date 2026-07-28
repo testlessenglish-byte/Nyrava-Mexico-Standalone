@@ -285,6 +285,7 @@
   "caseSettings.title": "Case Settings",
   "caseSettings.toast.saveFailed": "Save failed",
   "caseSettings.toast.saved": "Settings saved. Rerun Case to apply.",
+  "caseSettings.toast.modeChanged": "Analysis mode changed — rerun the case to re-execute the affected engines.",
   "caseTab.agents": "Agents",
   "caseTab.analyzers": "Analyzers",
   "caseTab.attack": "Attack Surface",
