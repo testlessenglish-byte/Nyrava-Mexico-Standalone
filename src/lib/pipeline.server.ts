@@ -447,7 +447,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
           const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-          const value = await runLegalQaGate({ db: supabase, caseId });
+          const value = await runLegalQaGate({ db: supabase, caseId, userId });
           return {
             value,
             stats: {
