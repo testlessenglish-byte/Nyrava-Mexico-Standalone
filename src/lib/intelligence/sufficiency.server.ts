@@ -63,6 +63,16 @@ const HIGH_WEIGHT_PATTERNS: Array<{ type: string; rx: RegExp }> = [
   { type: "expert_report", rx: /\b(expert\s+(report|affidavit|opinion|declaration))\b/i },
   { type: "grand_jury_transcript", rx: /\bgrand\s+jury\b/i },
   { type: "proffer_agreement", rx: /\bproffer\b/i },
+  // Mexican-Spanish equivalents. Without these, this classifier — built
+  // entirely on English legal vocabulary — silently fails to recognize any
+  // document in a Spanish-language corpus, which is every case this product
+  // actually serves. A demanda, auto de vinculación, or dictamen pericial is
+  // exactly as substantive as an English complaint or expert report, but
+  // none of the English-only patterns above ever match it.
+  { type: "indictment", rx: /\b(auto\s+de\s+(formal\s+prisi[oó]n|vinculaci[oó]n\s+a\s+proceso)|pliego\s+de\s+consignaci[oó]n)\b/i },
+  { type: "complaint", rx: /\b(demanda|querella|denuncia)\b/i },
+  { type: "search_warrant", rx: /\b(orden\s+de\s+(cateo|aprehensi[oó]n))\b/i },
+  { type: "expert_report", rx: /\b(dictamen\s+pericial|peritaje)\b/i },
 ];
 
 const CHARGING_DOC_PATTERNS: RegExp[] = [
@@ -73,6 +83,14 @@ const CHARGING_DOC_PATTERNS: RegExp[] = [
   /\bfelony\s+complaint\b/i,
   /\bmisdemeanor\s+complaint\b/i,
   /\bcharging\s+document\b/i,
+  // Mexican-Spanish equivalents — the initiating/foundational filing in a
+  // Mexican matter (a civil/familiar demanda, a criminal querella/denuncia,
+  // an amparo demanda, or the auto that opens a criminal proceeding).
+  /\bdemanda\b/i,
+  /\bquerella\b/i,
+  /\bdenuncia\b/i,
+  /\bauto\s+de\s+vinculaci[oó]n\s+a\s+proceso\b/i,
+  /\bpliego\s+de\s+consignaci[oó]n\b/i,
 ];
 
 const DOC_TYPE_PATTERNS: Array<{ type: string; rx: RegExp }> = [
@@ -96,6 +114,36 @@ const DOC_TYPE_PATTERNS: Array<{ type: string; rx: RegExp }> = [
   { type: "medical", rx: /\b(medical|ER|hospital|admission|autopsy)\b/i },
   { type: "police_record", rx: /\b(arrest|police|body[\s_-]*cam|incident)\b/i },
   { type: "financial", rx: /\b(bank|ledger|payment|financial|payroll)\b/i },
+  // Mexican-Spanish equivalents — see the note on HIGH_WEIGHT_PATTERNS above.
+  // Same reasoning: every pattern above is English-only, so a wholly
+  // Spanish-language corpus (the norm for this product) never accumulates
+  // distinctDocTypeCount past 0, and the ">= 3 distinct types" override path
+  // never fires either. These map the same concepts to their Mexican filing
+  // names, not a 1:1 legal-system translation.
+  { type: "indictment", rx: /\bauto\s+de\s+(formal\s+prisi[oó]n|vinculaci[oó]n\s+a\s+proceso)\b/i },
+  { type: "complaint", rx: /\b(demanda|querella|denuncia)\b/i },
+  { type: "answer", rx: /\bcontestaci[oó]n(\s+de\s+demanda)?\b/i },
+  { type: "motion", rx: /\b(promoci[oó]n|escrito\s+de\s+cuenta)\b/i },
+  { type: "brief", rx: /\balegatos\b/i },
+  { type: "warrant", rx: /\borden\s+de\s+(cateo|aprehensi[oó]n)\b/i },
+  { type: "transcript", rx: /\b(acta\s+(circunstanciada|de\s+audiencia)|diligencia)\b/i },
+  { type: "report", rx: /\b(informe|dictamen|reporte|peritaje)\b/i },
+  { type: "affidavit", rx: /\bdeclaraci[oó]n\s+jurada\b/i },
+  { type: "declaration", rx: /\bdeclaraci[oó]n\b/i },
+  { type: "statement", rx: /\bmanifestaci[oó]n\b/i },
+  { type: "deposition", rx: /\btestimonial\b/i },
+  { type: "contract", rx: /\bcontrato\b/i },
+  { type: "agreement", rx: /\b(convenio|acuerdo)\b/i },
+  { type: "petition", rx: /\bsolicitud\b/i },
+  { type: "email", rx: /\bcorreo(\s+electr[oó]nico)?\b/i },
+  { type: "invoice", rx: /\bfactura\b/i },
+  { type: "medical", rx: /\b(m[eé]dico|hospital|cl[ií]nica|autopsia)\b/i },
+  { type: "police_record", rx: /\b(detenci[oó]n|polic[ií]a|parte\s+informativo)\b/i },
+  { type: "financial", rx: /\b(banco|estado\s+de\s+cuenta|pago|n[oó]mina)\b/i },
+  // Common Mexican document types with no clean English analogue above.
+  { type: "public_deed", rx: /\bescritura\s+p[uú]blica\b/i },
+  { type: "property_registry", rx: /\b(registro\s+p[uú]blico\s+de\s+la\s+propiedad|libertad\s+de\s+grav[aá]men)\b/i },
+  { type: "amparo_filing", rx: /\b(amparo|informe\s+justificado|acuerdo\s+de\s+suspensi[oó]n)\b/i },
 ];
 
 export type DocTypeSignals = {
@@ -117,7 +165,13 @@ export function detectDocTypeSignals(
     // Sample the head of the extracted text — charging docs / captions live
     // in the first page. Avoids scanning megabytes for every doc.
     const head = String(d.extracted_text ?? "").slice(0, 4000);
-    const hay = `${name}\n${head}`;
+    // Mexican filenames are conventionally underscore- or hyphen-separated
+    // (e.g. "01_Demanda_Divorcio.txt"), but regex \b treats underscore as a
+    // word character, so \bdemanda\b would never match "_Demanda_" as-is.
+    // Normalizing separators to spaces lets filename matching work the same
+    // as body-text matching.
+    const normalizedName = name.replace(/[_-]+/g, " ");
+    const hay = `${normalizedName}\n${head}`;
     for (const p of HIGH_WEIGHT_PATTERNS) if (p.rx.test(hay)) highWeight.add(p.type);
     for (const p of DOC_TYPE_PATTERNS) if (p.rx.test(hay)) distinct.add(p.type);
     if (!hasCharging) hasCharging = CHARGING_DOC_PATTERNS.some((rx) => rx.test(hay));
