@@ -1925,6 +1925,53 @@ export type Database = {
           },
         ]
       }
+      closing_milestones: {
+        Row: {
+          case_id: string
+          created_at: string
+          id: string
+          label_en: string
+          label_es: string
+          milestone_key: string
+          percent_complete: number
+          updated_at: string
+          user_id: string
+          weight: number
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          id?: string
+          label_en: string
+          label_es: string
+          milestone_key: string
+          percent_complete?: number
+          updated_at?: string
+          user_id: string
+          weight?: number
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          id?: string
+          label_en?: string
+          label_es?: string
+          milestone_key?: string
+          percent_complete?: number
+          updated_at?: string
+          user_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closing_milestones_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_case_documents: {
         Row: {
           created_at: string
@@ -4287,6 +4334,80 @@ export type Database = {
         }
         Relationships: []
       }
+      property_records: {
+        Row: {
+          address: string | null
+          buyer_name: string | null
+          case_id: string
+          catastro_id: string | null
+          closing_date: string | null
+          country: string
+          created_at: string
+          cuenta_predial: string | null
+          fideicomiso: boolean
+          folio_real: string | null
+          foreign_buyer: boolean
+          municipality: string | null
+          notary: string | null
+          property_type: string | null
+          purchase_price: number | null
+          seller_name: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          buyer_name?: string | null
+          case_id: string
+          catastro_id?: string | null
+          closing_date?: string | null
+          country?: string
+          created_at?: string
+          cuenta_predial?: string | null
+          fideicomiso?: boolean
+          folio_real?: string | null
+          foreign_buyer?: boolean
+          municipality?: string | null
+          notary?: string | null
+          property_type?: string | null
+          purchase_price?: number | null
+          seller_name?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          buyer_name?: string | null
+          case_id?: string
+          catastro_id?: string | null
+          closing_date?: string | null
+          country?: string
+          created_at?: string
+          cuenta_predial?: string | null
+          fideicomiso?: boolean
+          folio_real?: string | null
+          foreign_buyer?: boolean
+          municipality?: string | null
+          notary?: string | null
+          property_type?: string | null
+          purchase_price?: number | null
+          seller_name?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_records_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_versions: {
         Row: {
           case_id: string
@@ -4876,6 +4997,60 @@ export type Database = {
           },
         ]
       }
+      verification_items: {
+        Row: {
+          case_id: string
+          category: Database["public"]["Enums"]["verification_category"]
+          created_at: string
+          evidence_document_id: string | null
+          id: string
+          notes: string | null
+          status: Database["public"]["Enums"]["verification_status"]
+          updated_at: string
+          user_id: string
+          verification_mode: Database["public"]["Enums"]["verification_mode"]
+        }
+        Insert: {
+          case_id: string
+          category: Database["public"]["Enums"]["verification_category"]
+          created_at?: string
+          evidence_document_id?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["verification_status"]
+          updated_at?: string
+          user_id: string
+          verification_mode?: Database["public"]["Enums"]["verification_mode"]
+        }
+        Update: {
+          case_id?: string
+          category?: Database["public"]["Enums"]["verification_category"]
+          created_at?: string
+          evidence_document_id?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["verification_status"]
+          updated_at?: string
+          user_id?: string
+          verification_mode?: Database["public"]["Enums"]["verification_mode"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_items_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_items_evidence_document_id_fkey"
+            columns: ["evidence_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_events: {
         Row: {
           created_at: string
@@ -4983,6 +5158,7 @@ export type Database = {
         Args: { _org: string; _user: string }
         Returns: boolean
       }
+      closing_readiness: { Args: { p_case_id: string }; Returns: number }
       firm_seat_usage: {
         Args: { _firm_id: string }
         Returns: {
@@ -5116,6 +5292,20 @@ export type Database = {
         | "client"
         | "read_only"
       task_status: "todo" | "in_progress" | "blocked" | "done" | "cancelled"
+      verification_category:
+        | "ownership"
+        | "registry"
+        | "catastro"
+        | "predial"
+        | "water"
+        | "cfe"
+        | "hoa"
+        | "mortgage"
+        | "permits"
+        | "corporate_authority"
+        | "environmental"
+      verification_mode: "connected" | "document" | "manual"
+      verification_status: "verified" | "pending" | "missing" | "issue_found"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5346,6 +5536,21 @@ export const Constants = {
         "read_only",
       ],
       task_status: ["todo", "in_progress", "blocked", "done", "cancelled"],
+      verification_category: [
+        "ownership",
+        "registry",
+        "catastro",
+        "predial",
+        "water",
+        "cfe",
+        "hoa",
+        "mortgage",
+        "permits",
+        "corporate_authority",
+        "environmental",
+      ],
+      verification_mode: ["connected", "document", "manual"],
+      verification_status: ["verified", "pending", "missing", "issue_found"],
     },
   },
 } as const
