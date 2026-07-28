@@ -278,11 +278,37 @@ export async function runLegalQaGate(args: {
         if (value === undefined || value === null) continue;
         checked_fields += 1;
         const sink: { from: string; to: string }[] = [];
-        const next = remediateJson(value, materia, sink);
-        if (sink.length > 0) {
+        let next = remediateJson(value, materia, sink);
+        let dirty = sink.length > 0;
+        for (const rep of sink) remediations.push({ table: target.table, field, ...rep });
+
+        // Translate English string leaves in a Spanish report.
+        if (locale === "es") {
+          const translate = async (v: JsonValue): Promise<JsonValue> => {
+            if (typeof v === "string") {
+              if (!v.trim() || findEnglishSentences(v).length === 0) return v;
+              const es = await ensureSpanish(v, { table: target.table, field });
+              if (es.changed) dirty = true;
+              return es.text;
+            }
+            if (Array.isArray(v)) {
+              const out: JsonValue[] = [];
+              for (const item of v) out.push(await translate(item));
+              return out;
+            }
+            if (v && typeof v === "object") {
+              const out: { [k: string]: JsonValue } = {};
+              for (const [k, val] of Object.entries(v)) out[k] = await translate(val as JsonValue);
+              return out;
+            }
+            return v;
+          };
+          next = await translate(next);
+        }
+
+        if (dirty) {
           remediated_fields += 1;
           patch[field] = next as unknown;
-          for (const rep of sink) remediations.push({ table: target.table, field, ...rep });
         }
         const strings: string[] = [];
         collectStrings(next, strings);
@@ -292,6 +318,7 @@ export async function runLegalQaGate(args: {
           }
         }
       }
+
 
       if (Object.keys(patch).length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
