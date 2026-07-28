@@ -14,12 +14,14 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, Paperclip } from "lucide-react";
 import { VerificationItemWorkspace } from "@/components/realestate/VerificationItemWorkspace";
+import { OfficialResourcesPanel } from "@/components/realestate/OfficialResourcesPanel";
+import { PropertyRecommendationsPanel } from "@/components/realestate/PropertyRecommendationsPanel";
 import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
 import { useI18n } from "@/i18n";
 import {
   getTransactionCenter,
   updateClosingMilestone,
-
+  listVerificationDocuments,
   type VerificationCategory,
   type VerificationItem,
 } from "@/lib/real-estate.functions";
