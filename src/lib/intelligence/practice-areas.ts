@@ -31,8 +31,17 @@ import {
   materiaMotionTypes,
   materiaSections,
   materiaTabs,
+  materiaDashboardModules,
+  materiaLifecycleStatuses,
+  materiaPartyRoles,
+  materiaTaskTemplates,
+  materiaAiPersona,
+  CORE_TABS,
+  CORE_CAPABILITIES,
+  type MxTaskTemplate,
   type MexicanCaseType,
 } from "@/lib/jurisdiction/mexico";
+
 
 /** Canonical Mexican materia. Alias retained for existing call sites. */
 export type PracticeArea = MexicanCaseType;
@@ -63,20 +72,23 @@ export const UNIVERSAL_SECTIONS = new Set<string>([
   "appendix",
 ]);
 
+/**
+ * Core Platform tabs — guaranteed on EVERY materia. Sourced from
+ * mexico-modules.ts::CORE_TABS so there is exactly one declaration of what
+ * "universal" means. A practice area may only ADD tabs on top of this set.
+ */
 export const UNIVERSAL_TABS = new Set<string>([
-  "dashboard",
+  ...CORE_TABS,
+  // legacy keys kept for existing workspace surfaces
   "strategic",
   "attack",
   "evidence",
-  "findings",
-  "intel",
-  "analyzers",
-  "agents",
   "witnesses",
   "work",
   "chat",
   "report",
 ]);
+
 
 export const UNIVERSAL_ENGINES = new Set<string>([
   "extraction",
@@ -209,6 +221,56 @@ export function getApplicableTabs(area: AreaInput, activeDomains?: DomainSet): S
 export function isTabApplicable(area: AreaInput, tabKey: string, activeDomains?: DomainSet): boolean {
   return getApplicableTabs(area, activeDomains).has(tabKey);
 }
+
+// -------- Practice-area modules (Universal Practice Area Architecture) --------
+//
+// Core Platform capabilities are ALWAYS available (see CORE_CAPABILITIES).
+// Specialized modules are declared per materia in mexico-modules.ts and
+// resolved here. Components must call isModuleApplicable() instead of testing
+// a literal materia string.
+
+export const CORE_PLATFORM_CAPABILITIES = new Set<string>(CORE_CAPABILITIES);
+
+export function getApplicableDashboardModules(area: AreaInput, activeDomains?: DomainSet): Set<string> {
+  const out = new Set<string>();
+  for (const a of effectiveAreas(area, activeDomains))
+    for (const m of materiaDashboardModules(a)) out.add(m);
+  return out;
+}
+
+export function isModuleApplicable(area: AreaInput, moduleId: string, activeDomains?: DomainSet): boolean {
+  if (CORE_PLATFORM_CAPABILITIES.has(moduleId)) return true;
+  return getApplicableDashboardModules(area, activeDomains).has(moduleId);
+}
+
+export function getApplicableLifecycleStatuses(area: AreaInput): string[] {
+  const a = resolvePracticeAreaOrNull(area);
+  if (!a) return ["intake", "working", "waiting_on_client", "closed", "archived"];
+  return [...materiaLifecycleStatuses(a)];
+}
+
+export function getApplicablePartyRoles(area: AreaInput, activeDomains?: DomainSet): string[] {
+  const out = new Set<string>();
+  const areas = effectiveAreas(area, activeDomains);
+  if (areas.length === 0) return ["cliente", "contraparte", "co_abogado", "testigo", "perito", "otro"];
+  for (const a of areas) for (const r of materiaPartyRoles(a)) out.add(r);
+  return [...out];
+}
+
+export function getTaskTemplates(area: AreaInput, activeDomains?: DomainSet): MxTaskTemplate[] {
+  const seen = new Map<string, MxTaskTemplate>();
+  const areas = effectiveAreas(area, activeDomains);
+  for (const a of areas) for (const tpl of materiaTaskTemplates(a)) seen.set(tpl.key, tpl);
+  if (areas.length === 0) return [];
+  return [...seen.values()];
+}
+
+export function getAiPersona(area: AreaInput): string | null {
+  const a = resolvePracticeAreaOrNull(area);
+  return a ? materiaAiPersona(a) : null;
+}
+
+
 
 // -------- Analyzers --------
 

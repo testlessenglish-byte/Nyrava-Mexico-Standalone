@@ -609,6 +609,29 @@ export const materiaMotionTypes = (t: MexicanCaseType) => MX_MOTION_TYPES[t];
 export const materiaBlockedTerms = (t: MexicanCaseType) => MX_BLOCKED_TERMS[t];
 export const materiaForbiddenReportFields = (t: MexicanCaseType) => MX_FORBIDDEN_REPORT_FIELDS[t];
 
+// Universal Practice Area Architecture — core capabilities + practice modules.
+// See mexico-modules.ts for the governing rules.
+export {
+  CORE_CAPABILITIES,
+  CORE_TABS,
+  CORE_PARTY_ROLES,
+  CORE_LIFECYCLE_STATUSES,
+  MX_DASHBOARD_MODULES,
+  MX_LIFECYCLE_STATUSES,
+  MX_PARTY_ROLES,
+  MX_TASK_TEMPLATES,
+  MX_AI_PERSONA,
+  materiaDashboardModules,
+} from "./mexico-modules";
+export type { CoreCapability, MxTaskTemplate } from "./mexico-modules";
+export {
+  lifecycleStatusesFor as materiaLifecycleStatuses,
+  partyRolesFor as materiaPartyRoles,
+  taskTemplatesFor as materiaTaskTemplates,
+  aiPersonaFor as materiaAiPersona,
+} from "./mexico-modules";
+
+
 // ---------------------------------------------------------------------------
 // Pipeline profile + execution context
 // ---------------------------------------------------------------------------

@@ -833,6 +833,59 @@ export type Database = {
           },
         ]
       }
+      case_communications: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          body: string
+          case_id: string
+          channel: string
+          created_at: string
+          direction: string
+          id: string
+          status: string
+          subject: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body: string
+          case_id: string
+          channel?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string
+          case_id?: string
+          channel?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_communications_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_domain_activations: {
         Row: {
           case_id: string
@@ -867,6 +920,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "case_domain_activations_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_events: {
+        Row: {
+          case_id: string
+          created_at: string
+          event_type: string
+          id: string
+          location: string | null
+          notes: string | null
+          scheduled_at: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          scheduled_at: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          scheduled_at?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_events_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
@@ -1101,6 +1201,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "case_opportunities_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_parties: {
+        Row: {
+          case_id: string
+          contact: Json
+          created_at: string
+          id: string
+          name: string
+          party_role: string
+          role_description: string | null
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          contact?: Json
+          created_at?: string
+          id?: string
+          name: string
+          party_role?: string
+          role_description?: string | null
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          contact?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          party_role?: string
+          role_description?: string | null
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_parties_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
@@ -1375,6 +1522,59 @@ export type Database = {
             foreignKeyName: "case_strategy_center_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_tasks: {
+        Row: {
+          assignee_hint: string | null
+          case_id: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string
+          status: string
+          template_key: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assignee_hint?: string | null
+          case_id: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string
+          status?: string
+          template_key?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assignee_hint?: string | null
+          case_id?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string
+          status?: string
+          template_key?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_tasks_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
           },
@@ -1741,6 +1941,7 @@ export type Database = {
           jurisdiction: string | null
           jurisdiction_profile: Json | null
           legal_qa_report: Json | null
+          lifecycle_status: string | null
           name: string
           next_stage: string | null
           opportunities_at: string | null
@@ -1794,6 +1995,7 @@ export type Database = {
           jurisdiction?: string | null
           jurisdiction_profile?: Json | null
           legal_qa_report?: Json | null
+          lifecycle_status?: string | null
           name: string
           next_stage?: string | null
           opportunities_at?: string | null
@@ -1847,6 +2049,7 @@ export type Database = {
           jurisdiction?: string | null
           jurisdiction_profile?: Json | null
           legal_qa_report?: Json | null
+          lifecycle_status?: string | null
           name?: string
           next_stage?: string | null
           opportunities_at?: string | null
@@ -1921,6 +2124,53 @@ export type Database = {
             columns: ["resolved_authority_id"]
             isOneToOne: false
             referencedRelation: "legal_authorities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      closing_milestones: {
+        Row: {
+          case_id: string
+          created_at: string
+          id: string
+          label_en: string
+          label_es: string
+          milestone_key: string
+          percent_complete: number
+          updated_at: string
+          user_id: string
+          weight: number
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          id?: string
+          label_en: string
+          label_es: string
+          milestone_key: string
+          percent_complete?: number
+          updated_at?: string
+          user_id: string
+          weight?: number
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          id?: string
+          label_en?: string
+          label_es?: string
+          milestone_key?: string
+          percent_complete?: number
+          updated_at?: string
+          user_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closing_milestones_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
             referencedColumns: ["id"]
           },
         ]
@@ -4287,6 +4537,80 @@ export type Database = {
         }
         Relationships: []
       }
+      property_records: {
+        Row: {
+          address: string | null
+          buyer_name: string | null
+          case_id: string
+          catastro_id: string | null
+          closing_date: string | null
+          country: string
+          created_at: string
+          cuenta_predial: string | null
+          fideicomiso: boolean
+          folio_real: string | null
+          foreign_buyer: boolean
+          municipality: string | null
+          notary: string | null
+          property_type: string | null
+          purchase_price: number | null
+          seller_name: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          buyer_name?: string | null
+          case_id: string
+          catastro_id?: string | null
+          closing_date?: string | null
+          country?: string
+          created_at?: string
+          cuenta_predial?: string | null
+          fideicomiso?: boolean
+          folio_real?: string | null
+          foreign_buyer?: boolean
+          municipality?: string | null
+          notary?: string | null
+          property_type?: string | null
+          purchase_price?: number | null
+          seller_name?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          buyer_name?: string | null
+          case_id?: string
+          catastro_id?: string | null
+          closing_date?: string | null
+          country?: string
+          created_at?: string
+          cuenta_predial?: string | null
+          fideicomiso?: boolean
+          folio_real?: string | null
+          foreign_buyer?: boolean
+          municipality?: string | null
+          notary?: string | null
+          property_type?: string | null
+          purchase_price?: number | null
+          seller_name?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_records_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_versions: {
         Row: {
           case_id: string
@@ -4876,6 +5200,60 @@ export type Database = {
           },
         ]
       }
+      verification_items: {
+        Row: {
+          case_id: string
+          category: Database["public"]["Enums"]["verification_category"]
+          created_at: string
+          evidence_document_id: string | null
+          id: string
+          notes: string | null
+          status: Database["public"]["Enums"]["verification_status"]
+          updated_at: string
+          user_id: string
+          verification_mode: Database["public"]["Enums"]["verification_mode"]
+        }
+        Insert: {
+          case_id: string
+          category: Database["public"]["Enums"]["verification_category"]
+          created_at?: string
+          evidence_document_id?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["verification_status"]
+          updated_at?: string
+          user_id: string
+          verification_mode?: Database["public"]["Enums"]["verification_mode"]
+        }
+        Update: {
+          case_id?: string
+          category?: Database["public"]["Enums"]["verification_category"]
+          created_at?: string
+          evidence_document_id?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["verification_status"]
+          updated_at?: string
+          user_id?: string
+          verification_mode?: Database["public"]["Enums"]["verification_mode"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_items_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_items_evidence_document_id_fkey"
+            columns: ["evidence_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_events: {
         Row: {
           created_at: string
@@ -4983,6 +5361,7 @@ export type Database = {
         Args: { _org: string; _user: string }
         Returns: boolean
       }
+      closing_readiness: { Args: { p_case_id: string }; Returns: number }
       firm_seat_usage: {
         Args: { _firm_id: string }
         Returns: {
@@ -5116,6 +5495,20 @@ export type Database = {
         | "client"
         | "read_only"
       task_status: "todo" | "in_progress" | "blocked" | "done" | "cancelled"
+      verification_category:
+        | "ownership"
+        | "registry"
+        | "catastro"
+        | "predial"
+        | "water"
+        | "cfe"
+        | "hoa"
+        | "mortgage"
+        | "permits"
+        | "corporate_authority"
+        | "environmental"
+      verification_mode: "connected" | "document" | "manual"
+      verification_status: "verified" | "pending" | "missing" | "issue_found"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5346,6 +5739,21 @@ export const Constants = {
         "read_only",
       ],
       task_status: ["todo", "in_progress", "blocked", "done", "cancelled"],
+      verification_category: [
+        "ownership",
+        "registry",
+        "catastro",
+        "predial",
+        "water",
+        "cfe",
+        "hoa",
+        "mortgage",
+        "permits",
+        "corporate_authority",
+        "environmental",
+      ],
+      verification_mode: ["connected", "document", "manual"],
+      verification_status: ["verified", "pending", "missing", "issue_found"],
     },
   },
 } as const
