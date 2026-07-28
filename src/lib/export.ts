@@ -65,12 +65,10 @@ import { buildLitigationImpactDashboard, type ImpactCard } from "@/lib/intellige
 // See docs/RELEASE-REPORT-ENGINE-v1.0.md and docs/FREEZE.md.
 export const NYRAVA_REPORT_VERSION = "1.0.0";
 
-// Matches the cyan used in the site's icon/wordmark lockup (lovable.dev
-// homepage header), sampled directly from the brand mark. Used only for
-// the logo mark and its subtitle so the report opens on the same brand
-// identity as the site, without re-theming the rest of the report's
-// established navy/gold system.
-const BRAND_CYAN: [number, number, number] = [43, 191, 199];
+// Brand gold, matching the site's shield/wordmark lockup exactly
+// (#D8B36A). Used for the logo mark and its subtitle so the report opens
+// on the same brand identity as the site.
+const BRAND_CYAN: [number, number, number] = [216, 179, 106];
 
 // Legal-mode flag controls whether the export labels itself "Attorney Work
 // Product". When false (default), the report renders as a neutral analytical
@@ -372,8 +370,8 @@ export function downloadJson(data: CaseExportData, name: string) {
 // ===== PDF builder helpers ============================================
 type Pdf = jsPDF & { lastAutoTable?: { finalY: number } };
 
-const PRIMARY: [number, number, number] = [15, 23, 42]; // slate-900 (navy)
-const ACCENT: [number, number, number] = [161, 98, 7]; // amber-700 (brass/gold — brighter than the old muddy brown)
+const PRIMARY: [number, number, number] = [14, 36, 29]; // brand deep forest green (#0E241D), was slate-900 navy
+const ACCENT: [number, number, number] = [216, 179, 106]; // brand gold (#D8B36A), exact match to the site's --primary
 const MUTED: [number, number, number] = [100, 116, 139]; // slate-500
 const SUCCESS: [number, number, number] = [21, 128, 61]; // green-700
 const DANGER: [number, number, number] = [185, 28, 28]; // red-700
@@ -438,9 +436,9 @@ function findingSourceCount(refs: Array<Record<string, unknown>>): number {
   );
   return ids.size;
 }
-const NAVY_TINT: [number, number, number] = [30, 41, 59]; // slate-800 — banner gradient shade
-const SILVER: [number, number, number] = [186, 194, 204]; // steel-gray outer ring, matches the shield icon's metallic bevel
-const SHIELD_DARK: [number, number, number] = [10, 14, 22]; // near-black shield plate behind the "N"
+const NAVY_TINT: [number, number, number] = [16, 35, 29]; // brand deep green (#10231D), was slate-800
+const SILVER: [number, number, number] = [243, 227, 184]; // warm gold-cream ring (#F3E3B8), matches the shield icon's edge highlight
+const SHIELD_DARK: [number, number, number] = [21, 21, 15]; // warm near-black shield plate (#15150F), matches the app's hub badge
 // Height reserved at the top of every page after the cover for the
 // compact branded header (see PdfBuilder.header()). Every addPage() call
 // only ever produces a continuation page (page 1 exists before any
