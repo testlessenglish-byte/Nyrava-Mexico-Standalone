@@ -88,7 +88,7 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
       </div>
     );
   }
-  if (!data) return <Empty msg="No se pudo cargar el Centro de Transacción." />;
+  if (!data) return <Empty msg={t("re.loadError")} />;
 
   const byCategory = new Map(data.verification.map((v) => [v.category, v]));
 
@@ -97,7 +97,7 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
       {/* Closing Readiness — always visible, not buried in the report */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Preparación para el Cierre</CardTitle>
+          <CardTitle className="text-base">{t("re.center.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
@@ -110,7 +110,7 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
             {data.milestones.map((m) => (
               <div key={m.id} className="rounded-lg border border-border p-3">
                 <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium">{m.label_es}</span>
+                  <span className="font-medium">{locale === "en" ? m.label_en || m.label_es : m.label_es}</span>
                   <span className="tabular-nums text-muted-foreground">{m.percent_complete}%</span>
                 </div>
                 <Progress value={m.percent_complete} className="h-1.5" />
@@ -137,24 +137,24 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
       {/* Property Intelligence */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Inteligencia de la Propiedad</CardTitle>
+          <CardTitle className="text-base">{t("re.property.title")}</CardTitle>
         </CardHeader>
         <CardContent>
           {data.property ? (
             <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
               {[
-                ["Dirección", data.property.address],
-                ["Municipio", data.property.municipality],
-                ["Estado", data.property.state],
-                ["Folio Real", data.property.folio_real],
-                ["Cuenta Predial", data.property.cuenta_predial],
-                ["Catastro", data.property.catastro_id],
-                ["Comprador", data.property.buyer_name],
-                ["Vendedor", data.property.seller_name],
-                ["Notario", data.property.notary],
-                ["Fecha de Cierre", data.property.closing_date],
-                ["Comprador Extranjero", data.property.foreign_buyer ? "Sí" : "No"],
-                ["Fideicomiso", data.property.fideicomiso ? "Sí" : "No"],
+                [t("re.property.address"), data.property.address],
+                [t("re.property.municipality"), data.property.municipality],
+                [t("re.property.state"), data.property.state],
+                [t("re.property.folioReal"), data.property.folio_real],
+                [t("re.property.cuentaPredial"), data.property.cuenta_predial],
+                [t("re.property.catastro"), data.property.catastro_id],
+                [t("re.property.buyer"), data.property.buyer_name],
+                [t("re.property.seller"), data.property.seller_name],
+                [t("re.property.notary"), data.property.notary],
+                [t("re.property.closingDate"), data.property.closing_date],
+                [t("re.property.foreignBuyer"), data.property.foreign_buyer ? t("re.yes") : t("re.no")],
+                [t("re.property.fideicomiso"), data.property.fideicomiso ? t("re.yes") : t("re.no")],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-xs text-muted-foreground">{label}</dt>
@@ -163,7 +163,7 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
               ))}
             </dl>
           ) : (
-            <Empty msg="Aún no se han capturado los datos de la propiedad." />
+            <Empty msg={t("re.property.empty")} />
           )}
         </CardContent>
       </Card>
@@ -171,11 +171,8 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
       {/* Verification Center — every category, three-mode honest about how status was produced */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Centro de Verificación</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Abre cualquier requisito para subir el documento, anotarlo, consultar a Nyrava Intelligence
-            o redactar la solicitud a quien lo expide.
-          </p>
+          <CardTitle className="text-base">{t("re.verification.title")}</CardTitle>
+          <p className="text-xs text-muted-foreground">{t("re.verification.hint")}</p>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
           {VERIFICATION_CATEGORIES.map((cat) => {
@@ -191,20 +188,20 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
                 className="flex w-full items-center justify-between rounded-lg border border-border p-3 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
               >
                 <div>
-                  <div className="text-sm font-medium">{CATEGORY_LABELS[cat].es}</div>
+                  <div className="text-sm font-medium">{t(`re.cat.${cat}`)}</div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{MODE_LABEL[item?.verification_mode ?? "manual"]}</span>
+                    <span>{t(`re.mode.${item?.verification_mode ?? "manual"}`)}</span>
                     {item?.evidence_document_id && (
                       <span className="inline-flex items-center gap-1">
                         <Paperclip className="h-3 w-3" /> 1
                       </span>
                     )}
-                    {item?.notes ? <span>· con notas</span> : null}
+                    {item?.notes ? <span>{t("re.verification.withNotes")}</span> : null}
                   </div>
                 </div>
                 <Badge variant="outline" className={`gap-1 ${meta.className}`}>
                   <Icon className="h-3 w-3" />
-                  {meta.label}
+                  {t(`re.status.${status}`)}
                 </Badge>
               </button>
             );
@@ -214,9 +211,11 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
 
       {openCategory && (
         <VerificationItemWorkspace
+          key={`${openCategory}-${locale}`}
           caseId={caseId}
           category={openCategory}
-          categoryLabel={CATEGORY_LABELS[openCategory].es}
+          categoryLabel={t(`re.cat.${openCategory}`)}
+
           item={byCategory.get(openCategory)}
           open
           onOpenChange={(v) => !v && setOpenCategory(null)}
