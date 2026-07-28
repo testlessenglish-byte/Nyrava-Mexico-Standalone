@@ -16,12 +16,18 @@ import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, Paperclip } from 
 import { VerificationItemWorkspace } from "@/components/realestate/VerificationItemWorkspace";
 import { OfficialResourcesPanel } from "@/components/realestate/OfficialResourcesPanel";
 import { PropertyRecommendationsPanel } from "@/components/realestate/PropertyRecommendationsPanel";
+import { PropertySummaryPanel } from "@/components/realestate/PropertySummaryPanel";
+import { ClosingProgressPanel } from "@/components/realestate/ClosingProgressPanel";
+import { detectDocuments } from "@/lib/realestate/document-detection";
+import { buildClosingProgress } from "@/lib/realestate/closing-checklist";
+import { buildPropertySummary } from "@/lib/realestate/summary";
+import { buildRecommendations, relevantResources } from "@/lib/realestate/recommendations";
 import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
 import { useI18n } from "@/i18n";
 import {
   getTransactionCenter,
   updateClosingMilestone,
-  listVerificationDocuments,
+  listPropertyDocumentSignals,
   type VerificationCategory,
   type VerificationItem,
 } from "@/lib/real-estate.functions";
@@ -73,7 +79,7 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
 
   const { data: caseDocuments } = useQuery({
     queryKey: ["transaction-center-docs", caseId],
-    queryFn: () => listVerificationDocuments({ data: { caseId } }),
+    queryFn: () => listPropertyDocumentSignals({ data: { caseId } }),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey });
@@ -99,8 +105,19 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
 
   const byCategory = new Map(data.verification.map((v) => [v.category, v]));
 
+  // One deterministic read of the file, shared by the summary, the closing
+  // tracker and the assistant so they can never disagree with each other.
+  const detected = detectDocuments(caseDocuments ?? []);
+  const fileState = { property: data.property, verification: data.verification, detected };
+  const progress = buildClosingProgress(fileState);
+  const summaryLines = buildPropertySummary(fileState, progress);
+  const recommendations = buildRecommendations(fileState);
+
   return (
     <div className="space-y-4">
+      <PropertySummaryPanel lines={summaryLines} readiness={progress.percent} detected={detected} />
+      <ClosingProgressPanel progress={progress} onOpenCategory={setOpenCategory} />
+
       {/* Closing Readiness — always visible, not buried in the report */}
       <Card>
         <CardHeader className="pb-2">
@@ -219,11 +236,7 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
       </Card>
 
           <PropertyRecommendationsPanel
-            input={{
-              property: data.property,
-              verification: data.verification,
-              documents: caseDocuments ?? [],
-            }}
+            recommendations={recommendations}
             onOpenCategory={setOpenCategory}
           />
         </div>
@@ -231,6 +244,7 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
         <div className="space-y-4">
           <OfficialResourcesPanel
             place={data.property?.municipality || data.property?.state || null}
+            relevant={relevantResources(recommendations)}
           />
         </div>
       </div>
