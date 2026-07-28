@@ -353,3 +353,65 @@ export const getAttorneyHome = createServerFn({ method: "GET" })
       quickResume: cases.slice(0, 6),
     };
   });
+
+// ---------------------------------------------------------------------------
+// Communications log (core capability; no outbound delivery in this phase)
+// ---------------------------------------------------------------------------
+
+export const listCaseCommunications = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { caseId: string }) => z.object({ caseId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertCaseAccess(context.supabase, data.caseId);
+    const { data: rows, error } = await context.supabase
+      .from("case_communications")
+      .select("*")
+      .eq("case_id", data.caseId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
+const commInput = z.object({
+  caseId: uuid,
+  id: uuid.optional(),
+  channel: z.string().min(1).max(64).default("internal_note"),
+  direction: z.enum(["outbound", "inbound", "internal"]).default("internal"),
+  subject: z.string().max(300).nullable().optional(),
+  body: z.string().min(1).max(20000),
+  status: z.enum(["draft", "pending_review", "sent", "logged"]).default("draft"),
+});
+
+export const upsertCaseCommunication = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: z.input<typeof commInput>) => commInput.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertCaseAccess(context.supabase, data.caseId);
+    const approving = data.status === "sent" || data.status === "logged";
+    const row = {
+      case_id: data.caseId,
+      user_id: context.userId,
+      channel: data.channel,
+      direction: data.direction,
+      subject: data.subject ?? null,
+      body: data.body,
+      status: data.status,
+      approved_by: approving ? context.userId : null,
+      approved_at: approving ? new Date().toISOString() : null,
+    };
+    const q = data.id
+      ? context.supabase.from("case_communications").update(row).eq("id", data.id).select("*").single()
+      : context.supabase.from("case_communications").insert(row).select("*").single();
+    const { data: saved, error } = await q;
+    if (error) throw new Error(error.message);
+    return saved;
+  });
+
+export const deleteCaseCommunication = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("case_communications").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
