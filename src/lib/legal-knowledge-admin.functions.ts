@@ -9,6 +9,13 @@ export type NlknConnectorStatus = {
   name: string;
   status: string;
   lastSyncAt: string | null;
+  /** Outcome of the most recent ingestion run for this connector. */
+  lastRunStatus: string | null;
+  lastRunStored: number | null;
+  /** Last time this connector actually stored at least one document. */
+  lastProductiveAt: string | null;
+  /** "ok" | "stale" | "failing" | "never_run" — drives the dashboard badge. */
+  health: "ok" | "stale" | "failing" | "never_run";
 };
 
 export type NlknIngestRun = {
@@ -39,6 +46,8 @@ export type NlknStats = {
     failed_verification: number;
   };
   failedJobsLast7Days: number;
+  /** Human-readable description of the automatic daily schedule. */
+  schedule: { enabled: boolean; description: string };
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,7 +64,7 @@ export const getNlknStats = createServerFn({ method: "POST" })
 
     const [connectorsRes, runsRes, authRes, artRes, precRes, jurisRes, thesesRes, regRes] = await Promise.all([
       db.from("legal_source_connectors").select("code,name,status,last_sync_at").order("code"),
-      db.from("legal_ingest_runs").select("connector_code,started_at,ended_at,status,documents_fetched,documents_stored").order("started_at", { ascending: false }).limit(20),
+      db.from("legal_ingest_runs").select("connector_code,started_at,ended_at,status,documents_fetched,documents_stored").order("started_at", { ascending: false }).limit(300),
       db.from("legal_authorities").select("verification_status"),
       db.from("legal_articles").select("id", { count: "exact", head: true }),
       db.from("legal_precedents").select("id", { count: "exact", head: true }),
@@ -70,16 +79,35 @@ export const getNlknStats = createServerFn({ method: "POST" })
       if (s && s in verification) verification[s as keyof typeof verification] += 1;
     }
 
+    const allRuns = (runsRes.data ?? []) as {
+      connector_code: string; started_at: string; ended_at: string | null; status: string;
+      documents_fetched: number; documents_stored: number;
+    }[];
+
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const failedJobsLast7Days = (runsRes.data ?? []).filter(
+    const failedJobsLast7Days = allRuns.filter(
       (r) => r.status === "failed" && r.started_at >= sevenDaysAgo,
     ).length;
 
     return {
-      connectors: (connectorsRes.data ?? []).map((c) => ({
-        code: c.code, name: c.name, status: c.status, lastSyncAt: c.last_sync_at,
-      })),
-      recentRuns: (runsRes.data ?? []).map((r) => ({
+      connectors: (connectorsRes.data ?? []).map((c) => {
+        const runs = allRuns.filter((r) => r.connector_code === c.code);
+        const last = runs[0] ?? null;
+        const productive = runs.find((r) => (r.documents_stored ?? 0) > 0) ?? null;
+        const staleCutoff = Date.now() - 48 * 60 * 60 * 1000;
+        let health: NlknConnectorStatus["health"] = "ok";
+        if (!last) health = "never_run";
+        else if (last.status === "failed") health = "failing";
+        else if (!productive || new Date(productive.started_at).getTime() < staleCutoff) health = "stale";
+        return {
+          code: c.code, name: c.name, status: c.status, lastSyncAt: c.last_sync_at,
+          lastRunStatus: last?.status ?? null,
+          lastRunStored: last?.documents_stored ?? null,
+          lastProductiveAt: productive?.started_at ?? null,
+          health,
+        };
+      }),
+      recentRuns: allRuns.slice(0, 20).map((r) => ({
         connectorCode: r.connector_code, startedAt: r.started_at, endedAt: r.ended_at,
         status: r.status, documentsFetched: r.documents_fetched, documentsStored: r.documents_stored,
       })),
@@ -93,6 +121,10 @@ export const getNlknStats = createServerFn({ method: "POST" })
       },
       verification,
       failedJobsLast7Days,
+      schedule: {
+        enabled: true,
+        description: "Sincronización automática diaria · 05:00 (CDMX) / 11:00 UTC",
+      },
     };
   });
 

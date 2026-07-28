@@ -17,6 +17,20 @@ const CONNECTOR_STATUS_COLOR: Record<string, string> = {
   error: "text-destructive bg-destructive/10 border-destructive/30",
 };
 
+const HEALTH_DOT: Record<string, string> = {
+  ok: "bg-success",
+  stale: "bg-warning",
+  failing: "bg-destructive",
+  never_run: "bg-muted-foreground",
+};
+
+const HEALTH_LABEL: Record<string, string> = {
+  ok: "Recibiendo datos",
+  stale: "Sin datos nuevos",
+  failing: "Última corrida falló",
+  never_run: "Nunca ejecutado",
+};
+
 function LegalKnowledgePage() {
   const fetchStats = useServerFn(getNlknStats);
   const { data, isLoading, refetch, isFetching } = useQuery({
@@ -95,9 +109,18 @@ function LegalKnowledgePage() {
 
           {/* Connectors */}
           <div className="rounded-xl border border-border bg-card p-5">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Conectores ({data.connectors.length})
-            </h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Conectores ({data.connectors.length})
+              </h2>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-medium text-success">
+                <Clock className="h-3 w-3" /> {data.schedule.description}
+              </span>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Cada fuente se sincroniza sola todos los días. El indicador muestra si realmente está trayendo
+              información; «Probar» sigue disponible para una ejecución manual.
+            </p>
             <div className="space-y-2">
               {data.connectors.map((c) => {
                 const result = testResults[c.code];
@@ -106,10 +129,17 @@ function LegalKnowledgePage() {
                   <div key={c.code} className="rounded-lg border border-border bg-background/40 px-3 py-2 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${HEALTH_DOT[c.health]}`} title={HEALTH_LABEL[c.health]} />
                         <span className="font-medium">{c.name}</span>
                         <span className="text-xs text-muted-foreground">({c.code})</span>
                       </div>
                       <div className="flex items-center gap-3">
+                        <span className={`text-[11px] ${c.health === "ok" ? "text-success" : c.health === "failing" ? "text-destructive" : "text-warning"}`}>
+                          {HEALTH_LABEL[c.health]}
+                          {c.lastProductiveAt
+                            ? ` · último dato ${new Date(c.lastProductiveAt).toLocaleDateString()}`
+                            : ""}
+                        </span>
                         {c.lastSyncAt && (
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Clock className="h-3 w-3" /> {new Date(c.lastSyncAt).toLocaleString()}
