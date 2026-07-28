@@ -82,19 +82,8 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
     onSuccess: invalidate,
   });
 
-  const setVerificationFn = useServerFn(upsertVerificationItem);
-  const verificationM = useMutation({
-    mutationFn: (args: { category: VerificationCategory; status: VerificationItem["status"] }) =>
-      setVerificationFn({
-        data: {
-          caseId,
-          category: args.category,
-          status: args.status,
-          verification_mode: "manual",
-        },
-      }),
-    onSuccess: invalidate,
-  });
+
+
 
   if (isLoading) {
     return (
