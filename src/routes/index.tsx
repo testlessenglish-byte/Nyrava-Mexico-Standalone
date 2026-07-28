@@ -103,9 +103,9 @@ function Landing() {
     <div className="min-h-screen text-foreground">
       {/* Top nav — cream/marble bar, matches the reference design */}
       <header className="border-b border-[oklch(0.70_0.06_85_/_0.4)] bg-cream text-cream-foreground">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-[88rem] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <NyravaLogo size={38} glow={false} />
+            <NyravaLogo size={50} glow={false} />
             <div className="flex flex-col leading-none">
               <span className="font-display text-lg font-bold tracking-wide">NYRAVA MÉXICO</span>
               <span className="mt-1 text-[9.5px] font-semibold tracking-[0.28em] text-cream-foreground/60">
@@ -187,7 +187,7 @@ function Landing() {
               "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
           }}
         />
-        <div className="relative mx-auto max-w-7xl px-6 py-14 lg:py-20">
+        <div className="relative mx-auto max-w-[88rem] px-6 py-14 lg:py-20">
           <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
             {/* Left: headline + CTAs */}
             <div>
@@ -227,7 +227,7 @@ function Landing() {
 
       {/* Cream feature strip */}
       <section className="border-y border-[oklch(0.70_0.06_85_/_0.4)] bg-cream text-cream-foreground">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-6 py-8 md:grid-cols-4">
+        <div className="mx-auto grid max-w-[88rem] grid-cols-2 gap-6 px-6 py-8 md:grid-cols-4">
           {[
             { icon: ShieldCheck, titleKey: "home.features.sources.title", subKey: "home.features.sources.subtitle" },
             { icon: Landmark, titleKey: "home.features.laws.title", subKey: "home.features.laws.subtitle" },
@@ -247,7 +247,7 @@ function Landing() {
 
       {/* Experience Nyrava — upload band */}
       <section className="bg-[oklch(0.12_0.03_155)] text-foreground">
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+        <div className="mx-auto grid max-w-[88rem] gap-8 px-6 py-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
           <div>
             <div className="mb-3 text-[11px] font-semibold tracking-[0.24em] text-amber">{t("home.upload.tag")}</div>
             <h2 className="max-w-md font-display text-2xl font-semibold leading-tight md:text-3xl">
@@ -279,7 +279,7 @@ function Landing() {
           </label>
         </div>
         <div className="border-t border-border/40">
-          <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:items-center md:justify-between">
+          <div className="mx-auto flex max-w-[88rem] flex-col gap-2 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:items-center md:justify-between">
             <span className="flex items-center gap-2">
               <Scale className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.criterion")}
             </span>
@@ -291,7 +291,7 @@ function Landing() {
       </section>
 
       {/* Experience Nyrava — live case demos */}
-      <section id="product" className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
+      <section id="product" className="mx-auto max-w-[88rem] px-6 py-12 lg:py-16">
 
         <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">{t("home.demos.tag")}</div>
         <h2 className="mb-8 max-w-2xl font-display text-2xl font-semibold leading-tight md:text-3xl">
