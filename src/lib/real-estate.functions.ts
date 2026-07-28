@@ -323,3 +323,34 @@ export const listVerificationDocuments = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false });
     return (rows ?? []) as Array<{ id: string; filename: string; status: string; created_at: string }>;
   });
+
+/**
+ * Documents plus an excerpt of their extracted (OCR) text, so the Property
+ * Assistant can recognise instruments by content rather than by filename.
+ * The excerpt is capped to keep the payload small — the phrases that identify
+ * a Mexican instrument appear in its opening pages.
+ */
+export const listPropertyDocumentSignals = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => CaseDocsInput.parse(raw))
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+    const { data: rows } = await db
+      .from("documents")
+      .select("id, filename, status, extracted_text")
+      .eq("case_id", data.caseId)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false });
+    return ((rows ?? []) as Array<{
+      id: string;
+      filename: string;
+      status: string;
+      extracted_text: string | null;
+    }>).map((r) => ({
+      id: r.id,
+      filename: r.filename,
+      status: r.status,
+      text: r.extracted_text ? r.extracted_text.slice(0, 8000) : null,
+    }));
+  });
