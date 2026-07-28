@@ -3,6 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
+import { CaseTasksPanel } from "@/components/casework/CaseTasksPanel";
+import { CaseCalendarPanel } from "@/components/casework/CaseCalendarPanel";
+import { CaseCommunicationsPanel } from "@/components/casework/CaseCommunicationsPanel";
 import {
   getCase,
   askCaseAi,
@@ -438,6 +442,11 @@ function Workspace() {
     { k: "work", label: t("caseTab.work"), icon: BookOpen, count: workProduct.length },
     { k: "scorecard", label: t("caseTab.scorecard"), icon: Activity, count: scorecardCount },
     { k: "transaction_center", label: "Centro de Transacción", icon: Building2 },
+    // Core capabilities — the registry keeps these visible for every materia.
+    { k: "parties", label: t("caseTab.parties"), icon: Users },
+    { k: "tasks", label: t("caseTab.tasks"), icon: ListChecks },
+    { k: "calendar", label: t("caseTab.calendar"), icon: CalendarDays },
+    { k: "communications", label: t("caseTab.communications"), icon: Mail },
     { k: "chat", label: t("caseTab.chat"), icon: MessageSquare },
     { k: "report", label: t("caseTab.report"), icon: FileText, count: reportCount },
   ];
@@ -733,6 +742,10 @@ function Workspace() {
             {tab === "work" && <WorkProductTab docs={workProduct} />}
             {tab === "scorecard" && <ScorecardTab s={score as unknown as Score | null} />}
             {tab === "transaction_center" && <TransactionCenterPanel caseId={c.id} />}
+            {tab === "parties" && <CasePartiesPanel caseId={c.id} />}
+            {tab === "tasks" && <CaseTasksPanel caseId={c.id} />}
+            {tab === "calendar" && <CaseCalendarPanel caseId={c.id} />}
+            {tab === "communications" && <CaseCommunicationsPanel caseId={c.id} />}
             {tab === "chat" && <ChatTab caseId={caseId} />}
             {tab === "report" && <ReportTab r={report as unknown as Report | null} />}
           </div>
