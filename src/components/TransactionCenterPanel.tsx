@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, Paperclip } from "lucide-react";
 import { VerificationItemWorkspace } from "@/components/realestate/VerificationItemWorkspace";
 import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
+import { useI18n } from "@/i18n";
 import {
   getTransactionCenter,
   updateClosingMilestone,
@@ -31,37 +32,30 @@ function Empty({ msg }: { msg: string }) {
   );
 }
 
-const CATEGORY_LABELS: Record<VerificationCategory, { es: string; en: string }> = {
-  ownership: { es: "Propiedad", en: "Ownership" },
-  registry: { es: "Registro Público", en: "Registry" },
-  catastro: { es: "Catastro", en: "Cadastre" },
-  predial: { es: "Predial", en: "Property tax" },
-  water: { es: "Agua", en: "Water" },
-  cfe: { es: "CFE", en: "Electricity" },
-  hoa: { es: "Administración (HOA)", en: "HOA" },
-  mortgage: { es: "Hipoteca", en: "Mortgage" },
-  permits: { es: "Permisos", en: "Permits" },
-  corporate_authority: { es: "Facultades corporativas", en: "Corporate authority" },
-  environmental: { es: "Ambiental", en: "Environmental" },
-};
-
 const STATUS_META: Record<
   VerificationItem["status"],
-  { label: string; icon: typeof CheckCircle2; className: string }
+  { icon: typeof CheckCircle2; className: string }
 > = {
-  verified: { label: "Verificado", icon: CheckCircle2, className: "text-emerald-600 bg-emerald-50 border-emerald-200" },
-  pending: { label: "Pendiente", icon: Clock, className: "text-amber-600 bg-amber-50 border-amber-200" },
-  missing: { label: "Faltante", icon: XCircle, className: "text-muted-foreground bg-muted border-border" },
-  issue_found: { label: "Problema detectado", icon: AlertTriangle, className: "text-red-600 bg-red-50 border-red-200" },
+  verified: { icon: CheckCircle2, className: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+  pending: { icon: Clock, className: "text-amber-600 bg-amber-50 border-amber-200" },
+  missing: { icon: XCircle, className: "text-muted-foreground bg-muted border-border" },
+  issue_found: { icon: AlertTriangle, className: "text-red-600 bg-red-50 border-red-200" },
 };
 
-const MODE_LABEL: Record<VerificationItem["verification_mode"], string> = {
-  connected: "Conectado",
-  document: "Documento",
-  manual: "Manual",
-};
+const VERIFICATION_CATEGORIES: VerificationCategory[] = [
+  "ownership",
+  "registry",
+  "catastro",
+  "predial",
+  "water",
+  "cfe",
+  "hoa",
+  "mortgage",
+  "permits",
+  "corporate_authority",
+  "environmental",
+];
 
-const VERIFICATION_CATEGORIES = Object.keys(CATEGORY_LABELS) as VerificationCategory[];
 
 export function TransactionCenterPanel({ caseId }: { caseId: string }) {
   const qc = useQueryClient();
