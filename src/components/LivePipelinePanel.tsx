@@ -94,7 +94,7 @@ function statusIcon(status: string) {
     case "completed":
       return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
     case "running":
-      return <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-500" />;
+      return <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />;
     case "failed":
       return <AlertTriangle className="h-3.5 w-3.5 text-destructive" />;
     case "blocked":
@@ -421,7 +421,7 @@ export function LivePipelinePanel({
                                     <dd
                                       className={
                                         r.db_write_confirmed
-                                          ? "text-emerald-600 dark:text-emerald-400"
+                                          ? "text-emerald-400"
                                           : "text-destructive"
                                       }
                                     >
@@ -432,7 +432,7 @@ export function LivePipelinePanel({
                                 {r.blocking_engines && r.blocking_engines.length > 0 && (
                                   <>
                                     <dt>Blocked by</dt>
-                                    <dd className="text-orange-600 dark:text-orange-400">
+                                    <dd className="text-orange-400">
                                       {r.blocking_engines.map(engineName).join(", ")}
                                     </dd>
                                   </>
@@ -488,7 +488,7 @@ export function LivePipelinePanel({
                                       {fell.length > 0 && (
                                         <>
                                           <dt>Fell back from</dt>
-                                          <dd className="text-orange-600 dark:text-orange-400">{fell.join(", ")}</dd>
+                                          <dd className="text-orange-400">{fell.join(", ")}</dd>
                                         </>
                                       )}
                                       {t.response_valid_json != null && (
@@ -497,7 +497,7 @@ export function LivePipelinePanel({
                                           <dd
                                             className={
                                               t.response_valid_json
-                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                ? "text-emerald-400"
                                                 : "text-destructive"
                                             }
                                           >
@@ -529,7 +529,7 @@ export function LivePipelinePanel({
                               {Array.isArray((r.meta as { gate_rejections?: unknown[] } | null)?.gate_rejections) &&
                                 ((r.meta as { gate_rejections?: unknown[] }).gate_rejections ?? []).length > 0 && (
                                   <div className="mt-2 rounded border border-amber-500/40 bg-amber-500/5 px-2 py-1.5 text-[11px]">
-                                    <div className="font-medium text-amber-700 dark:text-amber-300">
+                                    <div className="font-medium text-amber-300">
                                       Evidence gate rejections
                                     </div>
                                     <ul className="mt-1 space-y-1 text-muted-foreground">

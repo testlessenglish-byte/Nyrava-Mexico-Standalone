@@ -15,12 +15,12 @@ import { useI18n } from "@/i18n";
 
 function tone(state: StageState) {
   switch (state) {
-    case "complete": return "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-    case "running":  return "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300 animate-pulse";
-    case "failed":   return "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300";
-    case "blocked":  return "border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300";
-    case "waiting":  return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-    case "skipped":  return "border-slate-500/40 bg-slate-500/10 text-slate-600 dark:text-slate-300";
+    case "complete": return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+    case "running":  return "border-primary/40 bg-primary/10 text-primary animate-pulse";
+    case "failed":   return "border-red-500/40 bg-red-500/10 text-red-300";
+    case "blocked":  return "border-orange-500/40 bg-orange-500/10 text-orange-300";
+    case "waiting":  return "border-amber-500/40 bg-amber-500/10 text-amber-300";
+    case "skipped":  return "border-border bg-muted text-muted-foreground";
     default:         return "border-border bg-muted text-muted-foreground";
   }
 }

@@ -464,14 +464,14 @@ export function CommandCenterDashboard({
 
               {/* center badge */}
               <g>
-                <circle cx="50" cy="50" r="8" fill="#0f172a" stroke="url(#nyrStroke)" strokeWidth="0.4" />
+                <circle cx="50" cy="50" r="8" fill="#0D241D" stroke="url(#nyrStroke)" strokeWidth="0.4" />
                 <text
                   x="50"
                   y="52.5"
                   textAnchor="middle"
                   fontSize="4.2"
                   fontWeight="700"
-                  fill="#e0f2fe"
+                  fill="#F3E3B8"
                   fontFamily="system-ui"
                 >
                   N

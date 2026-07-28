@@ -78,7 +78,7 @@ export function OpportunityReviewSection({
                 <div className="font-medium text-sm">{o.title}</div>
                 <div className="text-xs text-muted-foreground whitespace-pre-wrap">{o.description}</div>
                 {o.counter_response ? (
-                  <div className="mt-1 text-[10px] text-amber-600 dark:text-amber-300">{o.counter_response}</div>
+                  <div className="mt-1 text-[10px] text-amber-300">{o.counter_response}</div>
                 ) : null}
               </>
             )}

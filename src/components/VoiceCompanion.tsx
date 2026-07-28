@@ -68,7 +68,7 @@ function StageRow({ label, stage, hint }: { label: string; stage: Stage; hint?: 
     stage === "ok" ? (
       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
     ) : stage === "running" ? (
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-500" />
+      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
     ) : stage === "error" ? (
       <XCircle className="h-3.5 w-3.5 text-red-500" />
     ) : stage === "skipped" ? (
@@ -101,7 +101,7 @@ function StatusPill({ status }: { status: Status }) {
     },
     processing: {
       label: "Processing",
-      cls: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+      cls: "bg-primary/15 text-primary border-primary/30",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
     },
     speaking: {
@@ -679,7 +679,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
         {diag.mic === "error" && inIframe && (
           <button
             onClick={() => window.open(window.location.href, "_blank", "noopener")}
-            className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300"
+            className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300"
           >
             Open in new tab to enable mic ↗
           </button>
@@ -719,7 +719,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
         <StageRow label="Text-to-speech" stage={diag.tts} />
         <StageRow label="Playback" stage={diag.play} />
         {diag.error && (
-          <div className="mt-2 rounded bg-red-500/10 px-2 py-1.5 text-xs text-red-600 dark:text-red-300">
+          <div className="mt-2 rounded bg-red-500/10 px-2 py-1.5 text-xs text-red-300">
             {diag.error}
           </div>
         )}

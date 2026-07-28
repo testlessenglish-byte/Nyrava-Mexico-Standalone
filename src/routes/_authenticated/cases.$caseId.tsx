@@ -575,7 +575,7 @@ function Workspace() {
               />
             </div>
             {reportBlocked && (
-              <div className="mt-3 rounded border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+              <div className="mt-3 rounded border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-300">
                 <div className="font-semibold">{t("caseWorkspace.reportBlocked")}</div>
                 {reportBlockReasons.length > 0 && (
                   <ul className="mt-1 list-disc pl-4">
@@ -2759,7 +2759,7 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
       <ParityBadge report={r} projections={projections} />
       {narrativeStatus?.banner && (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm ${narrativeStatus.fully_failed ? "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300" : "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200"}`}
+          className={`rounded-lg border px-4 py-3 text-sm ${narrativeStatus.fully_failed ? "border-red-500/50 bg-red-500/10 text-red-300" : "border-amber-500/50 bg-amber-500/10 text-amber-200"}`}
         >
           <div className="font-semibold">
             {narrativeStatus.fully_failed
@@ -2776,7 +2776,7 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
         </div>
       )}
       {qualityBlocked && (
-        <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <div className="font-semibold">Quality Gate Failed — Report Flagged as Draft</div>
           <ul className="mt-1 list-disc pl-5">
             {qualityBlockReasons.map((reason, i) => (
@@ -2838,14 +2838,14 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
       )}
 
       {ess.scoresSuppressed && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
           Quantitative case-strength and risk scores are suppressed for this case — the
           evidence-sufficiency validator did not reach the threshold required for reliable scoring.
           Upload more source documents to enable scoring.
         </div>
       )}
       {ess.motionsSuppressed && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
           Motion recommendations are suppressed for this case — evidence sufficiency did not reach
           the threshold required to recommend motions.
         </div>

@@ -60,7 +60,7 @@ export function ParityBadge({
           ) : (
             <AlertTriangle className="h-4 w-4 text-red-500" />
           )}
-          <span className={"font-semibold " + (verified ? "text-emerald-700 dark:text-emerald-300" : "text-red-600 dark:text-red-300")}>
+          <span className={"font-semibold " + (verified ? "text-emerald-300" : "text-red-300")}>
             {verified ? "PARITY VERIFIED" : "PARITY FAILED"}
           </span>
           <span className="text-muted-foreground">· {projections?.length ?? 0} module{(projections?.length ?? 0) === 1 ? "" : "s"} checked</span>
@@ -84,7 +84,7 @@ export function ParityBadge({
       </div>
 
       {!verified && (
-        <ul className="mt-3 space-y-1 rounded bg-red-500/10 p-2 text-red-700 dark:text-red-300">
+        <ul className="mt-3 space-y-1 rounded bg-red-500/10 p-2 text-red-300">
           {mismatches.map((m, i) => (
             <li key={i}>
               <span className="font-semibold">{m.module}</span>: <code>{m.key}</code> = {m.got} (canonical = {m.expected})

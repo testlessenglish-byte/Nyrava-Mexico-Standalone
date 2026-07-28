@@ -272,7 +272,7 @@ export function Callout({
     info: { Icon: Info, tone: "border-primary/30 bg-primary/5 text-primary" },
     success: { Icon: ShieldCheck, tone: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400" },
     warning: { Icon: AlertTriangle, tone: "border-amber-500/30 bg-amber-500/5 text-amber-400" },
-    tip: { Icon: Lightbulb, tone: "border-sky-500/30 bg-sky-500/5 text-sky-400" },
+    tip: { Icon: Lightbulb, tone: "border-primary/30 bg-primary/5 text-primary" },
   } as const;
   const { Icon, tone } = map[variant];
   return (

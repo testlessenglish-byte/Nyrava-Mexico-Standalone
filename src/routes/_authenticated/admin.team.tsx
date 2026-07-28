@@ -257,7 +257,7 @@ function TeamPage() {
                           onClick={() => toggleRole.mutate({ targetUserId: u.id, role: r.key, grant: !has })}
                           className={`inline-flex h-7 min-w-[3.25rem] items-center justify-center rounded-full border px-3 text-xs font-medium transition ${
                             has
-                              ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                              ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
                               : "border-border bg-background text-muted-foreground hover:border-accent/40"
                           }`}
                           title={has ? `Remove ${r.label}` : `Grant ${r.label}`}

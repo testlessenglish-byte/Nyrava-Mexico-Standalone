@@ -312,7 +312,7 @@ export function MotionEditor({
       {notesOpen ? (
         <div className="border-t border-border bg-amber-500/5 p-3">
           <div className="mb-1.5 flex items-center justify-between">
-            <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-amber-400">
               <StickyNote className="h-3 w-3" /> Attorney Notes — private, never included in the filed motion
             </span>
             <span className="text-[11px] text-muted-foreground">

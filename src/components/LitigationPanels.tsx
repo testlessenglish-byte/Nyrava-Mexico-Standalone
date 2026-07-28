@@ -274,10 +274,10 @@ export function EvidenceIntelPanel({
                       );
                       return (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {chip("Supports", sup.length, "findings", "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300")}
-                          {chip("Contradicts", con.length, "findings", "bg-red-500/15 text-red-700 dark:text-red-300")}
-                          {chip("Witnesses", wit.length, "witnesses", "bg-blue-500/15 text-blue-700 dark:text-blue-300")}
-                          {chip("Timeline", tl.length, "trial", "bg-amber-500/15 text-amber-700 dark:text-amber-300")}
+                          {chip("Supports", sup.length, "findings", "bg-emerald-500/15 text-emerald-300")}
+                          {chip("Contradicts", con.length, "findings", "bg-red-500/15 text-red-300")}
+                          {chip("Witnesses", wit.length, "witnesses", "bg-muted text-foreground/80")}
+                          {chip("Timeline", tl.length, "trial", "bg-amber-500/15 text-amber-300")}
                         </div>
                       );
                     })()}
