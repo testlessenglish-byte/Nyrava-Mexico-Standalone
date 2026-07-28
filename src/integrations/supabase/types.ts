@@ -1108,6 +1108,53 @@ export type Database = {
           },
         ]
       }
+      case_parties: {
+        Row: {
+          case_id: string
+          contact: Json
+          created_at: string
+          id: string
+          name: string
+          party_role: string
+          role_description: string | null
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          contact?: Json
+          created_at?: string
+          id?: string
+          name: string
+          party_role?: string
+          role_description?: string | null
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          contact?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          party_role?: string
+          role_description?: string | null
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_parties_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_perspectives: {
         Row: {
           case_id: string
