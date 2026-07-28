@@ -271,7 +271,7 @@ export function LivePipelinePanel({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "fixed z-40 flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-medium shadow-lg backdrop-blur",
+          "fixed z-40 flex items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-medium shadow-lg",
           "bottom-4 right-4 md:bottom-6 md:right-6",
           isProcessing && "ring-2 ring-accent",
         )}
@@ -292,7 +292,7 @@ export function LivePipelinePanel({
       {/* Panel: left dock on desktop, bottom sheet on mobile */}
       <aside
         className={cn(
-          "fixed z-50 flex flex-col border border-border bg-card text-card-foreground shadow-2xl transition-transform",
+          "fixed z-50 flex flex-col border border-border bg-background text-card-foreground shadow-2xl transition-transform",
           // Desktop: left side dock, wider to fit ledger columns
           "md:left-0 md:top-16 md:bottom-4 md:w-[560px] md:rounded-r-2xl md:border-l-0",
           // Mobile: bottom sheet
