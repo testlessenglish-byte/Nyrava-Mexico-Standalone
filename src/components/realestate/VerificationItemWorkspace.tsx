@@ -16,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Loader2, Upload, Download, Link2, Sparkles, Send, FileText, Trash2, Save,
 } from "lucide-react";
+import { useI18n } from "@/i18n";
 import {
   upsertVerificationItem,
   uploadVerificationDocument,
@@ -28,30 +29,21 @@ import { upsertCaseCommunication } from "@/lib/casework.functions";
 
 type Status = VerificationItem["status"];
 
-const STATUS_OPTIONS: Array<{ value: Status; label: string }> = [
-  { value: "pending", label: "Pendiente" },
-  { value: "verified", label: "Verificado" },
-  { value: "issue_found", label: "Problema detectado" },
-  { value: "missing", label: "Faltante" },
-];
+const STATUS_ORDER: Status[] = ["pending", "verified", "issue_found", "missing"];
 
-/** What each requirement is, and who normally holds it — used for the AI
- *  prompt and the pre-drafted request letter. */
-export const CATEGORY_GUIDE: Record<
-  VerificationCategory,
-  { doc: string; holder: string; channel: string }
-> = {
-  ownership: { doc: "escritura pública de propiedad y cadena de título", holder: "el notario público", channel: "notary" },
-  registry: { doc: "certificado de libertad de gravamen y folio real", holder: "el Registro Público de la Propiedad", channel: "registry" },
-  catastro: { doc: "cédula catastral y plano catastral", holder: "la oficina de Catastro municipal", channel: "authority" },
-  predial: { doc: "constancia de no adeudo del impuesto predial", holder: "la Tesorería municipal", channel: "authority" },
-  water: { doc: "constancia de no adeudo del servicio de agua", holder: "el organismo operador de agua", channel: "authority" },
-  cfe: { doc: "último recibo y constancia de no adeudo de CFE", holder: "la Comisión Federal de Electricidad", channel: "authority" },
-  hoa: { doc: "constancia de no adeudo de cuotas de mantenimiento y reglamento del condominio", holder: "la administración del condominio", channel: "other" },
-  mortgage: { doc: "certificado de cancelación de hipoteca o saldo insoluto", holder: "la institución acreedora", channel: "lender" },
-  permits: { doc: "licencias de construcción, uso de suelo y permisos municipales", holder: "la autoridad municipal de desarrollo urbano", channel: "authority" },
-  corporate_authority: { doc: "poder notarial vigente y acta constitutiva del vendedor", holder: "el representante legal del vendedor", channel: "counterparty" },
-  environmental: { doc: "manifestación de impacto ambiental y resolutivos de PROFEPA/SEMARNAT", holder: "la autoridad ambiental competente", channel: "authority" },
+/** Who normally holds each requirement — the channel is data, the prose is i18n. */
+export const CATEGORY_CHANNEL: Record<VerificationCategory, string> = {
+  ownership: "notary",
+  registry: "registry",
+  catastro: "authority",
+  predial: "authority",
+  water: "authority",
+  cfe: "authority",
+  hoa: "other",
+  mortgage: "lender",
+  permits: "authority",
+  corporate_authority: "counterparty",
+  environmental: "authority",
 };
 
 export function VerificationItemWorkspace({
@@ -72,7 +64,11 @@ export function VerificationItemWorkspace({
   onChanged: () => void;
 }) {
   const qc = useQueryClient();
-  const guide = CATEGORY_GUIDE[category];
+  const { t } = useI18n();
+
+  const doc = t(`re.doc.${category}`);
+  const holder = t(`re.holder.${category}`);
+  const channel = CATEGORY_CHANNEL[category];
 
   const save = useServerFn(upsertVerificationItem);
   const uploadFn = useServerFn(uploadVerificationDocument);
@@ -85,9 +81,7 @@ export function VerificationItemWorkspace({
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [recipient, setRecipient] = useState("");
-  const [requestBody, setRequestBody] = useState(
-    `Por medio del presente y en representación de mi cliente, solicito atentamente se expida ${guide.doc} respecto del inmueble objeto de la operación, a fin de integrar el expediente de due diligence y proceder al cierre.\n\nQuedo a sus órdenes para cualquier aclaración.`,
-  );
+  const [requestBody, setRequestBody] = useState(t("re.ws.requestBody", { doc }));
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: docs } = useQuery({
@@ -125,7 +119,7 @@ export function VerificationItemWorkspace({
       }),
     onSuccess: () => {
       refresh();
-      toast.success("Actualizado");
+      toast.success(t("re.toast.updated"));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -141,7 +135,7 @@ export function VerificationItemWorkspace({
     },
     onSuccess: () => {
       refresh();
-      toast.success("Documento adjuntado — se está extrayendo su texto.");
+      toast.success(t("re.toast.uploaded"));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -157,15 +151,15 @@ export function VerificationItemWorkspace({
       commFn({
         data: {
           caseId,
-          channel: guide.channel,
+          channel,
           direction: "outbound" as const,
-          subject: `Solicitud — ${categoryLabel}${recipient ? ` (${recipient})` : ""}`,
+          subject: `${t("re.ws.requestSubject", { label: categoryLabel })}${recipient ? ` (${recipient})` : ""}`,
           body: requestBody.trim(),
           status: "pending_review" as const,
         },
       }),
     onSuccess: () => {
-      toast.success("Solicitud registrada en Comunicaciones para su revisión.");
+      toast.success(t("re.toast.requested"));
       void qc.invalidateQueries({ queryKey: ["case-communications", caseId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -191,25 +185,23 @@ export function VerificationItemWorkspace({
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>{categoryLabel}</SheetTitle>
-          <SheetDescription>
-            Documento esperado: {guide.doc}. Normalmente lo expide {guide.holder}.
-          </SheetDescription>
+          <SheetDescription>{t("re.ws.expected", { doc, holder })}</SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
           {/* Status */}
           <section className="space-y-2">
-            <h4 className="text-sm font-medium">Estatus</h4>
+            <h4 className="text-sm font-medium">{t("re.ws.status")}</h4>
             <div className="flex flex-wrap gap-2">
-              {STATUS_OPTIONS.map((s) => (
+              {STATUS_ORDER.map((s) => (
                 <Button
-                  key={s.value}
+                  key={s}
                   size="sm"
-                  variant={(item?.status ?? "pending") === s.value ? "default" : "outline"}
+                  variant={(item?.status ?? "pending") === s ? "default" : "outline"}
                   disabled={mSave.isPending}
-                  onClick={() => mSave.mutate({ status: s.value })}
+                  onClick={() => mSave.mutate({ status: s })}
                 >
-                  {s.label}
+                  {t(`re.status.${s}`)}
                 </Button>
               ))}
             </div>
@@ -219,7 +211,7 @@ export function VerificationItemWorkspace({
 
           {/* Document */}
           <section className="space-y-3">
-            <h4 className="text-sm font-medium">Documento de soporte</h4>
+            <h4 className="text-sm font-medium">{t("re.ws.supportDoc")}</h4>
             {attached ? (
               <div className="flex items-center justify-between rounded-lg border border-border p-3">
                 <div className="flex min-w-0 items-center gap-2">
@@ -244,9 +236,7 @@ export function VerificationItemWorkspace({
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Aún no hay un documento vinculado a este requisito.
-              </p>
+              <p className="text-sm text-muted-foreground">{t("re.ws.noDoc")}</p>
             )}
 
             <input
@@ -266,14 +256,14 @@ export function VerificationItemWorkspace({
                 ) : (
                   <Upload className="mr-1 h-3.5 w-3.5" />
                 )}
-                {attached ? "Reemplazar documento" : "Subir documento"}
+                {attached ? t("re.ws.replace") : t("re.ws.upload")}
               </Button>
             </div>
 
             {(docs?.length ?? 0) > 0 && (
               <div className="space-y-1">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Link2 className="h-3 w-3" /> Vincular un documento ya cargado en el expediente
+                  <Link2 className="h-3 w-3" /> {t("re.ws.linkExisting")}
                 </div>
                 <select
                   className="w-full rounded-md border border-border bg-background p-2 text-sm"
@@ -282,7 +272,7 @@ export function VerificationItemWorkspace({
                     mSave.mutate({ evidence_document_id: e.target.value || null })
                   }
                 >
-                  <option value="">— Ninguno —</option>
+                  <option value="">{t("re.ws.none")}</option>
                   {docs!.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.filename}
@@ -297,15 +287,15 @@ export function VerificationItemWorkspace({
 
           {/* Notes */}
           <section className="space-y-2">
-            <h4 className="text-sm font-medium">Notas y observaciones</h4>
+            <h4 className="text-sm font-medium">{t("re.ws.notes")}</h4>
             <Textarea
               rows={4}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Observaciones del abogado sobre este requisito, discrepancias detectadas, compromisos del vendedor…"
+              placeholder={t("re.ws.notesPlaceholder")}
             />
             <Button size="sm" variant="outline" disabled={mSave.isPending} onClick={() => mSave.mutate({ notes })}>
-              <Save className="mr-1 h-3.5 w-3.5" /> Guardar notas
+              <Save className="mr-1 h-3.5 w-3.5" /> {t("re.ws.saveNotes")}
             </Button>
           </section>
 
@@ -314,39 +304,31 @@ export function VerificationItemWorkspace({
           {/* AI assistance */}
           <section className="space-y-2">
             <h4 className="flex items-center gap-1 text-sm font-medium">
-              <Sparkles className="h-4 w-4" /> Asistencia de Nyrava Intelligence
+              <Sparkles className="h-4 w-4" /> {t("re.ws.ai")}
             </h4>
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 disabled={mAsk.isPending}
-                onClick={() =>
-                  askAbout(
-                    `Respecto del requisito "${categoryLabel}" en esta operación inmobiliaria: revisa los documentos del expediente y dime si ${guide.doc} ya obra en autos, qué falta, y qué riesgos jurídicos existen si se cierra sin ello. Cita los documentos.`,
-                  )
-                }
+                onClick={() => askAbout(t("re.ws.aiReviewPrompt", { label: categoryLabel, doc }))}
               >
-                Revisar este requisito
+                {t("re.ws.aiReview")}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 disabled={mAsk.isPending}
-                onClick={() =>
-                  askAbout(
-                    `Elabora la lista de pasos y requisitos para obtener ${guide.doc} ante ${guide.holder} conforme a la legislación mexicana aplicable a esta operación, incluyendo plazos estimados.`,
-                  )
-                }
+                onClick={() => askAbout(t("re.ws.aiHowPrompt", { doc, holder }))}
               >
-                ¿Cómo lo obtengo?
+                {t("re.ws.aiHow")}
               </Button>
             </div>
             <div className="flex gap-2">
               <Input
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Pregunta a Nyrava sobre este requisito…"
+                placeholder={t("re.ws.aiPlaceholder")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && question.trim()) askAbout(`[${categoryLabel}] ${question.trim()}`);
                 }}
@@ -359,9 +341,7 @@ export function VerificationItemWorkspace({
                 {mAsk.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
-            {mAsk.isPending && (
-              <p className="text-xs text-muted-foreground">Analizando el expediente…</p>
-            )}
+            {mAsk.isPending && <p className="text-xs text-muted-foreground">{t("re.ws.aiThinking")}</p>}
             {answer && (
               <div className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-sm">
                 {answer}
@@ -374,15 +354,13 @@ export function VerificationItemWorkspace({
           {/* Request to a third party */}
           <section className="space-y-2">
             <h4 className="flex items-center gap-1 text-sm font-medium">
-              <Send className="h-4 w-4" /> Solicitar el documento
+              <Send className="h-4 w-4" /> {t("re.ws.request")}
             </h4>
-            <p className="text-xs text-muted-foreground">
-              Se registra en Comunicaciones del caso como salida pendiente de revisión y firma del abogado.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("re.ws.requestHint")}</p>
             <Input
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
-              placeholder={`Destinatario (p. ej. ${guide.holder})`}
+              placeholder={t("re.ws.recipient", { holder })}
             />
             <Textarea rows={5} value={requestBody} onChange={(e) => setRequestBody(e.target.value)} />
             <Button
@@ -395,7 +373,7 @@ export function VerificationItemWorkspace({
               ) : (
                 <Send className="mr-1 h-3.5 w-3.5" />
               )}
-              Registrar solicitud
+              {t("re.ws.registerRequest")}
             </Button>
           </section>
         </div>
