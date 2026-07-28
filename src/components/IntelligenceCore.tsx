@@ -17,7 +17,7 @@ export function IntelligenceCore({ size = 360 }: { size?: number }) {
         className="absolute inset-0 rounded-full animate-pulse-ring"
         style={{
           background:
-            "radial-gradient(circle, oklch(0.82 0.13 195 / 0.18) 0%, transparent 62%)",
+            "radial-gradient(circle, rgba(216,179,106,0.18) 0%, transparent 62%)",
         }}
       />
       {/* Orbit ring 1 */}
@@ -30,7 +30,7 @@ export function IntelligenceCore({ size = 360 }: { size?: number }) {
           cy="100"
           r="92"
           fill="none"
-          stroke="oklch(0.82 0.13 195 / 0.35)"
+          stroke="rgba(216,179,106,0.35)"
           strokeWidth="0.5"
           strokeDasharray="2 6"
         />
@@ -48,7 +48,7 @@ export function IntelligenceCore({ size = 360 }: { size?: number }) {
           rx="78"
           ry="42"
           fill="none"
-          stroke="oklch(0.82 0.13 195 / 0.25)"
+          stroke="rgba(216,179,106,0.25)"
           strokeWidth="0.5"
         />
         <ellipse
@@ -57,7 +57,7 @@ export function IntelligenceCore({ size = 360 }: { size?: number }) {
           rx="42"
           ry="78"
           fill="none"
-          stroke="oklch(0.82 0.13 195 / 0.25)"
+          stroke="rgba(216,179,106,0.25)"
           strokeWidth="0.5"
         />
       </svg>
@@ -67,8 +67,8 @@ export function IntelligenceCore({ size = 360 }: { size?: number }) {
         style={{
           width: s * 0.46,
           height: s * 0.46,
-          borderColor: "oklch(0.82 0.13 195 / 0.45)",
-          boxShadow: "0 0 40px oklch(0.82 0.13 195 / 0.35), inset 0 0 30px oklch(0.82 0.13 195 / 0.15)",
+          borderColor: "rgba(216,179,106,0.45)",
+          boxShadow: "0 0 40px rgba(216,179,106,0.35), inset 0 0 30px rgba(216,179,106,0.15)",
         }}
       />
       {/* Core logo */}
@@ -78,7 +78,7 @@ export function IntelligenceCore({ size = 360 }: { size?: number }) {
       {/* Base plate */}
       <div
         className="absolute bottom-4 h-1 w-1/3 rounded-full"
-        style={{ background: "linear-gradient(90deg, transparent, oklch(0.82 0.13 195 / 0.5), transparent)" }}
+        style={{ background: "linear-gradient(90deg, transparent, rgba(216,179,106,0.5), transparent)" }}
       />
     </div>
   );

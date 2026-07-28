@@ -52,7 +52,7 @@ function statusClass(v: Visual): string {
     case "completed":
       return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
     case "running":
-      return "text-cyan-300 border-cyan-400/40 bg-cyan-400/10";
+      return "text-amber-300 border-amber-400/40 bg-amber-400/10";
     case "failed":
       return "text-red-400 border-red-500/30 bg-red-500/10";
     case "skipped":
@@ -194,13 +194,13 @@ export function PipelinePanel({
   const incomplete = completedCount < stageDefs.length;
 
   return (
-    <div className="rounded-2xl border border-cyan-400/15 bg-slate-950/60 p-4 sm:p-5 space-y-4">
+    <div className="rounded-2xl border border-amber-400/15 bg-slate-950/60 p-4 sm:p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
           <p className="text-xs text-slate-400">
             {t("pipeline.panel.engines", { done: completedCount, total: stageDefs.length })}
-            {anyRunning && <span className="text-cyan-300"> · {t("pipeline.panel.running")}</span>}
+            {anyRunning && <span className="text-amber-300"> · {t("pipeline.panel.running")}</span>}
             {failedCount > 0 && (
               <span className="text-red-400"> · {t("pipeline.panel.failed", { n: failedCount })}</span>
             )}
@@ -245,7 +245,7 @@ export function PipelinePanel({
                   setResuming(false);
                 }
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50"
             >
               {resuming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />} {t("pipeline.panel.resume")}
             </button>

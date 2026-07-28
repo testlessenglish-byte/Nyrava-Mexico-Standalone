@@ -11,7 +11,7 @@ export function IntelligenceHeroPanel() {
       <div className="pointer-events-none absolute inset-0 divider-grid opacity-40" aria-hidden />
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-40 opacity-30 animate-scan"
-        style={{ background: "linear-gradient(180deg, transparent, oklch(0.82 0.13 195 / 0.25), transparent)" }}
+        style={{ background: "linear-gradient(180deg, transparent, rgba(216,179,106,0.25), transparent)" }}
         aria-hidden
       />
 

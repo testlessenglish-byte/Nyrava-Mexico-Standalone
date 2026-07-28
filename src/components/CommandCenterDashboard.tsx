@@ -106,7 +106,7 @@ function statusColor(s: EngineStatus | "idle"): string {
     case "completed":
       return "text-emerald-400 border-emerald-400/40 bg-emerald-400/10";
     case "running":
-      return "text-cyan-300 border-cyan-300/40 bg-cyan-300/10";
+      return "text-amber-300 border-amber-300/40 bg-amber-300/10";
     case "failed":
       return "text-red-400 border-red-400/40 bg-red-400/10";
     case "skipped":
@@ -263,19 +263,19 @@ export function CommandCenterDashboard({
 
       {/* ============ HEADER: Case Score + Status ============ */}
       <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-        <div className="rounded-2xl border border-cyan-400/15 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 relative overflow-hidden">
+        <div className="rounded-2xl border border-amber-400/15 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 relative overflow-hidden">
           <div
             className="absolute inset-0 opacity-30 pointer-events-none"
             style={{ background: "radial-gradient(800px 200px at 20% 0%, rgba(34,211,238,.18), transparent 60%)" }}
           />
           <div className="relative flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-300/80">{t("cc.caseIntelligence")}</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-amber-300/80">{t("cc.caseIntelligence")}</div>
               <h2 className="mt-1 truncate text-xl font-semibold text-white">{caseName}</h2>
               <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
                 <span className="inline-flex items-center gap-1">
                   <span
-                    className={`h-1.5 w-1.5 rounded-full ${running ? "bg-cyan-300 animate-pulse" : "bg-emerald-400"}`}
+                    className={`h-1.5 w-1.5 rounded-full ${running ? "bg-amber-300 animate-pulse" : "bg-emerald-400"}`}
                   />
                   {status ? t(`cases.status.${status}`) : t("cases.status.idle")}
                 </span>
@@ -307,11 +307,11 @@ export function CommandCenterDashboard({
       </div>
 
       {/* ============ ANALYSIS COMMAND CENTER ============ */}
-      <div className="rounded-2xl border border-cyan-400/15 bg-slate-950/60 p-5">
+      <div className="rounded-2xl border border-amber-400/15 bg-slate-950/60 p-5">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
-            <p className="text-xs text-cyan-300/70">
+            <p className="text-xs text-amber-300/70">
               {t("cc.subtitle", { done: String(completedEngines), total: String(totalEngines) })}
               {agentSummary.loaded > 0 && (
                 <>
@@ -325,7 +325,7 @@ export function CommandCenterDashboard({
               )}
             </p>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan-300">
+          <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
             <Loader2 className={`h-3 w-3 ${running ? "animate-spin" : ""}`} /> {running ? t("cc.live") : t("cc.ready")}
           </span>
         </div>
@@ -521,11 +521,11 @@ export function CommandCenterDashboard({
           <div className="flex-1">
             <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-400">
               <span>{t("pipeline.overallProgress")}</span>
-              <span className="tabular-nums text-cyan-300">{progressPct}%</span>
+              <span className="tabular-nums text-amber-300">{progressPct}%</span>
             </div>
             <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-400 to-indigo-500 transition-all duration-700"
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-sky-400 to-indigo-500 transition-all duration-700"
                 style={{ width: `${progressPct}%`, boxShadow: "0 0 12px rgba(34,211,238,.6)" }}
               />
             </div>
@@ -536,14 +536,14 @@ export function CommandCenterDashboard({
       {/* ============ TALK TO THIS CASE ============ */}
       <button
         onClick={onOpenChat}
-        className="nyr-glow group flex w-full items-center gap-4 rounded-2xl border border-cyan-400/30 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 text-left transition hover:border-cyan-300/60"
+        className="nyr-glow group flex w-full items-center gap-4 rounded-2xl border border-amber-400/30 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 text-left transition hover:border-amber-300/60"
       >
-        <div className="grid h-12 w-12 place-items-center rounded-xl border border-cyan-400/40 bg-cyan-400/10 text-cyan-300">
+        <div className="grid h-12 w-12 place-items-center rounded-xl border border-amber-400/40 bg-amber-400/10 text-amber-300">
           <MessageCircle className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-white">{t("caseWorkspace.talk.title")}</div>
-          <div className="text-xs text-cyan-300/70">
+          <div className="text-xs text-amber-300/70">
             {t("caseWorkspace.talk.subtitle")}
           </div>
         </div>
@@ -561,13 +561,13 @@ export function CommandCenterDashboard({
                 onOpenVoice();
               }
             }}
-            className="hidden sm:grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-cyan-400/40 bg-cyan-400/10 text-cyan-200 transition hover:bg-cyan-400/20"
+            className="hidden sm:grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-amber-400/40 bg-amber-400/10 text-amber-200 transition hover:bg-amber-400/20"
             title={t("caseWorkspace.voiceMode")}
           >
             <Mic className="h-4 w-4" />
           </span>
         )}
-        <ArrowRight className="h-5 w-5 text-cyan-300 transition group-hover:translate-x-1" />
+        <ArrowRight className="h-5 w-5 text-amber-300 transition group-hover:translate-x-1" />
       </button>
 
       {/* ============ RECENT ACTIVITY ============ */}
@@ -584,7 +584,7 @@ export function CommandCenterDashboard({
             <li key={ev.id} className="flex items-center gap-3 py-2 text-sm">
               <span
                 className={`h-2 w-2 rounded-full ${
-                  ev.level === "error" ? "bg-red-400" : ev.level === "warn" ? "bg-amber-300" : "bg-cyan-300"
+                  ev.level === "error" ? "bg-red-400" : ev.level === "warn" ? "bg-amber-300" : "bg-amber-300"
                 }`}
               />
               <span className="min-w-0 flex-1 truncate text-slate-200">
@@ -668,7 +668,7 @@ function ScoreGauge({ value, color, label }: { value: number; color: string; lab
 }
 
 const TINTS: Record<string, string> = {
-  cyan: "from-cyan-500/20 to-cyan-500/0 border-cyan-400/30 text-cyan-200",
+  cyan: "from-amber-500/20 to-amber-500/0 border-amber-400/30 text-amber-200",
   emerald: "from-emerald-500/20 to-emerald-500/0 border-emerald-400/30 text-emerald-200",
   violet: "from-violet-500/20 to-violet-500/0 border-violet-400/30 text-violet-200",
   amber: "from-amber-500/20 to-amber-500/0 border-amber-400/30 text-amber-200",
@@ -706,7 +706,7 @@ function MiniBadge({
 }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-slate-700/40 bg-slate-900/40 px-3 py-2">
-      <Icon className="h-3.5 w-3.5 text-cyan-300" />
+      <Icon className="h-3.5 w-3.5 text-amber-300" />
       <span className="flex-1 text-xs text-slate-300">{label}</span>
       <span className="text-sm font-semibold tabular-nums text-white">{value}</span>
     </div>

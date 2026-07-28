@@ -1,73 +1,59 @@
-import {
-  Search,
-  Users,
-  Clock,
-  Scale,
-  FileText,
-  ShieldCheck,
-} from "lucide-react";
+import { Scale, BookOpen, Gavel, GraduationCap, Landmark, FileText } from "lucide-react";
 import { TrustBadge } from "./TrustBadge";
+import { useI18n } from "@/i18n";
 
 /**
- * Homepage hero visual — three-column layout: left cards, centered
- * Trust Badge, right cards. Cards share a single visual style so the
- * grid reads as one system.
+ * Homepage hero visual — three-column layout: left source cards, centered
+ * Trust Badge, right source cards. Mirrors the Nyrava México reference
+ * design: Jurisprudencia / Legislación MX / Criterios Aislados on the
+ * left, Doctrina / Precedentes / Reportes on the right.
  */
 
-type Metric = {
+type SourceCard = {
   icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  status: "live" | "complete" | "detected" | "ready";
+  titleKey: string;
+  subtitleKey: string;
+  tagKey: string;
 };
 
-const LEFT: Metric[] = [
-  { icon: Search, label: "Evidence Intelligence", value: "97 findings", status: "live" },
-  { icon: Clock, label: "Timeline Intelligence", value: "Reconstructed", status: "complete" },
-  { icon: Users, label: "Witness Intelligence", value: "14 witnesses", status: "complete" },
+const LEFT: SourceCard[] = [
+  { icon: Scale, titleKey: "home.grid.jurisprudencia.title", subtitleKey: "home.grid.jurisprudencia.subtitle", tagKey: "home.grid.jurisprudencia.tag" },
+  { icon: BookOpen, titleKey: "home.grid.legislacion.title", subtitleKey: "home.grid.legislacion.subtitle", tagKey: "home.grid.legislacion.tag" },
+  { icon: Gavel, titleKey: "home.grid.criterios.title", subtitleKey: "home.grid.criterios.subtitle", tagKey: "home.grid.criterios.tag" },
 ];
 
-const RIGHT: Metric[] = [
-  { icon: Scale, label: "Constitutional Review", value: "3 issues", status: "detected" },
-  { icon: FileText, label: "Motion Intelligence", value: "5 drafts ready", status: "ready" },
-  { icon: ShieldCheck, label: "Report Intelligence", value: "Complete", status: "ready" },
+const RIGHT: SourceCard[] = [
+  { icon: GraduationCap, titleKey: "home.grid.doctrina.title", subtitleKey: "home.grid.doctrina.subtitle", tagKey: "home.grid.doctrina.tag" },
+  { icon: Landmark, titleKey: "home.grid.precedentes.title", subtitleKey: "home.grid.precedentes.subtitle", tagKey: "home.grid.precedentes.tag" },
+  { icon: FileText, titleKey: "home.grid.reportes.title", subtitleKey: "home.grid.reportes.subtitle", tagKey: "home.grid.reportes.tag" },
 ];
 
-const STATUS_STYLES: Record<Metric["status"], string> = {
-  live: "bg-primary/15 text-primary border-primary/40",
-  complete: "bg-emerald-400/10 text-emerald-200 border-emerald-400/30",
-  detected: "bg-amber-400/10 text-amber-200 border-amber-400/30",
-  ready: "bg-primary/15 text-primary border-primary/40",
-};
-
-function MetricCard({ metric }: { metric: Metric }) {
-  const Icon = metric.icon;
+function SourceCardTile({ card }: { card: SourceCard }) {
+  const { t } = useI18n();
+  const Icon = card.icon;
   return (
     <div
-      className="panel flex h-[76px] items-center gap-3 px-4 py-3 backdrop-blur transition hover:-translate-y-0.5"
-      style={{ boxShadow: "var(--shadow-panel), 0 0 24px oklch(0.82 0.13 195 / 0.08)" }}
+      className="panel flex h-[86px] items-center gap-3 rounded-[18px] px-4 py-3 backdrop-blur transition hover:-translate-y-[3px]"
+      style={{ boxShadow: "var(--shadow-panel), 0 0 24px rgba(216,179,106,0.08)" }}
     >
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border bg-card/70">
-        <Icon className="h-4 w-4 text-primary" />
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border bg-card/70">
+        <Icon className="h-5 w-5 text-primary" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[9.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-          {metric.label}
+        <div className="truncate text-[12.5px] font-bold tracking-[0.02em] text-foreground">
+          {t(card.titleKey)}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[12.5px] font-semibold text-foreground">
-          <span className="truncate">{metric.value}</span>
-          <span
-            className={`hidden shrink-0 rounded-full border px-1.5 py-[1px] text-[8.5px] font-semibold uppercase tracking-[0.16em] sm:inline ${STATUS_STYLES[metric.status]}`}
-          >
-            {metric.status}
-          </span>
-        </div>
+        <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{t(card.subtitleKey)}</div>
+        <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-[2px] text-[8.5px] font-bold uppercase tracking-[0.14em] text-success">
+          <span className="h-1 w-1 rounded-full bg-current" /> {t(card.tagKey)}
+        </span>
       </div>
     </div>
   );
 }
 
 export function HeroOSDashboard() {
+  const { t } = useI18n();
   return (
     <div className="relative mx-auto w-full max-w-[880px] py-6">
       {/* Ambient background wash */}
@@ -76,15 +62,15 @@ export function HeroOSDashboard() {
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(55% 55% at 50% 50%, oklch(0.82 0.13 195 / 0.14), transparent 70%)",
+            "radial-gradient(55% 55% at 50% 50%, rgba(216,179,106,0.14), transparent 70%)",
         }}
       />
 
       {/* Desktop: symmetric 3-column grid */}
       <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_200px_minmax(0,1fr)] lg:items-center lg:gap-8">
         <div className="flex flex-col gap-3">
-          {LEFT.map((m) => (
-            <MetricCard key={m.label} metric={m} />
+          {LEFT.map((c) => (
+            <SourceCardTile key={c.titleKey} card={c} />
           ))}
         </div>
 
@@ -99,7 +85,7 @@ export function HeroOSDashboard() {
               cy="100"
               r="92"
               fill="none"
-              stroke="oklch(0.82 0.13 195 / 0.18)"
+              stroke="rgba(216,179,106,0.18)"
               strokeWidth="0.6"
               strokeDasharray="2 6"
             />
@@ -108,19 +94,25 @@ export function HeroOSDashboard() {
               cy="100"
               r="70"
               fill="none"
-              stroke="oklch(0.82 0.13 195 / 0.12)"
+              stroke="rgba(216,179,106,0.12)"
               strokeWidth="0.6"
             />
           </svg>
           <TrustBadge size={140} glow />
-          <div className="mt-3 text-[9.5px] font-semibold uppercase tracking-[0.32em] text-muted-foreground">
-            Nyrava Trust Badge
+          <div className="mt-3 text-center text-[9.5px] font-bold uppercase tracking-[0.28em] text-foreground">
+            {t("home.badge.name")}
+          </div>
+          <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.24em] text-primary">
+            {t("home.badge.subtitle")}
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-[8.5px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            <span className="h-px w-4 bg-border" /> {t("home.badge.origin")} <span className="h-px w-4 bg-border" />
           </div>
         </div>
 
         <div className="flex flex-col gap-3">
-          {RIGHT.map((m) => (
-            <MetricCard key={m.label} metric={m} />
+          {RIGHT.map((c) => (
+            <SourceCardTile key={c.titleKey} card={c} />
           ))}
         </div>
       </div>
@@ -128,12 +120,15 @@ export function HeroOSDashboard() {
       {/* Mobile / tablet — badge on top, cards stacked below */}
       <div className="flex flex-col items-center lg:hidden">
         <TrustBadge size={140} glow />
-        <div className="mt-3 text-[9.5px] font-semibold uppercase tracking-[0.32em] text-muted-foreground">
-          Nyrava Trust Badge
+        <div className="mt-3 text-center text-[9.5px] font-bold uppercase tracking-[0.28em] text-foreground">
+          {t("home.badge.name")}
+        </div>
+        <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.24em] text-primary">
+          {t("home.badge.subtitle")}
         </div>
         <div className="mt-8 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-          {[...LEFT, ...RIGHT].map((m) => (
-            <MetricCard key={m.label} metric={m} />
+          {[...LEFT, ...RIGHT].map((c) => (
+            <SourceCardTile key={c.titleKey} card={c} />
           ))}
         </div>
       </div>

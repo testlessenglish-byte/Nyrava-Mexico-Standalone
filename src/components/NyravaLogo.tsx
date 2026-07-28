@@ -1,4 +1,4 @@
-import shieldAsset from "@/assets/nyrava-shield.png.asset.json";
+import { TrustBadge } from "./TrustBadge";
 
 interface NyravaLogoProps {
   size?: number;
@@ -25,18 +25,12 @@ export function NyravaLogo({
         className="relative"
         style={{ width: size, height: size }}
       >
-        <img
-          src={shieldAsset.url}
-          alt="Nyrava shield"
-          width={size}
-          height={size}
-          className="relative z-10 h-full w-full object-contain"
-        />
+        <TrustBadge size={size} className="relative z-10 h-full w-full" />
         {glow && (
           <div
             aria-hidden
             className="absolute inset-0 -z-0 rounded-full blur-xl"
-            style={{ background: "radial-gradient(circle, oklch(0.82 0.13 195 / 0.35), transparent 70%)" }}
+            style={{ background: "radial-gradient(circle, rgba(216,179,106,0.35), transparent 70%)" }}
           />
         )}
       </div>

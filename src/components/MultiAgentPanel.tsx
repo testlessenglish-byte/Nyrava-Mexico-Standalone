@@ -37,7 +37,7 @@ type LogRow = {
 
 function statusIcon(status: string) {
   if (status === "success") return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
-  if (status === "running") return <Loader2 className="h-4 w-4 animate-spin text-cyan-500" />;
+  if (status === "running") return <Loader2 className="h-4 w-4 animate-spin text-amber-500" />;
   if (status === "failed") return <AlertCircle className="h-4 w-4 text-rose-500" />;
   if (status === "blocked") return <ShieldAlert className="h-4 w-4 text-amber-500" />;
   if (status === "skipped") return <Circle className="h-4 w-4 text-slate-400" />;
@@ -46,7 +46,7 @@ function statusIcon(status: string) {
 
 function SummaryTile({ label, value, tone }: { label: string; value: number; tone: "slate" | "cyan" | "emerald" | "amber" }) {
   const toneClass =
-    tone === "cyan" ? "text-cyan-100" :
+    tone === "cyan" ? "text-amber-100" :
     tone === "emerald" ? "text-emerald-300" :
     tone === "amber" ? "text-amber-300" : "text-slate-100";
   return (
@@ -133,10 +133,10 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
   const summary: AgentSummary = canonical.executed > 0 ? canonical : derived;
 
   return (
-    <Card className="border-cyan-500/20 bg-slate-950/40">
+    <Card className="border-amber-500/20 bg-slate-950/40">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-cyan-100">
-          <ShieldCheck className="h-5 w-5 text-cyan-400" />
+        <CardTitle className="flex items-center gap-2 text-amber-100">
+          <ShieldCheck className="h-5 w-5 text-amber-400" />
           {t("agents.title", { count: AGENT_DEFINITIONS.length })}
         </CardTitle>
         {isAdmin ? (

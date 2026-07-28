@@ -257,8 +257,8 @@ export function CaseControlPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-cyan-400/20 bg-slate-950/60 p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-cyan-300">{t("caseControl.title")}</h2>
+      <div className="rounded-2xl border border-amber-400/20 bg-slate-950/60 p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-300">{t("caseControl.title")}</h2>
         <p className="mt-1 text-xs text-slate-400">
           {t("caseControl.subtitle")}
         </p>
@@ -272,7 +272,7 @@ export function CaseControlPanel({
         <button
           onClick={() => runM.mutate(false)}
           disabled={disabled}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/15 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/25 disabled:opacity-50"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/15 px-4 py-3 text-sm font-semibold text-amber-100 hover:bg-amber-400/25 disabled:opacity-50"
         >
           {runM.isPending && !runM.variables ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -323,7 +323,7 @@ export function CaseControlPanel({
           <p className="mt-3 text-xs text-amber-300">{t("caseControl.needDocument")}</p>
         )}
         {running && (
-          <p className="mt-3 text-xs text-cyan-300">{t("caseControl.inProgress")}</p>
+          <p className="mt-3 text-xs text-amber-300">{t("caseControl.inProgress")}</p>
         )}
       </div>
 

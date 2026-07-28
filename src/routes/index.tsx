@@ -3,12 +3,24 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { Play, ArrowRight } from "lucide-react";
+import {
+  Play,
+  ArrowRight,
+  Scale,
+  BookOpen,
+  Landmark,
+  FileText,
+  ShieldCheck,
+  Lock,
+  UploadCloud,
+  Sparkles,
+} from "lucide-react";
 import { NyravaLogo } from "@/components/NyravaLogo";
 import { HeroOSDashboard } from "@/components/HeroOSDashboard";
 import { TrustStrip } from "@/components/TrustStrip";
 import { SiteFooter } from "@/components/SiteFooter";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { MobileNav } from "@/components/MobileNav";
 import { useI18n } from "@/i18n";
 import { listPublishedDemoCases } from "@/lib/demo-cases.functions";
 
@@ -68,6 +80,7 @@ export const Route = createFileRoute("/")({
 
 const NAV = [
   { key: "home.nav.product", href: "#product" },
+  { key: "home.nav.legalSources", to: "/modules" },
   { key: "home.nav.security", to: "/security" },
   { key: "home.nav.transparency", to: "/ai-transparency" },
   { key: "home.nav.help", to: "/help" },
@@ -88,87 +101,191 @@ function Landing() {
 
   return (
     <div className="min-h-screen text-foreground">
-      {/* Top nav */}
-      <header className="border-b border-border/60">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
-          <NyravaLogo size={42} withWordmark />
-          <nav className="hidden items-center gap-8 lg:flex">
+      {/* Top nav — cream/marble bar, matches the reference design */}
+      <header className="border-b border-[oklch(0.70_0.06_85_/_0.4)] bg-cream text-cream-foreground">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <NyravaLogo size={38} glow={false} />
+            <div className="flex flex-col leading-none">
+              <span className="font-display text-lg font-bold tracking-wide">NYRAVA MÉXICO</span>
+              <span className="mt-1 text-[9.5px] font-semibold tracking-[0.28em] text-cream-foreground/60">
+                INTELIGENCIA LEGAL AVANZADA
+              </span>
+            </div>
+          </div>
+          <nav className="hidden items-center gap-7 lg:flex">
             {NAV.map((n) =>
               "to" in n ? (
                 <Link
                   key={n.key}
                   to={n.to}
-                  className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
+                  className="text-[11px] font-semibold tracking-[0.16em] text-cream-foreground/80 transition hover:text-cream-foreground"
                 >
-                  {t(n.key)}
+                  {t(n.key).toUpperCase()}
                 </Link>
               ) : (
                 <a
                   key={n.key}
                   href={n.href}
-                  className="text-[11px] font-semibold tracking-[0.18em] text-muted-foreground transition hover:text-foreground"
+                  className="text-[11px] font-semibold tracking-[0.16em] text-cream-foreground/80 transition hover:text-cream-foreground"
                 >
-                  {t(n.key)}
+                  {t(n.key).toUpperCase()}
                 </a>
               ),
             )}
           </nav>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-            <LanguageSwitcher />
+            <LanguageSwitcher className="border-[oklch(0.40_0.05_155)] text-cream-foreground" />
             <Link
               to="/auth"
-              className="hidden rounded-md border border-border bg-card/60 px-3 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground hover:bg-card sm:inline-flex"
+              className="hidden rounded-md border border-[oklch(0.40_0.05_155)] px-3 py-2 text-[11px] font-semibold tracking-[0.14em] text-cream-foreground hover:bg-black/5 sm:inline-flex"
             >
-              {t("home.cta.signIn")}
+              {t("nav.signIn")}
             </Link>
             <Link
               to="/auth"
-              className="rounded-md border border-primary/60 bg-primary/15 px-3 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary hover:bg-primary/25 sm:px-4"
-              style={{ boxShadow: "var(--shadow-glow-cyan)" }}
+              className="rounded-md bg-primary px-3 py-2 text-[11px] font-bold tracking-[0.12em] text-primary-foreground shadow-sm transition hover:brightness-105 sm:px-4"
             >
-              {t("home.cta.launchPlatform")}
+              {t("nav.openPlatform")}
             </Link>
-          </div>
-        </div>
-
-      </header>
-
-
-      <main>
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="mx-auto grid max-w-7xl gap-12 px-6 py-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-20">
-          <div>
-            <div className="mb-6 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">
-              <span className="text-amber">{t("home.hero.badge")}</span>
-            </div>
-            <h1 className="text-5xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
-              {t("home.hero.line1")}
-              <br />
-              <span className="font-editorial text-primary">{t("home.hero.line2")}</span>
-            </h1>
-            <p className="mt-8 max-w-xl text-base leading-relaxed text-muted-foreground">
-              {t("home.hero.subtitle")}
-            </p>
-            <div className="mt-10 flex flex-wrap gap-3">
+            <MobileNav
+              items={NAV.map((n) =>
+                "to" in n ? { label: t(n.key).toUpperCase(), to: n.to } : { label: t(n.key).toUpperCase(), href: n.href },
+              )}
+              triggerClassName="border-[oklch(0.40_0.05_155)] text-cream-foreground"
+            >
               <Link
                 to="/auth"
-                className="inline-flex items-center gap-2 rounded-md border border-primary/60 bg-primary/15 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-primary transition hover:bg-primary/25"
-                style={{ boxShadow: "var(--shadow-glow-cyan)" }}
+                className="rounded-md border border-border px-3 py-2 text-center text-[11px] font-semibold tracking-[0.14em] text-foreground"
               >
-                {t("home.cta.launchCommand")} <ArrowRight className="h-4 w-4" />
+                {t("nav.signIn")}
               </Link>
-              <a
-                href="#product"
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground transition hover:bg-card"
-              >
-                {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5" />
-              </a>
+            </MobileNav>
+          </div>
+        </div>
+      </header>
+
+      <main>
+      {/* Hero — deep justice-green, gold accents, marble-column mood */}
+      <section
+        className="relative overflow-hidden"
+        style={{ background: "linear-gradient(160deg, #0A1D17 0%, #10231D 100%)" }}
+      >
+        {/* Architectural relief — real photographic asset, blended into the wall, not a foreground logo */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] md:block"
+          style={{
+            backgroundImage: "url('/brand/eagle-relief.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            opacity: 0.35,
+            filter: "grayscale(100%) contrast(1.1) brightness(0.95)",
+            maskImage:
+              "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
+            WebkitMaskImage:
+              "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
+          }}
+        />
+        <div className="relative mx-auto max-w-7xl px-6 py-14 lg:py-20">
+          <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+            {/* Left: headline + CTAs */}
+            <div>
+              <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold tracking-[0.24em] text-amber">
+                <Scale className="h-3.5 w-3.5" /> {t("home.hero.tagline")}
+              </div>
+              <h1 className="font-serif text-[64px] font-semibold not-italic leading-[0.95] tracking-tight md:text-[74px]">
+                {t("home.hero.line1")}
+                <br />
+                <span style={{ color: "#D8B36A" }}>{t("home.hero.line2")}</span>
+              </h1>
+              <p className="mt-8 max-w-[560px] text-[24px] leading-relaxed" style={{ color: "rgba(255,255,255,0.88)" }}>
+                {t("home.hero.subtitle")}
+              </p>
+              <div className="mt-10 flex flex-wrap gap-3">
+                <Link
+                  to="/auth"
+                  className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border bg-secondary px-6 text-[11px] font-bold tracking-[0.14em] text-foreground transition hover:-translate-y-0.5"
+                  style={{ borderColor: "rgba(216,179,106,0.4)" }}
+                >
+                  {t("home.cta.launchCommand")} <ArrowRight className="h-4 w-4" />
+                </Link>
+                <a
+                  href="#product"
+                  className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border border-primary/50 px-6 text-[11px] font-bold tracking-[0.14em] text-primary transition hover:-translate-y-0.5 hover:bg-primary/10"
+                >
+                  {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5" />
+                </a>
+              </div>
             </div>
 
-          </div>
-          <div className="flex justify-center lg:pl-4">
+            {/* Right: left-cards / trust badge / right-cards — symmetric grid, responsive built in */}
             <HeroOSDashboard />
+          </div>
+        </div>
+      </section>
+
+      {/* Cream feature strip */}
+      <section className="border-y border-[oklch(0.70_0.06_85_/_0.4)] bg-cream text-cream-foreground">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-6 py-8 md:grid-cols-4">
+          {[
+            { icon: ShieldCheck, titleKey: "home.features.sources.title", subKey: "home.features.sources.subtitle" },
+            { icon: Landmark, titleKey: "home.features.laws.title", subKey: "home.features.laws.subtitle" },
+            { icon: Lock, titleKey: "home.features.security.title", subKey: "home.features.security.subtitle" },
+            { icon: Sparkles, titleKey: "home.features.forLawyers.title", subKey: "home.features.forLawyers.subtitle" },
+          ].map((it) => (
+            <div key={it.titleKey} className="flex items-start gap-3">
+              <it.icon className="mt-0.5 h-5 w-5 shrink-0 text-cream-foreground" strokeWidth={1.5} />
+              <div>
+                <div className="text-[11px] font-bold leading-tight tracking-[0.02em]">{t(it.titleKey)}</div>
+                <div className="mt-1 text-[11px] text-cream-foreground/70">{t(it.subKey)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Experience Nyrava — upload band */}
+      <section className="bg-[oklch(0.12_0.03_155)] text-foreground">
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+          <div>
+            <div className="mb-3 text-[11px] font-semibold tracking-[0.24em] text-amber">{t("home.upload.tag")}</div>
+            <h2 className="max-w-md font-display text-2xl font-semibold leading-tight md:text-3xl">
+              {t("home.upload.title")}
+            </h2>
+            <div className="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-4 lg:grid-cols-2">
+              {[
+                { icon: FileText, titleKey: "home.upload.step1.title", subKey: "home.upload.step1.subtitle" },
+                { icon: Sparkles, titleKey: "home.upload.step2.title", subKey: "home.upload.step2.subtitle" },
+                { icon: BookOpen, titleKey: "home.upload.step3.title", subKey: "home.upload.step3.subtitle" },
+                { icon: FileText, titleKey: "home.upload.step4.title", subKey: "home.upload.step4.subtitle" },
+              ].map((it) => (
+                <div key={it.titleKey} className="flex flex-col items-start gap-2">
+                  <it.icon className="h-6 w-6 text-primary" strokeWidth={1.5} />
+                  <div className="text-[12px] font-semibold leading-tight">{t(it.titleKey)}</div>
+                  <div className="text-[11px] text-muted-foreground">{t(it.subKey)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-primary/50 bg-card/40 px-6 py-16 text-center transition hover:border-primary hover:bg-card/60">
+            <UploadCloud className="h-10 w-10 text-primary" strokeWidth={1.25} />
+            <div className="text-sm font-bold tracking-[0.04em]">{t("home.upload.dropzone.title")}</div>
+            <div className="text-[12px] text-muted-foreground">{t("home.upload.dropzone.subtitle")}</div>
+            <div className="text-[10.5px] tracking-[0.08em] text-muted-foreground/70">
+              {t("home.upload.dropzone.formats")}
+            </div>
+            <input type="file" className="hidden" multiple />
+          </label>
+        </div>
+        <div className="border-t border-border/40">
+          <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <span className="flex items-center gap-2">
+              <Scale className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.criterion")}
+            </span>
+            <span className="flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.dataLaw")}
+            </span>
           </div>
         </div>
       </section>
@@ -204,7 +321,7 @@ function Landing() {
                 className="panel group flex flex-col gap-4 p-5 transition hover:-translate-y-0.5"
               >
                 <div className="grid h-12 w-12 place-items-center rounded-md border border-border bg-card/60 p-1">
-                  <img src="/nyrava-shield.png" alt="Nyrava" className="h-full w-full object-contain" />
+                  <NyravaLogo size={32} />
                 </div>
 
                 <div>

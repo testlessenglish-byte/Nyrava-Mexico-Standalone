@@ -60,7 +60,7 @@ function AccountPage() {
         {acc.roles.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {acc.roles.map((r: string) => (
-              <span key={r} className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan-200">{r}</span>
+              <span key={r} className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-200">{r}</span>
             ))}
           </div>
         )}
@@ -137,7 +137,7 @@ function SecurityCard({ email }: { email: string }) {
             <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
               className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
             <button onClick={() => emailM.mutate()} disabled={emailM.isPending || !newEmail || newEmail === email}
-              className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-50">
+              className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50">
               {emailM.isPending ? t("acct.security.sending") : t("acct.security.updateEmail")}
             </button>
           </div>
@@ -149,7 +149,7 @@ function SecurityCard({ email }: { email: string }) {
             <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder={t("acct.security.pwdPlaceholder")}
               className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
             <button onClick={() => pwdM.mutate()} disabled={pwdM.isPending || newPwd.length < 8}
-              className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-50">
+              className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50">
               {pwdM.isPending ? t("acct.security.saving") : t("acct.security.changePassword")}
             </button>
           </div>
@@ -249,10 +249,10 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
         {filteredVoices.map((v) => (
           <label key={v.id}
             className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border p-3 transition ${
-              voiceId === v.id ? "border-cyan-400/60 bg-cyan-400/10" : "border-slate-700 bg-slate-900 hover:border-slate-600"
+              voiceId === v.id ? "border-amber-400/60 bg-amber-400/10" : "border-slate-700 bg-slate-900 hover:border-slate-600"
             }`}>
             <div className="flex items-center gap-2">
-              <input type="radio" name="voice" checked={voiceId === v.id} onChange={() => setVoiceId(v.id)} className="accent-cyan-400" />
+              <input type="radio" name="voice" checked={voiceId === v.id} onChange={() => setVoiceId(v.id)} className="accent-primary" />
               <div>
                 <div className="text-sm font-medium text-white">{v.label} <span className="ml-1 text-[10px] text-slate-400">({v.gender === "F" ? t("acct.voice.female") : t("acct.voice.male")})</span></div>
                 <div className="text-[11px] text-slate-400">{v.accent}</div>
@@ -271,7 +271,7 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
           <label className="block text-xs font-medium text-slate-300">{t("acct.voice.speed", { speed: speed.toFixed(2) })}</label>
           <input type="range" min={0.5} max={1.5} step={0.05} value={speed}
             onChange={(e) => setSpeed(parseFloat(e.target.value))}
-            className="mt-1 w-full accent-cyan-400" />
+            className="mt-1 w-full accent-primary" />
           <div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>{t("acct.voice.slow")}</span><span>{t("acct.voice.normal")}</span><span>{t("acct.voice.fast")}</span></div>
         </div>
         <div className="space-y-2">
@@ -348,7 +348,7 @@ function AICompanionCard({ settings, onSaved }: { settings: Record<string, unkno
           <label className="block text-xs font-medium text-slate-300">{t("acct.ai.maxChars", { n: maxChars })}</label>
           <input type="range" min={200} max={4000} step={100} value={maxChars}
             onChange={(e) => setMaxChars(parseInt(e.target.value))}
-            className="mt-1 w-full accent-cyan-400" />
+            className="mt-1 w-full accent-primary" />
         </div>
       </div>
       <SaveButton pending={m.isPending} onClick={() => m.mutate()} />
@@ -412,7 +412,7 @@ function Card({ icon, title, children }: { icon: React.ReactNode; title: string;
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:p-5">
       <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-white">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-cyan-400/30 bg-cyan-400/10 text-cyan-300">{icon}</span>
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-amber-400/30 bg-amber-400/10 text-amber-300">{icon}</span>
         {title}
       </h2>
       {children}
@@ -424,7 +424,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
     <label className="block">
       <span className="block text-xs font-medium text-slate-300">{label}</span>
       <input type="text" value={value ?? ""} onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/60" />
+        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-amber-400/60" />
     </label>
   );
 }
@@ -432,7 +432,7 @@ function Toggle({ label, checked, onChange, icon }: { label: string; checked: bo
   return (
     <label className="flex cursor-pointer items-center justify-between rounded-md border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-200">
       <span className="flex items-center gap-2">{icon}{label}</span>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-cyan-400" />
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" />
     </label>
   );
 }
@@ -441,7 +441,7 @@ function Select<T extends string>({ label, value, onChange, options }: { label: 
     <label className="block">
       <span className="block text-xs font-medium text-slate-300">{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value as T)}
-        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400/60">
+        className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-amber-400/60">
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
@@ -452,7 +452,7 @@ function SaveButton({ pending, onClick }: { pending: boolean; onClick: () => voi
   return (
     <div className="mt-4 flex justify-end">
       <button onClick={onClick} disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-md border border-cyan-400/40 bg-cyan-400/15 px-4 py-2 text-sm font-semibold text-cyan-200 hover:bg-cyan-400/25 disabled:opacity-50">
+        className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-400/15 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-400/25 disabled:opacity-50">
         {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
         {t("acct.save")}
       </button>

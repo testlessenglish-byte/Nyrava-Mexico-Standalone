@@ -106,7 +106,7 @@ function StatusPill({ status }: { status: Status }) {
     },
     speaking: {
       label: "Speaking",
-      cls: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
+      cls: "bg-amber-500/15 text-amber-300 border-amber-500/30",
       icon: <Volume2 className="h-3 w-3" />,
     },
     error: {

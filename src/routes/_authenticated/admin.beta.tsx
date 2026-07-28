@@ -126,7 +126,7 @@ function AdminBetaPage() {
           <button
             onClick={() => addM.mutate()}
             disabled={addM.isPending || !email.trim()}
-            className="rounded-md bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black px-4 py-2 text-sm flex items-center gap-2 justify-center"
+            className="rounded-md bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black px-4 py-2 text-sm flex items-center gap-2 justify-center"
           >
             {addM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
             Grant access
@@ -270,7 +270,7 @@ function AdminBetaPage() {
                 <td className="px-4 py-2 text-muted-foreground">{r.status}</td>
                 <td className="px-4 py-2 text-right">
                   {r.is_beta_tester ? (
-                    <span className="text-xs px-2 py-0.5 rounded bg-teal-500/20 text-teal-400">Beta</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400">Beta</span>
                   ) : (
                     <button
                       onClick={() => {

@@ -51,35 +51,35 @@ export function TrustBadge({
       viewBox="0 0 64 72"
       role="img"
       aria-label={title}
-      style={showGlow ? { filter: "drop-shadow(0 0 18px rgba(94,234,212,0.45))" } : undefined}
+      style={showGlow ? { filter: "drop-shadow(0 0 16px rgba(216,179,106,0.35))" } : undefined}
     >
       <defs>
-        {/* Shield body — metallic dark navy */}
+        {/* Shield body — deep forest green */}
         <linearGradient id={`${id}-body`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={tone === "light" ? "#F8FAFC" : "#0B1828"} />
-          <stop offset="55%" stopColor={tone === "light" ? "#E2E8F0" : "#08111E"} />
-          <stop offset="100%" stopColor={tone === "light" ? "#CBD5E1" : "#040A13"} />
+          <stop offset="0%" stopColor={tone === "light" ? "#F8FAFC" : "#123128"} />
+          <stop offset="55%" stopColor={tone === "light" ? "#E2E8F0" : "#0D241D"} />
+          <stop offset="100%" stopColor={tone === "light" ? "#CBD5E1" : "#081712"} />
         </linearGradient>
-        {/* Edge — brushed silver → cyan */}
+        {/* Edge — brushed gold */}
         <linearGradient id={`${id}-edge`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#E5F7F4" stopOpacity="0.95" />
-          <stop offset="45%" stopColor="#5EEAD4" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#0E7490" stopOpacity="0.85" />
+          <stop offset="0%" stopColor="#F3E3B8" stopOpacity="0.95" />
+          <stop offset="45%" stopColor="#D8B36A" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#9C7A22" stopOpacity="0.85" />
         </linearGradient>
         {/* Inner top-light */}
         <linearGradient id={`${id}-gloss`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.14" />
           <stop offset="55%" stopColor="#FFFFFF" stopOpacity="0" />
         </linearGradient>
-        {/* Illuminated N */}
+        {/* Illuminated glyph — gold */}
         <linearGradient id={`${id}-n`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#A7F3E8" />
-          <stop offset="100%" stopColor="#22D3EE" />
+          <stop offset="0%" stopColor="#F3E3B8" />
+          <stop offset="100%" stopColor="#D8B36A" />
         </linearGradient>
-        {/* Soft inner cyan halo behind the N */}
+        {/* Soft inner gold halo behind the glyph */}
         <radialGradient id={`${id}-halo`} cx="50%" cy="52%" r="42%">
-          <stop offset="0%" stopColor="#22D3EE" stopOpacity="0.35" />
-          <stop offset="70%" stopColor="#22D3EE" stopOpacity="0" />
+          <stop offset="0%" stopColor="#D8B36A" stopOpacity="0.35" />
+          <stop offset="70%" stopColor="#D8B36A" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -111,14 +111,18 @@ export function TrustBadge({
         />
       )}
 
-      {/* Cyan halo behind N */}
+      {/* Gold halo behind the glyph */}
       {tone !== "mono" && <circle cx="32" cy="36" r="18" fill={`url(#${id}-halo)`} />}
 
-      {/* Refined N — two pillars + diagonal blade, geometric and centered */}
+      {/* Classical courthouse — pediment, lintel, columns, base */}
       <g fill={nFill}>
-        <rect x="20.5" y="24" width="4.6" height="24" rx="0.8" />
-        <rect x="38.9" y="24" width="4.6" height="24" rx="0.8" />
-        <path d="M25.1 24 L29 24 L43.5 48 L39.6 48 Z" />
+        <path d="M32 20 L46 30 L18 30 Z" />
+        <rect x="17" y="31" width="30" height="3" rx="0.6" />
+        <rect x="19.5" y="36" width="3.2" height="13" rx="0.6" />
+        <rect x="26.4" y="36" width="3.2" height="13" rx="0.6" />
+        <rect x="33.4" y="36" width="3.2" height="13" rx="0.6" />
+        <rect x="40.3" y="36" width="3.2" height="13" rx="0.6" />
+        <rect x="16" y="50" width="32" height="3" rx="0.6" />
       </g>
     </svg>
   );
