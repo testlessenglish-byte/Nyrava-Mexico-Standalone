@@ -96,7 +96,7 @@
   --warning-foreground: oklch(0.12 0.025 240);
 
   --border: rgba(216,179,106,0.22);
-  --input: #2E6350;
+  --input: rgba(39,90,71,0.30);
   --ring: #D8B36A;
 
   --sidebar: #0b1d17;
@@ -220,4 +220,12 @@
 .bg-card {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+
+.bg-input {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+input.bg-input:focus, textarea.bg-input:focus, select.bg-input:focus {
+  background-color: rgba(39,90,71,0.45);
 }
