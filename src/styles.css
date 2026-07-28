@@ -73,7 +73,7 @@
   --background: #0E241D;
   --foreground: #F5F1E6;
 
-  --card: rgba(39,90,71,0.55);
+  --card: rgba(39,90,71,0.32);
   --card-foreground: #F5F1E6;
   --popover: #234F3F;
   --popover-foreground: #F5F1E6;
@@ -119,7 +119,7 @@
   --cream-foreground: #23392f;
 
   --gradient-primary: linear-gradient(135deg, #EBD8A8, #D8B36A);
-  --gradient-panel: linear-gradient(180deg, rgba(39,90,71,0.42), rgba(34,79,63,0.46));
+  --gradient-panel: linear-gradient(180deg, rgba(39,90,71,0.28), rgba(34,79,63,0.32));
   --gradient-page: radial-gradient(ellipse at top, rgba(16,35,29,0.55), #071511 65%);
   --gradient-mx: linear-gradient(90deg, oklch(0.55 0.14 145 / 0.9), #D8B36A, oklch(0.55 0.14 145 / 0.9));
 
@@ -148,14 +148,14 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-panel);
-    backdrop-filter: blur(14px);
+    backdrop-filter: blur(18px);
   }
   .panel-glow {
     background: var(--gradient-panel);
     border: 1px solid rgba(216,179,106,0.45);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-panel), var(--shadow-glow-cyan);
-    backdrop-filter: blur(14px);
+    backdrop-filter: blur(18px);
   }
   .stat-tile {
     background: var(--gradient-panel);
@@ -213,3 +213,11 @@
   100% { transform: translateY(100%); }
 }
 .animate-scan { animation: scan-line 6s ease-in-out infinite; }
+
+/* Global glass effect for every bg-card surface across the app (cases
+   list, dashboard tiles, account page, etc.) -- transparency alone
+   reads as flat/washed out without blur behind it. */
+.bg-card {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
