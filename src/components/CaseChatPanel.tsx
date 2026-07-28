@@ -12,6 +12,7 @@ import {
   getDocumentDownloadUrl,
 } from "@/lib/cases.functions";
 import { useAddEvidenceAndRerun } from "@/hooks/useAddEvidenceAndRerun";
+import { ChatMarkdown } from "@/lib/chat-markdown";
 import {
   Loader2,
   MessageSquare,
@@ -495,9 +496,11 @@ export function CaseChatPanel({
                     m.role === "user" ? "bg-accent text-accent-foreground" : "text-foreground"
                   }`}
                 >
-                  <pre className={`whitespace-pre-wrap font-sans ${m.role === "user" ? "" : "leading-relaxed"}`}>
-                    {m.content}
-                  </pre>
+                  {m.role === "user" ? (
+                    <pre className="whitespace-pre-wrap font-sans">{m.content}</pre>
+                  ) : (
+                    <ChatMarkdown text={m.content} className="leading-relaxed" />
+                  )}
 
                   {suggestsRerun && (
                     <div className="mt-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2">
