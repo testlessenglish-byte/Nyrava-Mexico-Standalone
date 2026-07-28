@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CaseActionsMenu } from "@/components/CaseActionsMenu";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -557,21 +558,21 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
               one-line routing-benchmark stubs.
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={selected}
-                onChange={(e) => setSelected(e.target.value)}
-                disabled={isLoading || busy}
-                className="rounded-md border border-border bg-background px-3 py-2 text-sm"
-              >
-                <option value="auto">
-                  {isLoading ? "Cargando acervos…" : "Automático — detectar materia"}
-                </option>
-                {(corpora ?? []).map((c) => (
-                  <option key={c.practiceArea} value={c.practiceArea}>
-                    {c.practiceArea} ({c.fileCount} files)
-                  </option>
-                ))}
-              </select>
+              <Select value={selected} onValueChange={setSelected} disabled={isLoading || busy}>
+                <SelectTrigger className="w-auto min-w-[220px] bg-background text-sm">
+                  <SelectValue placeholder={isLoading ? "Cargando acervos…" : "Automático — detectar materia"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">
+                    {isLoading ? "Cargando acervos…" : "Automático — detectar materia"}
+                  </SelectItem>
+                  {(corpora ?? []).map((c) => (
+                    <SelectItem key={c.practiceArea} value={c.practiceArea}>
+                      {c.practiceArea} ({c.fileCount} files)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <button
                 onClick={seed}
                 disabled={!selected || busy}
