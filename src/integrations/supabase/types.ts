@@ -874,6 +874,53 @@ export type Database = {
           },
         ]
       }
+      case_events: {
+        Row: {
+          case_id: string
+          created_at: string
+          event_type: string
+          id: string
+          location: string | null
+          notes: string | null
+          scheduled_at: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          scheduled_at: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          scheduled_at?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_findings: {
         Row: {
           affected_party: string | null
@@ -1427,6 +1474,59 @@ export type Database = {
           },
         ]
       }
+      case_tasks: {
+        Row: {
+          assignee_hint: string | null
+          case_id: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string
+          status: string
+          template_key: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assignee_hint?: string | null
+          case_id: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string
+          status?: string
+          template_key?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assignee_hint?: string | null
+          case_id?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string
+          status?: string
+          template_key?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_tasks_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_theories: {
         Row: {
           case_id: string
@@ -1788,6 +1888,7 @@ export type Database = {
           jurisdiction: string | null
           jurisdiction_profile: Json | null
           legal_qa_report: Json | null
+          lifecycle_status: string | null
           name: string
           next_stage: string | null
           opportunities_at: string | null
@@ -1841,6 +1942,7 @@ export type Database = {
           jurisdiction?: string | null
           jurisdiction_profile?: Json | null
           legal_qa_report?: Json | null
+          lifecycle_status?: string | null
           name: string
           next_stage?: string | null
           opportunities_at?: string | null
@@ -1894,6 +1996,7 @@ export type Database = {
           jurisdiction?: string | null
           jurisdiction_profile?: Json | null
           legal_qa_report?: Json | null
+          lifecycle_status?: string | null
           name?: string
           next_stage?: string | null
           opportunities_at?: string | null
