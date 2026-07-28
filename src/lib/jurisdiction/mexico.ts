@@ -88,7 +88,12 @@ const MX_ALIASES: Record<string, MexicanCaseType> = {
   "dano moral": "civil",
   "daño moral": "civil",
   arrendamiento: "civil",
-  inmobiliario: "civil",
+  // "inmobiliario" is now its own materia (transactional, notarial/registral —
+  // not litigation). Removed from the civil alias table deliberately: leaving
+  // it here would silently route every real-estate matter into civil, which
+  // is exactly the bug this materia exists to fix. A real estate *dispute*
+  // (title fraud, usucapión) is still civil — that's a different fact pattern,
+  // not a naming variant, so it is not aliased here.
   // mercantil
   "derecho mercantil": "mercantil",
   "materia mercantil": "mercantil",
@@ -189,7 +194,17 @@ export function requireMexicanCaseType(value: unknown, where: string): MexicanCa
 // Procedural rules — código, órgano, etapas
 // ---------------------------------------------------------------------------
 
-export type MxCourtLevel = "federal" | "local" | "mixto";
+/**
+ * "notarial_registral" is not a court: it's the actual instancia for a
+ * non-adversarial Mexican real-estate closing — Notario Público (fe pública)
+ * plus inscription at the Registro Público de la Propiedad. Distinguished
+ * from "federal"/"local"/"mixto" deliberately rather than forced into one of
+ * them, and from `null`: assertMexicanExecutionContext() requires a real
+ * court_level/court pair for every materia (see comment at PIPELINE
+ * CONFIGURATION GATE below) — a transactional materia still needs a true
+ * answer to "what body has authority over this," it's just not a tribunal.
+ */
+export type MxCourtLevel = "federal" | "local" | "mixto" | "notarial_registral";
 
 export interface MxProceduralRules {
   /** Short code identifier handed to agents, e.g. "CNPP". */
@@ -303,6 +318,29 @@ const PROCEDURAL: Record<MexicanCaseType, MxProceduralRules> = {
     stages: ["procedimiento de inspección y vigilancia (PROFEPA, CONAGUA, ASEA, CONANP o CONAFOR según la autoridad competente)", "medidas de seguridad / clausura", "recurso de revisión (LGEEPA)", "juicio de nulidad ante el TFJA", "amparo directo o indirecto"],
     oral: false,
   },
+  inmobiliario: {
+    // Transactional, not adversarial: there is no "litigation" here unless a
+    // dispute arises, in which case the matter is civil, not inmobiliario
+    // (see the alias-table comment above). `stages` doubles as the closing
+    // milestone sequence surfaced in the Transaction Center.
+    procedural_code: "Código Civil (federal o estatal según la ubicación del inmueble) + Ley del Notariado y Reglamento del RPP estatales",
+    procedural_code_name:
+      "Régimen de compraventa e inscripción inmobiliaria: Código Civil aplicable, Ley del Notariado local y Reglamento del Registro Público de la Propiedad de la entidad donde se ubica el inmueble — el instrumento exacto depende del estado y debe confirmarse caso por caso.",
+    substantive_codes: [
+      "Código Civil Federal / código civil estatal aplicable",
+      "Ley del Notariado (estatal)",
+      "Código Fiscal de la Federación / leyes fiscales locales (ISAI, ISR enajenación de inmuebles)",
+      "Ley de Inversión Extranjera (Art. 27 CPEUM — fideicomiso en zona restringida para extranjeros)",
+    ],
+    stages: [
+      "due diligence / verificación de título",
+      "elaboración y firma de la escritura ante Notario Público",
+      "pago de impuestos de traslado de dominio (ISAI/ISR)",
+      "inscripción en el Registro Público de la Propiedad",
+      "cierre (entrega y liberación de fondos)",
+    ],
+    oral: false,
+  },
 };
 
 export function getProceduralRules(caseType: unknown): MxProceduralRules {
@@ -381,6 +419,14 @@ const COURTS: Record<MexicanCaseType, MxCourtHierarchy> = {
     court_level: "federal",
     first_instance: "Sala Regional del TFJA competente por territorio (la sala/ponencia específica depende de la autoridad emisora - PROFEPA, SEMARNAT, CONAGUA, ASEA, CONANP, CONAFOR - y debe confirmarse caso por caso; no se afirma la existencia de una sala especializada única en materia ambiental)",
     ladder: ["Sala Superior del TFJA", "Tribunal Colegiado de Circuito"],
+  },
+  inmobiliario: {
+    court_level: "notarial_registral",
+    first_instance: "Notario Público (fe pública) — formaliza la escritura de compraventa",
+    ladder: [
+      "Registro Público de la Propiedad de la entidad (inscripción y oponibilidad frente a terceros)",
+      "Si surge controversia: Juez de lo Civil de primera instancia (el asunto deja de ser inmobiliario y se convierte en civil)",
+    ],
   },
 };
 
@@ -476,6 +522,25 @@ const EVIDENCE: Record<MexicanCaseType, MxEvidenceRules> = {
     ],
     carga_probatoria: "El particular debe desvirtuar la presunción de legalidad del acta/resolución de la autoridad ambiental; en daño ambiental la Ley Federal de Responsabilidad Ambiental (LFRA) establece un régimen de responsabilidad objetiva en supuestos calificados por la propia ley (materiales o residuos peligrosos, entre otros).",
   },
+  inmobiliario: {
+    // Not a "standard of proof" in the litigation sense — this is the
+    // verification standard a closing must meet before a notario will
+    // formalize the escritura, which is the functional analogue here.
+    valoracion:
+      "Verificación documental previa a la firma: el Notario Público debe cerciorarse de la propiedad, libertad de gravámenes y regularidad fiscal del inmueble (Ley del Notariado local) antes de autorizar la escritura; no hay valoración judicial salvo que surja controversia.",
+    medios: [
+      "escritura pública / título de propiedad",
+      "certificado de libertad de gravamen (RPP)",
+      "constancia de no adeudo predial",
+      "boleta/constancia catastral",
+      "constancia de no adeudo de agua",
+      "recibo CFE",
+      "levantamiento topográfico / plano de medidas y colindancias",
+      "carta de no adeudo de la administración del condominio (HOA)",
+      "identificación oficial y, en su caso, poder notarial",
+    ],
+    carga_probatoria: "No aplica carga procesal — el comprador y su abogado asumen el riesgo de una verificación insuficiente; de ahí el rol del Verification Center.",
+  },
 };
 
 export function getEvidenceRules(caseType: unknown): MxEvidenceRules {
@@ -509,6 +574,7 @@ const PARTY_ROLES: Record<MexicanCaseType, { a: string; b: string; neutral: stri
   agrario: { a: "nucleo_ejidal", b: "parte_demandada", neutral: "ambas" },
   constitucional: { a: "promovente", b: "autoridad_responsable", neutral: "ambas" },
   ambiental: { a: "particular", b: "autoridad_ambiental", neutral: "ambas" },
+  inmobiliario: { a: "comprador", b: "vendedor", neutral: "ambas" },
 };
 
 export function getPartyRoles(caseType: unknown) {

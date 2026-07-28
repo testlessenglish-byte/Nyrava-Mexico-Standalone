@@ -17,7 +17,8 @@ export type MxCaseType =
   | "amparo"
   | "administrativo"
   | "fiscal"
-  | "constitucional";
+  | "constitucional"
+  | "inmobiliario";
 
 export interface MxClassification {
   caseType: MxCaseType;
@@ -118,6 +119,20 @@ const SIGNALS: Record<MxCaseType, Array<[RegExp, number]>> = {
     [/\bderechos humanos\b|\bcontrol de convencionalidad\b/gi, 2],
     [/\bjurisprudencia de la scjn\b/gi, 2],
   ],
+  inmobiliario: [
+    [/\bcompraventa\b/gi, 2],
+    [/\bescritura p[uú]blica\b/gi, 3],
+    [/\bnotario p[uú]blico\b/gi, 3],
+    [/\bregistro p[uú]blico de la propiedad\b|\brpp\b/gi, 3],
+    [/\bfolio real\b/gi, 3],
+    [/\bcuenta predial\b|\bpredial\b/gi, 2],
+    [/\bcatastro\b/gi, 2],
+    [/\blibertad de gravamen\b|\bgravamen\b/gi, 2],
+    [/\bfideicomiso\b/gi, 2],
+    [/\blevantamiento topogr[aá]fico\b/gi, 2],
+    [/\bcierre\b.{0,20}\binmueble\b|\bcierre inmobiliario\b/gi, 2],
+    [/\bcancelaci[oó]n de hipoteca\b/gi, 3],
+  ],
 };
 
 /** Folder/label aliases used by seeded corpora, mapped to a materia. */
@@ -139,6 +154,8 @@ const AREA_ALIASES: Record<string, MxCaseType> = {
   tax_law: "fiscal",
   constitucional: "constitucional",
   constitutional: "constitucional",
+  inmobiliario: "inmobiliario",
+  real_estate: "inmobiliario",
 };
 
 export function mxCaseTypeFromArea(area: string | null | undefined): MxCaseType | null {
@@ -210,4 +227,5 @@ export const MX_CASE_TYPE_LABELS: Record<MxCaseType, { es: string; en: string }>
   administrativo: { es: "Administrativo", en: "Administrative" },
   fiscal: { es: "Fiscal", en: "Tax" },
   constitucional: { es: "Constitucional", en: "Constitutional" },
+  inmobiliario: { es: "Bienes Raíces", en: "Real Estate" },
 };

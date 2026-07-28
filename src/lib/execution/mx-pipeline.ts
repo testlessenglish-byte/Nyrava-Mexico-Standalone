@@ -40,7 +40,8 @@ export type MxPipelineProfile =
   | "mercantil"
   | "fiscal"
   | "administrativo"
-  | "apelacion";
+  | "apelacion"
+  | "inmobiliario";
 
 export const MX_JURISDICTION = "MX" as const;
 
@@ -67,6 +68,10 @@ const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
   // recurso de revisión -> juicio de nulidad ante el TFJA), same profile
   // rationale as electoral above.
   ambiental: "administrativo",
+  // Transactional, not adversarial — does not share civil's litigation
+  // profile (that would pull in trial_prep/discovery/witness stages meant
+  // for a lawsuit, not a closing). See EXCLUDED_STAGES below.
+  inmobiliario: "inmobiliario",
 };
 
 /**
@@ -129,6 +134,11 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   administrativo: ["constitutional"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
   apelacion: ["constitutional", "witness", "trial_prep"],
+  // Cierre inmobiliario: transaccional, no contencioso. Sin partes
+  // adversas, sin audiencia, sin juicio — se excluyen todas las etapas de
+  // litigio. `report`/`scoring`/`legal_qa`/`work_product` etc. sí corren,
+  // reinterpretados por Closing Readiness en vez de Case Strength.
+  inmobiliario: ["constitutional", "witness", "trial_prep", "discovery", "litigation_strategy_center", "theories"],
 };
 
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */
@@ -164,6 +174,7 @@ export const MX_PARTY_ROLES: Record<MxPipelineProfile, { a: string; b: string; n
   fiscal: { a: "contribuyente", b: "autoridad_fiscal", neutral: "ambas" },
   administrativo: { a: "particular", b: "autoridad", neutral: "ambas" },
   apelacion: { a: "apelante", b: "apelado", neutral: "ambas" },
+  inmobiliario: { a: "comprador", b: "vendedor", neutral: "ambas" },
 };
 
 /** JSON-schema-ready enum string, e.g. `"parte_actora"|"parte_demandada"|"ambas"`, for a given case type. */

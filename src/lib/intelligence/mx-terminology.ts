@@ -54,6 +54,7 @@ export const PARTY_ROLES_BY_PROFILE: Record<MxPipelineProfile, readonly string[]
   fiscal: ["contribuyente", "autoridad fiscal", "parte actora", "parte demandada"],
   administrativo: ["particular", "autoridad administrativa", "parte actora", "parte demandada"],
   apelacion: ["apelante", "apelado", "recurrente", "autoridad de origen"],
+  inmobiliario: ["comprador", "vendedor", "Notario Público", "acreedor hipotecario"],
 };
 
 /** Materia-appropriate substitution for each US party-role label. */
@@ -127,6 +128,15 @@ const PARTY_ROLE_SUBSTITUTIONS: Record<MxPipelineProfile, Record<string, string>
     "district attorney": "parte recurrente",
     plaintiff: "apelante",
     defendant: "apelado",
+  },
+  inmobiliario: {
+    // No adversarial roles in a closing; these exist only to catch a
+    // mis-generated prompt that leaked litigation vocabulary in.
+    prosecution: "vendedor",
+    prosecutor: "vendedor",
+    "district attorney": "vendedor",
+    plaintiff: "comprador",
+    defendant: "vendedor",
   },
 };
 

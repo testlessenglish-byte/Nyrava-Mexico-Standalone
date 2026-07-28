@@ -141,6 +141,14 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "scorecard",
     "strategy_synthesis",
     "theories"
+  ],
+  "inmobiliario": [
+    "opportunities",
+    "perspectives",
+    "recommendations",
+    "risk",
+    "scorecard",
+    "transaction_center"
   ]
 };
 
@@ -239,6 +247,12 @@ export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
     "strategy",
     "theories",
     "trial"
+  ],
+  "inmobiliario": [
+    "opportunities",
+    "perspectives",
+    "scorecard",
+    "transaction_center"
   ]
 };
 
@@ -299,6 +313,10 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "constitutional_compliance",
     "cross_examination",
     "trial_prep"
+  ],
+  "inmobiliario": [
+    "property_verification",
+    "closing_readiness_scoring"
   ]
 };
 
@@ -1017,6 +1035,30 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "remediacion_ambiental",
     "residuos_peligrosos",
     "responsabilidad_ambiental_objetiva"
+  ],
+  "inmobiliario": [
+    "adeudo_agua",
+    "adeudo_cfe",
+    "adeudo_hoa",
+    "adeudo_predial",
+    "cancelacion_hipoteca",
+    "catastro",
+    "cuenta_predial",
+    "discrepancia_medidas",
+    "discrepancia_propietario",
+    "documento_faltante",
+    "documento_vencido",
+    "escritura_publica",
+    "fideicomiso_zona_restringida",
+    "firma_faltante",
+    "folio_real",
+    "gravamen",
+    "hipoteca_vigente",
+    "levantamiento_topografico",
+    "libertad_de_gravamen",
+    "permiso_construccion",
+    "poder_notarial",
+    "uso_de_suelo"
   ]
 };
 
@@ -1223,7 +1265,10 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "medidas_cautelares_ambientales",
     "ofrecimiento_pruebas",
     "recurso_de_revision"
-  ]
+  ],
+  // Deliberately empty: a closing has no motions. If a real estate matter
+  // ever needs one, it has become a dispute — i.e. civil, not inmobiliario.
+  "inmobiliario": []
 };
 
 export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
@@ -1455,6 +1500,23 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "tortious interference",
     "twombly",
     "wrongful termination"
+  ],
+  "inmobiliario": [
+    "cross examination",
+    "custody dispute",
+    "grand jury",
+    "hearsay",
+    "indictment",
+    "jury trial",
+    "miranda",
+    "motion to dismiss",
+    "plea bargain",
+    "punitive damages",
+    "sentencing",
+    "spousal support",
+    "subpoena",
+    "trial strategy",
+    "wrongful termination"
   ]
 };
 
@@ -1493,6 +1555,11 @@ export const MX_FORBIDDEN_REPORT_FIELDS: Record<MexicanCaseType, readonly string
     "constitutional_issues",
     "constitutional_issues_struct"
   ],
-  "ambiental": []
+  "ambiental": [],
+  "inmobiliario": [
+    "constitutional_issues",
+    "constitutional_issues_struct",
+    "cross_examination"
+  ]
 };
 

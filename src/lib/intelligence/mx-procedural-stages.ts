@@ -544,6 +544,43 @@ const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
       patterns: ["confirma la sentencia", "revoca la sentencia", "modifica la sentencia", "resolucion de segunda instancia"],
     },
   ],
+  inmobiliario: [
+    {
+      id: "due_diligence",
+      label_es: "Due diligence / verificación de título",
+      label_en: "Due diligence / title verification",
+      authority: "Práctica notarial estándar",
+      patterns: ["due diligence", "verificacion de titulo", "estudio de titulo"],
+    },
+    {
+      id: "firma_escritura",
+      label_es: "Firma de la escritura ante Notario Público",
+      label_en: "Deed signed before a Notario Público",
+      authority: "Ley del Notariado (estatal)",
+      patterns: ["escritura publica numero", "ante la fe del notario", "firma de la escritura"],
+    },
+    {
+      id: "pago_isai",
+      label_es: "Pago del impuesto de traslado de dominio (ISAI/ISR)",
+      label_en: "Transfer-tax payment (ISAI/ISR)",
+      authority: "Código Fiscal de la Federación / leyes fiscales locales",
+      patterns: ["impuesto sobre adquisicion de inmuebles", "isai", "pago de impuesto de traslado de dominio"],
+    },
+    {
+      id: "inscripcion_rpp",
+      label_es: "Inscripción en el Registro Público de la Propiedad",
+      label_en: "Registration at the Registro Público de la Propiedad",
+      authority: "Reglamento del Registro Público de la Propiedad (estatal)",
+      patterns: ["inscripcion en el registro publico", "folio real inscrito", "boleta de inscripcion"],
+    },
+    {
+      id: "cierre",
+      label_es: "Cierre (entrega y liberación de fondos)",
+      label_en: "Closing (possession transfer and funds release)",
+      authority: "Contrato de compraventa / instrucciones de cierre",
+      patterns: ["entrega de posesion", "liberacion de fondos", "cierre de la operacion"],
+    },
+  ],
 };
 
 export function proceduralStageMap(materia: MxPipelineProfile): readonly ProceduralStageDef[] {

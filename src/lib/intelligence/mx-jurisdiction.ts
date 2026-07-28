@@ -139,6 +139,15 @@ const MATERIA_LAW: Record<MxPipelineProfile, MateriaLaw> = {
     substantive: ["Legislación sustantiva de la primera instancia"],
     procedural: ["Código procesal aplicable a la primera instancia (recurso de apelación)"],
   },
+  inmobiliario: {
+    fuero: "comun",
+    // Not "courts" in the litigation sense — the real instancia for a
+    // closing. Kept in this field because MateriaLaw has no separate slot,
+    // and every other call site reads `courts` expecting a non-empty list.
+    courts: ["Notario Público (fe pública)", "Registro Público de la Propiedad de %STATE%"],
+    substantive: ["Código Civil de %STATE%", "Ley del Notariado de %STATE%", "Código Fiscal de la Federación / leyes fiscales locales (ISAI)"],
+    procedural: ["Reglamento del Registro Público de la Propiedad de %STATE%", "Ley del Notariado de %STATE%"],
+  },
 };
 
 const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
@@ -152,6 +161,7 @@ const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
   fiscal: ["CPEUM Art. 16", "Art. 31 fracción IV"],
   administrativo: ["CPEUM Art. 14", "Art. 16", "Art. 17"],
   apelacion: ["CPEUM Art. 14", "Art. 16", "Art. 17"],
+  inmobiliario: ["CPEUM Art. 14", "Art. 16", "Art. 27"],
 };
 
 const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
@@ -165,6 +175,7 @@ const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
   fiscal: "fiscal",
   administrativo: "administrativa",
   apelacion: "apelación",
+  inmobiliario: "inmobiliaria",
 };
 
 function normalize(s: string): string {

@@ -523,6 +523,48 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       patterns: ["admision del recurso", "se admite el recurso"],
     },
   ],
+  inmobiliario: [
+    {
+      id: "identificacion_partes",
+      label_es: "Identificación de comprador y vendedor conforme a la Ley Antilavado",
+      label_en: "Identification of buyer and seller under Mexico's AML law",
+      authority: "Ley Federal para la Prevención e Identificación de Operaciones con Recursos de Procedencia Ilícita",
+      requirement: "required",
+      patterns: ["identificacion oficial", "ine", "pasaporte", "expediente de identificacion"],
+    },
+    {
+      id: "libertad_gravamen_verificada",
+      label_es: "Certificado de libertad de gravamen verificado antes de la firma",
+      label_en: "No-lien certificate verified before signing",
+      authority: "Ley del Notariado (estatal) — deber de verificación previa del notario",
+      requirement: "required",
+      patterns: ["libertad de gravamen", "certificado de gravamenes"],
+    },
+    {
+      id: "fideicomiso_zona_restringida",
+      label_es: "Fideicomiso bancario si el comprador es extranjero y el inmueble está en zona restringida",
+      label_en: "Bank trust (fideicomiso) if the buyer is foreign and the property is in the restricted zone",
+      authority: "CPEUM Art. 27; Ley de Inversión Extranjera",
+      requirement: "recommended",
+      patterns: ["fideicomiso", "zona restringida", "banco fiduciario"],
+    },
+    {
+      id: "pago_isai",
+      label_es: "Comprobante de pago del impuesto de traslado de dominio (ISAI)",
+      label_en: "Proof of transfer-tax (ISAI) payment",
+      authority: "Código Fiscal de la Federación / leyes fiscales locales",
+      requirement: "required",
+      patterns: ["isai", "impuesto sobre adquisicion de inmuebles"],
+    },
+    {
+      id: "inscripcion_rpp_confirmada",
+      label_es: "Confirmación de inscripción en el Registro Público de la Propiedad",
+      label_en: "Confirmation of registration at the Registro Público de la Propiedad",
+      authority: "Reglamento del Registro Público de la Propiedad (estatal)",
+      requirement: "required",
+      patterns: ["boleta de inscripcion", "folio real inscrito"],
+    },
+  ],
 };
 
 function normalize(s: string): string {

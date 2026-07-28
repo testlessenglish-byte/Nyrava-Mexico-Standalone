@@ -396,6 +396,15 @@ const RULES: Record<MxPipelineProfile, readonly DeadlineRule[]> = {
       basis: () => `5 días hábiles contados a partir de la notificación de la sentencia recurrida (CNPP Art. 471; el código procesal local puede prever un plazo distinto).`,
     },
   ],
+  // Deliberately empty. This engine computes STATUTORY plazos/prescripción
+  // for litigation, triggered by procedural events (notificación,
+  // emplazamiento, etc.). A closing has no such statutory clock — its dates
+  // (closing date, ISAI payment window, RPP inscription) are contractual or
+  // administrative, tracked via `closing_milestones` (see the integration
+  // plan), not this engine. If a real estate matter ever needs a genuine
+  // statutory deadline rule here, it has become a dispute — i.e. civil, not
+  // inmobiliario — same principle as the empty MX_MOTION_TYPES entry.
+  inmobiliario: [],
 };
 
 export function deadlineRules(materia: MxPipelineProfile): readonly DeadlineRule[] {

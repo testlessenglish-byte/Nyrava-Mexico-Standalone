@@ -397,6 +397,29 @@ const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
     drafting_notes:
       "Identificar con precisión el acto impugnado (acta de inspección, medida de seguridad, resolución sancionadora, negativa de permiso), la autoridad emisora (PROFEPA, SEMARNAT, CONAGUA, ASEA, CONANP o CONAFOR), su fecha de notificación y el plazo aplicable. Distinguir la vía de recurso de revisión de la vía directa de juicio de nulidad ante el TFJA, y evaluar si procede amparo indirecto fundado en el Art. 4 CPEUM. Aviso: este perfil de materia se incorporó recientemente al motor; el abogado responsable debe confirmar contra la fuente primaria vigente los números de artículo, la sala/ponencia competente del TFJA y cualquier tesis o precedente antes de que se incluyan en el producto de trabajo final.",
   },
+  inmobiliario: {
+    label: "Bienes Raíces (transacción inmobiliaria — compraventa, cierre, due diligence de título; no litigio)",
+    controlling_standards:
+      "No es una materia litigiosa: es una transacción regida por el Código Civil aplicable (federal o estatal, según la ubicación del inmueble), la Ley del Notariado de la entidad correspondiente y el Reglamento del Registro Público de la Propiedad (RPP) de esa entidad. El Notario Público ejerce fe pública, verifica la propiedad y la libertad de gravámenes antes de autorizar la escritura, y es responsable de calcular y enterar el impuesto de traslado de dominio (ISAI/ISR según el caso). Si el comprador es extranjero y el inmueble se ubica en la zona restringida (100 km de fronteras / 50 km de costas), el Art. 27 CPEUM y la Ley de Inversión Extranjera exigen adquisición vía fideicomiso bancario. Toda transacción de valor relevante está sujeta a las obligaciones de identificación de las partes de la Ley Federal para la Prevención e Identificación de Operaciones con Recursos de Procedencia Ilícita (Ley Antilavado). Si surge una controversia sobre el inmueble (nulidad de la compraventa, fraude en el título, vicios ocultos, usucapión), el asunto deja de ser inmobiliario y pasa a tramitarse como civil — este perfil no cubre esos supuestos.",
+    key_cases: [
+      "Código Civil aplicable (federal o estatal) — régimen de compraventa, título de propiedad y vicios del consentimiento",
+      "Ley del Notariado de la entidad donde se ubica el inmueble — deberes de verificación del notario",
+      "Reglamento del Registro Público de la Propiedad de la entidad — inscripción y oponibilidad frente a terceros",
+      "CPEUM Art. 27; Ley de Inversión Extranjera — fideicomiso para adquisición extranjera en zona restringida",
+      "Ley Federal para la Prevención e Identificación de Operaciones con Recursos de Procedencia Ilícita — identificación de las partes",
+      "No se han incorporado tesis o precedentes jurisprudenciales a este perfil, porque el flujo estándar no es contencioso; no citar jurisprudencia bajo este perfil salvo que el asunto haya derivado en una controversia (en cuyo caso corresponde al perfil civil).",
+    ],
+    canonical_motions: [],
+    evidentiary_rules: [
+      "El estándar aquí no es un régimen probatorio judicial, sino el deber de verificación documental del notario antes de autorizar la escritura: título de propiedad, libertad de gravamen, regularidad fiscal (predial) y, en su caso, cancelación de hipoteca previa.",
+      "La escritura pública, el certificado de libertad de gravamen y la boleta catastral son los documentos centrales para acreditar la titularidad y el estado registral del inmueble.",
+      "Las discrepancias entre el nombre del propietario, las medidas y colindancias, el folio real o la clave catastral entre distintos documentos (escritura, catastro, predial, levantamiento topográfico) son la señal de riesgo más común y deben resolverse antes del cierre, no después.",
+    ],
+    damages_or_remedies:
+      "No aplica en el sentido litigioso. El resultado esperado es el cierre: escritura firmada, impuestos pagados, inscripción en el RPP completada y fondos liberados. Si el due diligence revela un defecto de título no subsanable antes del cierre, la vía es renegociar o no cerrar la operación, no un remedio judicial — salvo que la contraparte incumpla el contrato de compraventa, en cuyo caso el asunto se convierte en civil.",
+    drafting_notes:
+      "Este perfil es transaccional: el 'producto de trabajo' no son escritos procesales sino verificación de documentos, cartas de solicitud al cliente y reportes de due diligence/cierre. Aviso: este perfil se incorporó recientemente al motor junto con la materia inmobiliario; el abogado responsable debe confirmar los requisitos exactos (documentos, impuestos, plazos de inscripción) contra la Ley del Notariado y el Reglamento del RPP del estado específico donde se ubica el inmueble antes de que se incluyan en un producto de trabajo final — estos varían por entidad y no están unificados a nivel nacional.",
+  },
 };
 
 /**

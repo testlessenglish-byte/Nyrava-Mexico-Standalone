@@ -361,6 +361,78 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["expediente de primera instancia", "autos originales"],
     },
   ],
+  inmobiliario: [
+    {
+      id: "escritura_publica",
+      label_es: "Escritura pública de propiedad",
+      label_en: "Public deed of title",
+      authority: "Ley del Notariado (estatal)",
+      patterns: ["escritura publica", "escritura numero", "ante la fe del notario"],
+    },
+    {
+      id: "libertad_gravamen",
+      label_es: "Certificado de libertad de gravamen",
+      label_en: "Certificate of no liens",
+      authority: "Registro Público de la Propiedad",
+      patterns: ["libertad de gravamen", "certificado de gravamenes"],
+    },
+    {
+      id: "no_adeudo_predial",
+      label_es: "Constancia de no adeudo predial",
+      label_en: "Property-tax good-standing certificate",
+      authority: "Tesorería municipal",
+      patterns: ["no adeudo predial", "constancia de no adeudo del impuesto predial"],
+    },
+    {
+      id: "constancia_catastral",
+      label_es: "Boleta / constancia catastral",
+      label_en: "Cadastral certificate",
+      authority: "Dirección de Catastro municipal",
+      patterns: ["constancia catastral", "boleta catastral", "clave catastral"],
+    },
+    {
+      id: "no_adeudo_agua",
+      label_es: "Constancia de no adeudo de agua",
+      label_en: "Water good-standing certificate",
+      authority: "Organismo operador de agua municipal",
+      patterns: ["no adeudo de agua", "constancia de no adeudo del servicio de agua"],
+    },
+    {
+      id: "recibo_cfe",
+      label_es: "Recibo de CFE al corriente",
+      label_en: "Current CFE (electricity) bill",
+      authority: "Comisión Federal de Electricidad",
+      patterns: ["comision federal de electricidad", "recibo cfe"],
+    },
+    {
+      id: "levantamiento_topografico",
+      label_es: "Levantamiento topográfico / plano de medidas y colindancias",
+      label_en: "Survey / boundary and measurement plan",
+      authority: "N/A — instrumento técnico",
+      patterns: ["levantamiento topografico", "medidas y colindancias"],
+    },
+    {
+      id: "carta_no_adeudo_hoa",
+      label_es: "Carta de no adeudo de la administración (HOA)",
+      label_en: "HOA good-standing letter",
+      authority: "Administración del condominio / fraccionamiento",
+      patterns: ["no adeudo de mantenimiento", "administracion del condominio", "cuotas de mantenimiento al corriente"],
+    },
+    {
+      id: "cancelacion_hipoteca",
+      label_es: "Cancelación de hipoteca (si aplica)",
+      label_en: "Mortgage release (if applicable)",
+      authority: "Registro Público de la Propiedad",
+      patterns: ["cancelacion de hipoteca", "liberacion de gravamen hipotecario"],
+    },
+    {
+      id: "poder_notarial",
+      label_es: "Poder notarial (si se actúa por representación)",
+      label_en: "Power of attorney (if acting by representation)",
+      authority: "Ley del Notariado (estatal)",
+      patterns: ["poder notarial", "poder general para actos de dominio"],
+    },
+  ],
 };
 
 export function requiredDocuments(materia: MxPipelineProfile): readonly RequiredDocument[] {

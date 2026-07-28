@@ -110,6 +110,9 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "procedural_violations",
   "trial_prep",
   "cross_examination",
+  // Real estate (inmobiliario) only:
+  "property_verification",
+  "closing_readiness_scoring",
 ]);
 
 const UNIVERSAL_FINDING_MODULES = [
@@ -378,6 +381,15 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
       { value: "electoral", label: "Derecho Electoral (medios de impugnación, TEPJF)" },
       { value: "agrario", label: "Derecho Agrario (tribunales unitarios agrarios)" },
       { value: "ambiental", label: "Derecho Ambiental (LGEEPA, PROFEPA, impacto ambiental)" },
+    ],
+  },
+  {
+    group: "Bienes Raíces",
+    options: [
+      {
+        value: "inmobiliario",
+        label: "Bienes Raíces (compraventa, cierre, due diligence de título — transaccional, no litigio)",
+      },
     ],
   },
 ];
