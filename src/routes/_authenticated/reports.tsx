@@ -66,10 +66,8 @@ function ReportsPage() {
         ? t("reports.mode.limited")
         : null;
 
-  const run = (fn: () => void, labelKey: string) => {
-    try {
-      fn();
-    } catch (e) {
+  const run = (fn: () => void | Promise<void>, labelKey: string) => {
+    const onFail = (e: unknown) => {
       console.error("[export] failed", labelKey, e);
       toast.error(
         t("reports.toast.exportFailed", {
@@ -77,6 +75,12 @@ function ReportsPage() {
           error: e instanceof Error ? e.message : t("reports.error.unknown"),
         }),
       );
+    };
+    try {
+      const result = fn();
+      if (result instanceof Promise) result.catch(onFail);
+    } catch (e) {
+      onFail(e);
     }
   };
 

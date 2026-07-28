@@ -7,6 +7,39 @@
 // internal structure is rendered as readable prose, tables, or callouts.
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+
+// Fetches the actual crest logo asset once and caches it as a base64 data
+// URL for jsPDF's addImage(), which needs a base64 string or data URL
+// rather than a plain file path. Cached at module scope so repeated PDF
+// exports in the same session don't re-fetch/re-encode it every time.
+let logoBase64Cache: Promise<string | null> | null = null;
+function getLogoBase64(): Promise<string | null> {
+  if (!logoBase64Cache) {
+    logoBase64Cache = fetch("/brand/nyrava-eagle-badge.png")
+      .then((res) => {
+        if (!res.ok) throw new Error(`logo fetch failed: ${res.status}`);
+        return res.blob();
+      })
+      .then(
+        (blob) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+          }),
+      )
+      .catch((e) => {
+        // Logo is a nice-to-have, not a report-blocker — if it fails to
+        // load (offline export, asset moved, etc.), fall back to the
+        // vector shield mark rather than failing the whole export.
+        console.error("[export] logo load failed, falling back to vector mark", e);
+        return null;
+      });
+  }
+  return logoBase64Cache;
+}
+
 import {
   Document,
   Packer,
@@ -474,6 +507,11 @@ class PdfBuilder {
   pageH: number;
   y: number;
   caseName: string;
+  // The real crest image, loaded once via loadLogo() before any drawing
+  // happens. Null until loaded, and stays null if the fetch failed —
+  // logoMark()/trustBadge() fall back to the vector shield mark in that
+  // case so a logo hiccup never blocks the whole export.
+  logoBase64: string | null = null;
   // Track whether we've rendered ANY body content yet. Only the cover
   // page forces a hard break; after that, sections flow naturally.
   private firstSectionRendered = false;
@@ -514,6 +552,14 @@ class PdfBuilder {
 
   }
 
+  /** Loads the real crest image once, before any drawing happens. Must be
+   * awaited by the caller (downloadPdf) right after construction — every
+   * other builder method stays synchronous because by the time they run,
+   * this has already resolved. */
+  async loadLogo() {
+    this.logoBase64 = await getLogoBase64();
+  }
+
   ensureSpace(needed: number) {
     if (this.y + needed > this.pageH - this.margin - 24) {
       this.doc.addPage();
@@ -545,14 +591,21 @@ class PdfBuilder {
     return lines.length * (size * 1.55) + gap;
   }
 
-  // Rounded-square "N" mark matching the site's header icon: a dark
-  // square with a thin cyan border and a bold letterform inside, rather
-  // than a standalone geometric shape. (cx, cy) is the icon's center;
-  // r is roughly the half-height of the square.
+  // Small header/footer logo. Draws the real crest image when loaded;
+  // falls back to the vector rounded-square "N" mark if the fetch failed
+  // (offline export, asset moved, etc.) so a logo hiccup never blocks the
+  // whole report.
   logoMark(cx: number, cy: number, r: number) {
     const size = r * 2;
     const x = cx - r;
     const y = cy - r;
+    if (this.logoBase64) {
+      this.doc.setDrawColor(...BRAND_CYAN);
+      this.doc.setLineWidth(0.75);
+      this.doc.circle(cx, cy, r * 1.08, "S");
+      this.doc.addImage(this.logoBase64, "PNG", x, y, size, size);
+      return;
+    }
     this.doc.setFillColor(...NAVY_TINT);
     this.doc.roundedRect(x, y, size, size, r * 0.3, r * 0.3, "F");
     this.doc.setDrawColor(...BRAND_CYAN);
@@ -615,10 +668,21 @@ class PdfBuilder {
     this.doc.lines(segs, start[0], start[1], [1, 1], style, true);
   }
 
+  // Large cover-page badge. Draws the real crest image when loaded; falls
+  // back to the vector shield+"N" mark otherwise.
   trustBadge(cx: number, cy: number, h: number) {
     const w = h * (64 / 72);
     const x0 = cx - w / 2;
     const y0 = cy - h / 2;
+
+    if (this.logoBase64) {
+      const size = h * 0.92;
+      this.doc.setDrawColor(...SILVER);
+      this.doc.setLineWidth(Math.max(0.75, h * 0.02));
+      this.doc.circle(cx, cy, size / 2 + size * 0.04, "S");
+      this.doc.addImage(this.logoBase64, "PNG", cx - size / 2, cy - size / 2, size, size);
+      return;
+    }
 
     this.doc.setFillColor(...SHIELD_DARK);
     this.doc.setDrawColor(...SILVER);
@@ -4369,7 +4433,7 @@ function validateParity(opts: {
   }
 }
 
-export function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
+export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
   // Attorney mode (default): inline "[DOC N p.M]" citations become numbered
   // footnotes resolved to real document titles, collected in an Evidence
   // Sources appendix. Audit mode: citations stay inline but are rewritten to
@@ -4386,6 +4450,7 @@ export function downloadPdf(data: CaseExportData, name: string, opts?: { citatio
 
 
   const b = new PdfBuilder(name);
+  await b.loadLogo();
   const reportRow = (data.report ?? {}) as Record<string, unknown>;
 
   const mode = getReportMode(reportRow);
