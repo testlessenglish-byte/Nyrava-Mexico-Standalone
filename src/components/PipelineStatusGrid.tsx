@@ -13,15 +13,32 @@ import type { StageState } from "@/lib/execution/canonical";
 import { isStageRelevantForCaseType, stageLabelKey, statusLabelKey } from "@/lib/execution/mx-pipeline";
 import { useI18n } from "@/i18n";
 
-function tone(state: StageState) {
+// Status text color only — the card itself stays a uniform, consistent
+// background for every tile (matching how BigMetric colors just the number,
+// not the whole card). Tinting every tile's background per-status was what
+// made the grid look inconsistent and low-contrast (especially "skipped"
+// tiles, which read as a random washed-out green instead of a neutral,
+// clearly-secondary state).
+function toneText(state: StageState) {
   switch (state) {
-    case "complete": return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
-    case "running":  return "border-primary/40 bg-primary/10 text-primary animate-pulse";
-    case "failed":   return "border-red-500/40 bg-red-500/10 text-red-300";
-    case "blocked":  return "border-orange-500/40 bg-orange-500/10 text-orange-300";
-    case "waiting":  return "border-amber-500/40 bg-amber-500/10 text-amber-300";
-    case "skipped":  return "border-border bg-muted text-muted-foreground";
-    default:         return "border-border bg-muted text-muted-foreground";
+    case "complete": return "text-success";
+    case "running":  return "text-primary";
+    case "failed":   return "text-destructive";
+    case "blocked":  return "text-warning";
+    case "waiting":  return "text-warning";
+    case "skipped":  return "text-muted-foreground";
+    default:         return "text-muted-foreground";
+  }
+}
+
+function toneRing(state: StageState) {
+  switch (state) {
+    case "complete": return "border-success/30";
+    case "running":  return "border-primary/40 animate-pulse";
+    case "failed":   return "border-destructive/40";
+    case "blocked":  return "border-warning/30";
+    case "waiting":  return "border-warning/30";
+    default:         return "border-border";
   }
 }
 
@@ -57,19 +74,23 @@ export function PipelineStatusGrid({ caseRow }: { caseRow: Case; runs?: unknown 
           return (
             <li
               key={s.key}
-              className={`flex flex-col gap-1 rounded-md border px-3 py-2 text-sm ${tone(s.state)}`}
+              className={`flex flex-col gap-1 rounded-md border bg-secondary/40 px-3 py-2 text-sm ${toneRing(s.state)}`}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[10px] font-semibold tabular-nums">
+                  <span
+                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[10px] font-semibold tabular-nums ${toneText(s.state)}`}
+                  >
                     {i + 1}
                   </span>
-                  <span className="font-medium">{t(stageLabelKey(s.key, caseType))}</span>
+                  <span className="font-medium text-foreground">{t(stageLabelKey(s.key, caseType))}</span>
                 </span>
-                <span className="text-xs uppercase tracking-wide">{t(statusLabelKey(s.state))}</span>
+                <span className={`text-xs font-semibold uppercase tracking-wide ${toneText(s.state)}`}>
+                  {t(statusLabelKey(s.state))}
+                </span>
               </div>
               {detail ? (
-                <p className="pl-7 text-xs leading-snug opacity-80" title={detail}>
+                <p className="pl-7 text-xs leading-snug text-muted-foreground" title={detail}>
                   {detail.length > 160 ? `${detail.slice(0, 160)}…` : detail}
                 </p>
               ) : null}
