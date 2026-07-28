@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle } from "lucide-react";
+import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
 import {
   getTransactionCenter,
   updateClosingMilestone,
