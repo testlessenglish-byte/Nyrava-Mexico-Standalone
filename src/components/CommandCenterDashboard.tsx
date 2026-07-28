@@ -357,6 +357,9 @@ export function CommandCenterDashboard({
                   <stop offset="0%" stopColor="#D8B36A" />
                   <stop offset="100%" stopColor="#F3E3B8" />
                 </linearGradient>
+                <clipPath id="hubClip">
+                  <circle cx="50" cy="50" r="7.3" />
+                </clipPath>
               </defs>
 
               {/* core glow */}
@@ -462,20 +465,19 @@ export function CommandCenterDashboard({
                 );
               })}
 
-              {/* center badge */}
+              {/* center badge — the real crest logo, clipped to a circle */}
               <g>
-                <circle cx="50" cy="50" r="8" fill="#15150F" stroke="url(#nyrStroke)" strokeWidth="0.4" />
-                <text
-                  x="50"
-                  y="52.5"
-                  textAnchor="middle"
-                  fontSize="4.2"
-                  fontWeight="700"
-                  fill="#F3E3B8"
-                  fontFamily="system-ui"
-                >
-                  N
-                </text>
+                <circle cx="50" cy="50" r="8" fill="#15150F" />
+                <image
+                  href="/brand/nyrava-eagle-badge.png"
+                  x="42.5"
+                  y="42.5"
+                  width="15"
+                  height="15"
+                  clipPath="url(#hubClip)"
+                  preserveAspectRatio="xMidYMid slice"
+                />
+                <circle cx="50" cy="50" r="8" fill="none" stroke="url(#nyrStroke)" strokeWidth="0.4" />
               </g>
             </svg>
           </div>
