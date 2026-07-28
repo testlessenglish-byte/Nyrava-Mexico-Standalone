@@ -12,12 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, Paperclip } from "lucide-react";
+import { VerificationItemWorkspace } from "@/components/realestate/VerificationItemWorkspace";
 import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
 import {
   getTransactionCenter,
   updateClosingMilestone,
-  upsertVerificationItem,
+
   type VerificationCategory,
   type VerificationItem,
 } from "@/lib/real-estate.functions";
@@ -65,6 +66,7 @@ const VERIFICATION_CATEGORIES = Object.keys(CATEGORY_LABELS) as VerificationCate
 export function TransactionCenterPanel({ caseId }: { caseId: string }) {
   const qc = useQueryClient();
   const queryKey = ["transaction-center", caseId];
+  const [openCategory, setOpenCategory] = useState<VerificationCategory | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -80,19 +82,8 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
     onSuccess: invalidate,
   });
 
-  const setVerificationFn = useServerFn(upsertVerificationItem);
-  const verificationM = useMutation({
-    mutationFn: (args: { category: VerificationCategory; status: VerificationItem["status"] }) =>
-      setVerificationFn({
-        data: {
-          caseId,
-          category: args.category,
-          status: args.status,
-          verification_mode: "manual",
-        },
-      }),
-    onSuccess: invalidate,
-  });
+
+
 
   if (isLoading) {
     return (
@@ -185,6 +176,10 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Centro de Verificación</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Abre cualquier requisito para subir el documento, anotarlo, consultar a Nyrava Intelligence
+            o redactar la solicitud a quien lo expide.
+          </p>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
           {VERIFICATION_CATEGORIES.map((cat) => {
@@ -193,33 +188,46 @@ export function TransactionCenterPanel({ caseId }: { caseId: string }) {
             const meta = STATUS_META[status];
             const Icon = meta.icon;
             return (
-              <div key={cat} className="flex items-center justify-between rounded-lg border border-border p-3">
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setOpenCategory(cat)}
+                className="flex w-full items-center justify-between rounded-lg border border-border p-3 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
+              >
                 <div>
                   <div className="text-sm font-medium">{CATEGORY_LABELS[cat].es}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {MODE_LABEL[item?.verification_mode ?? "manual"]}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{MODE_LABEL[item?.verification_mode ?? "manual"]}</span>
+                    {item?.evidence_document_id && (
+                      <span className="inline-flex items-center gap-1">
+                        <Paperclip className="h-3 w-3" /> 1
+                      </span>
+                    )}
+                    {item?.notes ? <span>· con notas</span> : null}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  disabled={verificationM.isPending}
-                  onClick={() => {
-                    const order: VerificationItem["status"][] = ["pending", "verified", "issue_found", "missing"];
-                    const next = order[(order.indexOf(status) + 1) % order.length];
-                    verificationM.mutate({ category: cat, status: next });
-                  }}
-                  title="Clic para cambiar el estatus"
-                >
-                  <Badge variant="outline" className={`gap-1 ${meta.className}`}>
-                    <Icon className="h-3 w-3" />
-                    {meta.label}
-                  </Badge>
-                </button>
-              </div>
+                <Badge variant="outline" className={`gap-1 ${meta.className}`}>
+                  <Icon className="h-3 w-3" />
+                  {meta.label}
+                </Badge>
+              </button>
             );
           })}
         </CardContent>
       </Card>
+
+      {openCategory && (
+        <VerificationItemWorkspace
+          caseId={caseId}
+          category={openCategory}
+          categoryLabel={CATEGORY_LABELS[openCategory].es}
+          item={byCategory.get(openCategory)}
+          open
+          onOpenChange={(v) => !v && setOpenCategory(null)}
+          onChanged={invalidate}
+        />
+      )}
+
 
       {/* Core Parties panel, second mount point (one component, no duplication). */}
       <Card>
