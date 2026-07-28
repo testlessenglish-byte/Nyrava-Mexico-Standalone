@@ -136,9 +136,33 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   apelacion: ["constitutional", "witness", "trial_prep"],
   // Cierre inmobiliario: transaccional, no contencioso. Sin partes
   // adversas, sin audiencia, sin juicio — se excluyen todas las etapas de
-  // litigio. `report`/`scoring`/`legal_qa`/`work_product` etc. sí corren,
-  // reinterpretados por Closing Readiness en vez de Case Strength.
-  inmobiliario: ["constitutional", "witness", "trial_prep", "discovery", "litigation_strategy_center", "theories"],
+  // litigio. `strategy` and `work_product` are ALSO excluded here, not just
+  // the obviously-litigation ones above: both engines (engines.server.ts)
+  // hardcode a binary criminal/civil-litigation branch — theory_type
+  // "plaintiff"|"defense"|"prosecution"|"alternative", document_type
+  // "motion_for_summary_judgment"|"discovery_request"|"cross_exam_plan"|
+  // "trial_outline"|"settlement_demand"|"mediation_brief" — with no
+  // materia-aware branch and no fallback for a non-adversarial transaction.
+  // Running them for inmobiliario would ask the AI to draft a motion for a
+  // home closing rather than producing anything usable. This is pre-existing
+  // staleness in those two engines (same category as the ~50 files flagged
+  // in MIGRATION_NOTES.md as still containing U.S. litigation logic), not
+  // something newly introduced — excluding the stage is the honest fix
+  // until those engines get a real transactional-document branch (see the
+  // integration plan's §3.8 "document drafting" — scoped, not yet built).
+  // `report`/`scoring`/`legal_qa`/`contradictions`/`perspectives`/
+  // `opportunities` were checked too and degrade gracefully (empty filters,
+  // not hard failures) rather than producing wrong output, so they stay on.
+  inmobiliario: [
+    "constitutional",
+    "witness",
+    "trial_prep",
+    "discovery",
+    "litigation_strategy_center",
+    "theories",
+    "strategy",
+    "work_product",
+  ],
 };
 
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */
