@@ -14,10 +14,9 @@ import {
 
 const uuid = z.string().uuid();
 
-async function assertCaseAccess(
-  supabase: NonNullable<Parameters<typeof Object.keys>[0]> extends never ? never : any,
-  caseId: string,
-) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function assertCaseAccess(supabase: any, caseId: string) {
+
   const { data, error } = await supabase
     .from("cases")
     .select("id, case_type, additional_domains, lifecycle_status")
