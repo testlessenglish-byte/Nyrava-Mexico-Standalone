@@ -102,7 +102,9 @@ import {
   Trash2,
   RotateCcw,
   Undo2,
+  Building2,
 } from "lucide-react";
+import { TransactionCenterPanel } from "@/components/TransactionCenterPanel";
 
 export const Route = createFileRoute("/_authenticated/cases/$caseId")({
   head: () => ({ meta: [{ title: "Case workspace — Nyrava" }] }),
@@ -127,7 +129,8 @@ type Tab =
   | "work"
   | "scorecard"
   | "chat"
-  | "report";
+  | "report"
+  | "transaction_center";
 
 const RUNNING_STATUSES = new Set([
   "queued",
@@ -176,6 +179,7 @@ const VALID_TABS = new Set<Tab>([
   "scorecard",
   "chat",
   "report",
+  "transaction_center",
 ]);
 
 function Workspace() {
@@ -427,6 +431,7 @@ function Workspace() {
     { k: "trial", label: t("caseTab.trial"), icon: ShieldCheck, count: trialPrepCount },
     { k: "work", label: t("caseTab.work"), icon: BookOpen, count: workProduct.length },
     { k: "scorecard", label: t("caseTab.scorecard"), icon: Activity, count: scorecardCount },
+    { k: "transaction_center", label: "Centro de Transacción", icon: Building2 },
     { k: "chat", label: t("caseTab.chat"), icon: MessageSquare },
     { k: "report", label: t("caseTab.report"), icon: FileText, count: reportCount },
   ];
@@ -721,6 +726,7 @@ function Workspace() {
             {tab === "trial" && <TrialPrepTab t={trialPrep} ranAt={c.trial_prep_at} />}
             {tab === "work" && <WorkProductTab docs={workProduct} />}
             {tab === "scorecard" && <ScorecardTab s={score as unknown as Score | null} />}
+            {tab === "transaction_center" && <TransactionCenterPanel caseId={c.id} />}
             {tab === "chat" && <ChatTab caseId={caseId} />}
             {tab === "report" && <ReportTab r={report as unknown as Report | null} />}
           </div>
