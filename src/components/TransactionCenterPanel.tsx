@@ -59,8 +59,10 @@ const VERIFICATION_CATEGORIES: VerificationCategory[] = [
 
 export function TransactionCenterPanel({ caseId }: { caseId: string }) {
   const qc = useQueryClient();
+  const { t, locale } = useI18n();
   const queryKey = ["transaction-center", caseId];
   const [openCategory, setOpenCategory] = useState<VerificationCategory | null>(null);
+
 
   const { data, isLoading } = useQuery({
     queryKey,
