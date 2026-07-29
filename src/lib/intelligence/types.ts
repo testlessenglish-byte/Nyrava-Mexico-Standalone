@@ -114,14 +114,16 @@ export type TrialPrep = {
 };
 
 export type WorkProductDoc = {
-  document_type:
-    | "motion_to_suppress"
-    | "motion_to_dismiss"
-    | "discovery_request"
-    | "cross_exam_plan"
-    | "witness_prep"
-    | "trial_outline"
-    | "case_summary";
+  /**
+   * Mexican procedural drafting vehicle id — see
+   * src/lib/jurisdiction/mx-work-product.ts, which is materia-aware
+   * (`demanda_de_amparo`, `solicitud_exclusion_prueba_ilicita`,
+   * `recurso_de_revocacion`, …). Previously a fixed U.S. union
+   * (motion_to_suppress | motion_for_summary_judgment | discovery_request),
+   * none of which are Mexican instruments. `case_summary` is preserved as the
+   * factual-summary id because the report/PDF gate keys on it.
+   */
+  document_type: string;
   title: string;
   body_markdown: string;
   cited_finding_ids?: string[];

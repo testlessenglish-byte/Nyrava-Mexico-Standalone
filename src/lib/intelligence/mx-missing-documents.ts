@@ -412,9 +412,9 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["levantamiento topografico", "medidas y colindancias"],
     },
     {
-      id: "carta_no_adeudo_hoa",
-      label_es: "Carta de no adeudo de la administración (HOA)",
-      label_en: "HOA good-standing letter",
+      id: "carta_no_adeudo_condominio",
+      label_es: "Carta de no adeudo de cuotas de condominio",
+      label_en: "Condominium dues clearance letter",
       authority: "Administración del condominio / fraccionamiento",
       patterns: ["no adeudo de mantenimiento", "administracion del condominio", "cuotas de mantenimiento al corriente"],
     },

@@ -1310,21 +1310,23 @@ export async function runWorkProductEngine(args: {
   const ctx = await buildContext(db, caseId);
   if (!ctx.corpus) throw new Error("No extracted documents.");
 
-  const { resolveCaseType, isCriminalCaseType } = await import("../pipeline.server");
+  const { resolveCaseType } = await import("../pipeline.server");
   const { filterByCaseType } = await import("./evidence-gate.server");
   const { buildCorpusIndex, verifyWorkProductBody, formatUnsupportedBanner, insufficientEvidenceStub } =
     await import("./work-product-verify.server");
+  const { requireMxProfile, MX_PARTY_ROLES } = await import("@/lib/execution/mx-pipeline");
+  const { mxWorkProductEnum, mxWorkProductGuide } = await import("@/lib/jurisdiction/mx-work-product");
   const caseType = await resolveCaseType(db, caseId, ctx.corpus.slice(0, 4000));
-  const isCriminal = isCriminalCaseType(caseType);
-  const allowedTypes = isCriminal
-    ? `"motion_to_suppress"|"motion_to_dismiss"|"discovery_request"|"cross_exam_plan"|"witness_prep"|"trial_outline"|"case_summary"`
-    : `"motion_to_dismiss"|"motion_for_summary_judgment"|"discovery_request"|"cross_exam_plan"|"witness_prep"|"trial_outline"|"case_summary"|"settlement_demand"|"mediation_brief"`;
-  const requiredList = isCriminal
-    ? "case_summary, motion_to_suppress (if any 4A/5A issue), motion_to_dismiss (if appropriate), discovery_request, cross_exam_plan, trial_outline"
-    : "case_summary, motion_for_summary_judgment (if appropriate), discovery_request, cross_exam_plan, trial_outline, settlement_demand";
-  const caseFrame = isCriminal
-    ? `This is a CRIMINAL matter (case_type=${caseType}). Criminal terminology is appropriate.`
-    : `This is a CIVIL matter (case_type=${caseType}). NEVER produce motion_to_suppress, Miranda, Brady, search-and-seizure, or other criminal-only documents. Use civil terminology only.`;
+  // Materia-aware drafting: every vehicle below is a real Mexican procedural
+  // instrument for THIS materia. The previous criminal/civil binary offered
+  // motion_to_suppress / motion_for_summary_judgment / discovery_request,
+  // none of which exist in Mexican procedure.
+  const profile = requireMxProfile(caseType);
+  const roles = MX_PARTY_ROLES[profile];
+  const allowedTypes = mxWorkProductEnum(profile);
+  const requiredList = mxWorkProductGuide(profile, await getReportLocale(db, caseId));
+  const caseFrame = `Materia mexicana: ${caseType} (perfil procesal: ${profile}). Partes: ${roles.a} / ${roles.b}. Redacta conforme al derecho mexicano y al código procesal aplicable a esta materia. PROHIBIDO redactar instrumentos que no existen en México (motion to suppress, motion to dismiss, motion for summary judgment, discovery request, deposition notice, subpoena) y PROHIBIDO invocar doctrina o enmiendas constitucionales de EE.UU.`;
+
 
   // Pull the raw document rows used to build the corpus index, so we can
   // ground every concrete claim in the generated drafts against verbatim
@@ -1360,7 +1362,8 @@ Return STRICT JSON:
     }
   ]
 }
-Generate at least: ${requiredList}.
+CATÁLOGO DE INSTRUMENTOS PERMITIDOS PARA ESTA MATERIA (usa el id exacto en document_type; genera cada uno cuya condición se cumpla con el expediente, y omite los demás):
+${requiredList}
 
 KNOWN DOCUMENTS (the ONLY filenames you may reference):
 ${knownFilenamesList}
