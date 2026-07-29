@@ -1,11 +1,27 @@
 // Real case-law grounding for legal issue hits (Report Intelligence).
 //
-// This module is intentionally fail-soft: any failure (missing token,
-// network error, rate limit, bad response) returns an empty case_law
-// array rather than throwing. It must never be able to break report
-// generation — the report has always rendered fine without this data,
-// so on any error we just render without it, same as before.
+// REBUILT 2026-07-29: this file previously queried CourtListener
+// (https://www.courtlistener.com), a U.S. case-law database, and attached
+// real U.S. federal/state court opinions to Mexican legal reports —
+// keyed off issue types that were themselves U.S. doctrine (Fourth
+// Amendment, Miranda, Brady, Jencks, Daubert/Frye). Both halves were
+// wrong for a platform whose own README states it is "Built exclusively
+// for Mexican law."
+//
+// This now queries `legal_authorities` — the local table populated by
+// `scjn.connector.ts` (Suprema Corte de Justicia de la Nación, verified
+// working against the real SJF2 jurisprudencia service) and
+// `cjf.connector.ts` (Consejo de la Judicatura Federal). No external
+// U.S. API call remains in this file.
+//
+// Intentionally fail-soft, same contract as before: any failure (DB
+// error, empty corpus, no match) returns an empty case_law array rather
+// than throwing. It must never be able to break report generation.
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import type { LegalIssueHit } from "./report-augment.server";
+
+type Db = SupabaseClient<Database>;
 
 export type CaseLawResult = {
   case_name: string;
@@ -16,21 +32,24 @@ export type CaseLawResult = {
   snippet: string;
 };
 
-// One curated search query per issue type we already detect in
-// buildLegalIssues(). Kept separate from the detection regexes so this
-// file can be edited independently of report-augment.server.ts.
+// One curated search query per Mexican issue type detected in
+// buildLegalIssues() (see report-augment.server.ts's MX_ISSUE_RULES).
+// Kept separate from the detection regexes so this file can be edited
+// independently. Every query is in Spanish and targets real SCJN/CJF
+// jurisprudencia vocabulary, not translated U.S. doctrine.
 const ISSUE_QUERY_MAP: Record<string, string> = {
-  "Fourth Amendment": "fourth amendment warrantless search probable cause exclusionary rule",
-  Miranda: "Miranda custodial interrogation waiver voluntariness",
-  Franks: "Franks hearing false statement warrant affidavit",
-  Brady: "Brady exculpatory evidence disclosure due process",
-  Jencks: "Jencks Act prior statement disclosure witness",
-  "Chain of Custody": "chain of custody evidence admissibility foundation",
-  Authentication: "authentication business records exception hearsay foundation",
-  "Expert Admissibility": "Daubert expert testimony methodology admissibility",
+  "Cateo y Detención": "cateo orden judicial detención flagrancia caso urgente exclusión prueba ilícita",
+  "Declaración del Imputado sin Garantías":
+    "declaración imputado defensor adecuado derecho guardar silencio coacción nulidad",
+  "Irregularidad en Solicitud de Cateo": "orden de cateo datos falsos omisión sustancial nulidad diligencia",
+  "Omisión en el Deber de Aportación Probatoria":
+    "principio de objetividad Ministerio Público carpeta de investigación datos de prueba ocultos",
+  "Declaraciones Previas de Testigo":
+    "entrevista previa testigo contradicción interrogatorio contrainterrogatorio credibilidad",
+  "Cadena de Custodia": "cadena de custodia indicio ruptura valor probatorio exclusión",
+  "Fundamentación Probatoria": "licitud de la prueba incorporación de prueba valoración probatoria juicio oral",
+  "Impugnación Pericial": "dictamen pericial metodología perito acreditación valor probatorio impugnación",
 };
-
-const COURTLISTENER_SEARCH_URL = "https://www.courtlistener.com/api/rest/v4/search/";
 
 // Simple in-memory cache so a single report run never queries the same
 // issue twice (e.g. buildLegalIssues is called more than once per report).
@@ -38,120 +57,71 @@ const COURTLISTENER_SEARCH_URL = "https://www.courtlistener.com/api/rest/v4/sear
 const runCache = new Map<string, CaseLawResult[]>();
 
 /**
- * Search CourtListener for real, citable case law relevant to a given
- * free-text query. Returns [] on any failure — never throws.
+ * Search the local legal_authorities table (SCJN/CJF jurisprudencia,
+ * ingested via scjn.connector.ts / cjf.connector.ts) for real, citable
+ * authority relevant to a given free-text Spanish query. Returns [] on
+ * any failure or empty result — never throws.
  *
- * `opts.courtIds`, when provided, scopes the search to those CourtListener
- * court IDs (e.g. an attorney-selected state's supreme + appellate courts —
- * see jurisdictions.ts). If provided, a nationwide search runs concurrently
- * alongside the scoped one, and the scoped results are used only if
- * non-empty — persuasive out-of-state authority beats nothing, and the
- * caller has no way to distinguish "no such case exists" from "wrong
- * court ID." Both requests run in parallel so this never costs more than
- * one request's worth of latency, regardless of which one is used.
+ * `opts.materia`, when provided, is used as a best-effort filter against
+ * legal_authorities.metadata->>'materia' when that tag is present on a
+ * row; rows without a materia tag are still eligible (many jurisprudencia
+ * entries are cross-cutting) so this narrows rather than excludes.
  */
 export async function searchCaseLaw(
+  db: Db,
   query: string,
-  opts: { maxResults?: number; courtIds?: string[] } = {},
+  opts: { maxResults?: number; materia?: string } = {},
 ): Promise<CaseLawResult[]> {
-  const token = process.env.COURTLISTENER_API_TOKEN;
-  if (!token) {
-    console.warn("[case-law] COURTLISTENER_API_TOKEN not set — skipping case law lookup.");
-    return [];
-  }
-  const courtFilter = opts.courtIds && opts.courtIds.length > 0 ? opts.courtIds.join(" ") : undefined;
-  const cacheKey = `${query}::${courtFilter ?? ""}`;
+  const cacheKey = `${query}::${opts.materia ?? ""}`;
   const cached = runCache.get(cacheKey);
   if (cached) return cached;
 
-  const run = async (court?: string): Promise<CaseLawResult[] | null> => {
-    try {
-      const params = new URLSearchParams({
-        q: query,
-        type: "o", // opinions = case law
-        order_by: "score desc",
-      });
-      if (court) params.set("court", court);
+  const max = opts.maxResults ?? 3;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q = (db as any)
+      .from("legal_authorities")
+      .select("title,short_title,citation,issuer,published_at,source_url,body,metadata")
+      .eq("kind", "jurisprudence")
+      .textSearch("body", query, { type: "websearch", config: "spanish" })
+      .order("published_at", { ascending: false })
+      .limit(max);
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      let res: Response;
-      try {
-        res = await fetch(`${COURTLISTENER_SEARCH_URL}?${params.toString()}`, {
-          headers: { Authorization: `Token ${token}` },
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      if (!res.ok) {
-        console.warn(`[case-law] CourtListener returned ${res.status} for query "${query}"`);
-        return [];
-      }
-
-      const data = (await res.json()) as { results?: unknown[] };
-      const rows = Array.isArray(data.results) ? data.results : [];
-      const max = opts.maxResults ?? 3;
-
-      return rows.slice(0, max).map((raw) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const r = raw as any;
-        const citation = Array.isArray(r.citation) && r.citation.length > 0 ? String(r.citation[0]) : null;
-        return {
-          case_name: String(r.caseName ?? r.case_name ?? "Untitled case"),
-          citation,
-          court: r.court ? String(r.court) : null,
-          date_filed: r.dateFiled ?? r.date_filed ?? null,
-          url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : "https://www.courtlistener.com",
-          snippet: String(r.snippet ?? "")
-            .replace(/<\/?mark>/g, "")
-            .slice(0, 400),
-        };
-      });
-    } catch (err) {
-      console.warn(`[case-law] lookup failed for query "${query}":`, err instanceof Error ? err.message : err);
-      return null;
+    const { data, error } = await q;
+    if (error) {
+      console.warn(`[case-law] legal_authorities lookup failed for query "${query}":`, error.message);
+      return [];
     }
-  };
 
-  // The scoped (jurisdiction-filtered) and nationwide searches run
-  // CONCURRENTLY, not one after the other. They used to run sequentially
-  // (scoped first, nationwide only as a fallback if scoped came back
-  // empty) — which meant every issue whose court IDs didn't match
-  // anything (a real risk, since those IDs are best-effort and unverified
-  // — see jurisdictions.ts) paid two full request timeouts back to back
-  // instead of one. That's enough to push a report-generation worker past
-  // its execution budget on every single case that has a jurisdiction
-  // set, which is consistent with reports "taking forever" after this
-  // feature shipped. Running both at once keeps the worst case at one
-  // request's timeout, no matter how many issues or whether jurisdiction
-  // is set at all.
-  let results: CaseLawResult[];
-  if (courtFilter) {
-    const [scoped, nationwide] = await Promise.all([run(courtFilter), run(undefined)]);
-    if (scoped === null && nationwide === null) return [];
-    results = scoped && scoped.length > 0 ? scoped : (nationwide ?? scoped ?? []);
-  } else {
-    const only = await run(undefined);
-    if (only === null) return [];
-    results = only;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (Array.isArray(data) ? data : []) as any[];
+    const results: CaseLawResult[] = rows.map((r) => ({
+      case_name: String(r.short_title ?? r.title ?? "Tesis/Jurisprudencia sin título"),
+      citation: r.citation ? String(r.citation) : null,
+      court: r.issuer ? String(r.issuer) : null,
+      date_filed: r.published_at ?? null,
+      url: r.source_url ? String(r.source_url) : "https://sjf2.scjn.gob.mx",
+      snippet: String(r.body ?? "").slice(0, 400),
+    }));
+
+    runCache.set(cacheKey, results);
+    return results;
+  } catch (err) {
+    console.warn(`[case-law] lookup threw for query "${query}":`, err instanceof Error ? err.message : err);
+    return [];
   }
-
-  runCache.set(cacheKey, results);
-  return results;
 }
 
 /**
  * Takes the existing deterministic legal-issue hits and attaches real
- * case law to each one, keyed off the issue type (Fourth Amendment,
- * Miranda, Brady, etc). Never mutates input; never throws — on any
+ * SCJN/CJF jurisprudencia to each one, keyed off the Mexican issue type
+ * (Cateo y Detención, Cadena de Custodia, etc — see
+ * report-augment.server.ts). Never mutates input; never throws — on any
  * failure the issue is returned with case_law: [].
  *
- * `courtIds`, when provided, scopes every lookup to those courts (see
- * jurisdictions.ts) — typically the attorney-selected case jurisdiction.
+ * `materia`, when provided, narrows the search (see searchCaseLaw above).
  */
-export async function attachCaseLaw(issues: LegalIssueHit[], courtIds?: string[]): Promise<LegalIssueHit[]> {
+export async function attachCaseLaw(db: Db, issues: LegalIssueHit[], materia?: string): Promise<LegalIssueHit[]> {
   // Only look up each distinct issue type once per report, not once per hit.
   const uniqueIssueTypes = Array.from(new Set(issues.map((i) => i.issue)));
   const byIssueType = new Map<string, CaseLawResult[]>();
@@ -163,7 +133,7 @@ export async function attachCaseLaw(issues: LegalIssueHit[], courtIds?: string[]
         byIssueType.set(issueType, []);
         return;
       }
-      const cases = await searchCaseLaw(query, { maxResults: 3, courtIds });
+      const cases = await searchCaseLaw(db, query, { maxResults: 3, materia });
       byIssueType.set(issueType, cases);
     }),
   );
