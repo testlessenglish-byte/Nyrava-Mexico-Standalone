@@ -35,7 +35,7 @@ import {
   getLockedCaseType,
   isCivilCaseType,
   evidenceDependenciesSatisfied,
-  stripBradyForCivil,
+  stripOmisionProbatoriaForCivil,
   type AnalysisMode,
   type EvidenceItem,
 } from "./evidence-gate.server";
@@ -226,7 +226,7 @@ async function validateFindingsForCase(
     }
 
     // Layer 5 — Civil/Criminal firewall: strip Brady-style criminal language.
-    const stripped = stripBradyForCivil(r, caseType);
+    const stripped = stripOmisionProbatoriaForCivil(r, caseType);
     if (!stripped) {
       audit.rejections.push({ title: r.title, reason: "criminal_terminology_in_civil_case" });
       audit.rejected += 1;
