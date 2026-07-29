@@ -94,19 +94,36 @@ export async function buildWitnessProfiles(db: Db, caseId: string): Promise<Witn
     const bias_indicators: string[] = [];
     const impeachment_opportunities: string[] = [];
 
-    if (role === "cooperating witness") {
-      bias_indicators.push("Cooperating witness — inherent incentive to testify favorably to prosecution.");
-      credibility_risks.push("Possible plea/proffer agreement; verify sentencing exposure and benefits received.");
+    // FIX (2026-07-29): these branches checked the OLD English role
+    // strings ("cooperating witness", "investigator", "expert", "victim")
+    // that roleFor() was rebuilt to no longer return — it now returns
+    // "testigo colaborador", "investigador", "perito", "víctima". Every
+    // branch below was silently dead (never matched anything) until this
+    // fix. Content also rebuilt: Mexico has no jury trials, no plea
+    // bargaining in the U.S. sense, and no Daubert/Frye standard — CNPP
+    // has criterio de oportunidad (Arts. 256–258) and expert-opinion
+    // challenge under Arts. 368–372.
+    if (role === "testigo colaborador") {
+      bias_indicators.push(
+        "Testigo colaborador — incentivo inherente para declarar de forma favorable al Ministerio Público en el marco de un criterio de oportunidad.",
+      );
+      credibility_risks.push(
+        "Posible acuerdo de criterio de oportunidad o suspensión condicional del proceso; verificar los beneficios procesales otorgados (Arts. 256–258 CNPP).",
+      );
     }
-    if (role === "investigator") {
-      credibility_supports.push("Sworn law enforcement officer with contemporaneous reports.");
-      credibility_risks.push("Confirmation bias risk; check whether investigation narrowed early to a single suspect.");
+    if (role === "investigador") {
+      credibility_supports.push("Policía de investigación con informes contemporáneos al hecho.");
+      credibility_risks.push(
+        "Riesgo de sesgo de confirmación; verificar si la investigación se centró prematuramente en un solo sospechoso.",
+      );
     }
-    if (role === "expert") {
-      credibility_risks.push("Subject to Daubert/Frye challenge on methodology and qualifications.");
+    if (role === "perito") {
+      credibility_risks.push(
+        "Sujeto a impugnación pericial por deficiencia metodológica o falta de acreditación (Arts. 368–372 CNPP).",
+      );
     }
-    if (role === "victim") {
-      bias_indicators.push("Victim status — strong emotional stake in outcome.");
+    if (role === "víctima") {
+      bias_indicators.push("Calidad de víctima — interés directo en el resultado del proceso.");
     }
     for (const f of relatedFindings) {
       const cat = String(f.category ?? "").toLowerCase();
@@ -115,46 +132,46 @@ export async function buildWitnessProfiles(db: Db, caseId: string): Promise<Witn
       }
     }
     const direct_questions =
-      role === "investigator"
+      role === "investigador"
         ? [
-            `Please walk the jury through your investigation, ${name}.`,
-            `What evidence corroborates each element of the charge?`,
-            `Describe the chain of custody for each item you seized.`,
+            `Describa al Tribunal el desarrollo de su investigación, ${name}.`,
+            `¿Qué evidencia corrobora cada elemento del hecho delictivo?`,
+            `Describa la cadena de custodia de cada indicio que aseguró.`,
           ]
-        : role === "expert"
+        : role === "perito"
           ? [
-              `Please describe your qualifications and the methodology you applied.`,
-              `What are the error rates associated with your technique?`,
-              `Have your conclusions been peer reviewed?`,
+              `Describa su acreditación y la metodología que aplicó en su dictamen.`,
+              `¿Cuál es el margen de error asociado a su técnica?`,
+              `¿Su dictamen ha sido validado o revisado institucionalmente?`,
             ]
           : [
-              `Please tell the jury what you saw, ${name}.`,
-              `How certain are you of what you observed?`,
-              `Did you record or document your observations at the time?`,
+              `Relate al Tribunal lo que percibió directamente, ${name}.`,
+              `¿Con qué certeza afirma lo que observó?`,
+              `¿Registró o documentó sus observaciones en el momento de los hechos?`,
             ];
     const cross_questions =
-      role === "cooperating witness"
+      role === "testigo colaborador"
         ? [
-            `You entered a cooperation agreement in exchange for reduced exposure, correct?`,
-            `Your testimony today is a term of that agreement, isn't it?`,
-            `You've reviewed your prior statements with the prosecutor before testifying?`,
+            `Usted celebró un acuerdo de criterio de oportunidad a cambio de una reducción en su exposición penal, ¿correcto?`,
+            `Su declaración de hoy es una condición de ese acuerdo, ¿no es así?`,
+            `Usted revisó sus declaraciones previas con el Ministerio Público antes de declarar hoy, ¿correcto?`,
           ]
-        : role === "investigator"
+        : role === "investigador"
           ? [
-              `You focused on the defendant early in the investigation, didn't you?`,
-              `You did not pursue [alternative lead] because it did not fit your theory?`,
-              `Isn't it true that your report omits [contradicting fact]?`,
+              `Usted centró la investigación en el imputado desde una etapa temprana, ¿no es así?`,
+              `Usted no agotó [línea de investigación alternativa] porque no encajaba con su hipótesis, ¿correcto?`,
+              `¿No es cierto que su informe omite [hecho contradictorio]?`,
             ]
-          : role === "expert"
+          : role === "perito"
             ? [
-                `Your methodology has a known error rate of ___, correct?`,
-                `Other qualified experts disagree with your conclusion, don't they?`,
-                `You were retained and paid by [party], correct?`,
+                `Su metodología tiene un margen de error conocido de ___, ¿correcto?`,
+                `Otros peritos calificados discrepan de su conclusión, ¿no es así?`,
+                `Usted fue contratado y pagado por [parte], ¿correcto?`,
               ]
             : [
-                `Your prior statement on [date] said something different, didn't it?`,
-                `You've discussed your testimony with counsel before today, correct?`,
-                `You cannot rule out [alternative explanation], can you?`,
+                `Su declaración previa del [fecha] decía algo distinto, ¿no es así?`,
+                `Usted comentó su testimonio con el abogado antes de hoy, ¿correcto?`,
+                `Usted no puede descartar [explicación alternativa], ¿verdad?`,
               ];
 
     return {
@@ -556,7 +573,8 @@ const INV_RULES: InvRule[] = [
     needed: "Certificado vigente del RPP y constancias de no adeudo",
   },
   {
-    match: /\b(recibo\s+de\s+n[oó]mina|contrato\s+individual\s+de\s+trabajo|aviso\s+de\s+rescisi[oó]n|imss|control\s+de\s+asistencia)\b/i,
+    match:
+      /\b(recibo\s+de\s+n[oó]mina|contrato\s+individual\s+de\s+trabajo|aviso\s+de\s+rescisi[oó]n|imss|control\s+de\s+asistencia)\b/i,
     item: "Documentación laboral",
     shows: "Relación de trabajo, salario y condiciones",
     theory: "Acreditación de la relación laboral (art. 784 LFT)",
@@ -610,7 +628,8 @@ export async function buildEvidenceInventory(db: Db, caseId: string): Promise<Ev
           : `Sin extracción (estado=${d.status ?? "desconocido"}).`;
     } else if ((findingsByDoc.get(id) ?? 0) === 0) {
       status = "partial";
-      statusNote = "Extraído pero ningún motor lo citó — verifique la cobertura o solicite documentación complementaria.";
+      statusNote =
+        "Extraído pero ningún motor lo citó — verifique la cobertura o solicite documentación complementaria.";
     } else {
       status = "complete";
       statusNote = `Citado en ${findingsByDoc.get(id)} hallazgo(s).`;
@@ -701,8 +720,8 @@ export async function buildWorkProduct(
   const case_strategy = strongest
     ? `The strongest defense theory is grounded in ${String(strongest.category ?? "the record")
         .toString()
-        .toLowerCase()}: ${String(strongest.title ?? "").trim()}. This should anchor motion practice and cross-examination while contesting the prosecution's theory head-on.`
-    : "Insufficient defense-favorable findings to state a single dominant theory. Prioritize additional discovery and expert review before committing to a strategy.";
+        .toLowerCase()}: ${String(strongest.title ?? "").trim()}. This should anchor the defense's theoría del caso and cross-examination while directly controverting the Ministerio Público's theory.`
+    : "Insufficient defense-favorable findings to state a single dominant theory. Prioritize further investigation and expert review before committing to a strategy.";
 
   const strengths = defenseFav.slice(0, 8).map((f) => ({
     text: String(f.title ?? "Defense-favorable finding"),
@@ -733,7 +752,7 @@ export async function buildWorkProduct(
     .map((f) => `${String(f.title ?? "").trim()} — ${String(f.category ?? "").toLowerCase()}.`);
   const trial_themes = themeSeeds.length
     ? themeSeeds
-    : ["Reasonable doubt anchored in the gaps and inconsistencies in the government's proof."];
+    : ["In dubio pro reo, anclado en los vacíos e inconsistencias de la prueba del Ministerio Público."];
 
   const cross_examination_outlines: CrossOutline[] = (ctx.witnessProfiles ?? [])
     .filter((w) => w.impeachment_opportunities.length > 0 || w.cross_questions.length > 0)
@@ -743,19 +762,45 @@ export async function buildWorkProduct(
       topics: [...w.impeachment_opportunities.slice(0, 3), ...w.cross_questions.slice(0, 3)].slice(0, 5),
     }));
 
+  // FIX (2026-07-29): "jury_themes" is a legacy field name — Mexican
+  // penal procedure has no jury (juicio oral is decided by a professional
+  // Tribunal de Enjuiciamiento, CNPP Arts. 348-353). Kept as-is rather
+  // than renamed to avoid touching its two consumers' field name
+  // (AttorneyWorkProduct.tsx destructures it into `hearingThemes` and
+  // shows it under an i18n-driven label already, so the wrong field name
+  // was never itself user-visible) — but its CONTENT was pure U.S.
+  // adversarial-trial language, and its issue-key checks referenced
+  // "Chain of Custody"/"Authentication"/"Brady"/"Jencks", which no longer
+  // exist since ISSUE_RULES was rebuilt to Spanish keys — meaning these
+  // conditions could never match and this list fell through to the
+  // English "beyond a reasonable doubt" default on nearly every case.
+  // Rebuilt around the actual current issue keys and Mexican standards:
+  // in dubio pro reo (any reasonable doubt favors the accused) rather
+  // than the U.S. "beyond a reasonable doubt" jury-instruction phrasing.
   const jury_themes: string[] = [];
   if (defenseFav.some((f) => /credibility|impeach|bias|cooperat/i.test(`${f.title} ${f.category}`))) {
-    jury_themes.push("The government's case rests on witnesses with reasons to shade the truth.");
+    jury_themes.push(
+      "La teoría del Ministerio Público descansa en testigos con un incentivo documentado para matizar su declaración.",
+    );
   }
-  if (issues.some((i) => i.issue === "Chain of Custody" || i.issue === "Authentication")) {
-    jury_themes.push("Reliable evidence has a clean paper trail. This evidence does not.");
+  if (issues.some((i) => i.issue === "Cadena de Custodia" || i.issue === "Fundamentación Probatoria")) {
+    jury_themes.push(
+      "La prueba confiable cuenta con una cadena de custodia documentada y sin interrupciones. Esta prueba no la tiene.",
+    );
   }
-  if (issues.some((i) => i.issue === "Brady" || i.issue === "Jencks")) {
-    jury_themes.push("A case built on selective disclosure is not a case built on truth.");
+  if (
+    issues.some(
+      (i) =>
+        i.issue === "Omisión en el Deber de Aportación Probatoria" || i.issue === "Declaraciones Previas de Testigo",
+    )
+  ) {
+    jury_themes.push(
+      "Un caso construido sobre prueba omitida o revelada selectivamente no es un caso construido sobre la verdad.",
+    );
   }
   if (!jury_themes.length) {
     jury_themes.push(
-      "Assumptions are not evidence — the government must prove every element beyond a reasonable doubt.",
+      "Las suposiciones no son prueba — bajo el principio in dubio pro reo, toda duda razonable debe favorecer al imputado.",
     );
   }
 
