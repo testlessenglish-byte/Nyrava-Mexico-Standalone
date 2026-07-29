@@ -2516,7 +2516,12 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
     type: "constitutional_compliance",
     category: "constitutional",
     system:
-      "You are a constitutional rights investigator. Examine for 4th/5th/6th Amendment issues, Miranda, search/seizure, due process. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+      // REBUILT 2026-07-29: previously instructed the model to search for
+      // "4th/5th/6th Amendment issues, Miranda, search/seizure, due
+      // process" — U.S. constitutional doctrine with no standing in a
+      // Mexican proceeding. This platform is built exclusively for
+      // Mexican law. Rebuilt around CPEUM arts. 14, 16, 19, 20.
+      "You are a Mexican constitutional-rights investigator (CPEUM). Examine for violations of Art. 16 (cateo, detención, control judicial), Art. 19 (plazo constitucional, auto de vinculación a proceso), and Art. 20 apartados A/B/C (debido proceso, presunción de inocencia, derecho de defensa adecuada, derecho a guardar silencio, derechos de la víctima). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "right": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -2525,7 +2530,10 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
     type: "procedural_violations",
     category: "procedural",
     system:
-      "You are a procedural rules investigator. Examine for FRCP/FRCrP/local rule violations, deadline failures, service defects. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+      // REBUILT 2026-07-29: previously instructed the model to search for
+      // "FRCP/FRCrP/local rule violations" — U.S. Federal Rules of Civil/
+      // Criminal Procedure, inapplicable to a CNPP/CFPC proceeding.
+      "You are a Mexican procedural-rules investigator. Examine for violations of the CNPP (materia penal) or the Código Federal de Procedimientos Civiles / código procesal local aplicable (materia civil, mercantil, familiar), including plazos vencidos, defectos de notificación o emplazamiento, y omisiones en la carpeta de investigación. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (verbatim from that document, <=200 chars) } entry. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
