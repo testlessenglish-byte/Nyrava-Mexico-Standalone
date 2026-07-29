@@ -280,9 +280,19 @@ export function buildLitigationImpactDashboard(r: ReportLike): LitigationImpactD
     };
   });
 
-  // Motion card — criminal / civil rights only, and only when motion
-  // generation isn't ESS-suppressed and at least one real candidate exists.
-  if ((practiceArea === "criminal" || practiceArea === "civil_rights") && !ess.motionsSuppressed) {
+  // Motion card — penal / amparo / constitucional only (Mexican equivalent
+  // of the retired "criminal"/"civil_rights" keys this checked before —
+  // same bug found and fixed in export.ts's constitutional-analysis gates
+  // this session), and only when motion generation isn't ESS-suppressed
+  // and at least one real candidate exists.
+  if (
+    (practiceArea === "penal" ||
+      practiceArea === "amparo" ||
+      practiceArea === "constitucional" ||
+      practiceArea === "criminal" ||
+      practiceArea === "civil_rights") &&
+    !ess.motionsSuppressed
+  ) {
     const motions = getMotions(r);
     if (motions.length > 0) {
       const top = motions[0];
