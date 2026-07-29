@@ -1580,14 +1580,14 @@ class PdfBuilder {
     this.doc.setFontSize(8.5);
     this.doc.setTextColor(...MUTED);
     const generatedLabel = new Date(meta.generatedAt).toLocaleString();
-    this.doc.text(`Generated ${generatedLabel}  ·  Engine v${NYRAVA_REPORT_VERSION}`, cx, yy, { align: "center" });
+    this.doc.text(`Generado ${generatedLabel}  ·  Motor v${NYRAVA_REPORT_VERSION}`, cx, yy, { align: "center" });
     yy += 34;
     // Standing disclaimer, boxed for visual weight commensurate with what
     // it's saying — this should not read as fine print.
     const boxW = this.pageW - this.margin * 2 - 60;
     const boxX = cx - boxW / 2;
     const disclaimer =
-      "This report was generated using Nyrava Intelligence\u2122 and is intended to support\u2014not replace\u2014professional legal judgment. Attorneys remain responsible for reviewing and verifying all findings, citations, scores, legal analysis, and drafted work product against the official source record before filing or relying upon this report.";
+      "Este reporte fue generado con Nyrava Intelligence\u2122 y busca apoyar \u2014no sustituir\u2014 el criterio jurídico profesional. El abogado es responsable de revisar y verificar todos los hallazgos, citas, puntajes, análisis jurídico y producto de trabajo contra el expediente oficial antes de presentarlo o sustentarse en él.";
     this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(9);
     const lines = this.doc.splitTextToSize(disclaimer, boxW - 24) as string[];
@@ -2008,7 +2008,7 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
 
   b.h1("Promociones Recomendadas");
   b.text(
-    "The motions most likely to strengthen this case, ranked by priority. Drafting and editing continue in the Motion Intelligence module.",
+    "Las promociones con mayor probabilidad de fortalecer este caso, ordenadas por prioridad. La redacción y edición continúan en el módulo de Inteligencia de Promociones.",
     { size: 10, color: MUTED, gap: 10 },
   );
 
@@ -2212,7 +2212,7 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
   if (!hasAnyContent) return;
 
   b.h1("Centro de Acción del Abogado");
-  b.text("Immediate next steps and strategic priorities, ahead of the detailed analysis that supports them.", {
+  b.text("Próximas acciones inmediatas y prioridades estratégicas, antes del análisis detallado que las sustenta.", {
     size: 10,
     color: MUTED,
     gap: 10,
@@ -2313,7 +2313,7 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
 
   if (generatedWP.length) {
     b.h2("Producto de Trabajo Generado");
-    b.text("Ready for attorney review — full drafts appear later in this report.", {
+    b.text("Listo para revisión del abogado — los borradores completos aparecen más adelante en este reporte.", {
       size: 9,
       color: MUTED,
       gap: 6,
@@ -2403,13 +2403,13 @@ function fallbackOverview(data: CaseExportData): string {
     .map((f) => asStr(f.title))
     .filter(Boolean);
   return [
-    `Case: ${asStr(c.name, "Untitled Case")}.`,
+    `Caso: ${asStr(c.name, "Caso sin título")}.`,
     docs.length
-      ? `Reviewed source documents: ${docs.join(", ")}.`
-      : "No source documents were attached to this export.",
+      ? `Documentos fuente revisados: ${docs.join(", ")}.`
+      : "No se adjuntaron documentos fuente a esta exportación.",
     topFindings.length
-      ? `Primary verified issues identified: ${topFindings.join("; ")}.`
-      : "No verified findings were available at export time.",
+      ? `Principales cuestiones verificadas identificadas: ${topFindings.join("; ")}.`
+      : "No había hallazgos verificados disponibles al momento de la exportación.",
   ].join(" ");
 }
 
@@ -2497,7 +2497,7 @@ function renderFacts(b: PdfBuilder, data: CaseExportData) {
   if (dated.length) {
     b.h2("Narrativa Cronológica");
     b.text(
-      "The following events are reconstructed from the verified record, ordered by the earliest date associated with each finding. Each paragraph integrates the underlying evidence into a continuous factual narrative suitable for memorandum use.",
+      "Los siguientes eventos se reconstruyen a partir del registro verificado, ordenados por la fecha más temprana asociada a cada hallazgo. Cada párrafo integra la evidencia subyacente en una narrativa fáctica continua apta para uso en memorandos.",
       { size: 10, color: MUTED, gap: 8 },
     );
     for (const ev of dated) {
@@ -2520,7 +2520,7 @@ function renderFacts(b: PdfBuilder, data: CaseExportData) {
 
   if (!facts && !dated.length && !undated.length) {
     b.text(
-      "No verified facts were extracted from the available corpus. This typically indicates that the source documents lacked the quotable, document-anchored statements required to construct an evidence-grounded factual record. To enable a facts narrative, attach primary sources containing concrete factual assertions — pleadings, contemporaneous correspondence, contracts, transcripts, declarations, or signed reports — so the extraction layer can anchor each fact to a verbatim quote and page citation.",
+      "No se extrajeron hechos verificados del corpus disponible. Esto normalmente indica que los documentos fuente carecían de declaraciones citables y ancladas a un documento, necesarias para construir un registro fáctico fundado en evidencia. Para habilitar una narrativa de hechos, adjunte fuentes primarias con afirmaciones fácticas concretas — escritos, correspondencia contemporánea, contratos, transcripciones, declaraciones o informes firmados — para que la capa de extracción pueda anclar cada hecho a una cita textual y a la página correspondiente.",
       { size: 10.5, gap: 8 },
     );
   }
@@ -2982,7 +2982,7 @@ function renderContradictions(b: PdfBuilder, data: CaseExportData) {
   if (!items.length) return;
   b.h1("Análisis de Contradicciones");
   b.text(
-    "Each contradiction below pairs two specific record statements with the legal and strategic consequences for trial.",
+    "Cada contradicción a continuación empareja dos declaraciones específicas del expediente con las consecuencias legales y estratégicas para el juicio.",
     { size: 10, color: MUTED, gap: 6 },
   );
   for (const c of items) {
@@ -3166,7 +3166,7 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
     if (motionsSuppressed && allRows.length > 0) {
       b.h1("Producto de Trabajo del Abogado");
       b.text(
-        "Motion drafting and prioritized recommendations were withheld because this case did not meet the Evidence Sufficiency Score threshold.",
+        "La redacción de promociones y las recomendaciones priorizadas se retuvieron porque este expediente no alcanzó el umbral de Suficiencia Probatoria (ESS).",
         { size: 10, color: MUTED, gap: 4 },
       );
     }
@@ -3221,8 +3221,7 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
     b.h2("Omitido");
     for (const w of skipped) {
       const title = asStr(w.title, asStr(w.document_type, "Work product"));
-      const reason =
-        asStr(w.error_message) || asStr(w.skipped_reason) || "Not generated because insufficient evidence exists.";
+      const reason = asStr(w.error_message) || asStr(w.skipped_reason) || "No generado por evidencia insuficiente.";
       b.text(`• ${title} — ${reason}`, { size: 10, color: MUTED });
     }
   }
@@ -3452,7 +3451,7 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
       b.bullets(supEv);
     }
     if (theme.presentation_guidance) {
-      b.text("How to present it:", { size: 9, bold: true, color: MUTED });
+      b.text("Cómo presentarlo:", { size: 9, bold: true, color: MUTED });
       b.text(asStr(theme.presentation_guidance), { size: 10, gap: 4 });
     }
   }
@@ -3658,7 +3657,7 @@ function renderCoverage(b: PdfBuilder, data: CaseExportData) {
   const coverage = asObj(full.coverage_report);
   if (!coverage || Object.keys(coverage).length === 0) return;
   b.h1("Cobertura Probatoria");
-  b.text("Ingestion transparency: how complete is this analysis?", { size: 10, color: MUTED, gap: 8 });
+  b.text("Transparencia de ingesta: ¿qué tan completo es este análisis?", { size: 10, color: MUTED, gap: 8 });
   b.table(
     [["Métrica", "Valor"]],
     [
@@ -3714,7 +3713,7 @@ function renderAgentStatistics(b: PdfBuilder, data: CaseExportData) {
 
   b.h1("Estadísticas de Agentes");
   b.text(
-    "This section separates loaded agents from agents that actually analyzed evidence and agents that produced measurable work product. Agent totals are based on produced output, not initialization.",
+    "Esta sección distingue entre agentes cargados, agentes que efectivamente analizaron evidencia y agentes que produjeron trabajo medible. Los totales se basan en el resultado producido, no en la inicialización.",
     { size: 10, color: MUTED, gap: 8 },
   );
   b.table(
@@ -3790,7 +3789,7 @@ function renderAudit(b: PdfBuilder, data: CaseExportData) {
   const manifest = asObj(full.case_type_manifest);
   b.h1("Registro de Auditoría");
   b.text(
-    "Routing record for this case. The execution manifest below shows which engines were run, which were skipped because they do not apply to the selected case type, and which were activated through cross-domain triggers.",
+    "Registro de enrutamiento de este caso. El manifiesto de ejecución a continuación muestra qué motores se ejecutaron, cuáles se omitieron por no aplicar a la materia seleccionada, y cuáles se activaron mediante disparadores interdominio.",
     { size: 10, gap: 8 },
   );
 
@@ -3867,7 +3866,7 @@ function renderAppendix(b: PdfBuilder, data: CaseExportData) {
 function renderEvidenceSources(b: PdfBuilder) {
   if (!_footnotes.length) return;
   b.h1("Fuentes de Evidencia");
-  b.text("Numbered references from the report body, resolved to their source document and page.", {
+  b.text("Referencias numeradas del cuerpo del reporte, resueltas a su documento y página de origen.", {
     size: 10,
     color: MUTED,
     gap: 8,
@@ -3898,7 +3897,7 @@ function suppressedDocxParas(title: string): Paragraph[] {
   return [
     new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] }),
     new Paragraph({
-      children: [new TextRun({ text: "Suppressed due to insufficient verified evidence.", italics: true })],
+      children: [new TextRun({ text: "Suprimido por evidencia verificada insuficiente.", italics: true })],
     }),
   ];
 }
@@ -3920,7 +3919,7 @@ function recommendedMotionsDocxParas(data: CaseExportData): Paragraph[] {
     new Paragraph({
       children: [
         new TextRun({
-          text: "The motions most likely to strengthen this case, ranked by priority. Drafting and editing continue in the Motion Intelligence module.",
+          text: "Las promociones con mayor probabilidad de fortalecer este caso, ordenadas por prioridad. La redacción y edición continúan en el módulo de Inteligencia de Promociones.",
           italics: true,
         }),
       ],
