@@ -69,7 +69,10 @@ const HIGH_WEIGHT_PATTERNS: Array<{ type: string; rx: RegExp }> = [
   // actually serves. A demanda, auto de vinculación, or dictamen pericial is
   // exactly as substantive as an English complaint or expert report, but
   // none of the English-only patterns above ever match it.
-  { type: "indictment", rx: /\b(auto\s+de\s+(formal\s+prisi[oó]n|vinculaci[oó]n\s+a\s+proceso)|pliego\s+de\s+consignaci[oó]n)\b/i },
+  {
+    type: "indictment",
+    rx: /\b(auto\s+de\s+(formal\s+prisi[oó]n|vinculaci[oó]n\s+a\s+proceso)|pliego\s+de\s+consignaci[oó]n)\b/i,
+  },
   { type: "complaint", rx: /\b(demanda|querella|denuncia)\b/i },
   { type: "search_warrant", rx: /\b(orden\s+de\s+(cateo|aprehensi[oó]n))\b/i },
   { type: "expert_report", rx: /\b(dictamen\s+pericial|peritaje)\b/i },
@@ -296,6 +299,8 @@ export function computeESS(inputs: ESSInputs): ESSResult {
 // extracted corpus. Pure-text utility, no LLM cost.
 // ---------------------------------------------------------------------------
 
+// English stopwords — kept for any residual English-language input (e.g.
+// bilingual filings, attorney notes) so they don't get penalized either way.
 const STOPWORDS = new Set([
   "the",
   "and",
@@ -364,10 +369,77 @@ const STOPWORDS = new Set([
   "between",
   "among",
   "through",
+  // Spanish stopwords — this platform's corpus is Mexican-Spanish, so
+  // without these, high-frequency function words (que, para, con, los...)
+  // get treated as "content" tokens and dilute the traceability check.
+  "que",
+  "para",
+  "con",
+  "los",
+  "las",
+  "del",
+  "por",
+  "una",
+  "uno",
+  "unos",
+  "unas",
+  "como",
+  "pero",
+  "este",
+  "esta",
+  "estos",
+  "estas",
+  "esos",
+  "esas",
+  "sobre",
+  "entre",
+  "desde",
+  "hasta",
+  "cuando",
+  "donde",
+  "cual",
+  "cuales",
+  "quien",
+  "quienes",
+  "sido",
+  "fueron",
+  "sera",
+  "seran",
+  "puede",
+  "pueden",
+  "debe",
+  "deben",
+  "tiene",
+  "tienen",
+  "segun",
+  "dicho",
+  "dicha",
+  "dichos",
+  "dichas",
+  "mismo",
+  "misma",
+  "mismos",
+  "mismas",
+  "caso",
+  "parte",
+  "partes",
+  "asunto",
 ]);
 
+// Accented Latin letters used in Mexican-Spanish legal text (á é í ó ú ñ ü
+// and their uppercase forms, already lowercased by the time this runs).
+// A plain [a-z] class treats every accented character as a token
+// boundary — "artículo" becomes "art" (too short, dropped) + "culo"
+// (kept), "código" becomes "digo", "según" produces no token at all.
+// That corrupts the vocabulary this function builds AND the sentences it
+// later checks against that vocabulary, since every accented content word
+// in Mexican filings gets mangled the same way. Including the accented
+// range keeps whole words intact.
+const WORD_CHAR = "a-záéíóúñüàèìòù";
+
 function tokens(s: string): string[] {
-  return (s.toLowerCase().match(/[a-z][a-z'\-]{3,}/g) ?? []).filter((t) => !STOPWORDS.has(t));
+  const rx = new RegExp(`[${WORD_CHAR}][${WORD_CHAR}'\\-]{3,}`, "g");
+  return (s.toLowerCase().match(rx) ?? []).filter((t) => !STOPWORDS.has(t));
 }
 
 function buildCorpusVocab(corpusText: string): Set<string> {
