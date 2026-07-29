@@ -218,14 +218,15 @@ export async function runTheoryEngine(args: {
   const allowedTheoryTypes = civil ? `"plaintiff"|"defense"|"alternative"` : `"prosecution"|"defense"|"alternative"`;
   const caseFrame = civil
     ? `This is a CIVIL matter (case_type=${caseType}). NEVER produce a "prosecution" theory. Use civil terminology only.`
-    : `This is a CRIMINAL matter (case_type=${caseType}). Criminal terminology is appropriate.`;
+    : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology only — Ministerio Público, imputado, víctima u ofendido, sentencia condenatoria/absolutoria. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady).`;
 
   const r = await callGroq({
     apiKey,
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       "You are a senior litigation strategist. ONLY generate theories that are supported by at least TWO verbatim quotes from the corpus. " +
       "If the corpus does not support a coherent theory, return an empty `theories` array — do NOT invent theories. " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
@@ -403,14 +404,15 @@ export async function runOpportunityEngine(args: {
     : "suppression, discovery, witness_attack, timeline_attack, evidence_attack, credibility_attack, constitutional";
   const caseFrame = civil
     ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology only — liability, comparative fault, damages, settlement, credibility, discovery, insurance exposure. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy).`
-    : `This is a CRIMINAL matter (case_type=${caseType}). Criminal terminology is appropriate.`;
+    : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology only — Ministerio Público, imputado, víctima u ofendido, sentencia condenatoria/absolutoria. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
 
   const r = await callGroq({
     apiKey,
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       "You are a dual-perspective trial strategist. Every opportunity MUST cite at least one structured evidence citation with a verbatim quote copied from the corpus. " +
       "If you cannot back an opportunity with a corpus quote, omit it — an empty array is a valid response. " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
@@ -623,16 +625,22 @@ export async function runDiscoveryGapEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
-      "You audit criminal/civil case discovery. Identify evidence categories that SHOULD exist for this case type but appear absent. Flag potential Brady/disclosure failures. " +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
+      // REBUILT 2026-07-29: "criminal/civil case discovery" and "Brady" are
+      // U.S. concepts. The Mexican equivalent is the Ministerio Público's
+      // deber de aportación probatoria (principio de objetividad, CPEUM
+      // Art. 21; CNPP Art. 218-219) for penal matters, and ordinary
+      // omisiones probatorias / cargas de la prueba for civil/mercantil.
+      "Audita el expediente mexicano (penal, civil o mercantil) para identificar categorías de evidencia que DEBERÍAN existir dado el tipo de asunto pero no aparecen. Señala posibles omisiones en el deber de aportación probatoria del Ministerio Público (materia penal) o cargas probatorias no satisfechas (materia civil/mercantil). " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
       "Output STRICT JSON only.",
     userContent: `Return STRICT JSON:
 {
   "expected_evidence": string[],
   "received_evidence": string[],
-  "missing_evidence": [ { "item": string, "why_critical": string, "severity": "low"|"medium"|"high"|"critical", "brady_risk": boolean, "potential_motion": string|null } ],
-  "discovery_violations": [ { "violation": string, "rule": string, "severity": "low"|"medium"|"high"|"critical" } ]
+  "missing_evidence": [ { "item": string, "why_critical": string, "severity": "low"|"medium"|"high"|"critical", "omision_probatoria_risk": boolean, "potential_motion": string|null } ],
+  "discovery_violations": [ { "violation": string, "articulo": string, "severity": "low"|"medium"|"high"|"critical" } ]
 }
 
 CASE CORPUS:
@@ -658,8 +666,9 @@ ${ctx.corpus}`,
   const missing = Array.isArray(parsed.missing_evidence) ? parsed.missing_evidence : [];
   const violations = Array.isArray(parsed.discovery_violations) ? parsed.discovery_violations : [];
 
-  // Case-type aware: Brady is criminal-only. Strip Brady fields/tags for civil.
-  const { getLockedCaseType, isCivilCaseType, evidenceDependenciesSatisfied, stripBradyForCivil } =
+  // Case-type aware: omisión probatoria (the Mexican equivalent of what
+  // Brady covered in the U.S.) is penal-only. Strip it for civil/mercantil.
+  const { getLockedCaseType, isCivilCaseType, evidenceDependenciesSatisfied, stripOmisionProbatoriaForCivil } =
     await import("./evidence-gate.server");
   const caseType = await getLockedCaseType(db, caseId);
   const civil = isCivilCaseType(caseType);
@@ -676,10 +685,10 @@ ${ctx.corpus}`,
         item?: unknown;
         why_critical?: unknown;
         severity?: unknown;
-        brady_risk?: unknown;
+        omision_probatoria_risk?: unknown;
         potential_motion?: unknown;
       }) => {
-        const bradyRisk = !!m.brady_risk && !civil;
+        const omisionRisk = !!m.omision_probatoria_risk && !civil;
         return {
           case_id: caseId,
           user_id: userId,
@@ -689,34 +698,37 @@ ${ctx.corpus}`,
           description: (m.why_critical as string) ?? "",
           severity: (m.severity as "low" | "medium" | "high" | "critical") ?? "medium",
           confidence: 0.7,
-          legal_significance: bradyRisk ? "Potential Brady disclosure failure" : "Discovery gap",
+          legal_significance: omisionRisk
+            ? "Posible omisión en el deber de aportación probatoria del Ministerio Público"
+            : "Discovery gap",
           potential_impact: (m.potential_motion as string) ?? null,
           affected_party: "defense" as const,
-          tags: bradyRisk ? ["brady"] : [],
+          tags: omisionRisk ? ["omision_probatoria"] : [],
           metadata: { missing: m },
         };
       },
     );
-  const violationRows = violations.map((v: { violation?: unknown; rule?: unknown; severity?: unknown }) => ({
+  const violationRows = violations.map((v: { violation?: unknown; articulo?: unknown; severity?: unknown }) => ({
     case_id: caseId,
     user_id: userId,
     source_module: "engine:discovery:violation",
     category: "procedural",
     title: `Discovery violation: ${(v.violation as string) ?? "unspecified"}`,
-    description: (v.rule as string) ?? "",
+    description: (v.articulo as string) ?? "",
     severity: (v.severity as "low" | "medium" | "high" | "critical") ?? "high",
     confidence: 0.7,
-    legal_significance: "Discovery rule violation",
-    potential_impact: "May support motion to compel or sanctions",
+    legal_significance: "Violación procesal en materia de aportación probatoria",
+    potential_impact: "Puede sustentar un incidente de exclusión o solicitud de subsanación",
     affected_party: "defense" as const,
     tags: [] as string[],
     metadata: { violation: v },
   }));
   // Reject items whose underlying evidence categories aren't represented in
-  // the corpus at all (mention ≠ existence) — and strip Brady for civil.
+  // the corpus at all (mention ≠ existence) — and strip the penal-only
+  // omisión-probatoria framing for civil/mercantil matters.
   const all = [...missingRows, ...violationRows]
     .filter((r) => evidenceDependenciesSatisfied(`${r.title} ${r.description}`, corpusFlat).ok)
-    .map((r) => stripBradyForCivil(r, caseType))
+    .map((r) => stripOmisionProbatoriaForCivil(r, caseType))
     .filter((r): r is NonNullable<typeof r> => r !== null);
   // Discovery-gap findings surface ABSENCE — they cannot carry a verbatim
   // corpus quote by design. Route through the evidence gate for mode-aware
@@ -742,7 +754,6 @@ ${ctx.corpus}`,
 // determines the weighting of the five dimensions and the structural bias
 // floor the law itself presumes. See computeRoleAwareCredibility.
 
-
 export async function runWitnessEngine(args: {
   db: Db;
   caseId: string;
@@ -761,7 +772,8 @@ export async function runWitnessEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       "You profile every witness in a case. ONLY include witnesses whose names appear verbatim in the corpus. " +
       "For each, score reliability, bias, consistency, corroboration, opportunity to observe, and credibility risk. " +
       "State the declarant's MEXICAN procedural role in `role` using Mexican terminology (víctima u ofendido, testigo, perito, policía primer respondiente, Ministerio Público, imputado, quejoso, autoridad responsable, tercero interesado, servidor público, autoridad fiscal, actor, demandado, trabajador, patrón). Never use United States roles such as plaintiff, defendant in a civil sense, prosecutor or deponent. " +
@@ -948,9 +960,7 @@ ${ctx.corpus}`,
         user_id: userId,
         source_module: `engine:witness`,
         category: "witness",
-        title: es
-          ? `Perfil de declarante: ${w.name} (${roleLabel})`
-          : `Witness profile: ${w.name} (${roleLabel})`,
+        title: es ? `Perfil de declarante: ${w.name} (${roleLabel})` : `Witness profile: ${w.name} (${roleLabel})`,
         description: es
           ? `Confiabilidad ${w.reliability ?? "?"}/100 · Parcialidad ${computedRisk[i].bias_applied} · Riesgo de credibilidad ${risk}/100 (calculado conforme al rol procesal). ${prof.scrutiny_es}`
           : `Reliability ${w.reliability ?? "?"}/100 · Bias ${computedRisk[i].bias_applied} · Credibility risk ${risk}/100 (role-aware computation). ${prof.scrutiny_en}`,
@@ -1050,7 +1060,8 @@ El campo "jury_concerns" se reinterpreta como riesgos de percepción ante el jue
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       (isCriminal
         ? "Eres un litigante penal mexicano de alto nivel (defensa/asesoría jurídica) experto en el sistema penal acusatorio y el CNPP. Produce teoría del caso, orden de testigos, orden de prueba material, objeciones probables en audiencia, riesgos/fortalezas y una estimación de resultados ante el juez de control y el Tribunal de Enjuiciamiento. Jamás menciones jurado ni instituciones del common law. "
         : "Eres un litigante mexicano de alto nivel. Produce ejes de alegatos, orden de testigos, orden de pruebas, objeciones probables en audiencia, riesgos/fortalezas y una estimación de resultados apropiada a la materia. Jamás menciones jurado. ") +
@@ -1069,10 +1080,6 @@ Return STRICT JSON:
   "trial_strengths": string[],
   "jury_concerns": string[],
 ${juryMetricsSchema}
-  "most_persuasive_evidence": string[],
-  "most_damaging_evidence": string[]
-}
-
   "most_persuasive_evidence": string[],
   "most_damaging_evidence": string[]
 }
@@ -1124,9 +1131,7 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
   const conviction = condenatoria;
   const acquittal = absolutoria;
   const appealPct = recursoPct;
-  const civilSettlement = isCriminal
-    ? abreviado
-    : (num(pa.settlement_probability_pct) ?? num(pa.jury_settlement_pct));
+  const civilSettlement = isCriminal ? abreviado : (num(pa.settlement_probability_pct) ?? num(pa.jury_settlement_pct));
 
   // Preserve prior trial prep if this pass yielded an empty plan.
   const hasContent =
@@ -1149,19 +1154,19 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
   if (!hasContent) {
     degraded = true;
     const es = (await getReportLocale(db, caseId)) !== "en";
-    const [{ data: theoryRows }, { data: witnessRows }, { data: strategyRows }, { data: docRows }] =
-      await Promise.all([
-        db.from("case_theories").select("*").eq("case_id", caseId),
-        db.from("case_witnesses").select("*").eq("case_id", caseId),
-        db.from("case_strategy").select("*").eq("case_id", caseId),
-        db.from("documents").select("filename").eq("case_id", caseId).eq("status", "extracted"),
-      ]);
+    const [{ data: theoryRows }, { data: witnessRows }, { data: strategyRows }, { data: docRows }] = await Promise.all([
+      db.from("case_theories").select("*").eq("case_id", caseId),
+      db.from("case_witnesses").select("*").eq("case_id", caseId),
+      db.from("case_strategy").select("*").eq("case_id", caseId),
+      db.from("documents").select("filename").eq("case_id", caseId).eq("status", "extracted"),
+    ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const asText = (v: any): string | null =>
-      typeof v === "string" && v.trim() ? v.trim() : null;
+    const asText = (v: any): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const strList = (v: any): string[] =>
-      Array.isArray(v) ? v.map((x) => (typeof x === "string" ? x : asText(x?.title) ?? asText(x?.summary) ?? "")).filter(Boolean) : [];
+      Array.isArray(v)
+        ? v.map((x) => (typeof x === "string" ? x : (asText(x?.title) ?? asText(x?.summary) ?? ""))).filter(Boolean)
+        : [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const theories = (theoryRows ?? []) as any[];
@@ -1174,15 +1179,16 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       .map((t) => asText(t.title) ?? asText(t.theory) ?? asText(t.summary))
       .filter(Boolean)
       .slice(0, 6) as string[];
-    p.closing_themes = strategies
-      .flatMap((s) => strList(s.recommendations ?? s.key_actions))
-      .slice(0, 6);
+    p.closing_themes = strategies.flatMap((s) => strList(s.recommendations ?? s.key_actions)).slice(0, 6);
     p.trial_risks = strategies.flatMap((s) => strList(s.weaknesses ?? s.risks)).slice(0, 8);
     p.trial_strengths = strategies.flatMap((s) => strList(s.strengths)).slice(0, 8);
     p.witness_order = witnesses
       .map((w) => ({
         name: asText(w.name) ?? asText(w.witness_name) ?? "",
-        reason: asText(w.role) ?? asText(w.summary) ?? (es ? "Derivado del análisis de testigos" : "Derived from witness analysis"),
+        reason:
+          asText(w.role) ??
+          asText(w.summary) ??
+          (es ? "Derivado del análisis de testigos" : "Derived from witness analysis"),
       }))
       .filter((w) => w.name)
       .slice(0, 12) as never;
@@ -1202,9 +1208,6 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
   if (degraded) {
     console.warn(`[engine:trial_prep] case=${caseId} degraded=true — plan derived from completed engine outputs`);
   }
-
-
-
 
   const { error: trialPrepWriteError } = await db.from("case_trial_prep").upsert(
     {
@@ -1248,7 +1251,6 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
               comparative_fault_estimate_pct: num(pa.comparative_fault_estimate_pct),
             },
       } as any),
-
     } as any,
     { onConflict: "case_id" },
   );
@@ -1327,7 +1329,6 @@ export async function runWorkProductEngine(args: {
   const requiredList = mxWorkProductGuide(profile, await getReportLocale(db, caseId));
   const caseFrame = `Materia mexicana: ${caseType} (perfil procesal: ${profile}). Partes: ${roles.a} / ${roles.b}. Redacta conforme al derecho mexicano y al código procesal aplicable a esta materia. PROHIBIDO redactar instrumentos que no existen en México (motion to suppress, motion to dismiss, motion for summary judgment, discovery request, deposition notice, subpoena) y PROHIBIDO invocar doctrina o enmiendas constitucionales de EE.UU.`;
 
-
   // Pull the raw document rows used to build the corpus index, so we can
   // ground every concrete claim in the generated drafts against verbatim
   // source text and the known filename list. Deterministic ordering.
@@ -1348,7 +1349,8 @@ export async function runWorkProductEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       'You draft attorney-ready legal work product. ABSOLUTE RULES: (1) Every concrete figure (dollar amount, percentage, date) MUST appear verbatim in the provided CASE CORPUS; if not present, say \'insufficient evidence\' instead. (2) NEVER reference a document filename that is not in the KNOWN DOCUMENTS list. (3) NEVER invent damages, settlement amounts, or fee figures. (4) Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". (5) Output STRICT JSON only.',
     userContent: `${caseFrame}
 
