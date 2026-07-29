@@ -107,8 +107,14 @@ function clamp01(n: unknown): number {
 
 const VALID_FINDING_TYPES = new Set(["DIRECT_EVIDENCE", "EVIDENCE_BASED_INFERENCE", "AI_THEORY"]);
 
-function normalizeFindingType(value: unknown, hasCompleteCitation: boolean): "DIRECT_EVIDENCE" | "EVIDENCE_BASED_INFERENCE" | "AI_THEORY" {
-  const raw = String(value ?? "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+function normalizeFindingType(
+  value: unknown,
+  hasCompleteCitation: boolean,
+): "DIRECT_EVIDENCE" | "EVIDENCE_BASED_INFERENCE" | "AI_THEORY" {
+  const raw = String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
   const mapped =
     raw === "DIRECT" || raw === "EVIDENCE" || raw === "FACT" || raw === "FACTUAL"
       ? "DIRECT_EVIDENCE"
@@ -639,8 +645,28 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   // caseId from the earlier per-case loops is out of scope here — rows are
   // always one case in practice (see comment above), so derive it from the
   // findings themselves rather than assuming a variable that no longer exists.
-  const classifyLocale = finalized[0]?.case_id ? await getReportLocale(db, finalized[0].case_id) : "es";
-  const classified = rankAndClassify(finalized, classifyLocale);
+  const classifyCaseId = finalized[0]?.case_id;
+  const classifyLocale = classifyCaseId ? await getReportLocale(db, classifyCaseId) : "es";
+  // Materia-aware classification (2026-07-29): rankAndClassify now takes
+  // the case's materia so it can prefer materia-specific category rules
+  // (concurso mercantil, pensión alimenticia, control de convencionalidad,
+  // etc.) over the universal fallback layer. Same fetch pattern as the
+  // practice-area filter above — kept as a second query rather than
+  // threading caseRow through, since this function's callers don't all
+  // pass it and duplicating one cheap lookup is simpler than widening
+  // every call site's signature.
+  let classifyMateria: string | undefined;
+  if (classifyCaseId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: classifyCaseRow } = await db
+      .from("cases")
+      .select("case_type" as any)
+      .eq("id", classifyCaseId)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    classifyMateria = (classifyCaseRow as any)?.case_type ?? undefined;
+  }
+  const classified = rankAndClassify(finalized, classifyLocale, classifyMateria);
 
   // Dimension tagging — computed ONCE, here, at the single insert choke
   // point every write path funnels through (see TRUST CONTRACT header).
@@ -683,9 +709,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     const hasCompleteCitation = !!resolvedQuote && !!resolvedDocId;
     const normalizedType = normalizeFindingType(declaredType, hasCompleteCitation);
     const finding_type =
-      normalizedType === "DIRECT_EVIDENCE" && !hasCompleteCitation
-        ? "EVIDENCE_BASED_INFERENCE"
-        : normalizedType;
+      normalizedType === "DIRECT_EVIDENCE" && !hasCompleteCitation ? "EVIDENCE_BASED_INFERENCE" : normalizedType;
     // Lift canonical identity out of metadata onto the top-level column so
     // joins/exports/audit tools can resolve findings by canonical_finding_id
     // without walking JSON. (Priority 2 fix — metadata → top-level.)
