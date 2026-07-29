@@ -262,7 +262,17 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     label: "Generate Report",
     engine: "report_generator",
     timestampColumn: "report_at",
-    dependsOn: ["scoring", "legal_qa", "analyzers", "agents"],
+    // FIX (2026-07-29): jurisdiction_intel is requirement:"blocking" (so
+    // canGenerateReport() already correctly refuses to generate without
+    // it) but wasn't reachable from this list, and nothing upstream of
+    // scoring/legal_qa/analyzers/agents depends on it either. That meant
+    // deriveStageState() could show this stage as "waiting" (ready to
+    // run) purely from those four completing, while the real server-side
+    // gate still correctly blocked report generation on jurisdiction_intel
+    // — a misleading UI state, not a data-correctness bug (the actual
+    // gate was always right), but confusing to anyone watching the
+    // pipeline. Added so the UI and the real gate agree.
+    dependsOn: ["scoring", "legal_qa", "analyzers", "agents", "jurisdiction_intel"],
     requirement: "blocking",
   },
   {
