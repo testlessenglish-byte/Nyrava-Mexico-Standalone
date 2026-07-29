@@ -3907,9 +3907,9 @@ async function _runReportInner(args: {
     }
   ],
   "missing_evidence": [
-    { "item": string, "why_critical": string, "severity": "low"|"medium"|"high"|"critical", "brady_risk": boolean, "how_to_obtain": string, "recommended_motion": string|null, "side_harmed": string, "side_benefits": string }
+    { "item": string, "why_critical": string, "severity": "low"|"medium"|"high"|"critical", "omision_probatoria_risk": boolean, "how_to_obtain": string, "recommended_motion": string|null, "side_harmed": string, "side_benefits": string }
   ],
-  "constitutional_issues": ${isCriminalOrCivilRights ? '[ { "right": string, "amendment": string, "issue": string, "facts": string, "legal_standard": string, "likely_outcome": string, "remedy_sought": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ] } ]' : "[]"},
+  "constitutional_issues": ${isCriminalOrCivilRights ? '[ { "right": string, "articulo_cpeum": string, "issue": string, "facts": string, "legal_standard": string, "likely_outcome": string, "remedy_sought": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ] } ]' : "[]"},
   "motion_opportunities": [
     {
       "motion": string,
@@ -4170,8 +4170,8 @@ ${corpus.slice(0, 14000)}`;
   "citations": [ { "id": string, "doc_n": number, "document_id": string|null, "page": number, "quote": string, "topic": string, "finding_id": string|null } ],
   "evidence_index": [ { "doc_n": number, "document_id": string|null, "filename": string, "type": string, "role": "inculpatory"|"exculpatory"|"neutral"|"impeachment"|"chain_of_custody"|"procedural", "key_pages": number[], "summary": string, "supports": string[], "undermines": string[] } ],
   "contradictions": [ { "title": string, "document_a": { "doc_n": number, "page": number, "quote": string }, "document_b": { "doc_n": number, "page": number, "quote": string }, "nature": string, "credibility_impact": string, "trial_significance": string, "impeachment_value": string, "strategic_implications": string, "side_helped": "defense"|"prosecution"|"plaintiff"|"respondent"|"both", "severity": "low"|"medium"|"high"|"critical", "description": string, "legal_impact": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ], "recommended_use": string } ],
-  "missing_evidence": [ { "item": string, "why_critical": string, "severity": "low"|"medium"|"high"|"critical", "brady_risk": boolean, "how_to_obtain": string, "recommended_motion": string|null, "side_harmed": string, "side_benefits": string } ],
-  "constitutional_issues": ${isCriminalOrCivilRights ? '[ { "right": string, "amendment": string, "issue": string, "facts": string, "legal_standard": string, "likely_outcome": string, "remedy_sought": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ] } ]' : "[]"},
+  "missing_evidence": [ { "item": string, "why_critical": string, "severity": "low"|"medium"|"high"|"critical", "omision_probatoria_risk": boolean, "how_to_obtain": string, "recommended_motion": string|null, "side_harmed": string, "side_benefits": string } ],
+  "constitutional_issues": ${isCriminalOrCivilRights ? '[ { "right": string, "articulo_cpeum": string, "issue": string, "facts": string, "legal_standard": string, "likely_outcome": string, "remedy_sought": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ] } ]' : "[]"},
   "motion_opportunities": [ { "motion": string, "basis": string, "elements": string[], "supporting_facts": string, "legal_rationale": string, "anticipated_opposing_response": string, "likely_outcome": string, "likelihood_of_success": "low"|"medium"|"high", "priority": number, "draft_outline": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ] } ],
   "cross_examination": [ { "witness": string, "objective": string, "lines": [ { "topic": string, "questions": string[], "impeachment_with": string|null, "citation": { "doc_n": number, "page": number, "quote": string }|null } ] } ],
   "strategy_recommendations": [ { "title": string, "rationale": string, "category": "investigation"|"motions"|"negotiation"|"trial"|"discovery"|"expert"|"client", "priority": "low"|"medium"|"high"|"critical", "expected_impact": string, "side_benefits": string } ],
