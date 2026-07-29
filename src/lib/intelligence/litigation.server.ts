@@ -198,7 +198,8 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
         apiKeys,
         model: MODEL,
         systemInstruction:
-          mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+          mexicoLock(await getReportLocale(db, caseId)) +
+          "\n\n" +
           `You are a neutral senior litigation analyst examining a case from the ${perspective.toUpperCase()} perspective. ` +
           `Your job is to reveal the strongest case this side can build, the weaknesses they must address, ` +
           `what the opposing side will argue, and how those arguments can be countered. ` +
@@ -265,9 +266,7 @@ ${briefText}`,
         recommended_actions: (p.recommended_actions ?? []) as J,
       });
       if (insertError) {
-        throw new Error(
-          `case_perspectives insert failed for "${perspective}": ${insertError.message}`,
-        );
+        throw new Error(`case_perspectives insert failed for "${perspective}": ${insertError.message}`);
       }
       return { perspective, ok: true as const };
     } catch (e) {
@@ -448,7 +447,8 @@ export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; use
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       "You are a forensic evidence analyst. Using the shared case brief, classify every piece of evidence by its role in the case. " +
       "Also identify evidence that SHOULD exist given the fact pattern but is missing. " +
       "Use confidence labels: confirmed | likely | possible | unknown. " +
@@ -458,7 +458,7 @@ export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; use
 {
   "classifications": [
     {
-      "classification": "corroborating"|"contradictory"|"weak"|"missing"|"undisclosed"|"brady"|"chain_of_custody"|"timeline_inconsistency",
+      "classification": "corroborating"|"contradictory"|"weak"|"missing"|"undisclosed"|"omision_probatoria"|"chain_of_custody"|"timeline_inconsistency",
       "doc_n": int|null,
       "title": string,
       "description": string,
@@ -536,7 +536,7 @@ ${briefText}`,
         "weak",
         "missing",
         "undisclosed",
-        "brady",
+        "omision_probatoria",
         "chain_of_custody",
         "timeline_inconsistency",
       ].includes(r.classification),
@@ -626,9 +626,15 @@ ${briefText}`,
   // not decorative labels. Adverse classifications must become unified
   // findings so they appear in reports and agent statistics.
   const promotable = rows.filter((r) =>
-    ["contradictory", "weak", "missing", "undisclosed", "brady", "chain_of_custody", "timeline_inconsistency"].includes(
-      r.classification,
-    ),
+    [
+      "contradictory",
+      "weak",
+      "missing",
+      "undisclosed",
+      "omision_probatoria",
+      "chain_of_custody",
+      "timeline_inconsistency",
+    ].includes(r.classification),
   );
   await clearFindingsByModule(db, caseId, "engine:evidence_intelligence");
   // Route through the shared evidence gate so the same verification that
@@ -770,13 +776,14 @@ export async function runStrategyEngine(args: {
   const civil = !isCriminalCaseType(caseType);
   const caseFrame = civil
     ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology ONLY — liability, damages, comparative fault, settlement, discovery, credibility. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy). NEVER recommend criminal motions (motion to suppress, Brady motion).`
-    : `This is a CRIMINAL matter (case_type=${caseType}). Criminal terminology is appropriate.`;
+    : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology ONLY — Ministerio Público, imputado, víctima u ofendido, auto de vinculación a proceso, sentencia condenatoria/absolutoria, Juez de Control, Tribunal de Enjuiciamiento. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
 
   const r = await callGroq({
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       `You are the head of strategy for the ${perspective.toUpperCase()} side. ` +
       `Produce a prioritized strategy: rank motions by realistic chance of success (High/Moderate/Low with rationale), ` +
       `list what the opposing side will argue and how to counter each, ` +
@@ -905,11 +912,11 @@ ${briefText}`,
 // renderer can attach to one of seven attack lanes.
 //
 // IMPORTANT — read before using these numbers in a report or UI: every
-// bucket here (including suppression_opportunities) is built by regex
+// bucket here (including exclusion_opportunities) is built by regex
 // keyword-matching against each finding's title/description/category (see
 // bucketFinding below). This is fast, deterministic, and useful for
 // triage — but it is NOT a probability model. There is currently no
-// suppression-probability estimation anywhere in this codebase; this is
+// exclusion-probability estimation anywhere in this codebase; this is
 // the closest existing thing to it, and it should be presented to
 // attorneys as "candidates for review," not as a likelihood.
 // =====================================================================
@@ -926,27 +933,27 @@ export type AttackSurfaceItem = {
 };
 
 export type AttackSurface = {
-  /** Keyword-matched candidates for a suppression motion — NOT a probability. See file header above. */
-  suppression_opportunities: AttackSurfaceItem[];
+  /** Keyword-matched candidates for a prueba-ilícita exclusion incidente — NOT a probability. See file header above. */
+  exclusion_opportunities: AttackSurfaceItem[];
   impeachment_opportunities: AttackSurfaceItem[];
-  brady_risks: AttackSurfaceItem[];
-  franks_hearing_risks: AttackSurfaceItem[];
+  omision_probatoria_risks: AttackSurfaceItem[];
+  cateo_irregular_risks: AttackSurfaceItem[];
   chain_of_custody_challenges: AttackSurfaceItem[];
-  authentication_challenges: AttackSurfaceItem[];
-  expert_witness_challenges: AttackSurfaceItem[];
+  fundamentacion_probatoria_challenges: AttackSurfaceItem[];
+  impugnacion_pericial_challenges: AttackSurfaceItem[];
   generated_at: string;
   finding_count: number;
 };
 
 function emptyAttackSurface(): AttackSurface {
   return {
-    suppression_opportunities: [],
+    exclusion_opportunities: [],
     impeachment_opportunities: [],
-    brady_risks: [],
-    franks_hearing_risks: [],
+    omision_probatoria_risks: [],
+    cateo_irregular_risks: [],
     chain_of_custody_challenges: [],
-    authentication_challenges: [],
-    expert_witness_challenges: [],
+    fundamentacion_probatoria_challenges: [],
+    impugnacion_pericial_challenges: [],
     generated_at: new Date().toISOString(),
     finding_count: 0,
   };
@@ -976,41 +983,62 @@ export async function buildAttackSurface(db: Db, caseId: string): Promise<Attack
     source_document_id: f.source_document_id ?? null,
   });
 
+  // REBUILT 2026-07-29: every regex below was English/U.S. doctrine
+  // (miranda, fourth amendment, brady, franks, daubert) written before
+  // this session's Mexican-terminology rebuild — none could match a real
+  // Mexican finding's Spanish title/description, so this function
+  // silently returned every bucket empty for every case. Rebuilt to match
+  // the same Spanish vocabulary already established in classify.server.ts
+  // and report-augment.server.ts's ISSUE_RULES.
   for (const f of findings) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const blob = `${(f as any).category ?? ""} ${(f as any).title ?? ""} ${(f as any).description ?? ""}`.toLowerCase();
     if (
-      /(miranda|fourth[_ ]amendment|illegal[_ ]search|warrant[_ ]defect|suppression|fruit[_ ]of[_ ]the[_ ]poisonous)/.test(
+      /(debido\s+proceso|control\s+de\s+detenci[oó]n|cateo\s+sin\s+orden|cateo\s+irregular|detenci[oó]n\s+arbitraria|prueba\s+il[ií]cita|exclusi[oó]n\s+probatoria)/.test(
         blob,
       )
     ) {
-      out.suppression_opportunities.push(toItem(f));
+      out.exclusion_opportunities.push(toItem(f));
     }
     if (
-      /(witness[_ ]bias|witness[_ ]contradiction|witness[_ ]inconsistency|credibility|informant[_ ]unreliable|impeachment|prior[_ ]inconsistent)/.test(
+      /(sesgo\s+del\s+testigo|contradicci[oó]n\s+del\s+testigo|credibilidad|testigo\s+no\s+confiable|impugnaci[oó]n|declaraci[oó]n\s+previa\s+inconsistente)/.test(
         blob,
       )
     ) {
       out.impeachment_opportunities.push(toItem(f));
     }
-    if (/(brady|giglio|withheld|undisclosed)/.test(blob)) {
-      out.brady_risks.push(toItem(f));
-    }
-    if (/(franks|warrant[_ ]misstatement|affidavit[_ ]omission|false[_ ]statement[_ ]in[_ ]affidavit)/.test(blob)) {
-      out.franks_hearing_risks.push(toItem(f));
-    }
-    if (/(chain[_ ]of[_ ]custody|custody[_ ]break|custody[_ ]gap|evidence[_ ]tampering)/.test(blob)) {
-      out.chain_of_custody_challenges.push(toItem(f));
-    }
-    if (/(authentication|foundation|hearsay|best[_ ]evidence|document[_ ]integrity)/.test(blob)) {
-      out.authentication_challenges.push(toItem(f));
-    }
     if (
-      /(daubert|expert[_ ]contradiction|expert[_ ]gap|dna[_ ]degradation|mixed[_ ]dna|lab[_ ]error|forensic[_ ]unreliable)/.test(
+      /(omisi[oó]n\s+de\s+investigaci[oó]n|dato\s+de\s+prueba\s+no\s+revelado|ocultamiento\s+de\s+evidencia|omisi[oó]n\s+probatoria)/.test(
         blob,
       )
     ) {
-      out.expert_witness_challenges.push(toItem(f));
+      out.omision_probatoria_risks.push(toItem(f));
+    }
+    if (
+      /(datos\s+falsos\s+en\s+cateo|omisi[oó]n\s+sustancial\s+en\s+cateo|solicitud\s+de\s+cateo\s+irregular)/.test(blob)
+    ) {
+      out.cateo_irregular_risks.push(toItem(f));
+    }
+    if (
+      /(cadena\s+de\s+custodia|ruptura\s+de\s+custodia|manejo\s+indebido\s+de\s+indicios|contaminaci[oó]n\s+de\s+indicio)/.test(
+        blob,
+      )
+    ) {
+      out.chain_of_custody_challenges.push(toItem(f));
+    }
+    if (
+      /(licitud\s+de\s+la\s+prueba|fundamentaci[oó]n\s+probatoria|incorporaci[oó]n\s+de\s+prueba|valoraci[oó]n\s+probatoria)/.test(
+        blob,
+      )
+    ) {
+      out.fundamentacion_probatoria_challenges.push(toItem(f));
+    }
+    if (
+      /(dictamen\s+pericial\s+deficiente|metodolog[ií]a\s+pericial\s+cuestionada|perito\s+sin\s+acreditaci[oó]n|contaminaci[oó]n\s+de\s+muestra|error\s+de\s+laboratorio)/.test(
+        blob,
+      )
+    ) {
+      out.impugnacion_pericial_challenges.push(toItem(f));
     }
   }
 
@@ -1110,7 +1138,7 @@ export async function runLitigationStrategyCenterEngine(args: {
   const civil = !isCriminalCaseType(caseType);
   const caseFrame = civil
     ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology only — liability, damages, comparative fault, settlement, discovery, credibility. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, reasonable doubt, prosecution).`
-    : `This is a CRIMINAL matter (case_type=${caseType}). Criminal terminology is appropriate.`;
+    : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology only — Ministerio Público, imputado, víctima u ofendido, sentencia condenatoria/absolutoria. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
 
   const witnessNames = (witnesses ?? []).map((w) => String((w as { name?: unknown }).name ?? "")).filter(Boolean);
 
@@ -1118,7 +1146,8 @@ export async function runLitigationStrategyCenterEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       "You are lead trial counsel synthesizing everything already known about this case into a single strategic " +
       "briefing. You are NOT generating new theories, evidence, or witnesses — you are synthesizing what has " +
       "already been produced and gated by other analysis. Only name a witness if their name appears verbatim in " +
@@ -1255,7 +1284,7 @@ ${JSON.stringify(strategy ?? []).slice(0, 15000)}`,
     {
       question: "Litigation posture",
       assessment: theme.persuasion_likelihood
-        ? `${civil ? "Favorable to plaintiff" : "Favorable to prosecution"} if ${String(theme.persuasion_likelihood).toLowerCase()}-likelihood theme holds`
+        ? `${civil ? "Favorable a la parte actora" : "Favorable al Ministerio Público"} si el tema de persuasión de probabilidad ${String(theme.persuasion_likelihood).toLowerCase()} se sostiene`
         : "—",
     },
   ];
