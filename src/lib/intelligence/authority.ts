@@ -3,11 +3,11 @@
 // Deliberately does NOT ask a model to invent a confidence score or
 // generate new case law. Everything here is derived from data the
 // pipeline already produced and already gates behind evidence
-// verification: real CourtListener case law (case-law.server.ts),
-// real evidence citations attached to each opportunity, and the
-// severity the Opportunity engine already assigned. If a case has no
-// matched authority, this says so — it never fabricates a number to
-// make the meter look fuller.
+// verification: real SCJN/CJF jurisprudencia (case-law.server.ts, backed
+// by legal_authorities — see scjn.connector.ts), real evidence citations
+// attached to each opportunity, and the severity the Opportunity engine
+// already assigned. If a case has no matched authority, this says so —
+// it never fabricates a number to make the meter look fuller.
 import type { ReportLike } from "./canonical";
 import { getLegalIssues } from "./canonical";
 
@@ -58,51 +58,71 @@ const SEVERITY_LIKELIHOOD: Record<string, SupportingAuthority["likelihood"]> = {
 /**
  * Matches free text (a motion title / opportunity description) against
  * the deterministic legal-issue vocabulary already detected server-side
- * (Miranda, Brady, Fourth Amendment, etc — see report-augment.server.ts's
- * ISSUE_RULES). Simple keyword containment, not fuzzy matching: the issue
+ * (Cateo y Detención, Cadena de Custodia, etc — see
+ * report-augment.server.ts's ISSUE_RULES, rebuilt 2026-07-29 around CNPP/
+ * CPEUM). Simple keyword containment, not fuzzy matching: the issue
  * names are short, specific legal terms of art, so false positives are
  * rare and a miss just means no authority renders — never a wrong one.
  *
- * IMPORTANT: ISSUE_RULES matches against raw SOURCE DOCUMENT text (police
- * reports, transcripts), which is a different corpus with different
- * phrasing than the AI-generated motion opportunity text this function
- * actually receives. A real "Motion to Suppress Statements" opportunity
- * commonly says "invokes right to counsel" and cites "Edwards v. Arizona"
- * directly — it may never say the literal word "Miranda". The synonym
- * list below exists specifically to bridge that gap; it was expanded
- * after exactly this case (Edwards-citing suppression motion) matched
- * nothing despite the report's own Legal Issues & Case Law section
- * already having real Miranda case law attached.
+ * IMPORTANT: ISSUE_RULES matches against raw SOURCE DOCUMENT text
+ * (informes policiales, entrevistas, carpeta de investigación), which is
+ * a different corpus with different phrasing than the AI-generated
+ * motion/incidente text this function actually receives. A real
+ * "Incidente de Exclusión de Declaración" opportunity commonly says
+ * "se invoca el derecho a guardar silencio" rather than the literal
+ * issue label. The synonym lists below exist specifically to bridge that
+ * gap, same rationale as the original English version of this function
+ * (which bridged "invokes right to counsel" / "Edwards v. Arizona" text
+ * to the "Miranda" issue key it detected).
  */
 function matchIssueType(text: string): string | null {
   const hay = text.toLowerCase();
   const candidates = [
-    "fourth amendment",
-    "miranda",
-    "franks",
-    "brady",
-    "jencks",
-    "chain of custody",
-    "authentication",
-    "expert admissibility",
+    "cateo y detención",
+    "declaración del imputado sin garantías",
+    "irregularidad en solicitud de cateo",
+    "omisión en el deber de aportación probatoria",
+    "declaraciones previas de testigo",
+    "cadena de custodia",
+    "fundamentación probatoria",
+    "impugnación pericial",
   ];
   for (const c of candidates) {
     if (hay.includes(c)) return c;
   }
-  // Fourth Amendment: search / seizure issues.
-  if (/warrantless|probable cause|search warrant|unlawful search|illegal search|terry frisk|terry stop/.test(hay))
-    return "fourth amendment";
-  // Miranda / Fifth-Sixth Amendment right-to-counsel issues. Real motion
-  // text overwhelmingly describes this fact pattern rather than naming
-  // "Miranda" outright — hence the long synonym list.
+  // Cateo y Detención: allanamiento / detención / control judicial issues.
   if (
-    /custodial interrogation|confession|waiver of rights|right to counsel|invok(e|ed|es|ing)\s+(his |her |their )?(right\s+to\s+)?counsel|invocation of counsel|post-invocation|edwards v\.?\s*arizona|self[- ]incrimination|suppress(ion)? of statements?|interrogat/.test(
+    /orden de cateo|cateo sin orden|detenci[oó]n sin orden|control de detenci[oó]n|flagrancia|caso urgente|aseguramiento de bienes/.test(
       hay,
     )
   )
-    return "miranda";
-  if (/exculpatory|witness deal|informant|brady v\.?\s*maryland|withheld evidence/.test(hay)) return "brady";
-  if (/daubert|frye|expert methodology/.test(hay)) return "expert admissibility";
+    return "cateo y detención";
+  // Declaración del Imputado: derecho a guardar silencio / asistencia de
+  // defensor issues. Real motion text overwhelmingly describes this fact
+  // pattern rather than naming the issue outright — hence the long
+  // synonym list, mirroring the original Miranda-synonym rationale.
+  if (
+    /declaraci[oó]n sin defensor|asistencia de defensor|derecho a guardar silencio|renuncia al derecho|coacci[oó]n en declaraci[oó]n|entrevista sin abogado|autoincriminaci[oó]n|exclusi[oó]n de declaraci[oó]n|nulidad de declaraci[oó]n/.test(
+      hay,
+    )
+  )
+    return "declaración del imputado sin garantías";
+  if (/datos falsos en cateo|omisi[oó]n sustancial en cateo|solicitud de cateo irregular/.test(hay))
+    return "irregularidad en solicitud de cateo";
+  if (
+    /dato de prueba no revelado|ocultamiento de evidencia|omisi[oó]n probatoria|principio de objetividad|acuerdo de colaboraci[oó]n no revelado/.test(
+      hay,
+    )
+  )
+    return "omisión en el deber de aportación probatoria";
+  if (/entrevista previa|declaraci[oó]n previa del testigo|contrainterrogatorio|declaraci[oó]n inconsistente/.test(hay))
+    return "declaraciones previas de testigo";
+  if (/registro de cadena de custodia|sello roto|manejo de indicios|laguna en custodia/.test(hay))
+    return "cadena de custodia";
+  if (/licitud de la prueba|incorporaci[oó]n de prueba|prueba superveniente/.test(hay))
+    return "fundamentación probatoria";
+  if (/dictamen pericial|metodolog[ií]a pericial|perito sin acreditaci[oó]n|error de laboratorio/.test(hay))
+    return "impugnación pericial";
   return null;
 }
 
