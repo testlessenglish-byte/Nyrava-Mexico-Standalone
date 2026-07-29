@@ -1,6 +1,15 @@
 // Attorney work product — case strategy, strengths/weaknesses, motion
-// opportunities, thematic lines for hearings, and cross-examination outlines.
-// Mexican procedural terminology throughout (no jury/voir dire/discovery).
+// opportunities, thematic lines for the oral trial, and cross-examination
+// outlines. Mexican procedural terminology throughout (no jury/voir
+// dire/discovery) — this comment was inaccurate before 2026-07-29:
+// buildWorkProduct()/buildWitnessProfiles() in report-augment.server.ts
+// generated pure U.S. adversarial-trial content (jury references, plea/
+// proffer agreements, Daubert/Frye, "the government must prove... beyond
+// a reasonable doubt") until fixed in that pass. `jury_themes` below is a
+// legacy field name kept for now (only 2 consumers, see
+// report-augment.server.ts's fix comment) — its content is Mexican
+// (Tribunal de Enjuiciamiento, in dubio pro reo), only the internal field
+// name still says "jury".
 import { useI18n } from "@/i18n";
 import { ArchivableList, dedupeCrossExams, stableKey, type ItemFlags } from "./shared";
 
@@ -48,7 +57,9 @@ export function AttorneyWorkProduct({
       <p className="text-xs font-semibold uppercase text-muted-foreground">{t("reports.workProduct.title")}</p>
       <div className="mt-3 space-y-4 text-sm">
         <div>
-          <p className="text-[11px] font-semibold uppercase text-muted-foreground">{t("reports.workProduct.caseStrategy")}</p>
+          <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+            {t("reports.workProduct.caseStrategy")}
+          </p>
           <p className="mt-1 text-sm">{wp.case_strategy}</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -97,7 +108,9 @@ export function AttorneyWorkProduct({
           )}
         />
         <div>
-          <p className="text-[11px] font-semibold uppercase text-muted-foreground">{t("reports.workProduct.trialThemes")}</p>
+          <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+            {t("reports.workProduct.trialThemes")}
+          </p>
           {trialThemes.length ? (
             <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs">
               {trialThemes.map((th, i) => (
@@ -127,7 +140,9 @@ export function AttorneyWorkProduct({
           )}
         />
         <div>
-          <p className="text-[11px] font-semibold uppercase text-muted-foreground">{t("reports.workProduct.hearingThemes")}</p>
+          <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+            {t("reports.workProduct.hearingThemes")}
+          </p>
           {hearingThemes.length ? (
             <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs">
               {hearingThemes.map((th, i) => (
