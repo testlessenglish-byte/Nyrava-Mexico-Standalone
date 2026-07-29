@@ -1849,38 +1849,38 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <Block title="Opening themes" items={t.opening_themes} />
-        <Block title="Closing themes" items={t.closing_themes} />
-        <Block title="Trial strengths" items={t.trial_strengths} />
-        <Block title="Trial risks" items={t.trial_risks} />
+        <Block title="Ejes de apertura" items={t.opening_themes} />
+        <Block title="Ejes de clausura" items={t.closing_themes} />
+        <Block title="Fortalezas del caso" items={t.trial_strengths} />
+        <Block title="Riesgos del caso" items={t.trial_risks} />
         <Block
           title={isCrim ? "Riesgos de percepción ante el Tribunal" : "Riesgos de percepción"}
           items={t.jury_concerns}
         />
 
-        <Block title="Most persuasive evidence" items={t.most_persuasive_evidence} />
-        <Block title="Most damaging evidence" items={t.most_damaging_evidence} />
+        <Block title="Evidencia más persuasiva" items={t.most_persuasive_evidence} />
+        <Block title="Evidencia más perjudicial" items={t.most_damaging_evidence} />
       </div>
       <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Witness order</h3>
+        <h3 className="text-sm font-semibold">Orden de testigos</h3>
         <ListSection
           title=""
           items={(t.witness_order ?? []).map((w: { name: string; reason: string }) => `${w.name} — ${w.reason}`)}
         />
       </div>
       <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Exhibit order</h3>
+        <h3 className="text-sm font-semibold">Orden de pruebas</h3>
         <ListSection
           title=""
           items={(t.exhibit_order ?? []).map((e: { exhibit: string; reason: string }) => `${e.exhibit} — ${e.reason}`)}
         />
       </div>
       <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Likely objections</h3>
+        <h3 className="text-sm font-semibold">Objeciones probables</h3>
         <ListSection
           title=""
           items={(t.likely_objections ?? []).map(
-            (o: { objection: string; counter: string }) => `${o.objection} → counter: ${o.counter}`,
+            (o: { objection: string; counter: string }) => `${o.objection} → contraargumento: ${o.counter}`,
           )}
         />
       </div>
