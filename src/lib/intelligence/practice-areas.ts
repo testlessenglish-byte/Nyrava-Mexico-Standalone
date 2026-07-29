@@ -42,7 +42,6 @@ import {
   type MexicanCaseType,
 } from "@/lib/jurisdiction/mexico";
 
-
 /** Canonical Mexican materia. Alias retained for existing call sites. */
 export type PracticeArea = MexicanCaseType;
 
@@ -89,7 +88,6 @@ export const UNIVERSAL_TABS = new Set<string>([
   "report",
 ]);
 
-
 export const UNIVERSAL_ENGINES = new Set<string>([
   "extraction",
   "ocr",
@@ -127,6 +125,22 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "closing_readiness_scoring",
 ]);
 
+// FIX (2026-07-29): missing_evidence, procedural, and strength were absent
+// from this list entirely — they existed only inside individual materia
+// doctrine lists (or not at all), so isFindingAllowed() silently rejected
+// every finding from the analyzer's missing-evidence, procedural-issues,
+// and key-findings sub-passes for any materia that didn't happen to list
+// them (mercantil, familiar, civil, ...). Only "contradiction" survived,
+// since it was the one category already on this universal list. These four
+// categories are structural pipeline outputs, not materia-specific legal
+// doctrine — every case type must be able to persist a missing-evidence,
+// procedural, or key-strength finding regardless of subject matter, the
+// same way every case type can already persist a contradiction or a
+// discovery_gap. Confirmed via pipeline_engine_runs.meta.evidence_gate
+// audit on case a467f960-869e-4d81-88dc-3025ae63176e: the evidence gate
+// itself received only 4 of 12 analyzer items (audit.input: 4), meaning
+// the other 8 were dropped by this allow-list before the gate ever saw
+// them — not rejected by evidence verification.
 const UNIVERSAL_FINDING_MODULES = [
   "extraction",
   "fact",
@@ -136,6 +150,9 @@ const UNIVERSAL_FINDING_MODULES = [
   "contradiction",
   "dispute",
   "discovery_gap",
+  "missing_evidence",
+  "procedural",
+  "strength",
   "coverage",
   "scoring",
   "ess",
@@ -233,8 +250,7 @@ export const CORE_PLATFORM_CAPABILITIES = new Set<string>(CORE_CAPABILITIES);
 
 export function getApplicableDashboardModules(area: AreaInput, activeDomains?: DomainSet): Set<string> {
   const out = new Set<string>();
-  for (const a of effectiveAreas(area, activeDomains))
-    for (const m of materiaDashboardModules(a)) out.add(m);
+  for (const a of effectiveAreas(area, activeDomains)) for (const m of materiaDashboardModules(a)) out.add(m);
   return out;
 }
 
@@ -269,8 +285,6 @@ export function getAiPersona(area: AreaInput): string | null {
   const a = resolvePracticeAreaOrNull(area);
   return a ? materiaAiPersona(a) : null;
 }
-
-
 
 // -------- Analyzers --------
 
@@ -416,7 +430,10 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
   {
     group: "Mercantil",
     options: [
-      { value: "mercantil", label: "Derecho Mercantil (títulos de crédito, societario, concursos, propiedad intelectual)" },
+      {
+        value: "mercantil",
+        label: "Derecho Mercantil (títulos de crédito, societario, concursos, propiedad intelectual)",
+      },
     ],
   },
   {
@@ -434,7 +451,10 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
     group: "Constitucional",
     options: [
       { value: "amparo", label: "Juicio de Amparo (directo e indirecto)" },
-      { value: "constitucional", label: "Constitucional / Derechos Humanos (controversias, acciones, control de convencionalidad)" },
+      {
+        value: "constitucional",
+        label: "Constitucional / Derechos Humanos (controversias, acciones, control de convencionalidad)",
+      },
     ],
   },
   {
