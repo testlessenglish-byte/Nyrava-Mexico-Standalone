@@ -621,7 +621,6 @@ export function filterByCaseType<
   });
 }
 
-
 /** Reads cases.case_type — the user-locked authoritative source. Null when unset. */
 export async function getLockedCaseType(db: SupabaseClient<Database>, caseId: string): Promise<string | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -725,25 +724,34 @@ export function evidenceDependenciesSatisfied(
  * Strip Brady references from civil-case findings/strings. Brady v. Maryland
  * is a criminal-prosecution disclosure rule and has no place in civil matters.
  */
-export function stripBradyForCivil<
+// REBUILT 2026-07-29: renamed from stripBradyForCivil. "Brady" (U.S.
+// disclosure doctrine) has no standing in Mexican procedure; the actual
+// concept this function guards — omisión en el deber de aportación
+// probatoria (CPEUM Art. 21, CNPP Art. 218-219) — is penal-specific the
+// same way Brady was criminal-only, so the civil-strip behavior is
+// correct and kept, just renamed and rematched to the real term.
+export function stripOmisionProbatoriaForCivil<
   T extends { title?: string | null; description?: string | null; legal_significance?: string | null; tags?: unknown },
 >(item: T, caseType: string | null | undefined): T | null {
   if (!isCivilCaseType(caseType)) return item;
   const blob = `${item.title ?? ""} ${item.description ?? ""} ${item.legal_significance ?? ""}`;
-  // If the entire finding is fundamentally a Brady claim, drop it.
-  if (/\bbrady\b/i.test(item.title ?? "") || /\bbrady\b/i.test(item.legal_significance ?? "")) {
+  // If the entire finding is fundamentally an omisión-probatoria claim, drop it.
+  if (
+    /\bomisi[oó]n\s+probatoria\b/i.test(item.title ?? "") ||
+    /\bomisi[oó]n\s+probatoria\b/i.test(item.legal_significance ?? "")
+  ) {
     return null;
   }
-  // Otherwise scrub Brady mentions from text fields and tags.
+  // Otherwise scrub omisión-probatoria mentions from text fields and tags.
   const scrub = (s: string | null | undefined) =>
     typeof s === "string"
       ? s
-          .replace(/\bbrady\s*(violation|material|disclosure|risk)?\b/gi, "")
+          .replace(/\bomisi[oó]n\s+probatoria\s*(procesal|disclosure|risk)?\b/gi, "")
           .replace(/\s{2,}/g, " ")
           .trim()
       : s;
   const tags = Array.isArray(item.tags)
-    ? (item.tags as unknown[]).filter((t) => typeof t !== "string" || !/brady/i.test(t))
+    ? (item.tags as unknown[]).filter((t) => typeof t !== "string" || !/omision_probatoria/i.test(t))
     : item.tags;
   return {
     ...item,
