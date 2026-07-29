@@ -78,11 +78,21 @@ export async function searchCaseLaw(
 
   const max = opts.maxResults ?? 3;
   try {
+    // NOTE (2026-07-29 fix): the legal_authorities.kind column comment in
+    // its migration documents aspirational values ('law','code',
+    // 'regulation','jurisprudence','decision','concept','article') that
+    // don't match what the connectors actually write. Confirmed against
+    // live data: real kind values in use are 'jurisprudencia' and
+    // 'court_decision' (plus 'administrative_ruling', 'electoral_ruling',
+    // 'federal_statute', 'state_statute', 'federal_gazette', 'code',
+    // 'law', 'constitution' — not relevant to case-law grounding). The
+    // original .eq("kind", "jurisprudence") matched zero rows against
+    // real data. Querying both actually-populated kinds instead.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (db as any)
       .from("legal_authorities")
       .select("title,short_title,citation,issuer,published_at,source_url,body,metadata")
-      .eq("kind", "jurisprudence")
+      .in("kind", ["jurisprudencia", "court_decision"])
       .textSearch("body", query, { type: "websearch", config: "spanish" })
       .order("published_at", { ascending: false })
       .limit(max);
