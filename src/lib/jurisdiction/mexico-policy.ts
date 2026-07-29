@@ -10,7 +10,7 @@
 import type { MexicanCaseType } from "./mexico-types";
 
 export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
-  "penal": [
+  penal: [
     "constitutional",
     "cross_exam",
     "discovery",
@@ -20,9 +20,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "civil": [
+  civil: [
     "cross_exam",
     "discovery",
     "opportunities",
@@ -31,9 +31,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "mercantil": [
+  mercantil: [
     "cross_exam",
     "discovery",
     "opportunities",
@@ -42,18 +42,10 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "familiar": [
-    "opportunities",
-    "perspectives",
-    "recommendations",
-    "risk",
-    "scorecard",
-    "strategy_synthesis",
-    "theories"
-  ],
-  "laboral": [
+  familiar: ["opportunities", "perspectives", "recommendations", "risk", "scorecard", "strategy_synthesis", "theories"],
+  laboral: [
     "discovery",
     "opportunities",
     "perspectives",
@@ -61,9 +53,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "administrativo": [
+  administrativo: [
     "cross_exam",
     "discovery",
     "opportunities",
@@ -72,9 +64,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "fiscal": [
+  fiscal: [
     "discovery",
     "opportunities",
     "perspectives",
@@ -82,9 +74,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "amparo": [
+  amparo: [
     "constitutional",
     "cross_exam",
     "discovery",
@@ -94,9 +86,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "constitucional": [
+  constitucional: [
     "constitutional",
     "cross_exam",
     "discovery",
@@ -106,9 +98,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "electoral": [
+  electoral: [
     "constitutional",
     "cross_exam",
     "discovery",
@@ -118,9 +110,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "agrario": [
+  agrario: [
     "cross_exam",
     "discovery",
     "opportunities",
@@ -129,9 +121,9 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "ambiental": [
+  ambiental: [
     "cross_exam",
     "discovery",
     "opportunities",
@@ -140,188 +132,57 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "risk",
     "scorecard",
     "strategy_synthesis",
-    "theories"
+    "theories",
   ],
-  "inmobiliario": [
-    "opportunities",
-    "perspectives",
-    "recommendations",
-    "risk",
-    "scorecard",
-    "transaction_center"
-  ]
+  inmobiliario: ["opportunities", "perspectives", "recommendations", "risk", "scorecard", "transaction_center"],
 };
 
 export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
-  "penal": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "civil": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "mercantil": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "familiar": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories"
-  ],
-  "laboral": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "administrativo": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "fiscal": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "amparo": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "constitucional": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "electoral": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "agrario": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "ambiental": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "strategy",
-    "theories",
-    "trial"
-  ],
-  "inmobiliario": [
-    "opportunities",
-    "perspectives",
-    "scorecard",
-    "transaction_center"
-  ]
+  penal: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  civil: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  mercantil: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  familiar: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
+  laboral: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  administrativo: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  fiscal: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  amparo: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  constitucional: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  electoral: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  agrario: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  ambiental: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  inmobiliario: ["opportunities", "perspectives", "scorecard", "transaction_center"],
 };
 
 export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
-  "penal": [
+  penal: ["chain_of_custody", "constitutional_compliance", "cross_examination", "procedural_violations", "trial_prep"],
+  civil: ["cross_examination", "trial_prep"],
+  mercantil: ["cross_examination", "trial_prep"],
+  familiar: [],
+  laboral: ["trial_prep"],
+  administrativo: ["cross_examination", "trial_prep"],
+  fiscal: ["cross_examination", "trial_prep"],
+  amparo: ["chain_of_custody", "constitutional_compliance", "cross_examination", "procedural_violations", "trial_prep"],
+  constitucional: [
     "chain_of_custody",
     "constitutional_compliance",
     "cross_examination",
     "procedural_violations",
-    "trial_prep"
+    "trial_prep",
   ],
-  "civil": [
-    "cross_examination",
-    "trial_prep"
-  ],
-  "mercantil": [
-    "cross_examination",
-    "trial_prep"
-  ],
-  "familiar": [],
-  "laboral": [
-    "trial_prep"
-  ],
-  "administrativo": [
-    "cross_examination",
-    "trial_prep"
-  ],
-  "fiscal": [
-    "cross_examination",
-    "trial_prep"
-  ],
-  "amparo": [
+  electoral: [
     "chain_of_custody",
     "constitutional_compliance",
     "cross_examination",
     "procedural_violations",
-    "trial_prep"
+    "trial_prep",
   ],
-  "constitucional": [
-    "chain_of_custody",
-    "constitutional_compliance",
-    "cross_examination",
-    "procedural_violations",
-    "trial_prep"
-  ],
-  "electoral": [
-    "chain_of_custody",
-    "constitutional_compliance",
-    "cross_examination",
-    "procedural_violations",
-    "trial_prep"
-  ],
-  "agrario": [
-    "cross_examination",
-    "trial_prep"
-  ],
-  "ambiental": [
-    "constitutional_compliance",
-    "cross_examination",
-    "trial_prep"
-  ],
-  "inmobiliario": [
-    "property_verification",
-    "closing_readiness_scoring"
-  ]
+  agrario: ["cross_examination", "trial_prep"],
+  ambiental: ["constitutional_compliance", "cross_examination", "trial_prep"],
+  inmobiliario: ["property_verification", "closing_readiness_scoring"],
 };
 
 export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
-  "penal": [
+  penal: [
     "cadena_de_custodia",
     "carpeta_de_investigacion",
     "datos_de_prueba",
@@ -338,9 +199,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "tax_evasion",
     "trial_strategy",
     "vinculacion_a_proceso",
-    "willfulness"
+    "willfulness",
   ],
-  "civil": [
+  civil: [
     "adverse_possession",
     "boundary_dispute",
     "cam_charges",
@@ -436,355 +297,145 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "variance",
     "vicios_del_consentimiento",
     "warranty_deed",
-    "zoning"
+    "zoning",
   ],
-  "mercantil": [
-    "10b_5",
-    "13d",
-    "13g",
-    "acceleration",
-    "accredited_investor",
-    "ach",
-    "acquisition",
-    "adequate_protection",
-    "administrative_proceeding",
-    "advisers_act",
-    "aml",
-    "aml_travel_rule",
-    "anticipation",
-    "anticipatory_repudiation",
-    "arbitration_clause",
-    "articles_of_incorporation",
-    "asset_purchase",
-    "assignment",
-    "assignment_of_loan",
-    "attachment",
-    "authorship",
-    "automatic_stay",
-    "baas",
-    "bank_partnership",
-    "bank_secrecy_act",
-    "banking_as_a_service",
-    "banking_discovery",
-    "banking_motion",
-    "bankruptcy_stay",
-    "basic_v_levinson",
-    "beneficial_ownership",
-    "bnpl",
-    "board_minutes",
-    "board_resolution",
-    "books_and_records",
-    "breach",
-    "breach_of_contract",
-    "bsa",
-    "business_judgment",
-    "buy_now_pay_later",
-    "bylaws",
-    "card_network",
-    "caremark",
-    "cash_collateral",
-    "ccpa",
-    "cease_and_desist",
-    "cfpb",
-    "chain_of_title",
-    "choice_of_law",
-    "cip",
-    "civil_penalty",
-    "claim_construction",
-    "classical_theory",
-    "clawback",
-    "cold_storage",
-    "collateral",
-    "commercial_discovery",
-    "commercial_impracticability",
-    "commercial_motion",
-    "commercially_reasonable",
-    "commitment_letter",
-    "conditions_precedent",
-    "conflict_of_interest",
-    "conforming_goods",
-    "consequential_damages",
-    "consumer_finance",
-    "contract",
-    "contract_formation",
-    "contract_interpretation",
-    "copyright",
-    "copyright_infringement",
-    "corporate_compliance",
-    "corporate_disclosure",
-    "corporate_dissolution",
-    "corporate_governance",
-    "corporate_governance_gap",
-    "corporate_minutes",
-    "cover",
-    "cpra",
-    "cra",
-    "credit_agreement",
-    "cross_collateralization",
-    "cross_default",
-    "cryptocurrency",
-    "ctr",
-    "cure",
-    "custody_of_digital_assets",
-    "cybersecurity",
-    "damages",
-    "data_privacy",
-    "default",
-    "defend_trade_secrets_act",
-    "defi",
-    "deficiency",
-    "delegation",
-    "derivative_action",
-    "derivative_work",
-    "descriptive_fair_use",
-    "dex",
-    "digital_asset",
-    "dilution",
-    "dip_financing",
-    "director_liability",
-    "disclaimer",
-    "disgorgement",
-    "dmca",
-    "doctrine_of_equivalents",
-    "dodd_frank",
-    "dtsa",
-    "due_diligence",
-    "durbin_amendment",
-    "duty_of_care",
-    "duty_of_good_faith",
-    "duty_of_loyalty",
-    "e_sign",
-    "earned_wage_access",
-    "ecoa",
-    "electronic_signature",
-    "entity_structure",
-    "escrow",
-    "event_of_default",
-    "ewa",
-    "express_warranty",
-    "fair_lending",
-    "fair_use",
-    "fiduciary_duty",
-    "finCEN",
-    "financing_statement",
-    "fintech_discovery",
-    "fintech_motion",
-    "fitness_particular_purpose",
-    "flood_disaster_protection_act",
-    "forbearance",
-    "force_majeure",
-    "foreclosure",
-    "form_10_k",
-    "form_10_q",
-    "form_8_k",
-    "forum_selection",
-    "fraud_in_inducement",
-    "fraud_on_the_market",
-    "fraudulent_transfer",
-    "gdpr",
-    "genericness",
-    "gift_card",
-    "glba",
-    "goods",
-    "guaranty",
-    "hmda",
-    "howey_test",
-    "ica",
-    "icfr",
-    "implied_warranty",
-    "improper_means",
-    "indemnity_clause",
-    "inequitable_conduct",
-    "injunction",
-    "insider_trading",
-    "installment_loan",
-    "interchange",
-    "intercreditor",
-    "interference_with_contract",
-    "interference_with_prospective_advantage",
-    "internal_controls",
-    "inventorship",
-    "investment_adviser",
-    "investment_company_act",
-    "ip_discovery",
-    "ip_motion",
-    "ip_ownership",
-    "item_303",
-    "kyc",
-    "lanham_act",
-    "lead_plaintiff",
-    "letter_of_credit",
-    "license_scope",
-    "licensing",
-    "likelihood_of_confusion",
-    "limitation_of_liability",
-    "liquidated_damages",
-    "loan_agreement",
-    "loan_participation",
-    "loss_causation",
-    "markman",
-    "material_breach",
-    "material_misstatement",
-    "material_omission",
-    "mdna",
-    "merchantability",
-    "merger",
-    "misappropriation",
-    "misappropriation_theory",
-    "misrepresentation",
-    "mitigation",
-    "modification",
-    "money_transmission",
-    "money_transmitter_license",
-    "msb",
-    "mtl",
-    "nacha",
-    "negligent_misrepresentation",
-    "nominative_fair_use",
-    "novation",
-    "nydfs_500",
-    "obviousness",
-    "ofac",
-    "officer_liability",
-    "operating_agreement",
-    "part_500",
-    "particularity",
-    "patent",
-    "patent_eligibility",
-    "patent_infringement",
-    "payment_processor",
-    "payments",
-    "perfect_tender",
-    "perfection",
-    "pmsi",
-    "preference",
-    "prepaid_card",
-    "prior_art",
-    "priority",
-    "promissory_estoppel",
-    "promissory_note",
-    "prosecution_history_estoppel",
-    "prospectus",
-    "pslra",
-    "psp",
-    "purchase_money_security_interest",
-    "qualified_custodian",
-    "quantum_meruit",
-    "reasonable_secrecy_measures",
-    "reformation",
-    "registration",
-    "registration_statement",
-    "regulation_a",
-    "regulation_b",
-    "regulation_d",
-    "regulation_e",
-    "regulation_e_error_resolution",
-    "regulation_fd",
-    "regulation_o",
-    "regulation_s",
-    "regulation_w",
-    "regulation_z",
-    "reliance",
-    "relief_from_stay",
-    "repossession",
-    "rescission",
-    "respa",
-    "reves_test",
-    "revlon",
-    "revocation_of_acceptance",
-    "revolver",
-    "revolving_credit",
-    "risk_factor",
-    "royalty",
-    "rule_10b_5",
-    "rule_506",
-    "s_1",
-    "s_3",
-    "s_4",
-    "safe_harbor",
-    "safe_harbor_forward_looking",
-    "sale_of_goods",
-    "same_day_ach",
-    "sanctions",
-    "sar",
-    "sarbanes_oxley",
-    "scienter",
-    "screening",
-    "sec_enforcement",
-    "secondary_meaning",
-    "section_101",
-    "section_102",
-    "section_103",
-    "section_11",
-    "section_112",
-    "section_12",
-    "section_15",
-    "section_16",
-    "section_220",
-    "section_302",
-    "section_404",
-    "section_906",
-    "securities_class_action",
-    "securities_discovery",
-    "securities_motion",
-    "security_agreement",
-    "security_token",
-    "self_dealing",
-    "self_help",
-    "servicing",
-    "shareholder_agreement",
-    "short_swing",
-    "smart_contract",
-    "sox",
-    "specific_performance",
-    "sponsor_bank",
-    "stablecoin",
-    "state_licensing",
-    "stock_purchase",
-    "strict_foreclosure",
-    "subordination",
-    "substantial_similarity",
-    "surety",
-    "surplus",
-    "syndicated_loan",
-    "term_loan",
-    "term_sheet",
-    "third_party_beneficiary",
-    "tila",
-    "tipping",
-    "token",
-    "tortious_interference",
-    "trade_dress",
-    "trade_secret",
-    "trademark",
-    "trademark_infringement",
-    "transaction_causation",
-    "true_lender",
-    "truth_in_lending",
-    "ucc_1",
-    "ucc_article_2",
-    "ucc_article_9",
-    "udaap",
-    "ueta",
-    "unfair_competition",
-    "unjust_enrichment",
-    "unocal",
-    "usury",
-    "utility_token",
-    "utsa",
-    "vasp",
-    "waiver_and_amendment",
-    "waiver_estoppel",
-    "warranty",
-    "wells_notice",
-    "wells_submission",
-    "whistleblower",
-    "willful_infringement",
-    "wire",
-    "work_for_hire",
-    "workout"
+  // REBUILT 2026-07-29: this list previously contained ~345 entries of
+  // U.S. federal securities, banking, and IP doctrine (10b_5, dodd_frank,
+  // sarbanes_oxley, hmda, tila, respa, glba, pslra, cfpb, ecoa, lanham_act,
+  // dmca, markman, howey_test, wells_notice, etc.) — none of which are
+  // Mexican commercial law. Rebuilt from the actual governing framework:
+  // Código de Comercio (juicio ejecutivo/oral mercantil), Ley General de
+  // Títulos y Operaciones de Crédito (pagaré, letra de cambio, aval),
+  // Ley General de Sociedades Mercantiles (asamblea, consejo de
+  // administración, fusión/escisión), Ley de Concursos Mercantiles,
+  // Ley del Mercado de Valores, Ley de Instituciones de Crédito, Ley para
+  // Regular las Instituciones de Tecnología Financiera (Ley Fintech),
+  // Ley Federal de Competencia Económica, Ley Federal de Protección a la
+  // Propiedad Industrial, Ley Federal de Protección al Consumidor, and the
+  // Ley Federal para la Prevención e Identificación de Operaciones con
+  // Recursos de Procedencia Ilícita. This is a representative core
+  // taxonomy, not a claim of exhaustive coverage — extend it as real case
+  // material surfaces gaps, the same way the original (mis-scoped) list
+  // grew over time.
+  mercantil: [
+    "pagare",
+    "letra_de_cambio",
+    "cheque",
+    "aval",
+    "endoso",
+    "protesto",
+    "accion_cambiaria",
+    "caducidad_cambiaria",
+    "prescripcion_cambiaria",
+    "obligacion_cambiaria",
+    "certificado_de_deposito",
+    "bono_de_prenda",
+    "obligacion_subordinada",
+    "contrato_mercantil",
+    "compraventa_mercantil",
+    "contrato_de_suministro",
+    "contrato_de_comision_mercantil",
+    "contrato_de_deposito_mercantil",
+    "contrato_de_transporte",
+    "contrato_de_seguro",
+    "contrato_de_fianza",
+    "factoraje_financiero",
+    "arrendamiento_financiero",
+    "fideicomiso",
+    "fideicomiso_de_garantia",
+    "contrato_de_apertura_de_credito",
+    "contrato_de_credito_simple",
+    "contrato_de_credito_en_cuenta_corriente",
+    "sociedad_anonima",
+    "sociedad_de_responsabilidad_limitada",
+    "sociedad_por_acciones_simplificada",
+    "asamblea_de_accionistas",
+    "asamblea_general_ordinaria",
+    "asamblea_general_extraordinaria",
+    "consejo_de_administracion",
+    "administrador_unico",
+    "capital_social",
+    "partes_sociales",
+    "comisario",
+    "fusion",
+    "escision",
+    "liquidacion_societaria",
+    "disolucion_societaria",
+    "responsabilidad_de_administradores",
+    "accion_de_responsabilidad",
+    "estatutos_sociales",
+    "acta_de_asamblea",
+    "juicio_ejecutivo_mercantil",
+    "juicio_oral_mercantil",
+    "via_ejecutiva",
+    "via_ordinaria_mercantil",
+    "titulo_ejecutivo",
+    "embargo_mercantil",
+    "excepciones_procesales_mercantiles",
+    "recurso_de_apelacion_mercantil",
+    "prueba_pericial_mercantil",
+    "auto_de_exequendo",
+    "requerimiento_de_pago",
+    "diligencia_de_embargo",
+    "tercero_excluyente",
+    "concurso_mercantil",
+    "conciliacion_concursal",
+    "quiebra",
+    "sindico",
+    "visitador",
+    "conciliador",
+    "masa_concursal",
+    "reconocimiento_de_creditos",
+    "declaracion_de_concurso_mercantil",
+    "garantia_mobiliaria",
+    "prenda_mercantil",
+    "hipoteca_mercantil",
+    "credito_mercantil",
+    "interes_moratorio",
+    "interes_ordinario",
+    "usura",
+    "tasa_de_interes_usuraria",
+    "oferta_publica_de_valores",
+    "emisora",
+    "bolsa_mexicana_de_valores",
+    "comision_nacional_bancaria_y_de_valores",
+    "condusef",
+    "banxico",
+    "institucion_de_credito",
+    "institucion_de_banca_multiple",
+    "sofom",
+    "sofipo",
+    "ley_fintech",
+    "institucion_de_tecnologia_financiera",
+    "activo_virtual",
+    "cuenta_de_fondos_de_pago_electronico",
+    "competencia_economica",
+    "cofece",
+    "practica_monopolica",
+    "concentracion_prohibida",
+    "poder_sustancial_de_mercado",
+    "propiedad_industrial",
+    "marca",
+    "patente",
+    "nombre_comercial",
+    "infraccion_administrativa",
+    "impi",
+    "aviso_comercial",
+    "arbitraje_comercial",
+    "clausula_compromisoria",
+    "laudo_arbitral",
+    "camara_de_comercio",
+    "reconocimiento_y_ejecucion_de_laudo",
+    "proteccion_al_consumidor",
+    "profeco",
+    "publicidad_enganosa",
+    "clausula_abusiva",
+    "operaciones_con_recursos_de_procedencia_ilicita",
+    "unidad_de_inteligencia_financiera",
+    "uif",
+    "aviso_ante_la_uif",
   ],
-  "familiar": [
+  familiar: [
     "advance_directive",
     "attestation",
     "beneficiary_designation",
@@ -849,9 +500,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "visitation",
     "will",
     "will_contest",
-    "witness_requirement"
+    "witness_requirement",
   ],
-  "laboral": [
+  laboral: [
     "ada",
     "discrimination",
     "eeoc",
@@ -862,9 +513,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "payroll",
     "retaliation",
     "wage_hour",
-    "wrongful_termination"
+    "wrongful_termination",
   ],
-  "administrativo": [
+  administrativo: [
     "audit_reconsideration",
     "burden_of_proof",
     "civil_procedure_mx",
@@ -897,9 +548,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "tax_levy",
     "tax_liability",
     "tax_lien",
-    "vicios_del_consentimiento"
+    "vicios_del_consentimiento",
   ],
-  "fiscal": [
+  fiscal: [
     "audit_reconsideration",
     "burden_of_proof",
     "collection_due_process",
@@ -911,9 +562,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "tax_deficiency",
     "tax_levy",
     "tax_liability",
-    "tax_lien"
+    "tax_lien",
   ],
-  "amparo": [
+  amparo: [
     "acto_reclamado",
     "autoridad_responsable",
     "brady",
@@ -933,9 +584,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "section_1983",
     "suplencia_de_la_queja",
     "suspension",
-    "violacion_derechos_humanos"
+    "violacion_derechos_humanos",
   ],
-  "constitucional": [
+  constitucional: [
     "acto_reclamado",
     "autoridad_responsable",
     "brady",
@@ -955,9 +606,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "section_1983",
     "suplencia_de_la_queja",
     "suspension",
-    "violacion_derechos_humanos"
+    "violacion_derechos_humanos",
   ],
-  "electoral": [
+  electoral: [
     "brady",
     "civil_procedure_mx",
     "constitutional",
@@ -988,9 +639,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "responsabilidad_civil_objetiva",
     "responsabilidad_civil_subjetiva",
     "section_1983",
-    "vicios_del_consentimiento"
+    "vicios_del_consentimiento",
   ],
-  "agrario": [
+  agrario: [
     "civil_procedure_mx",
     "contrato",
     "cumplimiento_forzoso",
@@ -1011,9 +662,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "rescision_contractual",
     "responsabilidad_civil_objetiva",
     "responsabilidad_civil_subjetiva",
-    "vicios_del_consentimiento"
+    "vicios_del_consentimiento",
   ],
-  "ambiental": [
+  ambiental: [
     "autorizacion_cambio_uso_suelo",
     "clausura_profepa",
     "concesion_agua_conagua",
@@ -1034,9 +685,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "regulacion_industria_hidrocarburos_asea",
     "remediacion_ambiental",
     "residuos_peligrosos",
-    "responsabilidad_ambiental_objetiva"
+    "responsabilidad_ambiental_objetiva",
   ],
-  "inmobiliario": [
+  inmobiliario: [
     "adeudo_agua",
     "adeudo_cfe",
     "adeudo_hoa",
@@ -1058,21 +709,21 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "libertad_de_gravamen",
     "permiso_construccion",
     "poder_notarial",
-    "uso_de_suelo"
-  ]
+    "uso_de_suelo",
+  ],
 };
 
 export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
-  "penal": [
+  penal: [
     "acuerdo_reparatorio",
     "amparo_indirecto_penal",
     "impugnacion_medidas_cautelares",
     "procedimiento_abreviado",
     "recurso_de_apelacion",
     "solicitud_de_no_vinculacion",
-    "suspension_condicional"
+    "suspension_condicional",
   ],
-  "civil": [
+  civil: [
     "amparo_directo_civil",
     "amparo_indirecto_civil",
     "compel",
@@ -1095,9 +746,9 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "recurso_de_apelacion_civil",
     "specific_performance",
     "summary_judgment",
-    "unlawful_detainer"
+    "unlawful_detainer",
   ],
-  "mercantil": [
+  mercantil: [
     "amend",
     "appointment_of_receiver",
     "asset_purchase_agreement",
@@ -1145,9 +796,9 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "summary_judgment",
     "temporary_restraining_order",
     "tro",
-    "vacate_arbitration"
+    "vacate_arbitration",
   ],
-  "familiar": [
+  familiar: [
     "compel",
     "contempt",
     "custody_modification",
@@ -1163,16 +814,10 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "temporary_orders",
     "trust_contest",
     "visitation",
-    "will_contest"
+    "will_contest",
   ],
-  "laboral": [
-    "class_certification",
-    "compel",
-    "discovery",
-    "protective_order",
-    "summary_judgment"
-  ],
-  "administrativo": [
+  laboral: ["class_certification", "compel", "discovery", "protective_order", "summary_judgment"],
+  administrativo: [
     "amparo_directo_civil",
     "amparo_indirecto_civil",
     "collection_due_process",
@@ -1191,9 +836,9 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "recurso_de_apelacion_civil",
     "refund_suit",
     "summary_judgment",
-    "tax_court_petition"
+    "tax_court_petition",
   ],
-  "fiscal": [
+  fiscal: [
     "collection_due_process",
     "compel",
     "deficiency",
@@ -1202,9 +847,9 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "offer_in_compromise",
     "refund_suit",
     "summary_judgment",
-    "tax_court_petition"
+    "tax_court_petition",
   ],
-  "amparo": [
+  amparo: [
     "demanda_de_amparo",
     "discovery",
     "incidente_de_suspension",
@@ -1213,9 +858,9 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "recurso_de_queja",
     "recurso_de_revision",
     "section_1983",
-    "summary_judgment"
+    "summary_judgment",
   ],
-  "constitucional": [
+  constitucional: [
     "demanda_de_amparo",
     "discovery",
     "incidente_de_suspension",
@@ -1224,9 +869,9 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "recurso_de_queja",
     "recurso_de_revision",
     "section_1983",
-    "summary_judgment"
+    "summary_judgment",
   ],
-  "electoral": [
+  electoral: [
     "amparo_directo_civil",
     "amparo_indirecto_civil",
     "contestacion_demanda",
@@ -1241,9 +886,9 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "reconvencion",
     "recurso_de_apelacion_civil",
     "section_1983",
-    "summary_judgment"
+    "summary_judgment",
   ],
-  "agrario": [
+  agrario: [
     "amparo_directo_civil",
     "amparo_indirecto_civil",
     "contestacion_demanda",
@@ -1253,9 +898,9 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "ofrecimiento_pruebas",
     "providencias_precautorias",
     "reconvencion",
-    "recurso_de_apelacion_civil"
+    "recurso_de_apelacion_civil",
   ],
-  "ambiental": [
+  ambiental: [
     "amparo_indirecto_ambiental",
     "denuncia_popular",
     "impugnacion_negativa_concesion_conagua",
@@ -1264,15 +909,15 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "juicio_de_nulidad_ambiental",
     "medidas_cautelares_ambientales",
     "ofrecimiento_pruebas",
-    "recurso_de_revision"
+    "recurso_de_revision",
   ],
   // Deliberately empty: a closing has no motions. If a real estate matter
   // ever needs one, it has become a dispute — i.e. civil, not inmobiliario.
-  "inmobiliario": []
+  inmobiliario: [],
 };
 
 export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
-  "penal": [
+  penal: [
     "child custody",
     "custody dispute",
     "discrimination claim",
@@ -1285,9 +930,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "plea bargain",
     "spousal support",
     "title vii",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "civil": [
+  civil: [
     "brady violation",
     "celotex",
     "child custody",
@@ -1315,9 +960,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "title vii",
     "tortious interference",
     "twombly",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "mercantil": [
+  mercantil: [
     "brady violation",
     "child custody",
     "criminal procedure",
@@ -1331,9 +976,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "spousal support",
     "standard of care",
     "title vii",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "familiar": [
+  familiar: [
     "brady violation",
     "criminal procedure",
     "eeoc",
@@ -1345,17 +990,10 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "sentencing",
     "standard of care",
     "title vii",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "laboral": [
-    "brady violation",
-    "child custody",
-    "criminal procedure",
-    "indictment",
-    "miranda",
-    "spousal support"
-  ],
-  "administrativo": [
+  laboral: ["brady violation", "child custody", "criminal procedure", "indictment", "miranda", "spousal support"],
+  administrativo: [
     "brady violation",
     "celotex",
     "child custody",
@@ -1381,9 +1019,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "title vii",
     "tortious interference",
     "twombly",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "fiscal": [
+  fiscal: [
     "child custody",
     "criminal procedure",
     "grand jury",
@@ -1393,9 +1031,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "sentencing",
     "spousal support",
     "title vii",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "amparo": [
+  amparo: [
     "child custody",
     "contrato mercantil",
     "despido injustificado",
@@ -1404,9 +1042,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "herencia",
     "payroll records",
     "pensión alimenticia",
-    "spousal support"
+    "spousal support",
   ],
-  "constitucional": [
+  constitucional: [
     "child custody",
     "contrato mercantil",
     "despido injustificado",
@@ -1415,9 +1053,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "herencia",
     "payroll records",
     "pensión alimenticia",
-    "spousal support"
+    "spousal support",
   ],
-  "electoral": [
+  electoral: [
     "brady violation",
     "celotex",
     "child custody",
@@ -1444,9 +1082,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "title vii",
     "tortious interference",
     "twombly",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "agrario": [
+  agrario: [
     "brady violation",
     "celotex",
     "child custody",
@@ -1471,9 +1109,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "title vii",
     "tortious interference",
     "twombly",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "ambiental": [
+  ambiental: [
     "brady violation",
     "celotex",
     "child custody",
@@ -1499,9 +1137,9 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "title vii",
     "tortious interference",
     "twombly",
-    "wrongful termination"
+    "wrongful termination",
   ],
-  "inmobiliario": [
+  inmobiliario: [
     "cross examination",
     "custody dispute",
     "grand jury",
@@ -1516,50 +1154,22 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "spousal support",
     "subpoena",
     "trial strategy",
-    "wrongful termination"
-  ]
+    "wrongful termination",
+  ],
 };
 
 export const MX_FORBIDDEN_REPORT_FIELDS: Record<MexicanCaseType, readonly string[]> = {
-  "penal": [],
-  "civil": [
-    "constitutional_issues",
-    "constitutional_issues_struct"
-  ],
-  "mercantil": [
-    "constitutional_issues",
-    "constitutional_issues_struct"
-  ],
-  "familiar": [
-    "constitutional_issues",
-    "constitutional_issues_struct",
-    "cross_examination"
-  ],
-  "laboral": [
-    "constitutional_issues",
-    "constitutional_issues_struct",
-    "cross_examination"
-  ],
-  "administrativo": [
-    "constitutional_issues",
-    "constitutional_issues_struct"
-  ],
-  "fiscal": [
-    "constitutional_issues",
-    "constitutional_issues_struct"
-  ],
-  "amparo": [],
-  "constitucional": [],
-  "electoral": [],
-  "agrario": [
-    "constitutional_issues",
-    "constitutional_issues_struct"
-  ],
-  "ambiental": [],
-  "inmobiliario": [
-    "constitutional_issues",
-    "constitutional_issues_struct",
-    "cross_examination"
-  ]
+  penal: [],
+  civil: ["constitutional_issues", "constitutional_issues_struct"],
+  mercantil: ["constitutional_issues", "constitutional_issues_struct"],
+  familiar: ["constitutional_issues", "constitutional_issues_struct", "cross_examination"],
+  laboral: ["constitutional_issues", "constitutional_issues_struct", "cross_examination"],
+  administrativo: ["constitutional_issues", "constitutional_issues_struct"],
+  fiscal: ["constitutional_issues", "constitutional_issues_struct"],
+  amparo: [],
+  constitucional: [],
+  electoral: [],
+  agrario: ["constitutional_issues", "constitutional_issues_struct"],
+  ambiental: [],
+  inmobiliario: ["constitutional_issues", "constitutional_issues_struct", "cross_examination"],
 };
-
