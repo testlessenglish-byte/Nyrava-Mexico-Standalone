@@ -4187,8 +4187,14 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => {
         const ct = asStr(asObj(asObj(d.report).full_report).case_type) || "general_civil";
+        // FIX (2026-07-29): same stale-key bug as renderConstitutional's own
+        // internal gate (already fixed above) — this OUTER section-plan
+        // gate is what actually decides whether the section appears in the
+        // Table of Contents at all, so fixing only the inner gate would
+        // have left this section permanently invisible regardless.
         return (
-          (ct === "criminal" || ct === "civil_rights") && asArr(asObj(d.report).constitutional_issues_struct).length > 0
+          (ct === "penal" || ct === "amparo" || ct === "constitucional") &&
+          asArr(asObj(d.report).constitutional_issues_struct).length > 0
         );
       },
       renderPdf: (b, d) => renderConstitutional(b, d),
