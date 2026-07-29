@@ -1658,19 +1658,26 @@ function renderCover(
     const breakdowns = asObj(scoreObj.dimension_breakdowns);
     const fullReport = asObj(r.full_report);
     const caseType = asStr(fullReport.case_type) || asStr(breakdowns.case_type) || "general_civil";
-    const isCriminal = caseType === "criminal" || caseType === "civil_rights";
+    // FIX (2026-07-29): this only checked the retired English case-type
+    // keys ("criminal", "civil_rights") — never the actual Mexican
+    // taxonomy key "penal" — so isCriminal was always false for every
+    // real case in this platform, and the prosecution/defense framing
+    // below never fired. Same class of bug found and fixed elsewhere
+    // this session (practice-areas.ts's UNIVERSAL_FINDING_MODULES,
+    // export.ts's own isCriminal check a few hundred lines down).
+    const isCriminal = caseType === "penal" || caseType === "criminal" || caseType === "civil_rights";
 
-    const riskLevel = risk >= 60 ? "High Risk" : risk >= 35 ? "Moderate Risk" : "Low Risk";
-    const advantage = isCriminal ? (strength < 50 ? "Defense Advantage" : "Prosecution Advantage") : "";
+    const riskLevel = risk >= 60 ? "Riesgo Alto" : risk >= 35 ? "Riesgo Moderado" : "Riesgo Bajo";
+    const advantage = isCriminal ? (strength < 50 ? "Ventaja de la Defensa" : "Ventaja del Ministerio Público") : "";
     const headline = advantage ? `${riskLevel} — ${advantage}` : riskLevel;
     const strengthCaption = isCriminal
-      ? `Case strength ${strength} / 100 (prosecution's case; lower favors the defense)  ·  Risk score ${risk} / 100`
-      : `Case strength ${strength} / 100  ·  Risk score ${risk} / 100`;
+      ? `Fortaleza del caso ${strength} / 100 (caso del Ministerio Público; un valor menor favorece a la defensa)  ·  Puntuación de riesgo ${risk} / 100`
+      : `Fortaleza del caso ${strength} / 100  ·  Puntuación de riesgo ${risk} / 100`;
     b.statusBanner(headline, strengthCaption, b.scoreColor(risk, true));
 
     b.gaugeRow([
-      { label: "Case Strength", value: strength, color: b.scoreColor(strength) },
-      { label: "Risk Score", value: risk, color: b.scoreColor(risk, true) },
+      { label: "Fortaleza del Caso", value: strength, color: b.scoreColor(strength) },
+      { label: "Puntuación de Riesgo", value: risk, color: b.scoreColor(risk, true) },
     ]);
   }
 
@@ -1799,7 +1806,7 @@ function jurisdictionIntelRows(data: CaseExportData): Array<[string, string]> {
 }
 
 function renderJurisdictionIntelligence(b: PdfBuilder, data: CaseExportData) {
-  b.h1("Jurisdiction Intelligence");
+  b.h1("Inteligencia Jurisdiccional");
   b.table([[rt("Category"), rt("Description")]], jurisdictionIntelRows(data));
 }
 
@@ -1876,18 +1883,18 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     const mentionedScores = ce.match(/\bscore (?:is|of)\s+(\d{1,3})\b/i);
     const staleMismatch = mentionedScores && Number(mentionedScores[1]) !== scores.strength;
     if (staleMismatch) {
-      b.h2("Score reasoning");
+      b.h2("Razonamiento de la Puntuación");
       b.text(
         `Case strength is ${scores.strength} / 100. (Narrative reasoning for this score was not regenerated after ` +
           "the most recent scorecard update and has been withheld to avoid displaying a stale figure.)",
         { color: MUTED },
       );
     } else {
-      b.h2("Score reasoning");
+      b.h2("Razonamiento de la Puntuación");
       b.text(ce);
     }
   } else if (ce) {
-    b.h2("Score reasoning");
+    b.h2("Razonamiento de la Puntuación");
     b.text(ce);
   }
 }
@@ -1999,7 +2006,7 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
   };
   const ranked = [...motions].sort((ma, mb) => rank(ma) - rank(mb));
 
-  b.h1("Recommended Motions");
+  b.h1("Promociones Recomendadas");
   b.text(
     "The motions most likely to strengthen this case, ranked by priority. Drafting and editing continue in the Motion Intelligence module.",
     { size: 10, color: MUTED, gap: 10 },
@@ -2204,7 +2211,7 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
     : nextActions.length > 0 || stratRecs.length > 0 || generatedWP.length > 0;
   if (!hasAnyContent) return;
 
-  b.h1("Attorney Action Center");
+  b.h1("Centro de Acción del Abogado");
   b.text("Immediate next steps and strategic priorities, ahead of the detailed analysis that supports them.", {
     size: 10,
     color: MUTED,
@@ -2219,7 +2226,7 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
     // each other. Rendering them from the same canonical source here would
     // just reproduce that duplication under two headers, so when the
     // canonical list is available it is shown once.
-    b.h2("Recommended Actions");
+    b.h2("Acciones Recomendadas");
     for (const c of canonicalRecs) {
       const title = asStr(c.title);
       const reason = asStr(c.reason);
@@ -2253,7 +2260,7 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
     }
   } else {
     if (nextActions.length) {
-      b.h2("Immediate Recommended Actions");
+      b.h2("Acciones Recomendadas Inmediatas");
       for (const n of nextActions) {
         // Measure the item's full height (action text can wrap; "why" is a
         // separate wrapped sentence) before committing to a page, so the
@@ -2289,7 +2296,7 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
       .filter((s) => ["critical", "high"].includes(asStr(s.priority).toLowerCase()))
       .slice(0, 4);
     if (highlights.length) {
-      b.h2("Strategic Priorities");
+      b.h2("Prioridades Estratégicas");
       for (const s of highlights) {
         b.ensureSpace(18);
         const color = asStr(s.priority).toLowerCase() === "critical" ? DANGER : ACCENT;
@@ -2305,7 +2312,7 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
   }
 
   if (generatedWP.length) {
-    b.h2("Generated Work Product");
+    b.h2("Producto de Trabajo Generado");
     b.text("Ready for attorney review — full drafts appear later in this report.", {
       size: 9,
       color: MUTED,
@@ -2344,7 +2351,7 @@ function renderLitigationImpactDashboard(b: PdfBuilder, data: CaseExportData) {
   const dashboard = buildLitigationImpactDashboard(reportRow);
   if (dashboard.suppressed || dashboard.cards.length === 0) return;
 
-  b.h1("Litigation Impact Dashboard");
+  b.h1("Panel de Impacto Litigioso");
   b.text(
     "A case-type read on the deterministic scorecard below, framed as the questions an attorney asks first rather than as raw dimension names.",
     { size: 9.5, color: MUTED, gap: 10 },
@@ -2408,7 +2415,7 @@ function fallbackOverview(data: CaseExportData): string {
 
 function renderCaseOverview(b: PdfBuilder, data: CaseExportData) {
   const overview = reportText(data, "case_overview") || reportText(data, "attorney_summary") || fallbackOverview(data);
-  b.h1("Case Overview");
+  b.h1("Panorama General del Expediente");
   b.text(overview, { size: 11, gap: 8 });
 }
 
@@ -2461,7 +2468,7 @@ function extractDate(s: string): { iso: string; display: string } | null {
 
 function renderFacts(b: PdfBuilder, data: CaseExportData) {
   const facts = reportText(data, "facts");
-  b.h1("Facts");
+  b.h1("Hechos");
 
   // Always lead with the LLM-authored facts narrative when present.
   if (facts && facts.trim().length > 0) {
@@ -2488,7 +2495,7 @@ function renderFacts(b: PdfBuilder, data: CaseExportData) {
   dated.sort((a, c) => a.iso.localeCompare(c.iso));
 
   if (dated.length) {
-    b.h2("Chronological Narrative");
+    b.h2("Narrativa Cronológica");
     b.text(
       "The following events are reconstructed from the verified record, ordered by the earliest date associated with each finding. Each paragraph integrates the underlying evidence into a continuous factual narrative suitable for memorandum use.",
       { size: 10, color: MUTED, gap: 8 },
@@ -2500,7 +2507,7 @@ function renderFacts(b: PdfBuilder, data: CaseExportData) {
   }
 
   if (undated.length && !facts) {
-    b.h2("Additional Verified Facts (Undated)");
+    b.h2("Hechos Adicionales Verificados (Sin Fecha)");
     b.text(
       "The following verified facts could not be placed on the timeline because no date was associated with the source citation. They are nevertheless part of the established record and should be considered alongside the chronological narrative above.",
       { size: 10, color: MUTED, gap: 6 },
@@ -2525,10 +2532,10 @@ function renderTimelineSummary(b: PdfBuilder, data: CaseExportData) {
     .filter((f) => /timeline|date|deadline|filing|service|procedural/i.test(`${asStr(f.category)} ${asStr(f.title)}`))
     .slice(0, 10)
     .map((f) => `${asStr(f.title)} — ${asStr(f.description).slice(0, 220)}`);
-  b.h1("Timeline Summary");
+  b.h1("Resumen Cronológico");
   if (timeline) b.text(timeline, { size: 10.5, gap: 8 });
   else if (timelineFindings.length) b.bullets(timelineFindings);
-  else b.text("No dated timeline events were extracted from the available corpus.", { size: 10, color: MUTED });
+  else b.text("No se extrajeron eventos cronológicos fechados del acervo disponible.", { size: 10, color: MUTED });
 }
 
 function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
@@ -2564,7 +2571,7 @@ function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
 function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {
   const risk = reportText(data, "risk_analysis") || reportText(data, "score_breakdown");
   const r = asObj(data.report);
-  b.h1("Risk Analysis");
+  b.h1("Análisis de Riesgo");
   if (typeof r.risk_score === "number" && !r.scores_suppressed) {
     // Compact score strip — the risk score is already displayed as a
     // prominent radial gauge on the cover page. A second large radial
@@ -2576,10 +2583,13 @@ function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {
   }
   if (risk) b.text(risk, { size: 10.5, gap: 8 });
   else
-    b.text("Risk analysis is limited to the verified findings and source-document coverage shown in this report.", {
-      size: 10,
-      color: MUTED,
-    });
+    b.text(
+      "El análisis de riesgo se limita a los hallazgos verificados y a la cobertura documental mostrada en este reporte.",
+      {
+        size: 10,
+        color: MUTED,
+      },
+    );
 }
 
 function renderRecommendationsNarrative(b: PdfBuilder, data: CaseExportData) {
@@ -2587,7 +2597,7 @@ function renderRecommendationsNarrative(b: PdfBuilder, data: CaseExportData) {
   const full = asObj(r.full_report);
   const canonicalRecs = asArr(full.canonical_recommendations);
 
-  b.h1("Recommendations");
+  b.h1("Recomendaciones");
 
   if (canonicalRecs.length) {
     // The canonical list already merges what used to be rendered here as
@@ -2620,7 +2630,7 @@ function renderRecommendationsNarrative(b: PdfBuilder, data: CaseExportData) {
   const strategy = asArr(r.strategy_recommendations);
   if (recommendations) b.text(recommendations, { size: 10.5, gap: 8 });
   if (strategy.length) {
-    b.h2("Strategic recommendations");
+    b.h2("Recomendaciones Estratégicas");
     b.bullets(
       strategy
         .slice(0, 12)
@@ -2628,14 +2638,17 @@ function renderRecommendationsNarrative(b: PdfBuilder, data: CaseExportData) {
     );
   }
   if (next.length) {
-    b.h2("Next actions");
+    b.h2("Próximas Acciones");
     b.table(
-      [["#", "Action", "Owner", "Why"]],
+      [["#", "Acción", "Responsable", "Motivo"]],
       next.map((n) => [asStr(n.order, "•"), asStr(n.action).slice(0, 90), asStr(n.owner), asStr(n.why).slice(0, 90)]),
     );
   }
   if (!recommendations && !strategy.length && !next.length) {
-    b.text("No recommendation narrative was available at export time.", { size: 10, color: MUTED });
+    b.text("No había narrativa de recomendaciones disponible al momento de la exportación.", {
+      size: 10,
+      color: MUTED,
+    });
   }
 }
 
@@ -2651,7 +2664,7 @@ function renderCrossExamination(b: PdfBuilder, data: CaseExportData) {
   // Better to omit this section than duplicate one already on the page.
   const rows = asArr(r.cross_examination);
   if (!rows.length) return;
-  b.h1("Cross-Examination");
+  b.h1("Contrainterrogatorio");
   for (const p of rows) {
     b.h3(asStr(p.witness, "Witness"));
     if (p.objective) b.text(`Objective: ${asStr(p.objective)}`, { size: 10, gap: 4 });
@@ -2682,12 +2695,12 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
   const report = asObj(data.report);
   const fullReport = asObj(report.full_report);
   const caseType = asStr(fullReport.case_type) || asStr(asObj(breakdowns).case_type) || "general_civil";
-  const isCriminal = caseType === "criminal" || caseType === "civil_rights";
+  const isCriminal = caseType === "penal" || caseType === "criminal" || caseType === "civil_rights";
 
   if (Object.keys(dimensions).length === 0 && !Object.keys(score).length) return;
-  b.h1("Case Scorecard");
-  b.text(asStr(score.methodology, "Deterministic rule-based scoring."), { size: 10, color: MUTED, gap: 4 });
-  b.text(`Case type: ${caseType.replace(/_/g, " ")}`, { size: 9, color: MUTED, gap: 10 });
+  b.h1("Tablero de Puntuación del Caso");
+  b.text(asStr(score.methodology, "Puntuación determinista basada en reglas."), { size: 10, color: MUTED, gap: 4 });
+  b.text(`Tipo de caso: ${caseType.replace(/_/g, " ")}`, { size: 9, color: MUTED, gap: 10 });
   const rows: (string | number)[][] = [];
   for (const [, val] of Object.entries(dimensions)) {
     const v = asObj(val);
@@ -2708,30 +2721,30 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
     // view of dimension scores.
   } else {
     // Fallback to legacy fields — gated by case type so civil reports never
-    // show "Chain of Custody", "Constitutional Compliance", "Conviction Risk"
-    // or "Appeal Risk".
+    // show "Cadena de Custodia", "Cumplimiento Constitucional", "Riesgo de
+    // Condena" or "Riesgo de Apelación".
     const legacy: [string, unknown][] = isCriminal
       ? [
-          ["Evidence strength", score.evidence_strength],
-          ["Witness reliability", score.witness_reliability],
-          ["Timeline integrity", score.timeline_integrity],
-          ["Chain of custody", score.chain_of_custody],
-          ["Constitutional compliance", score.constitutional_compliance],
-          ["Investigation completeness", score.investigation_completeness],
-          ["Conviction risk", score.conviction_risk],
-          ["Appeal risk", score.appeal_risk],
+          ["Fortaleza de la evidencia", score.evidence_strength],
+          ["Confiabilidad de testigos", score.witness_reliability],
+          ["Integridad cronológica", score.timeline_integrity],
+          ["Cadena de custodia", score.chain_of_custody],
+          ["Cumplimiento constitucional", score.constitutional_compliance],
+          ["Integridad de la investigación", score.investigation_completeness],
+          ["Riesgo de condena", score.conviction_risk],
+          ["Riesgo de apelación", score.appeal_risk],
         ]
       : [
-          ["Evidence strength", score.evidence_strength],
-          ["Witness reliability", score.witness_reliability],
-          ["Timeline integrity", score.timeline_integrity],
-          ["Documentation reliability", (score as Record<string, unknown>).documentation_reliability],
+          ["Fortaleza de la evidencia", score.evidence_strength],
+          ["Confiabilidad de testigos", score.witness_reliability],
+          ["Integridad cronológica", score.timeline_integrity],
+          ["Confiabilidad documental", (score as Record<string, unknown>).documentation_reliability],
           ["Cumplimiento probatorio", (score as Record<string, unknown>).discovery_compliance],
-          ["Investigation completeness", score.investigation_completeness],
-          ["Litigation risk", (score as Record<string, unknown>).litigation_risk],
+          ["Integridad de la investigación", score.investigation_completeness],
+          ["Riesgo litigioso", (score as Record<string, unknown>).litigation_risk],
         ];
     b.table(
-      [["Dimension", "Score"]],
+      [["Dimensión", "Puntuación"]],
       legacy.filter(([, v]) => typeof v === "number").map(([k, v]) => [k, `${v} / 100`]),
     );
   }
@@ -2743,7 +2756,7 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
   // than a full 3-column table per dimension.
   const dimEntries = Object.entries(dimensions);
   if (dimEntries.length) {
-    b.h2("Dimension Detail");
+    b.h2("Detalle por Dimensión");
     const firstFormula = asStr(asObj(dimEntries[0][1]).formula);
     b.text(
       firstFormula ||
@@ -2808,7 +2821,7 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
   });
 
   b.table(
-    [["#", "Severity", "Finding", "Category", "Confidence", "Evidence", "Sources"]],
+    [["#", "Gravedad", "Hallazgo", "Categoría", "Confianza", "Evidencia", "Fuentes"]],
     top.map((f, i) => {
       const conf = Number(f.confidence ?? 0);
       const strength = evidenceStrengthLabel(conf, refCounts[i]);
@@ -2922,9 +2935,9 @@ function renderEvidenceMap(b: PdfBuilder, data: CaseExportData) {
   const r = asObj(data.report);
   const idx = asArr(r.evidence_index);
   if (!idx.length) return;
-  b.h1("Evidence Map");
+  b.h1("Mapa de Evidencia");
   b.table(
-    [["Doc", "Filename", "Role", "Key pages"]],
+    [["Doc", "Archivo", "Rol", "Páginas Clave"]],
     idx.map((e) => [
       asStr(e.doc_n),
       asStr(e.filename).slice(0, 60),
@@ -2950,7 +2963,7 @@ function renderEvidenceMap(b: PdfBuilder, data: CaseExportData) {
     if (!summary && !sup.length && !und.length) continue;
 
     b.h3(asStr(e.filename) || citeLabel(e.doc_n, undefined));
-    b.label("Role", asStr(e.role));
+    b.label("Rol", asStr(e.role));
     b.text(summary, { size: 10, gap: 4 });
     if (sup.length) {
       b.text("Supports:", { size: 9, bold: true, color: SUCCESS });
@@ -2967,7 +2980,7 @@ function renderContradictions(b: PdfBuilder, data: CaseExportData) {
   const r = asObj(data.report);
   const items = asArr(r.contradictions_struct);
   if (!items.length) return;
-  b.h1("Contradiction Analysis");
+  b.h1("Análisis de Contradicciones");
   b.text(
     "Each contradiction below pairs two specific record statements with the legal and strategic consequences for trial.",
     { size: 10, color: MUTED, gap: 6 },
@@ -2985,7 +2998,7 @@ function renderContradictions(b: PdfBuilder, data: CaseExportData) {
     b.ensureSpace(16);
     b.pill(asStr(c.severity, "—"), b.margin, b.y + 1, sevColor, "left");
     b.y += 14;
-    b.label("Helps", asStr(c.side_helped));
+    b.label("Beneficia a", asStr(c.side_helped));
     const docA = asObj(c.document_a);
     const docB = asObj(c.document_b);
     if (Object.keys(docA).length || Object.keys(docB).length) {
@@ -3006,7 +3019,7 @@ function renderContradictions(b: PdfBuilder, data: CaseExportData) {
     if (c.description) b.text(asStr(c.description), { size: 10, gap: 4 });
     const cites = asArr(c.citations);
     if (cites.length) {
-      b.text("Additional evidence:", { size: 9, bold: true, color: MUTED });
+      b.text("Evidencia adicional:", { size: 9, bold: true, color: MUTED });
       b.bullets(cites.map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`));
     }
     if (c.recommended_use) b.text(`Use: ${asStr(c.recommended_use)}`, { size: 10, color: MUTED, gap: 6 });
@@ -3016,7 +3029,7 @@ function renderContradictions(b: PdfBuilder, data: CaseExportData) {
 function renderPerspectives(b: PdfBuilder, data: CaseExportData) {
   const ps = data.perspectives ?? [];
   if (!ps.length) return;
-  b.h1("Multi-Perspective Analysis");
+  b.h1("Análisis Multi-Perspectiva");
   b.text(
     "Independent analysis from each side of the dispute. All perspectives are produced regardless of which side counsel represents.",
     { size: 10, color: MUTED, gap: 8 },
@@ -3031,8 +3044,8 @@ function renderPerspectives(b: PdfBuilder, data: CaseExportData) {
   const canonicalStrength = getScores(getReportRow(data)).strength;
   for (const p of ps) {
     b.h2(asStr(p.perspective, "Perspective").toUpperCase());
-    if (typeof p.strength_score === "number") b.label("Strength", `${p.strength_score} / 100`);
-    if (typeof p.risk_score === "number") b.label("Risk", `${p.risk_score} / 100`);
+    if (typeof p.strength_score === "number") b.label("Fortaleza", `${p.strength_score} / 100`);
+    if (typeof p.risk_score === "number") b.label("Riesgo", `${p.risk_score} / 100`);
     if (
       typeof p.strength_score === "number" &&
       typeof canonicalStrength === "number" &&
@@ -3071,25 +3084,25 @@ function renderPerspectives(b: PdfBuilder, data: CaseExportData) {
           .filter((s) => s && s.trim().length > 0),
       );
     };
-    sec("Strengths:", "strengths", SUCCESS);
-    sec("Weaknesses:", "weaknesses", DANGER);
-    sec("Opposing arguments:", "opposing_arguments", ACCENT);
-    sec("Key facts:", "key_facts", MUTED);
-    sec("Recommended actions:", "recommended_actions", PRIMARY);
+    sec("Fortalezas:", "strengths", SUCCESS);
+    sec("Debilidades:", "weaknesses", DANGER);
+    sec("Argumentos en contra:", "opposing_arguments", ACCENT);
+    sec("Hechos clave:", "key_facts", MUTED);
+    sec("Acciones recomendadas:", "recommended_actions", PRIMARY);
   }
 }
 
 function renderEvidenceIntel(b: PdfBuilder, data: CaseExportData) {
   const ev = data.evidence_intel ?? [];
   if (!ev.length) return;
-  b.h1("Evidence Intelligence");
+  b.h1("Inteligencia Probatoria");
   b.text("Document-by-document classification with confidence labels and legal impact.", {
     size: 10,
     color: MUTED,
     gap: 6,
   });
   b.table(
-    [["Classification", "Confidence", "Severity", "Document", "Why"]],
+    [["Clasificación", "Confianza", "Gravedad", "Documento", "Motivo"]],
     ev
       .slice(0, 60)
       .map((e) => [
@@ -3105,10 +3118,10 @@ function renderEvidenceIntel(b: PdfBuilder, data: CaseExportData) {
 function renderStrategySynthesis(b: PdfBuilder, data: CaseExportData) {
   const rows = data.strategy ?? [];
   if (!rows.length) return;
-  b.h1("Strategy Synthesis");
+  b.h1("Síntesis Estratégica");
   for (const s of rows) {
     b.h3(asStr(s.title, asStr(s.perspective, "Strategy")));
-    if (s.perspective) b.label("Perspective", asStr(s.perspective));
+    if (s.perspective) b.label("Perspectiva", asStr(s.perspective));
     if (s.summary) b.text(asStr(s.summary), { size: 10, gap: 4 });
     const motions = Array.isArray(s.motion_rankings) ? (s.motion_rankings as Array<Record<string, unknown>>) : [];
     if (motions.length) {
@@ -3151,7 +3164,7 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
   const skipped = rows.filter((w) => bodyOf(w).trim().length <= 40);
   if (!generated.length && !skipped.length) {
     if (motionsSuppressed && allRows.length > 0) {
-      b.h1("Attorney Work Product");
+      b.h1("Producto de Trabajo del Abogado");
       b.text(
         "Motion drafting and prioritized recommendations were withheld because this case did not meet the Evidence Sufficiency Score threshold.",
         { size: 10, color: MUTED, gap: 4 },
@@ -3159,9 +3172,9 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
     }
     return;
   }
-  b.h1("Attorney Work Product");
+  b.h1("Producto de Trabajo del Abogado");
   if (generated.length) {
-    b.h2("Generated");
+    b.h2("Generado");
     generated.forEach((w, idx) => {
       const body = bodyOf(w);
       const title = asStr(w.title, asStr(w.document_type, "Work product"));
@@ -3205,7 +3218,7 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
     });
   }
   if (skipped.length) {
-    b.h2("Skipped");
+    b.h2("Omitido");
     for (const w of skipped) {
       const title = asStr(w.title, asStr(w.document_type, "Work product"));
       const reason =
@@ -3219,32 +3232,40 @@ function renderConstitutional(b: PdfBuilder, data: CaseExportData) {
   const r = asObj(data.report);
   const full = asObj(r.full_report);
   const caseType = asStr(full.case_type) || "general_civil";
-  // Constitutional analysis is criminal/civil-rights only — never render for
-  // medical malpractice, personal injury, employment, etc.
-  if (caseType !== "criminal" && caseType !== "civil_rights") return;
+  // FIX (2026-07-29): this only checked the retired English case-type keys
+  // ("criminal", "civil_rights") — never "penal"/"amparo"/"constitucional",
+  // the actual Mexican taxonomy keys pipeline.server.ts's own
+  // isCriminalOrCivilRights check already uses correctly. That meant this
+  // entire section could never render for any real Mexican case, even
+  // though constitutional_issues_struct was being correctly populated
+  // upstream the whole time — the data existed, this gate just hid it.
+  if (caseType !== "penal" && caseType !== "amparo" && caseType !== "constitucional") return;
   const items = asArr(r.constitutional_issues_struct);
   if (!items.length) return;
-  b.h1("Constitutional Analysis");
+  b.h1("Análisis Constitucional");
   for (const c of items) {
-    b.h3(`${asStr(c.right)} — ${asStr(c.amendment)}`);
+    // FIX: c.amendment matched a schema field that literally asked the LLM
+    // for a U.S. constitutional amendment number — renamed to
+    // articulo_cpeum (CPEUM article) in pipeline.server.ts's prompt schema.
+    b.h3(`${asStr(c.right)} — ${asStr(c.articulo_cpeum)}`);
     b.text(asStr(c.issue), { size: 11, bold: true, gap: 2 });
     if (c.facts) {
-      b.h3("Facts");
+      b.h3("Hechos");
       b.text(asStr(c.facts));
     }
     if (c.legal_standard) {
-      b.h3("Legal standard");
+      b.h3("Estándar Legal");
       b.text(asStr(c.legal_standard));
     }
     if (c.likely_outcome)
       b.callout(
-        "Probability estimate",
-        `${asStr(c.likely_outcome)} (confidence: ${asStr(c.confidence_label, "medium")})`,
+        "Estimación de Probabilidad",
+        `${asStr(c.likely_outcome)} (confianza: ${asStr(c.confidence_label, "media")})`,
       );
-    if (c.jurisdiction) b.label("Jurisdiction", asStr(c.jurisdiction));
-    if (c.warrant_standard) b.label("Warrant standard", asStr(c.warrant_standard));
-    if (c.uncertainty_flag) b.callout("Uncertainty", asStr(c.uncertainty_flag), DANGER);
-    if (c.remedy_sought) b.label("Remedy", asStr(c.remedy_sought));
+    if (c.jurisdiction) b.label("Jurisdicción", asStr(c.jurisdiction));
+    if (c.warrant_standard) b.label("Estándar de Cateo/Orden Judicial", asStr(c.warrant_standard));
+    if (c.uncertainty_flag) b.callout("Incertidumbre", asStr(c.uncertainty_flag), DANGER);
+    if (c.remedy_sought) b.label("Remedio Solicitado", asStr(c.remedy_sought));
     const cites = asArr(c.citations);
     if (cites.length) {
       b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
@@ -3264,7 +3285,7 @@ function renderLegalIssues(b: PdfBuilder, data: CaseExportData) {
   const full = asObj(asObj(data.report).full_report);
   const items = asArr(full.legal_issues);
   if (!items.length) return;
-  b.h1("Legal Issues & Case Law");
+  b.h1("Cuestiones Jurídicas y Jurisprudencia");
 
   // The same handful of legal theories (Fourth Amendment, Miranda, Brady,
   // Chain of Custody, Jencks, Authentication, Expert Admissibility) get
@@ -3288,12 +3309,12 @@ function renderLegalIssues(b: PdfBuilder, data: CaseExportData) {
     const first = group[0];
     b.h3(group.length > 1 ? `${issue}  (${group.length} documents)` : issue);
     if (first.indicator) b.text(asStr(first.indicator), { size: 9, color: MUTED, gap: 2 });
-    if (first.significance) b.label("Significance", asStr(first.significance));
-    if (first.next_step) b.label("Next step", asStr(first.next_step));
+    if (first.significance) b.label("Trascendencia", asStr(first.significance));
+    if (first.next_step) b.label("Siguiente Paso", asStr(first.next_step));
 
     const withQuotes = group.filter((g) => asStr(g.quote).trim());
     if (withQuotes.length) {
-      b.text("Representative evidence:", { size: 9, bold: true, color: MUTED, gap: 2 });
+      b.text("Evidencia representativa:", { size: 9, bold: true, color: MUTED, gap: 2 });
       b.bullets(
         withQuotes.slice(0, 3).map((g) => {
           const doc = asStr(g.document);
@@ -3330,9 +3351,9 @@ function renderLegalIssues(b: PdfBuilder, data: CaseExportData) {
 function renderWitnesses(b: PdfBuilder, data: CaseExportData) {
   const ws = data.witnesses ?? [];
   if (!ws.length) return;
-  b.h1("Witness Intelligence");
+  b.h1("Inteligencia de Testigos");
   b.table(
-    [["Witness", "Role", "Reliability", "Bias", "Credibility risk"]],
+    [["Testigo", "Rol", "Confiabilidad", "Sesgo", "Riesgo de Credibilidad"]],
     ws.map((w) => [
       asStr(w.name),
       asStr(w.role),
@@ -3376,25 +3397,25 @@ function renderWitnesses(b: PdfBuilder, data: CaseExportData) {
 function renderTheories(b: PdfBuilder, data: CaseExportData) {
   const ts = data.theories ?? [];
   if (!ts.length) return;
-  b.h1("Theory Analysis");
+  b.h1("Análisis de Teoría del Caso");
   for (const t of ts) {
     b.h3(`${asStr(t.theory_type).toUpperCase()} theory`);
-    b.label("Confidence", Number(t.confidence ?? 0).toFixed(2));
-    if (t.risk) b.label("Risk", asStr(t.risk));
+    b.label("Confianza", Number(t.confidence ?? 0).toFixed(2));
+    if (t.risk) b.label("Riesgo", asStr(t.risk));
     b.text(asStr(t.narrative), { size: 10.5, gap: 4 });
     const sup = Array.isArray(t.supporting_evidence) ? (t.supporting_evidence as string[]) : [];
     const con = Array.isArray(t.contradicting_evidence) ? (t.contradicting_evidence as string[]) : [];
     const mis = Array.isArray(t.missing_evidence) ? (t.missing_evidence as string[]) : [];
     if (sup.length) {
-      b.text("Supporting evidence:", { size: 9, bold: true, color: SUCCESS });
+      b.text("Evidencia de apoyo:", { size: 9, bold: true, color: SUCCESS });
       b.bullets(sup);
     }
     if (con.length) {
-      b.text("Contradicting evidence:", { size: 9, bold: true, color: DANGER });
+      b.text("Evidencia contradictoria:", { size: 9, bold: true, color: DANGER });
       b.bullets(con);
     }
     if (mis.length) {
-      b.text("Missing evidence:", { size: 9, bold: true, color: ACCENT });
+      b.text("Evidencia faltante:", { size: 9, bold: true, color: ACCENT });
       b.bullets(mis);
     }
   }
@@ -3416,18 +3437,18 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
 
   if (!asStr(theme.theme) && !dashboard.length) return;
 
-  b.h1("Litigation Strategy Center");
+  b.h1("Centro de Estrategia Litigiosa");
 
   // ---- What Wins This Case? ----
   if (asStr(theme.theme)) {
-    b.h2("What Wins This Case?");
+    b.h2("¿Qué Gana Este Caso?");
     b.h3("Primary Trial Theme");
     b.text(asStr(theme.theme), { size: 11, bold: true, color: PRIMARY, gap: 4 });
     if (theme.why) b.text(asStr(theme.why), { size: 10, gap: 4 });
-    if (theme.persuasion_likelihood) b.label("Likelihood of persuasion", asStr(theme.persuasion_likelihood));
+    if (theme.persuasion_likelihood) b.label("Probabilidad de Persuasión", asStr(theme.persuasion_likelihood));
     const supEv = Array.isArray(theme.supporting_evidence) ? (theme.supporting_evidence as string[]) : [];
     if (supEv.length) {
-      b.text("Supporting evidence:", { size: 9, bold: true, color: MUTED });
+      b.text("Evidencia de apoyo:", { size: 9, bold: true, color: MUTED });
       b.bullets(supEv);
     }
     if (theme.presentation_guidance) {
@@ -3438,7 +3459,7 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
 
   // ---- What Could Lose This Case? ----
   if (asStr(weakness.weakness) || asStr(risk.risk)) {
-    b.h2("What Could Lose This Case?");
+    b.h2("¿Qué Podría Perder Este Caso?");
     if (weakness.weakness) {
       b.h3("Biggest Weakness");
       b.text(asStr(weakness.weakness), { size: 10.5, bold: true, gap: 2 });
@@ -3453,7 +3474,7 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
 
   // ---- Settlement leverage ----
   if (leverage.length) {
-    b.h2("Best Settlement Leverage");
+    b.h2("Mejor Palanca de Negociación");
     b.bullets(
       leverage.map((l) => {
         const item = asStr(l.item);
@@ -3465,7 +3486,7 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
 
   // ---- Most dangerous witness (grounded — omitted entirely if ungrounded) ----
   if (asStr(witness.name)) {
-    b.h2("Most Dangerous Witness");
+    b.h2("Testigo Más Riesgoso");
     b.text(asStr(witness.name), { size: 11, bold: true, color: PRIMARY, gap: 4 });
     const reasons = Array.isArray(witness.reasons) ? (witness.reasons as string[]) : [];
     if (reasons.length) {
@@ -3481,49 +3502,49 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
 
   // ---- Biggest evidentiary gap ----
   if (asStr(gap.item)) {
-    b.h2("Biggest Evidentiary Gap");
+    b.h2("Mayor Vacío Probatorio");
     b.text(asStr(gap.item), { size: 11, bold: true, color: PRIMARY, gap: 4 });
-    if (gap.importance) b.label("Importance", asStr(gap.importance));
+    if (gap.importance) b.label("Importancia", asStr(gap.importance));
     if (gap.impact) b.text(asStr(gap.impact), { size: 10, gap: 4 });
     const howTo = Array.isArray(gap.how_to_obtain) ? (gap.how_to_obtain as string[]) : [];
     if (howTo.length) {
-      b.text("How to obtain:", { size: 9, bold: true, color: MUTED });
+      b.text("Cómo obtenerla:", { size: 9, bold: true, color: MUTED });
       b.bullets(howTo);
     }
     if (gap.potential_benefit) {
-      b.text("Potential benefit:", { size: 9, bold: true, color: MUTED });
+      b.text("Beneficio potencial:", { size: 9, bold: true, color: MUTED });
       b.text(asStr(gap.potential_benefit), { size: 10, gap: 4 });
     }
   }
 
   // ---- Expected defense + counter ----
   if (asStr(defense.primary_defense) || counter) {
-    b.h2("Most Likely Defense Strategy");
+    b.h2("Estrategia de Defensa Más Probable");
     if (defense.primary_defense) {
-      b.h3("Primary Defense");
+      b.h3("Defensa Principal");
       b.text(asStr(defense.primary_defense), { size: 10.5, bold: true, gap: 4 });
       const supArgs = Array.isArray(defense.supporting_arguments) ? (defense.supporting_arguments as string[]) : [];
       if (supArgs.length) {
-        b.text("Supporting arguments:", { size: 9, bold: true, color: MUTED });
+        b.text("Argumentos de apoyo:", { size: 9, bold: true, color: MUTED });
         b.bullets(supArgs);
       }
       const weaknesses = Array.isArray(defense.weaknesses) ? (defense.weaknesses as string[]) : [];
       if (weaknesses.length) {
-        b.text("Weaknesses:", { size: 9, bold: true, color: SUCCESS });
+        b.text("Debilidades:", { size: 9, bold: true, color: SUCCESS });
         b.bullets(weaknesses);
       }
     }
     if (counter) {
-      b.h3("Recommended Counter Strategy");
+      b.h3("Estrategia de Contraataque Recomendada");
       b.text(counter, { size: 10, gap: 4 });
     }
   }
 
   // ---- What should counsel do this week? ----
   if (priorities.length) {
-    b.h2("What Should Counsel Do This Week?");
+    b.h2("¿Qué Debe Hacer el Abogado Esta Semana?");
     b.table(
-      [["Priority", "Action", "Impact", "Reason"]],
+      [["Prioridad", "Acción", "Impacto", "Razón"]],
       priorities.map((p) => {
         const stars = Math.max(0, Math.min(5, Math.round(Number(p.impact_stars ?? 0))));
         return [
@@ -3538,17 +3559,17 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
 
   // ---- Winning the Case dashboard (computed in code, mirrors the fields above) ----
   if (dashboard.length) {
-    b.h2("Winning the Case");
+    b.h2("Cómo Ganar el Caso");
     b.table(
-      [["Litigation Question", "AI Assessment"]],
+      [["Pregunta Litigiosa", "Evaluación de la IA"]],
       dashboard.map((d) => [asStr(d.question), asStr(d.assessment).slice(0, 140)]),
     );
   }
 
   // ---- If I Were Lead Trial Counsel ----
   if (leadCounsel) {
-    b.h2("If I Were Lead Trial Counsel");
-    b.text("[STRATEGIC ANALYSIS — NOT LEGAL ADVICE]", { size: 8, bold: true, color: ACCENT, gap: 4 });
+    b.h2("Si Yo Fuera el Abogado Principal del Caso");
+    b.text("[ANÁLISIS ESTRATÉGICO — NO CONSTITUYE ASESORÍA LEGAL]", { size: 8, bold: true, color: ACCENT, gap: 4 });
     b.text(leadCounsel, { size: 10.5, gap: 4 });
   }
 }
@@ -3560,29 +3581,29 @@ function renderStrategy(b: PdfBuilder, data: CaseExportData) {
   const next = asArr(r.next_actions);
   const missing = asArr(r.missing_evidence_struct);
   if (!motions.length && !recs.length && !next.length && !missing.length) return;
-  b.h1("Strategic Opportunities");
+  b.h1("Oportunidades Estratégicas");
 
   if (missing.length) {
-    b.h2("Missing evidence");
-    b.text("[HYPOTHESIS REQUIRES VERIFICATION]", { size: 8, bold: true, color: ACCENT, gap: 4 });
+    b.h2("Evidencia Faltante");
+    b.text("[HIPÓTESIS QUE REQUIERE VERIFICACIÓN]", { size: 8, bold: true, color: ACCENT, gap: 4 });
     b.table(
-      [["Item", "Severity", "Brady risk", "Recommended motion"]],
+      [["Elemento", "Gravedad", "Riesgo Probatorio", "Promoción Recomendada"]],
       missing.map((m) => [
         asStr(m.item).slice(0, 80),
         asStr(m.severity),
-        m.brady_risk ? "Yes" : "No",
+        m.omision_probatoria_risk ? "Sí" : "No",
         asStr(m.recommended_motion, "—"),
       ]),
     );
   }
 
   if (motions.length) {
-    b.h2("Motion opportunities");
+    b.h2("Oportunidades de Promociones");
     b.text("[STRATEGIC CONSIDERATION]", { size: 8, bold: true, color: ACCENT, gap: 4 });
     for (const m of motions) {
       b.h3(asStr(m.motion));
-      b.label("Likelihood", asStr(m.likelihood_of_success));
-      b.label("Priority", asStr(m.priority));
+      b.label("Probabilidad de Éxito", asStr(m.likelihood_of_success));
+      b.label("Prioridad", asStr(m.priority));
       b.text(`Basis: ${asStr(m.basis)}`, { size: 10, gap: 2 });
       if (m.supporting_facts) b.text(`Supporting facts: ${asStr(m.supporting_facts)}`, { size: 10, gap: 2 });
       if (m.legal_rationale) b.text(`Legal rationale: ${asStr(m.legal_rationale)}`, { size: 10, gap: 2 });
@@ -3610,9 +3631,9 @@ function renderStrategy(b: PdfBuilder, data: CaseExportData) {
   }
 
   if (recs.length) {
-    b.h2("Strategy recommendations");
+    b.h2("Recomendaciones Estratégicas");
     b.table(
-      [["Priority", "Title", "Category", "Expected impact"]],
+      [["Prioridad", "Título", "Categoría", "Impacto Esperado"]],
       recs.map((r) => [
         asStr(r.priority),
         asStr(r.title).slice(0, 80),
@@ -3623,9 +3644,9 @@ function renderStrategy(b: PdfBuilder, data: CaseExportData) {
   }
 
   if (next.length) {
-    b.h2("Recommended next actions");
+    b.h2("Próximas Acciones Recomendadas");
     b.table(
-      [["#", "Action", "Owner", "Why"]],
+      [["#", "Acción", "Responsable", "Motivo"]],
       next.map((n) => [asStr(n.order, "•"), asStr(n.action).slice(0, 90), asStr(n.owner), asStr(n.why).slice(0, 90)]),
     );
   }
@@ -3636,10 +3657,10 @@ function renderCoverage(b: PdfBuilder, data: CaseExportData) {
   const full = asObj(r.full_report);
   const coverage = asObj(full.coverage_report);
   if (!coverage || Object.keys(coverage).length === 0) return;
-  b.h1("Evidence Coverage");
+  b.h1("Cobertura Probatoria");
   b.text("Ingestion transparency: how complete is this analysis?", { size: 10, color: MUTED, gap: 8 });
   b.table(
-    [["Metric", "Value"]],
+    [["Métrica", "Valor"]],
     [
       ["Documents found", asStr(coverage.documents_found, "0")],
       ["Successfully parsed", asStr(coverage.documents_parsed, "0")],
@@ -3653,9 +3674,9 @@ function renderCoverage(b: PdfBuilder, data: CaseExportData) {
   );
   const failures = asArr(coverage.failed_documents);
   if (failures.length) {
-    b.h2("Failed documents");
+    b.h2("Documentos con Error");
     b.table(
-      [["Filename", "Error"]],
+      [["Archivo", "Error"]],
       failures.map((f) => [asStr(f.filename), asStr(f.error, "Unknown error").slice(0, 100)]),
     );
   }
@@ -3691,13 +3712,13 @@ function renderAgentStatistics(b: PdfBuilder, data: CaseExportData) {
     }
   }
 
-  b.h1("Agent Statistics");
+  b.h1("Estadísticas de Agentes");
   b.text(
     "This section separates loaded agents from agents that actually analyzed evidence and agents that produced measurable work product. Agent totals are based on produced output, not initialization.",
     { size: 10, color: MUTED, gap: 8 },
   );
   b.table(
-    [["Metric", "Value"]],
+    [["Métrica", "Valor"]],
     [
       ["Agents loaded", String(summary.loaded)],
       ["Agents executed", String(summary.executed)],
@@ -3710,7 +3731,18 @@ function renderAgentStatistics(b: PdfBuilder, data: CaseExportData) {
 
   if (rows.length) {
     b.table(
-      [["Agent", "Status", "Findings Produced", "Generated", "Suppressed", "Promoted", "Docs", "Output / Explanation"]],
+      [
+        [
+          "Agente",
+          "Estado",
+          "Hallazgos Producidos",
+          "Generado",
+          "Suprimido",
+          "Promovido",
+          "Docs",
+          "Resultado / Explicación",
+        ],
+      ],
       rows.map((r) => [
         asStr(r.agent_name || r.agent_key).slice(0, 36),
         asStr(r.status, "pending"),
@@ -3742,7 +3774,7 @@ function agentStatisticsDocxParas(data: CaseExportData): Paragraph[] {
         `${asStr(r.agent_name || r.agent_key)} — ${asStr(r.status)} — findings produced: ${asStr(r.visible_findings ?? r.findings_produced, "0")} — generated: ${asStr(r.findings_generated, "0")} — suppressed: ${asStr(r.findings_suppressed, "0")} — ${asStr(r.no_output_reason) || `${asStr(r.output_items, "0")} output item(s)`}`,
     ),
   ].join("\n");
-  return proseDocxParas("Agent Statistics", out);
+  return proseDocxParas("Estadísticas de Agentes", out);
 }
 
 function humanizeEngine(e: string): string {
@@ -3756,17 +3788,17 @@ function renderAudit(b: PdfBuilder, data: CaseExportData) {
   const r = asObj(data.report);
   const full = asObj(r.full_report);
   const manifest = asObj(full.case_type_manifest);
-  b.h1("Audit Trail");
+  b.h1("Registro de Auditoría");
   b.text(
     "Routing record for this case. The execution manifest below shows which engines were run, which were skipped because they do not apply to the selected case type, and which were activated through cross-domain triggers.",
     { size: 10, gap: 8 },
   );
 
   if (Object.keys(manifest).length) {
-    b.h2("Execution Manifest");
-    b.label("Case type", asStr(manifest.case_type_label, asStr(manifest.case_type, "—")));
+    b.h2("Manifiesto de Ejecución");
+    b.label("Tipo de Caso", asStr(manifest.case_type_label, asStr(manifest.case_type, "—")));
     const active = Array.isArray(manifest.active_domains) ? (manifest.active_domains as string[]) : [];
-    if (active.length) b.label("Active domains", active.map(humanizeEngine).join(", "));
+    if (active.length) b.label("Dominios Activos", active.map(humanizeEngine).join(", "));
 
     const enabled = Array.isArray(manifest.enabled_engines) ? (manifest.enabled_engines as string[]) : [];
     const skipped = Array.isArray(manifest.skipped_engines) ? (manifest.skipped_engines as string[]) : [];
@@ -3786,9 +3818,9 @@ function renderAudit(b: PdfBuilder, data: CaseExportData) {
     }
   }
 
-  b.h2("Source documents");
+  b.h2("Documentos Fuente");
   b.table(
-    [["#", "Filename", "Status", "Size", "Errors"]],
+    [["#", "Archivo", "Estado", "Tamaño", "Errores"]],
     data.documents.map((d, i) => [
       i + 1,
       asStr(d.filename).slice(0, 60),
@@ -3803,14 +3835,14 @@ function renderAppendix(b: PdfBuilder, data: CaseExportData) {
   const r = asObj(data.report);
   const cites = asArr(r.citations);
   if (!cites.length) return;
-  b.h1("Appendix: Source Citations");
+  b.h1("Anexo: Citas de Fuentes");
   b.text(rt("Every citation below is verbatim from the case corpus. Use these to verify any claim in the report."), {
     size: 10,
     color: MUTED,
     gap: 8,
   });
   b.table(
-    [["#", "Topic", "Document", "Page", "Quote"]],
+    [["#", "Tema", "Documento", "Página", "Cita"]],
     cites.map((c, i) => [
       i + 1,
       asStr(c.topic).slice(0, 30),
@@ -3834,14 +3866,14 @@ function renderAppendix(b: PdfBuilder, data: CaseExportData) {
 
 function renderEvidenceSources(b: PdfBuilder) {
   if (!_footnotes.length) return;
-  b.h1("Evidence Sources");
+  b.h1("Fuentes de Evidencia");
   b.text("Numbered references from the report body, resolved to their source document and page.", {
     size: 10,
     color: MUTED,
     gap: 8,
   });
   b.table(
-    [["#", "Source"]],
+    [["#", "Fuente"]],
     _footnotes.map((f) => [`[${f.n}]`, f.label]),
   );
 }
@@ -3959,7 +3991,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
   const sections: SectionPlan[] = [
     {
       id: "jurisdiction_intel",
-      title: "Jurisdiction Intelligence",
+      title: "Inteligencia Jurisdiccional",
       gatedInLimited: false,
       available: () => true,
       renderPdf: (b, d) => renderJurisdictionIntelligence(b, d),
@@ -3967,7 +3999,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "exec",
-      title: "Executive Summary",
+      title: "Resumen Ejecutivo",
       gatedInLimited: false,
       available: () => true,
       renderPdf: (b, d) => renderExecutive(b, d, mode),
@@ -3979,7 +4011,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "recommended_motions",
-      title: "Recommended Motions",
+      title: "Promociones Recomendadas",
       // Motion opportunities are ESS-gated, exactly like the old Action
       // Center: they disappear entirely in LIMITED mode rather than show a
       // half-populated page of inferred legal theories.
@@ -3994,7 +4026,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "action_center",
-      title: "Attorney Action Center",
+      title: "Centro de Acción del Abogado",
       // Mirrors "opportunities"/"strategy_synthesis": all of its content is
       // ESS-gated strategy/work-product data, so it must disappear entirely
       // in LIMITED mode rather than show a half-populated page.
@@ -4013,7 +4045,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "impact_dashboard",
-      title: "Litigation Impact Dashboard",
+      title: "Panel de Impacto Litigioso",
       // Same data as "scorecard" (the deterministic dimension scores), just
       // reframed as case-type-specific cards — gated the same way scorecard
       // and action_center already are, since it disappears exactly when
@@ -4029,31 +4061,32 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "overview",
-      title: "Case Overview",
+      title: "Panorama General del Expediente",
       gatedInLimited: false,
       available: () => true, // always renders (fallbackOverview)
       renderPdf: (b, d) => renderCaseOverview(b, d),
-      renderDocx: (d) => proseDocxParas("Case Overview", reportText(d, "case_overview") || fallbackOverview(d)),
+      renderDocx: (d) =>
+        proseDocxParas("Panorama General del Expediente", reportText(d, "case_overview") || fallbackOverview(d)),
     },
     {
       id: "facts",
-      title: "Facts",
+      title: "Hechos",
       gatedInLimited: false,
       available: (d) => !!reportText(d, "facts").trim() || (d.findings ?? []).length > 0,
       renderPdf: (b, d) => renderFacts(b, d),
-      renderDocx: (d) => proseDocxParas("Facts", reportText(d, "facts")),
+      renderDocx: (d) => proseDocxParas("Hechos", reportText(d, "facts")),
     },
     {
       id: "timeline",
-      title: "Timeline Summary",
+      title: "Resumen Cronológico",
       gatedInLimited: false,
       available: (d) => !!reportText(d, "timeline_summary").trim(),
       renderPdf: (b, d) => renderTimelineSummary(b, d),
-      renderDocx: (d) => proseDocxParas("Timeline Summary", reportText(d, "timeline_summary")),
+      renderDocx: (d) => proseDocxParas("Resumen Cronológico", reportText(d, "timeline_summary")),
     },
     {
       id: "scorecard",
-      title: "Case Scorecard",
+      title: "Tablero de Puntuación del Caso",
       gatedInLimited: true,
       available: (d) => {
         const score = asObj(d.score);
@@ -4062,19 +4095,20 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       },
       renderPdf: (b, d) => renderScorecard(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Score Reasoning", processProseCitations(asStr(asObj(d.report).score_breakdown))),
+        proseDocxParas("Razonamiento de la Puntuación", processProseCitations(asStr(asObj(d.report).score_breakdown))),
     },
     {
       id: "risk",
-      title: "Risk Analysis",
+      title: "Análisis de Riesgo",
       gatedInLimited: true,
       available: (d) => !!reportText(d, "risk_analysis").trim() || typeof asObj(d.report).risk_score === "number",
       renderPdf: (b, d) => renderRiskAnalysis(b, d),
-      renderDocx: (d) => proseDocxParas("Risk Analysis", processProseCitations(asStr(asObj(d.report).risk_analysis))),
+      renderDocx: (d) =>
+        proseDocxParas("Análisis de Riesgo", processProseCitations(asStr(asObj(d.report).risk_analysis))),
     },
     {
       id: "coverage",
-      title: "Evidence Coverage",
+      title: "Cobertura Probatoria",
       gatedInLimited: false,
       // Parse rate, OCR coverage, ingestion stats — pipeline QA information,
       // not attorney narrative. Same reasoning as Audit Trail above.
@@ -4085,7 +4119,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "agent_stats",
-      title: "Agent Statistics",
+      title: "Estadísticas de Agentes",
       gatedInLimited: false,
       // Which of the 13 internal agents ran, how many findings each
       // suppressed/promoted — pipeline internals, not attorney narrative.
@@ -4097,7 +4131,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "findings",
-      title: "Key Findings",
+      title: "Hallazgos Clave",
       gatedInLimited: false,
       available: (d) => (d.findings ?? []).length > 0,
       renderPdf: (b, d) => renderKeyFindings(b, d),
@@ -4105,7 +4139,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "evidence_map",
-      title: "Evidence Map",
+      title: "Mapa de Evidencia",
       gatedInLimited: false,
       // Per-document role/support/undermine classification reads as an
       // internal QA artifact rather than attorney narrative — audit-mode
@@ -4129,7 +4163,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "evidence_intel",
-      title: "Evidence Intelligence",
+      title: "Inteligencia Probatoria",
       gatedInLimited: false,
       available: (d) => (d.evidence_intel ?? []).length > 0,
       renderPdf: (b, d) => renderEvidenceIntel(b, d),
@@ -4137,16 +4171,19 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "contradictions",
-      title: "Contradiction Analysis",
+      title: "Análisis de Contradicciones",
       gatedInLimited: false,
       available: (d) => asArr(asObj(d.report).contradictions_struct).length > 0,
       renderPdf: (b, d) => renderContradictions(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Contradiction Report", processProseCitations(asStr(asObj(d.report).contradiction_report))),
+        proseDocxParas(
+          "Reporte de Contradicciones",
+          processProseCitations(asStr(asObj(d.report).contradiction_report)),
+        ),
     },
     {
       id: "constitutional",
-      title: "Constitutional Analysis",
+      title: "Análisis Constitucional",
       gatedInLimited: false,
       available: (d) => {
         const ct = asStr(asObj(asObj(d.report).full_report).case_type) || "general_civil";
@@ -4156,11 +4193,14 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       },
       renderPdf: (b, d) => renderConstitutional(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Constitutional Issues", processProseCitations(asStr(asObj(d.report).constitutional_issues))),
+        proseDocxParas(
+          "Cuestiones Constitucionales",
+          processProseCitations(asStr(asObj(d.report).constitutional_issues)),
+        ),
     },
     {
       id: "legal_issues",
-      title: "Legal Issues & Case Law",
+      title: "Cuestiones Jurídicas y Jurisprudencia",
       gatedInLimited: false,
       available: (d) => asArr(asObj(asObj(d.report).full_report).legal_issues).length > 0,
       renderPdf: (b, d) => renderLegalIssues(b, d),
@@ -4168,16 +4208,16 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "witnesses",
-      title: "Witness Intelligence",
+      title: "Inteligencia de Testigos",
       gatedInLimited: false,
       available: (d) => (d.witnesses ?? []).length > 0,
       renderPdf: (b, d) => renderWitnesses(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Witness Analysis", processProseCitations(asStr(asObj(d.report).witness_analysis))),
+        proseDocxParas("Análisis de Testigos", processProseCitations(asStr(asObj(d.report).witness_analysis))),
     },
     {
       id: "cross_exam",
-      title: "Cross-Examination",
+      title: "Contrainterrogatorio",
       gatedInLimited: true,
       available: (d) => asArr(asObj(d.report).cross_examination).length > 0,
       renderPdf: (b, d) => renderCrossExamination(b, d),
@@ -4185,7 +4225,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "perspectives",
-      title: "Multi-Perspective Analysis",
+      title: "Análisis Multi-Perspectiva",
       gatedInLimited: true,
       available: (d) => (d.perspectives ?? []).length > 0,
       renderPdf: (b, d) => renderPerspectives(b, d),
@@ -4193,7 +4233,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "theories",
-      title: "Theory Analysis",
+      title: "Análisis de Teoría del Caso",
       gatedInLimited: true,
       available: (d) => (d.theories ?? []).length > 0,
       renderPdf: (b, d) => renderTheories(b, d),
@@ -4201,9 +4241,9 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         const out: Paragraph[] = [];
         const r = asObj(d.report);
         for (const [t, key] of [
-          ["Defense Theory", "defense_theory_report"],
-          ["Prosecution/Plaintiff Theory", "prosecution_theory_report"],
-          ["Alternative Theories", "alternative_theory_report"],
+          ["Teoría de la Defensa", "defense_theory_report"],
+          ["Teoría del Ministerio Público / Actor", "prosecution_theory_report"],
+          ["Teorías Alternativas", "alternative_theory_report"],
         ] as const) {
           out.push(...proseDocxParas(t, processProseCitations(asStr(r[key]))));
         }
@@ -4212,7 +4252,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "litigation_strategy_center",
-      title: "Litigation Strategy Center",
+      title: "Centro de Estrategia Litigiosa",
       gatedInLimited: true,
       available: (d) => {
         const sc = (d.strategy_center ?? {}) as Record<string, unknown>;
@@ -4224,7 +4264,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "opportunities",
-      title: "Strategic Opportunities",
+      title: "Oportunidades Estratégicas",
       gatedInLimited: true,
       available: (d) => {
         const r = asObj(d.report);
@@ -4240,7 +4280,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "strategy_synthesis",
-      title: "Strategy Synthesis",
+      title: "Síntesis Estratégica",
       gatedInLimited: true,
       available: (d) => (d.strategy ?? []).length > 0,
       renderPdf: (b, d) => renderStrategySynthesis(b, d),
@@ -4249,7 +4289,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     proseSec("recommendations", "Recommendations", "recommendations", true),
     {
       id: "work_product",
-      title: "Attorney Work Product",
+      title: "Producto de Trabajo del Abogado",
       gatedInLimited: false,
       available: (d) => (d.work_product ?? []).length > 0,
       renderPdf: (b, d) => renderWorkProduct(b, d),
@@ -4257,7 +4297,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "audit",
-      title: "Audit Trail",
+      title: "Registro de Auditoría",
       gatedInLimited: false,
       // Execution manifest + per-file ingestion status/size/error table is
       // internal QA information, not attorney work product — an attorney
@@ -4269,7 +4309,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "appendix",
-      title: "Appendix: Source Citations",
+      title: "Anexo: Citas de Fuentes",
       gatedInLimited: false,
       available: (d) => asArr(asObj(d.report).citations).length > 0,
       renderPdf: (b, d) => renderAppendix(b, d),
@@ -4277,7 +4317,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "priority_action_center",
-      title: "Action Center — Priority Recommendations",
+      title: "Centro de Acción — Recomendaciones Prioritarias",
       gatedInLimited: true,
       available: (d) => priorityActionRows(d).length > 0,
       renderPdf: (b, d) => renderPriorityActionCenter(b, d),
@@ -4285,7 +4325,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "evidence_sources",
-      title: "Evidence Sources",
+      title: "Fuentes de Evidencia",
       gatedInLimited: false,
       // Footnotes are populated by primeCitationFootnotes() before the
       // section plan/queue is built (and further deduped-idempotently as
@@ -4339,7 +4379,7 @@ function priorityActionRows(data: CaseExportData): Array<[string, string, string
 function renderPriorityActionCenter(b: PdfBuilder, data: CaseExportData) {
   const rows = priorityActionRows(data);
   if (!rows.length) return;
-  b.h1("Action Center — Priority Recommendations");
+  b.h1("Centro de Acción — Recomendaciones Prioritarias");
   b.table(
     [
       [
@@ -4376,7 +4416,7 @@ function priorityActionCenterDocxParas(data: CaseExportData): Paragraph[] {
 
 function renderSuppressedSection(b: PdfBuilder, title: string) {
   b.h1(title);
-  b.text("Suppressed due to insufficient verified evidence.", { size: 10.5, color: MUTED, gap: 8 });
+  b.text("Suprimido por evidencia verificada insuficiente.", { size: 10.5, color: MUTED, gap: 8 });
 }
 
 // Determines which sections will actually appear and what each one will do.
@@ -4521,9 +4561,9 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   }
 
   // ===== Table of Contents — derived from the same queue =====
-  b.h1("Table of Contents");
+  b.h1("Índice");
   b.table(
-    [["#", "Section"]],
+    [["#", "Sección"]],
     queue.map((s, i) => [String(i + 1), s.title]),
   );
 
