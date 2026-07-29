@@ -1142,6 +1142,32 @@ export async function runLitigationStrategyCenterEngine(args: {
 
   const witnessNames = (witnesses ?? []).map((w) => String((w as { name?: unknown }).name ?? "")).filter(Boolean);
 
+  // Strip DB-only columns (id, case_id, user_id, created_at, updated_at)
+  // before stringifying — the model never needs them, and on a case with
+  // many rows they were a large share of every payload. Cap by item
+  // count rather than JSON.stringify(...).slice(N) — slicing raw JSON
+  // text can (and does, once these arrays get big) cut an array off
+  // mid-object, handing the model malformed JSON instead of just less
+  // of it. This was the direct cause of the Groq 413 "payload too large"
+  // failure on Centro de Estrategia Jurídica once SCJN/DOF started
+  // feeding richer, longer theories/opportunities upstream.
+  const DROP_COLUMNS = new Set(["id", "case_id", "user_id", "created_at", "updated_at"]);
+  function slim<T extends Record<string, unknown>>(rows: T[] | null | undefined, maxItems: number): Partial<T>[] {
+    return (rows ?? []).slice(0, maxItems).map((row) => {
+      const out: Partial<T> = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (!DROP_COLUMNS.has(k)) (out as Record<string, unknown>)[k] = v;
+      }
+      return out;
+    });
+  }
+
+  const slimTheories = slim(theories, 10);
+  const slimOpportunities = slim(opportunities, 15);
+  const slimWitnesses = slim(witnesses, 15);
+  const slimPerspectives = slim(perspectives, 10);
+  const slimStrategy = slim(strategy, 5);
+
   const r = await callGroq({
     apiKeys,
     model: MODEL,
@@ -1189,19 +1215,19 @@ WITNESSES ON RECORD (only these names may be used as "most_dangerous_witness"):
 ${JSON.stringify(witnessNames)}
 
 CASE THEORIES:
-${JSON.stringify(theories ?? []).slice(0, 20000)}
+${JSON.stringify(slimTheories)}
 
 CASE OPPORTUNITIES:
-${JSON.stringify(opportunities ?? []).slice(0, 20000)}
+${JSON.stringify(slimOpportunities)}
 
 WITNESS PROFILES:
-${JSON.stringify(witnesses ?? []).slice(0, 15000)}
+${JSON.stringify(slimWitnesses)}
 
 PERSPECTIVES:
-${JSON.stringify(perspectives ?? []).slice(0, 15000)}
+${JSON.stringify(slimPerspectives)}
 
 STRATEGY SYNTHESIS:
-${JSON.stringify(strategy ?? []).slice(0, 15000)}`,
+${JSON.stringify(slimStrategy)}`,
     json: true,
     temperature: 0.2,
   });
