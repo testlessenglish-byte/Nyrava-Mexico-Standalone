@@ -564,7 +564,6 @@ const INV_RULES: InvRule[] = [
     needed: "Expediente laboral completo y constancias del IMSS",
   },
 ];
-];
 
 function ruleFor(filename: string, headText: string): InvRule | null {
   const blob = `${filename}\n${headText.slice(0, 2000)}`;
