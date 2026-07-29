@@ -2434,7 +2434,39 @@ ${digestText}`;
   const analyzerRows = analyzerRowsRaw.filter((row) =>
     isFindingAllowed(analyzerArea, `analyzer:${String(row.category ?? "")}`, analyzerDomains),
   );
-  const analyzerGate = await addGatedFindings(db, caseId, analyzerRows);
+  // FIX (2026-07-29): missing_evidence findings are absence-of-evidence
+  // claims by nature ("this document should exist in the corpus but
+  // doesn't") — they structurally cannot carry a verbatim supporting
+  // quote the same way a contradiction or key finding can. Passing the
+  // whole combined batch through addGatedFindings() with no
+  // exemptCitation meant every missing_evidence item that lacked a
+  // literal quotable passage was silently dropped by the citation gate
+  // (the "else: dropped by strict/balanced gate" branch), even though its
+  // own sub-engine stats reported it as "accepted" — confirmed via a
+  // real case where analyzer_discovery_gaps reported 3 accepted but zero
+  // analyzer:missing rows existed in case_findings afterward. Splitting
+  // the gate call so missing_evidence gets the same AI_THEORY-tagged
+  // exemption addGatedFindings already supports for exactly this
+  // evidentiary shape (see findings.server.ts's addGatedFindings
+  // comment: "discovery-gap, trial risk/strength").
+  const missingRows = analyzerRows.filter((row) => String(row.category ?? "") === "missing_evidence");
+  const otherRows = analyzerRows.filter((row) => String(row.category ?? "") !== "missing_evidence");
+  const otherGate = await addGatedFindings(db, caseId, otherRows);
+  const missingGate = await addGatedFindings(db, caseId, missingRows, { exemptCitation: true });
+  const analyzerGate = {
+    inserted: otherGate.inserted + missingGate.inserted,
+    mode: otherGate.mode,
+    corpus: otherGate.corpus,
+    audit:
+      otherGate.audit && missingGate.audit
+        ? {
+            ...otherGate.audit,
+            input: (otherGate.audit.input ?? 0) + (missingGate.audit.input ?? 0),
+            accepted: (otherGate.audit.accepted ?? 0) + (missingGate.audit.accepted ?? 0),
+            rejections: [...(otherGate.audit.rejections ?? []), ...(missingGate.audit.rejections ?? [])],
+          }
+        : (otherGate.audit ?? missingGate.audit),
+  };
   console.log(
     "[analyzers] evidence-gate audit",
     analyzerGate.audit,
@@ -5597,16 +5629,25 @@ ${paginationTail}`;
     // from `factualContradictions` (the narrative LLM's own structured
     // "contradictions" output, post dispute-classification), NOT from
     // case_findings rows written by an "analyzer_contradictions" pass.
-    // Without a run logged under the "contradictions" engine, the
-    // Contradiction Detection agent's card in Agent Statistics always shows
-    // 0 generated / "Nothing found in supplied evidence." even when the
-    // report body contains real, rendered contradictions — because
-    // buildSingleAgentStats() only aggregates pipeline_engine_runs rows
-    // whose `engine` is in AGENT_ENGINE_MAP.contradictions = ["contradictions",
-    // "analyzer_contradictions"]. This row closes that gap so the agent
-    // card and the rendered section always agree on how many contradictions
-    // were found.
-    subRow("contradictions", contradictionsRaw.length, factualContradictions.length),
+    //
+    // FIX (2026-07-29): this used to write under the SAME engine name,
+    // "contradictions", that deriveContradictions() (derived-engines.
+    // server.ts) also writes to. Both are legitimate, different metrics —
+    // deriveContradictions() counts real analyzer:contradiction rows in
+    // case_findings; this counts the narrative writer's own structured
+    // output — but sharing one ledger key meant whichever ran LAST won,
+    // and since report generation runs after the analyzers stage, this
+    // row would silently overwrite a correct nonzero deriveContradictions()
+    // result with 0 whenever factualContradictions happened to be empty
+    // (confirmed live: case 52d7797e — deriveContradictions() correctly
+    // found 2 at 06:18:55, this row overwrote it with 0 at 06:26:09,
+    // and the final report/dashboard read the latter). Renamed to a
+    // distinct engine key; AGENT_ENGINE_MAP.contradictions in
+    // statistics.server.ts now includes this new key alongside the
+    // original two, so the Agent Statistics card still aggregates all
+    // three sources (preserving the original fix's intent) without any
+    // of them being able to clobber another.
+    subRow("report_contradictions", contradictionsRaw.length, factualContradictions.length),
   ]);
 
   // NOTE: we intentionally do NOT flip the report_generator row to
