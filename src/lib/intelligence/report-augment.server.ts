@@ -406,149 +406,162 @@ type InvRule = {
 };
 
 const INV_RULES: InvRule[] = [
+  // Mexican evidence inventory. Patterns match Spanish filings; the columns
+  // describe value, procedural theory, weakness and what is still needed under
+  // Mexican law. The previous table was U.S. federal practice (302 memos, MLAT
+  // requests, IRS §6103, Franks/Carpenter, grand jury, PCAST) and matched
+  // almost nothing in a Mexican expediente.
   {
-    match: /\b(bank\s+statement|bank\s+records|account\s+statement)\b/i,
-    item: "Bank Records",
-    shows: "Money trail / account activity",
-    theory: "Financial Fraud",
-    weakness: "Authentication as business record",
-    needed: "Custodian affidavit or testimony",
+    match: /\b(estado\s+de\s+cuenta|estados\s+de\s+cuenta|movimientos\s+bancarios|cuenta\s+bancaria)\b/i,
+    item: "Estados de cuenta bancarios",
+    shows: "Flujo de recursos y actividad de la cuenta",
+    theory: "Acreditación patrimonial / defraudación",
+    weakness: "Requiere perfeccionamiento y ratificación por la institución",
+    needed: "Informe de la institución bancaria vía CNBV o requerimiento judicial",
   },
   {
-    match: /\b(whatsapp|signal|telegram|imessage|text\s+messages?|sms)\b/i,
-    item: "Messaging App Records",
-    shows: "Intent, planning, coordination",
-    theory: "Conspiracy / Intent",
-    weakness: "Metadata gaps; unauthenticated screenshots",
-    needed: "Forensic extraction with hash + custody log",
+    match: /\b(whatsapp|telegram|imessage|mensajes?\s+de\s+texto|sms|capturas?\s+de\s+pantalla)\b/i,
+    item: "Registros de mensajería",
+    shows: "Intención, planeación y coordinación entre las partes",
+    theory: "Dolo / acuerdo de voluntades",
+    weakness: "Capturas sin metadatos no son fiables; posible objeción de autenticidad",
+    needed: "Extracción forense con hash y registro de cadena de custodia",
   },
   {
-    match: /\b(coinbase|binance|kraken|blockchain|crypto|wallet\s+address)\b/i,
-    item: "Cryptocurrency Records",
-    shows: "Movement of funds / laundering",
-    theory: "Financial Crime",
-    weakness: "Custodian testimony; wallet attribution",
-    needed: "Subpoena compliance certificate + chain analysis",
+    match: /\b(cfdi|factura|comprobante\s+fiscal|contabilidad|p[oó]liza\s+contable|declaraci[oó]n\s+anual)\b/i,
+    item: "Comprobantes fiscales y contabilidad",
+    shows: "Operaciones registradas, ingresos y deducciones",
+    theory: "Materialidad de operaciones / crédito fiscal",
+    weakness: "Presunción de inexistencia de operaciones (art. 69-B CFF)",
+    needed: "Documentación soporte de materialidad y opinión de cumplimiento SAT",
   },
   {
-    match: /\b(journal|ledger|diary|memo\s+to\s+file|cfo\s+notes)\b/i,
-    item: "Internal Journal / Ledger",
-    shows: "Pattern of conduct",
-    theory: "Criminal Conduct / Fraud Pattern",
-    weakness: "Cooperating-witness bias; self-serving entries",
-    needed: "Corroborating documents",
+    match: /\b(pagar[eé]|t[ií]tulo\s+de\s+cr[eé]dito|letra\s+de\s+cambio|contrato\s+de\s+cr[eé]dito)\b/i,
+    item: "Título de crédito o contrato mercantil",
+    shows: "Obligación exigible y monto reclamado",
+    theory: "Acción cambiaria / cumplimiento de contrato",
+    weakness: "Objeción de firma, prescripción y requisitos del art. 170 LGTOC",
+    needed: "Documento original y, en su caso, dictamen en documentoscopía",
   },
   {
-    match: /\b(email|correspondence|letter)\b/i,
-    item: "Email / Correspondence",
-    shows: "State of mind, notice, admissions",
-    theory: "Intent / Notice",
-    weakness: "Hearsay unless party-opponent or business record",
-    needed: "Full thread with headers",
+    match: /\b(bit[aá]cora|libro\s+de\s+actas|libro\s+mayor|memor[aá]ndum\s+interno)\b/i,
+    item: "Bitácora o libros internos",
+    shows: "Patrón de conducta y decisiones internas",
+    theory: "Conducta reiterada / responsabilidad corporativa",
+    weakness: "Elaboración unilateral; posible autofavorecimiento",
+    needed: "Documentos corroborantes y ratificación de quien los elaboró",
   },
   {
-    match: /\b(wire\s+transfer|swift|ach|remittance)\b/i,
-    item: "Wire Transfer Records",
-    shows: "Cross-account fund movement",
-    theory: "Wire Fraud / Money Laundering",
-    weakness: "Foreign bank cooperation",
-    needed: "MLAT request or subpoena to correspondent bank",
+    match: /\b(correo\s+electr[oó]nico|oficio|carta|comunicaci[oó]n\s+escrita)\b/i,
+    item: "Correspondencia y oficios",
+    shows: "Conocimiento, notificación y reconocimiento de hechos",
+    theory: "Notificación / confesión extrajudicial",
+    weakness: "Requiere acreditar autoría y recepción",
+    needed: "Hilo completo con encabezados o acuse de recibo",
   },
   {
-    match: /\b(tax\s+return|1099|k[- ]1|w[- ]2|irs)\b/i,
-    item: "Tax Records",
-    shows: "Unreported income / discrepancies",
-    theory: "Tax Fraud",
-    weakness: "Section 6103 disclosure limits",
-    needed: "IRS ex parte order or taxpayer consent",
+    match: /\b(transferencia|spei|clave\s+de\s+rastreo|remesa)\b/i,
+    item: "Comprobantes de transferencia",
+    shows: "Movimiento de recursos entre cuentas",
+    theory: "Origen y destino de los recursos",
+    weakness: "Sin clave de rastreo no se acredita la operación",
+    needed: "Comprobante con clave de rastreo e informe de la institución",
   },
   {
-    match: /\b(surveillance|cctv|video|body\s+cam|dashcam)\b/i,
-    item: "Video Surveillance",
-    shows: "Physical presence / conduct",
-    theory: "Identification",
-    weakness: "Time-sync and chain of custody",
-    needed: "Native file + hash + custody log",
+    match: /\b(videovigilancia|cctv|videograbaci[oó]n|c[aá]mara\s+de\s+seguridad|video)\b/i,
+    item: "Videovigilancia",
+    shows: "Presencia física y conducta registrada",
+    theory: "Identificación / dinámica de los hechos",
+    weakness: "Sincronización horaria y continuidad de la cadena de custodia",
+    needed: "Archivo original con hash y registro de cadena de custodia",
   },
   {
-    match: /\b(cell\s+site|cslr|tower\s+dump|ping|geolocation|gps\s+log)\b/i,
-    item: "Cell-Site / Geolocation",
-    shows: "Device location",
-    theory: "Presence at Scene",
-    weakness: "Sector overlap; Carpenter warrant requirements",
-    needed: "Warrant + expert testimony",
+    match: /\b(geolocalizaci[oó]n|s[aá]bana\s+de\s+llamadas|antena|radiobases|gps)\b/i,
+    item: "Geolocalización y registros de telefonía",
+    shows: "Ubicación aproximada del dispositivo",
+    theory: "Ubicación en el lugar de los hechos",
+    weakness: "Cobertura por sector; exige autorización judicial previa (art. 303 CNPP)",
+    needed: "Autorización judicial y perito en telefonía",
   },
   {
-    match: /\b(dna|serology|blood\s+sample)\b/i,
-    item: "DNA / Serology",
-    shows: "Biological identification",
-    theory: "Identification",
-    weakness: "Mixture interpretation; transfer / contamination",
-    needed: "Defense expert review of lab notes",
+    match: /\b(gen[eé]tic[ao]|adn|serolog[ií]a|muestra\s+de\s+sangre)\b/i,
+    item: "Dictamen genético / serológico",
+    shows: "Identificación biológica",
+    theory: "Identificación",
+    weakness: "Interpretación de mezclas; riesgo de contaminación",
+    needed: "Revisión por perito de la contraparte de las notas de laboratorio",
   },
   {
-    match: /\b(fingerprint|latent\s+print|afis)\b/i,
-    item: "Latent Prints",
-    shows: "Physical contact",
-    theory: "Identification",
-    weakness: "Subjective ACE-V methodology",
-    needed: "Blind verification / defense expert",
+    match: /\b(dactilosc[oó]pic[ao]|huella|lof[oó]scop[ií]a)\b/i,
+    item: "Dictamen dactiloscópico",
+    shows: "Contacto físico con el objeto",
+    theory: "Identificación",
+    weakness: "Metodología comparativa con margen de subjetividad",
+    needed: "Verificación independiente por perito de la contraparte",
   },
   {
-    match: /\b(firearm|ballistic|toolmark|gsr|gunshot\s+residue)\b/i,
-    item: "Firearms / Ballistics",
-    shows: "Weapon linkage",
-    theory: "Use of Weapon",
-    weakness: "Toolmark subjectivity (PCAST 2016)",
-    needed: "Independent examiner",
+    match: /\b(bal[ií]stic[ao]|arma\s+de\s+fuego|rodizonato|residuos\s+de\s+disparo)\b/i,
+    item: "Dictamen en balística",
+    shows: "Vinculación del arma con los hechos",
+    theory: "Empleo de arma de fuego",
+    weakness: "Subjetividad en el cotejo de marcas",
+    needed: "Perito independiente y registro de cadena de custodia del arma",
   },
   {
-    match: /\b(drug|narcotic|controlled\s+substance|lab\s+report)\b/i,
-    item: "Controlled-Substance Analysis",
-    shows: "Substance identity / weight",
-    theory: "Possession / Distribution",
-    weakness: "Sampling protocol; instrument calibration",
-    needed: "Bench notes + calibration logs",
+    match: /\b(narc[oó]tico|sustancia\s+controlada|qu[ií]mic[ao]|dictamen\s+de\s+laboratorio)\b/i,
+    item: "Dictamen químico de sustancias",
+    shows: "Identidad y peso de la sustancia",
+    theory: "Narcomenudeo / delitos contra la salud",
+    weakness: "Protocolo de muestreo y calibración del instrumental",
+    needed: "Notas de laboratorio y constancias de calibración",
   },
   {
-    match: /\b(medical\s+record|hospital\s+chart|ems|autopsy)\b/i,
-    item: "Medical Records",
-    shows: "Injury / cause of death",
-    theory: "Injury / Causation",
-    weakness: "Hearsay; expert interpretation",
-    needed: "Custodian affidavit; defense medical expert",
+    match: /\b(expediente\s+cl[ií]nico|nota\s+m[eé]dica|hospital|necropsia|certificado\s+m[eé]dico)\b/i,
+    item: "Documentación médica",
+    shows: "Lesiones, mecánica y causa de la muerte",
+    theory: "Lesiones / nexo causal",
+    weakness: "Requiere interpretación pericial y ratificación",
+    needed: "Ratificación del médico y perito de la contraparte",
   },
   {
-    match: /\b(interview|proffer|debrief|302|memo\s+of\s+interview)\b/i,
-    item: "Witness Interview Notes",
-    shows: "Prior statements",
-    theory: "Impeachment / Corroboration",
-    weakness: "Selective note-taking; missing verbatim",
-    needed: "Rough notes + audio if any",
+    match: /\b(entrevista|comparecencia|declaraci[oó]n|testimonial)\b/i,
+    item: "Registro de entrevista o declaración",
+    shows: "Manifestaciones previas de la persona",
+    theory: "Corroboración / contradicción con lo declarado en juicio",
+    weakness: "Registro incompleto o no textual",
+    needed: "Registro íntegro y, en su caso, audio o video de la entrevista",
   },
   {
-    match: /\b(search\s+warrant|warrant\s+affidavit|application\s+for\s+search)\b/i,
-    item: "Search Warrant + Affidavit",
-    shows: "Basis for search / seizure",
-    theory: "Suppression",
-    weakness: "Franks issues; staleness; overbreadth",
-    needed: "Full affidavit + return inventory",
+    match: /\b(orden\s+de\s+cateo|autorizaci[oó]n\s+judicial|orden\s+de\s+aprehensi[oó]n)\b/i,
+    item: "Orden o autorización judicial",
+    shows: "Fundamento del acto de molestia",
+    theory: "Licitud de la prueba (arts. 16 CPEUM, 264 CNPP)",
+    weakness: "Falta de fundamentación, motivación o exceso en su ejecución",
+    needed: "Orden completa y acta de la diligencia con inventario",
   },
   {
-    match: /\b(indictment|information|complaint\b)\b/i,
-    item: "Charging Document",
-    shows: "Elements charged; theory of the case",
-    theory: "Prosecution Theory",
-    weakness: "Notice / duplicity issues",
-    needed: "Bill of particulars if vague",
+    match: /\b(carpeta\s+de\s+investigaci[oó]n|denuncia|querella|acusaci[oó]n)\b/i,
+    item: "Carpeta de investigación / acusación",
+    shows: "Hechos imputados y teoría del caso de la Fiscalía",
+    theory: "Teoría del caso de la parte acusadora",
+    weakness: "Registros incompletos o descubrimiento probatorio parcial",
+    needed: "Descubrimiento probatorio íntegro (arts. 337-340 CNPP)",
   },
   {
-    match: /\b(grand\s+jury)\b/i,
-    item: "Grand Jury Transcript",
-    shows: "Prior sworn testimony",
-    theory: "Impeachment",
-    weakness: "Ex parte proceeding; leading questions",
-    needed: "Complete transcript + exhibit list",
+    match: /\b(escritura\s+p[uú]blica|certificado\s+de\s+libertad\s+de\s+gravamen|folio\s+real|catastro)\b/i,
+    item: "Instrumentos y constancias registrales",
+    shows: "Titularidad, gravámenes y situación registral del inmueble",
+    theory: "Acreditación de la propiedad",
+    weakness: "Constancias vencidas o inscripciones pendientes",
+    needed: "Certificado vigente del RPP y constancias de no adeudo",
+  },
+  {
+    match: /\b(recibo\s+de\s+n[oó]mina|contrato\s+individual\s+de\s+trabajo|aviso\s+de\s+rescisi[oó]n|imss|control\s+de\s+asistencia)\b/i,
+    item: "Documentación laboral",
+    shows: "Relación de trabajo, salario y condiciones",
+    theory: "Acreditación de la relación laboral (art. 784 LFT)",
+    weakness: "Carga de la prueba a cargo del patrón; documentos sin firma",
+    needed: "Expediente laboral completo y constancias del IMSS",
   },
 ];
 
@@ -581,11 +594,11 @@ export async function buildEvidenceInventory(db: Db, caseId: string): Promise<Ev
     const text = String(d.extracted_text ?? "");
     const extracted = d.status === "extracted" && text.trim().length >= 100;
     const rule = ruleFor(filename, text);
-    const item = rule?.item ?? "Document";
-    const shows = rule?.shows ?? "Case background / context";
+    const item = rule?.item ?? "Documento";
+    const shows = rule?.shows ?? "Antecedentes y contexto del asunto";
     const theory = rule?.theory ?? "General";
-    const weakness = rule?.weakness ?? "Foundation / relevance";
-    const needed = rule?.needed ?? "Custodian testimony if authenticity contested";
+    const weakness = rule?.weakness ?? "Idoneidad y pertinencia de la prueba";
+    const needed = rule?.needed ?? "Ratificación o perfeccionamiento si se objeta su autenticidad";
 
     let status: DiscoveryStatus;
     let statusNote: string;
@@ -593,14 +606,14 @@ export async function buildEvidenceInventory(db: Db, caseId: string): Promise<Ev
       status = "missing";
       statusNote =
         d.status === "extracted"
-          ? "Uploaded but text unreadable — re-scan at higher DPI."
-          : `Not extracted (status=${d.status ?? "unknown"}).`;
+          ? "Cargado pero el texto es ilegible — vuelva a digitalizar con mayor resolución."
+          : `Sin extracción (estado=${d.status ?? "desconocido"}).`;
     } else if ((findingsByDoc.get(id) ?? 0) === 0) {
       status = "partial";
-      statusNote = "Extracted but no engine cited it — verify coverage or request supplemental production.";
+      statusNote = "Extraído pero ningún motor lo citó — verifique la cobertura o solicite documentación complementaria.";
     } else {
       status = "complete";
-      statusNote = `Cited by ${findingsByDoc.get(id)} finding(s).`;
+      statusNote = `Citado en ${findingsByDoc.get(id)} hallazgo(s).`;
     }
 
     items.push({

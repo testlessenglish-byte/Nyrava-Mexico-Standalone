@@ -980,6 +980,7 @@ export type Database = {
           canonical_finding_id: string | null
           case_id: string
           category: string
+          category_key: string | null
           confidence: number
           created_at: string
           derived_from_finding_ids: string[]
@@ -1014,6 +1015,7 @@ export type Database = {
           canonical_finding_id?: string | null
           case_id: string
           category: string
+          category_key?: string | null
           confidence?: number
           created_at?: string
           derived_from_finding_ids?: string[]
@@ -1048,6 +1050,7 @@ export type Database = {
           canonical_finding_id?: string | null
           case_id?: string
           category?: string
+          category_key?: string | null
           confidence?: number
           created_at?: string
           derived_from_finding_ids?: string[]

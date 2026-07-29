@@ -555,23 +555,52 @@ export function computeEvidenceConfidence(opts: {
 }
 
 // =========================================================================
-// CASE-TYPE TERMINOLOGY GUARD
-// Civil matters must not surface criminal-only concepts (and vice versa).
+// MATERIA TERMINOLOGY GUARD
+//
+// Two independent rules:
+//  1. U.S. common-law terminology is forbidden in EVERY materia — there is no
+//     Mexican matter in which "grand jury" or "fourth amendment" is correct.
+//     (The previous revision only applied this to "civil" case types, and it
+//     keyed on the retired U.S. values "criminal"/"civil_rights", so it never
+//     fired at all once case types became Mexican materias.)
+//  2. Penal-only concepts must not leak into a non-penal materia.
 // =========================================================================
-const CRIMINAL_TERMS =
-  /\b(conviction|acquittal|miranda|brady( violation| material| disclosure)?|suppression motion|motion to suppress|search and seizure|reasonable doubt|prosecution(?: strategy| theory)?|prosecutor|grand jury|indictment|arraignment|plea (?:agreement|deal)|sentencing|probation|parole|felony|misdemeanor|fourth amendment|fifth amendment|sixth amendment|exclusionary rule|fruit of the poisonous tree)\b/i;
-const CRIMINAL_OPP_TYPES = new Set(["suppression", "constitutional", "miranda", "brady"]);
-const CRIMINAL_WORK_PRODUCT = new Set(["motion_to_suppress"]);
+const US_TERMS =
+  /\b(conviction|acquittal|miranda|brady( violation| material| disclosure)?|suppression motion|motion to suppress|motion for summary judgment|summary judgment|search and seizure|reasonable doubt|prosecutor|district attorney|grand jury|indictment|arraignment|plea (?:bargain|agreement|deal)|felony|misdemeanor|first amendment|fourth amendment|fifth amendment|sixth amendment|exclusionary rule|fruit of the poisonous tree|hearsay|deposition|subpoena|discovery request)\b/i;
+/** Penal-only concepts, in Mexican terms, that must not appear in other materias. */
+const PENAL_ONLY_TERMS =
+  /\b(carpeta de investigaci[oó]n|vinculaci[oó]n a proceso|prisi[oó]n preventiva|ministerio p[uú]blico|imputad[oa]|juicio oral penal|auto de apertura a juicio)\b/i;
+const PENAL_OPP_TYPES = new Set(["suppression", "constitutional", "miranda", "brady", "exclusion_prueba_ilicita"]);
+const PENAL_WORK_PRODUCT = new Set([
+  "motion_to_suppress",
+  "solicitud_exclusion_prueba_ilicita",
+  "solicitud_de_no_vinculacion_a_proceso",
+  "impugnacion_de_medidas_cautelares",
+  "guion_de_audiencia_de_juicio_oral",
+  "teoria_del_caso",
+]);
 
-export function isCivilCaseType(caseType: string | null | undefined): boolean {
-  if (!caseType) return true;
-  return caseType !== "criminal" && caseType !== "civil_rights";
+/** Penal-family materias (penal proper and the constitutional/human-rights track). */
+function isPenalCaseType(caseType: string | null | undefined): boolean {
+  const t = String(caseType ?? "").toLowerCase();
+  return t === "penal" || t === "constitucional" || t === "amparo";
 }
 
-/** True if the text is compatible with the locked case type. */
+/**
+ * Retained for existing call sites. In the Mexican taxonomy "civil" means
+ * "not the penal track" — used only to decide whether penal-only vocabulary
+ * is admissible.
+ */
+export function isCivilCaseType(caseType: string | null | undefined): boolean {
+  if (!caseType) return true;
+  return !isPenalCaseType(caseType);
+}
+
+/** True if the text is compatible with the locked materia. */
 export function textMatchesCaseType(text: string, caseType: string | null | undefined): boolean {
   if (!text) return true;
-  if (isCivilCaseType(caseType)) return !CRIMINAL_TERMS.test(text);
+  if (US_TERMS.test(text)) return false;
+  if (isCivilCaseType(caseType)) return !PENAL_ONLY_TERMS.test(text);
   return true;
 }
 
@@ -583,14 +612,15 @@ export function filterByCaseType<
     document_type?: string | null;
   },
 >(items: T[], caseType: string | null | undefined): T[] {
-  if (!isCivilCaseType(caseType)) return items;
+  const civil = isCivilCaseType(caseType);
   return items.filter((it) => {
-    if (it.opportunity_type && CRIMINAL_OPP_TYPES.has(String(it.opportunity_type))) return false;
-    if (it.document_type && CRIMINAL_WORK_PRODUCT.has(String(it.document_type))) return false;
+    if (civil && it.opportunity_type && PENAL_OPP_TYPES.has(String(it.opportunity_type))) return false;
+    if (civil && it.document_type && PENAL_WORK_PRODUCT.has(String(it.document_type))) return false;
     const blob = `${it.title ?? ""} ${it.description ?? ""}`;
     return textMatchesCaseType(blob, caseType);
   });
 }
+
 
 /** Reads cases.case_type — the user-locked authoritative source. Null when unset. */
 export async function getLockedCaseType(db: SupabaseClient<Database>, caseId: string): Promise<string | null> {

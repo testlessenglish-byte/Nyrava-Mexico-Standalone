@@ -38,19 +38,30 @@ export function EvidenceMapTable({
   // documents (real DB rows, with id + archived_at) is the source of truth
   // for which rows exist and their archive state; evidence_map_detail (report
   // JSON) only supplies the descriptive metrics, joined in by filename.
+  // The evidence map persists canonical snake_case taxonomy keys
+  // (carpeta_de_investigacion, testimonial, acusacion…); they are translated
+  // here so the table follows the report language instead of rendering raw
+  // English labels. Unknown/legacy values fall through as-is.
+  const tv = (prefix: string, value?: string | null) => {
+    if (!value) return t("common.dash");
+    const key = `reports.evidenceMap.${prefix}.${value}`;
+    const label = t(key);
+    return label === key ? value : label;
+  };
   const allRows = (documents ?? []).map((d) => {
     const m = metricsByFile.get(d.filename);
     return {
       id: d.id,
       filename: d.filename,
-      document_type: m?.document_type ?? t("common.dash"),
-      litigation_role: m?.litigation_role ?? t("common.dash"),
-      party: m?.party ?? t("common.dash"),
+      document_type: tv("docType", m?.document_type),
+      litigation_role: tv("role", m?.litigation_role),
+      party: tv("party", m?.party),
       page_count: m?.page_count ?? 0,
       finding_count: m?.finding_count ?? 0,
       archived: !!d.archived_at,
     };
   });
+
 
   const archiveFn = useServerFn(archiveCaseDocument);
   const deleteFn = useServerFn(deleteCaseDocument);
