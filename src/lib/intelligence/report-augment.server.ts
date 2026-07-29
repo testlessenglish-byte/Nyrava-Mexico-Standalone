@@ -18,21 +18,27 @@ export type WitnessProfile = {
   sources: string[];
 };
 
-// Names we consider witnesses when scanning free text.
+// Names we consider witnesses when scanning free text. Mexican
+// investigative/procedural roles (REBUILT 2026-07-29 — previously used
+// U.S. police ranks: Detective, Sergeant, Lieutenant, Deputy, Sheriff).
 const WITNESS_TITLE_RE =
-  /\b(?:CW-\d+|Detective|Det\.|Officer|Sergeant|Sgt\.|Lieutenant|Lt\.|Special Agent|Agent|Dr\.|Doctor|Professor|Prof\.|Deputy|Investigator|Sheriff)\s+[A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+)?\b/g;
+  /\b(?:Policía de Investigación|Agente del Ministerio Público|Ministerio Público|Fiscal|Perito|Dr\.|Doctor|Doctora|Dra\.|Profesor|Profesora|Prof\.|Custodio)\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’.-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’.-]+)?\b/g;
 const PROPER_NAME_RE = /\b([A-Z][a-z]{2,}\s+[A-Z][a-z]{2,})\b/g;
 
 function roleFor(name: string, text: string): string {
   const n = name.toLowerCase();
   const t = text.toLowerCase();
-  if (/^cw-\d+/i.test(name)) return "cooperating witness";
-  if (/(victim|complainant)/.test(t) && t.includes(n)) return "victim";
-  if (/(detective|officer|sergeant|lieutenant|deputy|agent|investigator|sheriff)/.test(name.toLowerCase()))
-    return "investigator";
-  if (/(doctor|dr\.|professor|prof\.|expert)/i.test(name)) return "expert";
-  if (/defendant|accused/.test(t) && t.includes(n)) return "defendant";
-  return "witness";
+  if (/^cw-\d+/i.test(name)) return "testigo colaborador";
+  if (/(v[ií]ctima|ofendido|denunciante)/.test(t) && t.includes(n)) return "víctima";
+  if (
+    /(polic[ií]a de investigaci[oó]n|agente del ministerio p[uú]blico|ministerio p[uú]blico|fiscal|custodio)/.test(
+      name.toLowerCase(),
+    )
+  )
+    return "investigador";
+  if (/(doctor|dr\.|doctora|dra\.|profesor|profesora|prof\.|perito)/i.test(name)) return "perito";
+  if (/imputado|acusado/.test(t) && t.includes(n)) return "imputado";
+  return "testigo";
 }
 
 function pickStatements(text: string, name: string, max = 4): string[] {
@@ -191,6 +197,46 @@ export type LegalIssueHit = {
   }>;
 };
 
+// REBUILT 2026-07-29: replaces the prior ISSUE_RULES, which detected and
+// generated next-step guidance for U.S. federal criminal procedure
+// (Fourth Amendment, Miranda, Franks, Brady, Jencks, FRE 901/902/702) —
+// none of which exist in Mexican penal procedure. This platform is
+// "Built exclusively for Mexican law" per its own README; the prior
+// table meant a real Mexican penal case running through buildWorkProduct()
+// could receive "File motion to suppress; request Franks hearing" or
+// "Serve Brady demand" as generated next steps — legal mechanisms with no
+// standing in a CNPP proceeding.
+//
+// Every rule below is grounded in CPEUM/CNPP:
+//   - Cateo y Detención: CPEUM Art. 16 (orden judicial fundada y
+//     motivada, salvo flagrancia o caso urgente); violations can support
+//     exclusión de prueba ilícita (CPEUM Art. 20, apartado A, fracción
+//     IX; CNPP Art. 97).
+//   - Declaración del Imputado sin Garantías: CPEUM Art. 20, apartado B
+//     (derecho a guardar silencio, asistencia de defensor desde la
+//     detención).
+//   - Irregularidad en Solicitud de Cateo: CNPP arts. 282–284 (requisitos
+//     de la solicitud y orden de cateo).
+//   - Omisión en el Deber de Aportación Probatoria: CPEUM Art. 21
+//     (principio de objetividad del Ministerio Público — no solo debe
+//     buscar la condena) together with CNPP Art. 218–219 (deber de
+//     poner a disposición de la defensa los registros de la
+//     investigación).
+//   - Declaraciones Previas de Testigo: entrevistas registradas en la
+//     carpeta de investigación, usadas para contrainterrogatorio conforme
+//     a las técnicas de litigación oral del CNPP (arts. 375–386) — there
+//     is no Mexican grand jury and no direct Jencks-Act equivalent; this
+//     is the actual functional analogue.
+//   - Cadena de Custodia: CNPP arts. 227–230.
+//   - Fundamentación Probatoria: licitud e incorporación de la prueba en
+//     juicio oral (CNPP Art. 357 and surrounding provisions).
+//   - Impugnación Pericial: CNPP arts. 368–372 (dictamen pericial,
+//     acreditación del perito, metodología).
+//
+// Article citations here are the general provisions governing each
+// mechanism, not a substitute for verifying against the specific case
+// file — same caveat this platform already applies to every other
+// generated citation.
 const ISSUE_RULES: Array<{
   issue: string;
   indicator: RegExp;
@@ -199,63 +245,84 @@ const ISSUE_RULES: Array<{
   next_step: string;
 }> = [
   {
-    issue: "Fourth Amendment",
+    issue: "Cateo y Detención",
     indicator:
-      /\b(search\s+warrant|warrantless|probable\s+cause|no[- ]knock|consent\s+to\s+search|expectation\s+of\s+privacy)\b/i,
-    description: "Search warrant language, warrantless search, probable cause",
-    significance: "Fruits of an unlawful search may be suppressed under the exclusionary rule.",
-    next_step: "File motion to suppress; request Franks hearing if affidavit misstates facts.",
+      /\b(orden\s+de\s+cateo|cateo\s+sin\s+orden|detenci[oó]n\s+sin\s+orden|flagrancia|caso\s+urgente|control\s+de\s+detenci[oó]n|aseguramiento\s+de\s+bienes)\b/i,
+    description: "Orden de cateo, detención, flagrancia, caso urgente",
+    significance:
+      "Todo cateo o detención requiere orden judicial fundada y motivada, salvo flagrancia o caso urgente (Art. 16 CPEUM). Los indicios obtenidos en un cateo o detención irregulares pueden excluirse como prueba ilícita (Art. 20, apartado A, fracción IX, CPEUM; Art. 97 CNPP).",
+    next_step:
+      "Promover incidente de exclusión de prueba ilícita ante el Juez de Control; solicitar la comparecencia del elemento aprehensor en audiencia de control de detención.",
   },
   {
-    issue: "Miranda",
-    indicator: /\b(miranda|custodial\s+interrogation|waiver\s+of\s+rights|confession|self[- ]incrimination)\b/i,
-    description: "Custodial interrogation, confession, waiver",
-    significance: "Statements obtained without a valid Miranda waiver are inadmissible in the case-in-chief.",
-    next_step: "Move to suppress the statement; demand Jackson-Denno / voluntariness hearing.",
-  },
-  {
-    issue: "Franks",
-    indicator: /\b(false\s+statement|material\s+omission|reckless\s+disregard|affiant\s+knew)\b/i,
-    description: "False statements in warrant affidavit",
-    significance: "Warrant may be voided if affiant knowingly or recklessly misstated material facts.",
-    next_step: "Request Franks hearing and subpoena affiant.",
-  },
-  {
-    issue: "Brady",
+    issue: "Declaración del Imputado sin Garantías",
     indicator:
-      /\b(exculpatory|impeach(?:ment|ing)|witness\s+deal|immunity|informant\s+file|cooperation\s+agreement)\b/i,
-    description: "Exculpatory evidence, witness deals, immunity",
-    significance: "Suppression of exculpatory or impeachment material by the prosecution violates due process.",
-    next_step: "Serve Brady demand; move to compel production and preservation.",
+      /\b(declaraci[oó]n\s+sin\s+defensor|coacci[oó]n\s+en\s+declaraci[oó]n|renuncia\s+al\s+derecho\s+a\s+guardar\s+silencio|entrevista\s+sin\s+abogado|declaraci[oó]n\s+ministerial\s+sin\s+asistencia)\b/i,
+    description: "Declaración del imputado, asistencia de defensor, derecho a guardar silencio",
+    significance:
+      "El imputado tiene derecho a guardar silencio y a la asistencia de un defensor desde el momento de su detención (Art. 20, apartado B, CPEUM). Una declaración obtenida sin estas garantías es nula y no puede utilizarse en su contra.",
+    next_step:
+      "Promover la exclusión de la declaración por violación al derecho de defensa adecuada; solicitar se declare la nulidad del acto ante el Juez de Control.",
   },
   {
-    issue: "Jencks",
-    indicator: /\b(prior\s+statement|grand\s+jury\s+testimony|interview\s+notes|302|rough\s+notes)\b/i,
-    description: "Prior witness statements, inconsistent statements",
-    significance: "Under 18 U.S.C. § 3500 the government must produce witnesses' prior statements after direct.",
-    next_step: "Serve Jencks demand and preserve objection at trial before cross-examination.",
-  },
-  {
-    issue: "Chain of Custody",
-    indicator: /\b(chain\s+of\s+custody|evidence\s+log|seal(?:ed|ing)|tamper|storage\s+gap|missing\s+seal)\b/i,
-    description: "Evidence handling, gaps in documentation",
-    significance: "Breaks in custody go to weight and can support exclusion or a limiting instruction.",
-    next_step: "Depose evidence custodian; move in limine to exclude or limit foundation.",
-  },
-  {
-    issue: "Authentication",
+    issue: "Irregularidad en Solicitud de Cateo",
     indicator:
-      /\b(authenticat|foundation|hearsay|business\s+records?\s+exception|self[- ]authenticating|best\s+evidence)\b/i,
-    description: "Business records, hearsay exceptions, foundation",
-    significance: "Documents lacking foundation are inadmissible under FRE 901/902.",
-    next_step: "Object to admission; require live custodian testimony.",
+      /\b(datos\s+falsos\s+en\s+cateo|omisi[oó]n\s+sustancial\s+en\s+cateo|solicitud\s+de\s+cateo\s+irregular)\b/i,
+    description: "Datos falsos u omisiones sustanciales en la solicitud de cateo",
+    significance:
+      "La solicitud y orden de cateo deben cumplir los requisitos del Art. 282 y siguientes del CNPP. Si se acredita que la solicitud contuvo datos falsos u omitió información sustancial, la orden y sus frutos pueden invalidarse.",
+    next_step:
+      "Impugnar la legalidad del cateo ante el Juez de Control; solicitar la comparecencia del solicitante para acreditar la irregularidad.",
   },
   {
-    issue: "Expert Admissibility",
-    indicator: /\b(daubert|frye|methodology|error\s+rate|peer[- ]review|qualifications)\b/i,
-    description: "Methodology, qualifications, Daubert/Frye",
-    significance: "Unreliable expert methodology is inadmissible under FRE 702 / Daubert.",
-    next_step: "File Daubert motion; retain rebuttal expert.",
+    issue: "Omisión en el Deber de Aportación Probatoria",
+    indicator:
+      /\b(dato\s+de\s+prueba\s+no\s+revelado|prueba\s+no\s+desahogada|ocultamiento\s+de\s+evidencia|omisi[oó]n\s+probatoria|acuerdo\s+de\s+colaboraci[oó]n\s+no\s+revelado)\b/i,
+    description: "Datos de prueba no revelados, acuerdos de colaboración no divulgados",
+    significance:
+      "El Ministerio Público debe conducirse con objetividad y no únicamente buscar la condena (Art. 21 CPEUM); la carpeta de investigación debe ponerse a disposición de la defensa (Art. 218–219 CNPP). La ocultación de datos favorables a la defensa vulnera el derecho de defensa adecuada.",
+    next_step:
+      "Solicitar al Juez de Control que requiera al Ministerio Público la exhibición íntegra de la carpeta de investigación; promover incidente por omisión en el deber de aportación probatoria.",
+  },
+  {
+    issue: "Declaraciones Previas de Testigo",
+    indicator:
+      /\b(entrevista\s+previa|declaraci[oó]n\s+previa\s+del\s+testigo|notas\s+de\s+entrevista|declaraci[oó]n\s+inconsistente)\b/i,
+    description: "Entrevistas previas del testigo registradas en la carpeta de investigación",
+    significance:
+      "Las entrevistas previas registradas en la carpeta de investigación, si son contradictorias con el testimonio rendido en juicio oral, pueden emplearse para impugnar la credibilidad del testigo durante el contrainterrogatorio (Art. 375–386 CNPP).",
+    next_step:
+      "Solicitar copia de las entrevistas previas del testigo para preparar el contrainterrogatorio y evidenciar contradicciones.",
+  },
+  {
+    issue: "Cadena de Custodia",
+    indicator:
+      /\b(cadena\s+de\s+custodia|registro\s+de\s+cadena\s+de\s+custodia|sello\s+roto|manejo\s+de\s+indicios|laguna\s+en\s+custodia)\b/i,
+    description: "Manejo de indicios, vacíos en la documentación de custodia",
+    significance:
+      "La cadena de custodia debe documentarse conforme a los Arts. 227–230 del CNPP. Las rupturas no explicadas afectan el valor probatorio del indicio y pueden fundar su exclusión.",
+    next_step:
+      "Solicitar el registro completo de cadena de custodia; promover la exclusión del indicio si existen rupturas no explicadas.",
+  },
+  {
+    issue: "Fundamentación Probatoria",
+    indicator:
+      /\b(licitud\s+de\s+la\s+prueba|incorporaci[oó]n\s+de\s+prueba|prueba\s+superveniente|fundamentaci[oó]n\s+probatoria)\b/i,
+    description: "Licitud e incorporación de la prueba al juicio oral",
+    significance:
+      "Todo medio de prueba debe incorporarse al juicio oral conforme a las reglas del CNPP (Art. 357 y correlativos); la prueba obtenida o incorporada sin cumplir estos requisitos carece de valor probatorio.",
+    next_step:
+      "Objetar la incorporación de la prueba por falta de licitud o fundamentación; exigir la comparecencia del custodio o generador del medio de prueba.",
+  },
+  {
+    issue: "Impugnación Pericial",
+    indicator:
+      /\b(dictamen\s+pericial|metodolog[ií]a\s+pericial|perito\s+sin\s+acreditaci[oó]n|error\s+de\s+laboratorio)\b/i,
+    description: "Metodología del dictamen pericial, acreditación del perito",
+    significance:
+      "El dictamen pericial debe sustentarse en una metodología reconocida y el perito debe estar debidamente acreditado (Arts. 368–372 CNPP). Un dictamen con deficiencias metodológicas puede impugnarse y perder valor probatorio.",
+    next_step:
+      "Promover la impugnación del dictamen pericial por deficiencia metodológica; ofrecer perito de la defensa conforme al Art. 368 del CNPP.",
   },
 ];
 
@@ -290,21 +357,21 @@ export async function buildLegalIssues(db: Db, caseId: string): Promise<LegalIss
   return hits;
 }
 
-// Same as buildLegalIssues(), but also attaches real case law (via
-// CourtListener) to each detected issue. Kept as a separate function so
-// every existing caller of buildLegalIssues() is completely unaffected.
-// Fails soft: if case law lookup fails for any reason, issues are
-// returned exactly as buildLegalIssues() would have returned them.
+// Same as buildLegalIssues(), but also attaches real SCJN/CJF
+// jurisprudencia (via legal_authorities, see case-law.server.ts) to each
+// detected issue. Kept as a separate function so every existing caller
+// of buildLegalIssues() is completely unaffected. Fails soft: if case
+// law lookup fails for any reason, issues are returned exactly as
+// buildLegalIssues() would have returned them.
 export async function buildLegalIssuesWithCaseLaw(db: Db, caseId: string): Promise<LegalIssueHit[]> {
   const issues = await buildLegalIssues(db, caseId);
   if (!issues.length) return issues;
   try {
     const { attachCaseLaw } = await import("./case-law.server");
-    const { courtIdsForJurisdiction } = await import("./jurisdictions");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: caseRow } = await (db as any).from("cases").select("jurisdiction").eq("id", caseId).maybeSingle();
-    const courtIds = courtIdsForJurisdiction(caseRow?.jurisdiction ?? null);
-    return await attachCaseLaw(issues, courtIds);
+    const { data: caseRow } = await (db as any).from("cases").select("case_type").eq("id", caseId).maybeSingle();
+    const materia = (caseRow as { case_type?: string } | null)?.case_type ?? undefined;
+    return await attachCaseLaw(db, issues, materia);
   } catch (err) {
     console.warn("[legal-issues] case law attachment failed, returning issues without it:", err);
     return issues;
@@ -574,15 +641,19 @@ function citationOf(f: any): string {
   return doc ? `[${doc}${page}]` : "[uncited]";
 }
 
+// REBUILT 2026-07-29: matches the new ISSUE_RULES keys above. Mexican
+// oral-adversarial procedure works through incidentes and solicitudes
+// before the Juez de Control, not "motions" in the U.S. sense — the
+// labels below use the actual CNPP procedural vehicle for each issue.
 const MOTION_MAP: Record<string, string> = {
-  "Fourth Amendment": "Motion to Suppress (Fourth Amendment / Franks)",
-  Miranda: "Motion to Suppress Statement (Miranda / Jackson-Denno)",
-  Franks: "Motion for Franks Hearing",
-  Brady: "Motion to Compel Brady / Giglio Material",
-  Jencks: "Demand for Jencks / 3500 Material",
-  "Chain of Custody": "Motion in Limine — Chain of Custody",
-  Authentication: "Motion in Limine — Authentication / Foundation",
-  "Expert Admissibility": "Daubert Motion to Exclude Expert",
+  "Cateo y Detención": "Incidente de Exclusión de Prueba Ilícita (Cateo/Detención)",
+  "Declaración del Imputado sin Garantías": "Incidente de Exclusión de Declaración",
+  "Irregularidad en Solicitud de Cateo": "Impugnación de Legalidad de Cateo",
+  "Omisión en el Deber de Aportación Probatoria": "Incidente por Omisión en el Deber de Aportación Probatoria",
+  "Declaraciones Previas de Testigo": "Solicitud de Entrevistas Previas para Contrainterrogatorio",
+  "Cadena de Custodia": "Incidente de Exclusión — Cadena de Custodia",
+  "Fundamentación Probatoria": "Objeción a la Incorporación de Prueba",
+  "Impugnación Pericial": "Impugnación de Dictamen Pericial",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
