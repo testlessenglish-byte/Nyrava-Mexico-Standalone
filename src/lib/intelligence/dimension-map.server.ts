@@ -74,71 +74,88 @@ export function dimensionKeyFromTag(tag: string): string {
   return tag.slice(DIMENSION_TAG_PREFIX.length);
 }
 
-// Content rules: ONE regex → ONE OR MORE dimensions. Order does not matter;
-// unlike classify.server.ts's CATEGORY_RULES (first-match-wins, for display
-// labels), every rule that matches contributes — a finding can and should
-// hit multiple dimensions. This is deliberate: it's what "propagation"
-// means in the architecture doc (step 9).
+// REBUILT 2026-07-29: every regex below was English/U.S. legal terminology
+// ("fourth amendment", "miranda", "brady", "daubert", "frcp") written
+// before this session's Mexican-terminology rebuild of classify.server.ts
+// and the LLM prompts in pipeline.server.ts/report-augment.server.ts. Since
+// every finding's title/description is now generated in Spanish using CNPP/
+// CPEUM vocabulary, none of these regexes could match anything anymore —
+// this file being the PRIMARY tagging path (per the header comment above)
+// meant every Mexican case's deterministic scorecard was silently running
+// on baseline values with zero real signal from actual findings. Rebuilt
+// to match the same Spanish vocabulary already established in
+// classify.server.ts's CATEGORY_RULES and report-augment.server.ts's
+// ISSUE_RULES, so a finding tagged there and a finding scored here agree.
 const DIMENSION_RULES: Array<{ match: RegExp; dimensions: DimensionKey[] }> = [
-  // Chain of custody / evidence handling failures
+  // Cadena de custodia / manejo de indicios
   {
-    match: /\b(chain[\s_-]of[\s_-]custody|custody[\s_-]gap|custody[\s_-]break|evidence[\s_-]log|seal(?:ed|ing)|storage[\s_-]gap|personal\s+vehicle|evidence[\s_-]tamper\w*)\b/i,
+    match:
+      /\b(cadena\s+de\s+custodia|ruptura\s+de\s+custodia|manejo\s+indebido\s+de\s+indicios|indicio\s+contaminado|rotura\s+de\s+sello|laguna\s+en\s+custodia|contaminaci[oó]n\s+de\s+indicio)\b/i,
     dimensions: ["chain_of_custody", "evidence_strength", "investigation_completeness"],
   },
-  // Constitutional issues — 4th/5th/6th amendment, Miranda, search/seizure
+  // Cuestiones constitucionales — cateo, detención, debido proceso
   {
-    match: /\b(fourth\s+amendment|fifth\s+amendment|sixth\s+amendment|miranda|search\s+warrant|warrantless|probable\s+cause|knock[\s-]and[\s-]announce|franks|due\s+process|self[\s-]incrimin\w*)\b/i,
+    match:
+      /\b(debido\s+proceso|control\s+de\s+detenci[oó]n|cateo\s+sin\s+orden|cateo\s+irregular|cateo\s+ilegal|detenci[oó]n\s+arbitraria|flagrancia\s+cuestionada|caso\s+urgente\s+injustificado|prueba\s+il[ií]cita|exclusi[oó]n\s+probatoria|presunci[oó]n\s+de\s+inocencia|derecho\s+de\s+defensa\s+adecuada)\b/i,
     dimensions: ["constitutional_compliance"],
   },
-  // Brady / Giglio / discovery violations
+  // Omisión en el deber de aportación probatoria / violaciones procesales
   {
-    match: /\b(brady|giglio|exculpatory|withheld|undisclosed|discovery\s+violation|discovery\s+gap|production\s+failure|failed\s+to\s+disclose)\b/i,
+    match:
+      /\b(omisi[oó]n\s+de\s+investigaci[oó]n|irregularidad\s+en\s+la\s+carpeta|violaci[oó]n\s+al\s+debido\s+proceso|violaci[oó]n\s+al\s+derecho\s+de\s+defensa|defecto\s+en\s+la\s+incorporaci[oó]n\s+de\s+la\s+prueba|dato\s+de\s+prueba\s+no\s+revelado|prueba\s+no\s+desahogada|ocultamiento\s+de\s+evidencia)\b/i,
     dimensions: ["discovery_completeness", "discovery_compliance", "constitutional_compliance"],
   },
-  // Forensic / lab reliability (DNA, fingerprints, ballistics)
+  // Confiabilidad pericial/forense
   {
-    match: /\b(dna\s+exclu\w*|fingerprint\w*|ballistic\w*|forensic\w*|lab\s+error|daubert|frye|gunshot\s+residue|degrad\w*)\b/i,
+    match:
+      /\b(dictamen\s+pericial\s+deficiente|metodolog[ií]a\s+pericial\s+cuestionada|perito\s+sin\s+acreditaci[oó]n|perito\s+no\s+oficial|contaminaci[oó]n\s+de\s+muestra|error\s+de\s+laboratorio)\b/i,
     dimensions: ["forensic_reliability", "evidence_strength"],
   },
-  // Witness / informant credibility
+  // Credibilidad de testigo
   {
-    match: /\b(witness|informant|confidential\s+informant|\bci[\s-]4?\d*\b|credibility|impeach\w*|bias|prior\s+inconsistent|motive\s+to\s+lie)\b/i,
+    match:
+      /\b(testigo|testimonial|informante|colaborador|credibilidad|impugnaci[oó]n|sesgo|declaraci[oó]n\s+previa\s+inconsistente|testigo\s+no\s+confiable|motivo\s+para\s+mentir)\b/i,
     dimensions: ["witness_reliability"],
   },
-  // Timeline / alibi contradictions
+  // Cronología / coartada
   {
-    match: /\b(timeline|alibi|gps|inconsisten\w*\s+(time|clothing|location)|contradict\w*\s+(surveillance|log|report))\b/i,
+    match:
+      /\b(cronolog[ií]a|coartada|inconsistencia\s+de\s+fechas|vac[ií]o\s+en\s+la\s+cronolog[ií]a|contradicci[oó]n\s+de\s+(vigilancia|registro|informe))\b/i,
     dimensions: ["timeline_integrity"],
   },
-  // Missing investigative steps / unresolved leads
+  // Investigación incompleta / prueba faltante
   {
-    match: /\b(missing\s+(evidence|record|interview|log)|investigation\s+gap|unresolved\s+lead|never\s+produced|failed\s+to\s+investigate)\b/i,
+    match:
+      /\b(prueba\s+faltante|registro\s+faltante|entrevista\s+faltante|vac[ií]o\s+de\s+investigaci[oó]n|indicio\s+perdido|l[ií]nea\s+de\s+investigaci[oó]n\s+sin\s+agotar|no\s+se\s+investig[oó])\b/i,
     dimensions: ["investigation_completeness"],
   },
-  // Procedural rule violations (FRCP/FRCrP/local rules, deadlines, service)
+  // Violaciones procesales (plazos, notificación, emplazamiento)
   {
-    match: /\b(procedural|frcp|frcrp|local\s+rule|deadline|service\s+defect|filing\s+defect)\b/i,
+    match:
+      /\b(violaci[oó]n\s+procesal|carpeta\s+de\s+investigaci[oó]n|plazo\s+vencido|defecto\s+de\s+notificaci[oó]n|emplazamiento\s+irregular|defecto\s+en\s+el\s+escrito)\b/i,
     dimensions: ["procedural_integrity"],
   },
-  // Civil-side dimensions
+  // Materia civil — responsabilidad
   {
-    match: /\b(liability|breach|negligence|standard\s+of\s+care|duty\s+of\s+care)\b/i,
+    match: /\b(responsabilidad\s+civil|incumplimiento\s+contractual|negligencia|deber\s+de\s+cuidado)\b/i,
     dimensions: ["liability_strength"],
   },
   {
-    match: /\b(causation|proximate\s+cause|but[\s-]for|intervening\s+cause|superseding\s+cause)\b/i,
+    match: /\b(nexo\s+causal|causa\s+pr[oó]xima|causa\s+eficiente|causa\s+interviniente|causa\s+superveniente)\b/i,
     dimensions: ["causation_strength"],
   },
   {
-    match: /\b(damages|injury|loss|economic\s+damages|noneconomic\s+damages|life\s+care\s+plan)\b/i,
+    match: /\b(da[nñ]o\s+moral|da[nñ]o\s+material|indemnizaci[oó]n|perjuicio|lucro\s+cesante)\b/i,
     dimensions: ["damages_exposure"],
   },
   {
-    match: /\b(expert\s+(report|opinion|witness|qualif)|methodology|peer[\s-]review|error\s+rate)\b/i,
+    match:
+      /\b(dictamen\s+pericial|metodolog[ií]a\s+pericial|perito\s+oficial|perito\s+particular|revisi[oó]n\s+por\s+pares|margen\s+de\s+error)\b/i,
     dimensions: ["expert_support", "forensic_reliability"],
   },
   {
-    match: /\b(document\s+integrity|record\s+alteration|documentation\s+discrepancy|records?\s+missing)\b/i,
+    match:
+      /\b(integridad\s+documental|alteraci[oó]n\s+de\s+registro|discrepancia\s+documental|documentaci[oó]n\s+faltante)\b/i,
     dimensions: ["documentation_reliability"],
   },
 ];
