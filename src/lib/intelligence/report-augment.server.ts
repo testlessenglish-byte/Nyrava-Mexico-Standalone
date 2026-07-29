@@ -594,11 +594,11 @@ export async function buildEvidenceInventory(db: Db, caseId: string): Promise<Ev
     const text = String(d.extracted_text ?? "");
     const extracted = d.status === "extracted" && text.trim().length >= 100;
     const rule = ruleFor(filename, text);
-    const item = rule?.item ?? "Document";
-    const shows = rule?.shows ?? "Case background / context";
+    const item = rule?.item ?? "Documento";
+    const shows = rule?.shows ?? "Antecedentes y contexto del asunto";
     const theory = rule?.theory ?? "General";
-    const weakness = rule?.weakness ?? "Foundation / relevance";
-    const needed = rule?.needed ?? "Custodian testimony if authenticity contested";
+    const weakness = rule?.weakness ?? "Idoneidad y pertinencia de la prueba";
+    const needed = rule?.needed ?? "Ratificación o perfeccionamiento si se objeta su autenticidad";
 
     let status: DiscoveryStatus;
     let statusNote: string;
@@ -606,14 +606,14 @@ export async function buildEvidenceInventory(db: Db, caseId: string): Promise<Ev
       status = "missing";
       statusNote =
         d.status === "extracted"
-          ? "Uploaded but text unreadable — re-scan at higher DPI."
-          : `Not extracted (status=${d.status ?? "unknown"}).`;
+          ? "Cargado pero el texto es ilegible — vuelva a digitalizar con mayor resolución."
+          : `Sin extracción (estado=${d.status ?? "desconocido"}).`;
     } else if ((findingsByDoc.get(id) ?? 0) === 0) {
       status = "partial";
-      statusNote = "Extracted but no engine cited it — verify coverage or request supplemental production.";
+      statusNote = "Extraído pero ningún motor lo citó — verifique la cobertura o solicite documentación complementaria.";
     } else {
       status = "complete";
-      statusNote = `Cited by ${findingsByDoc.get(id)} finding(s).`;
+      statusNote = `Citado en ${findingsByDoc.get(id)} hallazgo(s).`;
     }
 
     items.push({
