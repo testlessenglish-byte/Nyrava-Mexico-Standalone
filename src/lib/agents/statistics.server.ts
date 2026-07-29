@@ -63,7 +63,7 @@ const AGENT_ENGINE_MAP: Record<string, string[]> = {
   ],
   timeline: ["timeline"],
   evidence: ["evidence_intelligence", "evidence_map", "analyzer_evidence_intelligence", "analyzer_discovery_gaps"],
-  contradictions: ["contradictions", "analyzer_contradictions"],
+  contradictions: ["contradictions", "analyzer_contradictions", "report_contradictions"],
   legal: [
     "agents",
     "constitutional_compliance",
