@@ -549,7 +549,6 @@ class PdfBuilder {
       const safe = typeof text === "string" ? prep(text) : text;
       return (origSplit as unknown as (...a: unknown[]) => unknown)(safe, ...rest);
     };
-
   }
 
   /** Loads the real crest image once, before any drawing happens. Must be
@@ -860,8 +859,7 @@ class PdfBuilder {
         this.doc.setFontSize(7);
         this.doc.setTextColor(...MUTED);
         const labelMaxW = w - padX * 2 - 10;
-        const labelLine =
-          (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[])[0] ?? "";
+        const labelLine = (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[])[0] ?? "";
         this.doc.text(labelLine, x + padX, yy + 16);
         // Value — shrink font-size until it fits the card width.
         const valueMaxW = w - padX * 2;
@@ -885,7 +883,6 @@ class PdfBuilder {
       this.y += h + gap;
     }
   }
-
 
   // Maps a severity word to the shared color language used across the
   // report: red=critical, amber=high, gold=medium, green=low/info,
@@ -965,7 +962,6 @@ class PdfBuilder {
     this.doc.text(`${Math.round(value)}`, barX + barW + 8, this.y);
     this.y += 20;
   }
-
 
   // Thin divider used between repeated entries (findings, witnesses) to
   // give visual separation without the cost of a fully boxed card.
@@ -1295,7 +1291,6 @@ class PdfBuilder {
     this.y += rowH + 8;
   }
 
-
   // Full-width colored status banner (e.g. "HIGH RISK — Defense
   // Advantage"). This is the thing meant to land in the first few seconds
   // of opening the report, before the reader parses a single sentence.
@@ -1334,7 +1329,6 @@ class PdfBuilder {
     this.y += h + 22;
   }
 
-
   // One compact scannable row for a "Top Findings" preview — a colored
   // severity dot, the title, and a right-aligned severity/confidence pill.
   // Deliberately terse (title only, no description) since its job is a
@@ -1357,7 +1351,6 @@ class PdfBuilder {
     this.doc.line(this.margin, this.y + 8, this.pageW - this.margin, this.y + 8);
     this.y += 22;
   }
-
 
   table(
     head: string[][],
@@ -1692,7 +1685,6 @@ function renderCover(
     b.y += 14;
   }
 
-
   const agentSummary = getAgentSummary(getReportRow(data));
   const cards: Array<{ label: string; value: string; color?: [number, number, number] }> = [];
   if (mode === "LIMITED") {
@@ -1783,15 +1775,15 @@ function jurisdictionIntelRows(data: CaseExportData): Array<[string, string]> {
   const procedure = asStr(jp.fuero) || notDetermined();
   const courts = asArr(jp.courts as unknown as Array<Record<string, unknown>>);
   const court =
-    (Array.isArray(jp.courts) && (jp.courts as unknown[]).length > 0
-      ? String((jp.courts as unknown[])[0])
-      : "") || notDetermined();
+    (Array.isArray(jp.courts) && (jp.courts as unknown[]).length > 0 ? String((jp.courts as unknown[])[0]) : "") ||
+    notDetermined();
   const substantive = Array.isArray(jp.substantive_codes) ? (jp.substantive_codes as unknown[]) : [];
   const procedural = Array.isArray(jp.procedural_codes) ? (jp.procedural_codes as unknown[]) : [];
   const applicableLaw = [...substantive, ...procedural].map(String).filter(Boolean).join("; ") || notDetermined();
   const constitutional = Array.isArray(jp.constitutional_basis) ? (jp.constitutional_basis as unknown[]) : [];
   const jurisprudence = constitutional.map(String).filter(Boolean).join("; ") || notDetermined();
-  const currentStage = asStr(current.label_es) || asStr(stageMap.next && asObj(stageMap.next).label_es) || notDetermined();
+  const currentStage =
+    asStr(current.label_es) || asStr(stageMap.next && asObj(stageMap.next).label_es) || notDetermined();
   void courts;
 
   return [
@@ -1817,9 +1809,7 @@ function jurisdictionIntelDocxParas(data: CaseExportData): Paragraph[] {
     new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Jurisdiction Intelligence")] }),
   ];
   for (const [label, value] of rows) {
-    out.push(
-      new Paragraph({ children: [new TextRun({ text: `${label}: `, bold: true }), new TextRun(value)] }),
-    );
+    out.push(new Paragraph({ children: [new TextRun({ text: `${label}: `, bold: true }), new TextRun(value)] }));
   }
   return out;
 }
@@ -1834,11 +1824,11 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     b.text(
       execLocale === "en"
         ? "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations. " +
-          `The intake included ${docCount} source document${docCount === 1 ? "" : "s"} and produced ${findingCount} verified finding${findingCount === 1 ? "" : "s"}. ` +
-          "An evidence-grounded narrative is rendered below for every section in which the corpus supplied sufficient verbatim material. Sections that would otherwise rely on inferred legal theories — quantitative scorecards, motion drafting, theory selection, and prioritized recommendations — have been withheld so that no claim in this report rests on speculation."
+            `The intake included ${docCount} source document${docCount === 1 ? "" : "s"} and produced ${findingCount} verified finding${findingCount === 1 ? "" : "s"}. ` +
+            "An evidence-grounded narrative is rendered below for every section in which the corpus supplied sufficient verbatim material. Sections that would otherwise rely on inferred legal theories — quantitative scorecards, motion drafting, theory selection, and prioritized recommendations — have been withheld so that no claim in this report rests on speculation."
         : "Este expediente se analizó en modo LIMITADO porque el corpus disponible no alcanzó el umbral de Suficiencia Probatoria (ESS) requerido para sustentar puntajes cuantitativos o recomendaciones formales de promociones. " +
-          `La ingesta incluyó ${docCount} documento(s) fuente y produjo ${findingCount} hallazgo(s) verificado(s). ` +
-          "A continuación se presenta una narrativa sustentada en evidencia para cada sección en la que el corpus aportó material textual suficiente. Las secciones que dependerían de teorías jurídicas inferidas — puntajes cuantitativos, redacción de promociones, selección de teoría del caso y recomendaciones priorizadas — se retuvieron para que ninguna afirmación de este reporte descanse en especulación.",
+            `La ingesta incluyó ${docCount} documento(s) fuente y produjo ${findingCount} hallazgo(s) verificado(s). ` +
+            "A continuación se presenta una narrativa sustentada en evidencia para cada sección en la que el corpus aportó material textual suficiente. Las secciones que dependerían de teorías jurídicas inferidas — puntajes cuantitativos, redacción de promociones, selección de teoría del caso y recomendaciones priorizadas — se retuvieron para que ninguna afirmación de este reporte descanse en especulación.",
       { size: 11, gap: 8 },
     );
     const { checklistText } = buildMissingDocumentChecklist(data);
@@ -2545,12 +2535,17 @@ function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
   const discovery = reportText(data, "discovery_analysis") || reportText(data, "missing_evidence_report");
   const r = asObj(data.report);
   const missing = asArr(r.missing_evidence_struct);
-  b.h1("Discovery Analysis");
+  // FIX (2026-07-29): this heading rendered literally as "Discovery
+  // Analysis" in the exported PDF/DOCX — the one U.S. artifact confirmed
+  // to reach the actual downloadable document, not just an internal UI
+  // label. Matches the Spanish heading already used for this exact
+  // concept in the main branded report template.
+  b.h1("Análisis de Vacíos Probatorios");
   if (discovery) b.text(discovery, { size: 10.5, gap: 8 });
   if (missing.length) {
-    b.h2("Missing or Needed Evidence");
+    b.h2("Evidencia Faltante o Necesaria");
     b.table(
-      [["Item", "Severity", "How to obtain / why critical"]],
+      [["Elemento", "Gravedad", "Cómo obtenerla / por qué es crítica"]],
       missing.map((m) => [
         asStr(m.item).slice(0, 70),
         asStr(m.severity, "—"),
@@ -2559,7 +2554,10 @@ function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
     );
   }
   if (!discovery && !missing.length) {
-    b.text("No verified discovery gaps survived evidence validation.", { size: 10, color: MUTED });
+    b.text("No se identificaron vacíos probatorios verificados en los documentos proporcionados.", {
+      size: 10,
+      color: MUTED,
+    });
   }
 }
 
@@ -2728,7 +2726,7 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
           ["Witness reliability", score.witness_reliability],
           ["Timeline integrity", score.timeline_integrity],
           ["Documentation reliability", (score as Record<string, unknown>).documentation_reliability],
-          ["Discovery compliance", (score as Record<string, unknown>).discovery_compliance],
+          ["Cumplimiento probatorio", (score as Record<string, unknown>).discovery_compliance],
           ["Investigation completeness", score.investigation_completeness],
           ["Litigation risk", (score as Record<string, unknown>).litigation_risk],
         ];
@@ -2848,7 +2846,13 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 90) as string[];
       b.doc.text(titleLines[0] ?? "", b.margin + 10, b.y);
       const conf = Number(f.confidence ?? 0);
-      b.pill(`${asStr(f.severity)} · ${confidenceLabel(conf)} ${rt("conf.")}`, b.pageW - b.margin, b.y + 1, sevColor, "right");
+      b.pill(
+        `${asStr(f.severity)} · ${confidenceLabel(conf)} ${rt("conf.")}`,
+        b.pageW - b.margin,
+        b.y + 1,
+        sevColor,
+        "right",
+      );
       b.y += 16;
       for (const extra of titleLines.slice(1)) {
         b.doc.text(extra, b.margin + 10, b.y);
@@ -4112,13 +4116,16 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
     },
     {
       id: "discovery",
-      title: "Discovery Analysis",
+      title: "Análisis de Vacíos Probatorios",
       gatedInLimited: false,
       available: (d) =>
         !!reportText(d, "discovery_analysis").trim() || asArr(asObj(d.report).missing_evidence_struct).length > 0,
       renderPdf: (b, d) => renderDiscoveryAnalysis(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Discovery Analysis", processProseCitations(asStr(asObj(d.report).discovery_analysis))),
+        proseDocxParas(
+          "Análisis de Vacíos Probatorios",
+          processProseCitations(asStr(asObj(d.report).discovery_analysis)),
+        ),
     },
     {
       id: "evidence_intel",
@@ -4310,7 +4317,9 @@ function priorityActionRows(data: CaseExportData): Array<[string, string, string
   const notDetermined = () => rt("Not determined");
 
   const findAuthority = (title: string): string => {
-    const hit = deadlines.find((d) => asStr(d.label_es).length > 0 && title.toLowerCase().includes(asStr(d.label_es).toLowerCase()));
+    const hit = deadlines.find(
+      (d) => asStr(d.label_es).length > 0 && title.toLowerCase().includes(asStr(d.label_es).toLowerCase()),
+    );
     return hit ? asStr(hit.authority) : notDetermined();
   };
 
@@ -4332,7 +4341,16 @@ function renderPriorityActionCenter(b: PdfBuilder, data: CaseExportData) {
   if (!rows.length) return;
   b.h1("Action Center — Priority Recommendations");
   b.table(
-    [[rt("Priority"), rt("Recommendation"), rt("Reason"), rt("Legal Basis / Authority"), rt("Urgency"), rt("Expected impact")]],
+    [
+      [
+        rt("Priority"),
+        rt("Recommendation"),
+        rt("Reason"),
+        rt("Legal Basis / Authority"),
+        rt("Urgency"),
+        rt("Expected impact"),
+      ],
+    ],
     rows.map((row) => [row[1], row[2], row[3], row[4], row[5].split(" — ")[0], row[5].split(" — ")[1] ?? row[5]]),
   );
 }
@@ -4341,16 +4359,15 @@ function priorityActionCenterDocxParas(data: CaseExportData): Paragraph[] {
   const rows = priorityActionRows(data);
   if (!rows.length) return [];
   const out: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Action Center — Priority Recommendations")] }),
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun("Action Center — Priority Recommendations")],
+    }),
   ];
   for (const row of rows) {
     out.push(
       new Paragraph({
-        children: [
-          new TextRun({ text: `${row[1]} — `, bold: true }),
-          new TextRun(row[2]),
-          new TextRun(` (${row[3]})`),
-        ],
+        children: [new TextRun({ text: `${row[1]} — `, bold: true }), new TextRun(row[2]), new TextRun(` (${row[3]})`)],
       }),
     );
   }
@@ -4447,7 +4464,6 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   setReportTemplateLocale(resolveReportLocale(data.report, data.case));
   initCitationContext(data, opts?.citationMode ?? "attorney");
   primeCitationFootnotes(data);
-
 
   const b = new PdfBuilder(name);
   await b.loadLogo();
@@ -4554,7 +4570,6 @@ export async function downloadDocx(data: CaseExportData, name: string, opts?: { 
   setReportTemplateLocale(resolveReportLocale(data.report, data.case));
   initCitationContext(data, opts?.citationMode ?? "attorney");
   primeCitationFootnotes(data);
-
 
   const c = asObj(data.case);
   const reportRow = (data.report ?? {}) as Record<string, unknown>;
