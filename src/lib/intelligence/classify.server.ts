@@ -10,8 +10,69 @@
 // frequently mis-classifies who a defect helps (e.g. tagging "missing
 // chain of custody" as "supports prosecution"). The lookup table below
 // is the single source of truth for category → classification.
+//
+// ARCHITECTURE (round 3, 2026-07-29): MATERIA-AWARE CATEGORY TAXONOMY.
+// Rounds 1–2 replaced U.S. common-law doctrine with Mexican terms but kept
+// everything in one flat, criminal-leaning array — workable while the
+// platform was mostly penal cases, but Nyrava México already supports
+// civil, mercantil, laboral, familiar, fiscal, administrativo, and
+// constitucional matters, and each of those has its own real institutions
+// (concurso mercantil, junta/Tribunal Laboral, pensión alimenticia,
+// crédito fiscal, control de convencionalidad — none of which resemble
+// each other, let alone CNPP criminal procedure). Continuing to bolt every
+// materia's vocabulary onto one shared array would eventually produce a
+// single file with thousands of regex rules that's unreviewable and prone
+// to silent cross-materia false positives.
+//
+// This file now separates:
+//   - UNIVERSAL_CATEGORY_RULES: findings that are the same shape in every
+//     materia — physical evidence, chain of custody, witness testimony,
+//     credibility/contradiction, expert-opinion challenges, evidentiary
+//     foundation, fraud pattern, financial misconduct, amparo (amparo
+//     review is available against final rulings in every materia, not
+//     just penal), and appeals. These run LAST (as the fallback layer)
+//     so a materia-specific rule always gets first refusal on the same
+//     vocabulary if one exists.
+//   - MATERIA_CATEGORY_RULES: a registry keyed by MexicanCaseType. Each
+//     materia's array is checked FIRST, before falling through to the
+//     universal layer. penal and mercantil are populated with real
+//     terminology (mercantil mirrors the MX_FINDING_MODULES rebuild in
+//     mexico-policy.ts). civil, laboral, familiar, fiscal,
+//     administrativo, and constitucional are seeded with a real starter
+//     set — genuine institutions from the governing codes, not
+//     placeholders — but each is explicitly a representative core, the
+//     same caveat as the mercantil rebuild: extend as real case material
+//     surfaces gaps. amparo, electoral, agrario, ambiental, and
+//     inmobiliario have registry slots (so adding them later is a
+//     one-array addition, not a redesign) but are currently empty and
+//     fall through entirely to the universal layer.
+//
+// `classifyFinding()` / `priorityFor()` (evidence_type, impact_direction,
+// priority) remain a single shared ruleset for now — deliberately, not an
+// oversight. Materia-izing evidentiary WEIGHT (who does a chain-of-custody
+// gap help, how case-dispositive is a coartada vs. a nulidad contractual)
+// is a substantially bigger design problem than materia-izing category
+// LABELS, and the category taxonomy is what was actually at risk of
+// unbounded growth. Flagging this explicitly rather than silently
+// widening scope.
+//
+// ENGLISH LABELS: per explicit direction, English mode no longer replaces
+// the Mexican legal term with a translated label (e.g. "Vinculación a
+// Proceso" → "Case Linkage Order"). It now shows the Spanish legal term
+// with an English explanatory gloss in parentheses — "Vinculación a
+// Proceso (Order Binding the Defendant to Trial Proceedings)" — the same
+// convention international legal translation uses for civil-law
+// institutions with no common-law equivalent. The Mexican term is never
+// dropped, in either language.
+//
+// See also: mexico-lock.ts (forbids U.S. terms from ever reaching the
+// model in prose) and mexico-policy.ts / MX_FINDING_MODULES (the
+// per-materia allow-list; mercantil was rebuilt in the same pass as this
+// file's mercantil category rules and the two should stay conceptually
+// aligned).
 
 import type { NewFinding, Severity } from "./types";
+import type { MexicanCaseType } from "../jurisdiction/mexico-types";
 
 export type EvidenceType = "inculpatory" | "exculpatory" | "impeachment" | "neutral";
 export type ImpactDirection = "strengthens" | "weakens" | "neutral";
@@ -25,58 +86,61 @@ export type Classification = {
 
 // Category prefix / token → canonical classification.
 // Order matters: earlier rules win.
+// Shared across materias — see architecture note above for why.
 const RULES: Array<{ match: RegExp; cls: Classification }> = [
-  // Chain of custody / tampering — almost always impeachment of the State
   {
-    match: /(chain[_ ]of[_ ]custody|custody[_ ]break|custody[_ ]gap|evidence[_ ]tampering)/i,
+    match:
+      /(cadena[_ ]de[_ ]custodia|ruptura[_ ]de[_ ]custodia|manejo[_ ]indebido[_ ]de[_ ]indicios|indicio[_ ]contaminado|rotura[_ ]de[_ ]sello|chain[_ ]of[_ ]custody)/i,
     cls: { evidence_type: "impeachment", impact_direction: "weakens", affected_party: "prosecution" },
   },
-  // Constitutional defects — defense suppression material
   {
     match:
-      /(constitutional|miranda|fourth[_ ]amendment|fifth[_ ]amendment|sixth[_ ]amendment|warrant[_ ]defect|franks|illegal[_ ]search|suppression)/i,
+      /(debido[_ ]proceso|control[_ ]de[_ ]detenci[oó]n|detenci[oó]n[_ ]arbitraria|cateo[_ ]sin[_ ]orden|cateo[_ ]irregular|flagrancia[_ ]cuestionada|caso[_ ]urgente[_ ]injustificado|prueba[_ ]il[ií]cita|exclusi[oó]n[_ ]probatoria|derecho[_ ]de[_ ]defensa[_ ]adecuada)/i,
     cls: { evidence_type: "exculpatory", impact_direction: "weakens", affected_party: "prosecution" },
   },
-  // Brady / discovery violations
   {
-    match: /(brady|giglio|discovery[_ ]violation|discovery[_ ]gap|production[_ ]failure|withheld|undisclosed)/i,
+    match:
+      /(omisi[oó]n[_ ]de[_ ]investigaci[oó]n|irregularidad[_ ]en[_ ]la[_ ]carpeta|carpeta[_ ]de[_ ]investigaci[oó]n[_ ]incompleta|dato[_ ]de[_ ]prueba[_ ]no[_ ]revelado|prueba[_ ]no[_ ]desahogada|l[ií]nea[_ ]de[_ ]investigaci[oó]n[_ ]sin[_ ]agotar)/i,
     cls: { evidence_type: "exculpatory", impact_direction: "weakens", affected_party: "prosecution" },
   },
-  // Forensic problems (DNA mix, degradation, lab error)
   {
-    match: /(dna[_ ]degradation|mixed[_ ]dna|lab[_ ]error|daubert|forensic[_ ]unreliable)/i,
+    match:
+      /(declaraci[oó]n[_ ]sin[_ ]defensor|coacci[oó]n[_ ]en[_ ]declaraci[oó]n|renuncia[_ ]al[_ ]derecho[_ ]a[_ ]guardar[_ ]silencio|entrevista[_ ]sin[_ ]abogado)/i,
+    cls: { evidence_type: "exculpatory", impact_direction: "weakens", affected_party: "prosecution" },
+  },
+  {
+    match:
+      /(dictamen[_ ]pericial[_ ]deficiente|metodolog[ií]a[_ ]pericial[_ ]cuestionada|perito[_ ]sin[_ ]acreditaci[oó]n|perito[_ ]no[_ ]oficial|contaminaci[oó]n[_ ]de[_ ]muestra|error[_ ]de[_ ]laboratorio)/i,
     cls: { evidence_type: "impeachment", impact_direction: "weakens", affected_party: "prosecution" },
   },
-  // Witness defects
   {
     match:
-      /(witness[_ ]bias|witness[_ ]contradiction|witness[_ ]inconsistency|credibility|informant[_ ]unreliable|impeachment)/i,
+      /(sesgo[_ ]del[_ ]testigo|contradicci[oó]n[_ ]del[_ ]testigo|declaraci[oó]n[_ ]previa[_ ]inconsistente|testigo[_ ]no[_ ]confiable|impugnaci[oó]n[_ ]de[_ ]testigo|credibilidad)/i,
     cls: { evidence_type: "impeachment", impact_direction: "weakens", affected_party: "prosecution" },
   },
-  // Timeline conflicts / alibi
-  {
-    match: /(alibi|timeline[_ ]conflict|timeline[_ ]inconsistency|timeline[_ ]gap)/i,
-    cls: { evidence_type: "exculpatory", impact_direction: "weakens", affected_party: "prosecution" },
-  },
-  // Missing investigation / records
   {
     match:
-      /(missing[_ ]evidence|missing[_ ]record|missing[_ ]interview|investigation[_ ]gap|unresolved[_ ]lead|evidence[_ ]missing)/i,
+      /(coartada|conflicto[_ ]de[_ ]cronolog[ií]a|inconsistencia[_ ]de[_ ]fechas|vac[ií]o[_ ]en[_ ]la[_ ]cronolog[ií]a)/i,
     cls: { evidence_type: "exculpatory", impact_direction: "weakens", affected_party: "prosecution" },
   },
-  // Affirmative inculpatory matchers
   {
     match:
-      /(corroborating[_ ]evidence|evidence[_ ]corroborated|witness[_ ]corroborated|forensic[_ ]corroborated|physical[_ ]evidence[_ ]intact|inculpatory)/i,
+      /(prueba[_ ]faltante|registro[_ ]faltante|entrevista[_ ]faltante|vac[ií]o[_ ]de[_ ]investigaci[oó]n|indicio[_ ]perdido)/i,
+    cls: { evidence_type: "exculpatory", impact_direction: "weakens", affected_party: "prosecution" },
+  },
+  {
+    match:
+      /(prueba[_ ]corroborada|indicio[_ ]corroborado|testimonio[_ ]corroborado|dictamen[_ ]pericial[_ ]confirmatorio|indicio[_ ]f[ií]sico[_ ]intacto)/i,
     cls: { evidence_type: "inculpatory", impact_direction: "strengthens", affected_party: "prosecution" },
   },
-  // Civil-side
   {
-    match: /(liability|breach|negligence_established|standard_of_care|causation|proximate_cause)/i,
+    match:
+      /(responsabilidad[_ ]civil|incumplimiento[_ ]contractual|negligencia|nexo[_ ]causal|da[nñ]o[_ ]moral|da[nñ]o[_ ]material)/i,
     cls: { evidence_type: "inculpatory", impact_direction: "strengthens", affected_party: "both" },
   },
   {
-    match: /(liability_defense|comparative_fault|assumption_of_risk|intervening_cause|superseding_cause|mitigation)/i,
+    match:
+      /(culpa[_ ]concurrente|caso[_ ]fortuito|fuerza[_ ]mayor|hecho[_ ]de[_ ]un[_ ]tercero|mitigaci[oó]n[_ ]del[_ ]da[nñ]o)/i,
     cls: { evidence_type: "exculpatory", impact_direction: "weakens", affected_party: "both" },
   },
 ];
@@ -91,204 +155,557 @@ export function classifyFinding(f: Partial<NewFinding>): Classification {
 
 // ---------------------------------------------------------------------------
 // PRIORITY RANKING — case-dispositive findings surface above noise.
+// Shared across materias — see architecture note above.
 // ---------------------------------------------------------------------------
-//   1 → case-dispositive (alibi, suppression-eligible warrant, Brady)
-//   2 → admissibility (chain-of-custody, authentication, Daubert)
-//   3 → witness credibility (impeachment, bias, contradictions)
-//   4 → minor inconsistencies
-
 const SEV_RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
 export function priorityFor(f: Partial<NewFinding>): number {
   const blob = `${f.category ?? ""} ${f.title ?? ""}`.toLowerCase();
-  // P1 — case dispositive
-  if (/(alibi|brady|warrant[_ ]defect|franks|illegal[_ ]search|miranda)/.test(blob)) return 1;
-  if (f.severity === "critical" && /(constitutional|chain[_ ]of[_ ]custody|exculpatory)/.test(blob)) return 1;
-  // P2 — admissibility
   if (
-    /(chain[_ ]of[_ ]custody|authentication|daubert|forensic[_ ]unreliable|dna[_ ]degradation|mixed[_ ]dna|lab[_ ]error|constitutional|fourth[_ ]amendment|fifth[_ ]amendment|sixth[_ ]amendment)/.test(
+    /(coartada|prueba[_ ]il[ií]cita|cateo[_ ]sin[_ ]orden|detenci[oó]n[_ ]arbitraria|declaraci[oó]n[_ ]sin[_ ]defensor)/.test(
+      blob,
+    )
+  )
+    return 1;
+  if (f.severity === "critical" && /(debido[_ ]proceso|cadena[_ ]de[_ ]custodia|exculpatorio)/.test(blob)) return 1;
+  if (
+    /(cadena[_ ]de[_ ]custodia|dictamen[_ ]pericial|metodolog[ií]a[_ ]pericial|perito[_ ]sin[_ ]acreditaci[oó]n|debido[_ ]proceso|control[_ ]de[_ ]detenci[oó]n|prueba[_ ]il[ií]cita|exclusi[oó]n[_ ]probatoria)/.test(
       blob,
     )
   )
     return 2;
-  // P3 — credibility / contradictions
-  if (/(witness|credibility|impeachment|informant|contradict)/.test(blob)) return 3;
-  // Otherwise rank by severity
+  if (/(testigo|credibilidad|impugnaci[oó]n|contradicci[oó]n)/.test(blob)) return 3;
   const sr = SEV_RANK[(f.severity ?? "info") as Severity] ?? 4;
   return sr <= 1 ? 3 : 4;
 }
 
 // ---------------------------------------------------------------------------
-// CONTENT → CATEGORY TAXONOMY (Task 3)
-// Explicit rule-based mapping. First matching rule wins; fallback is
-// "General Finding". Deliberately overrides upstream LLM category labels
-// so a chain-of-custody tag never lands on a financial fraud finding.
-//
-// Locale-aware from the source (not translated after the fact): every
-// category has a real Spanish name — reusing US doctrine names like
-// "Discovery Violation" for a Mexican report is wrong regardless of what
-// later translation layer might catch it, since a case-workspace UI that
-// never goes through report-i18n.ts would show the raw English value.
-//
-// CATEGORY vs CATEGORY_KEY (fix 2026-07-28):
-// `category` (below, returned as `category`/`categoryEs`) is the localized,
-// human-facing display label — Spanish for MX cases — shown in the PDF,
-// dashboard, and case workspace UI. It must never be used for internal
-// filtering: it is not stable across locales and is not the enum the rest
-// of the pipeline (derived-engines.server.ts, pipeline.server.ts's
-// byCategory helper, ESS factCount, etc.) was written against.
-//
-// `key` (new, on CATEGORY_RULES/LEGACY_CATEGORY_ALIAS) is the fixed,
-// locale-independent machine token ("witness", "contradiction",
-// "missing_evidence", ...). Every internal consumer must key off
-// `category_key` on the persisted finding row, never `category`. This
-// keeps the Mexican-Spanish terminology fully intact for attorneys while
-// making it safe for code to filter on.
+// CATEGORY TAXONOMY — materia-aware.
+// `es` is the Mexican legal term (always shown, both locales). `gloss` is
+// a short English explanation, shown ONLY in English mode and ONLY
+// alongside the Spanish term — never as a replacement.
 // ---------------------------------------------------------------------------
-const CATEGORY_RULES: Array<{ match: RegExp; key: string; category: string; categoryEs: string }> = [
+type CategoryRule = { match: RegExp; key: string; es: string; gloss: string };
+
+// Checked LAST, after any materia-specific rules — same evidentiary
+// concepts recur in every practice area.
+const UNIVERSAL_CATEGORY_RULES: CategoryRule[] = [
   {
     match:
-      /\b(financial\s+misconduct|money\s+laund|diver(?:t|sion)\s+of\s+funds|ponzi|investment\s+fraud|embezzl|wire\s+fraud|mail\s+fraud|kickback|bribe|shell\s+comp|commingl)\b/i,
-    key: "financial_fraud",
-    category: "Financial Fraud",
-    categoryEs: "Fraude Financiero",
-  },
-  {
-    match:
-      /\b(brady|jencks|giglio|exculpatory|disclosure\s+violation|withheld\s+evidence|undisclosed\s+deal|immunity\s+agreement)\b/i,
-    key: "discovery_violation",
-    category: "Discovery Violation",
-    categoryEs: "Deficiencia Probatoria",
-  },
-  {
-    match: /\b(miranda|voluntariness|custodial\s+interrogation|confession|waiver\s+of\s+rights|self[- ]incrimin)\b/i,
-    key: "confession_issue",
-    category: "Confession Issue",
-    categoryEs: "Declaración del Imputado",
-  },
-  {
-    match:
-      /\b(search\s+warrant|warrantless|seizure|fourth\s+amendment|probable\s+cause|expectation\s+of\s+privacy|franks)\b/i,
-    key: "constitutional",
-    category: "Constitutional Issue",
-    categoryEs: "Cuestión Constitucional",
-  },
-  {
-    match:
-      /\b(expert\s+(?:report|opinion|witness|qualifications?)|methodology|daubert|frye|peer[- ]review|error\s+rate)\b/i,
-    key: "expert_challenge",
-    category: "Expert Challenge",
-    categoryEs: "Impugnación Pericial",
-  },
-  {
-    match:
-      /\b(authenticat|foundation|hearsay|best\s+evidence|business\s+records?\s+exception|self[- ]authenticating)\b/i,
-    key: "evidentiary_foundation",
-    category: "Evidentiary Foundation",
-    categoryEs: "Fundamentación Probatoria",
-  },
-  {
-    match:
-      /\b(physical\s+evidence|dna|fingerprint|weapon|firearm|drugs?\s+seized|narcotics|contraband|blood\s+sample)\b/i,
-    key: "evidence",
-    category: "Physical Evidence",
-    categoryEs: "Evidencia Física",
-  },
-  {
-    match: /\b(chain\s+of\s+custody|evidence\s+log|seal(?:ed|ing)|tamper|storage\s+gap)\b/i,
+      /\b(cadena\s+de\s+custodia|registro\s+de\s+cadena\s+de\s+custodia|traslado\s+de\s+indicios|embalaje|rotura\s+de\s+sello|manejo\s+de\s+indicios|contaminaci[oó]n\s+de\s+indicio)\b/i,
     key: "chain_of_custody",
-    category: "Chain of Custody",
-    categoryEs: "Cadena de Custodia",
+    es: "Cadena de Custodia",
+    gloss: "Chain of Custody",
   },
   {
-    match: /\b(witness\s+statement|testimony|interview|deposition|grand\s+jury|proffer|cooperating\s+witness)\b/i,
+    match:
+      /\b(indicio|objeto\s+del\s+delito|aseguramiento\s+de\s+bienes|adn|huella|arma|narc[oó]ticos|droga\s+asegurada|muestra\s+de\s+sangre)\b/i,
+    key: "evidence",
+    es: "Evidencia Física",
+    gloss: "Physical Evidence",
+  },
+  {
+    match:
+      /\b(entrevista|declaraci[oó]n\s+testimonial|declaraci[oó]n\s+del\s+testigo|declaraci[oó]n\s+de\s+la\s+v[ií]ctima|declaraci[oó]n\s+ministerial|testigo|polic[ií]a\s+de\s+investigaci[oó]n|perito|asesor\s+jur[ií]dico|v[ií]ctima|imputado|testimonial)\b/i,
     key: "witness",
-    category: "Witness Testimony",
-    categoryEs: "Testimonio de Testigo",
+    es: "Testimonio de Testigo",
+    gloss: "Witness Testimony",
   },
   {
-    match: /\b(credibility|impeachment|bias|prior\s+inconsistent|motive\s+to\s+lie)\b/i,
+    match:
+      /\b(credibilidad|impugnaci[oó]n|sesgo|declaraci[oó]n\s+previa\s+inconsistente|motivo\s+para\s+mentir|contradicci[oó]n)\b/i,
     key: "contradiction",
-    category: "Credibility",
-    categoryEs: "Credibilidad",
+    es: "Credibilidad",
+    gloss: "Credibility",
   },
   {
-    match: /\b(criminal\s+conduct|racketeer|conspir(?:e|acy)|obstruction|perjury)\b/i,
-    key: "criminal_conduct",
-    category: "Criminal Conduct",
-    categoryEs: "Conducta Delictiva",
+    match:
+      /\b(dictamen\s+pericial|perito\s+oficial|perito\s+particular|metodolog[ií]a\s+pericial|cadena\s+de\s+custodia\s+pericial|valor\s+probatorio|impugnaci[oó]n\s+del\s+perito|perito\s+sin\s+acreditaci[oó]n)\b/i,
+    key: "expert_challenge",
+    es: "Impugnación Pericial",
+    gloss: "Expert Opinion Challenge",
   },
   {
-    match: /\b(fraud\s+pattern|scheme\s+to\s+defraud|false\s+representation|misrepresentation|deceit)\b/i,
+    match:
+      /\b(licitud\s+de\s+la\s+prueba|dato\s+de\s+prueba|medio\s+de\s+prueba|incorporaci[oó]n\s+de\s+prueba|valoraci[oó]n\s+probatoria|prueba\s+superveniente)\b/i,
+    key: "evidentiary_foundation",
+    es: "Fundamentación Probatoria",
+    gloss: "Evidentiary Foundation",
+  },
+  {
+    match: /\b(patr[oó]n\s+de\s+fraude|esquema\s+para\s+defraudar|declaraci[oó]n\s+falsa|enga[nñ]o|simulaci[oó]n)\b/i,
     key: "fraud_pattern",
-    category: "Fraud Pattern",
-    categoryEs: "Patrón de Fraude",
+    es: "Patrón de Fraude",
+    gloss: "Fraud Pattern",
+  },
+  {
+    match:
+      /\b(lavado\s+de\s+dinero|desv[ií]o\s+de\s+recursos|defraudaci[oó]n|cohecho|peculado|enriquecimiento\s+il[ií]cito|operaci[oó]n\s+con\s+recursos\s+de\s+procedencia\s+il[ií]cita)\b/i,
+    key: "financial_fraud",
+    es: "Fraude Financiero",
+    gloss: "Financial Misconduct",
+  },
+  {
+    match: /\b(amparo\s+directo|amparo\s+indirecto|juicio\s+de\s+amparo)\b/i,
+    key: "amparo",
+    es: "Amparo",
+    gloss: "Mexican Constitutional Review Proceeding",
+  },
+  {
+    match:
+      /\b(recurso\s+de\s+apelaci[oó]n|recurso\s+de\s+revocaci[oó]n|recurso\s+de\s+queja|recurso\s+de\s+reclamaci[oó]n)\b/i,
+    key: "recursos",
+    es: "Recursos",
+    gloss: "Appeals",
   },
 ];
 
-export function classifyCategory(f: Partial<NewFinding>, locale: "es" | "en" = "es"): string {
+// Checked FIRST, before the universal layer. Materia-specific institutions
+// that don't recur elsewhere.
+const MATERIA_CATEGORY_RULES: Record<MexicanCaseType, CategoryRule[]> = {
+  penal: [
+    {
+      match:
+        /\b(omisi[oó]n\s+de\s+investigaci[oó]n|irregularidad\s+en\s+la\s+carpeta|violaci[oó]n\s+al\s+debido\s+proceso|violaci[oó]n\s+al\s+derecho\s+de\s+defensa|defecto\s+en\s+la\s+incorporaci[oó]n\s+de\s+la\s+prueba|dato\s+de\s+prueba\s+no\s+revelado|prueba\s+no\s+desahogada)\b/i,
+      key: "violacion_procesal",
+      es: "Violación Procesal",
+      gloss: "Procedural Violation",
+    },
+    {
+      match:
+        /\b(declaraci[oó]n\s+del\s+imputado|derecho\s+a\s+guardar\s+silencio|asistencia\s+de\s+defensor|declaraci[oó]n\s+sin\s+defensor|coacci[oó]n\s+en\s+declaraci[oó]n|entrevista\s+sin\s+abogado)\b/i,
+      key: "confession_issue",
+      es: "Declaración del Imputado",
+      gloss: "Statement of the Accused",
+    },
+    {
+      match:
+        /\b(cateo\s+sin\s+orden|cateo\s+irregular|cateo\s+ilegal|aseguramiento\s+indebido|inspecci[oó]n\s+irregular|flagrancia\s+cuestionada|caso\s+urgente\s+injustificado|detenci[oó]n\s+arbitraria|debido\s+proceso|presunci[oó]n\s+de\s+inocencia|derecho\s+de\s+defensa\s+adecuada|control\s+de\s+detenci[oó]n\s+irregular|prueba\s+il[ií]cita|exclusi[oó]n\s+probatoria)\b/i,
+      key: "constitutional",
+      es: "Cuestión Constitucional",
+      gloss: "Constitutional Issue",
+    },
+    {
+      match:
+        /\b(cateo|orden\s+de\s+cateo|control\s+judicial|aseguramiento|inspecci[oó]n|control\s+de\s+detenci[oó]n)\b/i,
+      key: "diligencia_investigacion",
+      es: "Diligencia de Investigación",
+      gloss: "Investigative Act",
+    },
+    {
+      match:
+        /\b(delincuencia\s+organizada|asociaci[oó]n\s+delictuosa|encubrimiento|falsedad\s+en\s+declaraciones|obstrucci[oó]n\s+de\s+la\s+justicia|perjurio)\b/i,
+      key: "criminal_conduct",
+      es: "Conducta Delictiva",
+      gloss: "Criminal Conduct",
+    },
+    {
+      match: /\b(carpeta\s+de\s+investigaci[oó]n)\b/i,
+      key: "carpeta_investigacion",
+      es: "Carpeta de Investigación",
+      gloss: "Investigation File",
+    },
+    {
+      match: /\b(control\s+de\s+detenci[oó]n)\b/i,
+      key: "control_detencion",
+      es: "Control de Detención",
+      gloss: "Detention Control Hearing",
+    },
+    {
+      match: /\b(audiencia\s+inicial)\b/i,
+      key: "audiencia_inicial",
+      es: "Audiencia Inicial",
+      gloss: "Initial Hearing",
+    },
+    {
+      match: /\b(formulaci[oó]n\s+de\s+imputaci[oó]n)\b/i,
+      key: "formulacion_imputacion",
+      es: "Formulación de Imputación",
+      gloss: "Formal Charge",
+    },
+    {
+      match: /\b(vinculaci[oó]n\s+a\s+proceso)\b/i,
+      key: "vinculacion_proceso",
+      es: "Vinculación a Proceso",
+      gloss: "Order Binding the Defendant to Trial Proceedings",
+    },
+    {
+      match: /\b(medidas\s+cautelares)\b/i,
+      key: "medidas_cautelares",
+      es: "Medidas Cautelares",
+      gloss: "Precautionary Measures",
+    },
+    {
+      match: /\b(prisi[oó]n\s+preventiva)\b/i,
+      key: "prision_preventiva",
+      es: "Prisión Preventiva",
+      gloss: "Pretrial Detention",
+    },
+    {
+      match: /\b(criterio\s+de\s+oportunidad)\b/i,
+      key: "criterio_oportunidad",
+      es: "Criterio de Oportunidad",
+      gloss: "Prosecutorial Discretion Not to Charge",
+    },
+    {
+      match: /\b(acuerdo\s+reparatorio)\b/i,
+      key: "acuerdo_reparatorio",
+      es: "Acuerdo Reparatorio",
+      gloss: "Restorative Settlement Agreement",
+    },
+    {
+      match: /\b(suspensi[oó]n\s+condicional\s+del\s+proceso)\b/i,
+      key: "suspension_condicional",
+      es: "Suspensión Condicional del Proceso",
+      gloss: "Conditional Suspension of the Proceedings",
+    },
+    {
+      match: /\b(procedimiento\s+abreviado)\b/i,
+      key: "procedimiento_abreviado",
+      es: "Procedimiento Abreviado",
+      gloss: "Abbreviated (Plea-Style) Procedure",
+    },
+    {
+      match: /\b(etapa\s+intermedia)\b/i,
+      key: "etapa_intermedia",
+      es: "Etapa Intermedia",
+      gloss: "Intermediate Stage",
+    },
+    {
+      match: /\b(auto\s+de\s+apertura\s+a\s+juicio)\b/i,
+      key: "auto_apertura_juicio",
+      es: "Auto de Apertura a Juicio",
+      gloss: "Order Opening Trial",
+    },
+    { match: /\b(juicio\s+oral)\b/i, key: "juicio_oral", es: "Juicio Oral", gloss: "Oral Trial" },
+    { match: /\b(sobreseimiento)\b/i, key: "sobreseimiento", es: "Sobreseimiento", gloss: "Dismissal of the Case" },
+    {
+      match: /\b(ejecuci[oó]n\s+penal|beneficio\s+preliberacional)\b/i,
+      key: "ejecucion_penal",
+      es: "Ejecución Penal",
+      gloss: "Sentence Execution",
+    },
+  ],
+  mercantil: [
+    {
+      match:
+        /\b(pagar[eé]|letra\s+de\s+cambio|cheque|aval|endoso|protesto|acci[oó]n\s+cambiaria|caducidad\s+cambiaria|prescripci[oó]n\s+cambiaria)\b/i,
+      key: "titulo_credito",
+      es: "Título de Crédito",
+      gloss: "Negotiable Instrument",
+    },
+    {
+      match:
+        /\b(asamblea\s+de\s+accionistas|consejo\s+de\s+administraci[oó]n|capital\s+social|fusi[oó]n|escisi[oó]n|liquidaci[oó]n\s+societaria|disoluci[oó]n\s+societaria|responsabilidad\s+de\s+administradores)\b/i,
+      key: "sociedad_mercantil",
+      es: "Sociedad Mercantil",
+      gloss: "Corporate/Company Law Matter",
+    },
+    {
+      match:
+        /\b(concurso\s+mercantil|quiebra|s[ií]ndico|conciliador\s+concursal|masa\s+concursal|reconocimiento\s+de\s+cr[eé]ditos)\b/i,
+      key: "concurso_mercantil",
+      es: "Concurso Mercantil",
+      gloss: "Commercial Insolvency Proceeding",
+    },
+    {
+      match:
+        /\b(juicio\s+ejecutivo\s+mercantil|v[ií]a\s+ejecutiva|embargo\s+mercantil|t[ií]tulo\s+ejecutivo|auto\s+de\s+exequendo|requerimiento\s+de\s+pago)\b/i,
+      key: "juicio_mercantil",
+      es: "Juicio Mercantil",
+      gloss: "Commercial Litigation",
+    },
+    {
+      match:
+        /\b(oferta\s+p[uú]blica\s+de\s+valores|emisora|bolsa\s+mexicana\s+de\s+valores|comisi[oó]n\s+nacional\s+bancaria\s+y\s+de\s+valores|cnbv)\b/i,
+      key: "mercado_valores",
+      es: "Mercado de Valores",
+      gloss: "Securities Market Matter",
+    },
+    {
+      match: /\b(competencia\s+econ[oó]mica|cofece|pr[aá]ctica\s+monop[oó]lica|concentraci[oó]n\s+prohibida)\b/i,
+      key: "competencia_economica",
+      es: "Competencia Económica",
+      gloss: "Antitrust/Competition Matter",
+    },
+    {
+      match: /\b(propiedad\s+industrial|marca|patente|nombre\s+comercial|impi)\b/i,
+      key: "propiedad_industrial",
+      es: "Propiedad Industrial",
+      gloss: "Industrial Property (Trademark/Patent)",
+    },
+    {
+      match: /\b(arbitraje\s+comercial|cl[aá]usula\s+compromisoria|laudo\s+arbitral)\b/i,
+      key: "arbitraje_comercial",
+      es: "Arbitraje Comercial",
+      gloss: "Commercial Arbitration",
+    },
+  ],
+  civil: [
+    {
+      match: /\b(responsabilidad\s+civil|da[nñ]o\s+moral|da[nñ]o\s+material|nexo\s+causal|negligencia)\b/i,
+      key: "responsabilidad_civil",
+      es: "Responsabilidad Civil",
+      gloss: "Civil Liability",
+    },
+    {
+      match: /\b(incumplimiento\s+contractual|cumplimiento\s+forzoso|rescisi[oó]n\s+contractual)\b/i,
+      key: "incumplimiento_contractual",
+      es: "Incumplimiento Contractual",
+      gloss: "Breach of Contract",
+    },
+    {
+      match: /\b(nulidad\s+absoluta|nulidad\s+relativa|vicios\s+del\s+consentimiento)\b/i,
+      key: "nulidad_contractual",
+      es: "Nulidad Contractual",
+      gloss: "Contract Nullity",
+    },
+    {
+      match: /\b(prescripci[oó]n\s+positiva|prescripci[oó]n\s+negativa|caducidad\s+civil)\b/i,
+      key: "prescripcion_civil",
+      es: "Prescripción",
+      gloss: "Statute of Limitations",
+    },
+    {
+      match: /\b(usucapi[oó]n|acci[oó]n\s+reivindicatoria|posesi[oó]n\s+de\s+buena\s+fe)\b/i,
+      key: "posesion",
+      es: "Posesión y Propiedad",
+      gloss: "Possession and Ownership",
+    },
+  ],
+  laboral: [
+    {
+      match: /\b(despido\s+injustificado|despido\s+injustificado\s+directo|reinstalaci[oó]n)\b/i,
+      key: "despido_injustificado",
+      es: "Despido Injustificado",
+      gloss: "Wrongful Dismissal",
+    },
+    {
+      match: /\b(indemnizaci[oó]n\s+constitucional|prima\s+de\s+antig[uü]edad|finiquito|liquidaci[oó]n\s+laboral)\b/i,
+      key: "indemnizacion_laboral",
+      es: "Indemnización Laboral",
+      gloss: "Labor Indemnity/Severance",
+    },
+    {
+      match: /\b(riesgo\s+de\s+trabajo|incapacidad\s+laboral|accidente\s+de\s+trabajo|enfermedad\s+profesional)\b/i,
+      key: "riesgo_trabajo",
+      es: "Riesgo de Trabajo",
+      gloss: "Occupational Hazard/Injury",
+    },
+    {
+      match: /\b(tribunal\s+laboral|centro\s+de\s+conciliaci[oó]n|junta\s+de\s+conciliaci[oó]n\s+y\s+arbitraje)\b/i,
+      key: "tribunal_laboral",
+      es: "Tribunal Laboral",
+      gloss: "Labor Court/Conciliation Center",
+    },
+    {
+      match: /\b(contrato\s+colectivo\s+de\s+trabajo|sindicato|huelga)\b/i,
+      key: "contrato_colectivo",
+      es: "Contrato Colectivo de Trabajo",
+      gloss: "Collective Bargaining Agreement",
+    },
+  ],
+  familiar: [
+    {
+      match: /\b(divorcio\s+incausado|divorcio\s+necesario|convenio\s+de\s+divorcio)\b/i,
+      key: "divorcio",
+      es: "Divorcio",
+      gloss: "Divorce",
+    },
+    {
+      match: /\b(pensi[oó]n\s+alimenticia|obligaci[oó]n\s+alimentaria|acreedor\s+alimentario)\b/i,
+      key: "pension_alimenticia",
+      es: "Pensión Alimenticia",
+      gloss: "Child/Spousal Support",
+    },
+    {
+      match: /\b(guarda\s+y\s+custodia|patria\s+potestad|r[eé]gimen\s+de\s+convivencia)\b/i,
+      key: "custodia_patria_potestad",
+      es: "Custodia y Patria Potestad",
+      gloss: "Custody and Parental Authority",
+    },
+    {
+      match: /\b(sociedad\s+conyugal|separaci[oó]n\s+de\s+bienes|capitulaciones\s+matrimoniales)\b/i,
+      key: "sociedad_conyugal",
+      es: "Sociedad Conyugal",
+      gloss: "Marital Property Regime",
+    },
+  ],
+  fiscal: [
+    {
+      match: /\b(cr[eé]dito\s+fiscal|determinaci[oó]n\s+de\s+cr[eé]dito\s+fiscal)\b/i,
+      key: "credito_fiscal",
+      es: "Crédito Fiscal",
+      gloss: "Tax Assessment",
+    },
+    {
+      match: /\b(visita\s+domiciliaria|auditor[ií]a\s+fiscal|revisi[oó]n\s+de\s+gabinete)\b/i,
+      key: "visita_domiciliaria",
+      es: "Visita Domiciliaria",
+      gloss: "Tax Audit",
+    },
+    {
+      match: /\b(recurso\s+de\s+revocaci[oó]n\s+fiscal)\b/i,
+      key: "recurso_revocacion_fiscal",
+      es: "Recurso de Revocación",
+      gloss: "Tax Administrative Appeal",
+    },
+    {
+      match: /\b(juicio\s+contencioso\s+administrativo|tfja|tribunal\s+federal\s+de\s+justicia\s+administrativa)\b/i,
+      key: "juicio_contencioso_administrativo",
+      es: "Juicio Contencioso Administrativo",
+      gloss: "Tax/Administrative Litigation",
+    },
+  ],
+  administrativo: [
+    {
+      match: /\b(acto\s+administrativo)\b/i,
+      key: "acto_administrativo",
+      es: "Acto Administrativo",
+      gloss: "Administrative Act",
+    },
+    {
+      match: /\b(nulidad\s+del\s+acto\s+administrativo)\b/i,
+      key: "nulidad_acto_administrativo",
+      es: "Nulidad del Acto Administrativo",
+      gloss: "Nullity of Administrative Act",
+    },
+    {
+      match: /\b(responsabilidad\s+patrimonial\s+del\s+estado)\b/i,
+      key: "responsabilidad_patrimonial_estado",
+      es: "Responsabilidad Patrimonial del Estado",
+      gloss: "State Liability",
+    },
+    {
+      match: /\b(silencio\s+administrativo|negativa\s+ficta|afirmativa\s+ficta)\b/i,
+      key: "silencio_administrativo",
+      es: "Silencio Administrativo",
+      gloss: "Administrative Silence (Deemed Denial/Approval)",
+    },
+  ],
+  constitucional: [
+    {
+      match: /\b(control\s+de\s+convencionalidad)\b/i,
+      key: "control_convencionalidad",
+      es: "Control de Convencionalidad",
+      gloss: "Conventionality Review",
+    },
+    {
+      match: /\b(control\s+difuso)\b/i,
+      key: "control_difuso",
+      es: "Control Difuso",
+      gloss: "Diffuse Constitutional Review",
+    },
+    {
+      match: /\b(acci[oó]n\s+de\s+inconstitucionalidad)\b/i,
+      key: "accion_inconstitucionalidad",
+      es: "Acción de Inconstitucionalidad",
+      gloss: "Action of Unconstitutionality",
+    },
+    {
+      match: /\b(controversia\s+constitucional)\b/i,
+      key: "controversia_constitucional",
+      es: "Controversia Constitucional",
+      gloss: "Constitutional Controversy",
+    },
+  ],
+  // Registry slots present for architectural completeness — not yet
+  // populated. Findings for these materias fall through to
+  // UNIVERSAL_CATEGORY_RULES until a real starter set is written for each.
+  amparo: [],
+  electoral: [],
+  agrario: [],
+  ambiental: [],
+  inmobiliario: [],
+};
+
+function getCategoryRules(materia?: string): CategoryRule[] {
+  const specific =
+    materia && Object.prototype.hasOwnProperty.call(MATERIA_CATEGORY_RULES, materia)
+      ? MATERIA_CATEGORY_RULES[materia as MexicanCaseType]
+      : [];
+  return [...specific, ...UNIVERSAL_CATEGORY_RULES];
+}
+
+function formatCategoryLabel(rule: CategoryRule, locale: "es" | "en"): string {
+  return locale === "en" ? `${rule.es} (${rule.gloss})` : rule.es;
+}
+
+export function classifyCategory(f: Partial<NewFinding>, locale: "es" | "en" = "es", materia?: string): string {
   const blob = `${f.title ?? ""} ${f.description ?? ""} ${f.category ?? ""}`;
-  for (const r of CATEGORY_RULES) if (r.match.test(blob)) return locale === "en" ? r.category : r.categoryEs;
-  return locale === "en" ? "General Finding" : "Hallazgo General";
+  for (const r of getCategoryRules(materia)) if (r.match.test(blob)) return formatCategoryLabel(r, locale);
+  return locale === "en" ? "Hallazgo General (General Finding)" : "Hallazgo General";
 }
 
 // Machine-key counterpart to classifyCategory(). Same matching order/rules,
 // but returns the stable token instead of a locale-specific label. This is
 // what must be persisted to case_findings.category_key.
-export function classifyCategoryKey(f: Partial<NewFinding>): string {
+export function classifyCategoryKey(f: Partial<NewFinding>, materia?: string): string {
   const blob = `${f.title ?? ""} ${f.description ?? ""} ${f.category ?? ""}`;
-  for (const r of CATEGORY_RULES) if (r.match.test(blob)) return r.key;
+  for (const r of getCategoryRules(materia)) if (r.match.test(blob)) return r.key;
   return "fact";
 }
 
-const LEGACY_CATEGORY_ALIAS: Record<string, { key: string; en: string; es: string }> = {
-  contradiction: { key: "contradiction", en: "Credibility", es: "Credibilidad" },
-  witness: { key: "witness", en: "Witness Testimony", es: "Testimonio de Testigo" },
-  fact: { key: "fact", en: "General Finding", es: "Hallazgo General" },
-  evidence: { key: "evidence", en: "Physical Evidence", es: "Evidencia Física" },
-  chain_of_custody: { key: "chain_of_custody", en: "Chain of Custody", es: "Cadena de Custodia" },
-  missing_evidence: { key: "missing_evidence", en: "Discovery Violation", es: "Deficiencia Probatoria" },
-  discovery_gap: { key: "discovery_gap", en: "Discovery Violation", es: "Deficiencia Probatoria" },
-  weak_evidence: { key: "weak_evidence", en: "General Finding", es: "Hallazgo General" },
-  risk: { key: "risk", en: "General Finding", es: "Hallazgo General" },
-  entity: { key: "entity", en: "General Finding", es: "Hallazgo General" },
-  timeline: { key: "timeline", en: "General Finding", es: "Hallazgo General" },
+const LEGACY_CATEGORY_ALIAS: Record<string, { key: string; es: string; gloss: string }> = {
+  contradiction: { key: "contradiction", es: "Credibilidad", gloss: "Credibility" },
+  witness: { key: "witness", es: "Testimonio de Testigo", gloss: "Witness Testimony" },
+  fact: { key: "fact", es: "Hallazgo General", gloss: "General Finding" },
+  evidence: { key: "evidence", es: "Evidencia Física", gloss: "Physical Evidence" },
+  chain_of_custody: { key: "chain_of_custody", es: "Cadena de Custodia", gloss: "Chain of Custody" },
+  missing_evidence: { key: "missing_evidence", es: "Violación Procesal", gloss: "Procedural Violation" },
+  discovery_gap: { key: "discovery_gap", es: "Violación Procesal", gloss: "Procedural Violation" },
+  procedural: { key: "procedural", es: "Violación Procesal", gloss: "Procedural Violation" },
+  strength: { key: "strength", es: "Hallazgo General", gloss: "General Finding" },
+  weak_evidence: { key: "weak_evidence", es: "Hallazgo General", gloss: "General Finding" },
+  risk: { key: "risk", es: "Hallazgo General", gloss: "General Finding" },
+  entity: { key: "entity", es: "Hallazgo General", gloss: "General Finding" },
+  timeline: { key: "timeline", es: "Hallazgo General", gloss: "General Finding" },
 };
 
 export function rankAndClassify<T extends Partial<NewFinding>>(
   rows: T[],
   locale: "es" | "en" = "es",
+  materia?: string,
 ): Array<
   T & {
     evidence_type: EvidenceType;
     impact_direction: ImpactDirection;
+    affected_party: AffectedParty | null;
     priority: number;
     category: string;
     category_key: string;
   }
 > {
-  const generalFinding = locale === "en" ? "General Finding" : "Hallazgo General";
-  const chainOfCustody = locale === "en" ? "Chain of Custody" : "Cadena de Custodia";
-  const financialFraud = locale === "en" ? "Financial Fraud" : "Fraude Financiero";
+  const generalFinding = locale === "en" ? "Hallazgo General (General Finding)" : "Hallazgo General";
+  const chainOfCustody = locale === "en" ? "Cadena de Custodia (Chain of Custody)" : "Cadena de Custodia";
+  const financialFraud = locale === "en" ? "Fraude Financiero (Financial Misconduct)" : "Fraude Financiero";
   return rows.map((r) => {
     const cls = classifyFinding(r);
-    const contentCat = classifyCategory(r, locale);
+    const contentCat = classifyCategory(r, locale, materia);
     let category = contentCat;
-    let categoryKey = classifyCategoryKey(r);
+    let categoryKey = classifyCategoryKey(r, materia);
     if (category === generalFinding) {
       const raw = String(r.category ?? "").toLowerCase();
       if (raw && LEGACY_CATEGORY_ALIAS[raw]) {
-        category = LEGACY_CATEGORY_ALIAS[raw][locale];
-        categoryKey = LEGACY_CATEGORY_ALIAS[raw].key;
+        const alias = LEGACY_CATEGORY_ALIAS[raw];
+        category = locale === "en" ? `${alias.es} (${alias.gloss})` : alias.es;
+        categoryKey = alias.key;
       } else if (raw) {
+        // Do NOT slugify arbitrary raw upstream text into an invented
+        // category_key. Anything that actually matches a real category
+        // already resolved via classifyCategoryKey() above; this branch
+        // only runs when nothing matched at all, so the key stays the
+        // genuinely-generic "fact" token. The human-facing label can
+        // still be prettified from the raw text; only the machine key is
+        // constrained.
         category = raw.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-        categoryKey = raw.replace(/[^a-z0-9_]+/g, "_");
+        categoryKey = "fact";
       }
     }
     // Guardrail: never label a financial/fraud finding as "Chain of Custody".
     if (
       category === chainOfCustody &&
-      /\b(financial|fraud|money|funds|ponzi|embezzl|fraude|dinero|lavado|desfalco)\b/i.test(
+      /\b(fraude|dinero|lavado|desfalco|financial|fraud|money|funds|ponzi|embezzl)\b/i.test(
         `${r.title ?? ""} ${r.description ?? ""}`,
       )
     ) {
