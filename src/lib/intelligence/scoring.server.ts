@@ -108,7 +108,7 @@ const DIMENSIONS: Record<
   // finding cannot accidentally strengthen Evidence Reliability.
   evidence_strength: {
     baseline: 60,
-    label: "Evidence reliability",
+    label: "Confiabilidad de la evidencia",
     positive: { categories: ["corroborating_evidence", "evidence_corroborated", "physical_evidence_intact"] },
     negative: {
       categories: [
@@ -122,7 +122,7 @@ const DIMENSIONS: Record<
   },
   witness_reliability: {
     baseline: 60,
-    label: "Witness reliability",
+    label: "Confiabilidad de testigos",
     positive: { categories: ["witness_corroborated"] },
     negative: {
       categories: [
@@ -136,36 +136,37 @@ const DIMENSIONS: Record<
   },
   timeline_integrity: {
     baseline: 70,
-    label: "Timeline integrity",
+    label: "Integridad cronológica",
     positive: { categories: ["timeline_consistent"] },
     negative: { categories: ["timeline_inconsistency", "timeline_gap", "timeline_conflict", "alibi_conflict"] },
   },
   chain_of_custody: {
     baseline: 80,
-    label: "Chain of custody integrity",
+    label: "Integridad de la cadena de custodia",
     positive: { categories: ["custody_intact"] },
     negative: { categories: ["chain_of_custody", "custody_break", "custody_gap", "evidence_tampering"] },
   },
   constitutional_compliance: {
     baseline: 80,
-    label: "Constitutional compliance",
+    label: "Cumplimiento constitucional",
     positive: { categories: ["constitutional_compliant"] },
     negative: {
+      // FIX (2026-07-29): legacy fallback tokens rebuilt to match
+      // classify.server.ts's actual category_key output — the old tokens
+      // ("miranda", "fourth_amendment", "warrant_defect", "franks") could
+      // never match a real Mexican finding's category_key.
       categories: [
         "constitutional",
-        "miranda",
-        "fourth_amendment",
-        "fifth_amendment",
-        "sixth_amendment",
-        "due_process",
-        "warrant_defect",
-        "franks",
+        "confession_issue",
+        "diligencia_investigacion",
+        "carpeta_investigacion",
+        "control_detencion",
       ],
     },
   },
   investigation_completeness: {
     baseline: 60,
-    label: "Investigation completeness",
+    label: "Integridad de la investigación",
     positive: { categories: ["investigation_thorough"] },
     negative: {
       categories: ["missing_evidence", "investigation_gap", "unresolved_lead", "missing_interview", "missing_record"],
@@ -173,50 +174,50 @@ const DIMENSIONS: Record<
   },
   discovery_completeness: {
     baseline: 60,
-    label: "Discovery completeness",
+    label: "Integridad de la investigación (aportación probatoria)",
     positive: { categories: ["discovery_compliant", "production_complete"] },
-    negative: { categories: ["discovery_gap", "discovery_violation", "brady", "production_failure"] },
+    negative: { categories: ["violacion_procesal", "missing_evidence", "discovery_gap", "discovery_violation"] },
   },
   forensic_reliability: {
     baseline: 70,
-    label: "Forensic reliability",
+    label: "Confiabilidad pericial/forense",
     positive: { categories: ["forensic_corroborated"] },
-    negative: { categories: ["forensic_unreliable", "dna_degradation", "mixed_dna", "lab_error", "daubert"] },
+    negative: { categories: ["expert_challenge", "forensic_unreliable", "dna_degradation", "mixed_dna", "lab_error"] },
   },
   procedural_integrity: {
     baseline: 70,
-    label: "Procedural integrity",
+    label: "Integridad procesal",
     positive: { categories: ["procedural_compliant"] },
-    negative: { categories: ["procedural", "discovery_violation"] },
+    negative: { categories: ["violacion_procesal", "procedural", "discovery_violation"] },
   },
   // ── Civil-only dimensions ─────────────────────────────────────────────────
   liability_strength: {
     baseline: 50,
-    label: "Liability strength",
+    label: "Fortaleza de la responsabilidad",
     positive: { categories: ["liability", "duty", "breach", "standard_of_care", "negligence_established"] },
     negative: { categories: ["no_duty", "liability_defense", "comparative_fault", "assumption_of_risk"] },
   },
   causation_strength: {
     baseline: 50,
-    label: "Causation strength",
+    label: "Fortaleza del nexo causal",
     positive: { categories: ["causation", "proximate_cause", "but_for"] },
     negative: { categories: ["causation_gap", "intervening_cause", "superseding_cause"] },
   },
   damages_exposure: {
     baseline: 50,
-    label: "Damages exposure",
+    label: "Exposición por daños",
     positive: { categories: ["damages", "injury", "loss", "economic_damages", "noneconomic_damages"] },
     negative: { categories: ["mitigation", "speculative_damages", "damages_cap"] },
   },
   expert_support: {
     baseline: 50,
-    label: "Expert support",
+    label: "Apoyo pericial",
     positive: { categories: ["expert", "expert_opinion", "expert_corroboration"] },
-    negative: { categories: ["expert_gap", "expert_contradiction", "daubert"] },
+    negative: { categories: ["expert_gap", "expert_contradiction", "expert_challenge"] },
   },
   documentation_reliability: {
     baseline: 60,
-    label: "Documentation reliability",
+    label: "Confiabilidad documental",
     positive: { categories: ["documentation", "records_complete", "document_integrity"] },
     negative: {
       categories: [
@@ -230,19 +231,19 @@ const DIMENSIONS: Record<
   },
   discovery_compliance: {
     baseline: 60,
-    label: "Discovery compliance",
+    label: "Cumplimiento probatorio",
     positive: { categories: ["discovery_compliant", "production_complete"] },
-    negative: { categories: ["discovery_gap", "discovery_violation", "missing_evidence", "production_failure"] },
+    negative: { categories: ["violacion_procesal", "discovery_gap", "discovery_violation", "missing_evidence"] },
   },
   litigation_risk: {
     baseline: 50,
-    label: "Litigation risk",
+    label: "Riesgo litigioso",
     positive: { categories: ["defense_strong", "case_strong"] },
     negative: { categories: ["adverse_ruling", "litigation_risk", "exposure", "trial_risk"] },
   },
   settlement_pressure: {
     baseline: 50,
-    label: "Settlement pressure",
+    label: "Presión para conciliar",
     positive: { categories: ["settlement_leverage", "settlement_pressure"] },
     negative: { categories: ["weak_settlement_position"] },
   },
@@ -304,9 +305,88 @@ const CIVIL_DIMENSIONS = [
 
 // Case-type → which dimensions apply. Dimensions not listed here are
 // suppressed entirely from the scorecard so the report cannot drag
-// criminal-only metrics (chain_of_custody, constitutional_compliance) into
-// civil / malpractice / employment matters.
+// penal-only metrics (chain_of_custody, constitutional_compliance) into
+// civil / mercantil / laboral matters.
+//
+// FIX (2026-07-29): this only had retired English keys ("criminal",
+// "civil_rights", "medical_malpractice", "personal_injury", "employment",
+// "family", "general_civil", "tax_law") — never the actual Mexican
+// taxonomy ("penal", "civil", "mercantil", "laboral", "familiar", "fiscal",
+// etc.). Since no real case_type value could ever match a key here, EVERY
+// Mexican case fell through to the old fallback, `Object.keys(DIMENSIONS)`
+// — literally every dimension, penal and civil combined, on every
+// scorecard regardless of materia. Rebuilt with the real 13 MX_CASE_TYPES
+// keys and dimension sets appropriate to each materia's actual procedure,
+// plus the retired English keys kept alongside for any pre-migration data
+// still carrying them. The fallback is now a safe, generic minimal set —
+// never "all dimensions at once" — for any materia not yet mapped here.
 const CASE_TYPE_DIMENSIONS: Record<string, string[]> = {
+  penal: [
+    "evidence_strength",
+    "witness_reliability",
+    "timeline_integrity",
+    "chain_of_custody",
+    "constitutional_compliance",
+    "investigation_completeness",
+    "discovery_completeness",
+    "forensic_reliability",
+    "procedural_integrity",
+  ],
+  constitucional: [
+    "evidence_strength",
+    "witness_reliability",
+    "constitutional_compliance",
+    "investigation_completeness",
+    "discovery_completeness",
+    "procedural_integrity",
+    "documentation_reliability",
+  ],
+  amparo: [
+    "evidence_strength",
+    "timeline_integrity",
+    "constitutional_compliance",
+    "procedural_integrity",
+    "documentation_reliability",
+  ],
+  civil: CIVIL_DIMENSIONS,
+  mercantil: CIVIL_DIMENSIONS,
+  familiar: [
+    "evidence_strength",
+    "witness_reliability",
+    "timeline_integrity",
+    "documentation_reliability",
+    "procedural_integrity",
+  ],
+  laboral: [
+    "evidence_strength",
+    "witness_reliability",
+    "liability_strength",
+    "damages_exposure",
+    "documentation_reliability",
+    "procedural_integrity",
+    "litigation_risk",
+  ],
+  fiscal: ["evidence_strength", "documentation_reliability", "procedural_integrity", "litigation_risk"],
+  administrativo: ["evidence_strength", "documentation_reliability", "procedural_integrity", "litigation_risk"],
+  electoral: ["evidence_strength", "documentation_reliability", "procedural_integrity"],
+  agrario: [
+    "evidence_strength",
+    "witness_reliability",
+    "liability_strength",
+    "documentation_reliability",
+    "procedural_integrity",
+  ],
+  ambiental: [
+    "evidence_strength",
+    "documentation_reliability",
+    "procedural_integrity",
+    "litigation_risk",
+    "expert_support",
+  ],
+  inmobiliario: ["evidence_strength", "documentation_reliability"],
+  apelacion: ["evidence_strength", "timeline_integrity", "procedural_integrity", "documentation_reliability"],
+  // Retired English keys — kept for any case rows written before the
+  // Mexican-taxonomy migration; new cases never carry these.
   criminal: [
     "evidence_strength",
     "witness_reliability",
@@ -345,8 +425,20 @@ const CASE_TYPE_DIMENSIONS: Record<string, string[]> = {
   tax_law: CIVIL_DIMENSIONS,
 };
 
+// Safe, generic fallback for any case_type not mapped above — the
+// dimensions relevant to essentially every materia. Deliberately NOT
+// "every dimension" (that was the bug): a mercantil case should never see
+// chain_of_custody, and a penal case should never see settlement_pressure.
+const DEFAULT_DIMENSIONS: string[] = [
+  "evidence_strength",
+  "witness_reliability",
+  "timeline_integrity",
+  "documentation_reliability",
+  "procedural_integrity",
+];
+
 export function applicableDimensionsFor(caseType: string | undefined): string[] {
-  return CASE_TYPE_DIMENSIONS[caseType ?? "general_civil"] ?? Object.keys(DIMENSIONS);
+  return CASE_TYPE_DIMENSIONS[caseType ?? "general_civil"] ?? DEFAULT_DIMENSIONS;
 }
 
 export function computeDeterministicScorecard(findings: Finding[], caseType?: string): DeterministicScorecard {
