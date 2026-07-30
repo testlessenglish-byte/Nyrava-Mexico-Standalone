@@ -566,7 +566,11 @@ export async function packingCharBudget(ceilingChars: number): Promise<number> {
   const rows = await loadProviderRows();
   let narrowest = Infinity;
   for (const r of rows) {
-    narrowest = Math.min(narrowest, providerInputBudget(r.provider_type) * 3.5);
+    // Reserve room for the non-corpus parts of engine prompts (Mexico-lock
+    // system prompt, JSON schema instructions, agent role text). Without this,
+    // a "5.5k-token" corpus batch becomes a 6k+ total request and Groq is still
+    // skipped/rejected even though the packer appeared to target its budget.
+    narrowest = Math.min(narrowest, providerInputBudget(r.provider_type) * 3.5 - 10_000);
   }
   if (!Number.isFinite(narrowest)) return ceilingChars;
   return Math.max(MIN_PACKING_CHARS, Math.min(ceilingChars, Math.floor(narrowest)));

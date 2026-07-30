@@ -2717,9 +2717,14 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           const { packingCharBudget: agentBudgetFn } = await import("@/lib/ai/router.server");
           const agentBatches = packChunks(chunks, await agentBudgetFn(ANALYZER_CORPUS_BUDGET_CHARS));
           const batchEngine = `${engine}_batch`;
-          const batchKey = (batch: CorpusChunk[]) => batch.map((c) => c.docId).sort().join("|");
+          const batchKey = (batch: CorpusChunk[]) =>
+            batch
+              .map((c) => `${c.docId}:${c.index}:${c.size}:${c.text.slice(0, 24)}`)
+              .sort()
+              .join("|");
 
           type AgentBatchMeta = {
+            batchKey?: string;
             docIds?: string[];
             findings?: unknown[];
             summary?: string;
@@ -2738,7 +2743,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
             meta: AgentBatchMeta | null;
           }>) {
             if (row.status !== "completed" || !Array.isArray(row.meta?.docIds)) continue;
-            completedBatchKeys.add(row.meta.docIds.slice().sort().join("|"));
+            completedBatchKeys.add(row.meta.batchKey ?? row.meta.docIds.slice().sort().join("|"));
             priorBatchMetas.push(row.meta);
           }
 
@@ -2813,6 +2818,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                     meta: {
                       agent_type: agent.type,
                       batchIdx,
+                      batchKey: key,
                       docs: batch.length,
                       chars: batchCorpus.length,
                       docIds: batch.map((c) => c.docId),
