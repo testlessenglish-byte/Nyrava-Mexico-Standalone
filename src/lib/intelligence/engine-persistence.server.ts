@@ -312,7 +312,9 @@ export async function runVerifiedEngine<T>(
     // Additive and non-fatal — projected rows use the `projection:` source
     // class, which no pre-existing counter selects, and a failure here must
     // never fail an engine whose real output is already persisted.
-    const projectable = report.tables.filter((t) => PROJECTABLE_TABLES.includes(t));
+    const projectable = report.tables
+      .map((t) => t.name)
+      .filter((t) => PROJECTABLE_TABLES.includes(t));
     if (projectable.length > 0) {
       const projection = await projectCaseFindings(db, {
         caseId: args.caseId,
