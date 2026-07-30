@@ -582,7 +582,10 @@ export async function listProviderRows() {
  * fallback chain eligible. The corpus size is unchanged; it is simply split
  * into more, smaller requests.
  */
-export async function packingCharBudget(ceilingChars: number): Promise<number> {
+export async function packingCharBudget(
+  ceilingChars: number,
+  overheadChars: number = PROMPT_OVERHEAD_CHARS.default,
+): Promise<number> {
   const rows = await loadProviderRows();
   let narrowest = Infinity;
   for (const r of rows) {
@@ -590,11 +593,34 @@ export async function packingCharBudget(ceilingChars: number): Promise<number> {
     // (Mexico-lock system prompt, JSON schema instructions, agent role text).
     // Groq enforces the 8k free-tier ceiling against prompt + reserved output;
     // packing only to prompt tokens still produced 413s around 8.2k-13.5k.
-    narrowest = Math.min(narrowest, providerAvailableInputBudget(r.provider_type, { json: true }) * 3.5 - 8_000);
+    narrowest = Math.min(
+      narrowest,
+      providerAvailableInputBudget(r.provider_type, { json: true }) * 3.5 - overheadChars,
+    );
   }
   if (!Number.isFinite(narrowest)) return ceilingChars;
   return Math.max(MIN_PACKING_CHARS, Math.min(ceilingChars, Math.floor(narrowest)));
 }
+
+/**
+ * Non-corpus prompt overhead, in CHARS, per call site.
+ *
+ * These are MEASURED, not guessed: the worst case across every practice area
+ * and both locales (es/en) of the Mexico-lock preamble + practice-area
+ * guardrails + system instruction + JSON schema wrapper, corpus excluded.
+ *
+ *   analyzers : 4,874 chars (worst case: constitucional / es)
+ *   agents    : 2,712 chars (worst case: constitucional / es)
+ *
+ * Each value rounds the measurement up with ~40% headroom so ordinary prompt
+ * edits cannot silently push a batch over a provider's budget again.
+ */
+export const PROMPT_OVERHEAD_CHARS = {
+  analyzers: 7_000,
+  agents: 4_000,
+  /** Conservative fallback for call sites that have not been measured. */
+  default: 8_000,
+} as const;
 
 /** Never pack below this — tiny batches multiply request count for no gain. */
 const MIN_PACKING_CHARS = 6_000;
