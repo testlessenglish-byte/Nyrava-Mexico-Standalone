@@ -1711,5 +1711,9 @@
   "reports.evidenceMap.party.acusacion": "Parte acusadora / actora",
   "reports.evidenceMap.party.defensa": "Defensa / parte demandada",
   "reports.evidenceMap.party.neutral": "Neutral",
-  "reports.evidenceMap.party.organo_jurisdiccional": "Órgano jurisdiccional"
+  "reports.evidenceMap.party.organo_jurisdiccional": "Órgano jurisdiccional",
+  "claim.fact": "HECHO",
+  "claim.analysis": "ANÁLISIS SUSTENTADO EN EVIDENCIA",
+  "claim.strategy": "CONSIDERACIÓN ESTRATÉGICA",
+  "claim.hypothesis": "HIPÓTESIS — REQUIERE VERIFICACIÓN"
 }
