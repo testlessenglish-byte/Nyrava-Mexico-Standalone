@@ -923,6 +923,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           assertCheckpointBudget(`before AI call attempt ${attempt + 1}`);
           const providerOpts = {
             ...baseProviderOpts,
+            ...(row.provider_type === "groq" && baseProviderOpts.maxTokens == null
+              ? { maxTokens: opts.json ? 2_048 : 3_072 }
+              : {}),
             timeoutMs:
               baseProviderOpts.timeoutMs ??
               aiCallTimeoutForCheckpoint(`AI call attempt ${attempt + 1}`),
