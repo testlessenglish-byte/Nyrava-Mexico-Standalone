@@ -21,15 +21,34 @@ function makeFakeDb(rowsByTable: Record<string, Array<{ id: string; case_id: str
     from(table: string) {
       return {
         select(_cols: string) {
-          return {
+          // Chainable filter builder: production code may call `.eq()`/`.gte()`
+          // several times (case_id + engine + created_at) before awaiting.
+          type Row = { id: string; case_id: string };
+          const makeFilter = (rows: Row[]) => ({
             eq(col: string, val: string) {
-              const rows = (rowsByTable[table] ?? []).filter(
-                (r) => (r as Record<string, unknown>)[col] === val,
-              );
-              return Promise.resolve({ data: rows, error: null });
+              return makeFilter(rows.filter((r) => (r as Record<string, unknown>)[col] === val));
             },
-          };
+            gte() {
+              return makeFilter(rows);
+            },
+            lte() {
+              return makeFilter(rows);
+            },
+            order() {
+              return makeFilter(rows);
+            },
+            limit() {
+              return makeFilter(rows);
+            },
+            maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
+            single: async () => ({ data: rows[0] ?? null, error: null }),
+            then: (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
+          });
+
+          return makeFilter(rowsByTable[table] ?? []);
         },
+
+
         insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
           const rows = Array.isArray(payload) ? payload : [payload];
           if (table === "pipeline_engine_runs") {

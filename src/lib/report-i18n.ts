@@ -143,6 +143,7 @@ const ES: Record<string, string> = {
   "Cross-domain (activated)": "Materia cruzada (activada)",
   Enabled: "Habilitado",
   Generated: "Generado",
+  Engine: "Motor",
   Skipped: "Omitido",
   "Skipped — Not applicable to selected case type":
     "Omitido — No aplicable a la materia seleccionada",
@@ -339,7 +340,49 @@ const ES: Record<string, string> = {
   "Expected impact": "Impacto esperado",
   "-Legal-Memo": "-Memorando-Legal",
   "Legal Memo": "Memorando Legal",
+
+  // ---- Cover page, footers, status stamps and section blurbs ----
+  // Found in the July 2026 production audit: these reached the PDF/DOCX
+  // writer without a dictionary entry, so they rendered raw English inside
+  // an otherwise Spanish report.
+  "Untitled Case": "Caso sin título",
+  "CASE INTELLIGENCE REPORT": "REPORTE DE INTELIGENCIA DEL CASO",
+  "Confidential Attorney Work Product": "Producto de Trabajo del Abogado — Confidencial",
+  "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.":
+    "Sustentado en evidencia. Citas auditadas. Diseñado para trabajo de inteligencia jurídica sensible.",
+  "Case Strength": "Fortaleza del Caso",
+  "Work product": "Producto de trabajo",
+  "Primary Evidence:": "Evidencia principal:",
+  "PRIMARY EVIDENCE": "EVIDENCIA PRINCIPAL",
+  "LIKELIHOOD OF SUCCESS": "PROBABILIDAD DE ÉXITO",
+  "Draft Available": "Borrador disponible",
+  "Requires Attorney Review": "Requiere revisión del abogado",
+  "Not Yet Generated": "Aún no generado",
+  "Limited Analysis": "Análisis Limitado",
+  Complete: "Completo",
+  "Limited Analysis · Scores Suppressed · Recommendations Suppressed":
+    "Análisis Limitado · Puntajes Suprimidos · Recomendaciones Suprimidas",
+  "Complete · Scores Enabled · Recommendations Enabled":
+    "Completo · Puntajes Habilitados · Recomendaciones Habilitadas",
+  "conf.": "conf.",
+  "Starting point, not a finished answer. Verify anything you plan to rely on with Case AI, pull controlling authority in Case Law, and confirm the actual filing through Motion Drafting before treating this as ready.":
+    "Punto de partida, no una respuesta terminada. Verifique con Case AI todo aquello en lo que pretenda sustentarse, obtenga el criterio obligatorio aplicable en Jurisprudencia y confirme la promoción efectiva en Redacción de Promociones antes de considerarlo listo.",
+  "A case-type read on the deterministic scorecard below, framed as the questions an attorney asks first rather than as raw dimension names.":
+    "Lectura por materia del tablero determinista siguiente, planteada como las preguntas que un abogado formula primero, en lugar de nombres de dimensiones en bruto.",
+  "Document-by-document classification with confidence labels and legal impact.":
+    "Clasificación documento por documento, con niveles de confianza e impacto jurídico.",
+  "Independent analysis from each side of the dispute. All perspectives are produced regardless of which side counsel represents.":
+    "Análisis independiente desde cada parte del litigio. Todas las perspectivas se generan con independencia de la parte que el abogado represente.",
+  "Grouped by severity so the issues most likely to affect the outcome are read first. Each finding lists a ":
+    "Agrupados por gravedad para que las cuestiones con mayor probabilidad de incidir en el resultado se lean primero. Cada hallazgo indica un ",
+  "Also implicated in:": "También implicado en:",
+  FACT: "HECHO",
+  "EVIDENCE-BASED ANALYSIS": "ANÁLISIS SUSTENTADO EN EVIDENCIA",
+  "STRATEGIC CONSIDERATION": "CONSIDERACIÓN ESTRATÉGICA",
+  "HYPOTHESIS REQUIRES VERIFICATION": "HIPÓTESIS — REQUIERE VERIFICACIÓN",
+  more: "más",
 };
+
 
 /**
  * Pattern rules applied after exact-match lookup, for strings the exporter

@@ -71,7 +71,7 @@ describe("procedural compliance", () => {
 describe("jurisdiction intelligence", () => {
   it("resolves state, fuero and governing codes", () => {
     const p = buildJurisdictionProfile({
-      caseType: "criminal",
+      caseType: "penal",
       jurisdictionField: "Guadalajara, Jalisco",
       corpusText: "Juez de control del Tribunal Superior de Justicia del Estado.",
     });
