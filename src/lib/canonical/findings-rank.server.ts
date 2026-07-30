@@ -39,15 +39,29 @@ function isWitnessProfile(f: Finding): boolean {
   return cat.includes("witness_profile") || cat === "witness";
 }
 
+/**
+ * Phase 3: agreement multiplier. A claim two engines reached outranks an
+ * equally confident single-engine claim; a `disputed` cluster is pushed down
+ * so the report never leads with a contested conclusion. Findings with no
+ * consensus data (agreement undefined) score exactly as they did before.
+ */
+function agreementMultiplier(f: Finding): number {
+  if (f.finding_status === "disputed") return 0.6;
+  const a = typeof f.agreement === "number" ? f.agreement : 1;
+  if (a <= 1) return 1;
+  return Math.min(1.5, 1 + 0.2 * (a - 1));
+}
+
+function weightOf(f: Finding): number {
+  const conf = typeof f.confidence === "number" ? f.confidence : 0.5;
+  return importanceFor(f) * conf * agreementMultiplier(f);
+}
+
 export function rankFindings(analysis: CaseAnalysis): CaseAnalysis {
   if (!Array.isArray(analysis.Findings)) return analysis;
   // Filter witness-profile items out of Findings.
   analysis.Findings = analysis.Findings.filter((f) => !isWitnessProfile(f));
-  analysis.Findings.sort((a, b) => {
-    const wa = importanceFor(a) * (typeof a.confidence === "number" ? a.confidence : 0.5);
-    const wb = importanceFor(b) * (typeof b.confidence === "number" ? b.confidence : 0.5);
-    return wb - wa;
-  });
+  analysis.Findings.sort((a, b) => weightOf(b) - weightOf(a));
   // Refresh Executive Summary top_findings to reflect the new order (first 5
   // non-suppressed).
   if (analysis.ExecutiveSummary) {
