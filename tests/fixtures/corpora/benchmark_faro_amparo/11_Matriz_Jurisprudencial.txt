@@ -1,0 +1,44 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+Los datos de identificación de criterios que aquí se listan son FICTICIOS y se emplean
+únicamente como material de validación interna; no deben citarse ante autoridad real.
+
+MATRIZ DE CRITERIOS JURISPRUDENCIALES Y NORMATIVOS
+Juicio de amparo indirecto JF-QROO-AI-2026-00421 y carpeta CI-FGE-QR/BJ/UIDFD/1120/2026
+
+A) FUNDAMENTOS NORMATIVOS APLICADOS
+1. Constitución Política de los Estados Unidos Mexicanos: arts. 14, 16 (párrafos primero,
+   once, decimosegundo y decimotercero), 20 apartado A fracción IX, 20 apartado B fracciones
+   I y VIII, 20 apartado C, 21 y 22.
+2. Convención Americana sobre Derechos Humanos: arts. 8.1, 8.2 y 11.2.
+3. Ley de Amparo: arts. 1, 12, 17, 37, 61 fracciones XX y XXIII, 63 fracción IV, 77, 107
+   fracciones IV y V, 108, 117, 125-132, 138, 140, 147, 237, 81, 82, 84, 86 y 88.
+4. Código Nacional de Procedimientos Penales: arts. 97, 113, 132, 141, 152, 155, 167, 217,
+   218, 221, 222, 227, 228, 229-231, 263, 264, 282, 283, 284, 291, 307 y 346 fracción I.
+5. Código Penal para el Estado Libre y Soberano de Quintana Roo: arts. 191, 193 fracción II,
+   197, 232 y 236.
+
+B) CRITERIOS INVOCADOS POR LAS PARTES Y POR EL ÓRGANO JURISDICCIONAL
+
+CLAVE FICTICIA | RUBRO ABREVIADO | INVOCADO POR | USO EN EL EXPEDIENTE
+QR-TESIS-2026/114 | "CATEO. LA ORDEN JUDICIAL ES DE INTERPRETACIÓN ESTRICTA Y LA DILIGENCIA NO PUEDE EXTENDERSE A LUGARES NO SEÑALADOS." | Quejoso | Concepto de violación primero; considerando cuarto de la sentencia.
+QR-TESIS-2026/118 | "PRUEBA ILÍCITA. EFECTO REFLEJO Y EXCEPCIÓN DE FUENTE INDEPENDIENTE." | Quejoso y tercero interesado | Concepto segundo; considerando quinto.
+QR-TESIS-2026/121 | "CADENA DE CUSTODIA. SU IRREGULARIDAD AFECTA EL VALOR PROBATORIO Y NO NECESARIAMENTE LA LICITUD DEL INDICIO." | Autoridad responsable | Considerando sexto (inoperancia por prematuro).
+QR-TESIS-2026/126 | "ACTOS DENTRO DE LA INVESTIGACIÓN. SON DE IMPOSIBLE REPARACIÓN CUANDO INCIDEN EN LA INVIOLABILIDAD DEL DOMICILIO." | Quejoso | Considerando tercero (improcedencia desestimada).
+QR-TESIS-2026/130 | "DESCUBRIMIENTO INEVITABLE. REQUISITOS PARA SU ACTUALIZACIÓN." | Fiscalía (revisión) | Agravio segundo del R.A. 187/2026.
+QR-TESIS-2026/133 | "SUSPENSIÓN EN AMPARO. PROCEDE RESPECTO DEL USO DE MATERIAL PROBATORIO CUANDO LA APARIENCIA DEL BUEN DERECHO ES OSTENSIBLE." | Quejoso | Interlocutoria de 27 de marzo de 2026.
+QR-TESIS-2026/137 | "COMUNICACIONES PRIVADAS. EL ACCESO A DISPOSITIVOS MÓVILES ASEGURADOS REQUIERE AUTORIZACIÓN JUDICIAL ESPECÍFICA." | Quejoso | Concepto cuarto; considerando séptimo.
+QR-TESIS-2026/141 | "DEFINITIVIDAD. NO RIGE DE MANERA ABSOLUTA FRENTE A ACTOS DE EJECUCIÓN IRREPARABLE EN EL SISTEMA ACUSATORIO." | Juzgado de Distrito | Considerando tercero.
+
+C) MAPA DE TENSIONES PROBATORIAS PARA ANÁLISIS AUTOMATIZADO
+T-01 Hora de ingreso: 07:20 (Testigo A) / 07:41:18 (CCTV, DP-VID-0077/2026) / 08:05 (acta e IPH).
+T-02 Número de elementos: tres (Testigo A) / cinco (IPH, Testigo B, CCTV).
+T-03 Momento del hash: 06:58 y 07:03 (BED-1120-2026) / 14:20 y 14:24 (RCC-1120-2026).
+T-04 Ámbito autorizado: oficina 402 (CJ-214/2026) / oficina 402 + Calle Nichupté 214 (inventario).
+T-05 Extracción de IND-02: suspendida por falta de autorización (bitácora) / manipulación
+     reclamada como injerencia (demanda de amparo).
+T-06 Fuente independiente: negada por el quejoso / afirmada por la Fiscalía respecto de IND-03.
+
+D) RELACIÓN DE EXPEDIENTES
+CI-FGE-QR/BJ/UIDFD/1120/2026 (Fiscalía) — CJ-214/2026 (Juez de Control) —
+JF-QROO-AI-2026-00421 y su incidente (Juzgado Primero de Distrito) — R.A. 187/2026 (Tribunal
+Colegiado del Vigésimo Séptimo Circuito).

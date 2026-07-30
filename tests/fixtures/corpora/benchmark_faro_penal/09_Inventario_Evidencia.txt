@@ -1,0 +1,39 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+FISCALÍA GENERAL DEL ESTADO DE QUINTANA ROO
+INVENTARIO DE EVIDENCIA Y ACUERDO DE ASEGURAMIENTO
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Orden de cateo: CJ-214/2026. Fecha: 19 de marzo de 2026.
+
+CLAVE | DESCRIPCIÓN | LUGAR DE RECOLECCIÓN | HORA | RECOLECTÓ
+------|-------------|----------------------|------|-----------
+IND-01 | Computadora portátil Dell Latitude 5440, número de serie 8FJ2K33, color negro, con etiqueta de inventario FNC-042. | Oficina 402, escritorio principal, Av. Bonampak 622 | 09:12 | Ing. Nadia F. Escalante Ríos
+IND-02 | Teléfono celular Apple iPhone 13, IMEI 356938035643809, funda azul, encendido y con bloqueo por código. | Oficina 402, sobre escritorio principal | 09:24 | Ing. Nadia F. Escalante Ríos
+IND-03 | Disco duro externo Seagate Expansion 2 TB, número de serie NA8H7Q21, etiqueta manuscrita "RESPALDO FARO". | Oficina 402, cajón inferior derecho | 09:41 | Ing. Nadia F. Escalante Ríos
+IND-04 | Cuatro carpetas tipo lefort con documentación contable y bancaria, ejercicios 2025-2026, 612 fojas en total, incluyendo dos impresiones del resolutivo SEMA/DGIA/RES-0913/2024 y una del título ZFMT/QR/0418/2023, así como un juego de tres sellos de goma. | Archivo anexo a oficina 402 | 10:07 | Pol. 2° Rebeca I. Chan Yam
+IND-05 | Carpeta color verde rotulada "FARO — PERSONAL", con 118 fojas, entre ellas borradores del título ZFMT/QR/0418/2023 con anotaciones manuscritas. | Domicilio particular: Calle Nichupté 214, SM 27, Mz 12, Lt 5, Cancún | 11:47 | Pol. 3° Marco A. Zetina Loría
+IND-06 | Memoria USB Kingston DataTraveler 32 GB, color rojo, sin etiqueta. | Domicilio particular: Calle Nichupté 214, SM 27, Mz 12, Lt 5, Cancún | 11:52 | Pol. 3° Marco A. Zetina Loría
+
+TOTAL DE INDICIOS: 6.
+
+OBSERVACIONES:
+1. Los indicios IND-01 a IND-04 fueron recabados dentro del inmueble autorizado por la orden
+   judicial CJ-214/2026.
+2. Los indicios IND-05 y IND-06 fueron recabados en el domicilio particular del imputado,
+   inmueble que no aparece señalado en la orden judicial CJ-214/2026 ni en la solicitud
+   ministerial de 18 de marzo de 2026. No obra consentimiento escrito del ocupante ni
+   autorización judicial diversa.
+3. El embalaje de los indicios digitales se realizó en bolsa antiestática con sello de
+   seguridad folios SS-77121 (IND-01), SS-77122 (IND-02), SS-77123 (IND-03) y SS-77126
+   (IND-06).
+
+ACUERDO DE ASEGURAMIENTO
+Con fundamento en los arts. 229, 230 y 231 del Código Nacional de Procedimientos Penales, se
+decreta el aseguramiento de los indicios descritos, debiendo notificarse al interesado su
+derecho a solicitar la devolución en términos del art. 231 del mismo ordenamiento. Se instruye
+al Policía responsable a mantener la cadena de custodia conforme a los arts. 227 y 228 del
+CNPP.
+
+Lic. Héctor Manuel Cauich Sansores
+Agente del Ministerio Público — UIDFD Zona Norte
+Cancún, Quintana Roo, 19 de marzo de 2026, 13:40 horas.

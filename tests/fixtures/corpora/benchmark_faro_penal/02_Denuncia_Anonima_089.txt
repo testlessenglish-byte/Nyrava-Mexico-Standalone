@@ -1,0 +1,52 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+FISCALÍA GENERAL DEL ESTADO DE QUINTANA ROO
+CENTRO DE ATENCIÓN TEMPRANA — LÍNEA CIUDADANA 089
+CANCÚN, BENITO JUÁREZ, QUINTANA ROO
+
+REGISTRO DE DENUNCIA ANÓNIMA
+Folio: 089-QR-2026-33194
+Fecha y hora de recepción: 12 de marzo de 2026, 21:14 horas.
+Operador receptor: Auxiliar Ministerial Diana Estefanía Poot Canché, clave OP-118.
+Medio: llamada telefónica entrante desde número privado. Duración: 6 minutos 42 segundos.
+Grabación resguardada bajo el audio AUD-089-33194.wav (SHA-256:
+9c1f4a77e0b2d5638ac0f9147cbb3a2e5d6ff81409a2c7be3315de07a4ab6f22).
+
+TRANSCRIPCIÓN SUSTANCIAL DE LA LLAMADA (extracto literal autorizado):
+
+Denunciante: "Trabajo en el sector náutico en Cancún. Quiero reportar que en la empresa
+Faro Náutico del Caribe, en Bonampak 622, están cobrando anticipos de una marina que no
+existe. El director de operaciones, Andrés Peraza, firma contratos de amarre para el
+proyecto 'Faro Marina Residencial' con planos y permisos que no son reales."
+
+Operador: "¿Puede precisar a qué se refiere con permisos que no son reales?"
+
+Denunciante: "Presentan a los clientes una autorización de impacto ambiental y una
+concesión de zona federal marítimo terrestre. Yo vi el documento y el sello no coincide
+con los que llegan de la delegación. Cobraron a Marina Puerto Azul poco más de nueve
+millones de pesos en tres transferencias entre agosto y diciembre del año pasado."
+
+Operador: "¿Sabe si existen otros afectados?"
+
+Denunciante: "Sé de al menos dos compradores individuales, pero no me consta. Lo que sí
+me consta es que la contabilidad la lleva un despacho externo y que a fin de año pidieron
+rehacer facturas. Yo no quiero dar mi nombre porque sigo trabajando en el ramo."
+
+DATOS APORTADOS POR EL DENUNCIANTE:
+- Razón social señalada: Faro Náutico del Caribe, S.A. de C.V.
+- Domicilio señalado: Av. Bonampak 622, piso 4, oficina 402, SM 4-A, Cancún, Q. Roo.
+- Persona señalada: Andrés Iván Peraza Manzanilla, Director de Operaciones.
+- Presunta afectada: Marina Puerto Azul, S. de R.L. de C.V.
+- Monto aproximado señalado: $9,250,000.00 M.N.
+- Documentos señalados como apócrifos: resolutivo de impacto ambiental y título de
+  concesión de ZOFEMAT.
+
+DETERMINACIÓN DEL CENTRO DE ATENCIÓN TEMPRANA:
+Se remite el presente registro a la Unidad de Investigación de Delitos Financieros y
+Documentales de la Zona Norte para efectos de los arts. 221 y 222 del Código Nacional de
+Procedimientos Penales, por advertirse hechos posiblemente constitutivos de delito
+perseguible de oficio. No se recabaron datos de identificación del denunciante por
+tratarse de reporte anónimo, conforme al protocolo institucional PR-CAT-07.
+
+Cancún, Quintana Roo, a 12 de marzo de 2026, 21:58 horas.
+Auxiliar Ministerial Diana Estefanía Poot Canché

@@ -1,0 +1,54 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+CRONOLOGÍA PROCESAL — "PROYECTO FARO"
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Carpeta judicial: CJ-214/2026 | Amparo relacionado: JF-QROO-AI-2026-00421
+Elaboró: Lic. Héctor Manuel Cauich Sansores. Corte: 30 de abril de 2026.
+
+FECHA        HORA    ACTUACIÓN                                                    REGISTRO
+12/03/2026   21:14   Denuncia anónima a la línea 089.                              089-QR-2026-33194
+15/03/2026   10:30   Acuerdo de inicio de carpeta de investigación.                Reg. 02
+15/03/2026   13:40   Entrevista a la representante de la víctima.                  Reg. 03
+16/03/2026   —       Vigilancia discreta del inmueble (día 1).                     Informe policial
+17/03/2026   —       Vigilancia discreta (día 2); oficio de la autoridad ambiental
+                     que niega el registro del resolutivo.                         SEMA/DGIA/UT/0221/2026
+18/03/2026   09:12   Solicitud ministerial de orden de cateo.                      Reg. 04
+18/03/2026   17:45   Resolución judicial que concede el cateo (solo oficina 402).  CJ-214/2026
+19/03/2026   07:41   Ingreso del personal al vestíbulo según CCTV del edificio.    DP-VID-0077/2026
+19/03/2026   07:20   Apertura de la oficina según la testigo Uc Chi.               Reg. 12
+19/03/2026   08:05   Hora de ingreso asentada en el acta y en el IPH.              Reg. 06 y 07
+19/03/2026   06:58   Inicio de adquisición forense de IND-01 según la bitácora.    BED-1120-2026
+19/03/2026   09:12-10:07 Recolección de indicios IND-01 a IND-04 en oficina 402.   Reg. 08
+19/03/2026   11:47-11:52 Recolección de IND-05 e IND-06 en domicilio particular
+                     no autorizado por la orden judicial.                          Reg. 08
+19/03/2026   12:36   Conclusión del cateo y entrega de copia del acta.             Reg. 06
+19/03/2026   14:20   Recepción de indicios en el Almacén de Evidencia.             RCC-1120-2026
+20/03/2026   09:05   Entrega de indicios al Laboratorio de Informática Forense.    RCC-1120-2026
+20/03/2026   11:00   Se suspende extracción de IND-02 por falta de autorización
+                     judicial específica.                                          BED-1120-2026
+21/03/2026   —       Dictamen pericial en informática forense.                     DP-INF-0442/2026
+22/03/2026   10:05   Declaración de la Testigo A (Uc Chi).                         Reg. 12
+22/03/2026   13:20   Declaración del Testigo B (Ruvalcaba Núñez).                  Reg. 13
+23/03/2026   —       Dictámenes en documentoscopía y en videovigilancia.           DP-DOC-0189/2026, DP-VID-0077/2026
+23/03/2026   11:00   Declaración del policía investigador.                         Reg. 16
+23/03/2026   19:30   Se libra orden de aprehensión.                                CJ-214/2026
+24/03/2026   07:35   Detención del imputado en su domicilio particular.            Reg. 17
+24/03/2026   17:00   Audiencia inicial; prisión preventiva justificada; duplicidad
+                     del plazo constitucional.                                     CJ-214/2026
+25/03/2026   09:40   Presentación de demanda de amparo indirecto.                  JF-QROO-AI-2026-00421
+25/03/2026   14:10   Auto de admisión y suspensión provisional.                    JF-QROO-AI-2026-00421
+26/03/2026   —       Rendición de informes previos por las autoridades.            JF-QROO-AI-2026-00421
+27/03/2026   10:00   Continuación de audiencia inicial: auto de vinculación a
+                     proceso; plazo de investigación complementaria de tres meses. CJ-214/2026
+27/03/2026   11:00   Audiencia incidental; suspensión definitiva.                  JF-QROO-AI-2026-00421
+30/03/2026   —       Rendición de informes justificados.                           JF-QROO-AI-2026-00421
+10/04/2026   10:30   Audiencia constitucional.                                     JF-QROO-AI-2026-00421
+22/04/2026   —       Sentencia de amparo.                                          JF-QROO-AI-2026-00421
+28/04/2026   —       Recurso de revisión interpuesto por la autoridad responsable. JF-QROO-AI-2026-00421
+
+PUNTOS DE TENSIÓN IDENTIFICADOS PARA LA ETAPA INTERMEDIA
+1. Tres horas distintas de ingreso al inmueble (07:20 / 07:41 / 08:05).
+2. Número de elementos actuantes: tres (Testigo A) frente a cinco (IPH, Testigo B y CCTV).
+3. Adquisición forense registrada antes del aseguramiento y del ingreso al almacén.
+4. Indicios IND-05 e IND-06 recabados fuera del ámbito autorizado por la orden CJ-214/2026.
+5. Intento de extracción del IND-02 sin autorización judicial específica.

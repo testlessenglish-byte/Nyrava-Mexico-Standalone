@@ -1,0 +1,36 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+JUZGADO PRIMERO DE DISTRITO EN EL ESTADO DE QUINTANA ROO, RESIDENCIA EN CANCÚN
+ÍNDICE DEL EXPEDIENTE — JUICIO DE AMPARO INDIRECTO JF-QROO-AI-2026-00421
+
+No. | Fecha       | Actuación                                                        | Fojas
+----|-------------|------------------------------------------------------------------|--------
+01  | 25/03/2026  | Demanda de amparo indirecto con anexos (14 anexos)               | 001-062
+02  | 25/03/2026  | Acuerdo de admisión de la demanda y registro del expediente      | 063-069
+03  | 25/03/2026  | Escrito de solicitud de suspensión (incidente por cuerda separada)| 070-078
+04  | 25/03/2026  | Auto que concede la suspensión provisional                        | 079-085
+05  | 26/03/2026  | Informe previo del Juez de Control del Distrito Judicial de Cancún| 086-092
+06  | 26/03/2026  | Informe previo del Agente del Ministerio Público                  | 093-099
+07  | 26/03/2026  | Informe previo del Policía de Investigación                       | 100-104
+08  | 27/03/2026  | Acta de la audiencia incidental                                   | 105-112
+09  | 27/03/2026  | Interlocutoria que concede la suspensión definitiva               | 113-124
+10  | 30/03/2026  | Informe justificado de la autoridad ordenadora con constancias    | 125-198
+11  | 30/03/2026  | Informe justificado del Ministerio Público estatal                | 199-236
+12  | 31/03/2026  | Escrito de contestación del tercero interesado                    | 237-244
+13  | 06/04/2026  | Ofrecimiento de pruebas del quejoso y objeción de documentales    | 245-259
+14  | 10/04/2026  | Acta de la audiencia constitucional                               | 260-271
+15  | 10/04/2026  | Pedimento del Agente del Ministerio Público de la Federación      | 272-279
+16  | 17/04/2026  | Proyecto de sentencia formulado por la Secretaría                 | 280-306
+17  | 22/04/2026  | Sentencia constitucional                                          | 307-341
+18  | 24/04/2026  | Notificaciones y constancias de cumplimiento parcial              | 342-349
+19  | 28/04/2026  | Recurso de revisión interpuesto por la autoridad ordenadora       | 350-368
+20  | 29/04/2026  | Matriz de criterios jurisprudenciales invocados en el expediente  | 369-376
+21  | 30/04/2026  | Cronología procesal del juicio de amparo                          | 377-380
+
+EXPEDIENTES RELACIONADOS
+- Carpeta de investigación CI-FGE-QR/BJ/UIDFD/1120/2026 (Fiscalía General del Estado de
+  Quintana Roo, Unidad de Investigación de Delitos Financieros y Documentales).
+- Carpeta judicial CJ-214/2026 (Juzgado de Control del Distrito Judicial de Cancún).
+
+Lic. Diana Sarahí Koyoc Mena — Secretaria del Juzgado Primero de Distrito.
+Cancún, Quintana Roo, 30 de abril de 2026.

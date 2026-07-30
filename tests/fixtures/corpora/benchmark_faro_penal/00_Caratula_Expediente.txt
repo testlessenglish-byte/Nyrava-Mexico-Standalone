@@ -1,0 +1,57 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+Personas, domicilios, folios y autoridades son ficticios. Uso exclusivo de validación.
+
+FISCALÍA GENERAL DEL ESTADO DE QUINTANA ROO
+VICEFISCALÍA DE INVESTIGACIÓN Y PROCESOS — ZONA NORTE
+UNIDAD DE INVESTIGACIÓN DE DELITOS FINANCIEROS Y DOCUMENTALES
+MUNICIPIO DE BENITO JUÁREZ (CANCÚN)
+
+CARÁTULA DEL EXPEDIENTE
+
+CARPETA DE INVESTIGACIÓN: CI-FGE-QR/BJ/UIDFD/1120/2026
+CARPETA JUDICIAL DE CONTROL: CJ-214/2026
+DENOMINACIÓN INTERNA DE LA INVESTIGACIÓN: "PROYECTO FARO"
+JUICIO DE AMPARO RELACIONADO: JF-QROO-AI-2026-00421 (Juzgado Primero de Distrito
+en el Estado de Quintana Roo, residencia Cancún)
+
+DELITOS INVESTIGADOS:
+1. Fraude genérico agravado — arts. 191 y 193, fracción II, del Código Penal para el
+   Estado Libre y Soberano de Quintana Roo.
+2. Uso de documento falso — art. 232 del Código Penal para el Estado de Quintana Roo.
+3. Administración fraudulenta — art. 197 del mismo ordenamiento.
+
+IMPUTADO:
+Andrés Iván Peraza Manzanilla, 38 años, mexicano, Director de Operaciones de
+"Faro Náutico del Caribe, S.A. de C.V." (FNC), RFC FNC190412RT8.
+Domicilio particular: Calle Nichupté 214, Supermanzana 27, Manzana 12, Lote 5,
+Cancún, Benito Juárez, Quintana Roo, C.P. 77509.
+Domicilio laboral: Avenida Bonampak 622, piso 4, oficina 402, Supermanzana 4-A,
+Cancún, Benito Juárez, Quintana Roo, C.P. 77500.
+
+DEFENSA PARTICULAR: Lic. Ximena Berenice Toledo Aguilar, cédula profesional 8842137,
+con domicilio para oír notificaciones en Av. Tulum 190, despacho 7, SM 4, Cancún, Q. Roo.
+
+VÍCTIMA / OFENDIDO:
+"Marina Puerto Azul, S. de R.L. de C.V.", representada por Claudia Rebeca Fonseca Iriarte,
+apoderada legal, escritura pública 14,882, volumen 92, ante el Notario Público 34 del
+Estado de Quintana Roo, Lic. Emilio Santos Barrera.
+
+AGENTE DEL MINISTERIO PÚBLICO RESPONSABLE:
+Lic. Héctor Manuel Cauich Sansores, Fiscal Investigador adscrito a la UIDFD Zona Norte.
+
+POLICÍA DE INVESTIGACIÓN A CARGO:
+Policía Tercero Óscar Damián Balam Tuz, placa AIC-QR-4471, Agencia de Investigación
+Criminal, Coordinación Cancún.
+
+PERITOS DESIGNADOS:
+- Ing. Nadia Fernanda Escalante Ríos — Informática forense, cédula 9910442.
+- Mtro. Julio César Arroyo Peniche — Documentoscopía y grafoscopía, cédula 7723910.
+
+JUEZ DE CONTROL: Lic. Marisol Cetina Bautista, Juzgado de Control del Distrito Judicial
+de Cancún, Sistema Penal Acusatorio y Oral.
+
+FECHA DE INICIO: 15 de marzo de 2026.
+ESTADO PROCESAL A LA FECHA DE INTEGRACIÓN DE ESTA CARÁTULA: detención ejecutada el
+24 de marzo de 2026; impugnación constitucional en trámite (JF-QROO-AI-2026-00421).
+
+NÚMERO TOTAL DE REGISTROS EN LA CARPETA: 15 actuaciones (ver índice, documento 01).

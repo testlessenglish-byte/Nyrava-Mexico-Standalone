@@ -1,0 +1,142 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+DEMANDA DE AMPARO INDIRECTO
+Expediente asignado: JF-QROO-AI-2026-00421
+Presentada el 25 de marzo de 2026 ante la Oficialía de Partes Común de los Juzgados de
+Distrito en el Estado de Quintana Roo (folio OPC-4471/2026).
+
+C. JUEZ DE DISTRITO EN TURNO EN EL ESTADO DE QUINTANA ROO
+P R E S E N T E
+
+ANDRÉS IVÁN PERAZA MANZANILLA, por propio derecho, señalando como domicilio para oír y
+recibir notificaciones el ubicado en Av. Tulum 190, despacho 7, SM 4, Cancún, Quintana Roo, y
+autorizando en términos del art. 12 de la Ley de Amparo a los licenciados Ximena Berenice
+Toledo Aguilar e Iker Salomón Domínguez Rejón, comparezco a solicitar el amparo y protección
+de la Justicia Federal, con fundamento en los arts. 103, fracción I, y 107 de la Constitución
+Política de los Estados Unidos Mexicanos y 1, fracción I, 107, fracción IV, y 108 de la Ley
+de Amparo, conforme a lo siguiente:
+
+I. NOMBRE Y DOMICILIO DEL QUEJOSO
+El señalado en el proemio; actualmente privado de la libertad en el Centro de Reinserción
+Social de Cancún por virtud de la medida cautelar impuesta en la carpeta judicial CJ-214/2026.
+
+II. TERCERO INTERESADO
+Marina Puerto Azul, S. de R.L. de C.V., con domicilio en Blvd. Kukulcán km 4.5, local 12, Zona
+Hotelera, Cancún, Quintana Roo.
+
+III. AUTORIDADES RESPONSABLES
+a) Juez de Control del Distrito Judicial de Cancún (ordenadora).
+b) Agente del Ministerio Público de la UIDFD Zona Norte de la Fiscalía General del Estado de
+   Quintana Roo (ejecutora).
+c) Policía Tercero Óscar Damián Balam Tuz, Agencia de Investigación Criminal (ejecutora).
+d) Encargado del Almacén de Evidencia de la Coordinación Cancún (ejecutora).
+
+IV. ACTO RECLAMADO
+1. La ejecución material, el 19 de marzo de 2026 entre las 11:20 y las 12:05 horas, de un acto
+   de molestia consistente en el ingreso al domicilio particular del quejoso, sito en Calle
+   Nichupté 214, SM 27, Mz 12, Lt 5, Cancún, Quintana Roo, y el aseguramiento en dicho lugar
+   de los indicios IND-05 (carpeta verde con 118 fojas) e IND-06 (memoria USB de 32 GB), sin
+   que exista mandamiento escrito de autoridad judicial que autorice ese domicilio.
+2. La adquisición forense y generación de valores hash de los indicios IND-01 e IND-03 en
+   condiciones que rompen la mismidad del indicio, según se desprende de la contradicción
+   entre la bitácora BED-1120-2026 y el registro de cadena de custodia RCC-1120-2026.
+3. La manipulación del indicio IND-02 (teléfono celular) con fines de extracción de datos, el
+   20 de marzo de 2026, sin autorización judicial específica.
+4. La incorporación, conservación y utilización de ese material en la carpeta de investigación
+   CI-FGE-QR/BJ/UIDFD/1120/2026 y su empleo como sustento de la orden de aprehensión librada
+   el 23 de marzo de 2026 y del auto de vinculación a proceso pendiente de dictarse.
+
+V. FECHA DE CONOCIMIENTO DE LOS ACTOS
+El quejoso conoció el contenido íntegro del inventario de evidencia, del registro de cadena de
+custodia y de la bitácora de adquisición digital el 24 de marzo de 2026, al recibir su defensa
+copia digital de la carpeta de investigación. La demanda es oportuna conforme al art. 17 de la
+Ley de Amparo.
+
+VI. ANTECEDENTES (bajo protesta de decir verdad)
+1. El 12 de marzo de 2026 se recibió una denuncia anónima (folio 089-QR-2026-33194).
+2. El 15 de marzo de 2026 se inició la carpeta CI-FGE-QR/BJ/UIDFD/1120/2026.
+3. El 18 de marzo de 2026 el Ministerio Público solicitó orden de cateo respecto de un único
+   inmueble: la oficina 402, piso 4, de Av. Bonampak 622, SM 4-A, Cancún.
+4. Ese mismo día la Juez de Control concedió la orden en la carpeta CJ-214/2026, precisando en
+   su considerando cuarto y en el resolutivo primero que la autorización se circunscribe a ese
+   espacio comercial y que "no se autoriza el ingreso a domicilio particular, casa habitación,
+   vehículo ni espacio distinto".
+5. El 19 de marzo de 2026 se ejecutó el cateo. El acta circunstanciada, el Informe Policial
+   Homologado IPH-QR-BJ-2026-00871 y el inventario de evidencia coinciden en que, siendo
+   aproximadamente las 11:20 horas, un elemento se trasladó al domicilio particular del
+   quejoso y recabó ahí los indicios IND-05 e IND-06.
+6. El policía responsable reconoció expresamente, en declaración de 23 de marzo de 2026, que
+   la orden judicial no comprendía ese domicilio, que no solicitó autorización complementaria
+   y que no recabó consentimiento por escrito.
+7. La bitácora BED-1120-2026 asienta que la adquisición forense de IND-01 inició a las
+   06:58:12 y la de IND-03 a las 07:03:55 del 19 de marzo, esto es, antes del ingreso al
+   inmueble (07:41 según el dictamen DP-VID-0077/2026; 08:05 según el acta) y más de siete
+   horas antes de la recepción de los indicios en el almacén (14:20 y 14:24 horas).
+8. El 24 de marzo de 2026 el quejoso fue detenido en cumplimiento de orden de aprehensión.
+
+VII. PRECEPTOS VIOLADOS
+Arts. 14, 16 —en especial su párrafo once—, 20 apartado A fracción IX y apartado B fracciones
+I y VIII, y 22 de la Constitución Federal; arts. 8.1, 8.2 y 11.2 de la Convención Americana
+sobre Derechos Humanos; arts. 97, 227, 228, 263, 264 y 282 del Código Nacional de
+Procedimientos Penales.
+
+VIII. CONCEPTOS DE VIOLACIÓN
+
+PRIMERO. Violación al derecho a la inviolabilidad del domicilio (art. 16, párrafo once,
+constitucional). El cateo es una excepción a la inviolabilidad del domicilio y, por ello, de
+interpretación estricta: solo puede practicarse en virtud de orden judicial escrita que exprese
+el lugar que ha de inspeccionarse. La orden CJ-214/2026 identificó un único lugar —oficina 402
+de Av. Bonampak 622— y excluyó expresamente los domicilios particulares. El ingreso a Calle
+Nichupté 214 constituye, por tanto, un acto de molestia carente por completo de fundamento y,
+más aún, un acto materialmente inexistente en el mundo jurídico por no estar amparado en
+mandamiento alguno. No se actualizó flagrancia, ni consentimiento válido, ni urgencia
+acreditada; la "instrucción por radio" que invoca el policía no consta en registro alguno y no
+puede sustituir a la autorización judicial.
+
+SEGUNDO. Ilicitud de la prueba y su efecto reflejo (arts. 20, apartado A, fracción IX,
+constitucional y 263 y 264 del CNPP). Cualquier prueba obtenida con violación de derechos
+fundamentales es nula. Los indicios IND-05 e IND-06 provienen directamente del acto
+inconstitucional. A su vez, la conclusión tercera del dictamen DP-DOC-0189/2026 —autoría
+gráfica del quejoso— se apoya exclusivamente en fojas del indicio IND-05, de modo que
+constituye prueba derivada sin fuente independiente, atenuación ni descubrimiento inevitable.
+
+TERCERO. Ruptura de la cadena de custodia (arts. 227 y 228 del CNPP y art. 16 constitucional).
+El expediente contiene dos versiones incompatibles sobre el momento de generación de las
+imágenes forenses: la bitácora del laboratorio las sitúa antes del ingreso al inmueble y el
+registro de cadena de custodia las sitúa en el almacén, a las 14:20 horas. Una de las dos
+versiones es necesariamente falsa. En ambos escenarios se destruye la certeza sobre la
+mismidad e integridad del indicio, lo que impide asignarle valor probatorio.
+
+CUARTO. Injerencia en comunicaciones privadas sin control judicial (arts. 16, párrafos
+decimosegundo y decimotercero, constitucional y 11.2 de la Convención Americana). La
+manipulación del indicio IND-02 con propósito de extracción, aun infructuosa, constituye una
+injerencia que requería autorización judicial previa y específica, la cual no existió.
+
+QUINTO. Falta de fundamentación y motivación del registro de la diligencia (art. 16
+constitucional). El acta de cateo y el Informe Policial Homologado consignan hora de ingreso
+(08:05) desmentida por el dictamen de videovigilancia DP-VID-0077/2026 (07:41:18) y por la
+testigo de asistencia (07:20). La falta de fidelidad del registro impide al quejoso conocer
+con certeza las circunstancias del acto de molestia y ejercer su defensa.
+
+IX. SUSPENSIÓN
+Por escrito por separado se solicita la suspensión provisional y definitiva del acto reclamado,
+en términos de los arts. 125, 126, 128, 138 y 147 de la Ley de Amparo, para el efecto de que
+las autoridades responsables se abstengan de utilizar, procesar, difundir o transferir el
+material señalado, y de que se conserven íntegros los indicios y sus registros.
+
+X. PRUEBAS
+1. Documental pública: copia certificada de la carpeta CI-FGE-QR/BJ/UIDFD/1120/2026.
+2. Documental pública: copia certificada de la orden CJ-214/2026.
+3. Documental pública: acta de cateo, inventario, RCC-1120-2026 y BED-1120-2026.
+4. Documental pública: dictámenes DP-INF-0442/2026, DP-DOC-0189/2026 y DP-VID-0077/2026.
+5. Instrumental de actuaciones y presuncional legal y humana.
+
+P E T I T O R I O S
+PRIMERO. Tenerme por presentada la demanda de amparo indirecto en los términos expuestos.
+SEGUNDO. Conceder la suspensión provisional y, en su oportunidad, la definitiva.
+TERCERO. Requerir a las autoridades responsables sus informes previos y justificados.
+CUARTO. En su momento, conceder el amparo y protección de la Justicia Federal.
+
+Protesto lo necesario.
+Andrés Iván Peraza Manzanilla
+Cancún, Quintana Roo, 25 de marzo de 2026.

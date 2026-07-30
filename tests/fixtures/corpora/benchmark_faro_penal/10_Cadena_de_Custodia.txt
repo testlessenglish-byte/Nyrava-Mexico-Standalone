@@ -1,0 +1,48 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+REGISTRO DE CADENA DE CUSTODIA
+Formato RCC-1120-2026 (arts. 227 y 228 del Código Nacional de Procedimientos Penales)
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+
+SECCIÓN A — INDICIO IND-01 (Computadora portátil Dell Latitude 5440, s/n 8FJ2K33)
+Eslabón 1 | 19/03/2026 09:12 | Recolección y embalaje en bolsa antiestática, sello SS-77121 | Ing. Nadia Fernanda Escalante Ríos | Lugar: oficina 402, Av. Bonampak 622.
+Eslabón 2 | 19/03/2026 13:05 | Traslado en vehículo AIC-118 al Almacén de Evidencia | Pol. 3° Óscar Damián Balam Tuz.
+Eslabón 3 | 19/03/2026 14:20 | Recepción en Almacén de Evidencia, Av. Náder 92, SM 3 | C. José Armando Puc Lizama. Sello íntegro. Se registra que en este acto se practicó la obtención de la imagen forense y se generó el valor hash del dispositivo.
+Eslabón 4 | 20/03/2026 09:05 | Entrega al Laboratorio de Informática Forense para análisis | Ing. Nadia Fernanda Escalante Ríos.
+Eslabón 5 | 21/03/2026 18:40 | Reingreso al Almacén de Evidencia con sello de reemplazo SS-78004 | C. José Armando Puc Lizama.
+
+SECCIÓN B — INDICIO IND-02 (Teléfono Apple iPhone 13, IMEI 356938035643809)
+Eslabón 1 | 19/03/2026 09:24 | Recolección, apagado y embalaje con sello SS-77122 | Ing. Nadia F. Escalante Ríos.
+Eslabón 2 | 19/03/2026 13:05 | Traslado al Almacén de Evidencia | Pol. 3° Óscar Damián Balam Tuz.
+Eslabón 3 | 19/03/2026 14:22 | Recepción en almacén | C. José Armando Puc Lizama.
+Eslabón 4 | 20/03/2026 09:05 | Entrega a laboratorio; extracción lógica pendiente de autorización judicial | Ing. Nadia F. Escalante Ríos.
+
+SECCIÓN C — INDICIO IND-03 (Disco duro externo Seagate 2 TB, s/n NA8H7Q21)
+Eslabón 1 | 19/03/2026 09:41 | Recolección y embalaje, sello SS-77123 | Ing. Nadia F. Escalante Ríos.
+Eslabón 2 | 19/03/2026 13:05 | Traslado al Almacén de Evidencia | Pol. 3° Óscar Damián Balam Tuz.
+Eslabón 3 | 19/03/2026 14:24 | Recepción en almacén; obtención de imagen forense y generación de hash | C. José Armando Puc Lizama.
+Eslabón 4 | 20/03/2026 09:05 | Entrega a laboratorio | Ing. Nadia F. Escalante Ríos.
+
+SECCIÓN D — INDICIO IND-04 (Cuatro carpetas contables, 612 fojas, y tres sellos de goma)
+Eslabón 1 | 19/03/2026 10:07 | Recolección y embalaje en caja de cartón sellada, folio SS-77124 | Pol. 2° Rebeca I. Chan Yam.
+Eslabón 2 | 19/03/2026 13:05 | Traslado al Almacén de Evidencia | Pol. 3° Óscar Damián Balam Tuz.
+Eslabón 3 | 19/03/2026 14:30 | Recepción en almacén | C. José Armando Puc Lizama.
+Eslabón 4 | 20/03/2026 10:15 | Entrega al Laboratorio de Documentoscopía | Mtro. Julio César Arroyo Peniche.
+
+SECCIÓN E — INDICIO IND-05 (Carpeta verde "FARO — PERSONAL", 118 fojas)
+Eslabón 1 | 19/03/2026 11:47 | Recolección en Calle Nichupté 214, SM 27 | Pol. 3° Marco A. Zetina Loría. Observación del responsable de almacén: "no se acompaña copia de orden judicial que ampare el lugar de recolección".
+Eslabón 2 | 19/03/2026 13:05 | Traslado al Almacén de Evidencia | Pol. 3° Óscar Damián Balam Tuz.
+Eslabón 3 | 19/03/2026 14:35 | Recepción en almacén, con la observación anterior | C. José Armando Puc Lizama.
+
+SECCIÓN F — INDICIO IND-06 (Memoria USB Kingston 32 GB, roja)
+Eslabón 1 | 19/03/2026 11:52 | Recolección en Calle Nichupté 214, SM 27; embalaje con sello SS-77126 | Pol. 3° Marco A. Zetina Loría.
+Eslabón 2 | 19/03/2026 13:05 | Traslado al Almacén de Evidencia | Pol. 3° Óscar Damián Balam Tuz.
+Eslabón 3 | 19/03/2026 14:36 | Recepción en almacén | C. José Armando Puc Lizama.
+Eslabón 4 | 20/03/2026 09:05 | Entrega al Laboratorio de Informática Forense | Ing. Nadia F. Escalante Ríos.
+
+NOTA DEL RESPONSABLE DE ALMACÉN:
+Conforme a este registro, ninguna imagen forense ni valor hash pudo generarse antes de la
+recepción de los indicios en el almacén, esto es, antes de las 14:20 horas del 19 de marzo de
+2026, por no contarse antes con estación de trabajo forense en el lugar de la diligencia.
+
+C. José Armando Puc Lizama — Responsable del Almacén de Evidencia, Coordinación Cancún.

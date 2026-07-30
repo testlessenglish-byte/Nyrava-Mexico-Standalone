@@ -1,0 +1,49 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+FISCALÍA GENERAL DEL ESTADO DE QUINTANA ROO
+REGISTRO DE ENTREVISTA A TESTIGO — TESTIGO "B"
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Fecha: 22 de marzo de 2026, 13:20 horas. Lugar: sede de la UIDFD, Av. Náder 92, Cancún.
+Entrevistador: Lic. Héctor Manuel Cauich Sansores, Agente del Ministerio Público.
+Registro en audio: AUD-ENT-B-1120.wav.
+
+DATOS DEL TESTIGO
+Gerardo Antonio Ruvalcaba Núñez, 51 años, contador público con cédula 4482017, socio del
+despacho "Contable Caribe, S.C.", con domicilio en Av. Yaxchilán 45, despacho 3, SM 22,
+Cancún, Q. Roo. Presta servicios externos a Faro Náutico del Caribe, S.A. de C.V. desde marzo
+de 2023. Se identifica con cédula profesional. Protestado en términos de ley.
+
+DECLARACIÓN
+"Llevo la contabilidad externa de Faro Náutico del Caribe. El único con firma autorizada en
+las cuentas es el señor Andrés Peraza; el administrador único, el señor Bernardo Kuri Elías,
+reside en la Ciudad de México y prácticamente no interviene en la operación diaria.
+
+En la cuenta 0142 8000 1194 7723 08 de la empresa ingresaron tres depósitos de Marina Puerto
+Azul: cuatro millones el 20 de agosto de 2025, tres millones doscientos cincuenta mil el 30
+de octubre de 2025 y dos millones el 12 de diciembre de 2025. De esos recursos, alrededor de
+seis millones ochocientos mil pesos se transfirieron entre septiembre de 2025 y enero de 2026
+a una sociedad llamada 'Servicios Integrales Nayán, S.A. de C.V.', que factura por 'asesoría
+en proyectos'. Yo pedí los entregables de esa asesoría y nunca me los dieron.
+
+En diciembre de 2025 el señor Peraza me pidió reexpedir tres CFDI con conceptos distintos.
+Me negué y se lo hice saber por correo el 15 de diciembre de 2025.
+
+Respecto del 19 de marzo de 2026: yo llegué a la oficina como a las ocho y cuarto y los
+policías ya estaban dentro trabajando. Me pidieron firmar como testigo de asistencia y
+acepté. Al principio conté cinco policías uniformados o con chaleco. Vi cuando cerca de las
+once y media uno de ellos salió y regresó pasado el mediodía con una carpeta verde y una
+memoria USB roja; escuché que dijo que venía 'de la casa del licenciado'.
+
+Nunca vi el resolutivo ambiental ni el título de concesión originales. El señor Peraza los
+manejaba directamente y solo circulaban en PDF."
+
+DOCUMENTOS QUE APORTA
+1. Impresión del correo de 15 de diciembre de 2025 (negativa a reexpedir CFDI), 2 fojas.
+2. Estado de cuenta bancario del periodo agosto 2025 - febrero 2026, 34 fojas.
+3. Relación de transferencias a Servicios Integrales Nayán, S.A. de C.V., 4 fojas.
+
+Se le hace saber su calidad de testigo y el deber de comparecer cuando sea citado. Previa
+lectura, ratifica y firma.
+
+Gerardo Antonio Ruvalcaba Núñez — Testigo
+Lic. Héctor Manuel Cauich Sansores — Agente del Ministerio Público
