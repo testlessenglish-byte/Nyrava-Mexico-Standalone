@@ -1897,7 +1897,12 @@ function packChunks(chunks: CorpusChunk[], budget: number): CorpusChunk[][] {
         cur = [];
         curSize = 0;
       }
-      batches.push([c]);
+      // A single document larger than the budget used to be sent whole and
+      // only split AFTER a 413 came back. The router's pre-flight size gate
+      // skips the narrow provider instead of returning a 413, so that split
+      // never fired and the batch silently overshot the provider budget.
+      // Split it up front instead.
+      for (const piece of splitToBudget(c, budget)) batches.push([piece]);
       continue;
     }
     if (curSize + c.size > budget && cur.length) {
@@ -1910,6 +1915,14 @@ function packChunks(chunks: CorpusChunk[], budget: number): CorpusChunk[][] {
   }
   if (cur.length) batches.push(cur);
   return batches;
+}
+
+/** Recursively halve an oversize document until every piece fits `budget`. */
+function splitToBudget(c: CorpusChunk, budget: number): CorpusChunk[] {
+  if (c.size <= Math.max(budget, ANALYZER_MIN_BATCH_CHARS)) return [c];
+  const halves = splitOversizeChunk(c);
+  if (halves.length < 2) return [c];
+  return halves.flatMap((h) => splitToBudget(h, budget));
 }
 
 function splitOversizeChunk(c: CorpusChunk): CorpusChunk[] {
