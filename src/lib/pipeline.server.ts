@@ -1919,8 +1919,11 @@ function packChunks(chunks: CorpusChunk[], budget: number): CorpusChunk[][] {
 
 /** Recursively halve an oversize document until every piece fits `budget`. */
 function splitToBudget(c: CorpusChunk, budget: number): CorpusChunk[] {
-  if (c.size <= Math.max(budget, ANALYZER_MIN_BATCH_CHARS)) return [c];
-  const halves = splitOversizeChunk(c);
+  // Floor is deliberately below ANALYZER_MIN_BATCH_CHARS: that constant guards
+  // the reactive 413 path, but here the budget already reflects the narrowest
+  // provider and must win, otherwise the piece still overshoots.
+  if (c.size <= Math.max(budget, 1_500)) return [c];
+  const halves = splitOversizeChunk(c, 1_500);
   if (halves.length < 2) return [c];
   return halves.flatMap((h) => splitToBudget(h, budget));
 }
