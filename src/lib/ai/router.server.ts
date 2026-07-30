@@ -150,6 +150,8 @@ function estimateInputTokens(opts: { systemInstruction?: string; userContent: un
       else chars += 1_500; // image part — rough fixed cost
     }
   return Math.ceil(chars / 3.5);
+}
+
 
 /**
  * Shrink a request so it fits a provider's input budget.
