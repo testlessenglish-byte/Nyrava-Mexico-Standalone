@@ -944,7 +944,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       continue;
     }
     const effectiveModel = effectiveModelFor(row);
-    const candidateCooldown = getProviderCooldown({
+    const rawCandidateCooldown = getProviderCooldown({
       provider: row.provider_type,
       model: effectiveModel,
       key: cooldownIdentityFor(row),
