@@ -43,6 +43,12 @@ export interface RouteOpts extends ChatOpts {
    * provider failed. Prevents infinite re-entry.
    */
   _compressedRetry?: boolean;
+  /**
+   * Internal: last-resort pass that ignores in-memory cooldowns entirely.
+   * Used when EVERY key was skipped as cooling down and waiting is not an
+   * option — a real 429 costs milliseconds, a stalled stage costs the run.
+   */
+  _ignoreCooldowns?: boolean;
 }
 
 export interface RouteResult extends ChatResult {
@@ -938,11 +944,12 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       continue;
     }
     const effectiveModel = effectiveModelFor(row);
-    const candidateCooldown = getProviderCooldown({
+    const rawCandidateCooldown = getProviderCooldown({
       provider: row.provider_type,
       model: effectiveModel,
       key: cooldownIdentityFor(row),
     });
+    const candidateCooldown = opts._ignoreCooldowns ? null : rawCandidateCooldown;
     if (candidateCooldown) {
       cooldownSkips.push({
         provider: row.provider_type,
@@ -1424,6 +1431,23 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         await new Promise((res) => setTimeout(res, waitMs));
         return routeAI({ ...opts, _cooldownWaits: waits + 1 });
       }
+    }
+    // Last resort: never fail a stage with ZERO real provider calls. Cooldowns
+    // are an optimisation, not a hard gate — the key may already be healthy
+    // (fresh key, different org, expired window). Run the chain once more
+    // ignoring cooldowns entirely and let the providers themselves answer.
+    if (!opts._ignoreCooldowns) {
+      traceAsync({
+        phase: "ai",
+        step: "router.cooldown_override",
+        status: "warn",
+        model: opts.model ?? null,
+        detail: {
+          reason: "zero_attempts_all_cooling",
+          cooldowns: cooldownSkips.slice(0, 8),
+        },
+      });
+      return routeAI({ ...opts, _ignoreCooldowns: true });
     }
     const retryText = soonestCooldownMs != null ? ` Retry after ${Math.ceil(soonestCooldownMs / 1000)}s.` : "";
     throw new Error(

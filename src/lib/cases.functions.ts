@@ -1277,6 +1277,17 @@ export const clearPipelineStuckState = createServerFn({ method: "POST" })
       })
       .eq("id", data.caseId);
     if (updateErr) throw new Error(updateErr.message);
+    // Clearing a stuck case must also clear the in-memory AI runtime state:
+    // provider cooldowns and cached credentials. Otherwise "Limpiar estado"
+    // looks like a no-op — the resume fails instantly with "all keys cooling
+    // down" even when brand-new keys were just added.
+    let clearedCooldowns = 0;
+    try {
+      const { resetAiRuntimeState } = await import("@/lib/ai/router.server");
+      ({ clearedCooldowns } = resetAiRuntimeState({ userId }));
+    } catch (e) {
+      console.warn("[clearPipelineStuckState] AI runtime reset failed", e);
+    }
     const { trace } = await import("@/lib/pipeline-trace.server");
     await trace({
       db: supabase,
@@ -1285,9 +1296,9 @@ export const clearPipelineStuckState = createServerFn({ method: "POST" })
       phase: "queue",
       step: "stuck_state.cleared",
       status: "ok",
-      detail: { resumeKey: resumeKey ?? null },
+      detail: { resumeKey: resumeKey ?? null, clearedCooldowns },
     });
-    return { ok: true, resumeKey: resumeKey ?? null };
+    return { ok: true, resumeKey: resumeKey ?? null, clearedCooldowns };
   });
 
 // -------- Case AI Chat --------
