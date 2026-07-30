@@ -182,6 +182,39 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
           });
         }
 
+        // Per-user concurrency ceiling. The CAS lease above only guarantees
+        // one run PER CASE; without this a single account could have the
+        // worker driving N cases at once and exhaust the shared provider
+        // quota. Over the cap we release the lease and leave the case queued
+        // so a later tick picks it up.
+        const { checkUserPipelineCapacity, releasePipelineLease } = await import(
+          "@/lib/pipeline-lease.server"
+        );
+        const capacity = await checkUserPipelineCapacity(
+          admin,
+          leased.user_id,
+          leased.id,
+          "pipeline-worker",
+        );
+        if (!capacity.ok) {
+          await releasePipelineLease(
+            admin,
+            leased.id,
+            "pipeline-worker",
+            `user_concurrency_limit ${capacity.active}/${capacity.limit}`,
+          );
+          await workerTracePersist(admin, leased.id, "worker.capacity_deferred", "warn", {
+            user_id: leased.user_id,
+            active_pipelines: capacity.active,
+            limit: capacity.limit,
+            reason: "user_concurrency_limit",
+          });
+          return new Response(
+            JSON.stringify({ ok: true, processed: 0, deferred: leased.id, reason: "user_concurrency_limit" }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+
         const reset = leased.next_stage === "reset";
         const startFrom = reset ? undefined : (leased.next_stage ?? undefined);
         try {
