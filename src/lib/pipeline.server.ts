@@ -380,15 +380,21 @@ async function _runPipelineForCase(
     scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
     jurisdiction_intel: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
-          const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
-          const value = await runJurisdictionIntelligence({ db: supabase, caseId });
-          return {
-            value,
-            stats: { generated: 1, accepted: 1, rows_written: 1, db_write_confirmed: true },
-          };
-        }),
+        withStageTimeout(
+          "jurisdiction_intel",
+          () =>
+            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
+              const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
+              const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+              return {
+                value,
+                stats: { generated: 1, accepted: 1, rows_written: 1, db_write_confirmed: true },
+              };
+            }),
+          { caseId, userId },
+        ),
     },
+
     procedural_compliance: {
       run: () =>
         persist.runCatalogedEngine(supabase, { caseId, userId, engine: "procedural_compliance" }, async () => {
