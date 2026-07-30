@@ -291,14 +291,44 @@ export const uploadVerificationDocument = createServerFn({ method: "POST" })
     if (linkErr) throw new Error(linkErr.message);
 
     // Extract text in the background so Nyrava Intelligence can read it.
+    // Lease-guarded: this is a real AI execution path, so it must not run
+    // while the full pipeline (or another stage) holds the case lease, and it
+    // counts against the user's concurrency ceiling. Upload still succeeds —
+    // extraction just defers to the next pipeline run.
     try {
-      const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
-      const { keys } = await resolveProviderKeys(supabase, userId, "groq");
-      if (keys.length > 0) {
-        const { runExtraction } = await import("@/lib/pipeline.server");
-        void runExtraction({ db: supabase, caseId, userId, apiKey: keys[0], apiKeys: keys }).catch(
-          (e) => console.error("[verification] background extraction failed", e),
+      const { getActiveCaseLease, checkUserPipelineCapacity } = await import(
+        "@/lib/pipeline-lease.server"
+      );
+      const leaseUntil = await getActiveCaseLease(supabase, caseId);
+      const capacity = await checkUserPipelineCapacity(
+        supabase,
+        userId,
+        caseId,
+        "uploadVerificationDocument",
+      );
+      if (leaseUntil || !capacity.ok) {
+        console.warn(
+          `[lease] ${JSON.stringify({
+            event: "blocked",
+            path: "uploadVerificationDocument:extraction",
+            case_id: caseId,
+            user_id: userId,
+            lease_until: leaseUntil,
+            active_pipelines: capacity.active,
+            limit: capacity.limit,
+            reason: leaseUntil ? "case_lease_active" : "user_concurrency_limit",
+          })}`,
         );
+      } else {
+        const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
+        const { keys } = await resolveProviderKeys(supabase, userId, "groq");
+        if (keys.length > 0) {
+          const { withAIUser } = await import("@/lib/ai/user-scope.server");
+          const { runExtraction } = await import("@/lib/pipeline.server");
+          void withAIUser(userId, () =>
+            runExtraction({ db: supabase, caseId, userId, apiKey: keys[0], apiKeys: keys }),
+          ).catch((e) => console.error("[verification] background extraction failed", e));
+        }
       }
     } catch (e) {
       console.error("[verification] could not start extraction", e);

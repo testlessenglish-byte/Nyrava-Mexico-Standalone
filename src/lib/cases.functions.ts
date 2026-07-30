@@ -265,8 +265,8 @@ async function runLabeledStep({
   const { assertCaseNotLeased, assertUserPipelineCapacity } = await import(
     "@/lib/pipeline-lease.server"
   );
-  await assertCaseNotLeased(supabase, caseId, label);
-  await assertUserPipelineCapacity(supabase, userId, caseId);
+  await assertCaseNotLeased(supabase, caseId, `step:${label}`, userId);
+  await assertUserPipelineCapacity(supabase, userId, caseId, `step:${label}`);
   const stage = LABEL_TO_STAGE[label] ?? null;
   const prog = await import("@/lib/intelligence/progress.server");
   if (stage) {
@@ -583,7 +583,7 @@ export const runFullIntelligenceStep = createServerFn({ method: "POST" })
     const { claimPipelineLease, assertUserPipelineCapacity } = await import(
       "@/lib/pipeline-lease.server"
     );
-    await assertUserPipelineCapacity(supabase, userId, data.caseId);
+    await assertUserPipelineCapacity(supabase, userId, data.caseId, "runFullIntelligenceStep");
     const claim = await claimPipelineLease(supabase, data.caseId);
     if (!claim.claimed) return { ok: false, queued: false, ...claim };
     const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
@@ -733,7 +733,7 @@ export const runFullPipelineStep = createServerFn({ method: "POST" })
     const { claimPipelineLease, assertUserPipelineCapacity } = await import(
       "@/lib/pipeline-lease.server"
     );
-    await assertUserPipelineCapacity(supabase, userId, data.caseId);
+    await assertUserPipelineCapacity(supabase, userId, data.caseId, "runFullPipelineStep");
     const claim = await claimPipelineLease(supabase, data.caseId, { reset: data.reset });
     if (!claim.claimed) return { ok: false, queued: false, ...claim };
     const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
@@ -984,6 +984,12 @@ export const driveCasePipelineTick = createServerFn({ method: "POST" })
       // active lease on this case — don't double-run, just report status.
       return { done: false as const, status: row.status as string, ran: false };
     }
+
+    // Per-user concurrency ceiling applies to this browser-driven tick too.
+    const { assertUserPipelineCapacity: assertCapacityTick } = await import(
+      "@/lib/pipeline-lease.server"
+    );
+    await assertCapacityTick(supabase, userId, data.caseId, "driveCaseTick");
 
     // Claim a short lease via CAS so a concurrent tick/tab can't grab the
     // same case out from under us. runPipelineForCase extends this lease
