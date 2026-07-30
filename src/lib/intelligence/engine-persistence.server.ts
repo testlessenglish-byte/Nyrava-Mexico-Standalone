@@ -26,6 +26,7 @@ import { withTelemetryScope, summarizeScope } from "../ai/telemetry.server";
 import { snapshotCorpus } from "./corpus-snapshot.server";
 import { engineVersion } from "./engine-fingerprint";
 import { trace, traceAsync } from "../pipeline-trace.server";
+import { projectCaseFindings, PROJECTABLE_TABLES } from "./project-findings.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -304,6 +305,38 @@ export async function runVerifiedEngine<T>(
         report;
       (err as unknown as { telemetry?: unknown }).telemetry = telemetry;
       throw err;
+    }
+
+    // Phase 2: mirror specialized-table output into case_findings so the
+    // aggregation layer can see it. ONE batched call per engine execution.
+    // Additive and non-fatal — projected rows use the `projection:` source
+    // class, which no pre-existing counter selects, and a failure here must
+    // never fail an engine whose real output is already persisted.
+    const projectable = report.tables
+      .map((t) => t.name)
+      .filter((t) => PROJECTABLE_TABLES.includes(t));
+    if (projectable.length > 0) {
+      const projection = await projectCaseFindings(db, {
+        caseId: args.caseId,
+        tables: projectable,
+      });
+      traceAsync({
+        phase: "db",
+        step: `${args.engine}.findings_projected`,
+        status: projection.disabled ? "info" : projection.ok ? "ok" : "warn",
+        error: projection.error ?? null,
+        detail: {
+          flag: "FINDINGS_PROJECTION_ENABLED",
+          enabled: !projection.disabled,
+          eligible_tables: projectable,
+          tables: projection.tables,
+          candidates: projection.candidates,
+          rows_upserted: projection.written,
+        },
+        db,
+        caseId: args.caseId,
+        userId: args.userId,
+      });
     }
 
     traceAsync({

@@ -1,0 +1,1 @@
+DELETE FROM public.case_findings WHERE source_module LIKE 'projection:%';

@@ -7,6 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
+import { selectFindings } from "@/lib/intelligence/finding-selection";
 
 // Single source of truth for valid case_type values — derived from
 // PRACTICE_AREA_LABELS (practice-areas.ts) instead of hand-copied literal
@@ -2133,9 +2134,16 @@ export const listCases = createServerFn({ method: "GET" })
     ]);
 
     const reportByCase = new Map((reportsRes.data ?? []).map((r) => [r.case_id, r]));
+    // Phase 1: the high-priority rule goes through the unified selector so
+    // this badge and the report/scorecard can never disagree on what counts.
+    // Options reproduce the previous inline filter exactly (every source
+    // class, provisional included, critical|high only).
     const highPriorityByCase = new Map<string, number>();
-    for (const f of findingsRes.data ?? []) {
-      if (f.severity !== "critical" && f.severity !== "high") continue;
+    for (const f of selectFindings(findingsRes.data ?? [], {
+      include: ["engine", "agent", "analyzer", "other"],
+      includeProvisional: true,
+      severities: ["critical", "high"],
+    })) {
       highPriorityByCase.set(f.case_id, (highPriorityByCase.get(f.case_id) ?? 0) + 1);
     }
     const witnessCountByCase = new Map<string, number>();

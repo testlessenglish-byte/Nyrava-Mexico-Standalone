@@ -337,7 +337,14 @@ export async function buildAgentStatistics(
   if (opts.runId) logsQuery = logsQuery.eq("run_id", opts.runId);
   const [{ data: logs }, { count: visibleFindings }] = await Promise.all([
     logsQuery.order("created_at", { ascending: false }),
-    db.from("case_findings").select("id", { count: "exact", head: true }).eq("case_id", caseId),
+    // Phase 2: `projection:*` rows are mirrored copies of specialized-table
+    // output, not agent output. Excluded so this counter reads exactly as it
+    // did before projection existed.
+    db
+      .from("case_findings")
+      .select("id", { count: "exact", head: true })
+      .eq("case_id", caseId)
+      .not("source_module", "like", "projection:%"),
   ]);
   const latestLog = new Map<string, Record<string, unknown>>();
   for (const row of logs ?? []) {
