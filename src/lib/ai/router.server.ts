@@ -581,11 +581,11 @@ export async function packingCharBudget(ceilingChars: number): Promise<number> {
   const rows = await loadProviderRows();
   let narrowest = Infinity;
   for (const r of rows) {
-    // Reserve room for the non-corpus parts of engine prompts (Mexico-lock
-    // system prompt, JSON schema instructions, agent role text). Without this,
-    // a "5.5k-token" corpus batch becomes a 6k+ total request and Groq is still
-    // skipped/rejected even though the packer appeared to target its budget.
-    narrowest = Math.min(narrowest, providerInputBudget(r.provider_type) * 3.5 - 10_000);
+    // Reserve both provider completion tokens and non-corpus prompt overhead
+    // (Mexico-lock system prompt, JSON schema instructions, agent role text).
+    // Groq enforces the 8k free-tier ceiling against prompt + reserved output;
+    // packing only to prompt tokens still produced 413s around 8.2k-13.5k.
+    narrowest = Math.min(narrowest, providerAvailableInputBudget(r.provider_type, { json: true }) * 3.5 - 8_000);
   }
   if (!Number.isFinite(narrowest)) return ceilingChars;
   return Math.max(MIN_PACKING_CHARS, Math.min(ceilingChars, Math.floor(narrowest)));
@@ -774,7 +774,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   // cannot accept it, instead of learning that from a guaranteed rejection.
   // ---------------------------------------------------------------------
   const estimatedInputTokens = estimateInputTokens(opts);
-  const sizeEligible = chain.map((r) => estimatedInputTokens <= providerInputBudget(r.provider_type));
+  const sizeEligible = chain.map((r) => estimatedInputTokens <= providerAvailableInputBudget(r.provider_type, opts));
   const anySizeEligible = sizeEligible.some(Boolean);
 
   let realAttempts = 0;
@@ -798,7 +798,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       );
       if (fullSizeAlternative) {
         preAttemptSkips.push(
-          `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerInputBudget(row.provider_type)} token provider budget`,
+          `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerAvailableInputBudget(row.provider_type, opts)} token provider input budget after output reservation`,
         );
         traceAsync({
           phase: "ai",
@@ -809,12 +809,13 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           detail: {
             reason: "payload_exceeds_provider_limit",
             estimated_input_tokens: estimatedInputTokens,
-            provider_input_budget: providerInputBudget(row.provider_type),
+              provider_input_budget: providerAvailableInputBudget(row.provider_type, opts),
+              reserved_output_tokens: reservedOutputTokens(opts, row.provider_type),
           },
         });
         continue;
       }
-      const budget = providerInputBudget(row.provider_type);
+      const budget = providerAvailableInputBudget(row.provider_type, opts);
       rowOpts = fitOptsToBudget(opts, budget);
       traceAsync({
         phase: "ai",
@@ -826,6 +827,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           reason: "no_full_size_provider_available",
           estimated_input_tokens: estimatedInputTokens,
           provider_input_budget: budget,
+          reserved_output_tokens: reservedOutputTokens(opts, row.provider_type),
           compressed_input_tokens: estimateInputTokens(rowOpts),
         },
       });
