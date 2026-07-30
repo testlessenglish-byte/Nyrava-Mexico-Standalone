@@ -143,6 +143,7 @@ const ES: Record<string, string> = {
   "Cross-domain (activated)": "Materia cruzada (activada)",
   Enabled: "Habilitado",
   Generated: "Generado",
+  Engine: "Motor",
   Skipped: "Omitido",
   "Skipped — Not applicable to selected case type":
     "Omitido — No aplicable a la materia seleccionada",
