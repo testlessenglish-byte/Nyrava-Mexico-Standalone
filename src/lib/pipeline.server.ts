@@ -1928,8 +1928,8 @@ function splitToBudget(c: CorpusChunk, budget: number): CorpusChunk[] {
   return halves.flatMap((h) => splitToBudget(h, budget));
 }
 
-function splitOversizeChunk(c: CorpusChunk): CorpusChunk[] {
-  if (c.size <= ANALYZER_MIN_BATCH_CHARS) return [c];
+function splitOversizeChunk(c: CorpusChunk, minChars = ANALYZER_MIN_BATCH_CHARS): CorpusChunk[] {
+  if (c.size <= minChars) return [c];
   const mid = Math.floor(c.text.length / 2);
   const a = c.text.slice(0, mid);
   const b = `=== DOCUMENT ${c.index} (id=${c.docId}) [cont.]: ${c.filename} ===\n${c.text.slice(mid)}`;
