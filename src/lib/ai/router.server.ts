@@ -949,6 +949,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       model: effectiveModel,
       key: cooldownIdentityFor(row),
     });
+    const candidateCooldown = opts._ignoreCooldowns ? null : rawCandidateCooldown;
     if (candidateCooldown) {
       cooldownSkips.push({
         provider: row.provider_type,
