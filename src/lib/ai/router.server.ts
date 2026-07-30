@@ -150,7 +150,57 @@ function estimateInputTokens(opts: { systemInstruction?: string; userContent: un
       else chars += 1_500; // image part — rough fixed cost
     }
   return Math.ceil(chars / 3.5);
+
+/**
+ * Shrink a request so it fits a provider's input budget.
+ *
+ * Used as a last resort: when every provider that COULD take the full payload
+ * is on cooldown, a marginally-oversized prompt (e.g. 12.1k vs a 12k Groq
+ * budget) previously killed the whole stage. Trimming the middle of the user
+ * content keeps the instructions (head) and the most recent context (tail),
+ * which is far better than failing the run.
+ */
+function fitOptsToBudget<T extends { systemInstruction?: string; userContent: unknown }>(
+  opts: T,
+  budgetTokens: number,
+): T {
+  const CHARS_PER_TOKEN = 3.5;
+  const sysChars = (opts.systemInstruction ?? "").length;
+  // 5% safety margin so the estimate can't land right on the ceiling.
+  const allowedChars = Math.max(1_000, Math.floor(budgetTokens * CHARS_PER_TOKEN * 0.95) - sysChars);
+  const marker = "\n\n[…contenido intermedio omitido por límite del proveedor…]\n\n";
+
+  const trim = (text: string, limit: number): string => {
+    if (text.length <= limit) return text;
+    const keep = Math.max(200, limit - marker.length);
+    const head = Math.floor(keep * 0.6);
+    const tail = keep - head;
+    return text.slice(0, head) + marker + text.slice(text.length - tail);
+  };
+
+  const uc = opts.userContent;
+  if (typeof uc === "string") {
+    return { ...opts, userContent: trim(uc, allowedChars) };
+  }
+  if (Array.isArray(uc)) {
+    const textParts = uc.filter(
+      (p) => p && typeof p === "object" && "text" in p,
+    ) as { text?: string }[];
+    if (textParts.length === 0) return opts;
+    const perPart = Math.max(500, Math.floor(allowedChars / textParts.length));
+    return {
+      ...opts,
+      userContent: uc.map((p) =>
+        p && typeof p === "object" && "text" in p
+          ? { ...(p as object), text: trim(String((p as { text?: string }).text ?? ""), perPart) }
+          : p,
+      ),
+    };
+  }
+  return opts;
 }
+
+
 
 
 function bumpProvider(p: ProviderType) {
