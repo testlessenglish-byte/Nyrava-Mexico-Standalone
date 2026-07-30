@@ -23,8 +23,11 @@ import type { CaseAnalysis, Finding as CanonicalFinding } from "./case-analysis"
 
 type Db = SupabaseClient<Database>;
 
+// Every variant here must be genuinely emittable. `flag_disabled` was
+// deliberately removed: it is global env state, not a per-case exception, so
+// emitting it would write a trace row for every report in every flag-off
+// environment while telling you nothing you can't read off the env var.
 export type CanonicalFallbackReason =
-  | "flag_disabled"
   | "no_canonical_row"
   | "canonical_not_completed"
   | "empty_payload"
