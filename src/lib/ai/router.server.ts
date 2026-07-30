@@ -892,7 +892,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       // provider family, strip opts.model so that provider's default_model is
       // used instead of forwarding an unknown model name.
       const baseProviderOpts =
-        row.provider_type === "groq" ? opts : { ...opts, model: row.default_model ?? undefined };
+        row.provider_type === "groq"
+          ? rowOpts
+          : { ...rowOpts, model: row.default_model ?? undefined };
       // Retry-with-backoff only for transient transport/5xx failures. HTTP 429
       // never retries in-place: the outer cooldown/failover path must mark the
       // exact key/model unavailable immediately so a single logical AI call
