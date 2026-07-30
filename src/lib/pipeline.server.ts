@@ -2609,9 +2609,20 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
   },
 ];
 
-// Map agent.type → canonical engine name used by the dashboard.
+// Map agent.type → engine key persisted in pipeline_engine_runs.
+//
+// FIX (2026-07-30): `witness_credibility` used to persist as
+// "witness_intelligence" — the SAME engine key as the independent canonical
+// witness stage (execution/canonical.ts). Because STAGE_KEY_ALIASES maps that
+// engine to the `witness` stage, the nested agent's run row rendered in the
+// ledger as a top-level "Inteligencia de Testigos" stage executing during
+// "Agentes de Verificación", and on materias where the witness stage is
+// legally excluded (amparo, apelación, inmobiliario) it collided with that
+// stage's OMITIDO skip row — the case appeared to both skip and run witness
+// intelligence. The agent now owns a distinct namespaced key. The other three
+// agent engines are NOT canonical stages, so they never had this collision.
 const AGENT_ENGINE: Record<string, string> = {
-  witness_credibility: "witness_intelligence",
+  witness_credibility: "agent:witness_credibility",
   chain_of_custody: "chain_of_custody",
   constitutional_compliance: "constitutional_compliance",
   procedural_violations: "procedural_violations",
