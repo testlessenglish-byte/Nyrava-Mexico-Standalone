@@ -45,7 +45,24 @@ export async function runPipelineForCase(
       userId,
       correlationId: newCorrelationId(opts.caseId),
     },
-    () => withAIUser(userId, () => _runPipelineForCase(supabase, userId, opts)),
+    () =>
+      withAIUser(userId, async () => {
+        try {
+          return await _runPipelineForCase(supabase, userId, opts);
+        } catch (e) {
+          // Crash safety: an unexpected throw (stage timeout, provider
+          // failover exhaustion, DB error) must never leave the case holding
+          // its lease / concurrency slot until expiry.
+          const { releasePipelineLease } = await import("@/lib/pipeline-lease.server");
+          await releasePipelineLease(
+            supabase,
+            opts.caseId,
+            "runPipelineForCase",
+            e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+          );
+          throw e;
+        }
+      }),
   );
 }
 
