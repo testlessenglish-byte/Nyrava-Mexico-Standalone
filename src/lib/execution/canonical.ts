@@ -267,7 +267,11 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     engine: "legal_qa",
     dependsOn: ["scoring", "analyzers", "agents"],
     requirement: "blocking",
+    // Terminology remediation plus AI translation of English residue. Wide,
+    // but bounded: past 8 min the gate is stuck, not slow.
+    timeoutMs: 480_000,
   },
+
   {
     key: "report",
     label: "Generate Report",
