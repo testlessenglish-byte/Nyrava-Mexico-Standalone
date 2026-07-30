@@ -977,16 +977,20 @@ export type Database = {
       case_findings: {
         Row: {
           affected_party: string | null
+          authority_level: number
           canonical_finding_id: string | null
           case_id: string
           category: string
           category_key: string | null
+          citation_quality: number | null
           confidence: number
           created_at: string
           derived_from_finding_ids: string[]
           description: string
           evidence_refs: Json | null
+          evidence_strength: number | null
           evidence_type: string | null
+          finding_status: string
           finding_type: string | null
           id: string
           impact_direction: string | null
@@ -994,6 +998,8 @@ export type Database = {
           metadata: Json | null
           potential_impact: string | null
           priority: number | null
+          projected_from_row_id: string | null
+          projected_from_table: string | null
           related_finding_ids: string[] | null
           severity: string
           source_doc_ids: string[] | null
@@ -1002,6 +1008,7 @@ export type Database = {
           source_page: number | null
           source_quote: string | null
           strategic_significance: string | null
+          supporting_engines: string[]
           tags: string[] | null
           title: string
           updated_at: string
@@ -1012,16 +1019,20 @@ export type Database = {
         }
         Insert: {
           affected_party?: string | null
+          authority_level?: number
           canonical_finding_id?: string | null
           case_id: string
           category: string
           category_key?: string | null
+          citation_quality?: number | null
           confidence?: number
           created_at?: string
           derived_from_finding_ids?: string[]
           description: string
           evidence_refs?: Json | null
+          evidence_strength?: number | null
           evidence_type?: string | null
+          finding_status?: string
           finding_type?: string | null
           id?: string
           impact_direction?: string | null
@@ -1029,6 +1040,8 @@ export type Database = {
           metadata?: Json | null
           potential_impact?: string | null
           priority?: number | null
+          projected_from_row_id?: string | null
+          projected_from_table?: string | null
           related_finding_ids?: string[] | null
           severity?: string
           source_doc_ids?: string[] | null
@@ -1037,6 +1050,7 @@ export type Database = {
           source_page?: number | null
           source_quote?: string | null
           strategic_significance?: string | null
+          supporting_engines?: string[]
           tags?: string[] | null
           title: string
           updated_at?: string
@@ -1047,16 +1061,20 @@ export type Database = {
         }
         Update: {
           affected_party?: string | null
+          authority_level?: number
           canonical_finding_id?: string | null
           case_id?: string
           category?: string
           category_key?: string | null
+          citation_quality?: number | null
           confidence?: number
           created_at?: string
           derived_from_finding_ids?: string[]
           description?: string
           evidence_refs?: Json | null
+          evidence_strength?: number | null
           evidence_type?: string | null
+          finding_status?: string
           finding_type?: string | null
           id?: string
           impact_direction?: string | null
@@ -1064,6 +1082,8 @@ export type Database = {
           metadata?: Json | null
           potential_impact?: string | null
           priority?: number | null
+          projected_from_row_id?: string | null
+          projected_from_table?: string | null
           related_finding_ids?: string[] | null
           severity?: string
           source_doc_ids?: string[] | null
@@ -1072,6 +1092,7 @@ export type Database = {
           source_page?: number | null
           source_quote?: string | null
           strategic_significance?: string | null
+          supporting_engines?: string[]
           tags?: string[] | null
           title?: string
           updated_at?: string
@@ -4616,6 +4637,7 @@ export type Database = {
       }
       report_versions: {
         Row: {
+          canonical_version: number | null
           case_id: string
           change_log: Json | null
           contradiction_count: number | null
@@ -4630,6 +4652,7 @@ export type Database = {
           version: number
         }
         Insert: {
+          canonical_version?: number | null
           case_id: string
           change_log?: Json | null
           contradiction_count?: number | null
@@ -4644,6 +4667,7 @@ export type Database = {
           version: number
         }
         Update: {
+          canonical_version?: number | null
           case_id?: string
           change_log?: Json | null
           contradiction_count?: number | null
@@ -4672,6 +4696,7 @@ export type Database = {
           alternative_theory_report: string | null
           appendix_sources: string | null
           attorney_summary: string | null
+          canonical_version: number | null
           case_id: string
           case_overview: string | null
           case_strength_score: number | null
@@ -4724,6 +4749,7 @@ export type Database = {
           alternative_theory_report?: string | null
           appendix_sources?: string | null
           attorney_summary?: string | null
+          canonical_version?: number | null
           case_id: string
           case_overview?: string | null
           case_strength_score?: number | null
@@ -4776,6 +4802,7 @@ export type Database = {
           alternative_theory_report?: string | null
           appendix_sources?: string | null
           attorney_summary?: string | null
+          canonical_version?: number | null
           case_id?: string
           case_overview?: string | null
           case_strength_score?: number | null
@@ -5397,6 +5424,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["org_role"]
       }
       plan_seat_limit: { Args: { _plan: string }; Returns: number }
+      project_case_findings: {
+        Args: { p_case_id: string; p_rows: Json }
+        Returns: number
+      }
       resolve_firm_for_email: { Args: { _email: string }; Returns: string }
       same_firm: { Args: { _a: string; _b: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
