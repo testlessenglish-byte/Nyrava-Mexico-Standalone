@@ -167,6 +167,8 @@ export type ProjectionResult = {
   candidates: number;
   written: number;
   error?: string;
+  /** True when the rollout flag is off and nothing was written. */
+  disabled?: boolean;
 };
 
 /** Build payloads from already-fetched rows. Pure — used by the unit tests. */
