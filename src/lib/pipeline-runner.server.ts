@@ -353,32 +353,38 @@ async function _runPipelineForCase(
     // fuero/materia and the codes that govern the matter.
     jurisdiction_intel: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: "jurisdiction_intel" },
-          async () => {
-            const { runJurisdictionIntelligence } =
-              await import("@/lib/intelligence/jurisdiction-intel.server");
-            const value = await runJurisdictionIntelligence({ db: supabase, caseId });
-            return {
-              value,
-              stats: {
-                generated: 1,
-                accepted: 1,
-                rows_written: 1,
-                db_write_confirmed: true,
-                meta: {
-                  source: "deterministic",
-                  materia: value.materia,
-                  fuero: value.fuero,
-                  state: value.state?.name ?? null,
-                  state_source: value.state_source,
-                },
+        withStageTimeout(
+          "jurisdiction_intel",
+          () =>
+            persist.runCatalogedEngine(
+              supabase,
+              { caseId, userId, engine: "jurisdiction_intel" },
+              async () => {
+                const { runJurisdictionIntelligence } =
+                  await import("@/lib/intelligence/jurisdiction-intel.server");
+                const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+                return {
+                  value,
+                  stats: {
+                    generated: 1,
+                    accepted: 1,
+                    rows_written: 1,
+                    db_write_confirmed: true,
+                    meta: {
+                      source: "deterministic",
+                      materia: value.materia,
+                      fuero: value.fuero,
+                      state: value.state?.name ?? null,
+                      state_source: value.state_source,
+                    },
+                  },
+                };
               },
-            };
-          },
+            ),
+          { caseId, userId },
         ),
     },
+
     // Análisis de Cumplimiento Procesal — materia checklist over the corpus.
     procedural_compliance: {
       run: () =>
