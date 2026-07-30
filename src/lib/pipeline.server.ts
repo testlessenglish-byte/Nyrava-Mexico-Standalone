@@ -3886,6 +3886,32 @@ async function _runReportInner(args: {
     pipelineWarnings.push(`analyzer_findings_excluded:${allFindings.length - findings.length}`);
   }
 
+  // ---- Phase 4: canonical_analysis is the report's finding authority ----
+  // Flagged (CANONICAL_REPORT_ENABLED, default off). When on, the gate's
+  // persisted selection + ranking replaces the locally re-derived order, and
+  // the canonical version rendered from is recorded on the report row. Every
+  // fallback to the raw-table path above is traced.
+  let canonicalVersion: number | null = null;
+  {
+    const { loadCanonicalReportSource, applyCanonicalOrder, traceCanonicalFallback } = await import(
+      "@/lib/canonical/report-source.server"
+    );
+    const src = await loadCanonicalReportSource(db, caseId);
+    if (src) {
+      const ordered = applyCanonicalOrder(findings as unknown as { id?: string | null }[], src.orderedIds);
+      if (ordered) {
+        canonicalVersion = src.version;
+        findings = ordered as unknown as typeof findings;
+        pipelineWarnings.push(`canonical_report_source:v${src.version}`);
+      } else {
+        await traceCanonicalFallback(db, caseId, "no_overlap_with_raw_findings", {
+          canonical_findings: src.orderedIds.length,
+          raw_findings: findings.length,
+        });
+      }
+    }
+  }
+
   // Derive deterministic Legal Attack Surface from current findings so the
   // renderer has a ranked attack-lane breakdown without re-analysis.
   // Attack Surface buckets are criminal-procedure specific (suppression,
@@ -6224,6 +6250,9 @@ ${paginationTail}`;
     motions_suppressed: isLimited,
     engines_summary: enginesSummary as unknown as J,
     intelligence_version: INTELLIGENCE_VERSION,
+    // Phase 4: which canonical_analysis.version this report was rendered
+    // from. NULL when the flag is off or the raw-table fallback ran.
+    canonical_version: canonicalVersion,
   };
 
   // Stash disputed-issues inside full_report (no dedicated column).
@@ -6518,6 +6547,8 @@ ${paginationTail}`;
         caseId,
         userId,
         version: Number(savedAny.version ?? 1) || 1,
+        canonicalVersion:
+          typeof savedAny.canonical_version === "number" ? (savedAny.canonical_version as number) : null,
         report: savedAny,
         changeLog: (savedAny.change_log as Record<string, unknown> | null) ?? null,
         meta: {

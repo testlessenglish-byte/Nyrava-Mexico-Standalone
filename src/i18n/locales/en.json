@@ -1520,6 +1520,7 @@
   "reports.mode.limited": "Limited analysis",
   "reports.notice.limitedAnalysis": "Limited analysis — narrative pass unavailable. Findings are evidence-grounded but incomplete; attorney review required.",
   "reports.notice.motionsSuppressed": "Motion recommendations suppressed",
+  "reports.notice.canonicalStale": "Generated from canonical analysis version {current}; a more recent analysis exists (version {latest}). Regenerate the report to include it.",
   "reports.notice.scoresSuppressed": "Quantitative scores suppressed",
   "reports.openWorkspace": "Open case file",
   "reports.opportunities.page": " · p.{page}",

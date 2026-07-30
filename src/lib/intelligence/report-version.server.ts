@@ -32,6 +32,10 @@ export async function computeReportHash(report: Record<string, unknown>): Promis
     version: report.version ?? null,
     scores_suppressed: report.scores_suppressed ?? null,
     motions_suppressed: report.motions_suppressed ?? null,
+    // Phase 4: bind the hash to the canonical version the content came from,
+    // so an identical-looking report built from a different canonical
+    // analysis cannot collide with an earlier snapshot's hash.
+    canonical_version: report.canonical_version ?? null,
   };
   const json = canonicalStringify(projection);
   const bytes = new TextEncoder().encode(json);
@@ -75,6 +79,8 @@ export async function snapshotReportVersion(
     caseId: string;
     userId: string;
     version: number;
+    /** `canonical_analysis.version` this report was rendered from, if any. */
+    canonicalVersion?: number | null;
     report: Record<string, unknown>;
     changeLog?: Record<string, unknown> | null;
     meta: SnapshotMetadata;
@@ -91,6 +97,7 @@ export async function snapshotReportVersion(
       case_id: args.caseId,
       user_id: args.userId,
       version: args.version,
+      canonical_version: args.canonicalVersion ?? (normalized.canonical_version as number | null) ?? null,
       snapshot: normalized,
       change_log: args.changeLog ?? null,
       triggering_upload_id: args.meta.triggeringUploadId ?? null,

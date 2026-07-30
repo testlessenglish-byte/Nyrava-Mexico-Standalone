@@ -138,3 +138,25 @@ An Attorney Intelligence Report should be built on:
 
 The LLM's role narrows accordingly: it writes prose *about* a deterministically selected and
 ranked finding set, rather than deciding what the report contains.
+
+## Phase 4 — report reads canonical_analysis (implemented)
+
+- New `src/lib/canonical/report-source.server.ts`. Flag `CANONICAL_REPORT_ENABLED`, **default off**.
+- When on, `runReport` reorders/filters the already-loaded `case_findings` rows by the gate's
+  persisted ranking (`canonical_analysis.analysis_payload.Findings`). It is a reorder, not a
+  reshape: canonical Findings carry the same row ids, so there is no second rendering data model.
+- Version and payload are read in one query, so a concurrent rerun cannot make the recorded
+  `canonical_version` disagree with what was rendered.
+- `reports.canonical_version` is persisted; `computeReportHash` includes it (identical-looking
+  reports from different canonical analyses no longer collide) and `snapshotReportVersion`
+  records it on `report_versions`.
+- Staleness is surfaced, never auto-applied: `/reports` shows a notice when a newer canonical
+  version exists. Regeneration remains an explicit attorney action.
+- The raw-table gather is **temporary migration support**. Every fallback writes
+  `pipeline_trace(phase='report', step='canonical_fallback')` with a typed reason
+  (`no_canonical_row`, `canonical_not_completed`, `empty_payload`,
+  `no_overlap_with_raw_findings`, `read_error`). Removing the fallback is gated on that
+  query returning zero rows over a representative window.
+
+Bug found and fixed while testing: `Number(null) === 0` made a report with no recorded canonical
+version render as "stale, built from version 0". Null versions are now rejected before coercion.
