@@ -1432,6 +1432,23 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         return routeAI({ ...opts, _cooldownWaits: waits + 1 });
       }
     }
+    // Last resort: never fail a stage with ZERO real provider calls. Cooldowns
+    // are an optimisation, not a hard gate — the key may already be healthy
+    // (fresh key, different org, expired window). Run the chain once more
+    // ignoring cooldowns entirely and let the providers themselves answer.
+    if (!opts._ignoreCooldowns) {
+      traceAsync({
+        phase: "ai",
+        step: "router.cooldown_override",
+        status: "warn",
+        model: opts.model ?? null,
+        detail: {
+          reason: "zero_attempts_all_cooling",
+          cooldowns: cooldownSkips.slice(0, 8),
+        },
+      });
+      return routeAI({ ...opts, _ignoreCooldowns: true });
+    }
     const retryText = soonestCooldownMs != null ? ` Retry after ${Math.ceil(soonestCooldownMs / 1000)}s.` : "";
     throw new Error(
       `All configured provider keys are cooling down after HTTP 429/rate-limit responses (tried: none${untriedNote}).${retryText}${skipNote}`,
