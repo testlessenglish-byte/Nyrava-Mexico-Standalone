@@ -56,6 +56,7 @@ export function classifyFindingSource(f: SelectableFinding): FindingSourceClass 
   if (sm.startsWith("engine:")) return "engine";
   if (sm.startsWith("agent:")) return "agent";
   if (sm.startsWith("analyzer:")) return "analyzer";
+  if (sm.startsWith("projection:")) return "projection";
   return "other";
 }
 
