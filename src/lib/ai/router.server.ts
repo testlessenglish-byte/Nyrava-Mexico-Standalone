@@ -768,24 +768,57 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   let realAttempts = 0;
   for (let i = 0; i < chain.length; i++) {
     const row = chain[i];
+    // Per-row payload. Normally the untouched request; compressed only when
+    // this provider is the last usable option and the payload overflows.
+    let rowOpts = opts;
     if (anySizeEligible && !sizeEligible[i]) {
-      preAttemptSkips.push(
-        `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerInputBudget(row.provider_type)} token provider budget`,
+      // Is there another provider that can take the FULL payload and isn't
+      // currently on cooldown? If yes, skip this one as before. If not,
+      // shrinking beats failing the whole stage.
+      const fullSizeAlternative = chain.some(
+        (r2, j) =>
+          sizeEligible[j] &&
+          !getProviderCooldown({
+            provider: r2.provider_type,
+            model: effectiveModelFor(r2),
+            key: cooldownIdentityFor(r2),
+          }),
       );
+      if (fullSizeAlternative) {
+        preAttemptSkips.push(
+          `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerInputBudget(row.provider_type)} token provider budget`,
+        );
+        traceAsync({
+          phase: "ai",
+          step: "router.provider_skipped",
+          status: "warn",
+          provider: row.provider_type,
+          model: effectiveModelFor(row),
+          detail: {
+            reason: "payload_exceeds_provider_limit",
+            estimated_input_tokens: estimatedInputTokens,
+            provider_input_budget: providerInputBudget(row.provider_type),
+          },
+        });
+        continue;
+      }
+      const budget = providerInputBudget(row.provider_type);
+      rowOpts = fitOptsToBudget(opts, budget);
       traceAsync({
         phase: "ai",
-        step: "router.provider_skipped",
+        step: "router.payload_compressed",
         status: "warn",
         provider: row.provider_type,
         model: effectiveModelFor(row),
         detail: {
-          reason: "payload_exceeds_provider_limit",
+          reason: "no_full_size_provider_available",
           estimated_input_tokens: estimatedInputTokens,
-          provider_input_budget: providerInputBudget(row.provider_type),
+          provider_input_budget: budget,
+          compressed_input_tokens: estimateInputTokens(rowOpts),
         },
       });
-      continue;
     }
+
 
     if (realAttempts >= MAX_LOGICAL_PROVIDER_ATTEMPTS && attemptedProviders.has(row.provider_type)) {
       traceAsync({
