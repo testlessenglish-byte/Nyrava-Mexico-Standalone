@@ -3197,6 +3197,60 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       throw new Error(error);
     }
 
+    // Stage rollup: the comparison row. wall_ms is the honest end-to-end
+    // duration (first batch start → now, including every stall); ai_ms is the
+    // summed provider time. cooldown_events / cooldown_stall_ms are the
+    // guardrail — if wall_ms drops but these rise proportionally, concurrency
+    // 2 only redistributed the delay and should be reverted to 1.
+    try {
+      const { data: _batchRows } = await db
+        .from("pipeline_engine_runs")
+        .select("runtime_ms,started_at" as any)
+        .eq("case_id", caseId)
+        .like("engine", "%_batch");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _rows = (_batchRows ?? []) as any[];
+      const aiMs = _rows.reduce((a, r) => a + (Number(r.runtime_ms) || 0), 0);
+      const firstStart = _rows
+        .map((r) => Date.parse(String(r.started_at)))
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b)[0];
+      const { data: _traceRows } = await db
+        .from("pipeline_trace")
+        .select("step,duration_ms" as any)
+        .eq("case_id", caseId)
+        .eq("phase", "agents")
+        .in("step", ["cooldown_checkpoint", "tick_resume_gap"]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _tr = (_traceRows ?? []) as any[];
+      const cooldownEvents = _tr.filter((r) => r.step === "cooldown_checkpoint").length;
+      const stallMs = _tr
+        .filter((r) => r.step === "tick_resume_gap")
+        .reduce((a, r) => a + (Number(r.duration_ms) || 0), 0);
+      const wallMs = firstStart ? Date.now() - firstStart : Date.now() - agentStageStart;
+      await _agentTrace({
+        db,
+        caseId,
+        userId,
+        phase: "agents",
+        step: "concurrency_metrics",
+        status: "info",
+        durationMs: wallMs,
+        detail: {
+          concurrency: AGENT_CONCURRENCY,
+          agents: totalAgentCount,
+          batches: _rows.length,
+          ai_ms: aiMs,
+          wall_ms: wallMs,
+          cooldown_events: cooldownEvents,
+          cooldown_stall_ms: stallMs,
+          overhead_pct: wallMs > 0 ? Math.round(((wallMs - aiMs) / wallMs) * 100) : null,
+        },
+      });
+    } catch {
+      // Instrumentation must never fail the stage.
+    }
+
     await setCase(db, caseId, {
       status: "agents_complete",
       status_message: "Agents complete",
