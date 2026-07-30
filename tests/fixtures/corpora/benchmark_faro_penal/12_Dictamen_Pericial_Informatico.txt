@@ -1,0 +1,69 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+DICTAMEN PERICIAL EN INFORMÁTICA FORENSE
+Número: DP-INF-0442/2026
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Perito: Ing. Nadia Fernanda Escalante Ríos, cédula profesional 9910442, perito oficial
+adscrita al Laboratorio de Informática Forense de la Fiscalía General del Estado de
+Quintana Roo.
+Fecha del dictamen: 21 de marzo de 2026.
+
+I. PLANTEAMIENTO
+Mediante oficio FGE-QR/UIDFD/1120-7/2026 se solicitó determinar: (1) si en los dispositivos
+asegurados existen archivos relativos al resolutivo SEMA/DGIA/RES-0913/2024 y al título
+ZFMT/QR/0418/2023; (2) fecha de creación y última modificación de tales archivos; (3)
+usuario que los generó; y (4) si existen comunicaciones relacionadas con Marina Puerto Azul,
+S. de R.L. de C.V.
+
+II. MATERIAL DE ESTUDIO
+IND-01 (laptop Dell Latitude 5440), IND-03 (disco externo Seagate 2 TB) e IND-06 (memoria
+USB Kingston 32 GB), a través de sus imágenes forenses descritas en la bitácora BED-1120-2026.
+
+III. MÉTODO
+Análisis sobre copias de trabajo verificadas por hash, con EnCase Forensic 21.4 y Autopsy
+4.21; recuperación de metadatos NTFS ($MFT), análisis de historial de aplicaciones y
+correlación de artefactos de usuario. No se alteró el material original.
+
+IV. HALLAZGOS
+1. En IND-01, ruta C:\Usuarios\aperaza\Documentos\FARO\Permisos\, se localizaron:
+   - "RES-0913-2024_v7.pdf". Creación: 03/07/2025 22:41:10. Última modificación: 05/07/2025
+     18:02:33. Usuario propietario: aperaza. Software productor según metadatos XMP:
+     Adobe Illustrator 28.1.
+   - "ZFMT-0418-2023_final.pdf". Creación: 11/07/2025 20:15:47. Última modificación:
+     29/07/2025 09:58:12. Usuario propietario: aperaza. Software productor: Adobe
+     Illustrator 28.1.
+   - Carpeta "plantillas" con seis archivos .ai que contienen escudos, logotipos y bloques
+     de firma de dependencias estatales y federales.
+2. En IND-03 se localizaron 14 versiones intermedias de los mismos documentos, así como el
+   archivo "sellos_escaneados.psd" con capas correspondientes a tres sellos distintos.
+3. En IND-01 se recuperaron 96 mensajes de correo de la cuenta
+   a.peraza@faronautico.mx dirigidos a c.fonseca@marinapuertoazul.mx entre el 12 de julio de
+   2025 y el 9 de enero de 2026. En el mensaje del 6 de agosto de 2025, 23:14 horas, se
+   adjuntan los dos archivos referidos en el numeral 1.
+4. En IND-06 se localizó el archivo "Notas_amarres.xlsx" con una relación de 11 contratantes
+   y montos que suman $23,480,000.00 M.N.; la última escritura del archivo data del
+   17/02/2026 19:22:04.
+5. No se advierten indicios de manipulación de los relojes internos de IND-01 ni de IND-03;
+   sus registros de eventos del sistema son continuos entre el 01/01/2025 y el 19/03/2026.
+
+V. OBSERVACIÓN SOBRE INTEGRIDAD Y TIEMPO
+Las marcas de adquisición de las imágenes de IND-01 e IND-03 registran inicio a las 06:58 y
+07:03 horas del 19 de marzo de 2026, respectivamente. Conforme al registro de cadena de
+custodia RCC-1120-2026, tales indicios ingresaron al Almacén de Evidencia a las 14:20 y 14:24
+horas del mismo día. La suscrita no puede explicar técnicamente dicha anterioridad con los
+elementos disponibles y la hace constar expresamente.
+
+VI. CONCLUSIONES
+PRIMERA. En los dispositivos IND-01, IND-03 e IND-06 existen archivos correspondientes al
+resolutivo SEMA/DGIA/RES-0913/2024 y al título ZFMT/QR/0418/2023, elaborados con software de
+diseño gráfico y no con sistemas institucionales de emisión documental.
+SEGUNDA. Dichos archivos fueron creados y modificados por la cuenta de usuario "aperaza"
+entre el 3 y el 29 de julio de 2025.
+TERCERA. Existió transmisión de esos archivos a la cuenta de la representante de Marina
+Puerto Azul el 6 de agosto de 2025.
+CUARTA. No fue posible practicar extracción alguna sobre IND-02 por carecerse de autorización
+judicial específica y estar el dispositivo bloqueado.
+QUINTA. Subsiste la discrepancia temporal señalada en el apartado V, que deberá resolverse
+mediante ampliación pericial.
+
+Ing. Nadia Fernanda Escalante Ríos — Perito en Informática Forense.

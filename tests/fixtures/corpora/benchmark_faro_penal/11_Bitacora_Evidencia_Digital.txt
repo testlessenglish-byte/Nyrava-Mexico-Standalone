@@ -1,0 +1,51 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+LABORATORIO DE INFORMÁTICA FORENSE — FISCALÍA GENERAL DEL ESTADO DE QUINTANA ROO
+BITÁCORA DE ADQUISICIÓN DE EVIDENCIA DIGITAL
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Bitácora: BED-1120-2026. Perito responsable: Ing. Nadia Fernanda Escalante Ríos.
+
+ESTACIÓN DE TRABAJO: FRED-QR-03, bloqueador de escritura Tableau T35u, software de
+adquisición EnCase Forensic 21.4 y verificación con hashdeep 4.4. Reloj del sistema
+sincronizado con NTP time.inegi.org.mx; huso horario UTC-05:00 (Tiempo del Sureste).
+
+ENTRADA 1 — IND-01 (Dell Latitude 5440, s/n 8FJ2K33)
+Fecha/hora de inicio de adquisición registrada por la herramienta: 19/03/2026 06:58:12.
+Fecha/hora de término: 19/03/2026 08:11:47.
+Tipo: imagen física E01, 512 GB, segmentación de 4 GB.
+SHA-256 de la imagen: 4b1d0e2f97a3c85e6d1749fb0c2a3e58b77d4f1902ac6e3b51d8f0a29c74e6b3
+MD5 de la imagen: 9f2c47a1d6b83e5074c19ab2f3d8e6c1
+Verificación posterior: coincidente.
+
+ENTRADA 2 — IND-03 (Seagate Expansion 2 TB, s/n NA8H7Q21)
+Fecha/hora de inicio de adquisición registrada por la herramienta: 19/03/2026 07:03:55.
+Fecha/hora de término: 19/03/2026 10:47:02.
+Tipo: imagen física E01, 2 TB.
+SHA-256 de la imagen: e70a5c93b4128df6a0e5b3417c98d20f6ab41c7de95038f2b6c1a48e7d305fa9
+Verificación posterior: coincidente.
+
+ENTRADA 3 — IND-06 (Kingston DataTraveler 32 GB)
+Fecha/hora de inicio de adquisición: 20/03/2026 10:12:30.
+Fecha/hora de término: 20/03/2026 10:26:04.
+SHA-256 de la imagen: 1c88ba54f0e73d29a6b41957c02de8f3719ab6c40d52e8371fa9c06b2d4e75a8
+
+ENTRADA 4 — IND-02 (iPhone 13, IMEI 356938035643809)
+20/03/2026 11:00. Se intenta extracción lógica. El dispositivo se encuentra bloqueado con
+código de acceso. Se suspende la diligencia y se solicita al Ministerio Público gestionar
+autorización judicial específica en términos del art. 291 y correlativos del CNPP. NO se
+practicó extracción.
+
+ENTRADA 5 — Control de integridad
+20/03/2026 16:30. Se recalculan los hashes de las tres imágenes obtenidas; los valores
+coinciden con los asentados en las entradas 1 a 3.
+
+NOTA TÉCNICA DE LA PERITO:
+Las marcas temporales de las entradas 1 y 2 corresponden al reloj de la estación FRED-QR-03,
+ubicada en el Laboratorio de Informática Forense. Se advierte que dichas marcas son
+anteriores a la hora de ingreso al inmueble asentada en el acta de cateo (08:05 horas) y a la
+hora de recepción de los indicios en el Almacén de Evidencia (14:20 horas). Esta discrepancia
+se hace constar para los efectos legales conducentes y se propone ampliación pericial para
+determinar si obedece a desfase del reloj de la estación o a un error de registro.
+
+Ing. Nadia Fernanda Escalante Ríos — Perito en Informática Forense, cédula 9910442.
+Cancún, Quintana Roo, 20 de marzo de 2026.
