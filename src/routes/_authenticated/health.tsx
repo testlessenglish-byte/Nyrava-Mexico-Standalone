@@ -48,9 +48,29 @@ function HealthPage() {
     refetchInterval: 30_000,
     retry: false,
   });
+  // Which provider's Test button is running — so pressing "Test" on Gemini
+  // never puts the Groq card into a testing state.
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  // Last per-provider test result; overrides the (possibly stale) page probe.
+  const [lastTest, setLastTest] = useState<Record<string, { ok: boolean; error?: string; latencyMs?: number }>>({});
   const probe = useMutation({
     mutationFn: (provider?: string) => runTest({ data: { provider: provider ?? null } }),
+    onSuccess: (res) => {
+      setLastTest((prev) => {
+        const next = { ...prev };
+        for (const r of res.results) {
+          next[r.provider] = r.ok
+            ? { ok: true, latencyMs: r.latencyMs }
+            : { ok: false, error: r.error };
+        }
+        return next;
+      });
+      // A live test is authoritative — re-probe so the card state matches.
+      refetch();
+    },
+    onSettled: () => setTestingProvider(null),
   });
+
 
   const fetchErrorLog = useServerFn(getAiErrorLog);
   const errorLog = useMutation({
