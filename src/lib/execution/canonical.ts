@@ -517,3 +517,18 @@ export function missingRequiredEngines(
     return s !== "completed" && s !== "completed_negative" && s !== "skipped";
   });
 }
+
+/**
+ * Hard wall-clock ceiling declared for a stage, in ms (undefined = unbounded).
+ * Enforced by `withStageTimeout()` in `blocking-stage-guard.server.ts`.
+ */
+export function stageTimeoutMs(stageKey: string): number | undefined {
+  return STAGE_BY_KEY.get(stageKey)?.timeoutMs;
+}
+
+/** Every stage that declares a timeout ceiling, keyed by stage key. */
+export const STAGE_TIMEOUT_MS: Readonly<Record<string, number>> = Object.freeze(
+  Object.fromEntries(
+    CANONICAL_STAGES.filter((s) => typeof s.timeoutMs === "number").map((s) => [s.key, s.timeoutMs!]),
+  ),
+);
