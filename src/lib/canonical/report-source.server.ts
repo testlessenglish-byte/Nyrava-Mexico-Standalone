@@ -177,6 +177,10 @@ export function canonicalStalenessNotice(
   currentVersion: number | null | undefined,
   lang: "es" | "en" = "es",
 ): string | null {
+  // Number(null) is 0 and Number.isFinite(0) is true, so null/undefined must be
+  // rejected before coercion — otherwise a report with no recorded canonical
+  // version would falsely render as "stale, built from version 0".
+  if (reportVersion == null || currentVersion == null) return null;
   const r = Number(reportVersion);
   const c = Number(currentVersion);
   if (!Number.isFinite(r) || !Number.isFinite(c) || c <= r) return null;
