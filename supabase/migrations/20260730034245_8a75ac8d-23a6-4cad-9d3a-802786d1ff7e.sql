@@ -1,0 +1,1 @@
+UPDATE public.ai_providers SET api_key_encrypted = NULL WHERE provider_type = 'gemini';
