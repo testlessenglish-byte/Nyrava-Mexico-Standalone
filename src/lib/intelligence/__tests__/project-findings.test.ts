@@ -202,24 +202,24 @@ describe("multi-tenant validation", () => {
 });
 
 describe("rollout flag", () => {
-  it("is off unless FINDINGS_PROJECTION_ENABLED is exactly true", () => {
+  it("is on by default and only 'false' disables it", () => {
     const prev = process.env.FINDINGS_PROJECTION_ENABLED;
     try {
       delete process.env.FINDINGS_PROJECTION_ENABLED;
-      expect(isProjectionEnabled()).toBe(false);
-      process.env.FINDINGS_PROJECTION_ENABLED = "1";
-      expect(isProjectionEnabled()).toBe(false);
-      process.env.FINDINGS_PROJECTION_ENABLED = "TRUE";
       expect(isProjectionEnabled()).toBe(true);
+      process.env.FINDINGS_PROJECTION_ENABLED = "true";
+      expect(isProjectionEnabled()).toBe(true);
+      process.env.FINDINGS_PROJECTION_ENABLED = "FALSE";
+      expect(isProjectionEnabled()).toBe(false);
     } finally {
       if (prev === undefined) delete process.env.FINDINGS_PROJECTION_ENABLED;
       else process.env.FINDINGS_PROJECTION_ENABLED = prev;
     }
   });
 
-  it("writes nothing while the flag is off", async () => {
+  it("writes nothing while the kill switch is set", async () => {
     const prev = process.env.FINDINGS_PROJECTION_ENABLED;
-    delete process.env.FINDINGS_PROJECTION_ENABLED;
+    process.env.FINDINGS_PROJECTION_ENABLED = "false";
     const db = {
       from: () => {
         throw new Error("projection must not touch the database while disabled");
@@ -231,5 +231,6 @@ describe("rollout flag", () => {
     });
     expect(res).toEqual({ ok: true, tables: [], candidates: 0, written: 0, disabled: true });
     if (prev !== undefined) process.env.FINDINGS_PROJECTION_ENABLED = prev;
+    else delete process.env.FINDINGS_PROJECTION_ENABLED;
   });
 });
