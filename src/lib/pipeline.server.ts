@@ -2779,7 +2779,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     // previous tick's last batch (the stall we actually paid), every cooldown
     // checkpoint, and at stage end a rollup of events + total stalled ms
     // against total AI ms. All of it lands in pipeline_trace under
-    // phase "agents", queryable per case and comparable across runs.
+    // phase "stage" with step prefix "agents_", queryable per case and comparable across runs.
     const { trace: _agentTrace } = await import("./pipeline-trace.server");
     const { data: _lastBatchRow } = await db
       .from("pipeline_engine_runs")
@@ -2798,8 +2798,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
         db,
         caseId,
         userId,
-        phase: "agents",
-        step: "tick_resume_gap",
+        phase: "stage",
+        step: "agents_tick_resume_gap",
         status: "info",
         durationMs: resumeGapMs,
         detail: { concurrency: AGENT_CONCURRENCY, resumed_agents: completedAgentTypes.size },
@@ -2991,8 +2991,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                   db,
                   caseId,
                   userId,
-                  phase: "agents",
-                  step: "cooldown_checkpoint",
+                  phase: "stage",
+                  step: "agents_cooldown_checkpoint",
                   status: "warn",
                   durationMs: Date.now() - t0,
                   detail: {
@@ -3219,21 +3219,21 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
         .from("pipeline_trace")
         .select("step,duration_ms" as any)
         .eq("case_id", caseId)
-        .eq("phase", "agents")
-        .in("step", ["cooldown_checkpoint", "tick_resume_gap"]);
+        .eq("phase", "stage")
+        .in("step", ["agents_cooldown_checkpoint", "agents_tick_resume_gap"]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const _tr = (_traceRows ?? []) as any[];
-      const cooldownEvents = _tr.filter((r) => r.step === "cooldown_checkpoint").length;
+      const cooldownEvents = _tr.filter((r) => r.step === "agents_cooldown_checkpoint").length;
       const stallMs = _tr
-        .filter((r) => r.step === "tick_resume_gap")
+        .filter((r) => r.step === "agents_tick_resume_gap")
         .reduce((a, r) => a + (Number(r.duration_ms) || 0), 0);
       const wallMs = firstStart ? Date.now() - firstStart : Date.now() - agentStageStart;
       await _agentTrace({
         db,
         caseId,
         userId,
-        phase: "agents",
-        step: "concurrency_metrics",
+        phase: "stage",
+        step: "agents_concurrency_metrics",
         status: "info",
         durationMs: wallMs,
         detail: {
