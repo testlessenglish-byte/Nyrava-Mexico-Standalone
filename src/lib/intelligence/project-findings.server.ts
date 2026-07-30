@@ -185,6 +185,18 @@ export function buildProjectionRows(
 }
 
 /**
+ * Rollout flag (standing requirement: every phase ships behind an env flag,
+ * default off). While off, `projectCaseFindings` is a traced no-op and NOT A
+ * SINGLE ROW is written — so Phase 2 cannot affect production until the
+ * remaining `case_findings` reader audit (Phase 3) is done.
+ *
+ * Flip with FINDINGS_PROJECTION_ENABLED=true.
+ */
+export function isProjectionEnabled(): boolean {
+  return String(process.env.FINDINGS_PROJECTION_ENABLED ?? "").toLowerCase() === "true";
+}
+
+/**
  * Mirror every projectable table an engine just wrote into `case_findings`,
  * in a single batched call. Never throws.
  */
@@ -192,8 +204,12 @@ export async function projectCaseFindings(
   db: Db,
   args: { caseId: string; tables: ReadonlyArray<string> },
 ): Promise<ProjectionResult> {
+  if (!isProjectionEnabled()) {
+    return { ok: true, tables: [], candidates: 0, written: 0, disabled: true };
+  }
   const tables = Array.from(new Set(args.tables.filter((t) => ADAPTERS[t])));
   if (tables.length === 0) return { ok: true, tables: [], candidates: 0, written: 0 };
+
 
   try {
     const rows: ProjectionRow[] = [];
