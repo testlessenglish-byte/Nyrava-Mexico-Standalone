@@ -131,6 +131,21 @@ function providerInputBudget(p: ProviderType): number {
   return PROVIDER_INPUT_TOKEN_BUDGET[p] ?? DEFAULT_PROVIDER_INPUT_BUDGET;
 }
 
+function reservedOutputTokens(opts: { maxTokens?: number; json?: boolean }, provider: ProviderType): number {
+  const requested = opts.maxTokens ?? (opts.json ? 2_048 : 4_096);
+  const capped = Math.min(requested, 8_192);
+  // Groq free-tier 413s are enforced against the TPM request envelope, not
+  // just prompt tokens. Reserve the completion budget before deciding whether
+  // the prompt fits; otherwise a 5.5k-token prompt + 4k default output becomes
+  // a 9k+ TPM request and fails instantly.
+  if (provider === "groq") return Math.max(768, capped);
+  return Math.max(256, Math.min(capped, 2_048));
+}
+
+function providerAvailableInputBudget(provider: ProviderType, opts: { maxTokens?: number; json?: boolean }): number {
+  return Math.max(1_000, providerInputBudget(provider) - reservedOutputTokens(opts, provider));
+}
+
 /** ~3.5 chars/token is a safe over-estimate for Spanish legal prose. */
 function estimateInputTokens(opts: { systemInstruction?: string; userContent: unknown }): number {
   let chars = (opts.systemInstruction ?? "").length;
@@ -162,7 +177,7 @@ function fitOptsToBudget<T extends { systemInstruction?: string; userContent: un
   const CHARS_PER_TOKEN = 3.5;
   const sysChars = (opts.systemInstruction ?? "").length;
   // 5% safety margin so the estimate can't land right on the ceiling.
-  const allowedChars = Math.max(1_000, Math.floor(budgetTokens * CHARS_PER_TOKEN * 0.95) - sysChars);
+  const allowedChars = Math.max(1_000, Math.floor(budgetTokens * CHARS_PER_TOKEN * 0.9) - sysChars);
   const marker = "\n\n[…contenido intermedio omitido por límite del proveedor…]\n\n";
 
   const trim = (text: string, limit: number): string => {
