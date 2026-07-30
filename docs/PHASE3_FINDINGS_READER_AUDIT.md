@@ -86,3 +86,39 @@ penal, each with a Spanish observational demotion.
 Tests: 394 passed, 3 skipped, 0 failed (18 new in
 `src/lib/canonical/__tests__/consensus.test.ts`). Typecheck clean. No Mexican
 legal-content module touched.
+
+### Addendum — weighted agreement (deterministic vs LLM voices)
+
+`agreement` stayed a flat `engines.size`, so a rule engine confirming an LLM
+claim counted the same as a second LLM restating it. Now each voice carries a
+weight and clusters also record `agreement_weight`:
+
+| Voice kind | Engines | Weight |
+| --- | --- | --- |
+| Deterministic stage | `jurisdiction_intel`, `procedural_compliance` | **1.6** |
+| LLM engine/agent | everything else | **1.0** |
+
+Reasoning for 1.6: deterministic stages apply codified Mexican procedure to
+case data with no model sampling, so their corroboration is independent
+evidence rather than a correlated second opinion. 1.6 is set so
+deterministic+LLM (2.6 -> 1.32x) beats LLM+LLM (2.0 -> 1.20x), while a lone
+deterministic voice (1.6) still cannot outrank a genuine two-voice cluster —
+one rule engine is not consensus. Multiplier stays
+`min(1.6, 1 + 0.2 * (weight - 1))`; the cap moved 1.5 -> 1.6 so the weighting
+is not swallowed at the top end.
+
+Promotion thresholds still use the raw distinct-engine count, so weighting
+changes ordering only, never whether a finding is promoted. Findings with no
+`agreement_weight` fall back to the raw count and score exactly as before.
+
+Test: `ranks deterministic+LLM above LLM+LLM at the same raw engine count`
+(plus a direct `voiceWeight` assertion) in
+`src/lib/canonical/__tests__/consensus.test.ts`. Suite: 396 passed, 3 skipped.
+
+### Security
+
+Fixed an unrelated error-level finding surfaced during this turn: the
+`audit_log` SELECT policy exposed NULL-`org_id` rows (actor id, IP, user
+agent, session) to every authenticated user. It now scopes NULL-org rows to
+`actor_id = auth.uid()`, keeps org rows to org members, and allows
+`super_admin`.
