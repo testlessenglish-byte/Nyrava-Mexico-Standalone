@@ -34,6 +34,14 @@ function makeFakeDb(store: Record<string, unknown[]>) {
         filtered = () => prev().filter((r) => (r as Record<string, unknown>)[col] === val);
         return api;
       },
+      // Phase 3 reader audit: readers exclude mirrored `projection:*` rows.
+      not(col: string, _op: "like", pattern: string) {
+        const prev = filtered;
+        const prefix = pattern.replace(/%$/, "");
+        filtered = () =>
+          prev().filter((r) => !String((r as Record<string, unknown>)[col] ?? "").startsWith(prefix));
+        return api;
+      },
       order() {
         return api;
       },
