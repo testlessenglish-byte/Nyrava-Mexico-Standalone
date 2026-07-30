@@ -110,12 +110,15 @@ describe("consensus — earned status", () => {
 
 describe("consensus — ranking effect", () => {
   it("ranks a two-engine claim above an equal single-engine claim", () => {
-    const single = finding({ source_module: "engine:a", title: "Omisión material del acta A" });
-    const multiA = finding({ source_module: "engine:b", title: "Omisión material del acta B" });
+    const single = finding({
+      source_module: "engine:a",
+      title: "Dictamen pericial sin ratificación ante el juez",
+      description: "El perito no compareció a ratificar su dictamen.",
+    });
+    const multiA = finding({ source_module: "engine:b" });
     const multiB = finding({
       source_module: "agent:qa",
-      title: "Omisión material del acta B detectada",
-      description: "El embalaje del indicio fue abierto sin registro.",
+      title: "Cadena de custodia rota en embalaje del indicio",
     });
     const a = analysisWith([single, multiA, multiB]);
     applyConsensus(a);
