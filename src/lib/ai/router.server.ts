@@ -389,6 +389,33 @@ export function clearAiProviderCooldowns(provider?: ProviderType | null, model?:
   return generic + clearGroqCooldowns(model);
 }
 
+/**
+ * Drop the in-memory provider/key caches so the very next call re-reads
+ * ai_providers + user_ai_keys from the database. Called whenever keys are
+ * added/removed/toggled and whenever the health page is refreshed, so a
+ * freshly added key is picked up immediately instead of after the 20s TTL.
+ */
+export function invalidateProviderCaches(userId?: string | null): void {
+  _providerRowsCache = null;
+  if (userId) _userProviderGroupsCache.delete(userId);
+  else _userProviderGroupsCache.clear();
+}
+
+/**
+ * Full runtime reset for a provider (or all providers): clears cooldowns AND
+ * the credential caches. This is what "refresh and it should clear" means —
+ * nothing stale survives.
+ */
+export function resetAiRuntimeState(args?: {
+  provider?: ProviderType | null;
+  model?: string | null;
+  userId?: string | null;
+}): { clearedCooldowns: number } {
+  const clearedCooldowns = clearAiProviderCooldowns(args?.provider ?? null, args?.model ?? null);
+  invalidateProviderCaches(args?.userId ?? null);
+  return { clearedCooldowns };
+}
+
 function keyFingerprint(key: string): string {
   return createHash("sha256").update(key).digest("hex").slice(0, 12);
 }
