@@ -1,0 +1,228 @@
+// Phase 2 of the Intelligence Aggregation Refactor — specialized-table
+// projection into `case_findings`.
+//
+// WHY THIS EXISTS
+// The findings audit proved that engines writing to specialized tables
+// (evidence_classifications, case_witnesses) are invisible to every counter,
+// scorecard, and exporter, because those surfaces only read `case_findings`.
+// On the Amparo case that hid 218 rows behind 79 visible ones. Projection
+// mirrors those rows into `case_findings` so the aggregation layer can see
+// them — without touching the specialized tables, which stay the system of
+// record for their own domain UI.
+//
+// SAFETY CONTRACT (why this phase cannot move a badge)
+//  1. Projected rows carry `source_module = 'projection:<table>'`, a source
+//     class that no pre-existing surface selects. `selectFindings()` excludes
+//     it by default and the dashboard badge enumerates its classes
+//     explicitly, so counts are byte-identical before and after.
+//  2. `finding_status` is written as 'candidate'. Only the canonical gate
+//     (Phase 3) may promote. Re-projection never resets an earned status —
+//     the SQL function's ON CONFLICT deliberately omits that column.
+//  3. Idempotent: identity is (case_id, projected_from_table,
+//     projected_from_row_id), enforced by a partial unique index. Re-running
+//     a stage updates in place; it never duplicates.
+//  4. Batched: ONE round trip per engine execution, not per finding.
+//  5. Non-fatal: a projection failure is traced and swallowed. It must never
+//     fail an engine that already persisted its real output.
+//
+// NOT PROJECTED, deliberately: `case_timeline_events`. Chronology entries are
+// facts, not findings — they carry no severity and projecting them would
+// manufacture hundreds of meaningless "findings". They stay accessible
+// through the timeline surfaces that already read them.
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type Db = SupabaseClient<never, "public", never>;
+
+/** Payload accepted by the `project_case_findings` SQL function. */
+export type ProjectionRow = {
+  source_module: string;
+  category: string;
+  title: string;
+  description: string;
+  severity: string;
+  confidence: number;
+  legal_significance?: string | null;
+  affected_party?: string | null;
+  evidence_type?: string | null;
+  tags: string[];
+  supporting_engines: string[];
+  source_doc_ids: string[];
+  metadata: Record<string, unknown>;
+};
+
+const SEVERITIES = new Set(["critical", "high", "medium", "low", "info"]);
+
+function normalizeSeverity(v: unknown, fallback = "medium"): string {
+  const s = String(v ?? "").toLowerCase().trim();
+  return SEVERITIES.has(s) ? s : fallback;
+}
+
+function clampConfidence(v: unknown, fallback = 0.5): number {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  // Some engines store 0-100, others 0-1. Normalize to 0-1.
+  const scaled = n > 1 ? n / 100 : n;
+  return Math.min(1, Math.max(0, Number(scaled.toFixed(4))));
+}
+
+function uuidList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => String(x)).filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+}
+
+function provenance(table: string, rowId: string): Record<string, unknown> {
+  // The generated columns `projected_from_table` / `projected_from_row_id`
+  // are extracted from exactly this shape — the unique index depends on it.
+  return { projected_from: { table, row_id: rowId }, projected: true };
+}
+
+/**
+ * One adapter per specialized table. `select` is the column list to read and
+ * `build` turns a row into a projection payload, or null to skip it.
+ */
+type Adapter = {
+  select: string;
+  build: (row: Record<string, unknown>) => ProjectionRow | null;
+};
+
+const ADAPTERS: Record<string, Adapter> = {
+  // Evidence intelligence: classification rows already carry severity and a
+  // Mexican-vocabulary classification (corroborante, contradictoria,
+  // cadena_de_custodia, faltante). Mirrored verbatim — no reinterpretation.
+  evidence_classifications: {
+    select:
+      "id,document_id,classification,title,description,severity,confidence,affected_party,citations",
+    build: (r) => {
+      const id = String(r.id ?? "");
+      const title = String(r.title ?? "").trim();
+      if (!id || !title) return null;
+      const classification = String(r.classification ?? "sin_clasificar");
+      return {
+        source_module: "projection:evidence_classifications",
+        category: "evidencia",
+        title,
+        description: String(r.description ?? ""),
+        severity: normalizeSeverity(r.severity),
+        confidence: clampConfidence(r.confidence),
+        legal_significance: null,
+        affected_party: r.affected_party ? String(r.affected_party) : null,
+        evidence_type: classification,
+        tags: ["proyeccion", `clasificacion:${classification}`],
+        supporting_engines: ["engine:evidence_intelligence"],
+        source_doc_ids: uuidList(r.document_id ? [r.document_id] : []),
+        metadata: {
+          ...provenance("evidence_classifications", id),
+          classification,
+          citations: r.citations ?? [],
+        },
+      };
+    },
+  },
+
+  // Witness intelligence: only witnesses that actually carry a credibility
+  // risk become findings. A clean witness is not a finding, and projecting
+  // one would inflate every counter with noise.
+  case_witnesses: {
+    select: "id,name,role,credibility_risk,reliability,consistency,rationale,source_doc_ids",
+    build: (r) => {
+      const id = String(r.id ?? "");
+      const name = String(r.name ?? "").trim();
+      if (!id || !name) return null;
+      const risk = Number(r.credibility_risk ?? 0);
+      if (!Number.isFinite(risk) || risk < 40) return null; // below 40 = no credibility concern
+      const severity = risk >= 75 ? "critical" : risk >= 60 ? "high" : "medium";
+      return {
+        source_module: "projection:case_witnesses",
+        category: "credibilidad_testimonial",
+        title: `Riesgo de credibilidad: ${name}`,
+        description:
+          String(r.rationale ?? "").trim() ||
+          `El testigo ${name} presenta un índice de riesgo de credibilidad de ${risk}/100.`,
+        severity,
+        confidence: clampConfidence(r.reliability, 0.5),
+        legal_significance: null,
+        affected_party: r.role ? String(r.role) : null,
+        evidence_type: "testimonial",
+        tags: ["proyeccion", "testigo"],
+        supporting_engines: ["engine:witness_intelligence"],
+        source_doc_ids: uuidList(r.source_doc_ids),
+        metadata: {
+          ...provenance("case_witnesses", id),
+          credibility_risk: risk,
+          reliability: r.reliability ?? null,
+          consistency: r.consistency ?? null,
+        },
+      };
+    },
+  },
+};
+
+export const PROJECTABLE_TABLES = Object.keys(ADAPTERS);
+
+export type ProjectionResult = {
+  ok: boolean;
+  tables: string[];
+  candidates: number;
+  written: number;
+  error?: string;
+};
+
+/** Build payloads from already-fetched rows. Pure — used by the unit tests. */
+export function buildProjectionRows(
+  table: string,
+  rows: ReadonlyArray<Record<string, unknown>>,
+): ProjectionRow[] {
+  const adapter = ADAPTERS[table];
+  if (!adapter) return [];
+  const out: ProjectionRow[] = [];
+  for (const r of rows ?? []) {
+    const built = adapter.build(r);
+    if (built) out.push(built);
+  }
+  return out;
+}
+
+/**
+ * Mirror every projectable table an engine just wrote into `case_findings`,
+ * in a single batched call. Never throws.
+ */
+export async function projectCaseFindings(
+  db: Db,
+  args: { caseId: string; tables: ReadonlyArray<string> },
+): Promise<ProjectionResult> {
+  const tables = Array.from(new Set(args.tables.filter((t) => ADAPTERS[t])));
+  if (tables.length === 0) return { ok: true, tables: [], candidates: 0, written: 0 };
+
+  try {
+    const rows: ProjectionRow[] = [];
+    for (const table of tables) {
+      const { data, error } = await db
+        .from(table)
+        .select(ADAPTERS[table].select)
+        .eq("case_id", args.caseId);
+      if (error) throw new Error(`${table}: ${error.message}`);
+      rows.push(...buildProjectionRows(table, (data ?? []) as unknown as Record<string, unknown>[]));
+    }
+    if (rows.length === 0) return { ok: true, tables, candidates: 0, written: 0 };
+
+    // The RPC is SECURITY DEFINER and granted to service_role only. Loaded
+    // lazily so this module never drags the admin client into a route graph.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: written, error } = await supabaseAdmin.rpc("project_case_findings", {
+      p_case_id: args.caseId,
+      p_rows: rows as unknown as never,
+    });
+    if (error) throw new Error(error.message);
+
+    return { ok: true, tables, candidates: rows.length, written: Number(written ?? 0) };
+  } catch (e) {
+    return {
+      ok: false,
+      tables,
+      candidates: 0,
+      written: 0,
+      error: (e as Error)?.message ?? String(e),
+    };
+  }
+}
