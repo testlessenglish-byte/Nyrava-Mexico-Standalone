@@ -1520,6 +1520,7 @@
   "reports.mode.limited": "Análisis limitado",
   "reports.notice.limitedAnalysis": "Análisis limitado — el paso narrativo no está disponible. Los hallazgos están sustentados en evidencia pero son incompletos; requiere revisión por un abogado.",
   "reports.notice.motionsSuppressed": "Recomendaciones de promociones suprimidas",
+  "reports.notice.canonicalStale": "Generado a partir de la versión {current} del análisis canónico; existe un análisis más reciente (versión {latest}). Vuelva a generar el informe para incorporarlo.",
   "reports.notice.scoresSuppressed": "Puntuaciones cuantitativas suprimidas",
   "reports.openWorkspace": "Abrir expediente",
   "reports.opportunities.page": " · p.{page}",

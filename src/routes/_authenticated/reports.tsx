@@ -55,6 +55,20 @@ function ReportsPage() {
   const scoresSuppressed = report?.scores_suppressed === true;
   const motionsSuppressed = report?.motions_suppressed === true;
   const detFallback = isDeterministicFallback(report);
+  // Phase 4: the report is a snapshot of a specific canonical analysis version.
+  // If the gate has since produced a newer one, say so rather than silently
+  // re-rendering — regeneration stays an explicit attorney action.
+  const reportCanonicalVersion =
+    typeof report?.canonical_version === "number" ? (report.canonical_version as number) : null;
+  const currentCanonicalVersion =
+    typeof (data as { canonical_current_version?: number | null } | undefined)?.canonical_current_version ===
+    "number"
+      ? ((data as { canonical_current_version?: number | null }).canonical_current_version as number)
+      : null;
+  const canonicalStale =
+    reportCanonicalVersion !== null &&
+    currentCanonicalVersion !== null &&
+    currentCanonicalVersion > reportCanonicalVersion;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const engines = (report?.engines_summary ?? {}) as Record<string, any>;
   const reportMode: "FULL" | "LIMITED" | null =
@@ -152,6 +166,14 @@ function ReportsPage() {
                   ) : null}
                 </div>
 
+                {canonicalStale ? (
+                  <SuppressedNotice
+                    title={t("reports.notice.canonicalStale", {
+                      current: String(reportCanonicalVersion),
+                      latest: String(currentCanonicalVersion),
+                    })}
+                  />
+                ) : null}
                 {detFallback ? <SuppressedNotice title={t("reports.notice.limitedAnalysis")} /> : null}
                 {scoresSuppressed ? <SuppressedNotice title={t("reports.notice.scoresSuppressed")} /> : null}
                 {motionsSuppressed ? <SuppressedNotice title={t("reports.notice.motionsSuppressed")} /> : null}
