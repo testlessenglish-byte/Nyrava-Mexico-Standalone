@@ -47,9 +47,15 @@ function isWitnessProfile(f: Finding): boolean {
  */
 function agreementMultiplier(f: Finding): number {
   if (f.finding_status === "disputed") return 0.6;
-  const a = typeof f.agreement === "number" ? f.agreement : 1;
-  if (a <= 1) return 1;
-  return Math.min(1.5, 1 + 0.2 * (a - 1));
+  const count = typeof f.agreement === "number" ? f.agreement : 1;
+  // Weighted agreement when consensus recorded it, otherwise fall back to the
+  // raw count (every voice worth 1.0). A deterministic stage contributes 1.6,
+  // so deterministic+LLM (2.6 -> 1.32x) outranks LLM+LLM (2.0 -> 1.20x).
+  const w = typeof f.agreement_weight === "number" && f.agreement_weight > 0
+    ? f.agreement_weight
+    : count;
+  if (w <= 1) return 1;
+  return Math.min(1.6, 1 + 0.2 * (w - 1));
 }
 
 function weightOf(f: Finding): number {
