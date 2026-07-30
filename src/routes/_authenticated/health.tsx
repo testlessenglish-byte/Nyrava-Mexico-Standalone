@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -166,12 +167,24 @@ function HealthPage() {
                   name={p.displayName || p.provider}
                   icon={<Cpu className="h-4 w-4" />}
                   configured={p.configured}
-                  ok={p.ok}
+                  ok={lastTest[p.provider]?.ok ?? p.ok}
                   latencyMs={p.latencyMs}
-                  error={p.ok ? undefined : (p.error ?? p.lastError ?? undefined)}
+                  error={
+                    lastTest[p.provider]
+                      ? (lastTest[p.provider].ok ? undefined : lastTest[p.provider].error)
+                      : p.ok ? undefined : (p.error ?? p.lastError ?? undefined)
+                  }
                   note={`${p.model ?? "—"} · ${p.okKeyCount ?? 0}/${p.keyCount} key${p.keyCount === 1 ? "" : "s"} live · ${p.totalOk} ok / ${p.totalErr} err · ${Math.round(p.inputTokenBudget / 1000)}k tok budget`}
-                  onTest={() => probe.mutate(p.provider)}
-                  testing={probe.isPending}
+                  onTest={() => {
+                    setTestingProvider(p.provider);
+                    setLastTest((prev) => {
+                      const next = { ...prev };
+                      delete next[p.provider];
+                      return next;
+                    });
+                    probe.mutate(p.provider);
+                  }}
+                  testing={testingProvider === p.provider}
                 />
               ))}
             <ProviderCard
