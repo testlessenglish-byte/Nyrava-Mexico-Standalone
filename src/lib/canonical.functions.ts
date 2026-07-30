@@ -45,8 +45,19 @@ export const regenerateCanonical = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => RegenInput.parse(raw))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
+    // Authorize via RLS first: the user must be able to see this case.
+    const { data: allowed, error: authErr } = await supabase
+      .from("cases")
+      .select("id")
+      .eq("id", data.caseId)
+      .maybeSingle();
+    if (authErr || !allowed) throw new Error("Case not found or access denied");
+
     const { runCanonicalGate } = await import("@/lib/canonical/gate.server");
-    const gate = await runCanonicalGate(supabase, data.caseId, data.reportMode);
+    // canonical_analysis writes are service-role only.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const gate = await runCanonicalGate(supabaseAdmin as typeof supabase, data.caseId, data.reportMode);
+
     return {
       ok: gate.ok,
       status: gate.status,
