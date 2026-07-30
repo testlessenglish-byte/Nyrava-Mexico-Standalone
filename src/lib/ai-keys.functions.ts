@@ -34,6 +34,19 @@ export type UserAIKeyView = {
   lastTestError: string | null;
 };
 
+// Any change to the key pool must immediately invalidate the router's
+// in-memory provider/credential caches and drop that provider's cooldowns —
+// otherwise a freshly added key stays invisible (or still "burnt") for the
+// cache TTL / cooldown window.
+async function resetRouterStateFor(provider: Provider | null, userId: string) {
+  try {
+    const { resetAiRuntimeState } = await import("@/lib/ai/router.server");
+    resetAiRuntimeState({ provider: provider as never, userId });
+  } catch {
+    // Router module unavailable (e.g. tests) — cache TTL will catch up.
+  }
+}
+
 export const listUserAIKeys = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<UserAIKeyView[]> => {
@@ -128,6 +141,7 @@ export const addUserAIKey = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await resetRouterStateFor(data.provider, userId);
     return { id: String(row.id), validated: true };
   });
 
@@ -141,6 +155,7 @@ export const deleteUserAIKey = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).from("user_ai_keys").delete().eq("id", data.id).eq("user_id", userId);
     if (error) throw new Error(error.message);
+    await resetRouterStateFor(null, userId);
     return { ok: true };
   });
 
@@ -158,6 +173,7 @@ export const toggleUserAIKey = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
+    await resetRouterStateFor(null, userId);
     return { ok: true };
   });
 
@@ -206,6 +222,7 @@ export const reorderUserAIKey = createServerFn({ method: "POST" })
     await (supabase as any).from("user_ai_keys").update({ priority: bPriority }).eq("id", a.id).eq("user_id", userId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("user_ai_keys").update({ priority: aPriority }).eq("id", b.id).eq("user_id", userId);
+    await resetRouterStateFor(null, userId);
     return { ok: true };
   });
 
@@ -225,6 +242,7 @@ export const toggleProviderAIKeys = createServerFn({ method: "POST" })
       .eq("user_id", userId)
       .eq("provider", data.provider);
     if (error) throw new Error(error.message);
+    await resetRouterStateFor(data.provider, userId);
     return { ok: true };
   });
 
@@ -244,6 +262,7 @@ export const deleteProviderAIKeys = createServerFn({ method: "POST" })
       .eq("user_id", userId)
       .eq("provider", data.provider);
     if (error) throw new Error(error.message);
+    await resetRouterStateFor(data.provider, userId);
     return { ok: true };
   });
 
