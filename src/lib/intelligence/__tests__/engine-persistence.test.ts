@@ -21,15 +21,18 @@ function makeFakeDb(rowsByTable: Record<string, Array<{ id: string; case_id: str
     from(table: string) {
       return {
         select(_cols: string) {
-          return {
+          // Chainable filter builder: production code may call `.eq()` more
+          // than once (e.g. case_id + engine) before awaiting the result.
+          const makeFilter = (rows: Array<{ id: string; case_id: string }>) => ({
             eq(col: string, val: string) {
-              const rows = (rowsByTable[table] ?? []).filter(
-                (r) => (r as Record<string, unknown>)[col] === val,
-              );
-              return Promise.resolve({ data: rows, error: null });
+              const next = rows.filter((r) => (r as Record<string, unknown>)[col] === val);
+              return makeFilter(next);
             },
-          };
+            then: (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
+          });
+          return makeFilter(rowsByTable[table] ?? []);
         },
+
         insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
           const rows = Array.isArray(payload) ? payload : [payload];
           if (table === "pipeline_engine_runs") {
