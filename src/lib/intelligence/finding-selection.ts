@@ -20,7 +20,11 @@
 // `source_module` semantics stay frozen: 17 confirmed consumers depend on
 // the prefix strings, so nothing here rewrites or reinterprets them.
 
-export type FindingSourceClass = "engine" | "agent" | "analyzer" | "other";
+// Phase 2 adds one class: `projection:*` rows are mirrored copies of
+// specialized-table output (evidence classifications, witness credibility).
+// They are provenance rows, NOT new analysis — they are excluded from every
+// pre-existing surface by default so Phase 2 cannot move a single badge.
+export type FindingSourceClass = "engine" | "agent" | "analyzer" | "projection" | "other";
 
 export type FindingStatus = "candidate" | "verified" | "disputed" | "suppressed" | "promoted";
 
