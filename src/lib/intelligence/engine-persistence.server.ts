@@ -306,6 +306,33 @@ export async function runVerifiedEngine<T>(
       throw err;
     }
 
+    // Phase 2: mirror specialized-table output into case_findings so the
+    // aggregation layer can see it. ONE batched call per engine execution.
+    // Additive and non-fatal — projected rows use the `projection:` source
+    // class, which no pre-existing counter selects, and a failure here must
+    // never fail an engine whose real output is already persisted.
+    const projectable = report.tables.filter((t) => PROJECTABLE_TABLES.includes(t));
+    if (projectable.length > 0) {
+      const projection = await projectCaseFindings(db, {
+        caseId: args.caseId,
+        tables: projectable,
+      });
+      traceAsync({
+        phase: "db",
+        step: `${args.engine}.findings_projected`,
+        status: projection.ok ? "ok" : "warn",
+        error: projection.error ?? null,
+        detail: {
+          tables: projection.tables,
+          candidates: projection.candidates,
+          rows_upserted: projection.written,
+        },
+        db,
+        caseId: args.caseId,
+        userId: args.userId,
+      });
+    }
+
     traceAsync({
       phase: "engine",
       step: `${args.engine}.complete`,
