@@ -1,0 +1,59 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+DEFENSA PARTICULAR — LIC. XIMENA BERENICE TOLEDO AGUILAR
+ESCRITO DE SOLICITUD DE EXCLUSIÓN DE MEDIOS DE PRUEBA
+Carpeta judicial: CJ-214/2026 | Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Presentado el 20 de abril de 2026 ante el Juez de Control del Distrito Judicial de Cancún.
+
+C. JUEZ DE CONTROL
+P R E S E N T E
+
+Ximena Berenice Toledo Aguilar, defensora particular de Andrés Iván Peraza Manzanilla,
+señalando como domicilio para oír notificaciones el ya designado en autos, comparezco y
+expongo:
+
+Con fundamento en los arts. 14, 16 y 20, apartado A, fracción IX, de la Constitución Política
+de los Estados Unidos Mexicanos, y 97, 263, 264 y 346, fracción I, del Código Nacional de
+Procedimientos Penales, solicito la EXCLUSIÓN de los medios de prueba que se precisan, por
+haberse obtenido con violación de derechos fundamentales.
+
+PRIMERO. Indicios IND-05 (carpeta verde) e IND-06 (memoria USB). La orden CJ-214/2026
+autorizó exclusivamente la inspección de la oficina 402 de Av. Bonampak 622 y expresamente
+excluyó cualquier domicilio particular. No obstante, el acta de cateo, el inventario de
+evidencia y el registro de cadena de custodia coinciden en que ambos indicios se recabaron en
+Calle Nichupté 214, SM 27, entre las 11:47 y las 11:52 horas del 19 de marzo de 2026. El
+propio policía actuante reconoció en su declaración de 23 de marzo que la orden no comprendía
+ese domicilio y que no recabó consentimiento ni autorización complementaria. Se trata de un
+acto de molestia carente de mandamiento escrito de autoridad competente que lo funde y motive.
+
+SEGUNDO. Efecto reflejo sobre el dictamen DP-DOC-0189/2026. La conclusión tercera de dicho
+dictamen (autoría gráfica de las anotaciones manuscritas) se sustenta íntegramente en fojas
+del indicio IND-05. Excluido el indicio originario, la prueba derivada carece de fuente
+independiente y debe correr la misma suerte, conforme al art. 264 del CNPP.
+
+TERCERO. Ruptura de la cadena de custodia de IND-01 e IND-03. La bitácora BED-1120-2026
+consigna que la adquisición forense inició a las 06:58 y 07:03 horas del 19 de marzo, en tanto
+que el registro RCC-1120-2026 documenta que los dispositivos ingresaron al almacén hasta las
+14:20 y 14:24 horas y que fue ahí donde se generaron las imágenes. Ambas versiones son
+lógicamente incompatibles: o los hashes se generaron antes del aseguramiento, o el registro de
+custodia es falso. En cualquiera de los escenarios se destruye la mismidad e integridad del
+indicio exigida por los arts. 227 y 228 del CNPP.
+
+CUARTO. Discrepancia sobre las circunstancias de la diligencia. El dictamen DP-VID-0077/2026
+acredita el ingreso a las 07:41:18 horas, mientras que el acta y el IPH afirman las 08:05
+horas; la testigo de asistencia refiere las 07:20 horas y el ingreso de tres elementos, frente
+a los cinco que documentan el informe policial y el video. Estas inconsistencias comprometen
+la fiabilidad del registro de la diligencia en su conjunto.
+
+QUINTO. Intento de extracción del IND-02 sin autorización judicial. Aun cuando no se obtuvo
+información, la sola manipulación del dispositivo sin resolución judicial específica lesiona
+el derecho a la vida privada y a la inviolabilidad de las comunicaciones.
+
+PETITORIOS
+ÚNICO. Se excluyan del auto de apertura a juicio oral los indicios IND-05 e IND-06, el
+apartado correspondiente del dictamen DP-DOC-0189/2026, y las imágenes forenses de IND-01 e
+IND-03, así como los dictámenes que de ellas derivan.
+
+Protesto lo necesario.
+Lic. Ximena Berenice Toledo Aguilar — Cédula 8842137.
+Cancún, Quintana Roo, 20 de abril de 2026.

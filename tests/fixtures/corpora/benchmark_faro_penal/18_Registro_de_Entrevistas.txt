@@ -1,0 +1,47 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+FISCALÍA GENERAL DEL ESTADO DE QUINTANA ROO
+REGISTRO CONSOLIDADO DE ENTREVISTAS DE INVESTIGACIÓN
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Elaboró: Policía Tercero Óscar Damián Balam Tuz, AIC-QR-4471.
+Corte al 23 de marzo de 2026.
+
+No. | Fecha y hora     | Persona entrevistada                      | Calidad             | Lugar                          | Registro
+----|------------------|-------------------------------------------|---------------------|--------------------------------|----------
+1   | 15/03/2026 13:40 | Claudia Rebeca Fonseca Iriarte            | Víctima (apoderada) | Sede UIDFD, Av. Náder 92       | Acta y audio AUD-VIC-1120
+2   | 16/03/2026 11:10 | Alma Delia Sabido Quintal                 | Testigo referencial | Av. Bonampak 622, planta baja  | Nota de entrevista NE-01
+3   | 17/03/2026 09:30 | Bernardo Kuri Elías (vía videoconferencia)| Administrador único | Enlace remoto CDMX             | Nota de entrevista NE-02
+4   | 19/03/2026 12:10 | Andrés Iván Peraza Manzanilla             | Imputado            | Oficina 402, Av. Bonampak 622  | Se reserva su derecho a declarar
+5   | 22/03/2026 10:05 | Lorena Massiel Uc Chi                     | Testigo "A"         | Sede UIDFD                     | AUD-ENT-A-1120
+6   | 22/03/2026 13:20 | Gerardo Antonio Ruvalcaba Núñez           | Testigo "B"         | Sede UIDFD                     | AUD-ENT-B-1120
+7   | 22/03/2026 17:00 | Ivonne Guadalupe Pech Zapata              | Testigo             | Sede UIDFD                     | Nota de entrevista NE-03
+8   | 23/03/2026 11:00 | Pol. 3° Óscar Damián Balam Tuz            | Policía actuante    | Sede UIDFD                     | Declaración ministerial
+
+SÍNTESIS DE LAS ENTREVISTAS NO DESARROLLADAS EN REGISTRO AUTÓNOMO
+
+NE-01 — Alma Delia Sabido Quintal, 33 años, encargada de la administración del edificio de
+Av. Bonampak 622. Refiere que Faro Náutico del Caribe ocupa la oficina 402 desde octubre de
+2022 bajo contrato de arrendamiento a nombre de la moral; que el acceso al piso 4 requiere
+tarjeta y que el circuito cerrado del edificio conserva 30 días de grabación. Proporciona los
+datos del NVR Hikvision DS-7616 y ofrece copia de las grabaciones previo oficio.
+
+NE-02 — Bernardo Kuri Elías, 63 años, administrador único de Faro Náutico del Caribe, S.A. de
+C.V., residente en la Ciudad de México. Manifiesta que delegó la operación diaria al Director
+de Operaciones mediante poder otorgado en escritura 9,441, volumen 55, del Notario Público 118
+de la Ciudad de México; que desconocía los contratos de coinversión con Marina Puerto Azul y
+que jamás autorizó la presentación de permisos ambientales ante contratantes. Aporta copia del
+acta constitutiva y del poder.
+
+NE-03 — Ivonne Guadalupe Pech Zapata, 27 años, auxiliar administrativa de Faro Náutico del
+Caribe entre marzo de 2024 y septiembre de 2025. Refiere que en julio de 2025 el señor Peraza
+le solicitó "recortar y limpiar" el escudo de un documento oficial en un archivo de diseño;
+que consideró la petición inusual y que ello motivó su renuncia. Reconoce el archivo
+"plantillas" descrito en el dictamen DP-INF-0442/2026 al serle mostrada la impresión de la
+estructura de carpetas.
+
+OBSERVACIÓN
+Las entrevistas 5 y 6 contienen discrepancias con la entrevista 8 y con el Informe Policial
+Homologado IPH-QR-BJ-2026-00871 en cuanto a la hora de ingreso y al número de elementos
+actuantes. Se somete la contradicción a consideración del Agente del Ministerio Público.
+
+Policía Tercero Óscar Damián Balam Tuz — AIC-QR-4471.
