@@ -51,3 +51,38 @@ now applies `.not("source_module", "like", PROJECTION_LIKE)`.
 
 Flag remains `FINDINGS_PROJECTION_ENABLED=false`. Enabling it is now a
 one-line change whose blast radius is limited to `canonical_analysis`.
+
+---
+
+## Phase 3 completion — flag on, consensus live
+
+**Projection enabled.** `isProjectionEnabled()` now defaults to on; the kill
+switch is `FINDINGS_PROJECTION_ENABLED=false`, which still makes
+`projectCaseFindings` a traced no-op writing zero rows. Blast radius is
+limited to `canonical_analysis` by the reader audit above.
+
+**Consensus (`src/lib/canonical/consensus.server.ts`).** The single place that
+decides agreement:
+- clusters findings by (category, token-similarity of title+description);
+- `agreement` = distinct engines behind the cluster — a `projection:*` row
+  contributes its producing engine, never an extra vote;
+- earns status: `promoted` (>=2 engines + fully grounded citation),
+  `verified` (1 engine + grounded), `disputed` (engines split
+  critical/high vs low/info), else `candidate`; suppressed/quarantined rows
+  can never be promoted;
+- `persistFindingStatuses` writes back in one update per status (<=4 round
+  trips), non-fatal.
+
+**Ranking.** `findings-rank.server.ts` now weights
+importance x confidence x agreement (cap 1.5x at 4+ engines; disputed x0.6).
+Findings without consensus data score exactly as before.
+
+**Spanish citation verbs.** `citation-quality.server.ts` previously only
+matched English conclusion verbs, so the demotion rule never fired on real
+Spanish reports. Added constituye/acredita/viola/vulnera/transgrede/incumple/
+demuestra/prueba plenamente/queda acreditado/es responsable/actualiza el tipo
+penal, each with a Spanish observational demotion.
+
+Tests: 394 passed, 3 skipped, 0 failed (18 new in
+`src/lib/canonical/__tests__/consensus.test.ts`). Typecheck clean. No Mexican
+legal-content module touched.
