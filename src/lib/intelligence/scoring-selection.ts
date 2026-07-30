@@ -29,6 +29,7 @@
 // canonical-scoring.ts — this brings scoring-selection.ts (the file
 // actually imported by pipeline.server.ts) in line with it.
 
+import { isCanonicalFinding } from "./finding-selection";
 import type { Finding } from "./types";
 
 export type CaseTimestamps = {
