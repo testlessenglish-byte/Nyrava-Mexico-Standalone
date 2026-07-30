@@ -28,6 +28,79 @@ function isRunningStatus(status: string | null): boolean {
   return RUNNING_STATUSES.has(String(status ?? ""));
 }
 
+/**
+ * Cap on how many pipelines ONE user may have running at the same time.
+ * Sized to what a single set of Groq/Gemini keys can sustain without
+ * tripping provider rate limits. Override with PIPELINE_MAX_CONCURRENT.
+ */
+export const MAX_CONCURRENT_PIPELINES_PER_USER = Number(
+  process.env.PIPELINE_MAX_CONCURRENT ?? 2,
+);
+
+/** Returns the active (non-expired) lease timestamp for a case, or null. */
+export async function getActiveCaseLease(db: Db, caseId: string): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (db as any)
+    .from("cases")
+    .select("worker_lease_until")
+    .eq("id", caseId)
+    .maybeSingle();
+  const until = (data?.worker_lease_until as string | null) ?? null;
+  if (!until) return null;
+  return new Date(until).getTime() > Date.now() ? until : null;
+}
+
+/**
+ * Side-door guard for the individual stage-level step endpoints. The full
+ * pipeline holds a case lease while it runs; a stage button, a double-click,
+ * or a stale retry must NOT fire AI calls for the same case concurrently.
+ */
+export async function assertCaseNotLeased(db: Db, caseId: string, label: string): Promise<void> {
+  const until = await getActiveCaseLease(db, caseId);
+  if (until) {
+    console.warn(`[lease] ${label} blocked — case ${caseId} leased until ${until}`);
+    throw new Error(
+      `[${label}] Este asunto ya tiene una ejecución en curso (hasta ${until}). Espera a que termine o usa "Limpiar estado" antes de ejecutar esta etapa.`,
+    );
+  }
+}
+
+/** How many OTHER cases this user currently has under an active lease. */
+export async function countActiveUserPipelines(
+  db: Db,
+  userId: string,
+  excludeCaseId?: string,
+): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (db as any)
+    .from("cases")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gt("worker_lease_until", new Date().toISOString());
+  if (excludeCaseId) q = q.neq("id", excludeCaseId);
+  const { count } = await q;
+  return count ?? 0;
+}
+
+/**
+ * Throws when the user is already at the concurrent-pipeline ceiling.
+ * Prevents one account from kicking off N cases at once and burning the
+ * whole Gemini/Groq quota.
+ */
+export async function assertUserPipelineCapacity(
+  db: Db,
+  userId: string,
+  caseId: string,
+): Promise<void> {
+  const active = await countActiveUserPipelines(db, userId, caseId);
+  if (active >= MAX_CONCURRENT_PIPELINES_PER_USER) {
+    console.warn(`[lease] capacity block — user ${userId} has ${active} active pipelines`);
+    throw new Error(
+      `Límite de ejecuciones simultáneas alcanzado (${active}/${MAX_CONCURRENT_PIPELINES_PER_USER}). Espera a que termine otro asunto antes de iniciar este.`,
+    );
+  }
+}
+
 export type PipelineLeaseClaim =
   | { claimed: true; previousStatus: string | null; leaseUntil: string }
   | { claimed: false; done: true; status: string | null }
