@@ -1170,8 +1170,12 @@ async function _runPipelineForCase(
   // thrown, so the legacy report path stays intact.
   try {
     const { runCanonicalGate } = await import("@/lib/canonical/gate.server");
+    // canonical_analysis is service-role-write only (users get SELECT via RLS),
+    // so the projection must run with the privileged server client.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const reportMode = hasFailures ? "LIMITED" : "FULL";
-    const gate = await runCanonicalGate(supabase, caseId, reportMode);
+    const gate = await runCanonicalGate(supabaseAdmin as typeof supabase, caseId, reportMode);
+
     trace("pipeline.canonical", {
       ok: gate.ok,
       status: gate.status,
