@@ -571,7 +571,10 @@ export const runFullIntelligenceStep = createServerFn({ method: "POST" })
   .inputValidator(stepInput)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "FullIntelligence");
-    const { claimPipelineLease } = await import("@/lib/pipeline-lease.server");
+    const { claimPipelineLease, assertUserPipelineCapacity } = await import(
+      "@/lib/pipeline-lease.server"
+    );
+    await assertUserPipelineCapacity(supabase, userId, data.caseId);
     const claim = await claimPipelineLease(supabase, data.caseId);
     if (!claim.claimed) return { ok: false, queued: false, ...claim };
     const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
