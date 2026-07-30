@@ -31,6 +31,7 @@ import {
   serializeCanonicalContextForPrompt,
 } from "./intelligence/report-canonical-context";
 import { mergeCanonicalRecommendations } from "./intelligence/report-recommendations";
+import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -380,15 +381,21 @@ async function _runPipelineForCase(
     scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
     jurisdiction_intel: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
-          const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
-          const value = await runJurisdictionIntelligence({ db: supabase, caseId });
-          return {
-            value,
-            stats: { generated: 1, accepted: 1, rows_written: 1, db_write_confirmed: true },
-          };
-        }),
+        withStageTimeout(
+          "jurisdiction_intel",
+          () =>
+            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
+              const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
+              const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+              return {
+                value,
+                stats: { generated: 1, accepted: 1, rows_written: 1, db_write_confirmed: true },
+              };
+            }),
+          { caseId, userId },
+        ),
     },
+
     procedural_compliance: {
       run: () =>
         persist.runCatalogedEngine(supabase, { caseId, userId, engine: "procedural_compliance" }, async () => {
@@ -407,20 +414,26 @@ async function _runPipelineForCase(
     },
     legal_qa: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
-          const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-          const value = await runLegalQaGate({ db: supabase, caseId, userId });
-          return {
-            value,
-            stats: {
-              generated: value.checked_fields,
-              accepted: value.checked_fields - value.warnings.length,
-              rows_written: value.remediated_fields,
-              db_write_confirmed: true,
-            },
-          };
-        }),
+        withStageTimeout(
+          "legal_qa",
+          () =>
+            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
+              const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+              const value = await runLegalQaGate({ db: supabase, caseId, userId });
+              return {
+                value,
+                stats: {
+                  generated: value.checked_fields,
+                  accepted: value.checked_fields - value.warnings.length,
+                  rows_written: value.remediated_fields,
+                  db_write_confirmed: true,
+                },
+              };
+            }),
+          { caseId, userId },
+        ),
     },
+
     report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {

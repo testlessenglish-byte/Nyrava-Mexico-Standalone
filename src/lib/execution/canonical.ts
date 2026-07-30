@@ -76,7 +76,15 @@ export type StageDef = {
   readonly dependsOn: readonly string[];
   /** Report requirement level. */
   readonly requirement: RequirementLevel;
+  /**
+   * Hard wall-clock ceiling for this stage, in milliseconds. Enforced by
+   * `withStageTimeout()` in `blocking-stage-guard.server.ts`. A stage that
+   * exceeds it is aborted and recorded as FAILED — it never hangs the run.
+   * Only set on stages that can block the report.
+   */
+  readonly timeoutMs?: number;
 };
+
 
 // -----------------------------------------------------------------------------
 // THE canonical stage list. Order == execution order == UI display order.
@@ -147,7 +155,10 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     engine: "jurisdiction_intel",
     dependsOn: ["analyzers"],
     requirement: "blocking",
+    // Deterministic + a small corpus read. Anything past 2 min is a hang.
+    timeoutMs: 120_000,
   },
+
   {
     // Materia-specific procedural checklist (plazos, actos, formalidades).
     key: "procedural_compliance",
@@ -256,7 +267,11 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     engine: "legal_qa",
     dependsOn: ["scoring", "analyzers", "agents"],
     requirement: "blocking",
+    // Terminology remediation plus AI translation of English residue. Wide,
+    // but bounded: past 8 min the gate is stuck, not slow.
+    timeoutMs: 480_000,
   },
+
   {
     key: "report",
     label: "Generate Report",
@@ -502,3 +517,18 @@ export function missingRequiredEngines(
     return s !== "completed" && s !== "completed_negative" && s !== "skipped";
   });
 }
+
+/**
+ * Hard wall-clock ceiling declared for a stage, in ms (undefined = unbounded).
+ * Enforced by `withStageTimeout()` in `blocking-stage-guard.server.ts`.
+ */
+export function stageTimeoutMs(stageKey: string): number | undefined {
+  return STAGE_BY_KEY.get(stageKey)?.timeoutMs;
+}
+
+/** Every stage that declares a timeout ceiling, keyed by stage key. */
+export const STAGE_TIMEOUT_MS: Readonly<Record<string, number>> = Object.freeze(
+  Object.fromEntries(
+    CANONICAL_STAGES.filter((s) => typeof s.timeoutMs === "number").map((s) => [s.key, s.timeoutMs!]),
+  ),
+);

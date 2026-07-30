@@ -12,6 +12,7 @@ import {
 } from "./pipeline-trace.server";
 import esLocale from "@/i18n/locales/es.json";
 import enLocale from "@/i18n/locales/en.json";
+import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -353,32 +354,38 @@ async function _runPipelineForCase(
     // fuero/materia and the codes that govern the matter.
     jurisdiction_intel: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: "jurisdiction_intel" },
-          async () => {
-            const { runJurisdictionIntelligence } =
-              await import("@/lib/intelligence/jurisdiction-intel.server");
-            const value = await runJurisdictionIntelligence({ db: supabase, caseId });
-            return {
-              value,
-              stats: {
-                generated: 1,
-                accepted: 1,
-                rows_written: 1,
-                db_write_confirmed: true,
-                meta: {
-                  source: "deterministic",
-                  materia: value.materia,
-                  fuero: value.fuero,
-                  state: value.state?.name ?? null,
-                  state_source: value.state_source,
-                },
+        withStageTimeout(
+          "jurisdiction_intel",
+          () =>
+            persist.runCatalogedEngine(
+              supabase,
+              { caseId, userId, engine: "jurisdiction_intel" },
+              async () => {
+                const { runJurisdictionIntelligence } =
+                  await import("@/lib/intelligence/jurisdiction-intel.server");
+                const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+                return {
+                  value,
+                  stats: {
+                    generated: 1,
+                    accepted: 1,
+                    rows_written: 1,
+                    db_write_confirmed: true,
+                    meta: {
+                      source: "deterministic",
+                      materia: value.materia,
+                      fuero: value.fuero,
+                      state: value.state?.name ?? null,
+                      state_source: value.state_source,
+                    },
+                  },
+                };
               },
-            };
-          },
+            ),
+          { caseId, userId },
         ),
     },
+
     // Análisis de Cumplimiento Procesal — materia checklist over the corpus.
     procedural_compliance: {
       run: () =>
@@ -413,28 +420,40 @@ async function _runPipelineForCase(
     // and blocks `report` (its dependent).
     legal_qa: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
-          const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-          const value = await runLegalQaGate({ db: supabase, caseId });
-          return {
-            value,
-            stats: {
-              generated: value.checked_fields,
-              accepted: value.checked_fields - value.warnings.length,
-              rejected: value.warnings.length,
-              rows_written: value.remediated_fields,
-              db_write_confirmed: true,
-              meta: {
-                source: "deterministic",
-                materia: value.materia,
-                locale: value.locale,
-                remediated_fields: value.remediated_fields,
-                warnings: value.warnings.length,
+        withStageTimeout(
+          "legal_qa",
+          () =>
+            persist.runCatalogedEngine(
+              supabase,
+              { caseId, userId, engine: "legal_qa" },
+              async () => {
+                const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+                // userId routes the translation remediation through the
+                // caller's own provider keys instead of platform credits.
+                const value = await runLegalQaGate({ db: supabase, caseId, userId });
+                return {
+                  value,
+                  stats: {
+                    generated: value.checked_fields,
+                    accepted: value.checked_fields - value.warnings.length,
+                    rejected: value.warnings.length,
+                    rows_written: value.remediated_fields,
+                    db_write_confirmed: true,
+                    meta: {
+                      source: "deterministic",
+                      materia: value.materia,
+                      locale: value.locale,
+                      remediated_fields: value.remediated_fields,
+                      warnings: value.warnings.length,
+                    },
+                  },
+                };
               },
-            },
-          };
-        }),
+            ),
+          { caseId, userId },
+        ),
     },
+
     report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {
