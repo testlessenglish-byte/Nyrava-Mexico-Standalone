@@ -419,28 +419,40 @@ async function _runPipelineForCase(
     // and blocks `report` (its dependent).
     legal_qa: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
-          const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-          const value = await runLegalQaGate({ db: supabase, caseId });
-          return {
-            value,
-            stats: {
-              generated: value.checked_fields,
-              accepted: value.checked_fields - value.warnings.length,
-              rejected: value.warnings.length,
-              rows_written: value.remediated_fields,
-              db_write_confirmed: true,
-              meta: {
-                source: "deterministic",
-                materia: value.materia,
-                locale: value.locale,
-                remediated_fields: value.remediated_fields,
-                warnings: value.warnings.length,
+        withStageTimeout(
+          "legal_qa",
+          () =>
+            persist.runCatalogedEngine(
+              supabase,
+              { caseId, userId, engine: "legal_qa" },
+              async () => {
+                const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+                // userId routes the translation remediation through the
+                // caller's own provider keys instead of platform credits.
+                const value = await runLegalQaGate({ db: supabase, caseId, userId });
+                return {
+                  value,
+                  stats: {
+                    generated: value.checked_fields,
+                    accepted: value.checked_fields - value.warnings.length,
+                    rejected: value.warnings.length,
+                    rows_written: value.remediated_fields,
+                    db_write_confirmed: true,
+                    meta: {
+                      source: "deterministic",
+                      materia: value.materia,
+                      locale: value.locale,
+                      remediated_fields: value.remediated_fields,
+                      warnings: value.warnings.length,
+                    },
+                  },
+                };
               },
-            },
-          };
-        }),
+            ),
+          { caseId, userId },
+        ),
     },
+
     report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {
