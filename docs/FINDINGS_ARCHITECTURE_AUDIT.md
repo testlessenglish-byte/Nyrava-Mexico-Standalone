@@ -160,3 +160,16 @@ ranked finding set, rather than deciding what the report contains.
 
 Bug found and fixed while testing: `Number(null) === 0` made a report with no recorded canonical
 version render as "stale, built from version 0". Null versions are now rejected before coercion.
+
+### Fallback-reason coverage (pre-Amparo)
+
+`flag_disabled` was removed: it was global env state, not a per-case exception, and had no
+emit site — it would have written a trace row for every report in every flag-off environment
+while telling you nothing the env var doesn't. Removed rather than left looking like coverage.
+
+The remaining five now have stub-client tests asserting the reason is actually emitted, not
+just reachable by inspection: `no_canonical_row`, `canonical_not_completed` (both
+`orchestrating` and `failed`), `empty_payload`, `read_error`, and (from the pipeline side)
+`no_overlap_with_raw_findings`. A happy-path test asserts **no** trace row is written when
+canonical is used, so an empty `canonical_fallback` query during rollout means "no fallbacks"
+rather than "the reporting path is broken".
