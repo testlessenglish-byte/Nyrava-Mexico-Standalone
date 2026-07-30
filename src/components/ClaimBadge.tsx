@@ -1,4 +1,5 @@
-import { CLAIM_BADGE_CLASS, CLAIM_LABEL, classifyClaim, type ClaimClass } from "@/lib/intelligence/claim-class";
+import { CLAIM_BADGE_CLASS, classifyClaim, type ClaimClass } from "@/lib/intelligence/claim-class";
+import { useI18n } from "@/i18n";
 
 export function ClaimBadge({
   text,
