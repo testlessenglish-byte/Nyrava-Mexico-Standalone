@@ -315,6 +315,11 @@ export function stageKeyForEngine(engineOrStage: string): string | null {
  * not part of the canonical pipeline (caller shows the raw name).
  */
 export function engineLabelKey(engineOrStage: string, caseType?: string | null): string | null {
+  // Nested verification agents persist as `agent:<type>` so their run rows can
+  // never be mistaken for (or collide with) a top-level canonical stage.
+  if (engineOrStage.startsWith("agent:")) {
+    return `pipeline.agent.${engineOrStage.slice("agent:".length).replace(/_batch$/, "")}`;
+  }
   const key = stageKeyForEngine(engineOrStage);
   return key ? stageLabelKey(key, caseType) : null;
 }
