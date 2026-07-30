@@ -40,6 +40,11 @@ export type Finding = {
   supporting_engines?: string[];
   /** Distinct engines behind this claim; 0 when unknown. */
   agreement?: number;
+  /**
+   * Agreement weighted by voice kind (deterministic stage 1.6, LLM 1.0).
+   * Ranking uses this; promotion thresholds use the raw `agreement` count.
+   */
+  agreement_weight?: number;
   finding_status?: "promoted" | "verified" | "disputed" | "candidate";
 };
 

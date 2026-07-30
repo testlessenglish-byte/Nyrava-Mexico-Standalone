@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { emptyCaseAnalysis, type CaseAnalysis, type Finding } from "../case-analysis";
-import { applyConsensus, enginesOf, persistFindingStatuses } from "../consensus.server";
+import {
+  applyConsensus,
+  enginesOf,
+  persistFindingStatuses,
+  voiceWeight,
+  DETERMINISTIC_VOICE_WEIGHT,
+  LLM_VOICE_WEIGHT,
+} from "../consensus.server";
 import { rankFindings } from "../findings-rank.server";
 import { enforceCitationQuality } from "../citation-quality.server";
 
@@ -125,6 +132,43 @@ describe("consensus — ranking effect", () => {
     rankFindings(a);
     expect(a.Findings[0].agreement).toBe(2);
     expect(a.Findings[a.Findings.length - 1].id).toBe(single.id);
+  });
+
+  it("weights a deterministic stage above another LLM voice", () => {
+    expect(voiceWeight("engine:procedural_compliance")).toBe(DETERMINISTIC_VOICE_WEIGHT);
+    expect(voiceWeight("jurisdiction_intel")).toBe(DETERMINISTIC_VOICE_WEIGHT);
+    expect(voiceWeight("agent:qa")).toBe(LLM_VOICE_WEIGHT);
+  });
+
+  it("ranks deterministic+LLM above LLM+LLM at the same raw engine count", () => {
+    // Cluster A: an LLM engine corroborated by a deterministic stage.
+    const detA = finding({ source_module: "engine:evidence" });
+    const detB = finding({
+      source_module: "engine:procedural_compliance",
+      title: "Cadena de custodia rota en embalaje del indicio",
+    });
+    // Cluster B: same category/severity/confidence, two LLM voices.
+    const llmA = finding({
+      source_module: "engine:a",
+      title: "Dictamen pericial sin ratificación ante el juez",
+      description: "El perito no compareció a ratificar su dictamen.",
+    });
+    const llmB = finding({
+      source_module: "agent:qa",
+      title: "Dictamen pericial sin ratificación ante el juez de control",
+      description: "El perito no compareció a ratificar su dictamen.",
+    });
+    const a = analysisWith([llmA, llmB, detA, detB]);
+    applyConsensus(a);
+    // Same raw engine count on both clusters.
+    expect(detA.agreement).toBe(2);
+    expect(llmA.agreement).toBe(2);
+    // Different weighted agreement.
+    expect(detA.agreement_weight).toBeCloseTo(DETERMINISTIC_VOICE_WEIGHT + LLM_VOICE_WEIGHT);
+    expect(llmA.agreement_weight).toBeCloseTo(LLM_VOICE_WEIGHT * 2);
+    rankFindings(a);
+    const ids = a.Findings.map((f) => f.id);
+    expect(ids.slice(0, 2).sort()).toEqual([detA.id, detB.id].sort());
   });
 
   it("pushes a disputed cluster below an undisputed one of equal weight", () => {

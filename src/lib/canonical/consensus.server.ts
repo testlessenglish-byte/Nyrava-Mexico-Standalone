@@ -19,6 +19,14 @@
 //      A mirrored `projection:*` row never counts as an extra voice on its
 //      own — it carries the engine that produced the specialized row, so a
 //      witness finding and its projection are one engine, not two.
+//   4. `agreement_weight` = the same voices, weighted by KIND. A
+//      deterministic stage (jurisdiction_intel, procedural_compliance) does
+//      not "opine": it applies codified Mexican procedure to case data, so
+//      its corroboration is stronger evidence than a second LLM restating
+//      the first. Weights: deterministic 1.6, LLM 1.0 — see
+//      DETERMINISTIC_VOICE_WEIGHT below. Only ranking consumes the weight;
+//      promotion thresholds still use the raw distinct-engine count so a
+//      single deterministic voice can never self-promote.
 //
 // How status is earned
 //   promoted  — agreement >= 2 AND at least one fully grounded citation
@@ -82,6 +90,35 @@ export function enginesOf(f: Finding): string[] {
   return [...out];
 }
 
+/**
+ * Deterministic stages: rule engines that compute from codified Mexican
+ * procedure + case data, with no model sampling in the loop. Matched on the
+ * engine leaf name so both "procedural_compliance" and
+ * "engine:procedural_compliance" resolve.
+ */
+const DETERMINISTIC_ENGINES = new Set([
+  "jurisdiction_intel",
+  "procedural_compliance",
+]);
+
+/**
+ * Voice weights. Chosen so that:
+ *   deterministic + LLM (1.6 + 1.0 = 2.6) outranks LLM + LLM (2.0), and
+ *   a lone deterministic voice (1.6) still sits below any real two-voice
+ *   cluster, because one rule engine is not consensus.
+ */
+export const DETERMINISTIC_VOICE_WEIGHT = 1.6;
+export const LLM_VOICE_WEIGHT = 1.0;
+
+export function isDeterministicEngine(engine: string): boolean {
+  const leaf = String(engine ?? "").trim().split(":").pop() ?? "";
+  return DETERMINISTIC_ENGINES.has(leaf.toLowerCase());
+}
+
+export function voiceWeight(engine: string): number {
+  return isDeterministicEngine(engine) ? DETERMINISTIC_VOICE_WEIGHT : LLM_VOICE_WEIGHT;
+}
+
 function severityBand(f: Finding): "high" | "low" | "mid" {
   if (f.severity === "critical" || f.severity === "high") return "high";
   if (f.severity === "low" || f.severity === "info") return "low";
@@ -117,6 +154,7 @@ export type ConsensusSummary = {
   disputed: number;
   candidate: number;
   maxAgreement: number;
+  maxAgreementWeight: number;
 };
 
 /**
@@ -131,6 +169,7 @@ export function applyConsensus(analysis: CaseAnalysis): ConsensusSummary {
     disputed: 0,
     candidate: 0,
     maxAgreement: 0,
+    maxAgreementWeight: 0,
   };
   if (!Array.isArray(analysis.Findings)) return summary;
 
@@ -141,6 +180,8 @@ export function applyConsensus(analysis: CaseAnalysis): ConsensusSummary {
     const engines = new Set<string>();
     for (const m of cluster.members) for (const e of enginesOf(m)) engines.add(e);
     const agreement = engines.size;
+    let agreementWeight = 0;
+    for (const e of engines) agreementWeight += voiceWeight(e);
     const grounded = cluster.members.some((m) => (m.citations ?? []).some(fullyGrounded));
     const bands = new Set(cluster.members.map(severityBand));
     const conflicting = engines.size > 1 && bands.has("high") && bands.has("low");
@@ -153,9 +194,11 @@ export function applyConsensus(analysis: CaseAnalysis): ConsensusSummary {
 
     summary[status] += cluster.members.length;
     summary.maxAgreement = Math.max(summary.maxAgreement, agreement);
+    summary.maxAgreementWeight = Math.max(summary.maxAgreementWeight, agreementWeight);
 
     for (const m of cluster.members) {
       m.agreement = agreement;
+      m.agreement_weight = agreementWeight;
       m.supporting_engines = [...engines];
       // Never downgrade a suppressed/quarantined row into a promotion.
       m.finding_status = m.suppressed || m.quarantined ? "candidate" : status;
