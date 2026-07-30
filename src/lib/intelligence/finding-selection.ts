@@ -134,7 +134,13 @@ function emptyStatusTally(): Record<FindingStatus, number> {
  * `highPriority` reproduces the dashboard's existing critical|high rule.
  */
 export function getFindingMetrics(findings: ReadonlyArray<SelectableFinding>): FindingMetrics {
-  const bySource: Record<FindingSourceClass, number> = { engine: 0, agent: 0, analyzer: 0, other: 0 };
+  const bySource: Record<FindingSourceClass, number> = {
+    engine: 0,
+    agent: 0,
+    analyzer: 0,
+    projection: 0,
+    other: 0,
+  };
   const bySeverity: Record<string, number> = {};
   const byStatus = emptyStatusTally();
 
