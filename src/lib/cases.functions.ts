@@ -7,6 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
+import { selectFindings } from "@/lib/intelligence/finding-selection";
 
 // Single source of truth for valid case_type values — derived from
 // PRACTICE_AREA_LABELS (practice-areas.ts) instead of hand-copied literal
