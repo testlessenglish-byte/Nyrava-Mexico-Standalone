@@ -26,7 +26,8 @@ function hasTraceableCitation(f: CitationCandidate): boolean {
   const hasDoc =
     typeof f.source_document_id === "string" && f.source_document_id.trim().length > 0
       ? true
-      : Array.isArray(f.source_doc_ids) && f.source_doc_ids.some((id) => typeof id === "string" && id.trim().length > 0);
+      : Array.isArray(f.source_doc_ids) &&
+        f.source_doc_ids.some((id) => typeof id === "string" && id.trim().length > 0);
   const hasQuote = typeof f.source_quote === "string" && f.source_quote.trim().length > 0;
   return hasDoc && hasQuote;
 }
@@ -359,11 +360,48 @@ async function agentReport(ctx: RunCtx): Promise<AgentResult> {
   };
 }
 
+// Attorney-facing prose columns on `reports` — the ONLY content a reader
+// ever sees as narrative. Deliberately excludes `full_report`: that column
+// is internal telemetry (validation/policy strings, QA diagnostics,
+// agent_statistics metadata, pipeline_warnings, strategy_center UI labels,
+// etc.) which is hardcoded in English regardless of `report_language` and
+// is never rendered to the user as case narrative.
+//
+// 2026-07-30 investigation: the QA "single_language" gate was scanning
+// `full_report` wholesale and failing non-English cases on words like
+// "Evidence"/"Witness"/"Findings"/"corroborating" that came from
+// `validation.claim_strength_guardrail.policy`,
+// `validation.quality_gate.dimensions.*.detail`, `agent_statistics.rows[*]`
+// (agent_name/primary_function), and `strategy_center` question labels —
+// none of which is narrative. Scope the scan to the real prose fields only.
+const QA_NARRATIVE_FIELDS = [
+  "executive_summary",
+  "attorney_summary",
+  "evidence_summary",
+  "timeline_summary",
+  "contradiction_report",
+  "missing_evidence_report",
+  "recommendations",
+  "investigator_summary",
+  "case_overview",
+  "facts",
+  "witness_analysis",
+  "constitutional_issues",
+  "discovery_analysis",
+  "procedural_issues_report",
+  "prosecution_theory_report",
+  "defense_theory_report",
+  "alternative_theory_report",
+  "risk_analysis",
+] as const;
+
 async function agentQA(ctx: RunCtx): Promise<AgentResult> {
   // Validate formatting, references, consistency.
   const { data: report } = await ctx.db
     .from("reports")
-    .select("case_id,full_report,executive_summary")
+    .select(
+      "case_id,full_report,executive_summary,attorney_summary,evidence_summary,timeline_summary,contradiction_report,missing_evidence_report,recommendations,investigator_summary,case_overview,facts,witness_analysis,constitutional_issues,discovery_analysis,procedural_issues_report,prosecution_theory_report,defense_theory_report,alternative_theory_report,risk_analysis",
+    )
     .eq("case_id", ctx.caseId)
     .maybeSingle();
   const errors: string[] = [];
@@ -383,7 +421,10 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
 
   const { getReportLocale } = await import("@/lib/mexico-lock");
   const locale = await getReportLocale(ctx.db, ctx.caseId);
-  const reportText = collectReportText([summary, full]).join("\n").slice(0, 200_000);
+  // Scan ONLY the narrative columns — never `full_report` (see comment above
+  // QA_NARRATIVE_FIELDS).
+  const narrativeValues = QA_NARRATIVE_FIELDS.map((field) => (report as Record<string, unknown> | null)?.[field]);
+  const reportText = collectReportText(narrativeValues).join("\n").slice(0, 200_000);
   const languageLeaks = detectReportLanguageLeaks(reportText, locale);
   if (languageLeaks.length > 0) {
     errors.push(`Report language drift (${locale}): ${Array.from(new Set(languageLeaks)).slice(0, 8).join(", ")}.`);
@@ -435,9 +476,7 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
     source_module: string | null;
   }>;
   const totalN = findings.length;
-  const cited = findings.filter(
-    (f) => hasTraceableCitation(f),
-  ).length;
+  const cited = findings.filter((f) => hasTraceableCitation(f)).length;
   const citedRatio = totalN > 0 ? cited / totalN : 1;
   if (totalN === 0) {
     verdict = "reject";
