@@ -12,6 +12,7 @@ import {
 } from "./pipeline-trace.server";
 import esLocale from "@/i18n/locales/es.json";
 import enLocale from "@/i18n/locales/en.json";
+import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
 
 type Db = SupabaseClient<Database>;
 
