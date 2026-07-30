@@ -350,12 +350,10 @@ const ES: Record<string, string> = {
   "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.":
     "Sustentado en evidencia. Citas auditadas. Diseñado para trabajo de inteligencia jurídica sensible.",
   "Case Strength": "Fortaleza del Caso",
-  "Missing Evidence": "Evidencia Faltante",
   "Work product": "Producto de trabajo",
   "Primary Evidence:": "Evidencia principal:",
   "PRIMARY EVIDENCE": "EVIDENCIA PRINCIPAL",
   "LIKELIHOOD OF SUCCESS": "PROBABILIDAD DE ÉXITO",
-  "Evidence Sources": "Fuentes de Evidencia",
   "Draft Available": "Borrador disponible",
   "Requires Attorney Review": "Requiere revisión del abogado",
   "Not Yet Generated": "Aún no generado",
