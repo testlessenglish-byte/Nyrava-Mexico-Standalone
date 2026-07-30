@@ -88,17 +88,16 @@ export function getCanonicalScoringFindings(args: {
   const ps = derivePipelineState(args.caseRow);
   if (!ps.finalized) throw new PipelineNotFinalizedError();
 
-  const canonical = args.findings.filter((f) => {
-    const sm = String(f.source_module ?? "");
-    const provisional = (f.metadata as Record<string, unknown> | undefined)?.provisional === true;
-    // Both `engine:*` (deterministic pipeline stages) and `agent:*`
-    // (multi-agent orchestrator findings — witness credibility, chain of
-    // custody, constitutional compliance, procedural violations, etc.) are
-    // finalized, non-provisional output and MUST both count toward
-    // scoring/report eligibility. Only `analyzer:*` (raw, pre-dedup)
-    // findings are provisional and excluded.
-    return (sm.startsWith("engine:") || sm.startsWith("agent:")) && !provisional;
-  });
+  // Phase 1: the prefix rule now lives in finding-selection.ts so scoring,
+  // dashboard badges, agent statistics, and the exporter cannot drift.
+  // Behavior is unchanged — isCanonicalFinding() is this exact test:
+  // both `engine:*` (deterministic pipeline stages) and `agent:*`
+  // (multi-agent orchestrator findings — witness credibility, chain of
+  // custody, constitutional compliance, procedural violations, etc.) are
+  // finalized, non-provisional output and MUST both count toward
+  // scoring/report eligibility. Only `analyzer:*` (raw, pre-dedup)
+  // findings are provisional and excluded.
+  const canonical = args.findings.filter((f) => isCanonicalFinding(f));
 
   if (canonical.length === 0) throw new CanonicalFindingsEmptyError();
   return canonical as Finding[];
