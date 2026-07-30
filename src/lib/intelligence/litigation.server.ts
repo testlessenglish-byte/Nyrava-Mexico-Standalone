@@ -1145,21 +1145,29 @@ export async function runLitigationStrategyCenterEngine(args: {
   // Strip DB-only columns (id, case_id, user_id, created_at, updated_at)
   // before stringifying — the model never needs them, and on a case with
   // many rows they were a large share of every payload. Cap by item
-  // count rather than JSON.stringify(...).slice(N) — slicing raw JSON
-  // text can (and does, once these arrays get big) cut an array off
-  // mid-object, handing the model malformed JSON instead of just less
-  // of it. This was the direct cause of the Groq 413 "payload too large"
-  // failure on Centro de Estrategia Jurídica once SCJN/DOF started
-  // feeding richer, longer theories/opportunities upstream.
+  // count AND verify against a character ceiling — an item-count guess
+  // alone isn't checked against anything. Every other call site in this
+  // codebase sending a comparable per-field JSON blob (ctx.findingsLite
+  // in engines.server.ts) caps at 15,000-20,000 chars per field and runs
+  // without erroring, so each field here is trimmed down to 15,000 chars
+  // if the initial item-count cut isn't already under that — five fields
+  // at a verified 15,000-char ceiling tops out at 75,000 chars combined,
+  // well below the ~89,000 the original uncapped version was sending
+  // when it hit the Groq 413.
   const DROP_COLUMNS = new Set(["id", "case_id", "user_id", "created_at", "updated_at"]);
+  const FIELD_CHAR_CEILING = 15000;
   function slim<T extends Record<string, unknown>>(rows: T[] | null | undefined, maxItems: number): Partial<T>[] {
-    return (rows ?? []).slice(0, maxItems).map((row) => {
-      const out: Partial<T> = {};
+    let out = (rows ?? []).slice(0, maxItems).map((row) => {
+      const stripped: Partial<T> = {};
       for (const [k, v] of Object.entries(row)) {
-        if (!DROP_COLUMNS.has(k)) (out as Record<string, unknown>)[k] = v;
+        if (!DROP_COLUMNS.has(k)) (stripped as Record<string, unknown>)[k] = v;
       }
-      return out;
+      return stripped;
     });
+    while (out.length > 0 && JSON.stringify(out).length > FIELD_CHAR_CEILING) {
+      out = out.slice(0, Math.max(1, Math.floor(out.length * 0.9)));
+    }
+    return out;
   }
 
   const slimTheories = slim(theories, 10);
