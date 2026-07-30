@@ -1,0 +1,67 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+ACTA DE AUDIENCIA CONSTITUCIONAL Y PROYECTO DE SENTENCIA
+Juicio de amparo indirecto JF-QROO-AI-2026-00421
+
+I. ACTA DE LA AUDIENCIA CONSTITUCIONAL
+Cancún, Quintana Roo, 10 de abril de 2026, 10:30 horas. Ante el Juez Primero de Distrito, Lic.
+Rodrigo Villanueva Escárcega, asistido de la Secretaria Lic. Diana Sarahí Koyoc Mena.
+
+Periodo probatorio: se tienen por ofrecidas y desahogadas, por su propia y especial naturaleza,
+las documentales públicas exhibidas por el quejoso y las acompañadas a los informes
+justificados: orden CJ-214/2026; acta circunstanciada de cateo de 19 de marzo de 2026;
+IPH-QR-BJ-2026-00871; inventario de evidencia; registro de cadena de custodia RCC-1120-2026;
+bitácora BED-1120-2026; dictámenes DP-INF-0442/2026, DP-DOC-0189/2026 y DP-VID-0077/2026;
+declaraciones de Lorena Massiel Uc Chi, Gerardo Antonio Ruvalcaba Núñez y del policía actuante.
+Se admite la instrumental de actuaciones y la presuncional legal y humana.
+
+Alegatos: se tienen por formulados por escrito los del quejoso (fojas 245-259) y los del tercero
+interesado (fojas 237-244).
+
+Pedimento del Agente del Ministerio Público de la Federación: solicita conceder el amparo
+respecto de los actos de ejecución en domicilio no autorizado y negar respecto de la autoridad
+ordenadora, por no serle atribuibles los excesos de ejecución.
+
+Se cierra la instrucción y se turna el expediente para dictar sentencia. Se concluye a las 11:24
+horas.
+
+II. PROYECTO DE SENTENCIA (formulado por la Secretaría el 17 de abril de 2026)
+
+PUNTOS A RESOLVER
+1. ¿Se actualiza alguna causa de improcedencia?
+2. ¿Existen los actos reclamados?
+3. ¿El ingreso al domicilio particular del quejoso vulneró el art. 16, párrafo once,
+   constitucional?
+4. ¿Qué material probatorio resulta afectado por la eventual ilicitud?
+5. ¿La contradicción entre la bitácora BED-1120-2026 y el registro RCC-1120-2026 amerita
+   protección constitucional autónoma?
+
+PROPUESTA
+1. Improcedencia. Se propone DESESTIMAR las causas invocadas. El principio de definitividad no
+   opera de manera absoluta frente a actos de investigación con ejecución irreparable sobre la
+   inviolabilidad del domicilio y la vida privada; exigir agotar la etapa intermedia implicaría
+   consumar irreparablemente la afectación.
+2. Certeza. Se propone tener por CIERTOS los actos de ejecución, al haberlos reconocido las
+   autoridades ejecutoras en sus informes, y por CIERTA la emisión de la orden CJ-214/2026 por
+   la ordenadora.
+3. Fondo. Se propone declarar FUNDADO el primer concepto de violación. La orden judicial delimitó
+   el lugar autorizado y excluyó expresamente los domicilios particulares; el ingreso a Calle
+   Nichupté 214 carece de mandamiento escrito. No se acreditó flagrancia, consentimiento válido
+   ni urgencia objetivamente verificable: la "instrucción por radio" no consta registrada.
+4. Efectos. Se propone conceder el amparo para el efecto de que: (a) se declaren nulos y se
+   excluyan de la carpeta los indicios IND-05 e IND-06 y todo dato de prueba derivado, incluida
+   la conclusión tercera del dictamen DP-DOC-0189/2026; (b) se ordene su devolución al quejoso
+   previa constancia; (c) se abstengan las responsables de invocarlos en cualquier actuación.
+   Se propone NO extender los efectos a los indicios IND-01, IND-03 e IND-04, ni a las
+   conclusiones primera y segunda del dictamen documentoscópico, por existir fuente independiente
+   en la ejecución lícita del cateo autorizado.
+5. Cadena de custodia. Se propone declarar INOPERANTE por prematuro el tercer concepto de
+   violación en cuanto a la exclusión de IND-01 e IND-03, dejando a salvo el derecho del quejoso
+   para debatir la mismidad e integridad del indicio en la etapa intermedia, sin perjuicio de
+   ordenar a las responsables que agreguen la ampliación pericial solicitada el 28 de marzo de
+   2026.
+6. Indicio IND-02. Se propone declarar FUNDADO pero INSUFICIENTE para mayores efectos el cuarto
+   concepto, al no haberse obtenido información; se ordena que cualquier acceso futuro requiera
+   autorización judicial específica.
+
+Lic. Diana Sarahí Koyoc Mena — Secretaria proyectista.
