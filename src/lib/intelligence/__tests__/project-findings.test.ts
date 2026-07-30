@@ -2,7 +2,12 @@
 // cannot move any pre-existing counter.
 
 import { describe, expect, it } from "vitest";
-import { buildProjectionRows, PROJECTABLE_TABLES } from "@/lib/intelligence/project-findings.server";
+import {
+  buildProjectionRows,
+  isProjectionEnabled,
+  projectCaseFindings,
+  PROJECTABLE_TABLES,
+} from "@/lib/intelligence/project-findings.server";
 import {
   classifyFindingSource,
   getFindingMetrics,
@@ -193,5 +198,38 @@ describe("multi-tenant validation", () => {
     const b = buildProjectionRows("evidence_classifications", EVIDENCE_ROWS)[0];
     expect((a.metadata.projected_from as { table: string }).table).toBe("case_witnesses");
     expect((b.metadata.projected_from as { table: string }).table).toBe("evidence_classifications");
+  });
+});
+
+describe("rollout flag", () => {
+  it("is off unless FINDINGS_PROJECTION_ENABLED is exactly true", () => {
+    const prev = process.env.FINDINGS_PROJECTION_ENABLED;
+    try {
+      delete process.env.FINDINGS_PROJECTION_ENABLED;
+      expect(isProjectionEnabled()).toBe(false);
+      process.env.FINDINGS_PROJECTION_ENABLED = "1";
+      expect(isProjectionEnabled()).toBe(false);
+      process.env.FINDINGS_PROJECTION_ENABLED = "TRUE";
+      expect(isProjectionEnabled()).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.FINDINGS_PROJECTION_ENABLED;
+      else process.env.FINDINGS_PROJECTION_ENABLED = prev;
+    }
+  });
+
+  it("writes nothing while the flag is off", async () => {
+    const prev = process.env.FINDINGS_PROJECTION_ENABLED;
+    delete process.env.FINDINGS_PROJECTION_ENABLED;
+    const db = {
+      from: () => {
+        throw new Error("projection must not touch the database while disabled");
+      },
+    } as never;
+    const res = await projectCaseFindings(db, {
+      caseId: "99999999-9999-4999-8999-999999999999",
+      tables: ["evidence_classifications", "case_witnesses"],
+    });
+    expect(res).toEqual({ ok: true, tables: [], candidates: 0, written: 0, disabled: true });
+    if (prev !== undefined) process.env.FINDINGS_PROJECTION_ENABLED = prev;
   });
 });
