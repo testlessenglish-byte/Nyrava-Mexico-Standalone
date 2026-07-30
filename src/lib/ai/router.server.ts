@@ -614,20 +614,30 @@ export async function packingCharBudget(
   overheadChars: number = PROMPT_OVERHEAD_CHARS.default,
 ): Promise<number> {
   const rows = await loadProviderRows();
-  let narrowest = Infinity;
+  // Per-provider corpus capacity, after reserving completion tokens and the
+  // non-corpus prompt overhead (Mexico-lock preamble, JSON schema, role text).
+  const capacities: number[] = [];
   for (const r of rows) {
-    // Reserve both provider completion tokens and non-corpus prompt overhead
-    // (Mexico-lock system prompt, JSON schema instructions, agent role text).
-    // Groq enforces the 8k free-tier ceiling against prompt + reserved output;
-    // packing only to prompt tokens still produced 413s around 8.2k-13.5k.
-    narrowest = Math.min(
-      narrowest,
-      providerAvailableInputBudget(r.provider_type, { json: true }) * 3.5 - overheadChars,
+    capacities.push(
+      Math.floor(providerAvailableInputBudget(r.provider_type, { json: true }) * 3.5 - overheadChars),
     );
   }
-  if (!Number.isFinite(narrowest)) return ceilingChars;
-  return Math.max(MIN_PACKING_CHARS, Math.min(ceilingChars, Math.floor(narrowest)));
+  if (capacities.length === 0) return ceilingChars;
+
+  // Pack to the NARROWEST provider so every provider stays eligible — but only
+  // among providers that can actually hold at least MIN_PACKING_CHARS of
+  // corpus. A provider whose real capacity is below the floor (e.g. Groq's
+  // free-tier 8k TPM ceiling once a ~7k-char analyzer overhead is reserved)
+  // must NOT drag the packing budget below its own limit: clamping up to the
+  // floor produced batches that were mathematically guaranteed to exceed that
+  // provider's ceiling, so it was skipped with `payload_exceeds_provider_limit`
+  // on every call. Those batches are instead routed to the wide-context
+  // providers, which the pre-flight size gate already handles gracefully.
+  const usable = capacities.filter((c) => c >= MIN_PACKING_CHARS);
+  const target = usable.length > 0 ? Math.min(...usable) : Math.max(...capacities);
+  return Math.max(1_000, Math.min(ceilingChars, target));
 }
+
 
 /**
  * Non-corpus prompt overhead, in CHARS, per call site.
