@@ -41,7 +41,8 @@ export async function runHallucinationReview(args: {
   const { data: findingsRaw, error: fErr } = await db
     .from("case_findings")
     .select("id,title,source_module,source_document_id,source_page,source_quote,source_doc_ids")
-    .eq("case_id", caseId);
+    .eq("case_id", caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
   if (fErr) throw new Error(`Load findings failed: ${fErr.message}`);
   const findings = (findingsRaw ?? []) as Array<Finding & { source_module: string }>;
 

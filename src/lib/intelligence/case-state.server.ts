@@ -135,7 +135,7 @@ export async function buildCaseState(db: SupabaseClient<Database>, caseId: strin
   const [c, docs, findings, scores, witnesses, opps, theories, trial, wp] = await Promise.all([
     db.from("cases").select("*").eq("id", caseId).maybeSingle(),
     db.from("documents").select("id,filename,status").eq("case_id", caseId).order("created_at", { ascending: true }),
-    db.from("case_findings").select("*").eq("case_id", caseId),
+    db.from("case_findings").select("*").eq("case_id", caseId).not("source_module", "like", PROJECTION_LIKE),
     db.from("case_scores").select("*").eq("case_id", caseId).maybeSingle(),
     db.from("case_witnesses").select("*").eq("case_id", caseId),
     db.from("case_opportunities").select("*").eq("case_id", caseId),

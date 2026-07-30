@@ -56,7 +56,11 @@ function pickStatements(text: string, name: string, max = 4): string[] {
 export async function buildWitnessProfiles(db: Db, caseId: string): Promise<WitnessProfile[]> {
   const [{ data: docs }, { data: findings }, { data: witnessRows }] = await Promise.all([
     db.from("documents").select("id,filename,extracted_text,status").eq("case_id", caseId),
-    db.from("case_findings").select("title,description,category,source_quote,source_document_id").eq("case_id", caseId),
+    db
+      .from("case_findings")
+      .select("title,description,category,source_quote,source_document_id")
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (db as any).from("case_witnesses").select("*").eq("case_id", caseId),
   ]);
@@ -592,7 +596,11 @@ function ruleFor(filename: string, headText: string): InvRule | null {
 export async function buildEvidenceInventory(db: Db, caseId: string): Promise<EvidenceInventoryItem[]> {
   const [{ data: docs }, { data: findings }] = await Promise.all([
     db.from("documents").select("id,filename,extracted_text,status").eq("case_id", caseId),
-    db.from("case_findings").select("source_document_id,source_doc_ids,category,title").eq("case_id", caseId),
+    db
+      .from("case_findings")
+      .select("source_document_id,source_doc_ids,category,title")
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE),
   ]);
 
   const findingsByDoc = new Map<string, number>();
@@ -702,7 +710,8 @@ export async function buildWorkProduct(
     .from("case_findings")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .select("title,description,category,affected_party,severity,evidence_type,source_document_id,source_page" as any)
-    .eq("case_id", caseId);
+    .eq("case_id", caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (findings ?? []) as any[];

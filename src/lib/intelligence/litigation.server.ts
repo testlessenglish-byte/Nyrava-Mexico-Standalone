@@ -557,7 +557,8 @@ ${briefText}`,
         (db as any)
           .from("case_findings")
           .select("id, source_document_id, category, source_doc_ids")
-          .eq("case_id", caseId),
+          .eq("case_id", caseId)
+          .not("source_module", "like", PROJECTION_LIKE),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (db as any).from("case_witnesses").select("id, source_document_id, source_doc_ids").eq("case_id", caseId),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -759,6 +760,7 @@ export async function runStrategyEngine(args: {
       .from("case_findings")
       .select("category,severity,title,description,confidence,affected_party")
       .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE)
       .limit(200),
     db
       .from("case_perspectives")

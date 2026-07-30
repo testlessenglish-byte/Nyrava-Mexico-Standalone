@@ -127,7 +127,8 @@ export async function buildEvidenceMap(db: Db, caseId: string): Promise<Evidence
       .order("created_at", { ascending: true }),
     db.from("case_findings")
       .select("source_document_id,source_doc_ids,affected_party,category")
-      .eq("case_id", caseId),
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE),
     // Contradictions are stored inside reports.contradictions_struct; fall back
     // gracefully if absent.
     db.from("reports")
@@ -312,7 +313,8 @@ export async function buildReportQualityAudit(db: Db, caseId: string): Promise<R
   const { data } = await db
     .from("case_findings")
     .select("title,source_document_id,source_page,source_quote,evidence_refs")
-    .eq("case_id", caseId);
+    .eq("case_id", caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
   const rows = data ?? [];
   const audit: ReportQualityAudit = {
     total_findings: rows.length,

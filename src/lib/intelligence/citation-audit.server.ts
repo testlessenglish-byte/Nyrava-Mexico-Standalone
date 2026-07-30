@@ -77,7 +77,8 @@ export async function buildCitationAudit(db: Db, caseId: string): Promise<Citati
   const { data } = await db
     .from("case_findings")
     .select("id,canonical_finding_id,title,category,source_document_id,source_page,source_quote,evidence_refs")
-    .eq("case_id", caseId);
+    .eq("case_id", caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
   const rows = data ?? [];
   const supported_ids: string[] = [];
   const quarantined_findings: CitationAuditFinding[] = [];

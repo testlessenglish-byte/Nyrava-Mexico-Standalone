@@ -565,7 +565,8 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     const { data: existing } = await db
       .from("case_findings")
       .select("id,category,title,evidence_refs,confidence,source_doc_ids,metadata")
-      .eq("case_id", caseId);
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const existingShim: NewFinding[] = (existing ?? []).map(
       (e: any) =>
@@ -848,6 +849,7 @@ export async function listFindings(db: Db, caseId: string): Promise<Finding[]> {
     .from("case_findings")
     .select("*")
     .eq("case_id", caseId)
+    .not("source_module", "like", PROJECTION_LIKE)
     .order("priority", { ascending: true, nullsFirst: false })
     .order("created_at");
   if (error) {
