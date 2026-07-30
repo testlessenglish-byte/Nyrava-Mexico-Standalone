@@ -735,6 +735,16 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
     chain = pinned ? [pinned, ...enabled] : enabled;
   }
 
+  // A pinned provider is absolute. The runtime-group branch above merges the
+  // user's other providers and server-secret rows into the chain, which made a
+  // "Test Gemini" probe silently walk into Groq. Enforce the pin here so it
+  // holds no matter which branch built the chain.
+  if (opts.forceProvider) {
+    chain = chain.filter((r) => r.provider_type === opts.forceProvider);
+    if (!chain.length)
+      throw new Error(`Provider '${opts.forceProvider}' is not enabled or not configured.`);
+  }
+
   if (!chain.length) throw new Error("No enabled AI providers available.");
 
   // Cache lookup (keyed by intended model of the FIRST provider in chain).
