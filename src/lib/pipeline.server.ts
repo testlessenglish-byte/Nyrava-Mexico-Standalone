@@ -2745,6 +2745,41 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     const agentBudgetMs = _agentBudgetFor("agents");
     const agentStageStart = Date.now();
 
+    // ---- Concurrency experiment instrumentation (2026-07-30) ------------
+    // Raising AGENT_CONCURRENCY only pays off if wall-clock drops WITHOUT the
+    // 429/cooldown burden growing to match. Wall clock alone can improve while
+    // the same total delay is merely redistributed into more-frequent, shorter
+    // stalls — that is not a win. So we record, per tick: the gap since the
+    // previous tick's last batch (the stall we actually paid), every cooldown
+    // checkpoint, and at stage end a rollup of events + total stalled ms
+    // against total AI ms. All of it lands in pipeline_trace under
+    // phase "agents", queryable per case and comparable across runs.
+    const { trace: _agentTrace } = await import("./pipeline-trace.server");
+    const { data: _lastBatchRow } = await db
+      .from("pipeline_engine_runs")
+      .select("ended_at" as any)
+      .eq("case_id", caseId)
+      .like("engine", "%_batch")
+      .not("ended_at", "is", null)
+      .order("ended_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const _lastEnd = (_lastBatchRow as any)?.ended_at ? Date.parse((_lastBatchRow as any).ended_at) : null;
+    const resumeGapMs = _lastEnd && Number.isFinite(_lastEnd) ? Math.max(0, agentStageStart - _lastEnd) : 0;
+    if (resumeGapMs > 0) {
+      await _agentTrace({
+        db,
+        caseId,
+        userId,
+        phase: "agents",
+        step: "tick_resume_gap",
+        status: "info",
+        durationMs: resumeGapMs,
+        detail: { concurrency: AGENT_CONCURRENCY, resumed_agents: completedAgentTypes.size },
+      });
+    }
+
     let done = completedAgentTypes.size;
     const totalAgentCount = activeAgents.length;
     const failures: string[] = [];
