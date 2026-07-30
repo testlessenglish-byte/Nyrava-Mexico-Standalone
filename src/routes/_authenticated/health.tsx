@@ -148,8 +148,8 @@ function HealthPage() {
                   configured={p.configured}
                   ok={p.ok}
                   latencyMs={p.latencyMs}
-                  error={p.error ?? p.lastError ?? undefined}
-                  note={`${p.model ?? "—"} · ${p.keyCount} key${p.keyCount === 1 ? "" : "s"} · ${p.totalOk} ok / ${p.totalErr} err · ${Math.round(p.inputTokenBudget / 1000)}k tok budget`}
+                  error={p.ok ? undefined : (p.error ?? p.lastError ?? undefined)}
+                  note={`${p.model ?? "—"} · ${p.okKeyCount ?? 0}/${p.keyCount} key${p.keyCount === 1 ? "" : "s"} live · ${p.totalOk} ok / ${p.totalErr} err · ${Math.round(p.inputTokenBudget / 1000)}k tok budget`}
                   onTest={() => probe.mutate(p.provider)}
                   testing={probe.isPending}
                 />
