@@ -197,8 +197,21 @@ export async function projectCaseFindings(
 
   try {
     const rows: ProjectionRow[] = [];
+    // Table names are resolved at runtime from the adapter registry, so the
+    // generated per-table types can't narrow here. The registry is a closed
+    // allow-list, checked above.
+    const anyDb = db as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (
+            col: string,
+            v: string,
+          ) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+        };
+      };
+    };
     for (const table of tables) {
-      const { data, error } = await db
+      const { data, error } = await anyDb
         .from(table)
         .select(ADAPTERS[table].select)
         .eq("case_id", args.caseId);
