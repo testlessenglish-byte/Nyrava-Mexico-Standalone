@@ -3115,7 +3115,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     // 429s. Between agents we check the stage wall-clock budget and yield
     // via CheckpointRequired so an oversized run resumes on the next tick
     // instead of being killed mid-flight.
-    const AGENT_CONCURRENCY = 1;
+    // Concurrency is the module-level AGENT_CONCURRENCY constant — flipping
+    // it back to 1 is the entire rollback (see its declaration).
     let queueIdx = 0;
     let checkpointNeeded = false;
     const startingDone = completedAgentTypes.size;
