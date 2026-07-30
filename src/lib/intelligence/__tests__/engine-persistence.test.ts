@@ -40,8 +40,11 @@ function makeFakeDb(rowsByTable: Record<string, Array<{ id: string; case_id: str
             limit() {
               return makeFilter(rows);
             },
+            maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
+            single: async () => ({ data: rows[0] ?? null, error: null }),
             then: (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
           });
+
           return makeFilter(rowsByTable[table] ?? []);
         },
 
