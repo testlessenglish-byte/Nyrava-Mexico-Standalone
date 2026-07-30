@@ -1827,6 +1827,7 @@ export const getAiHealth = createServerFn({ method: "GET" })
       {
         ok: boolean; latencyMs: number; error?: string; provider: string; displayName: string;
         model: string | null; priority: number | null; configured: boolean; keyCount: number;
+        okKeyCount: number;
         inputTokenBudget: number; totalOk: number; totalErr: number;
         lastError: string | null; lastErrorTs: number | null;
       }
