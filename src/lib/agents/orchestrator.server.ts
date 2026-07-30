@@ -12,6 +12,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { AGENT_DEFINITIONS, type AgentResult, type AgentDefinition } from "./types";
 import { attachAgentStats, buildAgentStatistics } from "./statistics.server";
 import { isCheckpointError } from "@/lib/pipeline-checkpoint.server";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 

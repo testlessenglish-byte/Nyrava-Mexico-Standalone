@@ -41,6 +41,7 @@ import {
 } from "./evidence-gate.server";
 import { buildGroundingCorpus, type GroundingCorpus } from "./grounding.server";
 import { mergeConfidence } from "./canonical-id";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 type J = import("@/integrations/supabase/types").Json;

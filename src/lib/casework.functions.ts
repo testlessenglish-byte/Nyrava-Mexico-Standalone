@@ -11,6 +11,7 @@ import {
   getApplicablePartyRoles,
   getTaskTemplates,
 } from "@/lib/intelligence/practice-areas";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 const uuid = z.string().uuid();
 

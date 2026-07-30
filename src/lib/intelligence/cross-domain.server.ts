@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { normalizePracticeArea, resolvePracticeAreaOrNull, type PracticeArea } from "./practice-areas";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 

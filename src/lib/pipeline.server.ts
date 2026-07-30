@@ -32,6 +32,7 @@ import {
 } from "./intelligence/report-canonical-context";
 import { mergeCanonicalRecommendations } from "./intelligence/report-recommendations";
 import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 

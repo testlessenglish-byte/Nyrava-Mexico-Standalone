@@ -8,6 +8,7 @@ import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "../groq.server";
 import { getOrBuildSharedBrief, briefToPrompt } from "./shared-brief.server";
 import { resolveProviderKeys } from "../ai-key-router.server";
 import { addFindings, addGatedFindings, clearFindingsByModule } from "./findings.server";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 const MODEL = GROQ_DEFAULT_MODEL;
 type Db = SupabaseClient<Database>;
