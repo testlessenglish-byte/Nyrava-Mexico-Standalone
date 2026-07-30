@@ -790,6 +790,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       const fullSizeAlternative = chain.some(
         (r2, j) =>
           sizeEligible[j] &&
+          j !== i &&
           !getProviderCooldown({
             provider: r2.provider_type,
             model: effectiveModelFor(r2),
@@ -809,8 +810,8 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           detail: {
             reason: "payload_exceeds_provider_limit",
             estimated_input_tokens: estimatedInputTokens,
-              provider_input_budget: providerAvailableInputBudget(row.provider_type, opts),
-              reserved_output_tokens: reservedOutputTokens(opts, row.provider_type),
+            provider_input_budget: providerAvailableInputBudget(row.provider_type, opts),
+            reserved_output_tokens: reservedOutputTokens(opts, row.provider_type),
           },
         });
         continue;
