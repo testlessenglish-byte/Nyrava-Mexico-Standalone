@@ -38,6 +38,11 @@ export interface RouteOpts extends ChatOpts {
   userId?: string;
   /** Internal: how many times this call already waited out a provider cooldown. */
   _cooldownWaits?: number;
+  /**
+   * Internal: this call is the compressed second pass after every full-size
+   * provider failed. Prevents infinite re-entry.
+   */
+  _compressedRetry?: boolean;
 }
 
 export interface RouteResult extends ChatResult {
