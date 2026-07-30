@@ -258,6 +258,15 @@ async function runLabeledStep({
   loader: () => Promise<StepRunner>;
 }) {
   const { supabase, userId } = await getAuthedContext(context, label);
+  // Side-door guard: the full pipeline holds a case-level lease while it
+  // runs, but individual stage buttons used to fire AI calls straight past
+  // it — a double-click, a stale retry, or a race with the background worker
+  // could overlap token usage and write conflicting output for one stage.
+  const { assertCaseNotLeased, assertUserPipelineCapacity } = await import(
+    "@/lib/pipeline-lease.server"
+  );
+  await assertCaseNotLeased(supabase, caseId, label);
+  await assertUserPipelineCapacity(supabase, userId, caseId);
   const stage = LABEL_TO_STAGE[label] ?? null;
   const prog = await import("@/lib/intelligence/progress.server");
   if (stage) {
