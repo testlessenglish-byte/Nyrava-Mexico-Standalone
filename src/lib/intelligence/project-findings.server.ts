@@ -31,8 +31,9 @@
 // through the timeline surfaces that already read them.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
-type Db = SupabaseClient<never, "public", never>;
+type Db = SupabaseClient<Database>;
 
 /** Payload accepted by the `project_case_findings` SQL function. */
 export type ProjectionRow = {
