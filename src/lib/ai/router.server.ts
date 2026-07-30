@@ -109,19 +109,12 @@ const MAX_PROVIDER_RETRIES_PER_CALL = 2;
  * the completion and route bigger prompts to a wide-context provider instead.
  */
 const PROVIDER_INPUT_TOKEN_BUDGET: Partial<Record<ProviderType, number>> = {
-  // 2026-07: was 6_000, which skipped Groq on virtually every engine prompt
-  // and serialized the whole pipeline onto Gemini at ~15s/call. Groq accepts
-  // far larger single requests than its per-minute ceiling suggests, and a
-  // 413/429 is already self-healed (split + failover), so the conservative
-  // gate cost far more than it saved.
-  // 2026-07-27: kept at 12_000, NOT raised to 30_000. gpt-oss-120b on Groq's
-  // free tier is capped at ~8k tokens/MINUTE per account — a hard org-level
-  // ceiling that key rotation cannot get around. A ~17k-token report prompt
-  // was never going to succeed there; raising the gate would only convert a
-  // clean client-side skip into a real 429/413 + cooldown before failing over
-  // anyway. The report task is instead pinned to Gemini via ai_task_routing.
-  // 12k stays useful for mid-size engine prompts that DO fit.
-  groq: 12_000,
+  // 2026-07-30: production traces from Proyecto Faro showed Groq free-tier
+  // rejecting 12k-13.5k-token agent prompts with HTTP 413 because the org TPM
+  // ceiling is 8k. This budget is intentionally below that ceiling so corpus
+  // packing produces request-sized chunks that can actually run on Groq instead
+  // of bouncing between oversized Groq attempts and exhausted Gemini keys.
+  groq: 5_500,
 
   openrouter: 60_000,
   gemini: 900_000,
@@ -136,6 +129,21 @@ export function getProviderInputBudget(p: ProviderType): number {
 
 function providerInputBudget(p: ProviderType): number {
   return PROVIDER_INPUT_TOKEN_BUDGET[p] ?? DEFAULT_PROVIDER_INPUT_BUDGET;
+}
+
+function reservedOutputTokens(opts: { maxTokens?: number; json?: boolean }, provider: ProviderType): number {
+  const requested = opts.maxTokens ?? (opts.json ? 2_048 : 4_096);
+  const capped = Math.min(requested, 8_192);
+  // Groq free-tier 413s are enforced against the TPM request envelope, not
+  // just prompt tokens. Reserve the completion budget before deciding whether
+  // the prompt fits; otherwise a 5.5k-token prompt + 4k default output becomes
+  // a 9k+ TPM request and fails instantly.
+  if (provider === "groq") return Math.max(768, capped);
+  return Math.max(256, Math.min(capped, 2_048));
+}
+
+function providerAvailableInputBudget(provider: ProviderType, opts: { maxTokens?: number; json?: boolean }): number {
+  return Math.max(1_000, providerInputBudget(provider) - reservedOutputTokens(opts, provider));
 }
 
 /** ~3.5 chars/token is a safe over-estimate for Spanish legal prose. */
@@ -169,7 +177,7 @@ function fitOptsToBudget<T extends { systemInstruction?: string; userContent: un
   const CHARS_PER_TOKEN = 3.5;
   const sysChars = (opts.systemInstruction ?? "").length;
   // 5% safety margin so the estimate can't land right on the ceiling.
-  const allowedChars = Math.max(1_000, Math.floor(budgetTokens * CHARS_PER_TOKEN * 0.95) - sysChars);
+  const allowedChars = Math.max(1_000, Math.floor(budgetTokens * CHARS_PER_TOKEN * 0.9) - sysChars);
   const marker = "\n\n[…contenido intermedio omitido por límite del proveedor…]\n\n";
 
   const trim = (text: string, limit: number): string => {
@@ -573,14 +581,18 @@ export async function packingCharBudget(ceilingChars: number): Promise<number> {
   const rows = await loadProviderRows();
   let narrowest = Infinity;
   for (const r of rows) {
-    narrowest = Math.min(narrowest, providerInputBudget(r.provider_type) * 3.5);
+    // Reserve both provider completion tokens and non-corpus prompt overhead
+    // (Mexico-lock system prompt, JSON schema instructions, agent role text).
+    // Groq enforces the 8k free-tier ceiling against prompt + reserved output;
+    // packing only to prompt tokens still produced 413s around 8.2k-13.5k.
+    narrowest = Math.min(narrowest, providerAvailableInputBudget(r.provider_type, { json: true }) * 3.5 - 8_000);
   }
   if (!Number.isFinite(narrowest)) return ceilingChars;
   return Math.max(MIN_PACKING_CHARS, Math.min(ceilingChars, Math.floor(narrowest)));
 }
 
 /** Never pack below this — tiny batches multiply request count for no gain. */
-const MIN_PACKING_CHARS = 8_000;
+const MIN_PACKING_CHARS = 6_000;
 
 
 export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
@@ -762,7 +774,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   // cannot accept it, instead of learning that from a guaranteed rejection.
   // ---------------------------------------------------------------------
   const estimatedInputTokens = estimateInputTokens(opts);
-  const sizeEligible = chain.map((r) => estimatedInputTokens <= providerInputBudget(r.provider_type));
+  const sizeEligible = chain.map((r) => estimatedInputTokens <= providerAvailableInputBudget(r.provider_type, opts));
   const anySizeEligible = sizeEligible.some(Boolean);
 
   let realAttempts = 0;
@@ -778,6 +790,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       const fullSizeAlternative = chain.some(
         (r2, j) =>
           sizeEligible[j] &&
+          j !== i &&
           !getProviderCooldown({
             provider: r2.provider_type,
             model: effectiveModelFor(r2),
@@ -786,7 +799,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       );
       if (fullSizeAlternative) {
         preAttemptSkips.push(
-          `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerInputBudget(row.provider_type)} token provider budget`,
+          `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerAvailableInputBudget(row.provider_type, opts)} token provider input budget after output reservation`,
         );
         traceAsync({
           phase: "ai",
@@ -797,12 +810,13 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           detail: {
             reason: "payload_exceeds_provider_limit",
             estimated_input_tokens: estimatedInputTokens,
-            provider_input_budget: providerInputBudget(row.provider_type),
+            provider_input_budget: providerAvailableInputBudget(row.provider_type, opts),
+            reserved_output_tokens: reservedOutputTokens(opts, row.provider_type),
           },
         });
         continue;
       }
-      const budget = providerInputBudget(row.provider_type);
+      const budget = providerAvailableInputBudget(row.provider_type, opts);
       rowOpts = fitOptsToBudget(opts, budget);
       traceAsync({
         phase: "ai",
@@ -814,6 +828,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           reason: "no_full_size_provider_available",
           estimated_input_tokens: estimatedInputTokens,
           provider_input_budget: budget,
+          reserved_output_tokens: reservedOutputTokens(opts, row.provider_type),
           compressed_input_tokens: estimateInputTokens(rowOpts),
         },
       });
@@ -909,6 +924,9 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           assertCheckpointBudget(`before AI call attempt ${attempt + 1}`);
           const providerOpts = {
             ...baseProviderOpts,
+            ...(row.provider_type === "groq" && baseProviderOpts.maxTokens == null
+              ? { maxTokens: opts.json ? 2_048 : 3_072 }
+              : {}),
             timeoutMs:
               baseProviderOpts.timeoutMs ??
               aiCallTimeoutForCheckpoint(`AI call attempt ${attempt + 1}`),

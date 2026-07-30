@@ -74,6 +74,7 @@ export async function runHallucinationReview(args: {
   };
 
   const nowIso = new Date().toISOString();
+  const updates: Array<{ id: string; status: "verified" | "unverified" | "no_citation"; notes: string }> = [];
   for (const f of findings) {
     const mod = f.source_module || "unknown";
     if (!report.by_module[mod]) report.by_module[mod] = { total: 0, verified: 0, unverified: 0, no_citation: 0 };
@@ -110,12 +111,26 @@ export async function runHallucinationReview(args: {
       report.unverified_examples.push({ id: f.id, title: f.title, reason: notes });
     }
 
-    await db.from("case_findings").update({
-      verification_status: status,
-      verification_notes: notes,
-      verified_at: nowIso,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any).eq("id", f.id);
+    updates.push({ id: f.id, status, notes });
+  }
+
+  for (let i = 0; i < updates.length; i += 25) {
+    const batch = updates.slice(i, i + 25);
+    const results = await Promise.all(
+      batch.map((u) =>
+        db
+          .from("case_findings")
+          .update({
+            verification_status: u.status,
+            verification_notes: u.notes,
+            verified_at: nowIso,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any)
+          .eq("id", u.id),
+      ),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) throw new Error(`Finding verification update failed: ${failed.error.message}`);
   }
 
   await db.from("cases").update({

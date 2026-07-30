@@ -15,6 +15,63 @@ import { isCheckpointError } from "@/lib/pipeline-checkpoint.server";
 
 type Db = SupabaseClient<Database>;
 
+type CitationCandidate = {
+  source_document_id?: string | null;
+  source_doc_ids?: string[] | null;
+  source_quote?: string | null;
+};
+
+function hasTraceableCitation(f: CitationCandidate): boolean {
+  const hasDoc =
+    typeof f.source_document_id === "string" && f.source_document_id.trim().length > 0
+      ? true
+      : Array.isArray(f.source_doc_ids) && f.source_doc_ids.some((id) => typeof id === "string" && id.trim().length > 0);
+  const hasQuote = typeof f.source_quote === "string" && f.source_quote.trim().length > 0;
+  return hasDoc && hasQuote;
+}
+
+function collectReportText(value: unknown, out: string[] = []): string[] {
+  if (typeof value === "string") {
+    if (value.trim()) out.push(value);
+    return out;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectReportText(item, out);
+    return out;
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value as Record<string, unknown>)) collectReportText(item, out);
+  }
+  return out;
+}
+
+function detectReportLanguageLeaks(text: string, locale: "es" | "en"): string[] {
+  const checks: Array<[RegExp, string]> =
+    locale === "es"
+      ? [
+          [/\bExecutive Summary\b/i, "Executive Summary"],
+          [/\bEvidence\b/i, "Evidence"],
+          [/\bDiscovery(?:\s+Violation)?\b/i, "Discovery"],
+          [/\bWitness(?:es)?\b/i, "Witness"],
+          [/\bStrategy\b/i, "Strategy"],
+          [/\bTimeline\b/i, "Timeline"],
+          [/\bFindings?\b/i, "Findings"],
+          [/\bRecommendations?\b/i, "Recommendations"],
+          [/\bcorroborating\b/i, "corroborating"],
+          [/\bPlaintiff\b/i, "Plaintiff"],
+          [/\bDefendant\b/i, "Defendant"],
+          [/\bjury\b/i, "jury"],
+        ]
+      : [
+          [/\bResumen ejecutivo\b/i, "Resumen ejecutivo"],
+          [/\bHallazgos?\b/i, "Hallazgos"],
+          [/\bCronolog[ií]a\b/i, "Cronología"],
+          [/\bEstrategia\b/i, "Estrategia"],
+          [/\bRecomendaciones\b/i, "Recomendaciones"],
+        ];
+  return checks.filter(([rx]) => rx.test(text)).map(([, label]) => label);
+}
+
 export interface OrchestratorArgs {
   db: Db;
   userId: string;
@@ -321,6 +378,14 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
     .eq("case_id", ctx.caseId);
   if ((findingsCount ?? 0) === 0) errors.push("No findings to support the report.");
 
+  const { getReportLocale } = await import("@/lib/mexico-lock");
+  const locale = await getReportLocale(ctx.db, ctx.caseId);
+  const reportText = collectReportText([summary, full]).join("\n").slice(0, 200_000);
+  const languageLeaks = detectReportLanguageLeaks(reportText, locale);
+  if (languageLeaks.length > 0) {
+    errors.push(`Report language drift (${locale}): ${Array.from(new Set(languageLeaks)).slice(0, 8).join(", ")}.`);
+  }
+
   const pass = errors.length === 0;
   return {
     status: pass ? "success" : "failed",
@@ -329,7 +394,7 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
     tokensUsed: 0,
     outputFile: "qa_report.json",
     errors,
-    output: { pass, checked: ["report_exists", "summary_length", "findings_present"] },
+    output: { pass, checked: ["report_exists", "summary_length", "findings_present", "single_language"], locale },
   };
 }
 
@@ -350,9 +415,8 @@ const HALLUCINATION_THRESHOLDS: Record<AnalysisMode, number> = {
 async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
   // Independent review: sanity-checks the report against structural quality
   // signals (citation density, contradiction load, finding confidence).
-  // A finding counts as "cited" if it has ANY traceable source: a
-  // source_document_id, a non-empty source_doc_ids array, or a source_quote
-  // that Hallucination review can verify against the corpus.
+  // A finding counts as cited only when it has BOTH a source document and a
+  // verbatim source quote — the exact same contract hallucination review uses.
   const t = JUDGE_THRESHOLDS[ctx.analysisMode];
   let verdict: "approve" | "needs_revision" | "reject" = "approve";
   const notes: string[] = [];
@@ -368,10 +432,7 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
   }>;
   const totalN = findings.length;
   const cited = findings.filter(
-    (f) =>
-      !!f.source_document_id ||
-      (Array.isArray(f.source_doc_ids) && f.source_doc_ids.length > 0) ||
-      (typeof f.source_quote === "string" && f.source_quote.trim().length > 0),
+    (f) => hasTraceableCitation(f),
   ).length;
   const citedRatio = totalN > 0 ? cited / totalN : 1;
   if (totalN === 0) {
@@ -395,14 +456,14 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
     verdict = "needs_revision";
     notes.push(`High contradiction count (${contraCount}) warrants revision.`);
   }
-  const pass = verdict === "approve" || verdict === "needs_revision";
+  const pass = verdict === "approve";
   return {
     status: pass ? "success" : "failed",
     confidence: verdict === "approve" ? 0.85 : verdict === "needs_revision" ? 0.65 : 0.3,
     processingTime: 0,
     tokensUsed: 0,
     outputFile: "judge_report.json",
-    errors: pass ? [] : [`Judge verdict: ${verdict}`],
+    errors: pass ? [] : [`Judge verdict: ${verdict}`, ...notes],
     output: {
       verdict,
       notes,
@@ -416,30 +477,33 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
 async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
   const m = await import("@/lib/intelligence/hallucination.server");
   const report = await m.runHallucinationReview({ db: ctx.db, caseId: ctx.caseId });
-  // Only score findings that carry a citation. Uncited findings are already
-  // penalised by the Judge's citation-density gate; counting them here too
-  // would double-punish the release.
   const cited = report.verified + report.unverified;
   const verifiedRatio = cited > 0 ? report.verified / cited : 1;
+  const citationCoverage = report.total > 0 ? cited / report.total : 0;
   const threshold = HALLUCINATION_THRESHOLDS[ctx.analysisMode];
-  const pass = cited === 0 ? true : verifiedRatio >= threshold;
+  const pass = report.total > 0 && cited > 0 && verifiedRatio >= threshold;
+  const errors: string[] = [];
+  if (report.total === 0) errors.push("No findings available for hallucination review.");
+  if (report.total > 0 && cited === 0) errors.push("No findings carry both a source document and verbatim quote.");
+  if (cited > 0 && verifiedRatio < threshold) {
+    errors.push(
+      `Verified ratio ${(verifiedRatio * 100).toFixed(1)}% of cited findings below ${ctx.analysisMode} threshold (${(threshold * 100).toFixed(0)}%).`,
+    );
+  }
   return {
     status: pass ? "success" : "failed",
     confidence: verifiedRatio,
     processingTime: 0,
     tokensUsed: 0,
     outputFile: "hallucination_report.json",
-    errors: pass
-      ? []
-      : [
-          `Verified ratio ${(verifiedRatio * 100).toFixed(1)}% of cited findings below ${ctx.analysisMode} threshold (${(threshold * 100).toFixed(0)}%).`,
-        ],
+    errors: pass ? [] : errors,
     output: {
       total: report.total,
       verified: report.verified,
       unverified: report.unverified,
       no_citation: report.no_citation,
-      cited_ratio: verifiedRatio,
+      citation_coverage: citationCoverage,
+      verification_ratio: verifiedRatio,
       mode: ctx.analysisMode,
       threshold,
     },
