@@ -3326,8 +3326,8 @@ function renderLegalIssues(b: PdfBuilder, data: CaseExportData) {
     const docs = [...new Set(group.map((g) => asStr(g.document)).filter(Boolean))].map((f) => humanizeDocTitle(f));
     if (docs.length > 1) {
       const shown = docs.slice(0, 12).join(", ");
-      const more = docs.length > 12 ? `, +${docs.length - 12} more` : "";
-      b.text(`Also implicated in: ${shown}${more}`, { size: 8.5, color: MUTED, gap: 4 });
+      const more = docs.length > 12 ? `, +${docs.length - 12} ${rt("more")}` : "";
+      b.text(`${rt("Also implicated in:")} ${shown}${more}`, { size: 8.5, color: MUTED, gap: 4 });
     }
 
     const allCases = group.flatMap((g) => asArr(g.case_law));
@@ -4712,9 +4712,9 @@ export async function downloadDocx(data: CaseExportData, name: string, opts?: { 
       children: [
         new TextRun({
           text: [
-            `Generated ${new Date().toLocaleString()}`,
-            asStr(reportRow.intelligence_version) ? `Engine ${asStr(reportRow.intelligence_version)}` : null,
-            `Status: ${mode === "LIMITED" ? "Limited Analysis" : "Complete"}`,
+            `${rt("Generated")} ${new Date().toLocaleString()}`,
+            asStr(reportRow.intelligence_version) ? `${rt("Engine")} ${asStr(reportRow.intelligence_version)}` : null,
+            `${rt("Status")}: ${rt(mode === "LIMITED" ? "Limited Analysis" : "Complete")}`,
           ]
             .filter(Boolean)
             .join("   ·   "),
@@ -4747,7 +4747,7 @@ export async function downloadDocx(data: CaseExportData, name: string, opts?: { 
     new Paragraph({
       children: [
         new TextRun({
-          text: `Status: ${mode === "LIMITED" ? "Limited Analysis · Scores Suppressed · Recommendations Suppressed" : "Complete · Scores Enabled · Recommendations Enabled"}`,
+          text: `${rt("Status")}: ${rt(mode === "LIMITED" ? "Limited Analysis · Scores Suppressed · Recommendations Suppressed" : "Complete · Scores Enabled · Recommendations Enabled")}`,
           bold: true,
         }),
       ],
