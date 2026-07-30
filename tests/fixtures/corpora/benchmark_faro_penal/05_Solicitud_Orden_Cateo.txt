@@ -1,0 +1,69 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+FISCALÍA GENERAL DEL ESTADO DE QUINTANA ROO
+UNIDAD DE INVESTIGACIÓN DE DELITOS FINANCIEROS Y DOCUMENTALES
+
+SOLICITUD DE ORDEN DE CATEO
+Dirigida al Juez de Control del Distrito Judicial de Cancún
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Fecha de presentación: 18 de marzo de 2026, 09:12 horas (registro CJ-214/2026).
+
+C. JUEZ DE CONTROL DEL DISTRITO JUDICIAL DE CANCÚN
+P R E S E N T E
+
+El suscrito Lic. Héctor Manuel Cauich Sansores, Agente del Ministerio Público adscrito a la
+UIDFD Zona Norte, con fundamento en los arts. 16, párrafo once, de la Constitución Política
+de los Estados Unidos Mexicanos y 282, 283 y 284 del Código Nacional de Procedimientos
+Penales, solicito se libre ORDEN DE CATEO respecto del inmueble que se precisa, bajo los
+siguientes:
+
+I. LUGAR A INSPECCIONAR (único)
+Oficina 402, piso 4, del edificio ubicado en Avenida Bonampak número 622, Supermanzana 4-A,
+Cancún, Benito Juárez, Quintana Roo, C.P. 77500, con acceso por vestíbulo principal y
+elevador norte; inmueble ocupado por la persona moral "Faro Náutico del Caribe, S.A. de
+C.V.". Se anexa croquis de localización y fotografía de fachada.
+
+Se precisa expresamente que la solicitud NO comprende domicilio particular alguno.
+
+II. PERSONA A LOCALIZAR
+Andrés Iván Peraza Manzanilla, Director de Operaciones de la referida moral.
+
+III. OBJETO DEL CATEO
+Localización y aseguramiento de:
+a) Equipos de cómputo, servidores locales, discos de almacenamiento y teléfonos móviles de
+   uso corporativo empleados para la elaboración y transmisión de los documentos cuestionados.
+b) Originales o copias del resolutivo SEMA/DGIA/RES-0913/2024 y del título
+   ZFMT/QR/0418/2023, así como sellos, plantillas o matrices para su elaboración.
+c) Documentación contable y bancaria correspondiente al periodo enero 2025 - marzo 2026.
+
+IV. DATOS DE PRUEBA QUE SUSTENTAN LA SOLICITUD
+1. Registro de denuncia anónima folio 089-QR-2026-33194 de 12 de marzo de 2026.
+2. Entrevista de la representante de la víctima de 15 de marzo de 2026 y anexos, entre
+   ellos los comprobantes de tres transferencias por un total de $9,250,000.00 M.N.
+3. Informe de investigación de 17 de marzo de 2026 del Policía Tercero Óscar Damián Balam
+   Tuz, que documenta vigilancia discreta del inmueble los días 16 y 17 de marzo y
+   confirma la operación de la empresa en la oficina 402.
+4. Oficio SEMA/DGIA/UT/0221/2026 de 17 de marzo de 2026, mediante el cual la autoridad
+   ambiental estatal informa que no existe registro del resolutivo con el número exhibido.
+
+V. NECESIDAD Y PROPORCIONALIDAD
+La medida es idónea porque los indicios documentales y digitales se encuentran en el
+domicilio corporativo; es necesaria porque no existe vía menos lesiva para obtenerlos, dado
+que un requerimiento previo generaría riesgo cierto de destrucción de evidencia digital; y
+es proporcional porque se limita a un espacio de uso comercial y a objetos determinados,
+conforme al criterio de razonabilidad exigido por el art. 16 constitucional.
+
+VI. PERSONAL AUTORIZADO
+Se solicita autorizar la intervención de hasta cuatro elementos de la Policía de
+Investigación al mando del Policía Tercero Óscar Damián Balam Tuz, un perito en informática
+forense y un perito en documentoscopía, así como del suscrito.
+
+VII. HORARIO
+Se solicita que la diligencia se ejecute en horario diurno, entre las 06:00 y las 18:00
+horas del 19 de marzo de 2026.
+
+Por lo expuesto, atentamente pido se sirva conceder la orden solicitada.
+
+Lic. Héctor Manuel Cauich Sansores
+Agente del Ministerio Público
+Cancún, Quintana Roo, 18 de marzo de 2026.
