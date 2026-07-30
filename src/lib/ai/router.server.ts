@@ -726,6 +726,12 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   const fellBackFrom: ProviderType[] = [];
   const errors: string[] = [];
   const preAttemptSkips: string[] = [];
+  // Input budgets of providers held back ONLY because the payload was too big
+  // for them while a full-size provider still looked available. If that
+  // full-size provider then fails, these are the last usable options and the
+  // request must be compressed to fit the largest of them rather than the
+  // whole call dying with `never_attempted: [groq]`.
+  const sizeSkippedBudgets: number[] = [];
   const cooldownSkips: Array<{
     provider: ProviderType;
     model: string | null;
