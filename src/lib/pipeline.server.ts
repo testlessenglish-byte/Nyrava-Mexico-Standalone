@@ -2628,6 +2628,32 @@ const AGENT_ENGINE: Record<string, string> = {
   procedural_violations: "procedural_violations",
 };
 
+/**
+ * How many investigator agents may execute simultaneously inside the "agents"
+ * stage.
+ *
+ * The four agents (witness_credibility, chain_of_custody,
+ * constitutional_compliance, procedural_violations) are genuinely independent:
+ * each one's only input is the shared corpus plus its own system/user prompt.
+ * None reads another's agent_findings, summary, or confidence, so ordering is
+ * a scheduling choice, not a correctness constraint.
+ *
+ * 2026-07-30: raised 1 → 2. At 1, a 9-chunk corpus needed ~36 sequential Groq
+ * calls; measured wall clock was ~15-20 min for ~5 min of actual AI time —
+ * the rest was inter-tick stalls. 2 halves the tick count while holding the
+ * in-flight token rate at 2x rather than 4x, which matters because the shared
+ * Groq/Gemini key pool is the binding constraint, not CPU.
+ *
+ * ROLLBACK: set this back to 1. That is the complete revert — there is no
+ * migration, no persisted state, and no schema tied to the value. Agent
+ * results are checkpointed per batch in pipeline_engine_runs, and resume keys
+ * off agent_findings.status, both of which are concurrency-agnostic; a case
+ * that ran part-way at 2 resumes correctly at 1 and vice versa. The only
+ * artifact left behind is pipeline_trace instrumentation rows, which are
+ * append-only diagnostics.
+ */
+const AGENT_CONCURRENCY = 2;
+
 export async function runAgents(args: { db: Db; caseId: string; userId: string; apiKey: string; apiKeys?: string[] }) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
   await setCase(db, caseId, {
