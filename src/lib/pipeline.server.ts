@@ -31,6 +31,7 @@ import {
   serializeCanonicalContextForPrompt,
 } from "./intelligence/report-canonical-context";
 import { mergeCanonicalRecommendations } from "./intelligence/report-recommendations";
+import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
 
 type Db = SupabaseClient<Database>;
 
