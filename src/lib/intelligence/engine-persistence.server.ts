@@ -26,6 +26,7 @@ import { withTelemetryScope, summarizeScope } from "../ai/telemetry.server";
 import { snapshotCorpus } from "./corpus-snapshot.server";
 import { engineVersion } from "./engine-fingerprint";
 import { trace, traceAsync } from "../pipeline-trace.server";
+import { projectCaseFindings, PROJECTABLE_TABLES } from "./project-findings.server";
 
 type Db = SupabaseClient<Database>;
 
