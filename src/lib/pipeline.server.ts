@@ -32,6 +32,7 @@ import {
 } from "./intelligence/report-canonical-context";
 import { mergeCanonicalRecommendations } from "./intelligence/report-recommendations";
 import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 
@@ -6524,7 +6525,11 @@ ${paginationTail}`;
             (await db.from("documents").select("id", { count: "exact", head: true }).eq("case_id", caseId)).count ?? 0,
           findingsCount:
             Number((savedAny.findings_count as number | undefined) ?? 0) ||
-            ((await db.from("case_findings").select("id", { count: "exact", head: true }).eq("case_id", caseId))
+            ((await db
+              .from("case_findings")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId)
+              .not("source_module", "like", PROJECTION_LIKE))
               .count ??
               0),
           contradictionCount: contradictions,

@@ -12,6 +12,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { AGENT_DEFINITIONS, type AgentResult, type AgentDefinition } from "./types";
 import { attachAgentStats, buildAgentStatistics } from "./statistics.server";
 import { isCheckpointError } from "@/lib/pipeline-checkpoint.server";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 
@@ -230,7 +231,8 @@ async function agentEntities(ctx: RunCtx): Promise<AgentResult> {
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
     .select("id", { count: "exact", head: true })
-    .eq("case_id", ctx.caseId);
+    .eq("case_id", ctx.caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
   const ok = alreadyDone && (findingsCount ?? 0) > 0;
   return {
     status: ok ? "success" : "failed",
@@ -375,7 +377,8 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
     .select("id", { count: "exact", head: true })
-    .eq("case_id", ctx.caseId);
+    .eq("case_id", ctx.caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
   if ((findingsCount ?? 0) === 0) errors.push("No findings to support the report.");
 
   const { getReportLocale } = await import("@/lib/mexico-lock");
@@ -423,7 +426,8 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
   const { data: allFindings } = await ctx.db
     .from("case_findings")
     .select("id,source_document_id,source_doc_ids,source_quote,source_module")
-    .eq("case_id", ctx.caseId);
+    .eq("case_id", ctx.caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
   const findings = (allFindings ?? []) as Array<{
     source_document_id: string | null;
     source_doc_ids: string[] | null;

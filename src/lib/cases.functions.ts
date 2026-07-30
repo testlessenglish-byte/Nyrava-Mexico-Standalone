@@ -7,7 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
-import { selectFindings } from "@/lib/intelligence/finding-selection";
+import { PROJECTION_LIKE, selectFindings } from "@/lib/intelligence/finding-selection";
 
 // Single source of truth for valid case_type values — derived from
 // PRACTICE_AREA_LABELS (practice-areas.ts) instead of hand-copied literal
@@ -2129,7 +2129,8 @@ export const listCases = createServerFn({ method: "GET" })
           "case_id,case_strength_score,risk_score,findings_count,contradictions_struct,missing_evidence_struct",
         )
         .in("case_id", ids),
-      supabase.from("case_findings").select("case_id,severity").in("case_id", ids),
+      supabase.from("case_findings").select("case_id,severity").in("case_id", ids)
+        .not("source_module", "like", PROJECTION_LIKE),
       supabase.from("case_witnesses").select("case_id").in("case_id", ids),
     ]);
 
@@ -2198,6 +2199,7 @@ export const listAlerts = createServerFn({ method: "GET" })
         .select("id,case_id,title,severity,created_at")
         .in("case_id", ids)
         .eq("severity", "critical")
+        .not("source_module", "like", PROJECTION_LIKE)
         .order("created_at", { ascending: false })
         .limit(200),
       supabase
@@ -2694,6 +2696,7 @@ export const getCase = createServerFn({ method: "POST" })
         .from("case_findings")
         .select("*")
         .eq("case_id", data.caseId)
+        .not("source_module", "like", PROJECTION_LIKE)
         .order("priority", { ascending: true, nullsFirst: false })
         .order("created_at"),
       supabase.from("case_theories").select("*").eq("case_id", data.caseId).order("theory_type"),
@@ -3379,7 +3382,8 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
         (supabase as any)
           .from("case_findings")
           .select("id", { count: "exact", head: true })
-          .eq("case_id", caseId),
+          .eq("case_id", caseId)
+          .not("source_module", "like", PROJECTION_LIKE),
       ]);
       await snapshotReportVersion(supabase, {
         caseId,
@@ -3491,7 +3495,7 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
         .limit(1)
         .maybeSingle(),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any).from("case_findings").select("id,title").eq("case_id", caseId),
+      (supabase as any).from("case_findings").select("id,title").eq("case_id", caseId).not("source_module", "like", PROJECTION_LIKE),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any).from("case_witnesses").select("id,name,credibility").eq("case_id", caseId),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -9,6 +9,7 @@
 //   • Contradiction triage when two docs disagree on the same fact
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 
@@ -65,7 +66,8 @@ export async function buildDocumentGraph(db: Db, caseId: string): Promise<Docume
     db.from("case_findings")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .select("source_document_id,source_doc_ids" as any)
-      .eq("case_id", caseId),
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE),
   ]);
 
   const findingsByDoc = new Map<string, number>();

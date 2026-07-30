@@ -11,6 +11,7 @@ import {
   getApplicablePartyRoles,
   getTaskTemplates,
 } from "@/lib/intelligence/practice-areas";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 const uuid = z.string().uuid();
 
@@ -317,6 +318,7 @@ export const getAttorneyHome = createServerFn({ method: "GET" })
         .select("id, case_id, title, priority, created_at")
         .eq("user_id", userId)
         .lte("priority", 2)
+        .not("source_module", "like", PROJECTION_LIKE)
         .order("created_at", { ascending: false })
         .limit(8),
       supabase

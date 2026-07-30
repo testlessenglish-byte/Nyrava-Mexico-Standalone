@@ -4,6 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { AGENT_DEFINITIONS, type AgentDefinition, type AgentJson, type AgentResult } from "./types";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 
@@ -225,7 +226,11 @@ async function buildSingleAgentStats(
 ): Promise<AgentOutputStats> {
   const [{ extracted, docs }, { data: findings }, { data: runs }] = await Promise.all([
     countDocs(db, caseId),
-    db.from("case_findings").select("source_module,category,metadata").eq("case_id", caseId),
+    db
+      .from("case_findings")
+      .select("source_module,category,metadata")
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE),
     db
       .from("pipeline_engine_runs")
       .select(
@@ -344,7 +349,7 @@ export async function buildAgentStatistics(
       .from("case_findings")
       .select("id", { count: "exact", head: true })
       .eq("case_id", caseId)
-      .not("source_module", "like", "projection:%"),
+      .not("source_module", "like", PROJECTION_LIKE),
   ]);
   const latestLog = new Map<string, Record<string, unknown>>();
   for (const row of logs ?? []) {

@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { normalizePracticeArea, resolvePracticeAreaOrNull, type PracticeArea } from "./practice-areas";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 
@@ -223,7 +224,7 @@ export async function resolveActivations(
     : [];
 
   const [{ data: findings }, { data: documents }] = await Promise.all([
-    db.from("case_findings").select("id,source_module").eq("case_id", caseId),
+    db.from("case_findings").select("id,source_module").eq("case_id", caseId).not("source_module", "like", PROJECTION_LIKE),
     db.from("documents").select("id,filename,extracted_text").eq("case_id", caseId),
   ]);
 

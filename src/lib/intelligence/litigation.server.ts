@@ -8,6 +8,7 @@ import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "../groq.server";
 import { getOrBuildSharedBrief, briefToPrompt } from "./shared-brief.server";
 import { resolveProviderKeys } from "../ai-key-router.server";
 import { addFindings, addGatedFindings, clearFindingsByModule } from "./findings.server";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 const MODEL = GROQ_DEFAULT_MODEL;
 type Db = SupabaseClient<Database>;
@@ -557,7 +558,8 @@ ${briefText}`,
         (db as any)
           .from("case_findings")
           .select("id, source_document_id, category, source_doc_ids")
-          .eq("case_id", caseId),
+          .eq("case_id", caseId)
+          .not("source_module", "like", PROJECTION_LIKE),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (db as any).from("case_witnesses").select("id, source_document_id, source_doc_ids").eq("case_id", caseId),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -759,6 +761,7 @@ export async function runStrategyEngine(args: {
       .from("case_findings")
       .select("category,severity,title,description,confidence,affected_party")
       .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE)
       .limit(200),
     db
       .from("case_perspectives")
@@ -965,7 +968,8 @@ export async function buildAttackSurface(db: Db, caseId: string): Promise<Attack
     .select(
       "id,title,category,severity,priority,evidence_type,affected_party,source_quote,source_document_id,description",
     )
-    .eq("case_id", caseId);
+    .eq("case_id", caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
   const findings = rows ?? [];
   const out = emptyAttackSurface();
   out.finding_count = findings.length;

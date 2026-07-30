@@ -6,6 +6,7 @@
 // Every event carries provenance (source document id + finding id when known).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 
@@ -74,7 +75,8 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
     db.from("case_findings")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .select("id,title,description,source_document_id,source_page,event_date,occurred_on,date,created_at" as any)
-      .eq("case_id", caseId),
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE),
   ]);
 
   type Bucket = { date: string; date_raw: string; event: string; sources: CanonicalTimelineEvent["sources"]; key: string };
