@@ -109,19 +109,12 @@ const MAX_PROVIDER_RETRIES_PER_CALL = 2;
  * the completion and route bigger prompts to a wide-context provider instead.
  */
 const PROVIDER_INPUT_TOKEN_BUDGET: Partial<Record<ProviderType, number>> = {
-  // 2026-07: was 6_000, which skipped Groq on virtually every engine prompt
-  // and serialized the whole pipeline onto Gemini at ~15s/call. Groq accepts
-  // far larger single requests than its per-minute ceiling suggests, and a
-  // 413/429 is already self-healed (split + failover), so the conservative
-  // gate cost far more than it saved.
-  // 2026-07-27: kept at 12_000, NOT raised to 30_000. gpt-oss-120b on Groq's
-  // free tier is capped at ~8k tokens/MINUTE per account — a hard org-level
-  // ceiling that key rotation cannot get around. A ~17k-token report prompt
-  // was never going to succeed there; raising the gate would only convert a
-  // clean client-side skip into a real 429/413 + cooldown before failing over
-  // anyway. The report task is instead pinned to Gemini via ai_task_routing.
-  // 12k stays useful for mid-size engine prompts that DO fit.
-  groq: 12_000,
+  // 2026-07-30: production traces from Proyecto Faro showed Groq free-tier
+  // rejecting 12k-13.5k-token agent prompts with HTTP 413 because the org TPM
+  // ceiling is 8k. This budget is intentionally below that ceiling so corpus
+  // packing produces request-sized chunks that can actually run on Groq instead
+  // of bouncing between oversized Groq attempts and exhausted Gemini keys.
+  groq: 5_500,
 
   openrouter: 60_000,
   gemini: 900_000,
@@ -580,7 +573,7 @@ export async function packingCharBudget(ceilingChars: number): Promise<number> {
 }
 
 /** Never pack below this — tiny batches multiply request count for no gain. */
-const MIN_PACKING_CHARS = 8_000;
+const MIN_PACKING_CHARS = 6_000;
 
 
 export async function routeAI(opts: RouteOpts): Promise<RouteResult> {

@@ -2716,22 +2716,55 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           // cap and (b) silently drops every document past the truncation.
           const { packingCharBudget: agentBudgetFn } = await import("@/lib/ai/router.server");
           const agentBatches = packChunks(chunks, await agentBudgetFn(ANALYZER_CORPUS_BUDGET_CHARS));
+          const batchEngine = `${engine}_batch`;
+          const batchKey = (batch: CorpusChunk[]) => batch.map((c) => c.docId).sort().join("|");
+
+          type AgentBatchMeta = {
+            docIds?: string[];
+            findings?: unknown[];
+            summary?: string;
+            confidence?: number;
+            provider?: string;
+          };
+          const { data: priorAgentBatchRuns } = await db
+            .from("pipeline_engine_runs")
+            .select("meta,status" as any)
+            .eq("case_id", caseId)
+            .eq("engine", batchEngine);
+          const completedBatchKeys = new Set<string>();
+          const priorBatchMetas: AgentBatchMeta[] = [];
+          for (const row of (priorAgentBatchRuns ?? []) as unknown as Array<{
+            status: string;
+            meta: AgentBatchMeta | null;
+          }>) {
+            if (row.status !== "completed" || !Array.isArray(row.meta?.docIds)) continue;
+            completedBatchKeys.add(row.meta.docIds.slice().sort().join("|"));
+            priorBatchMetas.push(row.meta);
+          }
 
           console.log(
-            `[agent:${agent.type}] docs=${chunks.length} totalChars=${corpus.length} batches=${agentBatches.length}`,
+            `[agent:${agent.type}] docs=${chunks.length} totalChars=${corpus.length} batches=${agentBatches.length} resumed=${priorBatchMetas.length}`,
           );
-          const queue: CorpusChunk[][] = [...agentBatches];
+          const queue: CorpusChunk[][] = agentBatches.filter((batch) => !completedBatchKeys.has(batchKey(batch)));
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mergedFindings: any[] = [];
-          const summaries: string[] = [];
-          const confidences: number[] = [];
+          const mergedFindings: any[] = priorBatchMetas.flatMap((m) =>
+            Array.isArray(m.findings) ? (m.findings as any[]) : [],
+          );
+          const summaries: string[] = priorBatchMetas
+            .map((m) => (typeof m.summary === "string" ? m.summary.trim() : ""))
+            .filter(Boolean);
+          const confidences: number[] = priorBatchMetas
+            .map((m) => m.confidence)
+            .filter((n): n is number => typeof n === "number");
           const batchErrors: string[] = [];
           let batchIdx = 0;
-          let successes = 0;
+          let successes = priorBatchMetas.length;
           let lastModel = MODEL;
           while (queue.length) {
             batchIdx++;
             const batch = queue.shift()!;
+            const key = batchKey(batch);
+            if (completedBatchKeys.has(key)) continue;
             const batchCorpus = batch.map((c) => c.text).join("\n\n");
             const bt0 = Date.now();
             try {
@@ -2762,6 +2795,37 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
               if (Array.isArray(parsed.findings)) mergedFindings.push(...parsed.findings);
               if (typeof parsed.summary === "string" && parsed.summary.trim()) summaries.push(parsed.summary.trim());
               if (typeof parsed.confidence === "number") confidences.push(parsed.confidence);
+              assertDbOk(
+                (
+                  await db.from("pipeline_engine_runs").insert({
+                    case_id: caseId,
+                    user_id: userId,
+                    engine: batchEngine,
+                    status: "completed",
+                    started_at: new Date(bt0).toISOString(),
+                    ended_at: new Date().toISOString(),
+                    runtime_ms: Date.now() - bt0,
+                    generated: Array.isArray(parsed.findings) ? parsed.findings.length : 0,
+                    accepted: Array.isArray(parsed.findings) ? parsed.findings.length : 0,
+                    rejected: 0,
+                    suppressed_ess: 0,
+                    suppressed_validator: 0,
+                    meta: {
+                      agent_type: agent.type,
+                      batchIdx,
+                      docs: batch.length,
+                      chars: batchCorpus.length,
+                      docIds: batch.map((c) => c.docId),
+                      summary: typeof parsed.summary === "string" ? parsed.summary.slice(0, 4000) : null,
+                      confidence: typeof parsed.confidence === "number" ? parsed.confidence : null,
+                      findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+                      provider: r.provider,
+                    } as any,
+                  } as any)
+                ).error,
+                `Failed to save ${agent.type} agent batch checkpoint`,
+              );
+              completedBatchKeys.add(key);
               successes++;
             } catch (be) {
               rethrowIfCheckpoint(be);
