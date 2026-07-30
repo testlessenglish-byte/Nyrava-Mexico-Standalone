@@ -2039,10 +2039,7 @@ ${corpusText}`;
   // The budget is capped by the NARROWEST configured provider so Groq stays in
   // the fallback chain instead of being skipped as oversize on every call.
   const { packingCharBudget, PROMPT_OVERHEAD_CHARS } = await import("@/lib/ai/router.server");
-  const analyzerBudgetChars = await packingCharBudget(
-    ANALYZER_CORPUS_BUDGET_CHARS,
-    PROMPT_OVERHEAD_CHARS.analyzers,
-  );
+  const analyzerBudgetChars = await packingCharBudget(ANALYZER_CORPUS_BUDGET_CHARS, PROMPT_OVERHEAD_CHARS.analyzers);
   const initialBatches = packChunks(chunks, analyzerBudgetChars);
   console.log(
     `[analyzers] docs=${chunks.length} totalChars=${corpus.length} batches=${initialBatches.length} budgetChars=${analyzerBudgetChars}`,
@@ -4039,9 +4036,8 @@ async function _runReportInner(args: {
   // fallback to the raw-table path above is traced.
   let canonicalVersion: number | null = null;
   {
-    const { loadCanonicalReportSource, applyCanonicalOrder, traceCanonicalFallback } = await import(
-      "@/lib/canonical/report-source.server"
-    );
+    const { loadCanonicalReportSource, applyCanonicalOrder, traceCanonicalFallback } =
+      await import("@/lib/canonical/report-source.server");
     const src = await loadCanonicalReportSource(db, caseId);
     if (src) {
       const ordered = applyCanonicalOrder(findings as unknown as { id?: string | null }[], src.orderedIds);
@@ -5741,8 +5737,27 @@ ${paginationTail}`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scoreFlags = (score as any)?.rationale?.flags;
   const scoreSuppressed = Array.isArray(scoreFlags) && scoreFlags.length > 0;
+  // 2026-07-30 fix: this used to gate on `!r` (the raw narrativeRes return
+  // value). That is exactly the anti-pattern flagged twice earlier in this
+  // same function (see the comments above `r = narrativeRes` and above the
+  // `!chunkStatus.narrative.ok` checks): `r`/`narrativeRes` legitimately
+  // comes back `null` from `runChunk` whenever the narrative chunk resumed
+  // from `report_chunk_cache` on a later worker tick — a SUCCESS, not a
+  // failure. Any report whose "report" stage needed more than one worker
+  // tick (routine for reasoning-model narrative generation — see
+  // WORKER_INVOCATION_BUDGET_MS / MAX_REPORT_CHECKPOINTS) hit `!r` here and
+  // was silently downgraded to LIMITED — scores, recommendations, and
+  // theory sections suppressed — even when `ess` said the case fully
+  // qualified for FULL analysis (fullAnalysisOverride/allowQuantitativeScores/
+  // allowMotionGeneration all true). `chunkStatus.narrative.ok` is the
+  // correct signal: true whether the chunk came from a fresh call or a
+  // legitimate cache resume, false only on a real failure.
   const reportMode: "FULL" | "LIMITED" =
-    !r || !ess.allowQuantitativeScores || !ess.allowMotionGeneration || ess.bin === "minimal" || scoreSuppressed
+    !chunkStatus.narrative.ok ||
+    !ess.allowQuantitativeScores ||
+    !ess.allowMotionGeneration ||
+    ess.bin === "minimal" ||
+    scoreSuppressed
       ? "LIMITED"
       : "FULL";
   const isLimited = reportMode === "LIMITED";
@@ -6233,7 +6248,11 @@ ${paginationTail}`;
       })(),
       validation: {
         report_llm_error: reportLlmError,
-        deterministic_fallback_used: !r,
+        // Same fix as reportMode above: `!r` is true on a legitimate
+        // cache-resumed narrative chunk, which is not a fallback. Gate on
+        // chunkStatus.narrative.ok instead so this diagnostic field only
+        // reflects a REAL deterministic-fallback event.
+        deterministic_fallback_used: !chunkStatus.narrative.ok,
         case_type: caseType,
         // --- QUALITY SIGNALS (Fix 5) ---
         // Queryable per-report metrics so quality trends over time can be
@@ -6702,12 +6721,13 @@ ${paginationTail}`;
             (await db.from("documents").select("id", { count: "exact", head: true }).eq("case_id", caseId)).count ?? 0,
           findingsCount:
             Number((savedAny.findings_count as number | undefined) ?? 0) ||
-            ((await db
-              .from("case_findings")
-              .select("id", { count: "exact", head: true })
-              .eq("case_id", caseId)
-              .not("source_module", "like", PROJECTION_LIKE))
-              .count ??
+            ((
+              await db
+                .from("case_findings")
+                .select("id", { count: "exact", head: true })
+                .eq("case_id", caseId)
+                .not("source_module", "like", PROJECTION_LIKE)
+            ).count ??
               0),
           contradictionCount: contradictions,
           ess,
