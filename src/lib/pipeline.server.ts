@@ -2983,6 +2983,25 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 console.warn(
                   `[agent:${agent.type}] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`,
                 );
+                // Instrumented so cooldown COUNT can be compared across
+                // concurrency settings, not just total wall clock. More
+                // frequent short stalls at the same total delay is a null
+                // result, and only this row makes that visible.
+                await _agentTrace({
+                  db,
+                  caseId,
+                  userId,
+                  phase: "agents",
+                  step: "cooldown_checkpoint",
+                  status: "warn",
+                  durationMs: Date.now() - t0,
+                  detail: {
+                    concurrency: AGENT_CONCURRENCY,
+                    agent: agent.type,
+                    batches_done: successes,
+                    message: bmsg.slice(0, 300),
+                  },
+                });
                 throw new CheckpointRequired(
                   "agents",
                   `${agent.type} after ${successes} successful batch(es) — ${bmsg.slice(0, 300)}`,
