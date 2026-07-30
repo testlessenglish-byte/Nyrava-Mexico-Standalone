@@ -80,3 +80,33 @@ pinned in `running` with nothing in the ledger.
   dependent stage — including `report` — is marked `blocked` with the timeout
   reason visible in the ledger and the case UI.
 - Both runners (`pipeline.server.ts`, `pipeline-runner.server.ts`) are wired.
+
+## Concurrency & lease audit (2026-07-30)
+
+Every execution path that can start AI work was enumerated and checked.
+
+| Path | Case lease | Per-user cap | Release on failure |
+|---|---|---|---|
+| `runFullPipelineStep` | `claimPipelineLease` (CAS) | `assertUserPipelineCapacity` | runner wrapper + terminal status |
+| `runFullIntelligenceStep` (legacy) | `claimPipelineLease` | yes | same |
+| `runLabeledStep` (all individual stage buttons) | `assertCaseNotLeased` | yes | n/a (no lease taken) |
+| `driveCaseTick` (browser-driven tick) | inline CAS | yes | runner wrapper |
+| `pipeline-worker` cron | CAS lease | `checkUserPipelineCapacity` → defer | error path nulls lease |
+| `resumePipeline` / `retryStage` endpoints | active-lease check → requeue | worker enforces cap | worker |
+| `uploadVerificationDocument` background extraction | `getActiveCaseLease` guard | yes | fire-and-forget, no lease held |
+| Talk-to-Case chat, voice speak/transcribe, motion preview | exempt (interactive, single short call, no case state writes) | n/a | n/a |
+| `engines.functions.runEngine`, `processDocumentJob`, `regenerateCanonical` | matter/job-scoped, no case pipeline; no engine loop | n/a | n/a |
+
+Provider layer: `routeAI` → `provider.server.ts` → `providers/*` is strictly
+sequential (try key/provider, on failure advance). No `Promise.all/any` over
+providers anywhere, so fallback cannot create a second concurrent execution.
+`blocking-stage-guard.server.ts` uses `Promise.race` only against a timer.
+
+Residual risk: a stage that exceeds its `timeoutMs` cannot be hard-killed
+(JS has no cancellation); the guard fails the case loudly and the lease is
+released, so the slot is freed even though the orphaned call may finish.
+
+Logging: all lease decisions emit a single-line JSON `[lease] {...}` record
+with `event`, `path`, `case_id`, `user_id`, `lease_until`,
+`active_pipelines`, `limit`, `reason`. Worker defers also write
+`worker.capacity_deferred` to `pipeline_trace`.
