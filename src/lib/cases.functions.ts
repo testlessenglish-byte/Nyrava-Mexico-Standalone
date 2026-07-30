@@ -2736,6 +2736,16 @@ export const getCase = createServerFn({ method: "POST" })
         .eq("case_id", data.caseId)
         .order("created_at", { ascending: false }),
     ]);
+    // Phase 4: current canonical version, so the report header can say a
+    // newer analysis exists instead of silently re-rendering.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: canonRow } = await (supabase as any)
+      .from("canonical_analysis")
+      .select("version")
+      .eq("case_id", data.caseId)
+      .maybeSingle();
+    const canonicalCurrentVersion =
+      Number((canonRow as { version?: number } | null)?.version ?? NaN) || null;
     return {
       case: c.data,
       documents: docs.data ?? [],
@@ -2743,6 +2753,7 @@ export const getCase = createServerFn({ method: "POST" })
       agents: agents.data ?? [],
       score: score.data,
       report: report.data,
+      canonical_current_version: canonicalCurrentVersion,
       // Apply the same canonical inclusion rule used for the report's cover-page
       // counters (getCanonicalScoringFindings / getFindingCounters): only
       // `engine:*` findings are canonical — `analyzer:*` findings are provisional
