@@ -3112,7 +3112,13 @@ async function _runScoringInner(args: { db: Db; caseId: string; userId: string; 
       .slice(0, 4000),
   );
 
-  const findingsForLlm = findings.map((f) => ({
+  // Cap by item count, not JSON.stringify(...).slice(N) — slicing raw JSON
+  // text risks cutting the array off mid-object on cases with many
+  // findings, and was the direct cause of a Groq 413 "payload too large"
+  // failure on another engine with the same pattern. 150 findings is far
+  // more than any dimension_breakdowns synthesis needs to cite specific
+  // positive/negative contributors.
+  const findingsForLlm = findings.slice(0, 150).map((f) => ({
     id: f.id,
     category: f.category,
     severity: f.severity,
@@ -3156,7 +3162,7 @@ async function _runScoringInner(args: { db: Db; caseId: string; userId: string; 
 }
 
 FINDINGS (${findings.length}):
-${JSON.stringify(findingsForLlm).slice(0, 80000)}`,
+${JSON.stringify(findingsForLlm)}`,
     json: true,
     temperature: 0.1,
   });
