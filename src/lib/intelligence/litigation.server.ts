@@ -967,7 +967,8 @@ export async function buildAttackSurface(db: Db, caseId: string): Promise<Attack
     .select(
       "id,title,category,severity,priority,evidence_type,affected_party,source_quote,source_document_id,description",
     )
-    .eq("case_id", caseId);
+    .eq("case_id", caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
   const findings = rows ?? [];
   const out = emptyAttackSurface();
   out.finding_count = findings.length;

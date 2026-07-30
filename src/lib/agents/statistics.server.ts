@@ -348,7 +348,7 @@ export async function buildAgentStatistics(
       .from("case_findings")
       .select("id", { count: "exact", head: true })
       .eq("case_id", caseId)
-      .not("source_module", "like", "projection:%"),
+      .not("source_module", "like", PROJECTION_LIKE),
   ]);
   const latestLog = new Map<string, Record<string, unknown>>();
   for (const row of logs ?? []) {

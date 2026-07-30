@@ -26,6 +26,16 @@
 // pre-existing surface by default so Phase 2 cannot move a single badge.
 export type FindingSourceClass = "engine" | "agent" | "analyzer" | "projection" | "other";
 
+/**
+ * PostgREST `like` pattern matching every Phase 2 mirrored row.
+ * Phase 3 reader audit: every pre-existing `case_findings` reader that is not
+ * projection-aware filters with `.not("source_module", "like", PROJECTION_LIKE)`
+ * so flipping FINDINGS_PROJECTION_ENABLED cannot move a badge, count, release
+ * gate, citation audit, timeline, or report body. Only the canonical writer
+ * (`src/lib/canonical/writer.server.ts`) reads projection rows on purpose.
+ */
+export const PROJECTION_LIKE = "projection:%";
+
 export type FindingStatus = "candidate" | "verified" | "disputed" | "suppressed" | "promoted";
 
 export const FINDING_STATUSES: readonly FindingStatus[] = [
