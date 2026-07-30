@@ -721,7 +721,10 @@ export const runFullPipelineStep = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "FullPipeline");
-    const { claimPipelineLease } = await import("@/lib/pipeline-lease.server");
+    const { claimPipelineLease, assertUserPipelineCapacity } = await import(
+      "@/lib/pipeline-lease.server"
+    );
+    await assertUserPipelineCapacity(supabase, userId, data.caseId);
     const claim = await claimPipelineLease(supabase, data.caseId, { reset: data.reset });
     if (!claim.claimed) return { ok: false, queued: false, ...claim };
     const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
