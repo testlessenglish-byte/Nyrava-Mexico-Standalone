@@ -1,0 +1,1 @@
+select cron.unschedule('nyrava-legal-ingest-daily');
