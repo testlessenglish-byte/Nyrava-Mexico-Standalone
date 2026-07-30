@@ -1772,12 +1772,34 @@ export const getAiHealth = createServerFn({ method: "GET" })
           } catch {
             keys = [];
           }
-          let ping: { ok: boolean; latencyMs: number; error?: string };
-          try {
-            ping = keys.length > 0 ? await pingProvider(type, keys[0]) : await pingProvider(type);
-          } catch (e) {
-            ping = { ok: false, latencyMs: 0, error: e instanceof Error ? e.message : String(e) };
+          // Probe EVERY key, not just the first. A single exhausted key must
+          // not keep the card red after the user adds a fresh one.
+          let ping: { ok: boolean; latencyMs: number; error?: string } = {
+            ok: false,
+            latencyMs: 0,
+            error: "No key configured.",
+          };
+          let okKeys = 0;
+          const keyErrors: string[] = [];
+          const candidates = keys.length > 0 ? keys : [undefined];
+          for (let i = 0; i < candidates.length; i++) {
+            let r: { ok: boolean; latencyMs: number; error?: string };
+            try {
+              r = candidates[i] ? await pingProvider(type, candidates[i]!) : await pingProvider(type);
+            } catch (e) {
+              r = { ok: false, latencyMs: 0, error: e instanceof Error ? e.message : String(e) };
+            }
+            if (r.ok) {
+              okKeys++;
+              if (!ping.ok) ping = r;
+            } else {
+              keyErrors.push(`key ${i + 1}: ${r.error ?? "failed"}`);
+              if (!ping.ok && i === 0) ping = r;
+            }
           }
+          // Any healthy key means the provider is usable — drop the stale error.
+          if (okKeys > 0) ping = { ...ping, ok: true, error: undefined };
+          else if (keyErrors.length) ping = { ...ping, ok: false, error: keyErrors.join(" · ") };
           const stats = diag.byProvider?.[type] ?? { totalOk: 0, totalErr: 0 };
           return [
             type,
@@ -1789,6 +1811,7 @@ export const getAiHealth = createServerFn({ method: "GET" })
               priority: r.priority ?? null,
               configured: keys.length > 0 || Boolean(r.api_key_encrypted) || Boolean(r.secret_name),
               keyCount: keys.length,
+              okKeyCount: okKeys,
               inputTokenBudget: getProviderInputBudget(type),
               totalOk: stats.totalOk ?? 0,
               totalErr: stats.totalErr ?? 0,
