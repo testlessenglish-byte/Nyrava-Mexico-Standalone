@@ -76,7 +76,15 @@ export type StageDef = {
   readonly dependsOn: readonly string[];
   /** Report requirement level. */
   readonly requirement: RequirementLevel;
+  /**
+   * Hard wall-clock ceiling for this stage, in milliseconds. Enforced by
+   * `withStageTimeout()` in `blocking-stage-guard.server.ts`. A stage that
+   * exceeds it is aborted and recorded as FAILED — it never hangs the run.
+   * Only set on stages that can block the report.
+   */
+  readonly timeoutMs?: number;
 };
+
 
 // -----------------------------------------------------------------------------
 // THE canonical stage list. Order == execution order == UI display order.
