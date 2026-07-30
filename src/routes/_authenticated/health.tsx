@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -48,9 +49,29 @@ function HealthPage() {
     refetchInterval: 30_000,
     retry: false,
   });
+  // Which provider's Test button is running — so pressing "Test" on Gemini
+  // never puts the Groq card into a testing state.
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  // Last per-provider test result; overrides the (possibly stale) page probe.
+  const [lastTest, setLastTest] = useState<Record<string, { ok: boolean; error?: string; latencyMs?: number }>>({});
   const probe = useMutation({
     mutationFn: (provider?: string) => runTest({ data: { provider: provider ?? null } }),
+    onSuccess: (res) => {
+      setLastTest((prev) => {
+        const next = { ...prev };
+        for (const r of res.results) {
+          next[r.provider] = r.ok
+            ? { ok: true, latencyMs: r.latencyMs }
+            : { ok: false, error: r.error };
+        }
+        return next;
+      });
+      // A live test is authoritative — re-probe so the card state matches.
+      refetch();
+    },
+    onSettled: () => setTestingProvider(null),
   });
+
 
   const fetchErrorLog = useServerFn(getAiErrorLog);
   const errorLog = useMutation({
@@ -146,12 +167,24 @@ function HealthPage() {
                   name={p.displayName || p.provider}
                   icon={<Cpu className="h-4 w-4" />}
                   configured={p.configured}
-                  ok={p.ok}
+                  ok={lastTest[p.provider]?.ok ?? p.ok}
                   latencyMs={p.latencyMs}
-                  error={p.ok ? undefined : (p.error ?? p.lastError ?? undefined)}
+                  error={
+                    lastTest[p.provider]
+                      ? (lastTest[p.provider].ok ? undefined : lastTest[p.provider].error)
+                      : p.ok ? undefined : (p.error ?? p.lastError ?? undefined)
+                  }
                   note={`${p.model ?? "—"} · ${p.okKeyCount ?? 0}/${p.keyCount} key${p.keyCount === 1 ? "" : "s"} live · ${p.totalOk} ok / ${p.totalErr} err · ${Math.round(p.inputTokenBudget / 1000)}k tok budget`}
-                  onTest={() => probe.mutate(p.provider)}
-                  testing={probe.isPending}
+                  onTest={() => {
+                    setTestingProvider(p.provider);
+                    setLastTest((prev) => {
+                      const next = { ...prev };
+                      delete next[p.provider];
+                      return next;
+                    });
+                    probe.mutate(p.provider);
+                  }}
+                  testing={testingProvider === p.provider}
                 />
               ))}
             <ProviderCard
