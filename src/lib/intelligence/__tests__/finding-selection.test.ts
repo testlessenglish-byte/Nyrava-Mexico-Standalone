@@ -35,6 +35,7 @@ describe("classifyFindingSource", () => {
     expect(classifyFindingSource({ source_module: "engine:x" })).toBe("engine");
     expect(classifyFindingSource({ source_module: "agent:x" })).toBe("agent");
     expect(classifyFindingSource({ source_module: "analyzer:x" })).toBe("analyzer");
+    expect(classifyFindingSource({ source_module: "projection:case_witnesses" })).toBe("projection");
     expect(classifyFindingSource({ source_module: "whatever" })).toBe("other");
     expect(classifyFindingSource({})).toBe("other");
   });
@@ -106,7 +107,7 @@ describe("getFindingMetrics", () => {
     expect(m.provisional).toBe(2);
     // high priority is computed over the canonical set only
     expect(m.highPriority).toBe(4);
-    expect(m.bySource).toEqual({ engine: 3, agent: 2, analyzer: 2, other: 1 });
+    expect(m.bySource).toEqual({ engine: 3, agent: 2, analyzer: 2, projection: 0, other: 1 });
     expect(m.bySeverity.critical).toBe(3);
     expect(m.byStatus.candidate).toBe(8);
     expect(m.byStatus.promoted).toBe(0);
