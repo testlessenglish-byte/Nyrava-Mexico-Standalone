@@ -155,7 +155,10 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     engine: "jurisdiction_intel",
     dependsOn: ["analyzers"],
     requirement: "blocking",
+    // Deterministic + a small corpus read. Anything past 2 min is a hang.
+    timeoutMs: 120_000,
   },
+
   {
     // Materia-specific procedural checklist (plazos, actos, formalidades).
     key: "procedural_compliance",
