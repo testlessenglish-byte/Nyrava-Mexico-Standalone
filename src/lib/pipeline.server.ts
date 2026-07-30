@@ -2628,6 +2628,32 @@ const AGENT_ENGINE: Record<string, string> = {
   procedural_violations: "procedural_violations",
 };
 
+/**
+ * How many investigator agents may execute simultaneously inside the "agents"
+ * stage.
+ *
+ * The four agents (witness_credibility, chain_of_custody,
+ * constitutional_compliance, procedural_violations) are genuinely independent:
+ * each one's only input is the shared corpus plus its own system/user prompt.
+ * None reads another's agent_findings, summary, or confidence, so ordering is
+ * a scheduling choice, not a correctness constraint.
+ *
+ * 2026-07-30: raised 1 → 2. At 1, a 9-chunk corpus needed ~36 sequential Groq
+ * calls; measured wall clock was ~15-20 min for ~5 min of actual AI time —
+ * the rest was inter-tick stalls. 2 halves the tick count while holding the
+ * in-flight token rate at 2x rather than 4x, which matters because the shared
+ * Groq/Gemini key pool is the binding constraint, not CPU.
+ *
+ * ROLLBACK: set this back to 1. That is the complete revert — there is no
+ * migration, no persisted state, and no schema tied to the value. Agent
+ * results are checkpointed per batch in pipeline_engine_runs, and resume keys
+ * off agent_findings.status, both of which are concurrency-agnostic; a case
+ * that ran part-way at 2 resumes correctly at 1 and vice versa. The only
+ * artifact left behind is pipeline_trace instrumentation rows, which are
+ * append-only diagnostics.
+ */
+const AGENT_CONCURRENCY = 2;
+
 export async function runAgents(args: { db: Db; caseId: string; userId: string; apiKey: string; apiKeys?: string[] }) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
   await setCase(db, caseId, {
@@ -2744,6 +2770,41 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       await import("./pipeline-checkpoint.server");
     const agentBudgetMs = _agentBudgetFor("agents");
     const agentStageStart = Date.now();
+
+    // ---- Concurrency experiment instrumentation (2026-07-30) ------------
+    // Raising AGENT_CONCURRENCY only pays off if wall-clock drops WITHOUT the
+    // 429/cooldown burden growing to match. Wall clock alone can improve while
+    // the same total delay is merely redistributed into more-frequent, shorter
+    // stalls — that is not a win. So we record, per tick: the gap since the
+    // previous tick's last batch (the stall we actually paid), every cooldown
+    // checkpoint, and at stage end a rollup of events + total stalled ms
+    // against total AI ms. All of it lands in pipeline_trace under
+    // phase "stage" with step prefix "agents_", queryable per case and comparable across runs.
+    const { trace: _agentTrace } = await import("./pipeline-trace.server");
+    const { data: _lastBatchRow } = await db
+      .from("pipeline_engine_runs")
+      .select("ended_at" as any)
+      .eq("case_id", caseId)
+      .like("engine", "%_batch")
+      .not("ended_at", "is", null)
+      .order("ended_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const _lastEnd = (_lastBatchRow as any)?.ended_at ? Date.parse((_lastBatchRow as any).ended_at) : null;
+    const resumeGapMs = _lastEnd && Number.isFinite(_lastEnd) ? Math.max(0, agentStageStart - _lastEnd) : 0;
+    if (resumeGapMs > 0) {
+      await _agentTrace({
+        db,
+        caseId,
+        userId,
+        phase: "stage",
+        step: "agents_tick_resume_gap",
+        status: "info",
+        durationMs: resumeGapMs,
+        detail: { concurrency: AGENT_CONCURRENCY, resumed_agents: completedAgentTypes.size },
+      });
+    }
 
     let done = completedAgentTypes.size;
     const totalAgentCount = activeAgents.length;
@@ -2922,6 +2983,25 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 console.warn(
                   `[agent:${agent.type}] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`,
                 );
+                // Instrumented so cooldown COUNT can be compared across
+                // concurrency settings, not just total wall clock. More
+                // frequent short stalls at the same total delay is a null
+                // result, and only this row makes that visible.
+                await _agentTrace({
+                  db,
+                  caseId,
+                  userId,
+                  phase: "stage",
+                  step: "agents_cooldown_checkpoint",
+                  status: "warn",
+                  durationMs: Date.now() - t0,
+                  detail: {
+                    concurrency: AGENT_CONCURRENCY,
+                    agent: agent.type,
+                    batches_done: successes,
+                    message: bmsg.slice(0, 300),
+                  },
+                });
                 throw new CheckpointRequired(
                   "agents",
                   `${agent.type} after ${successes} successful batch(es) — ${bmsg.slice(0, 300)}`,
@@ -3080,7 +3160,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     // 429s. Between agents we check the stage wall-clock budget and yield
     // via CheckpointRequired so an oversized run resumes on the next tick
     // instead of being killed mid-flight.
-    const AGENT_CONCURRENCY = 1;
+    // Concurrency is the module-level AGENT_CONCURRENCY constant — flipping
+    // it back to 1 is the entire rollback (see its declaration).
     let queueIdx = 0;
     let checkpointNeeded = false;
     const startingDone = completedAgentTypes.size;
@@ -3114,6 +3195,60 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
         error,
       });
       throw new Error(error);
+    }
+
+    // Stage rollup: the comparison row. wall_ms is the honest end-to-end
+    // duration (first batch start → now, including every stall); ai_ms is the
+    // summed provider time. cooldown_events / cooldown_stall_ms are the
+    // guardrail — if wall_ms drops but these rise proportionally, concurrency
+    // 2 only redistributed the delay and should be reverted to 1.
+    try {
+      const { data: _batchRows } = await db
+        .from("pipeline_engine_runs")
+        .select("runtime_ms,started_at" as any)
+        .eq("case_id", caseId)
+        .like("engine", "%_batch");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _rows = (_batchRows ?? []) as any[];
+      const aiMs = _rows.reduce((a, r) => a + (Number(r.runtime_ms) || 0), 0);
+      const firstStart = _rows
+        .map((r) => Date.parse(String(r.started_at)))
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b)[0];
+      const { data: _traceRows } = await db
+        .from("pipeline_trace")
+        .select("step,duration_ms" as any)
+        .eq("case_id", caseId)
+        .eq("phase", "stage")
+        .in("step", ["agents_cooldown_checkpoint", "agents_tick_resume_gap"]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _tr = (_traceRows ?? []) as any[];
+      const cooldownEvents = _tr.filter((r) => r.step === "agents_cooldown_checkpoint").length;
+      const stallMs = _tr
+        .filter((r) => r.step === "agents_tick_resume_gap")
+        .reduce((a, r) => a + (Number(r.duration_ms) || 0), 0);
+      const wallMs = firstStart ? Date.now() - firstStart : Date.now() - agentStageStart;
+      await _agentTrace({
+        db,
+        caseId,
+        userId,
+        phase: "stage",
+        step: "agents_concurrency_metrics",
+        status: "info",
+        durationMs: wallMs,
+        detail: {
+          concurrency: AGENT_CONCURRENCY,
+          agents: totalAgentCount,
+          batches: _rows.length,
+          ai_ms: aiMs,
+          wall_ms: wallMs,
+          cooldown_events: cooldownEvents,
+          cooldown_stall_ms: stallMs,
+          overhead_pct: wallMs > 0 ? Math.round(((wallMs - aiMs) / wallMs) * 100) : null,
+        },
+      });
+    } catch {
+      // Instrumentation must never fail the stage.
     }
 
     await setCase(db, caseId, {
