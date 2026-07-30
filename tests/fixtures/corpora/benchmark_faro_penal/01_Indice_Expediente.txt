@@ -1,0 +1,41 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+FISCALÍA GENERAL DEL ESTADO DE QUINTANA ROO
+UNIDAD DE INVESTIGACIÓN DE DELITOS FINANCIEROS Y DOCUMENTALES — CANCÚN
+
+ÍNDICE DEL EXPEDIENTE
+CARPETA DE INVESTIGACIÓN CI-FGE-QR/BJ/UIDFD/1120/2026 — "PROYECTO FARO"
+Integrado conforme al art. 217 del Código Nacional de Procedimientos Penales.
+
+No. | Fecha       | Registro                                              | Folio
+----|-------------|-------------------------------------------------------|---------
+01  | 12/03/2026  | Denuncia anónima recibida por línea 089 (folio 089-QR-2026-33194) | 0001-0003
+02  | 15/03/2026  | Acuerdo de inicio de carpeta de investigación         | 0004-0006
+03  | 15/03/2026  | Entrevista a representante de la víctima, C. Claudia Rebeca Fonseca Iriarte | 0007-0012
+04  | 18/03/2026  | Solicitud de orden de cateo al Juez de Control        | 0013-0021
+05  | 18/03/2026  | Resolución judicial que concede orden de cateo (CJ-214/2026) | 0022-0027
+06  | 19/03/2026  | Acta circunstanciada de ejecución de cateo            | 0028-0038
+07  | 19/03/2026  | Informe Policial Homologado (IPH-QR-BJ-2026-00871)    | 0039-0047
+08  | 19/03/2026  | Inventario de evidencia y aseguramiento               | 0048-0053
+09  | 19-20/03/26 | Registro de cadena de custodia (RCC-1120-2026)        | 0054-0066
+10  | 20/03/2026  | Bitácora de adquisición de evidencia digital          | 0067-0074
+11  | 21/03/2026  | Dictamen pericial en informática forense DP-INF-0442/2026 | 0075-0092
+12  | 22/03/2026  | Declaración de Testigo A — Lorena Massiel Uc Chi      | 0093-0101
+13  | 22/03/2026  | Declaración de Testigo B — Gerardo Antonio Ruvalcaba Núñez | 0102-0110
+14  | 22/03/2026  | Registro de entrevistas de investigación (consolidado) | 0111-0118
+15  | 23/03/2026  | Dictamen pericial en documentoscopía DP-DOC-0189/2026 | 0119-0133
+16  | 23/03/2026  | Declaración del Policía de Investigación Óscar Damián Balam Tuz | 0134-0142
+17  | 24/03/2026  | Constancia de detención por orden de aprehensión y puesta a disposición | 0143-0149
+18  | 25/03/2026  | Cronología procesal de la investigación               | 0150-0154
+
+OBSERVACIONES DEL AGENTE DEL MINISTERIO PÚBLICO:
+a) El registro 09 (cadena de custodia) presenta una discrepancia horaria respecto del
+   registro 11 (dictamen informático) que deberá aclararse mediante ampliación pericial.
+b) El registro 08 (inventario) contiene dos objetos recabados en domicilio distinto al
+   autorizado en el registro 05. Se ordena glosar constancia aclaratoria.
+c) La defensa particular solicitó copia íntegra el 24 de marzo de 2026 conforme al
+   art. 218, párrafo tercero, del CNPP; se entregó copia digital el mismo día.
+
+Lic. Héctor Manuel Cauich Sansores
+Fiscal Investigador — UIDFD Zona Norte
+Cancún, Quintana Roo, a 25 de marzo de 2026.
