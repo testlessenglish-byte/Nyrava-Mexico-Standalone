@@ -323,9 +323,12 @@ export async function runVerifiedEngine<T>(
       traceAsync({
         phase: "db",
         step: `${args.engine}.findings_projected`,
-        status: projection.ok ? "ok" : "warn",
+        status: projection.disabled ? "skipped" : projection.ok ? "ok" : "warn",
         error: projection.error ?? null,
         detail: {
+          flag: "FINDINGS_PROJECTION_ENABLED",
+          enabled: !projection.disabled,
+          eligible_tables: projectable,
           tables: projection.tables,
           candidates: projection.candidates,
           rows_upserted: projection.written,
