@@ -1897,7 +1897,12 @@ function packChunks(chunks: CorpusChunk[], budget: number): CorpusChunk[][] {
         cur = [];
         curSize = 0;
       }
-      batches.push([c]);
+      // A single document larger than the budget used to be sent whole and
+      // only split AFTER a 413 came back. The router's pre-flight size gate
+      // skips the narrow provider instead of returning a 413, so that split
+      // never fired and the batch silently overshot the provider budget.
+      // Split it up front instead.
+      for (const piece of splitToBudget(c, budget)) batches.push([piece]);
       continue;
     }
     if (curSize + c.size > budget && cur.length) {
@@ -1912,8 +1917,19 @@ function packChunks(chunks: CorpusChunk[], budget: number): CorpusChunk[][] {
   return batches;
 }
 
-function splitOversizeChunk(c: CorpusChunk): CorpusChunk[] {
-  if (c.size <= ANALYZER_MIN_BATCH_CHARS) return [c];
+/** Recursively halve an oversize document until every piece fits `budget`. */
+function splitToBudget(c: CorpusChunk, budget: number): CorpusChunk[] {
+  // Floor is deliberately below ANALYZER_MIN_BATCH_CHARS: that constant guards
+  // the reactive 413 path, but here the budget already reflects the narrowest
+  // provider and must win, otherwise the piece still overshoots.
+  if (c.size <= Math.max(budget, 1_500)) return [c];
+  const halves = splitOversizeChunk(c, 1_500);
+  if (halves.length < 2) return [c];
+  return halves.flatMap((h) => splitToBudget(h, budget));
+}
+
+function splitOversizeChunk(c: CorpusChunk, minChars = ANALYZER_MIN_BATCH_CHARS): CorpusChunk[] {
+  if (c.size <= minChars) return [c];
   const mid = Math.floor(c.text.length / 2);
   const a = c.text.slice(0, mid);
   const b = `=== DOCUMENT ${c.index} (id=${c.docId}) [cont.]: ${c.filename} ===\n${c.text.slice(mid)}`;
@@ -2017,8 +2033,11 @@ ${corpusText}`;
   // Batch-level execution with dynamic sizing + 413 auto-split.
   // The budget is capped by the NARROWEST configured provider so Groq stays in
   // the fallback chain instead of being skipped as oversize on every call.
-  const { packingCharBudget } = await import("@/lib/ai/router.server");
-  const analyzerBudgetChars = await packingCharBudget(ANALYZER_CORPUS_BUDGET_CHARS);
+  const { packingCharBudget, PROMPT_OVERHEAD_CHARS } = await import("@/lib/ai/router.server");
+  const analyzerBudgetChars = await packingCharBudget(
+    ANALYZER_CORPUS_BUDGET_CHARS,
+    PROMPT_OVERHEAD_CHARS.analyzers,
+  );
   const initialBatches = packChunks(chunks, analyzerBudgetChars);
   console.log(
     `[analyzers] docs=${chunks.length} totalChars=${corpus.length} batches=${initialBatches.length} budgetChars=${analyzerBudgetChars}`,
@@ -2727,8 +2746,12 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           // processes the FULL corpus in payload-safe chunks instead of a
           // single 180K-char slice that (a) blows past Groq's per-request TPM
           // cap and (b) silently drops every document past the truncation.
-          const { packingCharBudget: agentBudgetFn } = await import("@/lib/ai/router.server");
-          const agentBatches = packChunks(chunks, await agentBudgetFn(ANALYZER_CORPUS_BUDGET_CHARS));
+          const { packingCharBudget: agentBudgetFn, PROMPT_OVERHEAD_CHARS: AGENT_OVERHEAD } =
+            await import("@/lib/ai/router.server");
+          const agentBatches = packChunks(
+            chunks,
+            await agentBudgetFn(ANALYZER_CORPUS_BUDGET_CHARS, AGENT_OVERHEAD.agents),
+          );
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
             batch
