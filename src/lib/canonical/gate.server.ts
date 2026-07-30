@@ -14,6 +14,7 @@ import { dedupeAnalysis } from "./dedupe.server";
 import { rankFindings } from "./findings-rank.server";
 import { attachMethodology } from "./methodology-attach.server";
 import { enforceCitationQuality } from "./citation-quality.server";
+import { applyConsensus, persistFindingStatuses, type ConsensusSummary } from "./consensus.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -23,6 +24,8 @@ export type GateResult = {
   validation: ValidationResult;
   qa: QaReport;
   status: "completed" | "validated" | "failed";
+  consensus?: ConsensusSummary;
+  statusWrite?: { ok: boolean; updated: number; error?: string };
 };
 
 const SUPPRESSION_REASON =
@@ -47,7 +50,10 @@ export async function runCanonicalGate(
   enforceCitationQuality(analysis);
   // 3. Collapse near-duplicates across and within sections.
   dedupeAnalysis(analysis);
-  // 4. Rank findings by litigation importance; move witness-profiles out.
+  // 3b. Consensus — cluster surviving findings, count distinct engines, and
+  //     earn `finding_status`. Ranking below multiplies by that agreement.
+  const consensus = applyConsensus(analysis);
+  // 4. Rank findings by litigation importance × confidence × agreement.
   rankFindings(analysis);
   // 5. Attach methodology references to every computed metric.
   attachMethodology(analysis);
@@ -75,6 +81,9 @@ export async function runCanonicalGate(
   ];
 
   await writeCanonical(db, caseId, analysis, persistedIssues, status);
-  return { ok: validation.ok && qa.ok, caseId, validation, qa, status };
+  // Non-fatal: mirror earned statuses back so the dashboard and the next run
+  // can see which findings the engines actually agreed on.
+  const statusWrite = await persistFindingStatuses(db, caseId, analysis);
+  return { ok: validation.ok && qa.ok, caseId, validation, qa, status, consensus, statusWrite };
 }
 

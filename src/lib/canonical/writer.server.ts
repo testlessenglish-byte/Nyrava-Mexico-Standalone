@@ -139,6 +139,10 @@ export async function projectCanonical(
       affected_party: (f.affected_party as string | null) ?? null,
       citations: citationsFromRow(f as never),
       verification_status: (f.verification_status as string | null) ?? null,
+      source_module: (f.source_module as string | null) ?? null,
+      supporting_engines: Array.isArray(f.supporting_engines)
+        ? (f.supporting_engines as string[]).map(String)
+        : [],
       suppressed: false,
       quarantined: /reject|quarantin/i.test(String(f.verification_status ?? "")),
     };

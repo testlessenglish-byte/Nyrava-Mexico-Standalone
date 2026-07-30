@@ -34,6 +34,13 @@ export type Finding = {
   suppressed?: boolean;
   quarantined?: boolean;
   verification_status?: string | null;
+  // Phase 3 (consensus): provenance + earned agreement. Optional so every
+  // pre-existing producer and fixture stays valid.
+  source_module?: string | null;
+  supporting_engines?: string[];
+  /** Distinct engines behind this claim; 0 when unknown. */
+  agreement?: number;
+  finding_status?: "promoted" | "verified" | "disputed" | "candidate";
 };
 
 export type Witness = {

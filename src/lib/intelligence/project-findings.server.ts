@@ -187,15 +187,14 @@ export function buildProjectionRows(
 }
 
 /**
- * Rollout flag (standing requirement: every phase ships behind an env flag,
- * default off). While off, `projectCaseFindings` is a traced no-op and NOT A
- * SINGLE ROW is written — so Phase 2 cannot affect production until the
- * remaining `case_findings` reader audit (Phase 3) is done.
- *
- * Flip with FINDINGS_PROJECTION_ENABLED=true.
+ * Rollout flag. Default flipped ON after the Phase 3 reader audit
+ * (docs/PHASE3_FINDINGS_READER_AUDIT.md) proved every non-projection-aware
+ * reader filters `projection:%`, so mirrored rows can only reach the
+ * canonical gate. The kill switch stays: FINDINGS_PROJECTION_ENABLED=false
+ * makes `projectCaseFindings` a traced no-op that writes NOT A SINGLE ROW.
  */
 export function isProjectionEnabled(): boolean {
-  return String(process.env.FINDINGS_PROJECTION_ENABLED ?? "").toLowerCase() === "true";
+  return String(process.env.FINDINGS_PROJECTION_ENABLED ?? "true").toLowerCase() !== "false";
 }
 
 /**

@@ -18,6 +18,24 @@ const CONCLUSION_VERBS = [
   /\bproves?\b/i,
   /\bdemonstrates? (?:as a matter of law|liability)\b/i,
   /\bis liable\b/i,
+  // Spanish legal-conclusion verbs. Reports render entirely in Spanish, so
+  // without these the demotion rule simply never fired on the real output.
+  /\bconstituye\b/i,
+  /\bconstituyen\b/i,
+  /\bacredita\b/i,
+  /\bacreditan\b/i,
+  /\bviola\b/i,
+  /\bviolan\b/i,
+  /\bvulnera\b/i,
+  /\bvulneran\b/i,
+  /\btransgrede\b/i,
+  /\bincumple\b/i,
+  /\bdemuestra\b/i,
+  /\bdemuestran\b/i,
+  /\bprueba plenamente\b/i,
+  /\bqueda acreditad[oa]\b/i,
+  /\bes responsable\b/i,
+  /\bactualiza el (?:tipo penal|delito)\b/i,
 ];
 
 function isLegalConclusion(text: string): boolean {
@@ -40,6 +58,27 @@ function demoteToObservation(text: string): string {
   out = out.replace(/\bproves\b/gi, "suggests");
   out = out.replace(/\bis liable\b/gi, "may bear responsibility");
   out = out.replace(/\bas a matter of law\b/gi, "on this record");
+  // Spanish demotions — same rule, expressed in the language the report is
+  // actually written in. Plural forms first so the singular regex can't
+  // truncate them.
+  out = out.replace(/\bconstituyen\b/gi, "podrían constituir");
+  out = out.replace(/\bconstituye\b/gi, "podría constituir");
+  out = out.replace(/\bacreditan\b/gi, "tienden a acreditar");
+  out = out.replace(/\bacredita\b/gi, "tiende a acreditar");
+  out = out.replace(/\bvulneran\b/gi, "podrían vulnerar");
+  out = out.replace(/\bvulnera\b/gi, "podría vulnerar");
+  out = out.replace(/\bviolan\b/gi, "podrían violar");
+  out = out.replace(/\bviola\b/gi, "podría violar");
+  out = out.replace(/\btransgrede\b/gi, "podría transgredir");
+  out = out.replace(/\bincumple\b/gi, "podría incumplir");
+  out = out.replace(/\bdemuestran\b/gi, "sugieren");
+  out = out.replace(/\bdemuestra\b/gi, "sugiere");
+  out = out.replace(/\bprueba plenamente\b/gi, "sugiere");
+  out = out.replace(/\bqueda acreditado\b/gi, "existen indicios");
+  out = out.replace(/\bqueda acreditada\b/gi, "existen indicios");
+  out = out.replace(/\bes responsable\b/gi, "podría ser responsable");
+  out = out.replace(/\bactualiza el tipo penal\b/gi, "podría actualizar el tipo penal");
+  out = out.replace(/\bactualiza el delito\b/gi, "podría actualizar el delito");
   return out;
 }
 
