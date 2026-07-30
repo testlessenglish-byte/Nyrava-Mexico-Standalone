@@ -1296,9 +1296,9 @@ export const clearPipelineStuckState = createServerFn({ method: "POST" })
       phase: "queue",
       step: "stuck_state.cleared",
       status: "ok",
-      detail: { resumeKey: resumeKey ?? null },
+      detail: { resumeKey: resumeKey ?? null, clearedCooldowns },
     });
-    return { ok: true, resumeKey: resumeKey ?? null };
+    return { ok: true, resumeKey: resumeKey ?? null, clearedCooldowns };
   });
 
 // -------- Case AI Chat --------
