@@ -1753,7 +1753,13 @@ export const getAiHealth = createServerFn({ method: "GET" })
     const { supabase, userId } = await assertHealthAdmin(context, "Health");
     const { getLlmDiagnostics, pingProvider, assertEnv } = await import("@/lib/groq.server");
     const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
-    const { listProviderRows, getProviderInputBudget } = await import("@/lib/ai/router.server");
+    const { listProviderRows, getProviderInputBudget, invalidateProviderCaches, clearAiProviderCooldowns } =
+      await import("@/lib/ai/router.server");
+
+    // Refreshing this page is the user's "clear the stuck state" gesture:
+    // drop the cached provider/key rows so newly added keys are seen right
+    // away instead of after the cache TTL.
+    invalidateProviderCaches(userId);
 
     const rows = await listProviderRows();
     const diag = getLlmDiagnostics();
@@ -1798,7 +1804,17 @@ export const getAiHealth = createServerFn({ method: "GET" })
             }
           }
           // Any healthy key means the provider is usable — drop the stale error.
-          if (okKeys > 0) ping = { ...ping, ok: true, error: undefined };
+          if (okKeys > 0) {
+            ping = { ...ping, ok: true, error: undefined };
+            // A live probe proves the provider is usable again — release any
+            // cooldown left over from an earlier 429/quota bounce so the next
+            // pipeline run stops skipping it.
+            try {
+              clearAiProviderCooldowns(type as never, null);
+            } catch {
+              /* non-fatal */
+            }
+          }
           else if (keyErrors.length) ping = { ...ping, ok: false, error: keyErrors.join(" · ") };
           const stats = diag.byProvider?.[type] ?? { totalOk: 0, totalErr: 0 };
           return [
