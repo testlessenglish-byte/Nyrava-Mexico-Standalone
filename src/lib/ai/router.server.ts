@@ -38,6 +38,11 @@ export interface RouteOpts extends ChatOpts {
   userId?: string;
   /** Internal: how many times this call already waited out a provider cooldown. */
   _cooldownWaits?: number;
+  /**
+   * Internal: this call is the compressed second pass after every full-size
+   * provider failed. Prevents infinite re-entry.
+   */
+  _compressedRetry?: boolean;
 }
 
 export interface RouteResult extends ChatResult {
@@ -721,6 +726,12 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   const fellBackFrom: ProviderType[] = [];
   const errors: string[] = [];
   const preAttemptSkips: string[] = [];
+  // Input budgets of providers held back ONLY because the payload was too big
+  // for them while a full-size provider still looked available. If that
+  // full-size provider then fails, these are the last usable options and the
+  // request must be compressed to fit the largest of them rather than the
+  // whole call dying with `never_attempted: [groq]`.
+  const sizeSkippedBudgets: number[] = [];
   const cooldownSkips: Array<{
     provider: ProviderType;
     model: string | null;
@@ -798,6 +809,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           }),
       );
       if (fullSizeAlternative) {
+        sizeSkippedBudgets.push(providerAvailableInputBudget(row.provider_type, opts));
         preAttemptSkips.push(
           `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerAvailableInputBudget(row.provider_type, opts)} token provider input budget after output reservation`,
         );
@@ -1244,6 +1256,40 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       }
       // Continue to next Groq key only for per-key auth/network failures.
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Compressed second pass.
+  //
+  // The pre-flight size gate skips an undersized provider whenever a
+  // full-size one *looks* available. Chain order puts Groq before Gemini, so
+  // that decision is made BEFORE Gemini has a chance to fail. When Gemini's
+  // daily quota is exhausted, the result is a stage that dies every tick with
+  // `never_attempted: [groq]` while two perfectly usable Groq keys sit idle —
+  // and because the Gemini cooldown expires between worker ticks, the case
+  // loops forever at zero progress.
+  //
+  // So: if every attempted provider failed and the only untried ones were
+  // held back on size, shrink the payload to the largest of their budgets and
+  // run the chain once more. A trimmed answer beats a stalled case.
+  // ---------------------------------------------------------------------
+  if (!opts._compressedRetry && sizeSkippedBudgets.length > 0) {
+    const budget = Math.max(...sizeSkippedBudgets);
+    const compressed = fitOptsToBudget(opts, budget);
+    traceAsync({
+      phase: "ai",
+      step: "router.compressed_retry",
+      status: "warn",
+      model: opts.model ?? null,
+      detail: {
+        reason: "full_size_providers_failed",
+        estimated_input_tokens: estimatedInputTokens,
+        target_budget: budget,
+        compressed_input_tokens: estimateInputTokens(compressed),
+        tried: [...attemptedProviders],
+      },
+    });
+    return routeAI({ ...compressed, _compressedRetry: true });
   }
 
   const triedProviders = [...attemptedProviders].join(", ") || "none";
