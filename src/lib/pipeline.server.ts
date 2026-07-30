@@ -413,20 +413,26 @@ async function _runPipelineForCase(
     },
     legal_qa: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
-          const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-          const value = await runLegalQaGate({ db: supabase, caseId, userId });
-          return {
-            value,
-            stats: {
-              generated: value.checked_fields,
-              accepted: value.checked_fields - value.warnings.length,
-              rows_written: value.remediated_fields,
-              db_write_confirmed: true,
-            },
-          };
-        }),
+        withStageTimeout(
+          "legal_qa",
+          () =>
+            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
+              const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+              const value = await runLegalQaGate({ db: supabase, caseId, userId });
+              return {
+                value,
+                stats: {
+                  generated: value.checked_fields,
+                  accepted: value.checked_fields - value.warnings.length,
+                  rows_written: value.remediated_fields,
+                  db_write_confirmed: true,
+                },
+              };
+            }),
+          { caseId, userId },
+        ),
     },
+
     report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {
