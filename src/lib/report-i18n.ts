@@ -376,6 +376,10 @@ const ES: Record<string, string> = {
   "Grouped by severity so the issues most likely to affect the outcome are read first. Each finding lists a ":
     "Agrupados por gravedad para que las cuestiones con mayor probabilidad de incidir en el resultado se lean primero. Cada hallazgo indica un ",
   "Also implicated in:": "También implicado en:",
+  FACT: "HECHO",
+  "EVIDENCE-BASED ANALYSIS": "ANÁLISIS SUSTENTADO EN EVIDENCIA",
+  "STRATEGIC CONSIDERATION": "CONSIDERACIÓN ESTRATÉGICA",
+  "HYPOTHESIS REQUIRES VERIFICATION": "HIPÓTESIS — REQUIERE VERIFICACIÓN",
   more: "más",
 };
 
