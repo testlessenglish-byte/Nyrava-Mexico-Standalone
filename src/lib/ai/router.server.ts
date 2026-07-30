@@ -809,6 +809,7 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
           }),
       );
       if (fullSizeAlternative) {
+        sizeSkippedBudgets.push(providerAvailableInputBudget(row.provider_type, opts));
         preAttemptSkips.push(
           `${row.display_name} [payload_too_large]: estimated ${estimatedInputTokens} input tokens exceeds ${providerAvailableInputBudget(row.provider_type, opts)} token provider input budget after output reservation`,
         );
