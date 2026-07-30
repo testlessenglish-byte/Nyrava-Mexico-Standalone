@@ -1,0 +1,51 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+DICTAMEN PERICIAL EN VIDEOVIGILANCIA Y ANÁLISIS DE METADATOS
+Número: DP-VID-0077/2026
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Perito: Ing. Sergio Alonso Marrufo Cámara, cédula profesional 8451209, Laboratorio de
+Audio y Video de la Fiscalía General del Estado de Quintana Roo.
+Fecha: 23 de marzo de 2026.
+
+I. OBJETO
+Determinar la hora real de ingreso del personal actuante al edificio de Av. Bonampak 622,
+piso 4, el 19 de marzo de 2026, así como el número de personas que ingresaron a la oficina
+402, a partir de las videograbaciones del circuito cerrado del inmueble.
+
+II. MATERIAL DE ESTUDIO
+Copia forense del videograbador NVR Hikvision DS-7616, propiedad de la administración del
+edificio, entregada mediante oficio ADM-BON622/041/2026 de 20 de marzo de 2026. Archivo
+"CH03_20260319_0600_1000.mp4" (cámara de vestíbulo) y "CH07_20260319_0600_1000.mp4"
+(cámara de pasillo, piso 4). Hash SHA-256 del contenedor entregado:
+5ad3e91f7b0c46829de17a5c3f80b6412ec7d095a3418bf6207c9de51a4b3e77.
+
+III. MÉTODO
+Verificación de integridad, análisis cuadro por cuadro, lectura de metadatos del contenedor y
+de la marca de tiempo grabada por el NVR, contraste del reloj del NVR con la hora oficial
+mediante toma de referencia el 20/03/2026 a las 12:00:00 (desfase medido: +00:00:06).
+
+IV. HALLAZGOS
+1. Cámara CH03 (vestíbulo): a las 07:39:52 se observa el arribo de dos vehículos, uno de
+   ellos con rotulación institucional. A las 07:41:18 ingresan al vestíbulo cinco personas,
+   tres de ellas portando chaleco con la leyenda "POLICÍA DE INVESTIGACIÓN".
+2. Cámara CH07 (pasillo piso 4): a las 07:43:05 el grupo arriba a la puerta de la oficina
+   402. A las 07:44:12 la puerta es abierta desde el interior por una persona del sexo
+   femenino, de complexión delgada, cabello recogido, coincidente con los rasgos generales de
+   la C. Lorena Massiel Uc Chi.
+3. Entre las 07:44:12 y las 07:52:40 ingresan a la oficina 402, de manera sucesiva, ocho
+   personas en total: cinco identificables como elementos policiales por chaleco o gafete,
+   dos con maletines de instrumental y una con portafolio.
+4. A las 08:04:58 se observa el ingreso de una novena persona que porta carpeta y gafete.
+5. No se advierten cortes, saltos de cuadro ni discontinuidades en la secuencia analizada
+   entre las 06:00:00 y las 10:00:00 horas.
+
+V. CONCLUSIONES
+PRIMERA. El personal actuante ingresó al vestíbulo del inmueble a las 07:41:18 horas y a la
+oficina 402 a partir de las 07:44:12 horas del 19 de marzo de 2026, con un desfase de reloj
+de seis segundos que no altera la conclusión.
+SEGUNDA. El número de elementos policiales identificables que ingresaron es de cinco.
+TERCERA. Las videograbaciones analizadas son íntegras y no presentan indicios de edición.
+CUARTA. La hora de ingreso asentada en el acta de cateo y en el Informe Policial Homologado
+(08:05 horas) no corresponde con la registrada por el circuito cerrado.
+
+Ing. Sergio Alonso Marrufo Cámara — Perito en Audio y Video.

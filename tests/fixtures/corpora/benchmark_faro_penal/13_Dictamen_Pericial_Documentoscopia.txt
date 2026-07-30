@@ -1,0 +1,60 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+DICTAMEN PERICIAL EN DOCUMENTOSCOPÍA Y GRAFOSCOPÍA
+Número: DP-DOC-0189/2026
+Carpeta de investigación: CI-FGE-QR/BJ/UIDFD/1120/2026
+Perito: Mtro. Julio César Arroyo Peniche, cédula profesional 7723910, perito oficial adscrito
+al Laboratorio de Documentoscopía de la Fiscalía General del Estado de Quintana Roo.
+Fecha: 23 de marzo de 2026.
+
+I. OBJETO DEL DICTAMEN
+Determinar la autenticidad de: (a) el resolutivo de impacto ambiental SEMA/DGIA/RES-0913/2024;
+(b) el título de concesión de zona federal marítimo terrestre ZFMT/QR/0418/2023; y (c)
+establecer si los sellos asegurados como parte del indicio IND-04 produjeron las impresiones
+que aparecen en dichos documentos. Asimismo, determinar la autoría gráfica de las anotaciones
+manuscritas que obran en los borradores contenidos en el indicio IND-05.
+
+II. MATERIAL DE ESTUDIO
+1. Dos ejemplares impresos del resolutivo SEMA/DGIA/RES-0913/2024 (indicio IND-04, fojas 214
+   a 218 y 501 a 505).
+2. Un ejemplar del título ZFMT/QR/0418/2023 (indicio IND-04, fojas 302 a 305).
+3. Tres sellos de goma asegurados (indicio IND-04, subclaves 04-A, 04-B y 04-C).
+4. Borradores con anotaciones manuscritas (indicio IND-05, fojas 12, 44 y 77).
+5. Documentos indubitables de comparación: formatos oficiales remitidos mediante oficio
+   SEMA/DGIA/UT/0221/2026 y muestras de escritura del imputado obtenidas con su
+   consentimiento y asistencia de su defensa el 23 de marzo de 2026 (acta ME-0413/2026).
+
+III. TÉCNICAS EMPLEADAS
+Observación con lupa de 10X, microscopio estereoscópico Leica S9i, luz ultravioleta 365 nm,
+luz rasante, video espectro comparador VSC-8000, y cotejo grafoscópico por el método
+grafométrico y de gestos gráficos.
+
+IV. OBSERVACIONES
+1. Ambos ejemplares del resolutivo SEMA/DGIA/RES-0913/2024 carecen de la fibra de seguridad
+   embebida y del fondo de seguridad con microtexto "SEMAQROO" presentes en los formatos
+   indubitables. La impresión es por sistema láser electrofotográfico, mientras que los
+   documentos oficiales de comparación son impresos en offset con tinta reactiva a UV.
+2. El folio del resolutivo presenta tipografía Helvetica Neue, distinta de la fuente
+   institucional de los ejemplares indubitables.
+3. El título ZFMT/QR/0418/2023 reproduce un escudo con pérdida de definición propia de un
+   escaneo de segunda generación, con pixelación visible a 40X.
+4. El sello 04-B produce impresiones cuyos defectos de borde (mella en el arco superior
+   izquierdo, a las 10 horas del círculo) coinciden plenamente con los defectos observados en
+   las impresiones que aparecen en las fojas 216 y 303 de los documentos cuestionados.
+5. En el cotejo grafoscópico de las anotaciones manuscritas de IND-05 se identificaron
+   dieciocho puntos característicos coincidentes con las muestras del imputado (enlaces,
+   presión, inclinación de 62° y particular ejecución del óvalo de la letra "a").
+
+V. CONCLUSIONES
+PRIMERA. Los documentos SEMA/DGIA/RES-0913/2024 y ZFMT/QR/0418/2023 son APÓCRIFOS; no fueron
+elaborados con los soportes, sistemas de impresión ni medidas de seguridad de los documentos
+oficiales indubitables.
+SEGUNDA. El sello 04-B, asegurado como parte del indicio IND-04, SÍ produjo las impresiones
+que obran en los documentos cuestionados.
+TERCERA. Las anotaciones manuscritas de las fojas 12, 44 y 77 del indicio IND-05 PROVIENEN
+del puño y letra de Andrés Iván Peraza Manzanilla.
+CUARTA. Se hace constar que el indicio IND-05 fue recabado en domicilio distinto al
+autorizado en la orden CJ-214/2026, circunstancia ajena a la técnica pericial pero relevante
+para su valoración jurídica.
+
+Mtro. Julio César Arroyo Peniche — Perito en Documentoscopía y Grafoscopía.
