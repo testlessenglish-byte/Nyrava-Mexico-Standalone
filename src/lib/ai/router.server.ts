@@ -43,6 +43,12 @@ export interface RouteOpts extends ChatOpts {
    * provider failed. Prevents infinite re-entry.
    */
   _compressedRetry?: boolean;
+  /**
+   * Internal: last-resort pass that ignores in-memory cooldowns entirely.
+   * Used when EVERY key was skipped as cooling down and waiting is not an
+   * option — a real 429 costs milliseconds, a stalled stage costs the run.
+   */
+  _ignoreCooldowns?: boolean;
 }
 
 export interface RouteResult extends ChatResult {
