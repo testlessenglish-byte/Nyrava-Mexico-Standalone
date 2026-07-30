@@ -10,7 +10,9 @@ export function ClaimBadge({
   hint?: ClaimClass | null;
   className?: string;
 }) {
+  const { t } = useI18n();
   const cls = classifyClaim(text ?? "", hint ?? null);
+  const label = t(`claim.${cls}`);
   return (
     <span
       className={
@@ -18,9 +20,9 @@ export function ClaimBadge({
         CLAIM_BADGE_CLASS[cls] +
         (className ? " " + className : "")
       }
-      title={CLAIM_LABEL[cls]}
+      title={label}
     >
-      {CLAIM_LABEL[cls]}
+      {label}
     </span>
   );
 }
