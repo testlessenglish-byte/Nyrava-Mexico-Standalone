@@ -99,6 +99,9 @@ export const UNIVERSAL_ENGINES = new Set<string>([
   "evidence_map",
   "discovery_gaps",
   "witness_intelligence",
+  // Nested verification agent (inside the "agents" wrapper). Namespaced so it
+  // cannot collide with the independent `witness_intelligence` stage above.
+  "agent:witness_credibility",
   "scoring",
   "ess_validator",
   "claim_validator",

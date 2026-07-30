@@ -67,6 +67,7 @@ const AGENT_ENGINE_MAP: Record<string, string[]> = {
   contradictions: ["contradictions", "analyzer_contradictions", "report_contradictions"],
   legal: [
     "agents",
+    "agent:witness_credibility",
     "constitutional_compliance",
     "chain_of_custody",
     "cross_examination",

@@ -1716,5 +1716,6 @@
   "claim.fact": "HECHO",
   "claim.analysis": "ANÁLISIS SUSTENTADO EN EVIDENCIA",
   "claim.strategy": "CONSIDERACIÓN ESTRATÉGICA",
-  "claim.hypothesis": "HIPÓTESIS — REQUIERE VERIFICACIÓN"
+  "claim.hypothesis": "HIPÓTESIS — REQUIERE VERIFICACIÓN",
+  "pipeline.agent.witness_credibility": "Agente: Credibilidad de Testigos"
 }
