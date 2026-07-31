@@ -4,7 +4,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ChevronLeft,
@@ -25,6 +25,8 @@ import {
   ListChecks,
   ShieldCheck,
   Webhook,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import {
   adminListBillingPlans,
@@ -848,6 +850,96 @@ function StatusChip({ ok, label, detail }: { ok: boolean; label: string; detail?
   );
 }
 
+/** Self-service "finish wiring up Mercado Pago" panel. Mercado Pago has no
+ * API to register a webhook the way Stripe does — the URL + signing secret
+ * are configured once in Mercado Pago's OWN dashboard (Your integrations ->
+ * your app -> Webhooks), not something this app can create for you. This
+ * panel exists so that's a 30-second copy-paste job instead of a hunt: the
+ * exact URL with a copy button, the exact events to subscribe to, and a
+ * direct link to where you do it. */
+function WebhookSetupBox() {
+  // Read the real domain client-side only (SSR has no window) — starts blank
+  // and fills in on mount so this never causes a hydration mismatch.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const webhookPath = "/api/public/hooks/mercadopago-webhook";
+  const webhookUrl = origin ? `${origin}${webhookPath}` : webhookPath;
+
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => toast.success("Copied"),
+      () => toast.error("Couldn't copy — select and copy manually."),
+    );
+  };
+
+  return (
+    <div className="mb-4 rounded-lg border border-border/60 bg-secondary/20 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Webhook className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">Set up your Mercado Pago webhook</h3>
+      </div>
+
+      <div className="mb-3 flex items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-3 py-2 font-mono text-xs">
+          {webhookUrl}
+        </code>
+        <button
+          onClick={() => copy(webhookUrl)}
+          className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium hover:bg-muted"
+        >
+          <Copy className="h-3.5 w-3.5" /> Copy URL
+        </button>
+      </div>
+
+      <ol className="mb-3 list-decimal space-y-1.5 pl-4 text-xs text-muted-foreground">
+        <li>
+          Open{" "}
+          <a
+            href="https://www.mercadopago.com.mx/developers/panel/webhooks"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-foreground underline underline-offset-2 hover:text-primary"
+          >
+            Mercado Pago → Your integrations → Webhooks <ExternalLink className="h-3 w-3" />
+          </a>
+        </li>
+        <li>Paste the URL above into the notification URL field and save.</li>
+        <li>
+          Under events, subscribe to{" "}
+          <code className="rounded bg-background px-1 py-0.5 font-mono">
+            subscription_preapproval
+          </code>{" "}
+          and{" "}
+          <code className="rounded bg-background px-1 py-0.5 font-mono">
+            subscription_authorized_payment
+          </code>
+          .
+        </li>
+        <li>
+          Mercado Pago shows a <strong>Signature Secret</strong> once the webhook is saved — copy it
+          and add it to your deployment&apos;s environment variables as{" "}
+          <code className="rounded bg-background px-1 py-0.5 font-mono">
+            MERCADOPAGO_WEBHOOK_SECRET
+          </code>
+          , then redeploy.
+        </li>
+      </ol>
+
+      <p className="text-xs text-muted-foreground">
+        Also set{" "}
+        <code className="rounded bg-background px-1 py-0.5 font-mono">
+          MERCADOPAGO_ACCESS_TOKEN
+        </code>{" "}
+        from Mercado Pago → Your integrations → Credentials if you haven&apos;t already. The chips
+        below turn green once both are detected.
+      </p>
+    </div>
+  );
+}
+
 function fmtWhen(s: string) {
   return new Date(s).toLocaleString(undefined, {
     month: "short",
@@ -933,15 +1025,7 @@ function MercadoPagoConfigPanel() {
         </div>
       )}
 
-      <p className="mb-4 flex items-start gap-1.5 text-xs text-muted-foreground">
-        <Webhook className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>
-          Webhook endpoint: <code className="font-mono">/api/public/hooks/mercadopago-webhook</code>{" "}
-          — set this in Mercado Pago → Your integrations → Webhooks, subscribed to{" "}
-          <code className="font-mono">subscription_preapproval</code> and{" "}
-          <code className="font-mono">subscription_authorized_payment</code>.
-        </span>
-      </p>
+      <WebhookSetupBox />
 
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         Recent deliveries
