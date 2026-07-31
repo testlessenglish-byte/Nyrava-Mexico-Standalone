@@ -5,7 +5,7 @@
 //
 // Seat model: a firm's seat pool comes from whichever user holds the paying
 // subscription for that firm (firms.owner_user_id / plan_key / seat_limit,
-// set by the Stripe webhook). "Seats used" = active members + pending
+// set by the Mercado Pago webhook). "Seats used" = active members + pending
 // invites. See supabase/migrations/20260723060000_firm_seats_and_invites.sql
 // for the full data model and plan_seat_limit() defaults.
 import { createServerFn } from "@tanstack/react-start";
@@ -49,9 +49,15 @@ async function getAuthedContext(context: AuthContext, label: string) {
     userId = data.claims.sub;
   }
 
-  const { data: profile } = await supabase.from("profiles").select("is_blocked").eq("id", userId).maybeSingle();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_blocked")
+    .eq("id", userId)
+    .maybeSingle();
   if (profile?.is_blocked) {
-    throw new Error("Your account has been blocked by an administrator. Contact support for assistance.");
+    throw new Error(
+      "Your account has been blocked by an administrator. Contact support for assistance.",
+    );
   }
 
   return { supabase, userId };
@@ -127,8 +133,15 @@ export const listFirmMembers = createServerFn({ method: "GET" })
       memberIds = (settingsRows ?? []).map((r) => r.user_id);
     }
 
-    let profileQuery = supabaseAdmin.from("profiles").select("id,email,full_name,is_blocked").order("email");
-    if (memberIds) profileQuery = profileQuery.in("id", memberIds.length > 0 ? memberIds : ["00000000-0000-0000-0000-000000000000"]);
+    let profileQuery = supabaseAdmin
+      .from("profiles")
+      .select("id,email,full_name,is_blocked")
+      .order("email");
+    if (memberIds)
+      profileQuery = profileQuery.in(
+        "id",
+        memberIds.length > 0 ? memberIds : ["00000000-0000-0000-0000-000000000000"],
+      );
     const [{ data: profiles }, { data: allRoles }] = await Promise.all([
       profileQuery,
       supabaseAdmin.from("user_roles").select("user_id,role"),
@@ -187,7 +200,9 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
       throw new Error("Forbidden: firm admin required");
     }
     if (!caller.firmId) {
-      throw new Error("Your account isn't attached to a firm yet — invites need a firm to attach to.");
+      throw new Error(
+        "Your account isn't attached to a firm yet — invites need a firm to attach to.",
+      );
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -212,12 +227,18 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
       status: "pending",
     });
     if (error) {
-      if (error.code === "23505") throw new Error("There's already a pending invite for that email.");
+      if (error.code === "23505")
+        throw new Error("There's already a pending invite for that email.");
       throw new Error(error.message);
     }
 
     const { logAudit } = await import("@/lib/audit.server");
-    await logAudit({ actorId: userId, action: "firm_member_invited", target: data.email, meta: { role: data.role } });
+    await logAudit({
+      actorId: userId,
+      action: "firm_member_invited",
+      target: data.email,
+      meta: { role: data.role },
+    });
 
     // NOTE: no outbound email is sent yet — there's no transactional email
     // provider wired up in this project. The invite is recorded and takes
@@ -238,7 +259,11 @@ export const revokeFirmInvite = createServerFn({ method: "POST" })
       throw new Error("Forbidden: firm admin required");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let q = supabaseAdmin.from("firm_invites").update({ status: "revoked" }).eq("id", data.inviteId).eq("status", "pending");
+    let q = supabaseAdmin
+      .from("firm_invites")
+      .update({ status: "revoked" })
+      .eq("id", data.inviteId)
+      .eq("status", "pending");
     if (!caller.isPlatformAdmin) q = q.eq("firm_id", caller.firmId as string);
     const { error } = await q;
     if (error) throw new Error(error.message);
@@ -256,15 +281,19 @@ export const adminSetFirmSeatLimit = createServerFn({ method: "POST" })
     const { data: caller } = await supabase.from("user_roles").select("role").eq("user_id", userId);
     const roles = (caller ?? []).map((r) => r.role as string);
     if (!roles.includes("super_admin")) throw new Error("Forbidden: super admin required");
-    if (!Number.isInteger(data.seatLimit) || data.seatLimit < 1) throw new Error("Seat limit must be a positive integer");
+    if (!Number.isInteger(data.seatLimit) || data.seatLimit < 1)
+      throw new Error("Seat limit must be a positive integer");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("firms").update({ seat_limit: data.seatLimit }).eq("id", data.firmId);
+    const { error } = await supabaseAdmin
+      .from("firms")
+      .update({ seat_limit: data.seatLimit })
+      .eq("id", data.firmId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 // ============== Super Admin: list all firms with seat usage ==============
-// Powers the manual seat-override panel used before Stripe is wired up.
+// Powers the manual seat-override panel used before Mercado Pago is wired up.
 export const listFirmsWithSeats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

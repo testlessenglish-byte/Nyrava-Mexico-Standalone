@@ -6,14 +6,14 @@
 // resolved to a route with no component. The server logic now lives solely
 // in src/lib/billing.functions.ts and this file is the actual page.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { CreditCard, Check, Loader2, ShieldCheck, ExternalLink, Gauge } from "lucide-react";
 import {
   getMyBillingStatus,
   createCheckoutSession,
-  createBillingPortalSession,
+  cancelMySubscription,
 } from "@/lib/billing.functions";
 import { BILLING_PLANS, type PlanKey } from "@/lib/billing-plans";
 import { useI18n } from "@/i18n";
@@ -41,9 +41,10 @@ export const Route = createFileRoute("/_authenticated/billing")({
 
 function BillingPage() {
   const { t } = useI18n();
+  const qc = useQueryClient();
   const statusFn = useServerFn(getMyBillingStatus);
   const checkoutFn = useServerFn(createCheckoutSession);
-  const portalFn = useServerFn(createBillingPortalSession);
+  const cancelFn = useServerFn(cancelMySubscription);
 
   const { data, isLoading } = useQuery({
     queryKey: ["billing-status"],
@@ -60,11 +61,11 @@ function BillingPage() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
   });
 
-  const portal = useMutation({
-    mutationFn: () => portalFn({ data: { origin: window.location.origin } }),
-    onSuccess: (res: { url?: string | null }) => {
-      if (res?.url) window.location.href = res.url;
-      else toast.error(t("billing.error.noPortal"));
+  const cancel = useMutation({
+    mutationFn: () => cancelFn(),
+    onSuccess: () => {
+      toast.success(t("billing.cancel.success"));
+      qc.invalidateQueries({ queryKey: ["billing-status"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
   });
@@ -122,13 +123,15 @@ function BillingPage() {
           </div>
         )}
 
-        {data?.plan && (
+        {data?.plan && data.status === "active" && (
           <button
-            onClick={() => portal.mutate()}
-            disabled={portal.isPending}
+            onClick={() => {
+              if (window.confirm(t("billing.cancel.confirm"))) cancel.mutate();
+            }}
+            disabled={cancel.isPending}
             className="mt-4 inline-flex items-center gap-2 rounded border border-border/60 px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted/40 disabled:opacity-50"
           >
-            {portal.isPending ? (
+            {cancel.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <ExternalLink className="h-4 w-4" />

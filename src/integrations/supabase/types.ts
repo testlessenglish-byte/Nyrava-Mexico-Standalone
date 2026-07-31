@@ -691,6 +691,7 @@ export type Database = {
           interval: string
           key: string | null
           label: string | null
+          mercadopago_plan_id: string | null
           name: string
           overage_price_cents: number | null
           per_seat_price_cents: number | null
@@ -722,6 +723,7 @@ export type Database = {
           interval?: string
           key?: string | null
           label?: string | null
+          mercadopago_plan_id?: string | null
           name: string
           overage_price_cents?: number | null
           per_seat_price_cents?: number | null
@@ -753,6 +755,7 @@ export type Database = {
           interval?: string
           key?: string | null
           label?: string | null
+          mercadopago_plan_id?: string | null
           name?: string
           overage_price_cents?: number | null
           per_seat_price_cents?: number | null
@@ -4928,6 +4931,9 @@ export type Database = {
           free_case_case_id: string | null
           free_case_used: boolean
           is_beta_tester: boolean
+          mercadopago_payer_email: string | null
+          mercadopago_payer_id: string | null
+          mercadopago_preapproval_id: string | null
           plan: string | null
           status: string
           stripe_customer_id: string | null
@@ -4945,6 +4951,9 @@ export type Database = {
           free_case_case_id?: string | null
           free_case_used?: boolean
           is_beta_tester?: boolean
+          mercadopago_payer_email?: string | null
+          mercadopago_payer_id?: string | null
+          mercadopago_preapproval_id?: string | null
           plan?: string | null
           status?: string
           stripe_customer_id?: string | null
@@ -4962,6 +4971,9 @@ export type Database = {
           free_case_case_id?: string | null
           free_case_used?: boolean
           is_beta_tester?: boolean
+          mercadopago_payer_email?: string | null
+          mercadopago_payer_id?: string | null
+          mercadopago_preapproval_id?: string | null
           plan?: string | null
           status?: string
           stripe_customer_id?: string | null
@@ -5385,6 +5397,8 @@ export type Database = {
           detail: string | null
           event_type: string
           id: string
+          mp_event_id: string | null
+          provider: string
           status: string
           stripe_event_id: string | null
           user_id: string | null
@@ -5394,6 +5408,8 @@ export type Database = {
           detail?: string | null
           event_type: string
           id?: string
+          mp_event_id?: string | null
+          provider?: string
           status: string
           stripe_event_id?: string | null
           user_id?: string | null
@@ -5403,6 +5419,8 @@ export type Database = {
           detail?: string | null
           event_type?: string
           id?: string
+          mp_event_id?: string | null
+          provider?: string
           status?: string
           stripe_event_id?: string | null
           user_id?: string | null
@@ -5471,6 +5489,7 @@ export type Database = {
           email: string
           free_case_used: boolean
           is_beta_tester: boolean
+          mercadopago_preapproval_id: string
           plan: string
           status: string
           stripe_customer_id: string

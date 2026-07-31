@@ -80,6 +80,7 @@ import { Route as AuthenticatedCasesCaseIdRouteImport } from './routes/_authenti
 import { Route as ApiVoiceSpeakRouteImport } from './routes/api/voice/speak'
 import { Route as ApiVoiceTranscribeRouteImport } from './routes/api/voice/transcribe'
 import { Route as ApiPublicHooksLegalIngestWorkerRouteImport } from './routes/api/public/hooks/legal-ingest-worker'
+import { Route as ApiPublicHooksMercadopagoWebhookRouteImport } from './routes/api/public/hooks/mercadopago-webhook'
 import { Route as ApiPublicHooksPipelineWorkerRouteImport } from './routes/api/public/hooks/pipeline-worker'
 import { Route as ApiPublicHooksStripeWebhookRouteImport } from './routes/api/public/hooks/stripe-webhook'
 
@@ -447,6 +448,12 @@ const ApiPublicHooksLegalIngestWorkerRoute =
     path: '/api/public/hooks/legal-ingest-worker',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksMercadopagoWebhookRoute =
+  ApiPublicHooksMercadopagoWebhookRouteImport.update({
+    id: '/api/public/hooks/mercadopago-webhook',
+    path: '/api/public/hooks/mercadopago-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksPipelineWorkerRoute =
   ApiPublicHooksPipelineWorkerRouteImport.update({
     id: '/api/public/hooks/pipeline-worker',
@@ -531,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/api/voice/transcribe': typeof ApiVoiceTranscribeRoute
   '/cases/': typeof AuthenticatedCasesIndexRoute
   '/api/public/hooks/legal-ingest-worker': typeof ApiPublicHooksLegalIngestWorkerRoute
+  '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
 }
@@ -604,6 +612,7 @@ export interface FileRoutesByTo {
   '/api/voice/transcribe': typeof ApiVoiceTranscribeRoute
   '/cases': typeof AuthenticatedCasesIndexRoute
   '/api/public/hooks/legal-ingest-worker': typeof ApiPublicHooksLegalIngestWorkerRoute
+  '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
 }
@@ -680,6 +689,7 @@ export interface FileRoutesById {
   '/api/voice/transcribe': typeof ApiVoiceTranscribeRoute
   '/_authenticated/cases/': typeof AuthenticatedCasesIndexRoute
   '/api/public/hooks/legal-ingest-worker': typeof ApiPublicHooksLegalIngestWorkerRoute
+  '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
 }
@@ -756,6 +766,7 @@ export interface FileRouteTypes {
     | '/api/voice/transcribe'
     | '/cases/'
     | '/api/public/hooks/legal-ingest-worker'
+    | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/stripe-webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -829,6 +840,7 @@ export interface FileRouteTypes {
     | '/api/voice/transcribe'
     | '/cases'
     | '/api/public/hooks/legal-ingest-worker'
+    | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/stripe-webhook'
   id:
@@ -904,6 +916,7 @@ export interface FileRouteTypes {
     | '/api/voice/transcribe'
     | '/_authenticated/cases/'
     | '/api/public/hooks/legal-ingest-worker'
+    | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/stripe-webhook'
   fileRoutesById: FileRoutesById
@@ -943,6 +956,7 @@ export interface RootRouteChildren {
   ApiVoiceSpeakRoute: typeof ApiVoiceSpeakRoute
   ApiVoiceTranscribeRoute: typeof ApiVoiceTranscribeRoute
   ApiPublicHooksLegalIngestWorkerRoute: typeof ApiPublicHooksLegalIngestWorkerRoute
+  ApiPublicHooksMercadopagoWebhookRoute: typeof ApiPublicHooksMercadopagoWebhookRoute
   ApiPublicHooksPipelineWorkerRoute: typeof ApiPublicHooksPipelineWorkerRoute
   ApiPublicHooksStripeWebhookRoute: typeof ApiPublicHooksStripeWebhookRoute
 }
@@ -1446,6 +1460,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksLegalIngestWorkerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/mercadopago-webhook': {
+      id: '/api/public/hooks/mercadopago-webhook'
+      path: '/api/public/hooks/mercadopago-webhook'
+      fullPath: '/api/public/hooks/mercadopago-webhook'
+      preLoaderRoute: typeof ApiPublicHooksMercadopagoWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/pipeline-worker': {
       id: '/api/public/hooks/pipeline-worker'
       path: '/api/public/hooks/pipeline-worker'
@@ -1607,6 +1628,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVoiceSpeakRoute: ApiVoiceSpeakRoute,
   ApiVoiceTranscribeRoute: ApiVoiceTranscribeRoute,
   ApiPublicHooksLegalIngestWorkerRoute: ApiPublicHooksLegalIngestWorkerRoute,
+  ApiPublicHooksMercadopagoWebhookRoute: ApiPublicHooksMercadopagoWebhookRoute,
   ApiPublicHooksPipelineWorkerRoute: ApiPublicHooksPipelineWorkerRoute,
   ApiPublicHooksStripeWebhookRoute: ApiPublicHooksStripeWebhookRoute,
 }

@@ -1,5 +1,5 @@
-// Admin billing plans — CRUD for subscription tiers. Prices/features/Stripe
-// price IDs are all editable here so support can add or reprice plans
+// Admin billing plans — CRUD for subscription tiers. Prices/features/Mercado
+// Pago plan IDs are all editable here so support can add or reprice plans
 // without a code deploy.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,7 +32,7 @@ import {
   adminDeleteBillingPlan,
   type BillingPlanRow,
 } from "@/lib/billing-plans.functions";
-import { adminGetStripeConfigStatus, adminListWebhookEvents } from "@/lib/billing.functions";
+import { adminGetMercadoPagoConfigStatus, adminListWebhookEvents } from "@/lib/billing.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/billing")({
   head: () => ({ meta: [{ title: "Billing plans — Admin" }] }),
@@ -49,6 +49,7 @@ type Draft = {
   currency: string;
   interval: "month" | "year" | "one_time";
   stripe_price_id: string;
+  mercadopago_plan_id: string;
   self_serve: boolean;
   contact_url: string;
   sort_order: number;
@@ -88,6 +89,7 @@ function toDraft(p: BillingPlanRow): Draft {
     currency: p.currency,
     interval: (p.interval as Draft["interval"]) ?? "month",
     stripe_price_id: p.stripe_price_id ?? "",
+    mercadopago_plan_id: p.mercadopago_plan_id ?? "",
     self_serve: p.self_serve,
     contact_url: p.contact_url ?? "",
     sort_order: p.sort_order,
@@ -118,6 +120,7 @@ function emptyDraft(nextSort: number): Draft {
     currency: "usd",
     interval: "month",
     stripe_price_id: "",
+    mercadopago_plan_id: "",
     self_serve: true,
     contact_url: "",
     sort_order: nextSort,
@@ -197,6 +200,7 @@ function AdminBillingPage() {
           currency: d.currency,
           interval: d.interval,
           stripe_price_id: d.stripe_price_id.trim() || null,
+          mercadopago_plan_id: d.mercadopago_plan_id.trim() || null,
           self_serve: d.self_serve,
           contact_url: d.contact_url.trim() || null,
           sort_order: Math.round(d.sort_order),
@@ -280,13 +284,13 @@ function AdminBillingPage() {
             <Link to="/billing" className="underline underline-offset-2 hover:text-foreground">
               /billing
             </Link>{" "}
-            page and Stripe checkout.
+            page and Mercado Pago checkout.
           </p>
         </div>
       </div>
 
       <div className="mt-8">
-        <StripeConfigPanel />
+        <MercadoPagoConfigPanel />
       </div>
 
       {plansQ.isLoading && <div className="mt-6 text-sm text-muted-foreground">Loading…</div>}
@@ -570,7 +574,7 @@ function PlanEditor({
           <div>
             <GroupLabel icon={Tag}>Identity</GroupLabel>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field label="Key (used in Stripe metadata)">
+              <Field label="Key (used in checkout metadata)">
                 <input
                   className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm"
                   value={draft.key}
@@ -660,18 +664,23 @@ function PlanEditor({
                     }
                   />
                 </Field>
-                <Field label="Per-seat Stripe Price ID (optional)" className="md:col-span-2">
+                <Field
+                  label="Per-seat Stripe Price ID (legacy — not used by Mercado Pago checkout)"
+                  className="md:col-span-2"
+                >
                   <input
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-xs opacity-60"
                     value={draft.per_seat_stripe_price_id}
                     onChange={(e) => onChange({ per_seat_stripe_price_id: e.target.value })}
-                    placeholder="price_1AbCdEfGhIjK... (licensed, per unit)"
+                    placeholder="Unused since the move to Mercado Pago"
                   />
                 </Field>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Leave the per-seat fields blank for flat-price plans. When set, checkout adds a
-                second line item for seats beyond the included count.
+                Leave the per-seat fields blank for flat-price plans. Mercado Pago Preapproval
+                subscriptions don&apos;t support a second recurring line item the way Stripe did, so
+                per-seat pricing isn&apos;t currently automated at checkout — track seat counts here
+                and invoice/adjust manually, or via Admin → Team &amp; Seats.
               </p>
             </div>
           )}
@@ -748,12 +757,12 @@ function PlanEditor({
           <div>
             <GroupLabel icon={CreditCard}>Checkout</GroupLabel>
             <div className="grid grid-cols-1 gap-4">
-              <Field label="Stripe Price ID (price_...)">
+              <Field label="Mercado Pago Plan ID (preapproval_plan_id)">
                 <input
                   className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
-                  value={draft.stripe_price_id}
-                  onChange={(e) => onChange({ stripe_price_id: e.target.value })}
-                  placeholder="price_1AbCdEfGhIjK..."
+                  value={draft.mercadopago_plan_id}
+                  onChange={(e) => onChange({ mercadopago_plan_id: e.target.value })}
+                  placeholder="2c9380847...  (from POST /preapproval_plan)"
                 />
               </Field>
               <Field label="Contact URL (used when self-serve is off)">
@@ -848,18 +857,18 @@ function fmtWhen(s: string) {
   });
 }
 
-/** Stripe config status + recent webhook deliveries, so an admin can see at
- * a glance whether Stripe is actually wired up end-to-end: keys present,
- * webhook secret present, and events actually arriving — not just that env
- * vars exist. Configure the endpoint in Stripe Dashboard → Developers →
- * Webhooks as https://<your-domain>/api/public/hooks/stripe-webhook,
- * subscribed to checkout.session.completed, customer.subscription.updated,
- * customer.subscription.deleted, and invoice.payment_failed. */
-function StripeConfigPanel() {
-  const statusFn = useServerFn(adminGetStripeConfigStatus);
+/** Mercado Pago config status + recent webhook deliveries, so an admin can
+ * see at a glance whether Mercado Pago is actually wired up end-to-end:
+ * access token present, webhook secret present, and events actually
+ * arriving — not just that env vars exist. Configure the endpoint in
+ * Mercado Pago → Your integrations → Webhooks as
+ * https://<your-domain>/api/public/hooks/mercadopago-webhook, subscribed to
+ * subscription_preapproval and subscription_authorized_payment. */
+function MercadoPagoConfigPanel() {
+  const statusFn = useServerFn(adminGetMercadoPagoConfigStatus);
   const eventsFn = useServerFn(adminListWebhookEvents);
 
-  const statusQ = useQuery({ queryKey: ["admin-stripe-status"], queryFn: () => statusFn() });
+  const statusQ = useQuery({ queryKey: ["admin-mercadopago-status"], queryFn: () => statusFn() });
   const eventsQ = useQuery({
     queryKey: ["admin-webhook-events"],
     queryFn: () => eventsFn(),
@@ -868,7 +877,7 @@ function StripeConfigPanel() {
 
   const s = statusQ.data;
   const events = eventsQ.data ?? [];
-  const bothConfigured = Boolean(s?.hasSecretKey && s?.hasWebhookSecret);
+  const bothConfigured = Boolean(s?.hasAccessToken && s?.hasWebhookSecret);
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 md:p-6">
@@ -877,9 +886,10 @@ function StripeConfigPanel() {
           <ShieldCheck
             className={`h-4 w-4 ${bothConfigured ? "text-success" : "text-muted-foreground"}`}
           />
-          <h2 className="font-semibold">Stripe configuration</h2>
-          {/* Nyrava ↔ Stripe connection indicator — a quick "is this actually
-              wired end-to-end" read before scanning the two chips below. */}
+          <h2 className="font-semibold">Mercado Pago configuration</h2>
+          {/* Nyrava ↔ Mercado Pago connection indicator — a quick "is this
+              actually wired end-to-end" read before scanning the two chips
+              below. */}
           <div className="ml-1 flex items-center gap-1.5" aria-hidden="true">
             <span
               className={`h-2 w-2 rounded-full ${bothConfigured ? "bg-success" : "bg-destructive"}`}
@@ -905,12 +915,12 @@ function StripeConfigPanel() {
       {s && (
         <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           <StatusChip
-            ok={s.hasSecretKey}
-            label="Stripe secret key configured"
+            ok={s.hasAccessToken}
+            label="Mercado Pago access token configured"
             detail={
-              s.secretKeyMode
-                ? `${s.secretKeyMode} mode`
-                : s.hasSecretKey
+              s.accessTokenMode
+                ? `${s.accessTokenMode} mode`
+                : s.hasAccessToken
                   ? "unrecognized prefix"
                   : undefined
             }
@@ -926,12 +936,10 @@ function StripeConfigPanel() {
       <p className="mb-4 flex items-start gap-1.5 text-xs text-muted-foreground">
         <Webhook className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>
-          Webhook endpoint: <code className="font-mono">/api/public/hooks/stripe-webhook</code> —
-          set this in Stripe Dashboard → Developers → Webhooks, subscribed to{" "}
-          <code className="font-mono">checkout.session.completed</code>,{" "}
-          <code className="font-mono">customer.subscription.updated</code>,{" "}
-          <code className="font-mono">customer.subscription.deleted</code>, and{" "}
-          <code className="font-mono">invoice.payment_failed</code>.
+          Webhook endpoint: <code className="font-mono">/api/public/hooks/mercadopago-webhook</code>{" "}
+          — set this in Mercado Pago → Your integrations → Webhooks, subscribed to{" "}
+          <code className="font-mono">subscription_preapproval</code> and{" "}
+          <code className="font-mono">subscription_authorized_payment</code>.
         </span>
       </p>
 
@@ -941,8 +949,8 @@ function StripeConfigPanel() {
       {eventsQ.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
       {!eventsQ.isLoading && events.length === 0 && (
         <div className="text-sm text-muted-foreground">
-          No webhook events received yet — once Stripe sends its first event, it&apos;ll show up
-          here.
+          No webhook events received yet — once Mercado Pago sends its first event, it&apos;ll show
+          up here.
         </div>
       )}
       {events.length > 0 && (

@@ -1,4 +1,4 @@
-// Admin beta testers — grant a user full billing access (no Stripe
+// Admin beta testers — grant a user full billing access (no active
 // subscription, no free-case limit) by email. Beta testers automatically
 // use the platform AI key (see ai-key-router.server.ts fallback) unless
 // they add their own, so there's nothing else to configure for them.
@@ -23,7 +23,11 @@ export const Route = createFileRoute("/_authenticated/admin/beta")({
 
 function fmtDate(s: string | null) {
   if (!s) return "—";
-  return new Date(s).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return new Date(s).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function AdminBetaPage() {
@@ -35,7 +39,10 @@ function AdminBetaPage() {
   const cancelInviteFn = useServerFn(adminCancelBetaInvite);
 
   const usersQ = useQuery({ queryKey: ["admin-users-subscriptions"], queryFn: () => listFn() });
-  const invitesQ = useQuery({ queryKey: ["admin-pending-beta-invites"], queryFn: () => invitesFn() });
+  const invitesQ = useQuery({
+    queryKey: ["admin-pending-beta-invites"],
+    queryFn: () => invitesFn(),
+  });
 
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
@@ -45,7 +52,9 @@ function AdminBetaPage() {
     mutationFn: () => addFn({ data: { email: email.trim(), note: note.trim() || undefined } }),
     onSuccess: (res) => {
       if (res.pending) {
-        toast.success(`Invite queued for ${email.trim()} — access activates the moment they sign up.`);
+        toast.success(
+          `Invite queued for ${email.trim()} — access activates the moment they sign up.`,
+        );
       } else {
         toast.success(`${email.trim()} now has beta access`);
       }
@@ -54,7 +63,8 @@ function AdminBetaPage() {
       qc.invalidateQueries({ queryKey: ["admin-users-subscriptions"] });
       qc.invalidateQueries({ queryKey: ["admin-pending-beta-invites"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to add beta tester"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to add beta tester"),
   });
 
   const removeM = useMutation({
@@ -72,7 +82,8 @@ function AdminBetaPage() {
       toast.success("Invite cancelled");
       qc.invalidateQueries({ queryKey: ["admin-pending-beta-invites"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to cancel invite"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to cancel invite"),
   });
 
   const rows = useMemo(() => usersQ.data ?? [], [usersQ.data]);
@@ -87,7 +98,10 @@ function AdminBetaPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 md:px-8 md:py-10">
       <div className="flex items-center gap-3 mb-6">
-        <Link to="/admin" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+        <Link
+          to="/admin"
+          className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
+        >
           <ChevronLeft className="h-4 w-4" /> Admin
         </Link>
         <h1 className="text-2xl font-semibold flex items-center gap-2">
@@ -96,10 +110,11 @@ function AdminBetaPage() {
       </div>
 
       <p className="text-sm text-muted-foreground mb-6 max-w-3xl">
-        A beta tester gets full access — no Stripe subscription, no one-time-free-case limit — the moment they log in.
-        They don't need an API key of their own: if they haven't added one under "API Keys", their requests automatically
-        use the platform key. Add an email below any time — if they already have an account it's granted instantly; if
-        not, it's queued as an invite and activates automatically the moment they sign up at{" "}
+        A beta tester gets full access — no subscription, no one-time-free-case limit — the moment
+        they log in. They don't need an API key of their own: if they haven't added one under "API
+        Keys", their requests automatically use the platform key. Add an email below any time — if
+        they already have an account it's granted instantly; if not, it's queued as an invite and
+        activates automatically the moment they sign up at{" "}
         <Link to="/auth" className="underline">
           /auth
         </Link>{" "}
@@ -128,7 +143,11 @@ function AdminBetaPage() {
             disabled={addM.isPending || !email.trim()}
             className="rounded-md bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black px-4 py-2 text-sm flex items-center gap-2 justify-center"
           >
-            {addM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+            {addM.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <UserPlus className="h-4 w-4" />
+            )}
             Grant access
           </button>
         </div>
@@ -140,11 +159,12 @@ function AdminBetaPage() {
       </div>
 
       <h2 className="font-semibold mb-3">
-        Pending invites <span className="text-muted-foreground font-normal">({pendingInvites.length})</span>
+        Pending invites{" "}
+        <span className="text-muted-foreground font-normal">({pendingInvites.length})</span>
       </h2>
       <p className="text-xs text-muted-foreground mb-3 max-w-3xl">
-        Added before the person signed up. Activates automatically the moment they create an account with this email —
-        no need to come back and re-add them.
+        Added before the person signed up. Activates automatically the moment they create an account
+        with this email — no need to come back and re-add them.
       </p>
       {invitesQ.isLoading && <div className="text-sm text-muted-foreground mb-6">Loading…</div>}
       {pendingInvites.length === 0 && !invitesQ.isLoading && (
@@ -173,7 +193,8 @@ function AdminBetaPage() {
                   <td className="px-4 py-2 text-right">
                     <button
                       onClick={() => {
-                        if (confirm(`Cancel the pending invite for ${inv.email}?`)) cancelInviteM.mutate(inv.email);
+                        if (confirm(`Cancel the pending invite for ${inv.email}?`))
+                          cancelInviteM.mutate(inv.email);
                       }}
                       disabled={cancelInviteM.isPending && cancelInviteM.variables === inv.email}
                       className="rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 px-2.5 py-1 text-xs inline-flex items-center gap-1"
@@ -194,7 +215,8 @@ function AdminBetaPage() {
       )}
 
       <h2 className="font-semibold mb-3">
-        Current beta testers <span className="text-muted-foreground font-normal">({betaTesters.length})</span>
+        Current beta testers{" "}
+        <span className="text-muted-foreground font-normal">({betaTesters.length})</span>
       </h2>
       {usersQ.isLoading && <div className="text-sm text-muted-foreground mb-6">Loading…</div>}
       {betaTesters.length === 0 && !usersQ.isLoading && (
@@ -220,7 +242,8 @@ function AdminBetaPage() {
                   <td className="px-4 py-2 text-right">
                     <button
                       onClick={() => {
-                        if (confirm(`Revoke beta access for ${r.email}?`)) removeM.mutate(r.user_id);
+                        if (confirm(`Revoke beta access for ${r.email}?`))
+                          removeM.mutate(r.user_id);
                       }}
                       disabled={removeM.isPending && removeM.variables === r.user_id}
                       className="rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 px-2.5 py-1 text-xs inline-flex items-center gap-1"
@@ -270,7 +293,9 @@ function AdminBetaPage() {
                 <td className="px-4 py-2 text-muted-foreground">{r.status}</td>
                 <td className="px-4 py-2 text-right">
                   {r.is_beta_tester ? (
-                    <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400">Beta</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                      Beta
+                    </span>
                   ) : (
                     <button
                       onClick={() => {

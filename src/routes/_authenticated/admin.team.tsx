@@ -17,7 +17,18 @@ import {
 } from "@/lib/team.functions";
 import { setUserRole, checkIsAdmin } from "@/lib/cases.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { ShieldCheck, ChevronLeft, Loader2, Building2, Briefcase, User as UserIcon, Mail, X, Crown, Save } from "lucide-react";
+import {
+  ShieldCheck,
+  ChevronLeft,
+  Loader2,
+  Building2,
+  Briefcase,
+  User as UserIcon,
+  Mail,
+  X,
+  Crown,
+  Save,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -28,7 +39,12 @@ export const Route = createFileRoute("/_authenticated/admin/team")({
 
 type RoleKey = "firm_admin" | "case_manager" | "user";
 const ROLES: { key: RoleKey; label: string; icon: typeof Building2; desc: string }[] = [
-  { key: "firm_admin", label: "Firm Admin", icon: Building2, desc: "Firm-level access and configuration" },
+  {
+    key: "firm_admin",
+    label: "Firm Admin",
+    icon: Building2,
+    desc: "Firm-level access and configuration",
+  },
   { key: "case_manager", label: "Case Manager", icon: Briefcase, desc: "Create and manage cases" },
   { key: "user", label: "Standard User", icon: UserIcon, desc: "Default access" },
 ];
@@ -56,14 +72,28 @@ function TeamPage() {
     queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null,
   });
 
-  const seatsQ = useQuery({ queryKey: ["firmSeatSummary"], queryFn: () => fetchSeats(), enabled: canManage });
-  const membersQ = useQuery({ queryKey: ["firmMembers"], queryFn: () => fetchMembers(), enabled: canManage });
-  const invitesQ = useQuery({ queryKey: ["firmInvites"], queryFn: () => fetchInvites(), enabled: canManage });
+  const seatsQ = useQuery({
+    queryKey: ["firmSeatSummary"],
+    queryFn: () => fetchSeats(),
+    enabled: canManage,
+  });
+  const membersQ = useQuery({
+    queryKey: ["firmMembers"],
+    queryFn: () => fetchMembers(),
+    enabled: canManage,
+  });
+  const invitesQ = useQuery({
+    queryKey: ["firmInvites"],
+    queryFn: () => fetchInvites(),
+    enabled: canManage,
+  });
 
   const invite = useMutation({
     mutationFn: (vars: { email: string; role: RoleKey }) => inviteFn({ data: vars }),
     onSuccess: () => {
-      toast.success("Invite sent — they'll join your firm the moment they sign up with that email.");
+      toast.success(
+        "Invite sent — they'll join your firm the moment they sign up with that email.",
+      );
       setEmail("");
       setRole("user");
       qc.invalidateQueries({ queryKey: ["firmInvites"] });
@@ -83,7 +113,8 @@ function TeamPage() {
   });
 
   const toggleRole = useMutation({
-    mutationFn: (vars: { targetUserId: string; role: RoleKey; grant: boolean }) => setRoleFn({ data: vars }),
+    mutationFn: (vars: { targetUserId: string; role: RoleKey; grant: boolean }) =>
+      setRoleFn({ data: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["firmMembers"] });
       toast.success("Role updated");
@@ -114,7 +145,10 @@ function TeamPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">
       <div className="mb-6 flex flex-wrap items-center gap-2">
-        <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link
+          to="/admin"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
           <ChevronLeft className="h-4 w-4" /> Admin
         </Link>
         <span className="text-muted-foreground">/</span>
@@ -137,7 +171,10 @@ function TeamPage() {
                 </div>
               </div>
               {atLimit && (
-                <Link to="/billing" className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20">
+                <Link
+                  to="/billing"
+                  className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20"
+                >
                   Upgrade plan →
                 </Link>
               )}
@@ -145,7 +182,9 @@ function TeamPage() {
             <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className={`h-full rounded-full ${atLimit ? "bg-destructive" : "bg-primary"}`}
-                style={{ width: `${Math.min(100, (seats.seatsUsed / Math.max(1, seats.seatLimit)) * 100)}%` }}
+                style={{
+                  width: `${Math.min(100, (seats.seatsUsed / Math.max(1, seats.seatLimit)) * 100)}%`,
+                }}
               />
             </div>
           </>
@@ -174,7 +213,9 @@ function TeamPage() {
             className="rounded-md border border-border bg-background px-3 py-2 text-sm"
           >
             {ROLES.map((r) => (
-              <option key={r.key} value={r.key}>{r.label}</option>
+              <option key={r.key} value={r.key}>
+                {r.label}
+              </option>
             ))}
           </select>
           <button
@@ -187,8 +228,8 @@ function TeamPage() {
           </button>
         </form>
         <p className="mt-2 text-xs text-muted-foreground">
-          They'll create their own account — no password to set up for them. The moment they sign up with this
-          email, they land in your firm with the role you picked.
+          They'll create their own account — no password to set up for them. The moment they sign up
+          with this email, they land in your firm with the role you picked.
         </p>
       </div>
 
@@ -201,7 +242,9 @@ function TeamPage() {
               <li key={inv.id} className="flex items-center justify-between gap-3 py-2">
                 <div>
                   <div className="text-sm">{inv.email}</div>
-                  <div className="text-xs capitalize text-muted-foreground">{inv.role.replace("_", " ")}</div>
+                  <div className="text-xs capitalize text-muted-foreground">
+                    {inv.role.replace("_", " ")}
+                  </div>
                 </div>
                 <button
                   onClick={() => revoke.mutate({ inviteId: inv.id })}
@@ -231,7 +274,9 @@ function TeamPage() {
               <tr>
                 <th className="px-3 py-2 text-left">User</th>
                 {ROLES.map((r) => (
-                  <th key={r.key} className="px-3 py-2 text-center">{r.label}</th>
+                  <th key={r.key} className="px-3 py-2 text-center">
+                    {r.label}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -241,7 +286,8 @@ function TeamPage() {
                   <td className="px-3 py-2">
                     <div className="font-medium">{u.full_name || "—"}</div>
                     <div className="text-xs text-muted-foreground">
-                      {u.email} {u.id === currentUserId && <span className="text-primary">(you)</span>}
+                      {u.email}{" "}
+                      {u.id === currentUserId && <span className="text-primary">(you)</span>}
                     </div>
                   </td>
                   {ROLES.map((r) => {
@@ -254,7 +300,9 @@ function TeamPage() {
                       <td key={r.key} className="px-3 py-2 text-center">
                         <button
                           disabled={pending}
-                          onClick={() => toggleRole.mutate({ targetUserId: u.id, role: r.key, grant: !has })}
+                          onClick={() =>
+                            toggleRole.mutate({ targetUserId: u.id, role: r.key, grant: !has })
+                          }
                           className={`inline-flex h-7 min-w-[3.25rem] items-center justify-center rounded-full border px-3 text-xs font-medium transition ${
                             has
                               ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
@@ -262,7 +310,13 @@ function TeamPage() {
                           }`}
                           title={has ? `Remove ${r.label}` : `Grant ${r.label}`}
                         >
-                          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : has ? "Yes" : "No"}
+                          {pending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : has ? (
+                            "Yes"
+                          ) : (
+                            "No"
+                          )}
                         </button>
                       </td>
                     );
@@ -297,7 +351,16 @@ function SuperAdminSeatOverride({
   setFirmSeatFn,
   qc,
 }: {
-  fetchAllFirms: () => Promise<Array<{ firm_id: string; name: string; domain: string | null; plan_key: string | null; seat_limit: number; seats_used: number }>>;
+  fetchAllFirms: () => Promise<
+    Array<{
+      firm_id: string;
+      name: string;
+      domain: string | null;
+      plan_key: string | null;
+      seat_limit: number;
+      seats_used: number;
+    }>
+  >;
   setFirmSeatFn: (args: { data: { firmId: string; seatLimit: number } }) => Promise<unknown>;
   qc: ReturnType<typeof useQueryClient>;
 }) {
@@ -325,9 +388,9 @@ function SuperAdminSeatOverride({
         <Crown className="h-4 w-4 text-amber-500" /> Super Admin · Manual seat overrides
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        Stripe isn't wired up yet, so every firm defaults to 1 seat (Solo) until you set them here.
-        Use this to grant Firm (10) or Enterprise (50+) seat pools per contract. Stripe will overwrite
-        these once webhooks are live.
+        Mercado Pago isn't wired up yet, so every firm defaults to 1 seat (Solo) until you set them
+        here. Use this to grant Firm (10) or Enterprise (50+) seat pools per contract. Mercado Pago
+        webhooks will overwrite these once they're live.
       </p>
       {firmsQ.isLoading ? (
         <div className="text-sm text-muted-foreground">Loading firms…</div>
@@ -350,7 +413,11 @@ function SuperAdminSeatOverride({
                 const draft = drafts[f.firm_id];
                 const value = draft ?? String(f.seat_limit);
                 const parsed = Number.parseInt(value, 10);
-                const dirty = draft !== undefined && parsed !== f.seat_limit && Number.isInteger(parsed) && parsed >= 1;
+                const dirty =
+                  draft !== undefined &&
+                  parsed !== f.seat_limit &&
+                  Number.isInteger(parsed) &&
+                  parsed >= 1;
                 const pending = save.isPending && save.variables?.firmId === f.firm_id;
                 return (
                   <tr key={f.firm_id} className="border-t border-border">
@@ -366,7 +433,9 @@ function SuperAdminSeatOverride({
                           type="number"
                           min={1}
                           value={value}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [f.firm_id]: e.target.value }))}
+                          onChange={(e) =>
+                            setDrafts((d) => ({ ...d, [f.firm_id]: e.target.value }))
+                          }
                           className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
                         />
                         <div className="flex gap-1 text-[10px]">
@@ -389,7 +458,11 @@ function SuperAdminSeatOverride({
                         onClick={() => save.mutate({ firmId: f.firm_id, seatLimit: parsed })}
                         className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
                       >
-                        {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        {pending ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Save className="h-3 w-3" />
+                        )}
                         Save
                       </button>
                     </td>

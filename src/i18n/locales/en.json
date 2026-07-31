@@ -240,7 +240,7 @@
   "billing.error.noPortal": "The billing portal could not be opened.",
   "billing.freeCase.available": "You have one free matter available.",
   "billing.freeCase.used": "Your free matter has already been used.",
-  "billing.manage": "Manage billing",
+  "billing.manage": "Cancel subscription",
   "billing.plan.none": "No active plan",
   "billing.renewsOn": "Renews on",
   "billing.status.active": "Active",
@@ -1821,5 +1821,7 @@
   "usage.exhausted.upgrade": "Upgrade plan",
   "usage.exhausted.connectByok": "Connect your own AI key",
   "usage.footnote": "Usage resets automatically at the start of each billing cycle. Administrators can adjust plan allowances at any time from Admin → Billing Plans.",
-  "nav.usage": "Usage"
+  "nav.usage": "Usage",
+  "billing.cancel.confirm": "Cancel your subscription? You'll keep access until the end of the current billing period.",
+  "billing.cancel.success": "Subscription canceled."
 }

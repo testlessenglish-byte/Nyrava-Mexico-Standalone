@@ -240,7 +240,7 @@
   "billing.error.noPortal": "No fue posible abrir el portal de facturación.",
   "billing.freeCase.available": "Tiene un asunto gratuito disponible.",
   "billing.freeCase.used": "Su asunto gratuito ya fue utilizado.",
-  "billing.manage": "Administrar facturación",
+  "billing.manage": "Cancelar suscripción",
   "billing.plan.none": "Sin plan activo",
   "billing.renewsOn": "Se renueva el",
   "billing.status.active": "Activa",
@@ -1821,5 +1821,7 @@
   "usage.exhausted.upgrade": "Actualizar plan",
   "usage.exhausted.connectByok": "Conectar su propia llave de IA",
   "usage.footnote": "El uso se reinicia automáticamente al comienzo de cada ciclo de facturación. Los administradores pueden ajustar las asignaciones de cada plan en cualquier momento desde Admin → Planes de facturación.",
-  "nav.usage": "Uso"
+  "nav.usage": "Uso",
+  "billing.cancel.confirm": "¿Cancelar su suscripción? Conservará el acceso hasta el final del periodo de facturación actual.",
+  "billing.cancel.success": "Suscripción cancelada."
 }
