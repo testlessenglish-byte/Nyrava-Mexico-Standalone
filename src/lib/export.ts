@@ -1848,8 +1848,46 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     );
     return;
   }
+  // Goal-first block — the report answers the attorney's primary question
+  // before it summarises anything. Deterministic, evidence-only.
+  const objective = asObj(asObj(r.full_report).objective) as Record<string, unknown>;
+  if (asStr(objective.answer)) {
+    b.h2(execLocale === "en" ? "Direct Answer" : "Respuesta Directa");
+    b.text(asStr(objective.question), { size: 10, color: MUTED, gap: 4 });
+    b.text(asStr(objective.answer), { size: 12, gap: 6 });
+    const conf = asStr(objective.confidence);
+    if (conf) {
+      b.text(
+        execLocale === "en" ? `Confidence in this answer: ${conf}.` : `Confianza en esta respuesta: ${conf}.`,
+        { size: 10, color: MUTED, gap: 6 },
+      );
+    }
+    const dps = Array.isArray(objective.decision_points) ? objective.decision_points : [];
+    if (dps.length) {
+      b.h2(execLocale === "en" ? "Decision Support" : "Soporte para la Decisión");
+      for (const raw of dps.slice(0, 8)) {
+        const dp = asObj(raw) as Record<string, unknown>;
+        b.text(`• ${asStr(dp.issue)}`, { size: 11, gap: 2 });
+        b.text(
+          `${execLocale === "en" ? "Why it matters" : "Por qué importa"}: ${asStr(dp.why)}`,
+          { size: 10, color: MUTED, gap: 2 },
+        );
+        b.text(`${execLocale === "en" ? "Impact" : "Impacto"}: ${asStr(dp.impact)}`, {
+          size: 10,
+          color: MUTED,
+          gap: 2,
+        });
+        b.text(`${execLocale === "en" ? "Next action" : "Siguiente acción"}: ${asStr(dp.next_action)}`, {
+          size: 10,
+          gap: 6,
+        });
+      }
+    }
+  }
+
   const exec = processProseCitations(asStr(r.executive_summary) || asStr(r.attorney_summary));
   if (exec) b.text(exec, { size: 11, gap: 8 });
+
 
   // Read scores through canonical.ts, not the raw row. getScores() also
   // honors ESS suppression, which r.case_strength_score alone does not.

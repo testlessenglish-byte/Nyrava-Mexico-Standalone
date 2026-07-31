@@ -2373,6 +2373,103 @@ function Panel({ title, subtitle, children }: { title: string; subtitle?: string
   );
 }
 
+// Goal-first panel — answers the attorney's primary question for the materia
+// before any document summary, and attaches why / impact / next action.
+function ObjectivePanel({ r }: { r: Report }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const o = ((r.full_report as any) ?? {}).objective as
+    | {
+        question?: string;
+        answer?: string;
+        confidence?: string;
+        insufficient?: boolean;
+        materia_label?: string | null;
+        basis?: string[];
+        blockers?: string[];
+        locale?: string;
+        decision_points?: Array<{
+          id: string;
+          issue: string;
+          why: string;
+          impact: string;
+          next_action: string;
+          severity?: string;
+        }>;
+      }
+    | undefined;
+  if (!o?.answer) return null;
+  const en = o.locale === "en";
+
+  return (
+    <Panel
+      title={en ? "Direct Answer" : "Respuesta Directa"}
+      subtitle={o.materia_label ?? undefined}
+    >
+      <p className="text-xs uppercase tracking-wider text-muted-foreground">{o.question}</p>
+      <p className={`mt-2 text-base ${o.insufficient ? "text-amber-300" : ""}`}>{o.answer}</p>
+      {o.confidence && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {en ? "Confidence" : "Confianza"}: {o.confidence}
+        </p>
+      )}
+      {(o.basis?.length ?? 0) > 0 && (
+        <div className="mt-4">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">
+            {en ? "Verified basis" : "Sustento verificado"}
+          </div>
+          <ul className="mt-1 list-disc pl-5 text-sm">
+            {o.basis!.map((bItem, i) => (
+              <li key={i}>{bItem}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {(o.blockers?.length ?? 0) > 0 && (
+        <div className="mt-4">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">
+            {en ? "Still unproven" : "Pendiente de acreditar"}
+          </div>
+          <ul className="mt-1 list-disc pl-5 text-sm text-muted-foreground">
+            {o.blockers!.map((bItem, i) => (
+              <li key={i}>{bItem}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {(o.decision_points?.length ?? 0) > 0 && (
+        <div className="mt-5 space-y-3">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">
+            {en ? "Decision support" : "Soporte para la decisión"}
+          </div>
+          {o.decision_points!.map((dp) => (
+            <div key={dp.id} className="rounded border border-border bg-card p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-sm font-medium">{dp.issue}</div>
+                <SevBadge s={dp.severity} />
+              </div>
+              <dl className="mt-2 space-y-1 text-xs">
+                <div>
+                  <dt className="inline text-muted-foreground">{en ? "Why it matters" : "Por qué importa"}: </dt>
+                  <dd className="inline">{dp.why}</dd>
+                </div>
+                <div>
+                  <dt className="inline text-muted-foreground">{en ? "Impact" : "Impacto"}: </dt>
+                  <dd className="inline">{dp.impact}</dd>
+                </div>
+                <div>
+                  <dt className="inline text-muted-foreground">{en ? "Next action" : "Siguiente acción"}: </dt>
+                  <dd className="inline font-medium">{dp.next_action}</dd>
+                </div>
+              </dl>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+
 type ReportVersionRow = {
   id: string;
   version: number;
@@ -2507,8 +2604,11 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
     contradictions?: { prev: number; now: number };
     findings_total?: number;
     witnesses_total?: number;
+    sections_changed?: Array<{ section: string; status: string; prev_chars?: number; now_chars?: number }>;
+    drivers?: string[];
     note?: string;
   };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const version = (r as any).version as number | undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2528,6 +2628,8 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
   return (
     <div className="space-y-6">
       <ParityBadge report={r} projections={projections} />
+      <ObjectivePanel r={r} />
+
       {narrativeStatus?.banner && (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${narrativeStatus.fully_failed ? "border-red-500/50 bg-red-500/10 text-red-300" : "border-amber-500/50 bg-amber-500/10 text-amber-200"}`}
@@ -2592,9 +2694,43 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
               </div>
             </li>
           </ul>
+          {(changeLog.sections_changed?.length ?? 0) > 0 && (
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Secciones actualizadas / Sections revised
+              </div>
+              <ul className="mt-1 flex flex-wrap gap-2">
+                {changeLog.sections_changed!.map((s) => {
+                  const title = REPORT_SECTION_ORDER.find((x) => x.key === s.section)?.title ?? s.section;
+                  return (
+                    <li
+                      key={s.section}
+                      className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
+                      title={`${s.prev_chars ?? 0} → ${s.now_chars ?? 0} chars`}
+                    >
+                      {title} · {s.status}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {(changeLog.drivers?.length ?? 0) > 0 && (
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Por qué cambió / Why it changed
+              </div>
+              <ul className="mt-1 list-disc pl-5 text-sm">
+                {changeLog.drivers!.map((d, i) => (
+                  <li key={i}>{d}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {changeLog.note && <p className="mt-2 text-xs text-muted-foreground">{changeLog.note}</p>}
         </Panel>
       )}
+
 
       {ess.scoresSuppressed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">

@@ -3397,11 +3397,70 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
     const countContradictions = (r: Record<string, unknown> | null) =>
       r && Array.isArray(r.contradictions_struct) ? (r.contradictions_struct as unknown[]).length : 0;
 
+    // Which narrative sections actually changed, and why. Deterministic
+    // string diff over the prose columns — no AI, no guessing.
+    const NARRATIVE_KEYS = [
+      "executive_summary",
+      "attorney_summary",
+      "investigator_summary",
+      "case_overview",
+      "facts",
+      "timeline_summary",
+      "evidence_summary",
+      "witness_analysis",
+      "contradiction_report",
+      "discovery_analysis",
+      "missing_evidence_report",
+      "constitutional_issues",
+      "procedural_issues_report",
+      "prosecution_theory_report",
+      "defense_theory_report",
+      "alternative_theory_report",
+      "risk_analysis",
+      "score_breakdown",
+      "recommendations",
+      "appendix_sources",
+    ] as const;
+    const asText = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+    const sectionsChanged = NARRATIVE_KEYS.filter((k) => asText(prev[k]) !== asText(cur[k])).map((k) => ({
+      section: k,
+      status: !asText(prev[k]) ? "added" : !asText(cur[k]) ? "removed" : "revised",
+      prev_chars: asText(prev[k]).length,
+      now_chars: asText(cur[k]).length,
+    }));
+
+    const prevDocs = Number((prev.full_report as Record<string, unknown> | null)?.documents_total ?? NaN);
+    const nowDocs = (docsRes.data ?? []).length;
+    const drivers: string[] = [];
+    if (Number.isFinite(prevDocs) && nowDocs > prevDocs) {
+      drivers.push(`${nowDocs - prevDocs} nuevo(s) documento(s) ingresado(s) al expediente.`);
+    }
+    const cDelta = countContradictions(cur) - countContradictions(prev);
+    if (cDelta !== 0) {
+      drivers.push(
+        cDelta > 0
+          ? `${cDelta} contradicción(es) adicional(es) verificada(s).`
+          : `${Math.abs(cDelta)} contradicción(es) dejaron de verificarse.`,
+      );
+    }
+    const sPrev = typeof prev.case_strength_score === "number" ? prev.case_strength_score : null;
+    const sNow = typeof cur.case_strength_score === "number" ? cur.case_strength_score : null;
+    if (sPrev != null && sNow != null && sPrev !== sNow) {
+      drivers.push(`La fuerza del caso pasó de ${sPrev} a ${sNow} tras la nueva evidencia verificada.`);
+    }
+    if (!!prev.scores_suppressed !== !!cur.scores_suppressed) {
+      drivers.push(
+        cur.scores_suppressed
+          ? "La suficiencia probatoria cayó por debajo del umbral: se suprimieron los puntajes."
+          : "La suficiencia probatoria alcanzó el umbral: se reactivaron los puntajes.",
+      );
+    }
+
     const changeLog = {
       generated_at: new Date().toISOString(),
       previous_version: Number(snap.version ?? 1),
       current_version: Number(cur.version ?? Number(snap.version ?? 1) + 1),
-      documents_total: (docsRes.data ?? []).length,
+      documents_total: nowDocs,
       score_delta: {
         strength: { prev: prev.case_strength_score ?? null, now: cur.case_strength_score ?? null },
         risk: { prev: prev.risk_score ?? null, now: cur.risk_score ?? null },
@@ -3413,8 +3472,11 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
       contradictions: { prev: countContradictions(prev), now: countContradictions(cur) },
       findings_total: (findingsRes.data ?? []).length,
       witnesses_total: (witnessRes.data ?? []).length,
+      sections_changed: sectionsChanged,
+      drivers,
       note: "Quantitative diff vs. the snapshot captured before the most recent Add Evidence run. Review narrative sections for qualitative changes.",
     };
+
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("reports").update({ change_log: changeLog }).eq("case_id", caseId);

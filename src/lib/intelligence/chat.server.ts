@@ -46,6 +46,10 @@ type ChatSections = {
   opportunities: Array<Record<string, unknown>>;
   witnesses: Array<Record<string, unknown>>;
   trial: unknown;
+  /** Goal-first block from the current report (question + direct answer). */
+  objective: unknown;
+  /** Latest "what changed" diff so the report reads as a living document. */
+  changeLog: unknown;
 };
 
 const sectionsCache = new Map<string, { builtAt: number; sections: ChatSections; corpus: string }>();
@@ -70,7 +74,7 @@ const MAX_TOTAL_CONTEXT_CHARS = 14_000;
 const MAX_HISTORY_CHARS = 4_000;
 
 async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: ChatSections; corpus: string }> {
-  const [findings, analysis, agents, score, theories, opps, witnesses, trial, docs] = await Promise.all([
+  const [findings, analysis, agents, score, theories, opps, witnesses, trial, docs, reportRow] = await Promise.all([
     listFindings(db, caseId),
     db.from("analyses").select("*").eq("case_id", caseId).maybeSingle(),
     db.from("agent_findings").select("agent_type,summary,findings").eq("case_id", caseId),
@@ -84,6 +88,7 @@ async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: Ch
       .select("filename,mime_type,status,size_bytes,extracted_text")
       .eq("case_id", caseId)
       .order("created_at", { ascending: true }),
+    db.from("reports").select("full_report,change_log,version").eq("case_id", caseId).maybeSingle(),
   ]);
 
   const docList = (docs.data ?? []).map((d) => ({
@@ -119,6 +124,9 @@ async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: Ch
     opportunities: (opps.data ?? []) as Array<Record<string, unknown>>,
     witnesses: (witnesses.data ?? []) as Array<Record<string, unknown>>,
     trial: trial.data,
+    objective:
+      ((reportRow.data?.full_report as Record<string, unknown> | null) ?? {})?.objective ?? null,
+    changeLog: reportRow.data?.change_log ?? null,
   };
 
   return { sections, corpus };
@@ -228,6 +236,12 @@ function assembleChatContext(sections: ChatSections, question: string): string {
   // final combined cap even applies. Items inside each section are already
   // ordered most-relevant-first, so a ceiling drops the least relevant items.
   let ctx = `
+CASE OBJECTIVE (the attorney's primary question and the report's current direct answer):
+${JSON.stringify(sections.objective).slice(0, 1200)}
+
+LAST REPORT REVISION (what changed and why — treat the report as a living document):
+${JSON.stringify(sections.changeLog).slice(0, 800)}
+
 EVIDENCE IN CASE FILE (${sections.docList.length} documents):
 ${JSON.stringify(sections.docList).slice(0, 1500)}
 
@@ -518,6 +532,12 @@ ABSOLUTE RULES — VIOLATION IS A CRITICAL FAILURE:
 6. EVIDENCE GAPS. When the user's question reveals a true gap (no dictamen pericial, no comprobantes, no testimonial), list the SPECIFIC documents to upload and explain how each would strengthen the case. The user can drag files into this chat.
 
 7. REPORT UPDATE SIGNAL. If — and only if — this exchange resolves something the report already flags as missing, wrong, or unresolved (a newly uploaded document fills a documented evidence gap; the attorney corrects a fact the report got wrong; a flagged contradiction gets clarified with new information) — end your reply with exactly one line, after everything else, in this exact format: [[RERUN_SUGGESTED: <one sentence, under 25 words, naming what changed>]]. Do not include this line for ordinary questions, hypotheticals, requests for explanation, or anything that doesn't change the underlying case record. Never mention this marker to the user or explain that you're adding it — it is stripped before display.
+
+8. GOAL-FIRST ANSWERS. CASE OBJECTIVE above states the attorney's primary question for this materia and the report's current direct answer. Lead with the answer to what they actually asked — never with a document summary — and keep it consistent with that block. When you give a recommendation, attach in one line each: why it matters, what it impacts, and the next concrete action, framed in the procedural vocabulary of this materia.
+
+9. LIVING REPORT. LAST REPORT REVISION above says what changed in the report and why. When it is relevant, tell the attorney which sections moved and which new evidence caused it. If the record cannot support an answer, say what is missing and which document would resolve it — never speculate.
+
+
 
 ${
   voiceMode
