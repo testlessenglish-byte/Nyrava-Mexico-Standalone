@@ -27,6 +27,32 @@ const PROVIDER_CHUNK_LIMIT: Record<string, number> = {
 const GATEWAY_CHUNK_LIMIT = 1800;
 const FALLBACK_CHUNK_LIMIT = 180;
 
+// How many chunks of one answer are synthesized at the same time. Bounded so
+// a long answer doesn't fire a dozen simultaneous requests at one key and
+// trip its rate limit — which would cost more latency than it saves.
+const TTS_CONCURRENCY = 3;
+
+/** Run `fn` over `items` with bounded concurrency, preserving input order. */
+async function mapConcurrent<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+
+
 function chunkText(text: string, maxLen: number): string[] {
   const chunks: string[] = [];
   let remaining = text.trim();
@@ -175,11 +201,18 @@ export const Route = createFileRoute("/api/voice/speak")({
           const chunks = chunkText(input, limit);
           chunkCount = chunks.length;
           triedCount++;
-          const parts: ArrayBuffer[] = [];
+          let parts: ArrayBuffer[] = [];
           try {
-            for (const chunk of chunks) {
-              parts.push(await speakText({ provider, apiKey: key, text: chunk, voice: resolvedVoice, language }));
-            }
+            // Chunks are synthesized CONCURRENTLY (bounded) rather than one
+            // after another. Chunking exists only because of per-request
+            // input caps — the pieces don't depend on each other — so a
+            // Groq answer split into 7 x 180-char chunks used to cost 7
+            // sequential round trips of latency before a single word was
+            // heard. Order is preserved by index, so the concatenated WAV
+            // is identical; only the wall-clock wait shrinks.
+            parts = await mapConcurrent(chunks, TTS_CONCURRENCY, (chunk) =>
+              speakText({ provider, apiKey: key, text: chunk, voice: resolvedVoice, language }),
+            );
             if (parts.length > 0) {
               chunksCompleted = parts.length;
               return new Response(concatWav(parts), { headers: { "Content-Type": "audio/wav" } });
@@ -209,10 +242,11 @@ export const Route = createFileRoute("/api/voice/speak")({
         // personal-key problem alone.
         let gatewayError = "";
         try {
-          const gatewayChunks: ArrayBuffer[] = [];
-          for (const chunk of chunkText(input, GATEWAY_CHUNK_LIMIT)) {
-            gatewayChunks.push(await speakViaGateway(chunk, resolvedVoice));
-          }
+          const gatewayChunks = await mapConcurrent(
+            chunkText(input, GATEWAY_CHUNK_LIMIT),
+            TTS_CONCURRENCY,
+            (chunk) => speakViaGateway(chunk, resolvedVoice),
+          );
           if (gatewayChunks.length > 0) {
             console.warn("[voice/speak] served via platform gateway fallback");
             return new Response(concatWav(gatewayChunks), { headers: { "Content-Type": "audio/wav" } });

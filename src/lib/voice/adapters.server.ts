@@ -15,7 +15,11 @@ import type { VoiceProvider } from "@/lib/ai-key-router.server";
 // Providers occasionally accept a request and then never respond. Without a
 // deadline the whole voice turn hangs until the platform kills it, which is
 // what a mid-conversation "it just stopped working" usually is.
-const VOICE_TIMEOUT_MS = 45_000;
+// 45s was long enough that a stalled provider held the whole conversation
+// hostage before rotation even started. A voice turn that hasn't produced
+// audio in 20s is already a failed turn from the attorney's point of view —
+// fail fast and let the next provider answer.
+const VOICE_TIMEOUT_MS = 20_000;
 
 export class VoiceProviderError extends Error {
   readonly status: number;
