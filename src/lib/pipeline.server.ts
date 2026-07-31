@@ -6458,6 +6458,38 @@ ${paginationTail}`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (reportRow.full_report as any).disputed_issues = disputedIssues;
 
+  // Goal-first layer — the report must OPEN by answering the attorney's
+  // primary question for this materia, with decision support attached.
+  // Deterministic: assembled only from verified findings/gaps already above.
+  try {
+    const { buildObjectiveBlock } = await import("./reporting/objective");
+    const { count: docsTotal } = await db
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("case_id", caseId);
+    const objective = buildObjectiveBlock({
+      caseType,
+      locale: (await getReportLocale(db, caseId)) === "en" ? "en" : "es",
+      findings: findings as unknown as Parameters<typeof buildObjectiveBlock>[0]["findings"],
+      contradictions: factualContradictions.length,
+      missingEvidence: missingGuarded.items as unknown as Parameters<
+        typeof buildObjectiveBlock
+      >[0]["missingEvidence"],
+      scores: {
+        strength: gatedScore(parsed.case_strength_score) as number | null,
+        risk: gatedScore(parsed.risk_score) as number | null,
+        suppressed: isLimited,
+      },
+      documentsTotal: docsTotal ?? 0,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (reportRow.full_report as any).objective = objective;
+  } catch (e) {
+    console.warn("[report] objective block failed", e);
+  }
+
+
+
   // STEP 2 directive — per-document Evidence Map, OCR coverage, and report
   // quality audit. All deterministic, all reconcilable against the persisted
   // findings + documents tables.
