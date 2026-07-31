@@ -1084,7 +1084,13 @@ async function _runPipelineForCase(
 
     // Dependency gate — record a `blocked` row so the ledger, UI, and report
     // gate all see the truth: this engine did not run because upstream failed.
-    const unmet = (DEPENDS_ON[key] ?? []).filter((d) => failed.has(d) || blocked.has(d));
+    // Optional upstream stages are deliberately excluded: now that report
+    // depends on multi_agent (which is optional), a flaky agent review must
+    // not permanently block the report.
+    const unmet = (DEPENDS_ON[key] ?? []).filter(
+      (d) => (failed.has(d) || blocked.has(d)) && stageRequirement(d) !== "optional",
+    );
+
     if (unmet.length > 0) {
       blocked.add(key);
       const reason = `Blocked: upstream stage(s) failed — ${unmet.join(", ")}`;

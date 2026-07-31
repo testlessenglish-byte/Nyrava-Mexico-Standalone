@@ -58,13 +58,11 @@ describe("canonical execution architecture", () => {
     }
   });
 
-  it("classifies every stage except report_generator and multi_agent as blocking for the report gate (2026-07-31: widened from the requirement:'blocking' subset per explicit direction — report must not generate until everything has run)", () => {
-    const expected = CANONICAL_STAGES.filter((s) => s.engine !== "report_generator" && s.key !== "multi_agent").map(
-      (s) => s.engine,
-    );
+  it("classifies every stage except report_generator as blocking for the report gate (2026-07-31: report runs last — every other stage, multi_agent included, must finish first)", () => {
+    const expected = CANONICAL_STAGES.filter((s) => s.engine !== "report_generator").map((s) => s.engine);
     expect([...REPORT_BLOCKING_ENGINES].sort()).toEqual([...expected].sort());
     expect(REPORT_BLOCKING_ENGINES).not.toContain("report_generator");
-    expect(REPORT_BLOCKING_ENGINES).not.toContain("multi_agent");
+    expect(REPORT_BLOCKING_ENGINES).toContain("multi_agent");
     expect(REPORT_ENRICHING_ENGINES.length).toBeGreaterThan(0);
   });
 
@@ -97,13 +95,12 @@ describe("canonical execution architecture", () => {
     }
   });
 
-  it("computeProgress percent tracks completed + skipped, excluding multi_agent", () => {
+  it("computeProgress percent tracks completed + skipped across every stage", () => {
     const rows = [row("extraction", "completed"), row("analyzers", "completed"), row("agents", "skipped")];
     const p = computeProgress(rows);
-    // 3 counted out of (CANONICAL_STAGES.length - 1) since multi_agent is excluded.
     expect(p.completedStages).toBe(3);
-    expect(p.totalStages).toBe(CANONICAL_STAGES.length - 1);
-    expect(p.percent).toBe(Math.round((3 / (CANONICAL_STAGES.length - 1)) * 100));
+    expect(p.totalStages).toBe(CANONICAL_STAGES.length);
+    expect(p.percent).toBe(Math.round((3 / CANONICAL_STAGES.length) * 100));
     expect(p.hasFailures).toBe(false);
     expect(p.isRunning).toBe(false);
   });

@@ -272,6 +272,18 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
   },
 
   {
+    // 2026-07-31: multi-agent review moved AHEAD of report generation. It is
+    // an information-gathering stage (13 agents producing findings the report
+    // should cite), so running it after the report meant the report was
+    // written without any of it. Report generation is now the last stage of
+    // the pipeline, with nothing running behind it.
+    key: "multi_agent",
+    label: "Multi-Agent Review (13 Agents)",
+    engine: "multi_agent",
+    dependsOn: ["scoring", "legal_qa", "analyzers", "agents"],
+    requirement: "optional",
+  },
+  {
     key: "report",
     label: "Generate Report",
     engine: "report_generator",
@@ -286,17 +298,11 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     // — a misleading UI state, not a data-correctness bug (the actual
     // gate was always right), but confusing to anyone watching the
     // pipeline. Added so the UI and the real gate agree.
-    dependsOn: ["scoring", "legal_qa", "analyzers", "agents", "jurisdiction_intel"],
+    dependsOn: ["scoring", "legal_qa", "analyzers", "agents", "jurisdiction_intel", "multi_agent"],
     requirement: "blocking",
   },
-  {
-    key: "multi_agent",
-    label: "Multi-Agent Review (13 Agents)",
-    engine: "multi_agent",
-    dependsOn: ["report"],
-    requirement: "optional",
-  },
 ] as const;
+
 
 // Derived indexes — DO NOT rebuild these elsewhere.
 export const STAGE_BY_KEY: ReadonlyMap<string, StageDef> = new Map(CANONICAL_STAGES.map((s) => [s.key, s]));
@@ -326,8 +332,15 @@ export const PIPELINE_STAGE_TO_ENGINE: Readonly<Record<string, string>> = Object
 // elsewhere (e.g. whether a failed stage flips the whole pipeline run to
 // "failed"), and this change is scoped to the report gate only.
 export const REPORT_BLOCKING_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
-  (s) => s.engine !== "report_generator" && s.key !== "multi_agent",
+  (s) => s.engine !== "report_generator",
 ).map((s) => s.engine);
+
+/** Engines whose stage is requirement:"optional". A failure here must not
+ * permanently block the report — the gate accepts them in any terminal
+ * state, including `failed`. */
+export const OPTIONAL_ENGINES: ReadonlySet<string> = new Set(
+  CANONICAL_STAGES.filter((s) => s.requirement === "optional").map((s) => s.engine),
+);
 
 export const REPORT_ENRICHING_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
   (s) => s.requirement === "enriching",
@@ -471,9 +484,9 @@ export type ProgressSnapshot = {
 };
 
 export function computeProgress(rows: ExecutionRow[]): ProgressSnapshot {
-  const views = computeStageViews(rows);
-  // Multi-agent is optional/parallel; keep out of the primary progress bar.
-  const pipeline = views.filter((v) => v.key !== "multi_agent");
+  // Multi-agent now runs inside the pipeline (before the report), so it
+  // counts toward progress like every other stage.
+  const pipeline = computeStageViews(rows);
   const done = pipeline.filter((v) => v.state === "complete" || v.state === "skipped").length;
   const total = pipeline.length;
   const running = pipeline.some((v) => v.state === "running");
@@ -513,7 +526,10 @@ export function canGenerateReport(rows: ExecutionRow[]): ReportGate {
   const missing = (engines: readonly string[]) =>
     engines.filter((e) => {
       const s = latest.get(e)?.status;
-      return s !== "completed" && s !== "completed_negative" && s !== "skipped";
+      if (s === "completed" || s === "completed_negative" || s === "skipped") return false;
+      // Optional stages only need to be *finished*, not successful.
+      if (OPTIONAL_ENGINES.has(e) && (s === "failed" || s === "blocked")) return false;
+      return true;
     });
   const blocking = missing(REPORT_BLOCKING_ENGINES);
   return {

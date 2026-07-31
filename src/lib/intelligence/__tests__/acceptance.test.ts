@@ -28,16 +28,17 @@ function row(engine: string, status: ExecutionRow["status"], iso = "2026-01-01T0
 }
 
 describe("Pre-flight report gate (single source of truth)", () => {
-  it("requires all 22 canonical engines (report_generator is the consumer, not a self-precondition; multi_agent runs after report)", () => {
+  it("requires all 23 canonical engines (report_generator is the consumer, not a self-precondition)", () => {
     // 2026-07-31: widened from "blocking"-only (14) to every stage, per
     // explicit direction that report generation must wait for everything —
     // not just the subset previously marked requirement:"blocking" —
     // confirmed against a real case where an "optional" stage (work_product)
     // was left stuck at "running" while the pipeline continued straight
     // through report generation.
-    expect(REPORT_REQUIRED_ENGINES.length).toBe(22);
+    expect(REPORT_REQUIRED_ENGINES.length).toBe(23);
     expect(REPORT_REQUIRED_ENGINES).not.toContain("report_generator");
-    expect(REPORT_REQUIRED_ENGINES).not.toContain("multi_agent");
+    // 2026-07-31: multi_agent now runs BEFORE the report, so it is required.
+    expect(REPORT_REQUIRED_ENGINES).toContain("multi_agent");
     // No duplicates
     expect(new Set(REPORT_REQUIRED_ENGINES).size).toBe(REPORT_REQUIRED_ENGINES.length);
   });
@@ -94,8 +95,7 @@ describe("Dashboard / pipeline / report agreement", () => {
       prev = pct;
     }
     expect(pipelineProgressPercent(rows)).toBe(100);
-    // multi_agent is optional/parallel and excluded from the primary progress bar.
-    expect(completedPipelineStageCount(rows)).toBe(PIPELINE_ENGINE_ORDER.filter((e) => e !== "multi_agent").length);
+    expect(completedPipelineStageCount(rows)).toBe(PIPELINE_ENGINE_ORDER.length);
   });
 
   it("derivation is pure — repeated reads yield identical results", () => {
