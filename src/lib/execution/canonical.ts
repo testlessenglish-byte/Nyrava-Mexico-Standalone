@@ -272,6 +272,18 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
   },
 
   {
+    // 2026-07-31: multi-agent review moved AHEAD of report generation. It is
+    // an information-gathering stage (13 agents producing findings the report
+    // should cite), so running it after the report meant the report was
+    // written without any of it. Report generation is now the last stage of
+    // the pipeline, with nothing running behind it.
+    key: "multi_agent",
+    label: "Multi-Agent Review (13 Agents)",
+    engine: "multi_agent",
+    dependsOn: ["scoring", "legal_qa", "analyzers", "agents"],
+    requirement: "optional",
+  },
+  {
     key: "report",
     label: "Generate Report",
     engine: "report_generator",
@@ -286,17 +298,11 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     // — a misleading UI state, not a data-correctness bug (the actual
     // gate was always right), but confusing to anyone watching the
     // pipeline. Added so the UI and the real gate agree.
-    dependsOn: ["scoring", "legal_qa", "analyzers", "agents", "jurisdiction_intel"],
+    dependsOn: ["scoring", "legal_qa", "analyzers", "agents", "jurisdiction_intel", "multi_agent"],
     requirement: "blocking",
   },
-  {
-    key: "multi_agent",
-    label: "Multi-Agent Review (13 Agents)",
-    engine: "multi_agent",
-    dependsOn: ["report"],
-    requirement: "optional",
-  },
 ] as const;
+
 
 // Derived indexes — DO NOT rebuild these elsewhere.
 export const STAGE_BY_KEY: ReadonlyMap<string, StageDef> = new Map(CANONICAL_STAGES.map((s) => [s.key, s]));
