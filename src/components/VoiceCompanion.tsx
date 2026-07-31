@@ -129,7 +129,7 @@ function StatusPill({ status }: { status: Status }) {
 
 export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?: string }) {
   const ask = useServerFn(askCaseAi);
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const [diag, setDiag] = useState<Diag>(emptyDiag);
   const [status, setStatus] = useState<Status>("idle");
   const [recording, setRecording] = useState(false);
@@ -474,12 +474,43 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
     setStatus("idle");
   }
 
+  function humanizeVoiceError(kind: "stt" | "tts", status: number, bodyText: string): string {
+    // The server returns structured JSON ({ error, detail, diag }) — parse
+    // it so the UI can show something an attorney can act on, instead of
+    // the raw provider error text (which is always in English regardless
+    // of the app's locale, and reads as "the app is broken" rather than
+    // "add another provider key").
+    let parsed: { error?: string; detail?: string; diag?: { lastProvider?: string } } = {};
+    try {
+      parsed = JSON.parse(bodyText);
+    } catch {
+      // Not JSON (network-level failure, HTML error page, etc.) — fall
+      // through to the generic message below with the raw text as detail.
+    }
+    const provider = parsed.diag?.lastProvider ?? "";
+    const detail = (parsed.detail ?? bodyText).slice(0, 200);
+
+    if (parsed.error === "No voice-capable AI provider configured") {
+      return t("voiceCompanion.error.noProvider");
+    }
+    if (status === 429) {
+      return t("voiceCompanion.error.quota", { provider: provider || "AI" });
+    }
+    if (status === 401 || status === 403) {
+      return t("voiceCompanion.error.authInvalid", { provider: provider || "AI" });
+    }
+    return t(kind === "stt" ? "voiceCompanion.error.sttGeneric" : "voiceCompanion.error.ttsGeneric", {
+      status,
+      detail,
+    });
+  }
+
   async function runPipeline(mime: string) {
     try {
       const blob = new Blob(chunksRef.current, { type: mime });
       if (blob.size < 1024) {
         setStatus(conversationRef.current ? "listening" : "idle");
-        setDiag((d) => ({ ...d, stt: "error", error: "Recording was too short." }));
+        setDiag((d) => ({ ...d, stt: "error", error: t("voiceCompanion.error.tooShort") }));
         if (conversationRef.current)
           setTimeout(() => {
             if (conversationRef.current) void startListening(true);
@@ -496,7 +527,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
       const authToken = sessionData.session?.access_token;
       if (!authToken) {
         setStatus("error");
-        setDiag((d) => ({ ...d, stt: "error", error: "Sign in required for voice." }));
+        setDiag((d) => ({ ...d, stt: "error", error: t("voiceCompanion.error.signInRequired") }));
         return;
       }
       const sttRes = await fetch("/api/voice/transcribe", {
@@ -510,13 +541,13 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
         setDiag((d) => ({
           ...d,
           stt: "error",
-          error: `Transcription failed (${sttRes.status}): ${body.slice(0, 200)}`,
+          error: humanizeVoiceError("stt", sttRes.status, body),
         }));
         return;
       }
       const { text: transcript } = (await sttRes.json()) as { text: string };
       if (!transcript.trim()) {
-        setDiag((d) => ({ ...d, stt: "error", error: "No speech detected." }));
+        setDiag((d) => ({ ...d, stt: "error", error: t("voiceCompanion.error.noSpeech") }));
         if (conversationRef.current) {
           setStatus("listening");
           setTimeout(() => {
@@ -566,7 +597,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
       if (!ttsRes.ok) {
         const body = await ttsRes.text().catch(() => "");
         setStatus("error");
-        setDiag((d) => ({ ...d, tts: "error", error: `Speech failed (${ttsRes.status}): ${body.slice(0, 200)}` }));
+        setDiag((d) => ({ ...d, tts: "error", error: humanizeVoiceError("tts", ttsRes.status, body) }));
         return;
       }
       const audioBlob = await ttsRes.blob();
@@ -601,7 +632,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
       };
       audio.onended = onFinish;
       audio.onerror = () => {
-        setDiag((d) => ({ ...d, play: "error", error: "Audio playback failed." }));
+        setDiag((d) => ({ ...d, play: "error", error: t("voiceCompanion.error.playback") }));
         onFinish();
       };
       try {
