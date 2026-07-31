@@ -159,7 +159,8 @@ export const Route = createFileRoute("/api/voice/speak")({
         if (authed instanceof Response) return authed;
         const { supabase, userId } = authed;
 
-        const { resolveVoiceProviderChain, flattenVoiceChain } = await import("@/lib/ai-key-router.server");
+        const { resolveVoiceProviderChain, flattenVoiceChain, applyVoiceCooldowns, markVoiceKeyCooldown } =
+          await import("@/lib/ai-key-router.server");
         const { speakText, speakViaGateway, reorderForTtsLocale, VoiceProviderError } = await import(
           "@/lib/voice/adapters.server"
         );
