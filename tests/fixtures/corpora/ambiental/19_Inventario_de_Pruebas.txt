@@ -1,0 +1,51 @@
+DESPACHO CAMACHO TEHUACANERO Y ASOCIADOS
+INVENTARIO GENERAL DE PRUEBAS
+Expediente administrativo PFPA/22.3/2C.28/0741/2026
+Juicio de Responsabilidad Ambiental 33/2026
+Carpeta de Investigación FED/PUE/CHO/0512/2026
+
+Elaboró: Lic. Ximena Alondra Camacho Tehuacanero, cédula profesional 8890241
+Fecha de corte: 30 de junio de 2026
+
+I. PRUEBAS DOCUMENTALES PÚBLICAS
+
+1. Denuncia popular ciudadana DP/CGPA/0187/2026 (5 de febrero de 2026) — Estado: íntegra, sin observaciones de autenticidad.
+2. Orden de inspección PFPA-DEL-PUE-OI-0341/2026 — Estado: íntegra.
+3. Acta de inspección de 12 de febrero de 2026 — Estado: íntegra; contiene inconsistencia de horario frente al documento 4.
+4. Cadena de custodia LAV-CC-0741-2026 — Estado: íntegra; contiene inconsistencia de horario frente al documento 3 (discrepancia de aproximadamente 50 minutos en hora de inicio de muestreo, no aclarada a la fecha).
+5. Dictamen de resultados analíticos LAV-0741-2026 — Estado: íntegro; el valor de Cromo Total (3.8 mg/L) difiere del citado en la resolución administrativa (2.9 mg/L), discrepancia no corregida formalmente a la fecha de este inventario.
+6. Acuerdo de emplazamiento (3 de marzo de 2026) — Estado: íntegro.
+7. Contestación al emplazamiento (24 de marzo de 2026) — Estado: íntegra.
+8. Dictamen pericial ambiental (15 de abril de 2026) — Estado: íntegro; identifica ambas discrepancias señaladas en los puntos 3-4 y 5 como pendientes de aclaración.
+9. Resolución administrativa sancionadora (10 de mayo de 2026) — Estado: íntegra; reconoce expresamente las discrepancias sin subsanarlas materialmente.
+10. Autorización de Impacto Ambiental Oficio SGPA/DGIRA/DG/03412 y nota marginal de seguimiento — Estado: íntegra.
+11. Licencia Ambiental Única LAU-21PU0088-2019 — Estado: íntegra.
+12. Permiso de Descarga CONAGUA 21PUE102233/12FMGE19 — Estado: íntegro; evidencia excedente de caudal no autorizado.
+13. Actas de entrevista con vecinos (20 de febrero de 2026) — Estado: íntegras; valor indiciario, testimonios referenciales.
+
+II. PRUEBAS TESTIMONIALES
+
+14. Testimonial del Sr. Efraín Domínguez Molotla (6 de mayo de 2026) — Estado: rendida; testigo con interés personal declarado (litigio laboral pendiente); parcialmente corroborada por documentos 15 y 16; DIVERGENTE respecto de las manifestaciones del Gerente de Operaciones en el documento 3 y de la versión de la contestación (documento 7 y 18).
+15. Testimoniales anunciadas del Ing. Cuauhtémoc Isaías Bonilla Terán y del Ing. Marco Aurelio Tepox Xicohténcatl — Estado: pendientes de desahogo, ofrecidas por la empresa demandada.
+
+III. PRUEBAS DOCUMENTALES PRIVADAS (CADENA DIGITAL)
+
+16. Correos electrónicos internos "PTAR-Contingencia" — Estado: exhibidos con certificación notarial de existencia, NO con peritaje de integridad forense; autenticidad e licitud impugnadas por la demandada.
+17. Transcripción de WhatsApp "Turno Noche PTAR" — Estado: exhibida con certificación notarial de existencia, NO con peritaje de informática forense; autenticidad e licitud impugnadas por la demandada.
+
+IV. EVIDENCIA FALTANTE IDENTIFICADA (PENDIENTE DE DESAHOGO O RECABACIÓN)
+
+18. Bitácora de operación de la PTAR correspondiente a enero de 2026 — NUNCA EXHIBIDA; según correos internos (documento 15), fue deliberadamente ocultada.
+19. Libreta personal de apuntes del Sr. Efraín Domínguez Molotla — Referida en su testimonio, en posesión de su abogado laboral, NO exhibida ni ofrecida.
+20. Estudio de caracterización de sedimentos y biota acuática — Recomendado por el dictamen pericial (documento 8), NO realizado a la fecha.
+21. Peritaje en informática forense sobre correos y WhatsApp — Anunciado por ambas partes, NO desahogado a la fecha.
+22. Reportes de autocontrol de descarga de noviembre de 2025 y enero de 2026 — Referidos como faltantes en el acta de inspección (documento 3), no exhibidos posteriormente.
+23. Registro SCADA de la PTAR correspondiente a enero de 2026 — Referido en la contestación administrativa como fuente para reconstrucción de bitácora, no exhibido.
+
+V. CONCLUSIÓN DEL INVENTARIO
+
+El expediente presenta prueba documental pública robusta respecto de la existencia material del exceso de parámetros de descarga, así como prueba indiciaria y testimonial consistente en cuanto al patrón sostenido de la irregularidad, pero mantiene pendientes de desahogo elementos técnicos y periciales relevantes (estudio de caracterización ambiental, peritaje forense digital) cuya ausencia limita, a la fecha de corte, la posibilidad de cuantificar con precisión el daño ambiental resarcible y de dar pleno valor probatorio a la evidencia digital interna de la empresa.
+
+_____________________________
+Lic. Ximena Alondra Camacho Tehuacanero
+Cédula profesional 8890241
