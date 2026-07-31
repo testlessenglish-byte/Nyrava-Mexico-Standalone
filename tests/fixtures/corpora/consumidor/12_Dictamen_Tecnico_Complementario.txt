@@ -1,0 +1,37 @@
+PROCURADURÍA FEDERAL DEL CONSUMIDOR
+DIRECCIÓN GENERAL DE VERIFICACIÓN Y VIGILANCIA
+LABORATORIO NACIONAL DE PROTECCIÓN AL CONSUMIDOR
+
+DICTAMEN TÉCNICO COMPLEMENTARIO
+Expediente PFC.B.Q./000418/2026
+Fecha de emisión: 25 de junio de 2026
+Perito: Ing. Leonardo Abraham Nieves Cortázar, cédula profesional 6541209
+
+I. ANTECEDENTE Y OBJETO
+
+A solicitud de la autoridad instructora, y en atención al testimonio del ex ejecutivo Javier Alejandro Montemayor Ruelas (documento 11) y a la ampliación de queja del consumidor Gerardo Emiliano Salcido Marroquín (documento 10), se amplía el dictamen técnico original (documento 05) a efecto de: (a) analizar los registros de tickets internos de soporte técnico correspondientes al sistema "NexoSelf 2.0" que NexoTel exhibió parcialmente en respuesta al requerimiento de información PFC-QRO-REQ-0562/2026; y (b) verificar si la deficiencia de velocidad reportada en la colonia Milenio III (domicilio del consumidor Salcido Marroquín) es representativa de un problema estructural de saturación de red o corresponde a una incidencia aislada.
+
+II. METODOLOGÍA
+
+Se analizaron 87 tickets de soporte técnico exhibidos por NexoTel (de un universo que la empresa declara en "más de 200" sin exhibir el total, no obstante requerimiento expreso). Se realizó una segunda ronda de mediciones de velocidad en el domicilio del consumidor Salcido Marroquín y en cuatro domicilios adicionales de la misma colonia, del 15 al 19 de junio de 2026.
+
+III. RESULTADOS
+
+3.1 Análisis de tickets internos:
+- De los 87 tickets exhibidos, 34 corresponden a reportes de "activación automática no solicitada de servicios complementarios", de los cuales 31 fueron registrados entre agosto y diciembre de 2025, coincidiendo con la fecha de implementación de NexoSelf 2.0 señalada por el testigo Montemayor Ruelas.
+- Únicamente 9 de esos 34 tickets (26.5%) muestran una resolución documentada con bonificación completa retroactiva; los 25 restantes (73.5%) fueron cerrados con la leyenda estándar "resuelto conforme a política de atención", sin detalle del tipo de resolución otorgada.
+- No se localizó en el acervo exhibido evidencia documental de la reunión de gerentes regionales del 14 de septiembre de 2025 referida por el testigo Montemayor Ruelas, ni minuta, ni correo de convocatoria, lo que impide corroborar documentalmente ese extremo específico del testimonio, sin que ello lo desvirtúe por sí solo.
+
+3.2 Segunda ronda de mediciones en colonia Milenio III:
+- Domicilio del consumidor Salcido Marroquín: 71.8 Mbps promedio en horario pico (35.9% de lo contratado), consistente con la primera medición.
+- Cuatro domicilios adicionales en un radio de 800 metros: promedios de 68.2, 79.4, 62.1 y 81.5 Mbps en horario pico, todos por debajo del 45% de lo contratado.
+- Se identificó, mediante consulta al registro público de infraestructura de telecomunicaciones del Instituto Federal de Telecomunicaciones, que el nodo de acceso que sirve a dicha colonia opera al 94% de su capacidad nominal de diseño, lo que técnicamente explica la degradación sistemática del servicio en horario de mayor demanda y descarta que se trate de incidencias aisladas o atribuibles a equipo terminal del usuario.
+
+IV. CONCLUSIONES
+
+1. Se confirma y refuerza la conclusión del dictamen original: existe un problema estructural de saturación de red en al menos la colonia Milenio III, de naturaleza sistémica y no aislada, lo que resulta relevante para efectos de la calificación de la infracción como reiterada y generalizada conforme al artículo 128 de la Ley Federal de Protección al Consumidor.
+2. El patrón de cierre de tickets sin detalle de resolución (73.5% de los casos analizados) constituye un indicio, mas no prueba plena, de una práctica interna de atención insuficiente respecto de las activaciones no solicitadas, en concordancia parcial con el testimonio del ex ejecutivo, aunque este perito no cuenta con elementos para acreditar la existencia de una instrucción corporativa deliberada, extremo que corresponde valorar a la autoridad con base en el conjunto de pruebas testimoniales y documentales.
+3. Se recomienda a la autoridad requerir nuevamente a NexoTel la totalidad de los tickets de soporte relacionados con NexoSelf 2.0 (no solo la muestra de 87 exhibida), apercibida de lo dispuesto por el artículo 96 de la Ley Federal de Protección al Consumidor en caso de negativa injustificada.
+
+Firma: Ing. Leonardo Abraham Nieves Cortázar
+Visto bueno: Lic. Fernanda Ibeth Oyervides Camarena, Subprocuradora de Verificación y Vigilancia

@@ -1,0 +1,36 @@
+JUZGADO SEGUNDO DE DISTRITO EN EL ESTADO DE QUERÉTARO
+JUICIO COLECTIVO 62/2026
+
+ACUERDO QUE RESUELVE SOLICITUD DE MEDIDAS PRECAUTORIAS
+
+Fecha del acuerdo: 22 de agosto de 2026
+
+Vista la solicitud de medidas precautorias formulada por el Lic. Ismael Cordero Bátiz en escrito por separado presentado junto con la demanda de acción colectiva, con fundamento en los artículos 590 y 610 del Código Federal de Procedimientos Civiles, este Juzgado Segundo de Distrito en el Estado de Querétaro acuerda:
+
+I. ANTECEDENTES
+
+La parte actora solicitó las siguientes medidas precautorias: (a) orden de conservación de la totalidad de los registros del sistema "NexoSelf 2.0", incluyendo bitácoras de activación, tickets de soporte y minutas de reuniones directivas relacionadas con dicho sistema, correspondientes al periodo de agosto de 2025 a la fecha; (b) suspensión provisional de la cláusula quinta del contrato de adhesión (renuncia a acciones colectivas) respecto de todos los consumidores con contrato vigente, a efecto de no obstaculizar su eventual incorporación a la colectividad actora; (c) orden de abstención de ofrecer a los consumidores convenios individuales con cláusula de finiquito total que impliquen renuncia a incorporarse a la presente acción colectiva, mientras el juicio se encuentre en trámite.
+
+II. CONSIDERACIONES
+
+Este Juzgado considera que, para la procedencia de las medidas precautorias solicitadas, deben acreditarse los extremos de apariencia de buen derecho y peligro en la demora, en términos de la jurisprudencia aplicable en materia de acciones colectivas.
+
+Respecto de la medida señalada con el inciso (a), se considera procedente, toda vez que existe riesgo fundado de que la información técnica relevante para el juicio pueda ser alterada o eliminada conforme al curso ordinario de los ciclos de retención de datos de la empresa demandada, tomando en cuenta que el propio dictamen técnico complementario (documento 12) advirtió la imposibilidad de corroborar la existencia de la minuta de la reunión de gerentes regionales de septiembre de 2025 por no haber sido conservada.
+
+Respecto de la medida señalada con el inciso (b), se considera parcialmente procedente. Este Juzgado no suspende la validez general de la cláusula para todos los efectos contractuales, pues ello excedería la materia de la litis, pero sí ordena que dicha cláusula no podrá ser invocada por NexoTel para impedir que cualquier consumidor con contrato vigente o extinto se adhiera a la presente acción colectiva, en tanto la nulidad de dicha cláusula ya fue declarada por la autoridad administrativa en la resolución de 10 de julio de 2026 (documento 13), circunstancia que, aunque sub júdice por recurso de revisión, constituye apariencia de buen derecho suficiente para efectos de esta medida cautelar.
+
+Respecto de la medida señalada con el inciso (c), se considera procedente en términos similares a los ya explicados, a fin de evitar que la celebración apresurada de convenios individuales con cláusula de finiquito total menoscabe el derecho de opción de los consumidores previsto en el artículo 606 del Código Federal de Procedimientos Civiles.
+
+III. RESOLUTIVOS
+
+PRIMERO. Se ordena a Telecomunicaciones Bajío Digital, S.A.P.I. de C.V. conservar y no destruir, alterar o modificar la totalidad de los registros técnicos, tickets de soporte, bitácoras del sistema NexoSelf 2.0 y documentación de reuniones directivas relacionadas con dicho sistema, correspondientes al periodo de agosto de 2025 a la fecha del presente acuerdo, bajo apercibimiento de que, en caso de incumplimiento, se le podrá imponer una de las medidas de apremio previstas en el artículo 59 del Código Federal de Procedimientos Civiles, incluyendo multa, sin perjuicio de la presunción de veracidad de los hechos que se pretendan acreditar con la información destruida.
+
+SEGUNDO. Se ordena a NexoTel abstenerse de invocar la cláusula quinta del contrato de adhesión para impedir la incorporación de cualquier consumidor a la presente acción colectiva.
+
+TERCERO. Se ordena a NexoTel abstenerse de celebrar convenios individuales con cláusula de finiquito total con consumidores que pudieran formar parte de la colectividad actora, sin que dicha orden impida la celebración de convenios de bonificación parcial que no incluyan renuncia expresa a incorporarse a la acción colectiva.
+
+CUARTO. Se fija garantía a cargo de la parte actora por la cantidad de $150,000.00 M.N. para responder de los daños y perjuicios que pudieran ocasionarse a la demandada con motivo de las presentes medidas, en términos del artículo 611 del Código Federal de Procedimientos Civiles, misma que deberá exhibirse dentro de los diez días siguientes a la notificación del presente acuerdo.
+
+QUINTO. Notifíquese personalmente a las partes.
+
+Así lo acordó y firma el Lic. Fabián Emiliano Roldán Chapa, Juez Segundo de Distrito en el Estado de Querétaro.

@@ -1,0 +1,47 @@
+PROCURADURÍA FEDERAL DEL CONSUMIDOR
+DELEGACIÓN QUERÉTARO
+DIRECCIÓN GENERAL DE PROCEDIMIENTOS CONTENCIOSOS
+
+RESOLUCIÓN ADMINISTRATIVA
+Expediente PFC.B.Q./000418/2026
+Fecha: 10 de julio de 2026
+
+VISTOS para resolver el procedimiento por infracciones a la Ley Federal de Protección al Consumidor instaurado en contra de TELECOMUNICACIONES BAJÍO DIGITAL, S.A.P.I. DE C.V. ("NexoTel"), con motivo de las 214 quejas acumuladas y demás elementos de prueba que integran el expediente, se emite la presente resolución al tenor de los siguientes:
+
+I. RESULTANDOS
+
+Se tienen por reproducidos los antecedentes contenidos en la carátula (documento 00), el contrato de adhesión (documento 01), la relación de quejas (documento 02), las actas de audiencia conciliatoria (documentos 03 y 04), los dictámenes técnicos (documentos 05 y 12), los estados de cuenta (documento 06), la transcripción de llamadas (documento 07), la cadena de correos (documento 08), la conversación de WhatsApp (documento 09), los testimonios de consumidores (documento 10) y el testimonio del ex ejecutivo Javier Alejandro Montemayor Ruelas (documento 11).
+
+II. CONSIDERANDOS
+
+PRIMERO. Competencia. Esta autoridad es competente para resolver el presente procedimiento conforme a los artículos 24, 92, 111, 123, 124, 126 y 128 de la Ley Federal de Protección al Consumidor.
+
+SEGUNDO. Acreditación de infracciones. Del análisis integral y adminiculado de las pruebas se acreditan las siguientes infracciones:
+
+(a) Violación al artículo 7 de la Ley Federal de Protección al Consumidor, por incumplimiento sistemático de la velocidad de internet ofertada en horario pico, acreditado mediante los dictámenes técnicos (documentos 05 y 12), que muestran una degradación estructural del servicio en al menos la colonia Milenio III y zonas aledañas, atribuible a saturación de red no remediada por el proveedor no obstante tener conocimiento de ello desde, al menos, mayo de 2026.
+
+(b) Violación al artículo 76 bis de la Ley Federal de Protección al Consumidor, por la falta de consentimiento informado y expreso en la activación de servicios complementarios, acreditada mediante el dictamen técnico (documento 05, que reporta 67.5% de registros sin trazabilidad adecuada), el testimonio de la consumidora Yolanda Ibeth Camacho Prieto (documento 08, correos electrónicos), y el testimonio del ex ejecutivo Montemayor Ruelas en cuanto a la existencia de fallas conocidas del sistema NexoSelf 2.0.
+
+(c) Violación al artículo 87 de la Ley Federal de Protección al Consumidor, por discrepancia entre el contrato de adhesión efectivamente utilizado con los consumidores y el modelo registrado ante esta Procuraduría bajo folio RCA-2024-TEL-00871, específicamente respecto de las cláusulas quinta (renuncia a acciones colectivas, la cual además resulta nula de pleno derecho por contravenir el artículo 87, párrafo tercero, y el derecho constitucional de acceso a la justicia colectiva) y sexta (limitación de responsabilidad y caducidad de cinco días).
+
+(d) Violación al artículo 10 de la Ley Federal de Protección al Consumidor, por conductas de presión indebida y falta de atención adecuada, parcialmente acreditadas mediante el testimonio del ex ejecutivo y la nota marginal de discrepancia entre 71 y 96 convenios individuales reportados por la propia empresa (documentos 04 y 08), lo cual constituye un indicio de manejo poco transparente de la información proporcionada a la autoridad.
+
+TERCERO. Valoración de pruebas controvertidas. Esta autoridad advierte que el testimonio del consumidor Rogelio Armando Castañón Ibarra (documento 10) matiza, mas no desvirtúa, el patrón general acreditado, pues reconoce una interacción parcial con el mecanismo de activación en su caso particular, lo cual será considerado únicamente para la determinación de la reparación individual correspondiente a dicho folio, sin que ello afecte la calificación de la infracción como sistemática respecto de la generalidad de los casos.
+
+CUARTO. Individualización de la sanción. Conforme al artículo 128 de la Ley Federal de Protección al Consumidor, tomando en cuenta la gravedad de la infracción, el carácter intencional o reiterado de la conducta, el perjuicio causado a los consumidores (más de 214 casos acumulados) y la condición económica del infractor, se impone multa por la cantidad de $4,850,320.00 M.N. (cuatro millones ochocientos cincuenta mil trescientos veinte pesos 00/100 moneda nacional), equivalente al máximo aplicable dada la reincidencia estructural detectada.
+
+III. RESOLUTIVOS
+
+PRIMERO. Se tiene por acreditada la responsabilidad de Telecomunicaciones Bajío Digital, S.A.P.I. de C.V. respecto de las infracciones señaladas en el Considerando Segundo.
+
+SEGUNDO. Se impone multa por $4,850,320.00 M.N., con fundamento en el artículo 128 de la Ley Federal de Protección al Consumidor.
+
+TERCERO. Se ordena a NexoTel bonificar o devolver, según corresponda, la totalidad de los cargos indebidamente cobrados a los 214 consumidores acumulados, así como cancelar sin penalización los contratos de los consumidores que acrediten falta de cobertura, en un plazo de treinta días naturales.
+
+CUARTO. Se declara la nulidad de las cláusulas quinta y sexta del contrato de adhesión por no corresponder al modelo registrado, en términos del artículo 87 de la Ley Federal de Protección al Consumidor.
+
+QUINTO. Se deja a salvo el derecho de los consumidores para acudir a la vía jurisdiccional, incluida la acción colectiva prevista en el Código Federal de Procedimientos Civiles, para reclamar la indemnización por daños y perjuicios que en su caso proceda.
+
+SEXTO. Notifíquese personalmente al representante legal de NexoTel, haciéndole saber su derecho a interponer recurso de revisión en términos del artículo 129 de la Ley Federal de Protección al Consumidor, dentro de los quince días hábiles siguientes a la notificación.
+
+Así lo resolvió y firma la Lic. Fernanda Ibeth Oyervides Camarena, Subprocuradora de Verificación y Vigilancia de la Delegación Querétaro de la PROFECO.

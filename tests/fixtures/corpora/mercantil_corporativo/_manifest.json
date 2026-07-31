@@ -1,0 +1,52 @@
+{
+  "title": "Mercantil 733/2026 — Zazueta Beltrán vs. AgroTecnia del Pacífico, S.A. de C.V. y otros",
+  "description": "Juicio oral mercantil de nulidad de asamblea general extraordinaria de accionistas, acción social de responsabilidad contra el Administrador Único y cumplimiento forzoso de convenio entre accionistas de AgroTecnia del Pacífico, S.A. de C.V., sociedad de agrotecnología con domicilio en Culiacán, Sinaloa. El accionista minoritario (40%) impugna un aumento de capital de $2,300,000.00 aprobado en una Asamblea celebrada con solo 60% de asistencia pero registrada falsamente con quórum superior al 75%, que diluyó su participación al 13.33% en favor de la accionista mayoritaria. El expediente incluye acta constitutiva, libro de registro de acciones, convenio entre accionistas, convocatoria, acta de asamblea impugnada, lista de asistencia, demanda, contestación, informe del comisario, estados financieros, correos electrónicos, dictamen pericial contable, testimoniales divergentes de los socios y del comisario, resolución de medidas cautelares, alegatos, inventario de pruebas y constancia de estado procesal. Existen discrepancias centrales entre el quórum asentado en el acta y el real, y sobre el conocimiento previo de la ausencia del accionista minoritario en la fecha de la asamblea.",
+  "caseType": "mercantil",
+  "practiceArea": "Derecho Mercantil",
+  "subPracticeArea": "Derecho societario / corporativo — nulidad de asamblea y responsabilidad de administradores",
+  "internalMatterNumber": "NYR-MX-2026-0733",
+  "courtCaseNumber": "Expediente Mercantil 733/2026",
+  "relatedFileNumbers": [
+    "Escritura Pública 41,207, Notaría 118 de Culiacán (Acta Constitutiva)",
+    "Escritura Pública 44,982, Notaría 22 de Culiacán (Poder Notarial)",
+    "Folio de publicación PSM-SE-2025-0098173 (Secretaría de Economía)"
+  ],
+  "jurisdiction": "Sinaloa",
+  "fuero": "comun",
+  "state": "Sinaloa",
+  "municipality": "Culiacán",
+  "judicialDistrict": "Distrito Judicial de Culiacán",
+  "courtName": "Juzgado Segundo de Primera Instancia del Ramo Mercantil de Culiacán, Sinaloa",
+  "courtType": "Juzgado Mercantil de Primera Instancia",
+  "competentAuthority": "Poder Judicial del Estado de Sinaloa",
+  "assignedJudge": "Lic. Perla Anahí Domínguez Larrañaga, Jueza Segunda de Primera Instancia del Ramo Mercantil",
+  "courtClerk": "Lic. Óscar Iván Beltrán Higuera, Secretario de Acuerdos",
+  "filingDate": "2026-03-09",
+  "proceduralStage": "Cierre de instrucción; citación para sentencia definitiva (art. 1390 Bis 43 del Código de Comercio)",
+  "nextHearingDate": "2026-08-31",
+  "parties": [
+    { "role": "Actor / Accionista minoritario", "name": "Ing. Ramón Eduardo Zazueta Beltrán", "detail": "Accionista con 40% original del capital social, diluido a 13.33%; ingeniero agrónomo" },
+    { "role": "Demandada / Sociedad", "name": "AgroTecnia del Pacífico, S.A. de C.V.", "detail": "Sociedad de agrotecnología con domicilio en Boulevard Agricultura 4180, Culiacán, Sinaloa" },
+    { "role": "Demandado / Administrador Único", "name": "Braulio Alonso Ibarra Concha", "detail": "Administrador Único desde la constitución; sujeto a acción social de responsabilidad" },
+    { "role": "Demandada / Accionista mayoritaria", "name": "Yolanda Guadalupe Rentería Salcido", "detail": "Beneficiaria del aumento de capital impugnado; participación incrementada a 80%" },
+    { "role": "Comisario", "name": "C.P. Fidencio Armando Loaiza Tirado", "detail": "Órgano de vigilancia de la sociedad; no convocado a la asamblea impugnada" },
+    { "role": "Perito tercero en discordia", "name": "C.P.C. Leonel Efraín Camacho Verdín", "detail": "Perito contable designado por el juzgado, lista oficial del Poder Judicial de Sinaloa" },
+    { "role": "Apoderada de la parte actora", "name": "Lic. Cynthia Marlene Osuna Verdugo", "detail": "Cédula profesional 8934071" },
+    { "role": "Apoderado de la parte demandada", "name": "Lic. Ezequiel Armando Palazuelos Grijalva", "detail": "Representante de AgroTecnia del Pacífico y de Braulio Alonso Ibarra Concha" }
+  ],
+  "attorneysOfRecord": ["Lic. Cynthia Marlene Osuna Verdugo, cédula profesional 8934071"],
+  "opposingCounsel": ["Lic. Ezequiel Armando Palazuelos Grijalva"],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 18450000,
+  "legalAuthorities": [
+    "Ley General de Sociedades Mercantiles, arts. 132, 161, 163, 178, 181, 186, 188, 190, 194, 200, 201, 205 y 206",
+    "Código de Comercio, arts. 1168 a 1181 (medidas cautelares) y 1390 Bis a 1390 Bis 49 (juicio oral mercantil)",
+    "Código de Comercio, arts. 1205 y 1298-A (valoración de pruebas electrónicas)",
+    "Código Civil Federal, art. 2554 (poder general para pleitos y cobranzas)",
+    "Jurisprudencia y tesis en materia de nulidad de asambleas de accionistas y protección de socios minoritarios",
+    "Convenio entre Accionistas de AgroTecnia del Pacífico, S.A. de C.V. de fecha 14 de enero de 2023 (pacto parasocial)"
+  ],
+  "fictional": true
+}
