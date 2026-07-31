@@ -31,7 +31,17 @@ export class VoiceProviderError extends Error {
 export function isRotatableError(status: number, bodyText: string): boolean {
   if (status === 401 || status === 403) return true; // bad/revoked key
   if (status === 402) return true; // payment required / out of credits
-  if (status === 429 && /insufficient_quota|quota exceeded/i.test(bodyText)) return true; // hard quota, not a soft rate limit
+  // Groq/OpenAI phrase hard-quota 429s as "insufficient_quota" / "quota
+  // exceeded". Gemini phrases the identical condition differently —
+  // "You exceeded your current quota..." plus a RESOURCE_EXHAUSTED status —
+  // so both forms need to match or Gemini's quota errors get treated as
+  // non-rotatable and rotation stops after the first key instead of trying
+  // the next one.
+  if (
+    status === 429 &&
+    /insufficient_quota|quota exceeded|exceeded your current quota|resource_exhausted/i.test(bodyText)
+  )
+    return true; // hard quota, not a soft rate limit
   return false;
 }
 
@@ -103,7 +113,11 @@ export async function transcribeAudio(args: TranscribeArgs): Promise<string> {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new VoiceProviderError(`Groq STT ${res.status}: ${body.slice(0, 300)}`, res.status, isRotatableError(res.status, body));
+      throw new VoiceProviderError(
+        `Groq STT ${res.status}: ${body.slice(0, 300)}`,
+        res.status,
+        isRotatableError(res.status, body),
+      );
     }
     const json = (await res.json().catch(() => ({}))) as { text?: string };
     return json.text ?? "";
@@ -122,7 +136,11 @@ export async function transcribeAudio(args: TranscribeArgs): Promise<string> {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new VoiceProviderError(`OpenAI STT ${res.status}: ${body.slice(0, 300)}`, res.status, isRotatableError(res.status, body));
+      throw new VoiceProviderError(
+        `OpenAI STT ${res.status}: ${body.slice(0, 300)}`,
+        res.status,
+        isRotatableError(res.status, body),
+      );
     }
     const json = (await res.json().catch(() => ({}))) as { text?: string };
     return json.text ?? "";
@@ -149,7 +167,11 @@ export async function transcribeAudio(args: TranscribeArgs): Promise<string> {
   );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new VoiceProviderError(`Gemini STT ${res.status}: ${body.slice(0, 300)}`, res.status, isRotatableError(res.status, body));
+    throw new VoiceProviderError(
+      `Gemini STT ${res.status}: ${body.slice(0, 300)}`,
+      res.status,
+      isRotatableError(res.status, body),
+    );
   }
   const json = (await res.json().catch(() => ({}))) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -164,7 +186,17 @@ export async function transcribeAudio(args: TranscribeArgs): Promise<string> {
 // ash, ballad, coral, verse) already match the platform's existing UI voice
 // ids one-to-one — gpt-4o-mini-tts supports all 11. No mapping needed.
 const OPENAI_VALID_VOICES = new Set([
-  "alloy", "nova", "shimmer", "echo", "fable", "onyx", "sage", "ash", "ballad", "coral", "verse",
+  "alloy",
+  "nova",
+  "shimmer",
+  "echo",
+  "fable",
+  "onyx",
+  "sage",
+  "ash",
+  "ballad",
+  "coral",
+  "verse",
 ]);
 
 // Gemini's prebuilt voices use entirely different names. Best-effort map
@@ -212,7 +244,11 @@ export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new VoiceProviderError(`Groq TTS ${res.status}: ${body.slice(0, 300)}`, res.status, isRotatableError(res.status, body));
+      throw new VoiceProviderError(
+        `Groq TTS ${res.status}: ${body.slice(0, 300)}`,
+        res.status,
+        isRotatableError(res.status, body),
+      );
     }
     return await res.arrayBuffer();
   }
@@ -231,7 +267,11 @@ export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new VoiceProviderError(`OpenAI TTS ${res.status}: ${body.slice(0, 300)}`, res.status, isRotatableError(res.status, body));
+      throw new VoiceProviderError(
+        `OpenAI TTS ${res.status}: ${body.slice(0, 300)}`,
+        res.status,
+        isRotatableError(res.status, body),
+      );
     }
     return await res.arrayBuffer();
   }
@@ -255,7 +295,11 @@ export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
   );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new VoiceProviderError(`Gemini TTS ${res.status}: ${body.slice(0, 300)}`, res.status, isRotatableError(res.status, body));
+    throw new VoiceProviderError(
+      `Gemini TTS ${res.status}: ${body.slice(0, 300)}`,
+      res.status,
+      isRotatableError(res.status, body),
+    );
   }
   const json = (await res.json().catch(() => ({}))) as {
     candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string } }> } }>;
