@@ -15,6 +15,10 @@ Cada carpeta corresponde a un área de práctica mexicana registrada en
 - `civil/` — Derecho Civil (CCF, CFPC)
 - `familiar/` — Derecho Familiar (CCF, códigos estatales)
 - `mercantil/` — Derecho Mercantil (CCom, LGSM, LGTOC)
+- `inmobiliario/` — Derecho Inmobiliario y Notarial
+- `benchmark_faro_penal/` — Benchmark penal (Quintana Roo)
+- `benchmark_faro_amparo/` — Benchmark de amparo indirecto (federal)
+- `benchmark_chiapas_familiar/` — Benchmark familiar (Chiapas, 15 documentos)
 
 Cada corpus contiene documentos plausibles (carpetas de investigación,
 demandas, contestaciones, actas, dictámenes, testimoniales) con partes
