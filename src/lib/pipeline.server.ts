@@ -3879,20 +3879,24 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
     status_message: "Building litigation intelligence",
     progress: 20,
   });
+  // 2026-07-31: theory/strategy/opportunity removed from this list. They
+  // were being deleted here immediately after ensureRequiredEngines() (the
+  // auto-backfill, one call above) had just written fresh success rows for
+  // them — so the pre-flight gate inside _runReportInner, which re-queries
+  // this same table, always found them missing and reported "failed to
+  // complete even after auto-backfill" even when they'd genuinely just
+  // succeeded. Confirmed against a real case: pipeline_trace showed all
+  // three completing cleanly (twice — original run and backfill retry),
+  // but pipeline_engine_runs had zero rows for them at gate-check time.
+  // This delete is for *report-tier* rows only — the engines that are
+  // about to run fresh as part of THIS report-generation attempt
+  // (report_generator itself, plus the downstream QA/validator engines) —
+  // not the upstream analysis engines that just fed it.
   await db
     .from("pipeline_engine_runs")
     .delete()
     .eq("case_id", caseId)
-    .in("engine", [
-      "report_generator",
-      "theory",
-      "strategy",
-      "opportunity",
-      "motion",
-      "ess_validator",
-      "claim_validator",
-      "report_validator",
-    ]);
+    .in("engine", ["report_generator", "motion", "ess_validator", "claim_validator", "report_validator"]);
   return runEngine(db, { caseId, userId, engine: "report_generator" }, async () =>
     _runReportInner({ ...args, pipelineWarnings, forceFinalize }),
   );
