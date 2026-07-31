@@ -64,6 +64,29 @@ function pickMime(): string | null {
   return null;
 }
 
+// Strip markdown so the voice doesn't read "asterisk asterisk" and hash
+// signs aloud, and cap the utterance so one turn stays conversational.
+function speakableText(raw: string): string {
+  const clean = raw
+    .replace(/\[\[RERUN_SUGGESTED:[^\]]*\]\]/g, "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^\s*[-*•]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*\*|__|\*|_|`|>/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\n/g, " ")
+    .trim();
+  const MAX = 700;
+  if (clean.length <= MAX) return clean;
+  const cut = clean.lastIndexOf(". ", MAX);
+  return clean.slice(0, cut > 200 ? cut + 1 : MAX).trim();
+}
+
+
+
 function StageRow({ label, stage, hint }: { label: string; stage: Stage; hint?: string }) {
   const icon =
     stage === "ok" ? (
@@ -559,7 +582,9 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
       setDiag((d) => ({ ...d, stt: "ok", transcript }));
 
       setDiag((d) => ({ ...d, ai: "running" }));
-      const aiResult = (await ask({ data: { caseId, question: transcript, locale } })) as { answer?: string } | string;
+      const aiResult = (await ask({ data: { caseId, question: transcript, locale, voiceMode: true } })) as
+        | { answer?: string }
+        | string;
       const reply = typeof aiResult === "string" ? aiResult : (aiResult?.answer ?? "");
       if (!reply.trim()) {
         setStatus("error");
@@ -587,7 +612,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
           Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          text: reply,
+          text: speakableText(reply),
           voice: prefs.voice_id,
           speed: prefs.voice_speed,
           instructions: instructionsFor(),

@@ -1273,6 +1273,9 @@ export const askCaseAi = createServerFn({ method: "POST" })
         // toggle). Optional for backward compatibility with older clients —
         // falls back to the case's stored report_language when omitted.
         locale: z.enum(["es", "en"]).optional(),
+        // Voice Companion turn — reply is spoken aloud, so ask for a short
+        // plain-speech answer instead of a markdown brief.
+        voiceMode: z.boolean().optional(),
       })
       .parse(d),
   )
@@ -1295,6 +1298,7 @@ export const askCaseAi = createServerFn({ method: "POST" })
       apiKeys: keys,
       question: data.question,
       locale: data.locale,
+      voiceMode: data.voiceMode,
     });
   });
 

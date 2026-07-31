@@ -382,8 +382,12 @@ export async function answerCaseQuestion(args: {
   // when the report was generated. Falls back to that stored report
   // locale only when the client didn't send one (older clients).
   locale?: "es" | "en";
+  // Voice Companion turns are spoken aloud, not read. Long markdown answers
+  // are unusable as speech (dozens of TTS chunks, minutes of monologue), so
+  // voice mode asks for a short conversational reply with no markdown.
+  voiceMode?: boolean;
 }) {
-  const { db, caseId, userId, apiKey, apiKeys, question } = args;
+  const { db, caseId, userId, apiKey, apiKeys, question, voiceMode } = args;
 
   // Persist user message
   await db.from("case_chat_messages").insert({
@@ -438,7 +442,11 @@ ABSOLUTE RULES — VIOLATION IS A CRITICAL FAILURE:
 
 7. REPORT UPDATE SIGNAL. If — and only if — this exchange resolves something the report already flags as missing, wrong, or unresolved (a newly uploaded document fills a documented evidence gap; the attorney corrects a fact the report got wrong; a flagged contradiction gets clarified with new information) — end your reply with exactly one line, after everything else, in this exact format: [[RERUN_SUGGESTED: <one sentence, under 25 words, naming what changed>]]. Do not include this line for ordinary questions, hypotheticals, requests for explanation, or anything that doesn't change the underlying case record. Never mention this marker to the user or explain that you're adding it — it is stripped before display.
 
-OUTPUT FORMAT: Markdown. Concise. Concrete. Attorney-grade. Use Nyrava Intelligence terminology (Evidence Intelligence, Witness Intelligence, Motion Intelligence) — never "AI" language. Write like a senior litigator, direct and confident, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to".`,
+${
+  voiceMode
+    ? `OUTPUT FORMAT — SPOKEN CONVERSATION: Your reply is read aloud by a voice. Plain speech only: NO markdown, no headings, no asterisks, no bullet lists, no numbered lists, no brackets, no filenames unless the attorney asked for one. Maximum 3 short sentences (about 60 words). Speak like a colleague on a phone call: answer the question directly, then ask one short follow-up question to keep the conversation going. Never dump a case summary unless explicitly asked, and even then keep it to three sentences.`
+    : `OUTPUT FORMAT: Markdown. Concise. Concrete. Attorney-grade. Use Nyrava Intelligence terminology (Evidence Intelligence, Witness Intelligence, Motion Intelligence) — never "AI" language. Write like a senior litigator, direct and confident, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to".`
+}`,
 
       userContent: `CASE INTELLIGENCE:
 ${ctx}
