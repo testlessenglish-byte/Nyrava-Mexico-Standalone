@@ -1862,9 +1862,9 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
   const scores = getScores(getReportRow(data));
   const gauges: Array<{ label: string; value: number; color: [number, number, number] }> = [];
   if (typeof scores.strength === "number")
-    gauges.push({ label: "Case Strength", value: scores.strength, color: b.scoreColor(scores.strength) });
+    gauges.push({ label: rt("Case Strength"), value: scores.strength, color: b.scoreColor(scores.strength) });
   if (typeof scores.risk === "number")
-    gauges.push({ label: "Risk Score", value: scores.risk, color: b.scoreColor(scores.risk, true) });
+    gauges.push({ label: rt("Risk Score"), value: scores.risk, color: b.scoreColor(scores.risk, true) });
   // Compact horizontal strip — the cover page already renders these same
   // numbers as prominent radial gauges. Repeating a second large radial
   // widget one page later was pure visual repetition; the compact strip
@@ -2578,7 +2578,7 @@ function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {
     // repeat here creates visual repetition; the strip preserves the
     // number and its color coding without another full-height widget.
     b.compactScoreStrip([
-      { label: "Risk Score", value: Number(r.risk_score), color: b.scoreColor(Number(r.risk_score), true) },
+      { label: rt("Risk Score"), value: Number(r.risk_score), color: b.scoreColor(Number(r.risk_score), true) },
     ]);
   }
   if (risk) b.text(risk, { size: 10.5, gap: 8 });
