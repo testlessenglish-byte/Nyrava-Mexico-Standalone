@@ -210,10 +210,10 @@ export const Route = createFileRoute("/api/voice/speak")({
         let gatewayError = "";
         try {
           const gatewayChunks: ArrayBuffer[] = [];
-          for (const chunk of chunks) {
+          for (const chunk of chunkText(input, GATEWAY_CHUNK_LIMIT)) {
             gatewayChunks.push(await speakViaGateway(chunk, resolvedVoice));
           }
-          if (gatewayChunks.length === chunks.length && chunks.length > 0) {
+          if (gatewayChunks.length > 0) {
             console.warn("[voice/speak] served via platform gateway fallback");
             return new Response(concatWav(gatewayChunks), { headers: { "Content-Type": "audio/wav" } });
           }
@@ -221,6 +221,7 @@ export const Route = createFileRoute("/api/voice/speak")({
           gatewayError = err instanceof Error ? err.message : String(err);
           console.warn(`[voice/speak] gateway fallback failed: ${gatewayError}`);
         }
+
 
         if (attempts.length === 0) {
           return new Response(
