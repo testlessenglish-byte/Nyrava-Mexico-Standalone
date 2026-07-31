@@ -165,6 +165,7 @@ export interface VoiceChain {
 export async function resolveVoiceProviderChain(db: Db, userId: string): Promise<VoiceChain> {
   const groups: VoiceProviderGroup[] = [];
   let userKeyCount = 0;
+  const providersWithUserKeys = new Set<VoiceProvider>();
 
   for (const provider of VOICE_PROVIDERS) {
     const { keys, keyIds, userKeyCount: count } = await resolveProviderKeys(db, userId, provider);
@@ -173,26 +174,36 @@ export async function resolveVoiceProviderChain(db: Db, userId: string): Promise
     // the user has none for that specific provider — that's the wrong shape
     // here (it would insert a platform key into the middle of the chain
     // ahead of a *different* provider's real user key). Strip platform-only
-    // entries at this stage; platform fallback is re-added below, once,
-    // only if the user has literally zero keys across ALL voice providers.
+    // entries at this stage; platform fallback for EVERY provider (used or
+    // not) is added in one pass below instead, after all real user keys.
     const userOnlyKeys = keys.filter((_, i) => keyIds[i] !== null);
     const userOnlyKeyIds = keyIds.filter((id) => id !== null);
     if (userOnlyKeys.length > 0) {
       groups.push({ provider, keys: userOnlyKeys, keyIds: userOnlyKeyIds });
+      providersWithUserKeys.add(provider);
     }
   }
 
+  // Platform fallback used to be all-or-nothing: it only kicked in when the
+  // user had ZERO keys across every voice provider. That meant an account
+  // with, say, two exhausted Gemini keys and no Groq/OpenAI keys had no
+  // fallback at all — the presence of ANY user key (even a fully quota-
+  // exhausted one) silently blocked the platform key from ever being tried,
+  // for every OTHER provider too. Fixed: append a platform key for each
+  // voice provider the user has no active key for, regardless of what they
+  // do have configured for a different provider — same as how routeAI's
+  // server_secret_fallback already behaves for text chat. This only reads
+  // the same per-provider env vars already used elsewhere in this file
+  // (GROQ_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY) — never the Lovable AI
+  // Gateway key.
   let hasPlatform = false;
-  if (groups.length === 0) {
-    // No active key for any voice-capable provider — fall back to whatever
-    // platform env keys exist, same providers, same order.
-    for (const provider of VOICE_PROVIDERS) {
-      const envVar = { groq: "GROQ_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[provider];
-      const platformKey = process.env[envVar];
-      if (platformKey) {
-        hasPlatform = true;
-        groups.push({ provider, keys: [platformKey], keyIds: [null] });
-      }
+  for (const provider of VOICE_PROVIDERS) {
+    if (providersWithUserKeys.has(provider)) continue;
+    const envVar = { groq: "GROQ_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[provider];
+    const platformKey = process.env[envVar];
+    if (platformKey) {
+      hasPlatform = true;
+      groups.push({ provider, keys: [platformKey], keyIds: [null] });
     }
   }
 
