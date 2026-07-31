@@ -682,20 +682,34 @@ function SummaryTile({
   label,
   value,
   tint,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
   tint: keyof typeof TINTS;
+  onClick?: () => void;
 }) {
-  return (
-    <div className={`rounded-xl border bg-gradient-to-br p-3 ${TINTS[tint]}`}>
+  const inner = (
+    <>
       <Icon className="h-4 w-4 opacity-80" />
       <div className="mt-1 text-2xl font-bold tabular-nums text-white">{value}</div>
       <div className="text-[11px] uppercase tracking-wider opacity-80">{label}</div>
-    </div>
+    </>
+  );
+  const base = `rounded-xl border bg-gradient-to-br p-3 ${TINTS[tint]}`;
+  if (!onClick) return <div className={base}>{inner}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${base} w-full text-left transition hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50`}
+    >
+      {inner}
+    </button>
   );
 }
+
 
 function MiniBadge({
   icon: Icon,
