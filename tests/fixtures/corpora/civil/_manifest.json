@@ -1,0 +1,50 @@
+{
+  "title": "Ordinario Civil 587/2026 — Villaseñor Padilla vs. Constructora Bajío Integral",
+  "description": "Juicio ordinario civil por incumplimiento de contrato de obra a precio alzado, rescisión, devolución de anticipo y pago de daños y perjuicios respecto de la casa habitación ubicada en Fraccionamiento Puerta del Sol, León, Guanajuato. La actora reclama vicios ocultos estructurales, retraso de 214 días naturales sobre la fecha pactada de entrega y sobrefacturación de conceptos no ejecutados. La demandada contesta negando la mora, opone excepción de contrato no cumplido por falta de pago de la tercera ministración y reconviene el pago de estimaciones 7 y 8. El expediente contiene contrato, bitácora de obra, estimaciones, dictamen pericial en ingeniería civil, acta de audiencia de desahogo de pruebas y dos testimoniales. Existen discrepancias entre la bitácora de obra y las estimaciones cobradas, y entre la fecha de suspensión de obra declarada por el residente y la asentada en el acta notarial.",
+  "caseType": "civil",
+  "practiceArea": "Derecho Civil",
+  "subPracticeArea": "Contratos de obra — rescisión y responsabilidad civil contractual",
+  "internalMatterNumber": "NYR-MX-2026-0104",
+  "courtCaseNumber": "Expediente 587/2026",
+  "relatedFileNumbers": [
+    "Acta fuera de protocolo 3,417 del Notario Público 41 de León",
+    "Queja PROFECO GTO/LEO/Q/2026/03318"
+  ],
+  "jurisdiction": "Guanajuato",
+  "fuero": "comun",
+  "state": "Guanajuato",
+  "municipality": "León",
+  "judicialDistrict": "Partido Judicial de León",
+  "courtName": "Juzgado Cuarto Civil de Partido de León, Guanajuato",
+  "courtType": "Juzgado Civil de Partido",
+  "competentAuthority": "Poder Judicial del Estado de Guanajuato",
+  "assignedJudge": "Lic. Sandra Leticia Muñoz Arredondo, Jueza Cuarta Civil de Partido",
+  "courtClerk": "Lic. Joel Antonio Rocha Vidales, Secretario de Acuerdos",
+  "filingDate": "2026-03-05",
+  "proceduralStage": "Desahogo de pruebas concluido; pendiente de alegatos y citación para sentencia",
+  "nextHearingDate": "2026-06-25",
+  "parties": [
+    { "role": "Actora", "name": "Alejandra Villaseñor Padilla", "detail": "Propietaria del predio; domicilio en Circuito Puerta del Sol 114, León, Gto." },
+    { "role": "Demandada / Reconvencionista", "name": "Constructora Bajío Integral, S.A. de C.V.", "detail": "Representada por Ing. Rogelio Efrén Marroquín Sepúlveda, administrador único" },
+    { "role": "Residente de obra", "name": "Ing. Fabián Isaac Trejo Olmedo", "detail": "Responsable de la bitácora de obra" },
+    { "role": "Director Responsable de Obra", "name": "Arq. Norma Angélica Duarte Cervera", "detail": "Registro DRO-LEO-0912" },
+    { "role": "Perito tercero en discordia", "name": "Ing. Salvador Emmanuel Ruvalcaba Nieto", "detail": "Perito en ingeniería civil y estructuras, lista oficial del Poder Judicial del Estado de Guanajuato" },
+    { "role": "Testigo", "name": "Griselda Marisol Ponce Andrade", "detail": "Vecina colindante, Circuito Puerta del Sol 116" },
+    { "role": "Testigo", "name": "Juan Pablo Segoviano Ledezma", "detail": "Maestro albañil subcontratado en la etapa de losas" }
+  ],
+  "attorneysOfRecord": ["Lic. Mariana Estela Cuéllar Aguiñaga, cédula profesional 7712408"],
+  "opposingCounsel": ["Lic. Gerardo Nicolás Bustamante Ávila, cédula profesional 5183966"],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "medio",
+  "estimatedValueMxn": 2870000,
+  "legalAuthorities": [
+    "Código Civil para el Estado de Guanajuato, arts. 1288, 1291, 1394, 1400, 1774, 1799, 2027, 2059 y 2072",
+    "Código de Procedimientos Civiles para el Estado de Guanajuato, arts. 48, 82, 92, 306, 320, 375 y 404",
+    "Código Civil Federal, arts. 1949 y 2634 (aplicación supletoria doctrinal)",
+    "Ley de Fraccionamientos y Reglamento de Construcciones del Municipio de León",
+    "NMX-C-155-ONNCCE-2014 (concreto hidráulico) y NMX-C-111-ONNCCE",
+    "Tesis 1a./J. 62/2018 (10a.) — daños y perjuicios, prueba del nexo causal"
+  ],
+  "fictional": true
+}
