@@ -135,3 +135,84 @@ export function maskKey(key: string): string {
   if (key.length <= 10) return "•".repeat(key.length);
   return `${key.slice(0, 4)}…${key.slice(-4)}`;
 }
+
+// ---------------------------------------------------------------------------
+// Voice (STT/TTS) provider chain
+// ---------------------------------------------------------------------------
+// Text chat/pipeline gets real cross-provider fallback through routeAI()'s
+// loadUserProviderKeyGroups(). Voice previously called resolveProviderKeys()
+// with the provider hardcoded to "groq", so any account without a Groq key
+// failed outright even with working OpenAI/Gemini keys configured. This is
+// the voice equivalent: every active key the user has for a voice-capable
+// provider, grouped by provider (all of one provider's keys tried before
+// moving to the next), ordered by priority/created_at — same rotation
+// contract as resolveProviderKeys, just spanning providers instead of one.
+export type VoiceProvider = "groq" | "openai" | "gemini";
+export const VOICE_PROVIDERS: VoiceProvider[] = ["groq", "openai", "gemini"];
+
+export interface VoiceProviderGroup {
+  provider: VoiceProvider;
+  keys: string[];
+  keyIds: (string | null)[];
+}
+
+export interface VoiceChain {
+  groups: VoiceProviderGroup[];
+  userKeyCount: number;
+  hasPlatform: boolean;
+}
+
+export async function resolveVoiceProviderChain(db: Db, userId: string): Promise<VoiceChain> {
+  const groups: VoiceProviderGroup[] = [];
+  let userKeyCount = 0;
+
+  for (const provider of VOICE_PROVIDERS) {
+    const { keys, keyIds, userKeyCount: count } = await resolveProviderKeys(db, userId, provider);
+    userKeyCount += count;
+    // resolveProviderKeys() already appends a platform-env fallback key when
+    // the user has none for that specific provider — that's the wrong shape
+    // here (it would insert a platform key into the middle of the chain
+    // ahead of a *different* provider's real user key). Strip platform-only
+    // entries at this stage; platform fallback is re-added below, once,
+    // only if the user has literally zero keys across ALL voice providers.
+    const userOnlyKeys = keys.filter((_, i) => keyIds[i] !== null);
+    const userOnlyKeyIds = keyIds.filter((id) => id !== null);
+    if (userOnlyKeys.length > 0) {
+      groups.push({ provider, keys: userOnlyKeys, keyIds: userOnlyKeyIds });
+    }
+  }
+
+  let hasPlatform = false;
+  if (groups.length === 0) {
+    // No active key for any voice-capable provider — fall back to whatever
+    // platform env keys exist, same providers, same order.
+    for (const provider of VOICE_PROVIDERS) {
+      const envVar = { groq: "GROQ_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY" }[provider];
+      const platformKey = process.env[envVar];
+      if (platformKey) {
+        hasPlatform = true;
+        groups.push({ provider, keys: [platformKey], keyIds: [null] });
+      }
+    }
+  }
+
+  return { groups, userKeyCount, hasPlatform };
+}
+
+/**
+ * Flattens a VoiceChain into a single ordered list of (provider, key, keyId)
+ * attempts — one entry per key, providers grouped, ready for a simple
+ * for-loop with round-robin offset support (used by /api/voice/speak to
+ * keep using the same provider+key across chunks once one works).
+ */
+export function flattenVoiceChain(
+  chain: VoiceChain,
+): Array<{ provider: VoiceProvider; key: string; keyId: string | null }> {
+  const out: Array<{ provider: VoiceProvider; key: string; keyId: string | null }> = [];
+  for (const g of chain.groups) {
+    for (let i = 0; i < g.keys.length; i++) {
+      out.push({ provider: g.provider, key: g.keys[i], keyId: g.keyIds[i] });
+    }
+  }
+  return out;
+}
