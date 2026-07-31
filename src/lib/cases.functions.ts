@@ -678,8 +678,9 @@ export const PIPELINE_STAGES = [
   { key: "hallucination", label: "Hallucination Review" },
   { key: "scoring", label: "Score Case" },
   { key: "legal_qa", label: "Legal Quality Control" },
-  { key: "report", label: "Generate Report" },
   { key: "multi_agent", label: "Multi-Agent Review (13 Agents)" },
+  { key: "report", label: "Generate Report" },
+
 ] as const;
 export type PipelineStageKey = (typeof PIPELINE_STAGES)[number]["key"];
 
