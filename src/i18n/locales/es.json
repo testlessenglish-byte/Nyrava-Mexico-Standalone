@@ -1785,6 +1785,8 @@
   "trace.resume": "Reanudar",
   "trace.showAll": "Mostrar todos los eventos",
   "trace.title": "Modo depuración en vivo",
+  "voiceCompanion.error.autoplayOff": "La respuesta hablada está desactivada — activa \"Auto-speak responses\" en Cuenta para escuchar las respuestas.",
+  "voiceCompanion.error.muted": "La voz está silenciada en Cuenta — las respuestas serán solo texto.",
   "voiceCompanion.error.authInvalid": "La clave de {provider} no es válida o expiró. Revísela en Cuenta → Proveedores de Inteligencia.",
   "voiceCompanion.error.noProvider": "No hay un proveedor de IA configurado para voz. Agregue una clave de Groq, OpenAI o Gemini en Cuenta → Proveedores de Inteligencia.",
   "voiceCompanion.error.noSpeech": "No se detectó voz — inténtelo de nuevo.",

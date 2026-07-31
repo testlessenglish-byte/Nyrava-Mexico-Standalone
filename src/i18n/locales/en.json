@@ -1785,6 +1785,8 @@
   "trace.resume": "Resume",
   "trace.showAll": "Show all events",
   "trace.title": "Live debug mode",
+  "voiceCompanion.error.autoplayOff": "Auto-speak is off — turn on \"Auto-speak responses\" in Account to hear replies.",
+  "voiceCompanion.error.muted": "Voice is muted in Account — replies are text-only.",
   "voiceCompanion.error.authInvalid": "The {provider} key is invalid or expired. Check it in Account → Intelligence Providers.",
   "voiceCompanion.error.noProvider": "No AI provider is set up for voice. Add a Groq, OpenAI, or Gemini key in Account → Intelligence Providers.",
   "voiceCompanion.error.noSpeech": "No speech detected — try again.",
