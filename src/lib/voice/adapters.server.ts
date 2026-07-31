@@ -54,8 +54,18 @@ export function isRotatableError(status: number, bodyText: string): boolean {
     )
   )
     return true;
+  // Request-shape rejections: the provider cannot accept THIS request (e.g.
+  // Groq's Orpheus only accepts its own voice names). Every key for that
+  // provider fails identically, but another provider can serve it — rotate
+  // rather than dead-ending the whole request.
+  if (
+    status === 400 &&
+    /voice must be one of|unsupported voice|invalid.*voice|invalid_request_error/i.test(bodyText)
+  )
+    return true;
   return false;
 }
+
 
 
 // ---------------------------------------------------------------------------
