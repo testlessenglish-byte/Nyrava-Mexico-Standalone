@@ -244,8 +244,9 @@ export const Route = createFileRoute("/api/voice/speak")({
               providersAvailable: [...new Set(attempts.map((a) => a.provider))],
               triedCount,
               lastProvider,
-              chunkCount: chunks.length,
-              chunksCompleted: audioChunks.length,
+              chunkCount,
+              chunksCompleted,
+
               gatewayError,
 
             },
