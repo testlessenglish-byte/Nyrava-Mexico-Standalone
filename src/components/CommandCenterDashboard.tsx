@@ -290,13 +290,50 @@ export function CommandCenterDashboard({
         </div>
       </div>
 
-      {/* ============ INTELLIGENCE SUMMARY (5 tiles) ============ */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <SummaryTile icon={FileText} label={t("cc.tile.documents")} value={documentsCount} tint="cyan" />
-        <SummaryTile icon={ShieldAlert} label={t("cc.tile.evidence")} value={counts.evidence + counts.findings} tint="emerald" />
-        <SummaryTile icon={Users} label={t("cc.tile.witnesses")} value={counts.witnesses} tint="violet" />
-        <SummaryTile icon={AlertTriangle} label={t("cc.tile.contradictions")} value={counts.contradictions} tint="amber" />
-        <SummaryTile icon={Target} label={t("cc.tile.gaps")} value={counts.missing_evidence} tint="rose" />
+      {/* ============ INTELLIGENCE SUMMARY ============ */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <SummaryTile
+          icon={FileText}
+          label={t("cc.tile.documents")}
+          value={documentsCount}
+          tint="cyan"
+          onClick={onOpenTab ? () => onOpenTab("intel") : undefined}
+        />
+        <SummaryTile
+          icon={Sparkles}
+          label={t("cc.tile.findings")}
+          value={findingsTotal}
+          tint="amber"
+          onClick={onOpenTab ? () => onOpenTab("findings") : undefined}
+        />
+        <SummaryTile
+          icon={ShieldAlert}
+          label={t("cc.tile.evidence")}
+          value={counts.evidence + counts.findings}
+          tint="emerald"
+          onClick={onOpenTab ? () => onOpenTab("evidence") : undefined}
+        />
+        <SummaryTile
+          icon={Users}
+          label={t("cc.tile.witnesses")}
+          value={witnessesTotal}
+          tint="violet"
+          onClick={onOpenTab ? () => onOpenTab("witnesses") : undefined}
+        />
+        <SummaryTile
+          icon={AlertTriangle}
+          label={t("cc.tile.contradictions")}
+          value={counts.contradictions}
+          tint="amber"
+          onClick={onOpenTab ? () => onOpenTab("analyzers") : undefined}
+        />
+        <SummaryTile
+          icon={Target}
+          label={t("cc.tile.gaps")}
+          value={counts.missing_evidence}
+          tint="rose"
+          onClick={onOpenTab ? () => onOpenTab("analyzers") : undefined}
+        />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -305,6 +342,7 @@ export function CommandCenterDashboard({
         <MiniBadge icon={Radar} label={t("cc.tile.timeline")} value={counts.timeline_events} />
         <MiniBadge icon={Activity} label={t("cc.tile.constitutional")} value={counts.constitutional} />
       </div>
+
 
       {/* ============ ANALYSIS COMMAND CENTER ============ */}
       <div className="rounded-2xl border border-amber-400/15 bg-background/60 p-5">
