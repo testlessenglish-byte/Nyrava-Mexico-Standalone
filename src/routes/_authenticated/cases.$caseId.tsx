@@ -46,6 +46,7 @@ import { AttorneyAssistancePanel } from "@/components/AttorneyAssistancePanel";
 import { LivePipelinePanel } from "@/components/LivePipelinePanel";
 import { CommandCenterDashboard } from "@/components/CommandCenterDashboard";
 import { useI18n } from "@/i18n";
+import { scoreBand } from "@/lib/score-bands";
 import { MatterMetadataCard } from "@/components/MatterMetadataCard";
 import { PipelinePanel } from "@/components/PipelinePanel";
 import { CaseControlPanel } from "@/components/CaseControlPanel";
@@ -1167,21 +1168,28 @@ function StatTile({ label, value, accent }: { label: string; value: number; acce
 }
 
 function BigMetric({ label, v, inverse }: { label: string; v: number | null; inverse?: boolean }) {
+  const { t } = useI18n();
   const val = typeof v === "number" ? v : null;
-  const good = val == null ? false : inverse ? val < 40 : val >= 60;
-  const bad = val == null ? false : inverse ? val > 70 : val < 35;
-  const color = good ? "text-success" : bad ? "text-destructive" : "text-foreground";
+  const band = val == null ? null : scoreBand(val, inverse ? "risk" : "strength");
+  const color = band ? band.textClass : "text-foreground";
   return (
     <div>
       <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-baseline gap-1">
         <div className={`text-3xl font-semibold tabular-nums ${color}`}>{val ?? "—"}</div>
         {val != null && <div className="text-sm text-muted-foreground">/100</div>}
+        {band && (
+          <span
+            className={`ml-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${band.badgeClass}`}
+          >
+            {t(band.labelKey)}
+          </span>
+        )}
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div
-          className={`h-full ${good ? "bg-success" : bad ? "bg-destructive" : "bg-accent"}`}
-          style={{ width: `${val ?? 0}%` }}
+          className={band ? "h-full" : "h-full bg-accent"}
+          style={{ width: `${val ?? 0}%`, backgroundColor: band ? band.hex : undefined }}
         />
       </div>
     </div>
@@ -2337,26 +2345,21 @@ function Cite({ c }: { c: any }) {
 }
 
 function ScoreCard({ label, value, tone }: { label: string; value: number | null; tone: "good" | "risk" }) {
+  const { t } = useI18n();
   if (value == null) return null;
-  const color =
-    tone === "good"
-      ? value >= 70
-        ? "text-emerald-700"
-        : value >= 40
-          ? "text-amber-700"
-          : "text-red-700"
-      : value >= 70
-        ? "text-red-700"
-        : value >= 40
-          ? "text-amber-700"
-          : "text-emerald-700";
+  const band = scoreBand(value, tone === "risk" ? "risk" : "strength");
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-3xl font-bold ${color}`}>
+      <div className={`mt-1 flex items-baseline gap-2 text-3xl font-bold ${band.textClass}`}>
         {value}
         <span className="text-base font-normal text-muted-foreground">/100</span>
       </div>
+      <span
+        className={`mt-1.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${band.badgeClass}`}
+      >
+        {t(band.labelKey)}
+      </span>
     </div>
   );
 }

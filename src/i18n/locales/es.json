@@ -1912,5 +1912,9 @@
   "admin.billing.mp.table.event": "Evento",
   "admin.billing.mp.table.status": "Estado",
   "admin.billing.mp.table.detail": "Detalle",
-  "admin.billing.mp.table.received": "Recibido"
+  "admin.billing.mp.table.received": "Recibido",
+  "score.band.excellent": "Excelente",
+  "score.band.solid": "Sólido",
+  "score.band.moderate": "En Riesgo",
+  "score.band.critical": "Crítico"
 }

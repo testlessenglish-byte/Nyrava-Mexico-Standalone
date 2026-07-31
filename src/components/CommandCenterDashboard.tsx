@@ -35,6 +35,7 @@ import {
 import { useI18n } from "@/i18n";
 import { localizeActivityMessage } from "@/lib/activity-i18n";
 import { engineLabelKey, isStageRelevantForCaseType, stageKeyForEngine, statusLabelKey } from "@/lib/execution/mx-pipeline";
+import { scoreBand } from "@/lib/score-bands";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { COMMAND_CENTER_ENGINES } from "@/lib/execution/canonical";
 
@@ -223,26 +224,9 @@ export function CommandCenterDashboard({
 
   // Case score: prefer overall confidence; fall back to derived quality.
   const caseScore = Math.max(0, Math.min(100, Math.round((scores.strength ?? 0) || 100 - (scores.risk ?? 100))));
-  const scoreLabel =
-    caseScore >= 80
-      ? t("score.excellent")
-      : caseScore >= 65
-        ? t("score.strong")
-        : caseScore >= 50
-          ? t("score.moderate")
-          : caseScore > 0
-            ? t("score.developing")
-            : t("score.pending");
-  const scoreColor =
-    caseScore >= 80
-      ? "#34d399"
-      : caseScore >= 65
-        ? "#D8B36A"
-        : caseScore >= 50
-          ? "#fbbf24"
-          : caseScore > 0
-            ? "#fb923c"
-            : "#7a8f84";
+  const caseBand = scoreBand(caseScore);
+  const scoreLabel = caseScore > 0 ? t(caseBand.labelKey) : t("score.pending");
+  const scoreColor = caseScore > 0 ? caseBand.hex : "#7a8f84";
 
   const progressPct = engineRows.length > 0 ? execProgress.percent : Math.max(0, Math.min(100, progress ?? 0));
   const running =
