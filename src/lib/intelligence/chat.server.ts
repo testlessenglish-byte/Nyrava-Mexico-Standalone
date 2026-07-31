@@ -399,10 +399,24 @@ export async function answerCaseQuestion(args: {
 
   const locale = args.locale ?? (await getReportLocale(db, caseId));
 
-  const [{ ctx, corpus }, history] = await Promise.all([
+  // Voice turns are spoken, short, and latency-critical: a 14k-char case
+  // context plus 12 turns of history is the single biggest contributor to
+  // the pause between the attorney's question and hearing an answer. Voice
+  // mode reads a trimmed context and a shorter history window, which cuts
+  // prompt size (and time-to-first-token) roughly in half without changing
+  // what the model can cite for a short conversational reply.
+  const [built, history] = await Promise.all([
     buildChatContext(db, caseId, question),
-    db.from("case_chat_messages").select("role,content").eq("case_id", caseId).order("created_at").limit(12),
+    db
+      .from("case_chat_messages")
+      .select("role,content")
+      .eq("case_id", caseId)
+      .order("created_at")
+      .limit(voiceMode ? 6 : 12),
   ]);
+  const corpus = built.corpus;
+  const ctx = voiceMode && built.ctx.length > 6_000 ? `${built.ctx.slice(0, 6_000)}\n\n[...contexto abreviado para voz...]` : built.ctx;
+
 
   // Provider failure must never leave the conversation silent. Before this,
   // a rate-limited / unavailable provider chain threw out of this function
