@@ -1385,6 +1385,19 @@ async function _runPipelineForCase(
     });
   }
 
+  // Addendum §27 — cross-agent reasoning audit. Deliberately NOT one of the
+  // dependency-gated stages above: it's a final, out-of-band consistency
+  // pass over everything those stages produced, with zero AI calls and zero
+  // effect on completedStages/warnings/finalStatus below. Wrapped so a
+  // failure here can never turn a successful pipeline run into a failed one.
+  try {
+    const { runCrossAgentValidator } =
+      await import("@/lib/intelligence/cross-agent-validator.server");
+    await runCrossAgentValidator(supabase, { caseId: opts.caseId, userId });
+  } catch {
+    /* advisory only — never affects the pipeline's own result */
+  }
+
   trace("pipeline.finalized", {
     total_runtime_ms: Date.now() - runStart,
     final_status: finalStatus,

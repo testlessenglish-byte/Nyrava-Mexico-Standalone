@@ -816,6 +816,47 @@ export type Database = {
           },
         ]
       }
+      cross_agent_audit: {
+        Row: {
+          case_id: string
+          checks: Json
+          conflicts: Json
+          created_at: string
+          id: string
+          report_version: number | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          checks?: Json
+          conflicts?: Json
+          created_at?: string
+          id?: string
+          report_version?: number | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          checks?: Json
+          conflicts?: Json
+          created_at?: string
+          id?: string
+          report_version?: number | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cross_agent_audit_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_chat_messages: {
         Row: {
           case_id: string
@@ -1011,9 +1052,11 @@ export type Database = {
           category_key: string | null
           citation_quality: number | null
           confidence: number
+          confidence_dimensions: Json | null
           created_at: string
           derived_from_finding_ids: string[]
           description: string
+          rationale: Json | null
           evidence_refs: Json | null
           evidence_strength: number | null
           evidence_type: string | null
@@ -1053,9 +1096,11 @@ export type Database = {
           category_key?: string | null
           citation_quality?: number | null
           confidence?: number
+          confidence_dimensions?: Json | null
           created_at?: string
           derived_from_finding_ids?: string[]
           description: string
+          rationale?: Json | null
           evidence_refs?: Json | null
           evidence_strength?: number | null
           evidence_type?: string | null
@@ -1095,9 +1140,11 @@ export type Database = {
           category_key?: string | null
           citation_quality?: number | null
           confidence?: number
+          confidence_dimensions?: Json | null
           created_at?: string
           derived_from_finding_ids?: string[]
           description?: string
+          rationale?: Json | null
           evidence_refs?: Json | null
           evidence_strength?: number | null
           evidence_type?: string | null
@@ -2693,6 +2740,56 @@ export type Database = {
             columns: ["firm_id"]
             isOneToOne: false
             referencedRelation: "firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finding_version_snapshots: {
+        Row: {
+          canonical_finding_id: string | null
+          case_id: string
+          category: string
+          confidence: number
+          content_hash: string
+          created_at: string
+          finding_id: string
+          id: string
+          report_version: number
+          severity: string
+          title: string
+        }
+        Insert: {
+          canonical_finding_id?: string | null
+          case_id: string
+          category: string
+          confidence: number
+          content_hash: string
+          created_at?: string
+          finding_id: string
+          id?: string
+          report_version: number
+          severity: string
+          title: string
+        }
+        Update: {
+          canonical_finding_id?: string | null
+          case_id?: string
+          category?: string
+          confidence?: number
+          content_hash?: string
+          created_at?: string
+          finding_id?: string
+          id?: string
+          report_version?: number
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finding_version_snapshots_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
             referencedColumns: ["id"]
           },
         ]

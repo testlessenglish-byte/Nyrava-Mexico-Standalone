@@ -29,6 +29,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { Finding, NewFinding, Severity, AffectedParty } from "./types";
+import { deriveConfidenceDimensions, deriveRationale } from "./confidence-dimensions";
 import {
   applyEvidenceGate,
   getAnalysisMode,
@@ -85,7 +86,9 @@ function describeCorpus(
     ...(opts?.sameDocumentSetAsGeneration != null
       ? { same_document_set_as_generation: opts.sameDocumentSetAsGeneration }
       : {}),
-    ...(opts?.sameTextAsGeneration != null ? { same_text_as_generation: opts.sameTextAsGeneration } : {}),
+    ...(opts?.sameTextAsGeneration != null
+      ? { same_text_as_generation: opts.sameTextAsGeneration }
+      : {}),
   };
 }
 
@@ -138,7 +141,11 @@ async function buildCaseCorpus(db: Db, caseId: string): Promise<GroundingCorpus>
     .order("created_at", { ascending: true });
   const extracted = (docs ?? []).filter((d) => d.status === "extracted");
   return buildGroundingCorpus(
-    extracted.map((d) => ({ id: d.id as string, filename: d.filename, extracted_text: d.extracted_text })),
+    extracted.map((d) => ({
+      id: d.id as string,
+      filename: d.filename,
+      extracted_text: d.extracted_text,
+    })),
   );
 }
 
@@ -210,7 +217,10 @@ async function validateFindingsForCase(
 ): Promise<{ kept: NewFinding[]; audit: ValidationAudit }> {
   const audit: ValidationAudit = { input: rows.length, accepted: 0, rejected: 0, rejections: [] };
   if (rows.length === 0) return { kept: [], audit };
-  const [corpus, caseType] = await Promise.all([buildCaseCorpus(db, caseId), getLockedCaseType(db, caseId)]);
+  const [corpus, caseType] = await Promise.all([
+    buildCaseCorpus(db, caseId),
+    getLockedCaseType(db, caseId),
+  ]);
   const corpusFlat = corpus.docs.map((d) => d.pages.join("\n")).join("\n");
   const civil = isCivilCaseType(caseType);
   const kept: NewFinding[] = [];
@@ -239,13 +249,19 @@ async function validateFindingsForCase(
     // substantive detail (proper nouns, dates, dollar amounts, section
     // pinpoints). These match the recalibrated over-suppression policy:
     // suppress ONLY on missing citation, exact duplicate, or tautology.
-    const evRefs = (stripped.evidence_refs ?? []) as Array<{ quote?: string; doc_id?: string; document_id?: string }>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const evRefs = (stripped.evidence_refs ?? []) as Array<{
+      quote?: string;
+      doc_id?: string;
+      document_id?: string;
+    }>;
+
     const hasCitation =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       !!(stripped as any).source_quote ||
       evRefs.some(
         (e) =>
-          (typeof e.quote === "string" && e.quote.trim().length > 0) || typeof (e.document_id ?? e.doc_id) === "string",
+          (typeof e.quote === "string" && e.quote.trim().length > 0) ||
+          typeof (e.document_id ?? e.doc_id) === "string",
       );
     const highConfidence = typeof stripped.confidence === "number" && stripped.confidence >= 0.6;
     const substantive = SUBSTANTIVE_SIGNAL.test(`${stripped.title}\n${stripped.description}`);
@@ -257,7 +273,9 @@ async function validateFindingsForCase(
     // Rescue: if the finding is grounded/high-confidence/substantive, keep it
     // even when the dependency heuristic can't confirm a matching category —
     // the heuristic is coarse and was the main source of over-suppression.
-    const isDiscoveryGap = String(stripped.source_module ?? "").startsWith("engine:discovery:missing");
+    const isDiscoveryGap = String(stripped.source_module ?? "").startsWith(
+      "engine:discovery:missing",
+    );
     if (!isDiscoveryGap) {
       const dep = evidenceDependenciesSatisfied(blob, corpusFlat);
       if (!dep.ok && !rescueEligible) {
@@ -277,9 +295,11 @@ async function validateFindingsForCase(
     // filter — an unsourced violation claim is defamatory and never allowed.)
     if (VIOLATION_CLAIM.test(blob)) {
       const ev = (stripped.evidence_refs ?? []) as Array<{ quote?: string }>;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const hasQuote =
-        !!(stripped as any).source_quote || ev.some((e) => typeof e.quote === "string" && e.quote.trim().length > 0);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        !!(stripped as any).source_quote ||
+        ev.some((e) => typeof e.quote === "string" && e.quote.trim().length > 0);
       if (!hasQuote) {
         audit.rejections.push({ title: stripped.title, reason: "violation_claim_without_proof" });
         audit.rejected += 1;
@@ -287,7 +307,10 @@ async function validateFindingsForCase(
       }
       // Civil cases never allow Brady-violation claims regardless.
       if (civil && /\bbrady\b/i.test(blob)) {
-        audit.rejections.push({ title: stripped.title, reason: "criminal_terminology_in_civil_case" });
+        audit.rejections.push({
+          title: stripped.title,
+          reason: "criminal_terminology_in_civil_case",
+        });
         audit.rejected += 1;
         continue;
       }
@@ -390,7 +413,12 @@ function evidenceKeys(ev: unknown): string[] {
   const out: string[] = [];
   for (const e of ev as Array<Record<string, unknown>>) {
     const q = typeof e?.quote === "string" ? e.quote.trim().toLowerCase().slice(0, 120) : "";
-    const d = typeof e?.document_id === "string" ? e.document_id : typeof e?.doc_id === "string" ? e.doc_id : "";
+    const d =
+      typeof e?.document_id === "string"
+        ? e.document_id
+        : typeof e?.doc_id === "string"
+          ? e.doc_id
+          : "";
     if (q || d) out.push(`${d}::${q}`);
   }
   return out;
@@ -449,14 +477,20 @@ function dedupSemantically(rows: NewFinding[]): NewFinding[] {
       // elsewhere) already point to, so the merge must update that row
       // rather than spawn a fresh id. Its content (severity/confidence/
       // evidence) is still upgraded by the merge below.
-      const existingAnchor = cluster.find((c) => !!(c.metadata as Record<string, unknown> | undefined)?.__existing_id);
+      const existingAnchor = cluster.find(
+        (c) => !!(c.metadata as Record<string, unknown> | undefined)?.__existing_id,
+      );
       const rest = existingAnchor ? cluster.filter((c) => c !== existingAnchor) : null;
       const sortedBySeverity = [...cluster].sort(
-        (a, b) => (sevRank[String(a.severity ?? "info")] ?? 9) - (sevRank[String(b.severity ?? "info")] ?? 9),
+        (a, b) =>
+          (sevRank[String(a.severity ?? "info")] ?? 9) -
+          (sevRank[String(b.severity ?? "info")] ?? 9),
       );
       const winner = existingAnchor ?? sortedBySeverity[0];
       const losers = existingAnchor ? (rest as NewFinding[]) : sortedBySeverity.slice(1);
-      const mostSevereRank = Math.min(...cluster.map((c) => sevRank[String(c.severity ?? "info")] ?? 9));
+      const mostSevereRank = Math.min(
+        ...cluster.map((c) => sevRank[String(c.severity ?? "info")] ?? 9),
+      );
       const mostSevere = (Object.keys(sevRank) as Array<keyof typeof sevRank>).find(
         (k) => sevRank[k] === mostSevereRank,
       ) as NewFinding["severity"];
@@ -470,7 +504,10 @@ function dedupSemantically(rows: NewFinding[]): NewFinding[] {
         });
       const mergedRefs = [...((winner.evidence_refs ?? []) as unknown[]), ...newEvidence];
       const mergedDocIds = [
-        ...new Set([...(winner.source_doc_ids ?? []), ...losers.flatMap((l) => l.source_doc_ids ?? [])]),
+        ...new Set([
+          ...(winner.source_doc_ids ?? []),
+          ...losers.flatMap((l) => l.source_doc_ids ?? []),
+        ]),
       ];
       const mergedConfidence = losers.reduce(
         (conf, l) => mergeConfidence(conf, Number(l.confidence), newEvidence.length > 0),
@@ -492,7 +529,10 @@ function dedupSemantically(rows: NewFinding[]): NewFinding[] {
         source_doc_ids: mergedDocIds,
         metadata: {
           ...(w.metadata ?? {}),
-          merged_from: [...(Array.isArray(w.metadata?.merged_from) ? w.metadata.merged_from : []), ...mergedFrom],
+          merged_from: [
+            ...(Array.isArray(w.metadata?.merged_from) ? w.metadata.merged_from : []),
+            ...mergedFrom,
+          ],
           // Only set when a real merge happened (losers.length > 0) — lets
           // the caller distinguish "existing row, unchanged" (skip) from
           // "existing row, needs a DB update" without re-deriving it.
@@ -521,9 +561,9 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   const { getActiveDomains } = await import("./cross-domain.server");
   const validated: NewFinding[] = [];
   for (const [caseId, group] of byCase) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: caseRow } = await db
       .from("cases")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .select("case_type" as any)
       .eq("id", caseId)
       .maybeSingle();
@@ -568,8 +608,9 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       .select("id,category,title,evidence_refs,confidence,source_doc_ids,metadata")
       .eq("case_id", caseId)
       .not("source_module", "like", PROJECTION_LIKE);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const existingShim: NewFinding[] = (existing ?? []).map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) =>
         ({
           case_id: caseId,
@@ -608,7 +649,11 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
           } as never)
           .eq("id", existingId);
         if (error) {
-          console.error("[findings] merge-into-existing update failed", { caseId, existingId, error });
+          console.error("[findings] merge-into-existing update failed", {
+            caseId,
+            existingId,
+            error,
+          });
         } else {
           mergedIntoExisting += 1;
         }
@@ -659,9 +704,9 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   // every call site's signature.
   let classifyMateria: string | undefined;
   if (classifyCaseId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: classifyCaseRow } = await db
       .from("cases")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .select("case_type" as any)
       .eq("id", classifyCaseId)
       .maybeSingle();
@@ -687,7 +732,8 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       document_id?: string;
       page?: number | string;
     }>;
-    const primaryQuote = ev.find((e) => typeof e.quote === "string" && e.quote.length > 0)?.quote ?? null;
+    const primaryQuote =
+      ev.find((e) => typeof e.quote === "string" && e.quote.length > 0)?.quote ?? null;
     const primaryDocId =
       ev.find((e) => typeof (e.document_id ?? e.doc_id) === "string")?.document_id ??
       ev.find((e) => typeof e.doc_id === "string")?.doc_id ??
@@ -711,7 +757,9 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     const hasCompleteCitation = !!resolvedQuote && !!resolvedDocId;
     const normalizedType = normalizeFindingType(declaredType, hasCompleteCitation);
     const finding_type =
-      normalizedType === "DIRECT_EVIDENCE" && !hasCompleteCitation ? "EVIDENCE_BASED_INFERENCE" : normalizedType;
+      normalizedType === "DIRECT_EVIDENCE" && !hasCompleteCitation
+        ? "EVIDENCE_BASED_INFERENCE"
+        : normalizedType;
     // Lift canonical identity out of metadata onto the top-level column so
     // joins/exports/audit tools can resolve findings by canonical_finding_id
     // without walking JSON. (Priority 2 fix — metadata → top-level.)
@@ -727,6 +775,8 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       description: r.description.slice(0, 8000),
       severity: normSeverity(r.severity),
       confidence: clamp01(r.confidence),
+      confidence_dimensions: (r.confidence_dimensions ?? null) as J,
+      rationale: (r.rationale ?? null) as J,
       legal_significance: r.legal_significance,
       potential_impact: r.potential_impact,
       affected_party: normParty(r.affected_party),
@@ -747,9 +797,9 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     };
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await db
     .from("case_findings")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .insert(payload as any)
     .select("id");
   if (error) {
@@ -816,7 +866,7 @@ export async function addGatedFindings(
     if (g) {
       kept.push({
         ...r,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         ...({
           finding_type: g.finding_type,
           source_document_id: g.source_document_id,
@@ -831,16 +881,19 @@ export async function addGatedFindings(
       // them as evidentiary — but keep them in the record.
       kept.push({
         ...r,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         ...({ finding_type: "AI_THEORY" } as Partial<NewFinding>),
       } as NewFinding);
     }
     // else: dropped by strict/balanced gate — audit already counted it.
   }
-  console.info(`[evidence-gate] case=${caseId} mode=${mode} input=${rows.length} kept=${kept.length} audit=`, {
-    ...audit,
-    corpus: corpusAudit,
-  });
+  console.info(
+    `[evidence-gate] case=${caseId} mode=${mode} input=${rows.length} kept=${kept.length} audit=`,
+    {
+      ...audit,
+      corpus: corpusAudit,
+    },
+  );
   await addFindings(db, kept);
   return { inserted: kept.length, audit, mode, corpus: corpusAudit };
 }
@@ -861,7 +914,11 @@ export async function listFindings(db: Db, caseId: string): Promise<Finding[]> {
 }
 
 export async function clearFindingsByModule(db: Db, caseId: string, modulePrefix: string) {
-  await db.from("case_findings").delete().eq("case_id", caseId).like("source_module", `${modulePrefix}%`);
+  await db
+    .from("case_findings")
+    .delete()
+    .eq("case_id", caseId)
+    .like("source_module", `${modulePrefix}%`);
 }
 
 // Normalize an LLM-returned findings array into NewFinding[]
@@ -889,8 +946,21 @@ export function normalizeLlmFindings(args: {
         "Untitled finding",
     ).slice(0, 400);
     const description = String(
-      i.description ?? i.detail ?? i.why_needed ?? i.support_text ?? i.explanation ?? i.rationale ?? title,
+      i.description ??
+        i.detail ??
+        i.why_needed ??
+        i.support_text ??
+        i.explanation ??
+        i.rationale ??
+        title,
     );
+    const confidence = clamp01(i.confidence ?? 0.7);
+    const evidence_refs = Array.isArray(i.support)
+      ? i.support.map((s: unknown) => ({ label: typeof s === "string" ? s : JSON.stringify(s) }))
+      : Array.isArray(i.evidence_refs)
+        ? i.evidence_refs
+        : [];
+    const source_doc_ids: string[] = Array.isArray(i.source_doc_ids) ? i.source_doc_ids : [];
     return {
       case_id: caseId,
       user_id: userId,
@@ -899,15 +969,22 @@ export function normalizeLlmFindings(args: {
       title,
       description,
       severity: normSeverity(i.severity ?? i.priority),
-      confidence: clamp01(i.confidence ?? 0.7),
+      confidence,
+      // Addendum §25/§23 — deterministic, zero-AI-call enrichment. See
+      // confidence-dimensions.ts for why these never require a bigger or
+      // additional prompt.
+      confidence_dimensions: deriveConfidenceDimensions({
+        raw: i,
+        overallConfidence: confidence,
+        evidenceRefCount: evidence_refs.length,
+        sourceDocCount: source_doc_ids.length,
+      }),
+      rationale: deriveRationale(i, { title, description }),
       legal_significance: i.legal_significance ?? null,
       potential_impact: i.potential_impact ?? i.impact ?? null,
       affected_party: normParty(i.affected_party ?? i.benefits),
-      evidence_refs: Array.isArray(i.support)
-        ? i.support.map((s: unknown) => ({ label: typeof s === "string" ? s : JSON.stringify(s) }))
-        : Array.isArray(i.evidence_refs)
-          ? i.evidence_refs
-          : [],
+      evidence_refs,
+      source_doc_ids,
       tags: Array.isArray(i.tags) ? i.tags : [],
       metadata: { raw: i },
     } satisfies NewFinding;

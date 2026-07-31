@@ -6,6 +6,40 @@ export type AffectedParty = "defense" | "prosecution" | "both" | "neutral";
 export type EvidenceType = "inculpatory" | "exculpatory" | "impeachment" | "neutral";
 export type ImpactDirection = "strengthens" | "weakens" | "neutral";
 
+/** Addendum §25 — a single confidence float can't distinguish "the OCR is
+ * shaky but the legal rule is crystal clear" from "the OCR is perfect but
+ * the procedural stage is unknown." Each dimension is independent; none of
+ * them collapse into the others. See confidence-dimensions.ts. Optional and
+ * additive — the existing scalar `confidence` on Finding is untouched and
+ * still drives all existing scoring math. */
+export type ConfidenceLevel = "high" | "moderate" | "low" | "indeterminate";
+export type ConfidenceDimension = { level: ConfidenceLevel; reason: string };
+export type ConfidenceDimensions = {
+  extraction: ConfidenceDimension;
+  factual: ConfidenceDimension;
+  evidence_quality: ConfidenceDimension;
+  legal: ConfidenceDimension;
+  procedural: ConfidenceDimension;
+  corpus_completeness: ConfidenceDimension;
+  classification: ConfidenceDimension;
+};
+
+/** Addendum §23 — an auditable legal rationale, not private chain-of-thought:
+ * what supports this conclusion, what weakens it, what's assumed, what's
+ * unresolved. Optional and additive. */
+export type FindingRationale = {
+  supporting_evidence: string[];
+  contrary_evidence: string[];
+  assumptions: string[];
+  unresolved_questions: string[];
+  applicable_authority: string[];
+  attorney_review_required: boolean;
+  /** True if the raw model text leaned on an unsupported-conclusion phrase
+   * ("es probable", "se recomienda promover", ...) without an accompanying
+   * evidence/authority reference. See BANNED_UNSUPPORTED_PHRASES. */
+  unsupported_language_flagged: boolean;
+};
+
 export type Finding = {
   id: string;
   case_id: string;
@@ -16,6 +50,8 @@ export type Finding = {
   description: string;
   severity: Severity;
   confidence: number;
+  confidence_dimensions?: ConfidenceDimensions | null;
+  rationale?: FindingRationale | null;
   legal_significance: string | null;
   potential_impact: string | null;
   affected_party: AffectedParty | null;
@@ -34,7 +70,14 @@ export type Finding = {
 
 export type NewFinding = Omit<
   Finding,
-  "id" | "created_at" | "updated_at" | "source_doc_ids" | "evidence_refs" | "related_finding_ids" | "tags" | "metadata"
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "source_doc_ids"
+  | "evidence_refs"
+  | "related_finding_ids"
+  | "tags"
+  | "metadata"
 > & {
   source_doc_ids?: string[];
   evidence_refs?: Finding["evidence_refs"];
@@ -45,7 +88,7 @@ export type NewFinding = Omit<
 
 export type ScoreContributor = {
   label: string;
-  weight: number;        // -100..100
+  weight: number; // -100..100
   finding_id?: string;
 };
 

@@ -3752,10 +3752,37 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
       );
     }
 
+    const currentVersion = Number(cur.version ?? Number(snap.version ?? 1) + 1);
+
+    // Addendum §24/§26 — per-finding delta classification underneath the
+    // existing quantitative diff above. Snapshot current findings first so
+    // classifyFindingDeltas has this version's rows to compare the NEXT
+    // regeneration against; both are pure DB ops, no AI calls, and neither
+    // touches the report/report_versions tables this function already
+    // writes to above.
+    const { snapshotFindingVersions, classifyFindingDeltas } =
+      await import("@/lib/intelligence/finding-version-snapshot.server");
+    await snapshotFindingVersions(supabase, { caseId, reportVersion: currentVersion });
+    const findingDeltas = await classifyFindingDeltas(supabase, { caseId, currentVersion });
+
+    // §24's "no unexplained changes" rule: if the score moved but nothing
+    // in `drivers` (the existing quantitative diff above) or the finding
+    // deltas explains it, flag it rather than silently presenting the new
+    // number as settled.
+    const scoreChanged = sPrev != null && sNow != null && sPrev !== sNow;
+    const hasFindingLevelExplanation =
+      findingDeltas.new.length +
+        findingDeltas.strengthened.length +
+        findingDeltas.weakened.length +
+        findingDeltas.resolved.length >
+      0;
+    const unexplainedScoreChange =
+      scoreChanged && drivers.length === 0 && !hasFindingLevelExplanation;
+
     const changeLog = {
       generated_at: new Date().toISOString(),
       previous_version: Number(snap.version ?? 1),
-      current_version: Number(cur.version ?? Number(snap.version ?? 1) + 1),
+      current_version: currentVersion,
       documents_total: nowDocs,
       score_delta: {
         strength: { prev: prev.case_strength_score ?? null, now: cur.case_strength_score ?? null },
@@ -3770,6 +3797,10 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
       witnesses_total: (witnessRes.data ?? []).length,
       sections_changed: sectionsChanged,
       drivers,
+      // Addendum §24/§26 additions — per-finding classification and an
+      // explicit fail-safe flag rather than a silent unexplained move.
+      finding_deltas: findingDeltas,
+      unexplained_score_change: unexplainedScoreChange,
       note: "Quantitative diff vs. the snapshot captured before the most recent Add Evidence run. Review narrative sections for qualitative changes.",
     };
 
