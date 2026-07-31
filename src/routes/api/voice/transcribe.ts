@@ -1,5 +1,10 @@
-// Voice transcription proxy → Groq Whisper (STT).
-// Accepts multipart/form-data with `file` (audio blob).
+// Voice transcription proxy — provider-agnostic STT.
+// Accepts multipart/form-data with `file` (audio blob) and an optional
+// `language` field ("es" | "en", the UI's current locale toggle).
+// Tries every active key across every voice-capable provider the user has
+// configured (Groq, OpenAI, Gemini) in priority order — not just Groq — so
+// an account with only an OpenAI or Gemini key still works, matching how
+// text chat already falls back across providers.
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -29,16 +34,6 @@ async function requireAuthedClient(
   return { supabase, userId: data.claims.sub };
 }
 
-// Same failure classification router.server.ts uses to decide whether a
-// key is worth rotating past (auth/quota/payment) vs. a hard stop that
-// would fail identically on every other key too.
-function isRotatableError(status: number, bodyText: string): boolean {
-  if (status === 401 || status === 403) return true; // bad/revoked key
-  if (status === 402) return true; // payment required / out of credits
-  if (status === 429 && /insufficient_quota|quota exceeded/i.test(bodyText)) return true; // hard quota, not a soft rate limit
-  return false;
-}
-
 export const Route = createFileRoute("/api/voice/transcribe")({
   server: {
     handlers: {
@@ -48,14 +43,15 @@ export const Route = createFileRoute("/api/voice/transcribe")({
         if (authed instanceof Response) return authed;
         const { supabase, userId } = authed;
 
-        const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
-        const { keys, keyIds, userKeyCount, hasPlatform } = await resolveProviderKeys(supabase, userId, "groq");
-        if (keys.length === 0) {
+        const { resolveVoiceProviderChain, flattenVoiceChain } = await import("@/lib/ai-key-router.server");
+        const chain = await resolveVoiceProviderChain(supabase, userId);
+        const attempts = flattenVoiceChain(chain);
+        if (attempts.length === 0) {
           return new Response(
             JSON.stringify({
-              error: "No Groq API key configured",
-              // TEMP DIAGNOSTIC — remove once the key issue is found.
-              diag: { userKeyCount, hasPlatform },
+              error: "No voice-capable AI provider configured",
+              detail: "Add a Groq, OpenAI, or Gemini key in Admin \u2192 AI Providers to use voice.",
+              diag: { userKeyCount: chain.userKeyCount, hasPlatform: chain.hasPlatform },
             }),
             { status: 500, headers: { "Content-Type": "application/json" } },
           );
@@ -63,13 +59,15 @@ export const Route = createFileRoute("/api/voice/transcribe")({
 
         const incoming = await request.formData();
         const file = incoming.get("file");
+        const languageField = incoming.get("language");
+        const language = languageField === "en" || languageField === "es" ? languageField : undefined;
         if (!(file instanceof Blob) || file.size < 256) {
           return new Response(JSON.stringify({ error: "Empty or missing audio" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
           });
         }
-        const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB — Groq Whisper limit
+        const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
         if (file.size > MAX_AUDIO_BYTES) {
           return new Response(JSON.stringify({ error: "Audio file too large (max 25 MB)" }), {
             status: 413,
@@ -91,51 +89,48 @@ export const Route = createFileRoute("/api/voice/transcribe")({
 
         const audioBytes = await file.arrayBuffer();
 
-        // Try every active key in priority order. Only advance to the next
-        // key on an auth/quota/payment failure — those are the failure
-        // modes where "this key is bad, try another" is the correct
-        // response. Anything else (bad audio, transport error, etc.) would
-        // fail identically on every key, so surface it immediately instead
-        // of burning through the whole chain.
+        const { transcribeAudio, isRotatableError, VoiceProviderError } = await import("@/lib/voice/adapters.server");
+
+        // Try every key across every configured provider in priority order.
+        // Only advance on an auth/quota/payment failure — anything else
+        // (bad audio, transport error) would fail identically on every key,
+        // so surface it immediately instead of burning through the chain.
         let lastStatus = 500;
-        let lastBody = "";
+        let lastMessage = "";
+        let lastProvider = "";
         let triedCount = 0;
-        let lastWasPlatformKey = false;
-        for (let i = 0; i < keys.length; i++) {
+        for (let i = 0; i < attempts.length; i++) {
+          const { provider, key } = attempts[i];
           triedCount++;
-          lastWasPlatformKey = keyIds[i] == null;
-          const upstream = new FormData();
-          upstream.append("model", "whisper-large-v3-turbo");
-          upstream.append("file", new Blob([audioBytes], { type: mime }), `recording.${ext}`);
-          upstream.append("response_format", "json");
-
-          const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${keys[i]}` },
-            body: upstream,
-          });
-
-          if (res.ok) {
-            const json = (await res.json().catch(() => ({}))) as { text?: string };
-            return Response.json({ text: json.text ?? "" });
+          try {
+            const text = await transcribeAudio({ provider, apiKey: key, audioBytes, mime, ext, language });
+            return Response.json({ text });
+          } catch (err) {
+            lastProvider = provider;
+            if (err instanceof VoiceProviderError) {
+              lastStatus = err.status;
+              lastMessage = err.message;
+              if (i < attempts.length - 1 && err.rotatable) {
+                console.warn(`[voice/transcribe] ${provider} key ${i} failed (${err.status}), trying next`);
+                continue;
+              }
+            } else {
+              lastMessage = err instanceof Error ? err.message : String(err);
+            }
+            break;
           }
-
-          lastStatus = res.status;
-          lastBody = await res.text().catch(() => "");
-
-          if (i < keys.length - 1 && isRotatableError(res.status, lastBody)) {
-            console.warn(`[voice/transcribe] key ${i} failed (${res.status}), trying next key`);
-            continue;
-          }
-          break;
         }
 
         return new Response(
           JSON.stringify({
             error: `STT ${lastStatus}`,
-            detail: lastBody.slice(0, 500),
-            // TEMP DIAGNOSTIC — remove once the key issue is found.
-            diag: { userKeyCount, decryptedKeyCount: keys.length, triedCount, lastWasPlatformKey },
+            detail: lastMessage.slice(0, 500),
+            diag: {
+              userKeyCount: chain.userKeyCount,
+              providersTried: [...new Set(attempts.slice(0, triedCount).map((a) => a.provider))],
+              triedCount,
+              lastProvider,
+            },
           }),
           { status: lastStatus, headers: { "Content-Type": "application/json" } },
         );
