@@ -1,0 +1,40 @@
+PODER JUDICIAL DEL ESTADO DE SINALOA
+JUZGADO SEGUNDO DE PRIMERA INSTANCIA DEL RAMO MERCANTIL
+DISTRITO JUDICIAL DE CULIACÁN, SINALOA
+
+CARÁTULA DE EXPEDIENTE
+
+EXPEDIENTE: Mercantil 733/2026
+JUICIO: Oral Mercantil — Acción de Nulidad de Asamblea General Extraordinaria de Accionistas, Acción Social de Responsabilidad contra Administrador Único y Cumplimiento de Convenio entre Accionistas
+ACTOR: Ing. Ramón Eduardo Zazueta Beltrán, por su propio derecho en su calidad de accionista minoritario de AgroTecnia del Pacífico, S.A. de C.V.
+DEMANDADOS: AgroTecnia del Pacífico, S.A. de C.V.; C. Braulio Alonso Ibarra Concha (Administrador Único); C. Yolanda Guadalupe Rentería Salcido (accionista mayoritaria y beneficiaria del aumento de capital impugnado)
+JUZGADORA: Lic. Perla Anahí Domínguez Larrañaga, Jueza Segunda de Primera Instancia del Ramo Mercantil
+SECRETARIO DE ACUERDOS: Lic. Óscar Iván Beltrán Higuera
+FECHA DE PRESENTACIÓN DE LA DEMANDA: 09 de marzo de 2026
+CUANTÍA ESTIMADA: $18,450,000.00 (dieciocho millones cuatrocientos cincuenta mil pesos 00/100 M.N.)
+VÍA: Juicio Oral Mercantil (artículos 1390 Bis a 1390 Bis 49 del Código de Comercio)
+ETAPA PROCESAL AL CORTE: Desahogada audiencia preliminar y admitidas pruebas; pendiente audiencia de juicio y desahogo de dictamen pericial contable definitivo
+DOMICILIO DE LA SOCIEDAD DEMANDADA: Boulevard Agricultura 4180, Parque Industrial Bachigualato, Culiacán, Sinaloa, C.P. 80020
+OBJETO SOCIAL DE LA DEMANDADA: Desarrollo, comercialización y licenciamiento de tecnología de agricultura de precisión (sensores IoT, plataformas de riego inteligente y analítica de cultivos para el Valle de Culiacán)
+
+RELACIÓN SUCINTA DE PIEZAS DEL EXPEDIENTE:
+1. Acta constitutiva de la sociedad y sus reformas.
+2. Libro de Registro de Acciones.
+3. Convenio entre Accionistas de fecha 14 de enero de 2023.
+4. Convocatoria publicada para la Asamblea General Extraordinaria del 22 de diciembre de 2025.
+5. Acta de la Asamblea General Extraordinaria impugnada y lista de asistencia.
+6. Poder notarial otorgado por el actor a su representante legal.
+7. Escrito inicial de demanda y anexos.
+8. Contestación de demanda y excepciones opuestas.
+9. Informe del Comisario correspondiente al ejercicio 2025.
+10. Estados financieros comparativos 2024-2025 (auxiliar en formato .csv).
+11. Intercambio de correos electrónicos entre los socios (octubre-diciembre de 2025).
+12. Capturas de conversación de WhatsApp del grupo "Consejo AgroTecnia".
+13. Dictamen pericial contable rendido por perito tercero en discordia.
+14. Actas de declaración testimonial (cuatro testigos, con versiones divergentes).
+15. Resolución interlocutoria sobre medidas cautelares (suspensión provisional de efectos de la asamblea impugnada e intervención de caja).
+16. Autos de trámite y acuerdo de fijación de fecha para audiencia de juicio.
+
+NOTA DE CONFIDENCIALIDAD: El presente expediente contiene información societaria y financiera de carácter reservado en términos del artículo 47 del Código de Comercio y del secreto de los negocios; su consulta queda limitada a las partes, sus representantes autorizados y el personal jurisdiccional.
+
+Se hace constar que el presente expediente es de naturaleza FICTICIA, generado exclusivamente con fines de prueba de sistemas de inteligencia documental de Nyrava México. Cualquier semejanza con personas, sociedades o hechos reales es coincidencia.
