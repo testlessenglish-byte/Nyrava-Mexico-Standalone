@@ -1,0 +1,79 @@
+{
+  "title": "Concurso Mercantil 24/2026-IV — Autopartes Sierra Madre, S.A. de C.V.",
+  "description": "Procedimiento de concurso mercantil de una empresa manufacturera de autopartes en Nuevo León. El caso involucra una solicitud voluntaria acumulada con una demanda de acreedor, cuestionamientos sobre la fecha de retroacción y la validez de una transferencia de activos a una parte relacionada realizada durante el periodo sospechoso. Se investiga un posible fraude de acreedores mediante la venta de maquinaria (centros de maquinado CNC) a precio significativamente inferior al de mercado ($8.2M vs $22.5M) a favor de una sociedad controlada por el hermano del Director General. El expediente contiene dictámenes periciales contradictorios sobre la fecha de cesación de pagos y testimonios que chocan con la evidencia documental electrónica.",
+  "caseType": "mercantil",
+  "practiceArea": "Derecho Mercantil",
+  "subPracticeArea": "concursal",
+  "internalMatterNumber": "NYR-MX-2026-0231",
+  "courtCaseNumber": "Concurso Mercantil 24/2026-IV",
+  "relatedFileNumbers": [
+    "Escritura Pública 18,214 de la Notaría 67 de Monterrey",
+    "Registro IFECOM V-0452",
+    "Registro IFECOM C-0289"
+  ],
+  "jurisdiction": "Federal",
+  "fuero": "federal",
+  "state": "Nuevo León",
+  "municipality": "Monterrey",
+  "judicialDistrict": "Cuarto Circuito",
+  "courtName": "Juzgado Tercero de Distrito en Materia Civil en el Estado de Nuevo León",
+  "courtType": "Juzgado de Distrito",
+  "competentAuthority": "Poder Judicial de la Federación",
+  "assignedJudge": "Mtro. Ignacio Rentería Cavazos",
+  "courtClerk": "Lic. Perla Susana Domínguez Rocha",
+  "filingDate": "2026-01-12",
+  "proceduralStage": "Etapa de conciliación; sustanciación de acción de nulidad por actos en fraude de acreedores y reconocimiento de créditos",
+  "nextHearingDate": "2026-06-15",
+  "parties": [
+    {
+      "role": "Comerciante / Concursada",
+      "name": "Autopartes Sierra Madre, S.A. de C.V.",
+      "detail": "Empresa manufacturera Tier 1 en crisis de liquidez; representada por Ing. Rodolfo Salinas Berlanga."
+    },
+    {
+      "role": "Acreedor Solicitante / Objetante",
+      "name": "Proveedora de Aceros del Norte, S.A. de C.V.",
+      "detail": "Principal proveedor de materia prima; reclama $3.75M MXN y promueve la acción de nulidad."
+    },
+    {
+      "role": "Acreedor Prendario",
+      "name": "Banco Industrial de Monterrey, S.A.",
+      "detail": "Titular de garantía real sobre maquinaria CNC; crédito de $63.45M MXN."
+    },
+    {
+      "role": "Parte Relacionada / Acreedor Impugnado",
+      "name": "Grupo Salinas Maquinaria, S.A. de C.V.",
+      "detail": "Adquirente de la maquinaria en disputa; administrada por Ing. Fernando Salinas Berlanga (hermano del Director General)."
+    },
+    {
+      "role": "Acreedor Laboral",
+      "name": "Sindicato de Trabajadores STIMAHCS",
+      "detail": "Representa a 340 trabajadores; crédito preferente por $10.45M MXN."
+    },
+    {
+      "role": "Autoridad Fiscal",
+      "name": "Servicio de Administración Tributaria (SAT)",
+      "detail": "Reclama créditos fiscales por $19.87M MXN."
+    }
+  ],
+  "attorneysOfRecord": [
+    "Lic. Emilio Cárdenas Rosales (Comerciante)",
+    "Lic. Norma Cecilia Bautista Elizalde (Acreedor)"
+  ],
+  "opposingCounsel": [
+    "Lic. Mauricio Ernesto Villagómez Peña (Conciliador/IFECOM)"
+  ],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 194820150,
+  "legalAuthorities": [
+    "Ley de Concursos Mercantiles, arts. 9, 10, 11, 24, 43, 112-122 (Actos en fraude de acreedores) y 224",
+    "Código de Comercio, art. 1069 (Autorización de abogados)",
+    "Ley Federal del Trabajo, art. 113 (Preferencia de créditos laborales)",
+    "Constitución Política de los Estados Unidos Mexicanos, art. 123, apartado A, fracc. XXIII",
+    "Código Fiscal de la Federación, art. 149 (Preferencia de créditos fiscales)",
+    "Jurisprudencia 1a./J. 23/2014 (10a.) — Procedencia de la acción de nulidad en concurso mercantil"
+  ],
+  "fictional": true
+}
