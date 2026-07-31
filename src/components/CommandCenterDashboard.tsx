@@ -204,6 +204,11 @@ export function CommandCenterDashboard({
 
   // ---------------- derived metrics ----------------
   const counts = useMemo(() => getCanonicalCounts(report ?? null), [report]);
+  // Live table rows win over the report snapshot: a case can have witness /
+  // finding rows persisted before (or without) a finished report.
+  const findingsTotal = Math.max(findingsCount ?? 0, counts.findings);
+  const witnessesTotal = Math.max(witnessesCount ?? 0, counts.witnesses);
+
   const ess = useMemo(() => getEssState(report ?? null), [report]);
   const scores = useMemo(() => getScores(report ?? null), [report]);
   const parity = useMemo(() => paritySignature(report ?? null), [report]);
