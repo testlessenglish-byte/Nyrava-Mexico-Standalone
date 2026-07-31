@@ -375,3 +375,56 @@ export function reorderForTtsLocale<T extends { provider: VoiceProvider }>(
   const rest = chain.filter((c) => c.provider !== "groq");
   return [...rest, ...groq];
 }
+
+// ---------------------------------------------------------------------------
+// Last-resort platform fallback: the Lovable AI Gateway. Used only after the
+// attorney's own provider keys are exhausted (quota, bad key, model refusal)
+// so voice never hard-fails on a personal-key problem.
+// ---------------------------------------------------------------------------
+const GATEWAY_BASE = "https://ai.gateway.lovable.dev/v1";
+
+export async function speakViaGateway(text: string, voice: string): Promise<ArrayBuffer> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new VoiceProviderError("Gateway TTS unavailable (no platform key)", 500, false);
+  const resolvedVoice = OPENAI_VALID_VOICES.has(voice.toLowerCase()) ? voice.toLowerCase() : "alloy";
+  const res = await fetch(`${GATEWAY_BASE}/audio/speech`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "openai/gpt-4o-mini-tts",
+      input: text,
+      voice: resolvedVoice,
+      response_format: "wav",
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new VoiceProviderError(`Gateway TTS ${res.status}: ${body.slice(0, 300)}`, res.status, false);
+  }
+  return await res.arrayBuffer();
+}
+
+export async function transcribeViaGateway(args: {
+  audioBytes: ArrayBuffer;
+  mime: string;
+  ext: string;
+  language?: "es" | "en";
+}): Promise<string> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new VoiceProviderError("Gateway STT unavailable (no platform key)", 500, false);
+  const form = new FormData();
+  form.append("model", "openai/gpt-4o-transcribe");
+  form.append("file", new Blob([args.audioBytes], { type: args.mime }), `recording.${args.ext}`);
+  if (args.language) form.append("language", args.language);
+  const res = await fetch(`${GATEWAY_BASE}/audio/transcriptions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new VoiceProviderError(`Gateway STT ${res.status}: ${body.slice(0, 300)}`, res.status, false);
+  }
+  const json = (await res.json().catch(() => ({}))) as { text?: string };
+  return json.text ?? "";
+}
