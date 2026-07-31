@@ -559,7 +559,9 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
       setDiag((d) => ({ ...d, stt: "ok", transcript }));
 
       setDiag((d) => ({ ...d, ai: "running" }));
-      const aiResult = (await ask({ data: { caseId, question: transcript, locale } })) as { answer?: string } | string;
+      const aiResult = (await ask({ data: { caseId, question: transcript, locale, voiceMode: true } })) as
+        | { answer?: string }
+        | string;
       const reply = typeof aiResult === "string" ? aiResult : (aiResult?.answer ?? "");
       if (!reply.trim()) {
         setStatus("error");
