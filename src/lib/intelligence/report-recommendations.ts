@@ -62,12 +62,87 @@ function normalize(s: string): string {
 }
 
 const STOPWORDS = new Set([
-  "the", "a", "an", "of", "to", "for", "and", "or", "in", "on", "with", "should",
-  "file", "consider", "recommend", "recommended", "attorney", "case", "this",
+  // English
+  "the",
+  "a",
+  "an",
+  "of",
+  "to",
+  "for",
+  "and",
+  "or",
+  "in",
+  "on",
+  "with",
+  "should",
+  "file",
+  "consider",
+  "recommend",
+  "recommended",
+  "attorney",
+  "case",
+  "this",
+  // 2026-07-31: added — this dedup was built and tested against English
+  // candidates, but the overwhelming majority of real reports are Spanish
+  // (report_language "es"). Without these, common Spanish function words
+  // (de, del, la, los, sobre, para...) count as "significant" tokens and
+  // dilute the similarity score of genuinely-duplicate Spanish
+  // recommendations below DUPLICATE_THRESHOLD — confirmed against a real
+  // report where "Revisar y presentar documentación adicional sobre el
+  // ingreso del demandado." and "Solicitar documentación adicional sobre
+  // los ingresos del demandado." (same recommendation, different wording)
+  // scored 0.45, just under the 0.55 threshold, and were shown as two
+  // separate action items.
+  "de",
+  "del",
+  "la",
+  "el",
+  "los",
+  "las",
+  "y",
+  "o",
+  "en",
+  "con",
+  "sobre",
+  "para",
+  "por",
+  "que",
+  "su",
+  "sus",
+  "un",
+  "una",
+  "unos",
+  "unas",
+  "al",
+  "se",
+  "es",
+  "ser",
+  "esta",
+  "este",
+  "estos",
+  "estas",
+  "lo",
 ]);
 
+// 2026-07-31: crude Spanish singular/plural normalizer — strips a trailing
+// "s" from words long enough that this is almost always a plural (not a
+// stem-final "s" like "gas"/"mes"). This is deliberately simple: it fixes
+// the common "ingreso"/"ingresos" case without a real stemmer, at the cost
+// of not handling "-es" plurals (condición/condiciones). Good enough to
+// raise recall on near-duplicate recommendations without risking false
+// merges — dropping one trailing letter on long words rarely collides two
+// otherwise-unrelated terms.
+function stem(t: string): string {
+  return t.length > 5 && t.endsWith("s") ? t.slice(0, -1) : t;
+}
+
 function significantTokens(s: string): Set<string> {
-  return new Set(normalize(s).split(" ").filter((t) => t.length > 2 && !STOPWORDS.has(t)));
+  return new Set(
+    normalize(s)
+      .split(" ")
+      .filter((t) => t.length > 2 && !STOPWORDS.has(t))
+      .map(stem),
+  );
 }
 
 /** Jaccard similarity over significant tokens. Cheap, deterministic, no embeddings needed. */
@@ -79,6 +154,27 @@ function similarity(a: string, b: string): number {
   for (const t of ta) if (tb.has(t)) intersection += 1;
   const union = ta.size + tb.size - intersection;
   return union === 0 ? 0 : intersection / union;
+}
+
+/**
+ * True if `a` and `b` should be treated as the same recommendation: either
+ * they clear the Jaccard similarity bar, or one title's significant tokens
+ * are a strict subset of the other's (e.g. "Solicitud de medidas
+ * provisionales" vs "Solicitud de medidas provisionales de custodia y
+ * pensión alimenticia" — one is just a shorter restatement of the other).
+ * Containment is a strong, deliberate signal on its own and is checked
+ * regardless of the Jaccard score, which can undershoot on short titles
+ * purely because the union is small.
+ */
+function isDuplicateTitle(a: string, b: string): boolean {
+  if (similarity(a, b) >= DUPLICATE_THRESHOLD) return true;
+  const ta = significantTokens(a);
+  const tb = significantTokens(b);
+  if (ta.size === 0 || tb.size === 0) return false;
+  const [small, big] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
+  if (small.size < 2) return false; // too short to be a meaningful containment signal
+  for (const t of small) if (!big.has(t)) return false;
+  return true;
 }
 
 /** Two recommendations are treated as the same underlying item above this threshold. */
@@ -194,7 +290,8 @@ function fromIntelMotionOpportunities(intel: Record<string, any> | null | undefi
         : [],
       confidence: typeof m?.priority === "number" ? m.priority : null,
       expectedImpact: String(m?.likely_outcome ?? "") || null,
-      priorityHint: m?.likelihood_of_success === "high" ? "high" : m?.likelihood_of_success === "low" ? "low" : "medium",
+      priorityHint:
+        m?.likelihood_of_success === "high" ? "high" : m?.likelihood_of_success === "low" ? "low" : "medium",
     };
   });
 }
@@ -230,7 +327,7 @@ export function mergeCanonicalRecommendations(args: {
   for (const cand of candidates) {
     let match: CanonicalRecommendation | undefined;
     for (const cluster of clusters) {
-      if (similarity(cluster.title, cand.title) >= DUPLICATE_THRESHOLD) {
+      if (isDuplicateTitle(cluster.title, cand.title)) {
         match = cluster;
         break;
       }
