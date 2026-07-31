@@ -2604,8 +2604,11 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
     contradictions?: { prev: number; now: number };
     findings_total?: number;
     witnesses_total?: number;
+    sections_changed?: Array<{ section: string; status: string; prev_chars?: number; now_chars?: number }>;
+    drivers?: string[];
     note?: string;
   };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const version = (r as any).version as number | undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
