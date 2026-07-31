@@ -984,6 +984,7 @@ type ScoreSummary = {
   overall_confidence: number | null;
   case_quality: number | null;
   conviction_risk: number | null;
+  evidence_strength: number | null;
 };
 type OpportunitySummary = { side: string | null };
 type TheorySummary = {
@@ -1074,6 +1075,51 @@ function DashboardTab({
                   />
                 )}
               </div>
+            </div>
+          );
+        })()}
+
+      {score &&
+        (() => {
+          // Item 3 — granular evidentiary metrics, explicitly separated
+          // rather than blended under one generic term. Evidence Strength
+          // and Confidence already exist as their own case_scores columns;
+          // Corroboration Level didn't exist as a case-level number before
+          // this — computed here as the average of each witness's own
+          // corroboration score (case_witnesses.corroboration, already
+          // produced by the witness profiling engine), which is the real
+          // signal for "how much do independent sources back each other up"
+          // rather than inventing a new number with nothing behind it.
+          const witnessCorrobs = (witnesses as Array<{ corroboration?: number | null }>)
+            .map((w) => w.corroboration)
+            .filter((v): v is number => typeof v === "number");
+          const corroborationLevel =
+            witnessCorrobs.length > 0
+              ? Math.round(witnessCorrobs.reduce((a, b) => a + b, 0) / witnessCorrobs.length)
+              : null;
+          if (
+            score.evidence_strength == null &&
+            corroborationLevel == null &&
+            score.overall_confidence == null
+          ) {
+            return null;
+          }
+          return (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-semibold">{t("dash.evidentiaryMetrics")}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("dash.evidentiaryMetrics.subtitle")}
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <BigMetric label={t("dash.metric.evidenceStrength")} v={score.evidence_strength} />
+                <BigMetric label={t("dash.metric.corroborationLevel")} v={corroborationLevel} />
+                <BigMetric label={t("dash.metric.confidence")} v={score.overall_confidence} />
+              </div>
+              {witnessCorrobs.length === 0 && (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {t("dash.metric.corroborationLevel.noData")}
+                </p>
+              )}
             </div>
           );
         })()}

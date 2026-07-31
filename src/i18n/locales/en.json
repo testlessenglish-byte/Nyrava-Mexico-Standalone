@@ -1916,5 +1916,11 @@
   "score.band.excellent": "Excellent",
   "score.band.solid": "Solid",
   "score.band.moderate": "At Risk",
-  "score.band.critical": "Critical"
+  "score.band.critical": "Critical",
+  "dash.evidentiaryMetrics": "Evidentiary Metrics",
+  "dash.evidentiaryMetrics.subtitle": "Three distinct signals, not one blended number — each measures something different.",
+  "dash.metric.evidenceStrength": "Evidence Strength",
+  "dash.metric.corroborationLevel": "Corroboration Level",
+  "dash.metric.corroborationLevel.noData": "No witness corroboration data yet — run Witness Intelligence.",
+  "dash.metric.confidence": "Confidence"
 }

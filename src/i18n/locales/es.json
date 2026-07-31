@@ -1916,5 +1916,11 @@
   "score.band.excellent": "Excelente",
   "score.band.solid": "Sólido",
   "score.band.moderate": "En Riesgo",
-  "score.band.critical": "Crítico"
+  "score.band.critical": "Crítico",
+  "dash.evidentiaryMetrics": "Métricas Probatorias",
+  "dash.evidentiaryMetrics.subtitle": "Tres señales distintas, no un número combinado — cada una mide algo diferente.",
+  "dash.metric.evidenceStrength": "Fuerza de la Evidencia",
+  "dash.metric.corroborationLevel": "Nivel de Corroboración",
+  "dash.metric.corroborationLevel.noData": "Aún no hay datos de corroboración de testigos — ejecute Inteligencia de Testigos.",
+  "dash.metric.confidence": "Confianza"
 }
