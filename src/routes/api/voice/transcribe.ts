@@ -96,7 +96,17 @@ export const Route = createFileRoute("/api/voice/transcribe")({
           triedCount++;
           try {
             const text = await transcribeAudio({ provider, apiKey: key, audioBytes, mime, ext, language });
-            return Response.json({ text });
+            // An empty string is a soft failure, not a transcript: Gemini
+            // returns one when it declines the audio, and returning it as a
+            // success made the companion answer "no speech detected" while a
+            // perfectly good provider sat unused later in the chain.
+            if (text.trim()) return Response.json({ text });
+            lastStatus = 502;
+            lastMessage = `${provider} returned an empty transcript`;
+            lastProvider = provider;
+            console.warn(`[voice/transcribe] ${provider} key ${i} returned nothing, trying next`);
+            continue;
+
           } catch (err) {
             lastProvider = provider;
             if (err instanceof VoiceProviderError) {
