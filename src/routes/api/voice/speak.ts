@@ -27,6 +27,32 @@ const PROVIDER_CHUNK_LIMIT: Record<string, number> = {
 const GATEWAY_CHUNK_LIMIT = 1800;
 const FALLBACK_CHUNK_LIMIT = 180;
 
+// How many chunks of one answer are synthesized at the same time. Bounded so
+// a long answer doesn't fire a dozen simultaneous requests at one key and
+// trip its rate limit — which would cost more latency than it saves.
+const TTS_CONCURRENCY = 3;
+
+/** Run `fn` over `items` with bounded concurrency, preserving input order. */
+async function mapConcurrent<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+
+
 function chunkText(text: string, maxLen: number): string[] {
   const chunks: string[] = [];
   let remaining = text.trim();
