@@ -484,9 +484,9 @@ export type ProgressSnapshot = {
 };
 
 export function computeProgress(rows: ExecutionRow[]): ProgressSnapshot {
-  const views = computeStageViews(rows);
-  // Multi-agent is optional/parallel; keep out of the primary progress bar.
-  const pipeline = views.filter((v) => v.key !== "multi_agent");
+  // Multi-agent now runs inside the pipeline (before the report), so it
+  // counts toward progress like every other stage.
+  const pipeline = computeStageViews(rows);
   const done = pipeline.filter((v) => v.state === "complete" || v.state === "skipped").length;
   const total = pipeline.length;
   const running = pipeline.some((v) => v.state === "running");
