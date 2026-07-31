@@ -1,0 +1,39 @@
+DICTAMEN PERICIAL EN INGENIERÍA CIVIL Y ESTRUCTURAS
+Expediente 587/2026 — Juzgado Cuarto Civil de Partido de León, Guanajuato
+Perito de la parte actora: Ing. Sergio Ulises Bermúdez Alanís
+Cédula profesional 4,118,207. Registro de perito del Poder Judicial del Estado de Guanajuato PJ-GTO-INC-0442.
+Fecha de rendición: 12 de mayo de 2026.
+
+I. CUESTIONARIO
+1. Determinar el avance físico real de la obra a la fecha de la inspección.
+2. Determinar si el concreto de trabes y columnas cumple f'c=250 kg/cm².
+3. Determinar la existencia y origen de las fisuras del eje B.
+4. Cuantificar el costo de reparación.
+5. Determinar si los conceptos de impermeabilización y cancelería fueron ejecutados.
+
+II. METODOLOGÍA
+Inspección física los días 22 y 23 de abril de 2026 con presencia de ambas partes. Levantamiento fotográfico de 118 tomas. Esclerometría en 14 puntos conforme a NMX-C-192-ONNCCE. Extracción de tres corazones de concreto (NMX-C-169-ONNCCE) ensayados en el Laboratorio de Materiales CIATEC, A.C., informe LM-2026-0338. Verificación de recubrimientos con detector de armaduras.
+
+III. RESULTADOS
+A) AVANCE FÍSICO REAL: 76.4% del catálogo de conceptos contratado. La diferencia respecto del 84% reportado en la estimación 6 se concentra en acabados, instalación hidrosanitaria de planta alta e instalación de cancelería.
+B) RESISTENCIA DEL CONCRETO: corazón C-1 (trabe TB-3, eje B) 189 kg/cm²; C-2 (columna C-4) 213 kg/cm²; C-3 (losa entrepiso) 241 kg/cm². Los especímenes C-1 y C-2 NO ALCANZAN la resistencia especificada de 250 kg/cm².
+C) FISURAS: se observan cinco fisuras diagonales de 0.4 a 1.1 mm de abertura en el tercio central de TB-3 y TB-4, con patrón compatible con esfuerzo cortante, no con contracción plástica. El recubrimiento medido en TB-3 es de 1.4 cm, inferior al mínimo contractual de 2.5 cm.
+D) CANCELERÍA E IMPERMEABILIZACIÓN: la cancelería se encuentra embalada en obra, sin instalar. La azotea NO presenta membrana impermeable; se observa únicamente firme de concreto. Ambos conceptos fueron facturados en las estimaciones 5 y 6.
+E) COSTO DE REPARACIÓN (precios de marzo de 2026, con base en el catálogo BIMSA):
+  - Encamisado y refuerzo de TB-3 y TB-4: $318,400.00
+  - Sustitución parcial de recubrimientos y resane: $84,900.00
+  - Impermeabilización de azotea 118 m²: $146,200.00
+  - Instalación de cancelería suministrada: $92,300.00
+  TOTAL: $641,800.00 M.N.
+
+IV. CONCLUSIONES
+PRIMERA. La obra no cumple las especificaciones estructurales de la cláusula novena del contrato.
+SEGUNDA. Las fisuras del eje B tienen origen en deficiencia de resistencia y de recubrimiento, no en factores climáticos.
+TERCERA. Existe cobro de conceptos no ejecutados por $161,100.00 M.N.
+CUARTA. El costo de reparación asciende a $641,800.00 M.N.
+
+V. NOTA DE DISCREPANCIA
+El perito de la demandada, Ing. Héctor Ramiro Zúñiga Lomelí, rindió dictamen el 15 de mayo de 2026 concluyendo un avance del 83% y atribuyendo las fisuras a contracción plástica, sin haber realizado extracción de corazones ni ensayo de laboratorio. El juzgado designó tercero en discordia el 2 de junio de 2026.
+
+PROTESTO CONDUCIRME CON VERDAD
+Ing. Sergio Ulises Bermúdez Alanís
