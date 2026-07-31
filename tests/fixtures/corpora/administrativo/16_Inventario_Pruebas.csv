@@ -1,0 +1,16 @@
+numero,documento,oferente,tipo,fecha_documento,folio_expediente_administrativo,observaciones
+1,Acta circunstanciada de visita CSICT-BC/UVI/ACTA-0341/2023,Autoridad demandada,Documental publica,2023-10-09,001-018,Testigos de asistencia cuestionados
+2,Oficio de inicio de procedimiento PAS-CSICT-BC-071/2023,Autoridad demandada,Documental publica,2023-10-20,019-024,Sin observaciones
+3,Escrito de contestacion en sede administrativa,Actora,Documental privada,2023-11-14,025-061,Ofrece acuse de refrendo VU-CSICT-BC-8821/2023
+4,Acuse de tramite de refrendo VU-CSICT-BC-8821/2023,Actora,Documental privada,2023-09-28,062-063,No fue exhibido fisicamente el dia de la visita
+5,Resolucion CSICT-BC/DAF/RES-0912/2024,Autoridad demandada,Documental publica,2024-03-18,201-210,Acto impugnado
+6,Constancia de notificacion (version 1),Autoridad demandada,Documental publica,2024-03-20,118-121,Sin citatorio previo segun la propia acta
+7,Constancia de notificacion (version 2 contradictoria),Autoridad demandada,Documental publica,2024-03-22,118-121,Fuera de orden cronologico de folios; contradice version 1
+8,Bitacora de mantenimiento (prueba superveniente),Actora,Documental privada,2023-01-01,No obra en expediente administrativo,Ausente del expediente remitido por la autoridad; presuntamente extraviada
+9,Acta de nacimiento de Wenceslao Iturbide Manjarrez,Actora,Documental publica,1991-04-02,No aplica,Acredita parentesco con verificador Cuamea Trejo
+10,Poliza de fianza AFN-FED-2024-118820,Actora,Documental privada,2024-05-14,No aplica,Presenta diferencia de 47150 pesos no garantizada
+11,Dictamen pericial en autotransporte federal,Actora,Pericial,2024-09-20,No aplica,Concluye que revocacion es desproporcionada
+12,Transcripcion de conversacion de WhatsApp,Actora,Documental privada con fe notarial,2024-09-02,No aplica,Fedatario no certifica autenticidad del origen
+13,Declaracion testimonial Anselmo Rosales Beltran,Autoridad demandada,Testimonial,2024-09-03,No aplica,Version horaria distinta al acta
+14,Declaracion testimonial Fidencio Mendivil Chacon,Actora,Testimonial,2024-09-03,No aplica,Version horaria y de bitacora distinta al acta y al otro testigo
+15,Correos electronicos internos del Tribunal (obtenidos via transparencia),Actora,Documental privada,2024-10-18,No aplica,Evidencian irregularidad en foliacion de constancias de notificacion
