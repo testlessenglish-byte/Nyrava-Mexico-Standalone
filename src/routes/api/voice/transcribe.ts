@@ -43,9 +43,10 @@ export const Route = createFileRoute("/api/voice/transcribe")({
         if (authed instanceof Response) return authed;
         const { supabase, userId } = authed;
 
-        const { resolveVoiceProviderChain, flattenVoiceChain } = await import("@/lib/ai-key-router.server");
+        const { resolveVoiceProviderChain, flattenVoiceChain, applyVoiceCooldowns, markVoiceKeyCooldown } =
+          await import("@/lib/ai-key-router.server");
         const chain = await resolveVoiceProviderChain(supabase, userId);
-        const attempts = flattenVoiceChain(chain);
+        const attempts = applyVoiceCooldowns(flattenVoiceChain(chain));
 
         const incoming = await request.formData();
         const file = incoming.get("file");
