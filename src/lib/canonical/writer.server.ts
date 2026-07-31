@@ -42,7 +42,11 @@ function coerceText(x: unknown): string | null {
       const v = o[k];
       if (typeof v === "string" && v.trim()) return v;
     }
-    try { return JSON.stringify(x); } catch { return null; }
+    try {
+      return JSON.stringify(x);
+    } catch {
+      return null;
+    }
   }
   return null;
 }
@@ -67,7 +71,7 @@ function citationsFromRow(row: {
       if (r && typeof r === "object") {
         const rr = r as Record<string, unknown>;
         out.push({
-          documentId: (rr.documentId ?? rr.document_id) as string | undefined ?? null,
+          documentId: ((rr.documentId ?? rr.document_id) as string | undefined) ?? null,
           page: (rr.page as number | undefined) ?? null,
           quote: (rr.quote as string | undefined) ?? null,
           label: (rr.label as string | undefined) ?? null,
@@ -80,7 +84,7 @@ function citationsFromRow(row: {
       if (r && typeof r === "object") {
         const rr = r as Record<string, unknown>;
         out.push({
-          documentId: (rr.documentId ?? rr.document_id) as string | undefined ?? null,
+          documentId: ((rr.documentId ?? rr.document_id) as string | undefined) ?? null,
           page: (rr.page as number | undefined) ?? null,
           quote: (rr.quote as string | undefined) ?? null,
           label: (rr.label as string | undefined) ?? null,
@@ -140,14 +144,11 @@ export async function projectCanonical(
       citations: citationsFromRow(f as never),
       verification_status: (f.verification_status as string | null) ?? null,
       source_module: (f.source_module as string | null) ?? null,
-      supporting_engines: Array.isArray(f.supporting_engines)
-        ? (f.supporting_engines as string[]).map(String)
-        : [],
+      supporting_engines: Array.isArray(f.supporting_engines) ? (f.supporting_engines as string[]).map(String) : [],
       suppressed: false,
       quarantined: /reject|quarantin/i.test(String(f.verification_status ?? "")),
     };
     analysis.Findings.push(finding);
-    // Evidence subset = findings whose source_module includes an evidence engine
     const src = String(f.source_module ?? "");
     if (/evidence|classification/i.test(src) || finding.category === "evidence") {
       analysis.Evidence.push(finding);
@@ -174,10 +175,7 @@ export async function projectCanonical(
 
   // Witnesses
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: witnesses } = await (db as any)
-    .from("case_witnesses")
-    .select("*")
-    .eq("case_id", caseId);
+  const { data: witnesses } = await (db as any).from("case_witnesses").select("*").eq("case_id", caseId);
   for (const w of safeArr(witnesses) as Record<string, unknown>[]) {
     const witness: Witness = {
       id: String(w.id),
@@ -189,18 +187,21 @@ export async function projectCanonical(
       citations: citationsFromRow(w as never),
     };
     analysis.Witnesses.push(witness);
-    // Impeachment / cross-exam plans derived from witness rows.
     const cross = safeArr(w.cross_exam_questions as string[] | null);
     if (cross.length) {
       analysis.CrossExam.push({ witnessName: witness.name, questions: cross, citations: witness.citations });
     }
     const impeach = safeArr(w.impeachment_questions as string[] | null);
     if (impeach.length) {
-      analysis.Impeachment.push({ witnessName: witness.name, basis: impeach.join(" | "), citations: witness.citations });
+      analysis.Impeachment.push({
+        witnessName: witness.name,
+        basis: impeach.join(" | "),
+        citations: witness.citations,
+      });
     }
   }
 
-  // Scores (latest row)
+  // Scores
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: scoresRow } = await (db as any)
     .from("case_scores")
@@ -216,8 +217,6 @@ export async function projectCanonical(
       witness_reliability: (scoresRow.witness_reliability as number | null) ?? null,
       timeline_integrity: (scoresRow.timeline_integrity as number | null) ?? null,
       overall_confidence: (scoresRow.overall_confidence as number | null) ?? null,
-      // `case_scores.rationale` may arrive as jsonb (object/array) from some
-      // engines; the canonical schema and report renderer expect a string.
       rationale: coerceText(scoresRow.rationale),
       suppressed: false,
     };
@@ -233,7 +232,10 @@ export async function projectCanonical(
     .limit(1)
     .maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: theories } = await (db as any).from("case_theories").select("id,label,theory_name,rationale").eq("case_id", caseId);
+  const { data: theories } = await (db as any)
+    .from("case_theories")
+    .select("id,label,theory_name,rationale")
+    .eq("case_id", caseId);
   analysis.Strategy = {
     theme: (strategyRow?.theme as string | null) ?? null,
     theories: safeArr(theories as Record<string, unknown>[]).map((t) => ({
@@ -244,24 +246,31 @@ export async function projectCanonical(
     key_moves: safeArr(strategyRow?.key_moves as string[] | undefined),
   };
 
-  // Discovery gaps (derived from findings source_module)
+  // Discovery gaps with corpus gap protection
   for (const f of analysis.Findings) {
     if (/discovery/i.test(f.category) || /discovery/i.test(f.description)) {
+      const isCorpusGap = /not identified in the corpus|no se identific[oó]|elemento no identificado/i.test(
+        f.description,
+      );
       analysis.Discovery.push({
         id: f.id,
         topic: f.title,
         what_is_missing: f.description,
-        why_it_matters: f.legal_significance ?? f.potential_impact ?? "Impacts case completeness.",
+        why_it_matters: isCorpusGap
+          ? "Not located in the analyzed upload corpus. Verify against the official physical file before assuming an official procedural defect."
+          : (f.legal_significance ?? f.potential_impact ?? "Impacts case completeness."),
         citations: f.citations,
       });
     }
   }
 
-  // Contradictions
+  // Contradictions & Executive Summary
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: reportRow } = await (db as any)
     .from("reports")
-    .select("contradictions_struct,executive_summary,full_report,missing_evidence_report,scores_suppressed,motions_suppressed,quality_blocked,report_mode")
+    .select(
+      "contradictions_struct,executive_summary,full_report,missing_evidence_report,scores_suppressed,motions_suppressed,quality_blocked,report_mode",
+    )
     .eq("case_id", caseId)
     .maybeSingle();
   if (reportRow?.contradictions_struct && Array.isArray(reportRow.contradictions_struct)) {
@@ -281,7 +290,6 @@ export async function projectCanonical(
   }
   if (reportRow?.scores_suppressed) analysis.Scores.suppressed = true;
 
-  // Recommendations, Risks, Facts — derived from findings.
   const critical = analysis.Findings.filter((f) => f.severity === "critical" || f.severity === "high");
   analysis.Risks = critical.slice(0, 20).map((f) => ({
     id: f.id,
@@ -304,10 +312,7 @@ export async function projectCanonical(
 
   // Work Product
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: workProduct } = await (db as any)
-    .from("case_work_product")
-    .select("*")
-    .eq("case_id", caseId);
+  const { data: workProduct } = await (db as any).from("case_work_product").select("*").eq("case_id", caseId);
   for (const w of safeArr(workProduct) as Record<string, unknown>[]) {
     analysis.WorkProduct.push({
       id: String(w.id),
@@ -324,10 +329,7 @@ export async function projectCanonical(
 
   // Appendices
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: docs } = await (db as any)
-    .from("documents")
-    .select("id,name,page_count")
-    .eq("case_id", caseId);
+  const { data: docs } = await (db as any).from("documents").select("id,name,page_count").eq("case_id", caseId);
   analysis.Appendices.source_documents = safeArr(docs as Record<string, unknown>[]).map((d) => ({
     id: String(d.id),
     name: String(d.name ?? "Untitled document"),
@@ -351,17 +353,15 @@ export async function writeCanonical(
   status: "orchestrating" | "validated" | "completed" | "failed" = "completed",
 ): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (db as any)
-    .from("canonical_analysis")
-    .upsert(
-      {
-        case_id: caseId,
-        status,
-        analysis_payload: analysis,
-        validation_errors: validationErrors,
-        pipeline_stages: { finalized_at: new Date().toISOString() },
-      },
-      { onConflict: "case_id" },
-    );
+  const { error } = await (db as any).from("canonical_analysis").upsert(
+    {
+      case_id: caseId,
+      status,
+      analysis_payload: analysis,
+      validation_errors: validationErrors,
+      pipeline_stages: { finalized_at: new Date().toISOString() },
+    },
+    { onConflict: "case_id" },
+  );
   if (error) throw new Error(`canonical_analysis upsert failed: ${error.message}`);
 }
