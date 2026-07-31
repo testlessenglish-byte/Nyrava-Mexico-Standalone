@@ -6606,85 +6606,30 @@ ${paginationTail}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (reportRow.full_report as any).release_gate = verdict;
       if (!verdict.ok) {
+        // 2026-07-31: reverted to warning-only per explicit direction. This
+        // block previously also set quality_blocked=true, report_mode=
+        // "LIMITED", and nulled out case_strength_score/recommendations/
+        // risk_analysis/theory reports/legal_memorandum content whenever
+        // ANY release-gate issue fired — including issue codes the gate's
+        // own check comments admit are imprecise heuristics (e.g.
+        // cross_domain_no_audit: "we can't map engine→domain perfectly").
+        // Confirmed against a real case (ambiental + penal cross-domain,
+        // case 7d50060f-...) that this blocked a report whose actual
+        // content was correct — the manifest's cross-domain detection was
+        // right, but a separate silent DB-write failure (now fixed in
+        // cross-domain.server.ts) made the release gate's later re-query
+        // see zero activation rows and treat that as a content-integrity
+        // failure. release-gate.ts's own top-of-file comment describes the
+        // intended behavior: "the pipeline never crashes on a release-gate
+        // mismatch — it surfaces them so the audit trail records the
+        // drift." Restoring that: the verdict and issues are still
+        // recorded on full_report.release_gate and pipeline_warnings for
+        // every case, so drift is never silently lost — it just no longer
+        // retracts report content on its own.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const warns = ((reportRow.full_report as any).pipeline_warnings ?? []) as string[];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (reportRow.full_report as any).pipeline_warnings = [...warns, ...summarizeReleaseGate(verdict)];
-
-        // A failed release gate means QA/Judge/Hallucination/orchestration
-        // did not clear this report — it must not be presented as Complete
-        // with scores and recommendations enabled. Previously this branch
-        // only appended a warning that nothing in the UI or PDF surfaced;
-        // the report row itself kept quality_blocked=false, report_mode=FULL,
-        // and suppression flags off, so the rendered report contradicted the
-        // pipeline's own verdict. Force the row into a blocked/limited state
-        // so every downstream reader (PDF, DOCX, dashboard) reflects it.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).quality_blocked = true;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const existingReasons = ((reportRow as any).quality_block_reasons ?? []) as string[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).quality_block_reasons = [
-          ...existingReasons,
-          ...verdict.issues.map((i) => `release_gate:${i.code}${i.engine ? `:${i.engine}` : ""} — ${i.detail}`),
-        ];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).report_mode = "LIMITED";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).scores_suppressed = true;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).motions_suppressed = true;
-
-        // FIX: the four flags above only relabel the report — they do not
-        // retract content. By this point in the run, case_strength_score,
-        // risk_score, score_breakdown, recommendations, risk_analysis, the
-        // theory reports, and the full legal_memorandum (recommended
-        // motions with draft paragraphs, risk_matrix, legal_analysis, and
-        // its own nested executive_summary) were already computed under
-        // the EARLIER, successful ESS check — a release-gate failure here
-        // is a SEPARATE, LATER reason the report is not trustworthy
-        // (citation integrity / incomplete engine execution), and must
-        // retract the same content the ESS gate retracts, using the same
-        // rules, not just repaint the four labels above. Without this,
-        // scores_suppressed=true / report_mode=LIMITED can coexist with a
-        // live case_strength_score and a ready-to-file motion in the same
-        // report row — exactly what the comment above this block warned
-        // against, just at a different stage of the pipeline.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).case_strength_score = null;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).risk_score = null;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).score_breakdown = "";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).recommendations = "";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).risk_analysis = "";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).prosecution_theory_report = "";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).defense_theory_report = "";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow as any).alternative_theory_report = "";
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const frAny = (reportRow as any).full_report;
-        if (frAny?.executive_summary && typeof frAny.executive_summary === "object") {
-          frAny.executive_summary.case_strength = null;
-          frAny.executive_summary.primary_risk = null;
-        }
-        if (frAny?.legal_memorandum && typeof frAny.legal_memorandum === "object") {
-          frAny.legal_memorandum.recommended_motions = [];
-          frAny.legal_memorandum.risk_matrix = [];
-          frAny.legal_memorandum.legal_analysis = [];
-          if (
-            frAny.legal_memorandum.executive_summary &&
-            typeof frAny.legal_memorandum.executive_summary === "object"
-          ) {
-            frAny.legal_memorandum.executive_summary.case_strength = null;
-            frAny.legal_memorandum.executive_summary.primary_risk = null;
-            frAny.legal_memorandum.executive_summary.dispositive_recommendation = null;
-          }
-        }
       }
     } catch {
       // Release-gate reconciliation must never break report generation.
