@@ -2528,6 +2528,8 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
   return (
     <div className="space-y-6">
       <ParityBadge report={r} projections={projections} />
+      <ObjectivePanel r={r} />
+
       {narrativeStatus?.banner && (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${narrativeStatus.fully_failed ? "border-red-500/50 bg-red-500/10 text-red-300" : "border-amber-500/50 bg-amber-500/10 text-amber-200"}`}
