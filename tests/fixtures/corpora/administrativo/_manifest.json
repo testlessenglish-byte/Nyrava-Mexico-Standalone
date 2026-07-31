@@ -1,0 +1,55 @@
+{
+  "title": "Juicio de Nulidad 1487/24-02-01-4 — Transportes del Pacífico Fronterizo vs. SICT",
+  "description": "Juicio contencioso administrativo federal promovido por Transportes del Pacífico Fronterizo, S.A. de C.V. en contra de la resolución de la SICT que revoca su permiso de autotransporte de carga y le impone una multa millonaria. Se impugna la legalidad del procedimiento de verificación, alegando que los testigos de asistencia eran familiares del personal verificador, lo cual vicia el acta. Asimismo, se combate la notificación de la resolución por defectuosa y la falta de competencia de la autoridad emisora al actuar en suplencia sin fundamentación adecuada. El expediente incluye el acta de visita, la resolución impugnada, demanda, contestación, testimoniales de personal de la SICT y de la empresa, un dictamen pericial en transporte y evidencia digital (WhatsApp) que sugiere colusión entre el verificador y un testigo.",
+  "caseType": "administrativo",
+  "practiceArea": "Derecho Administrativo",
+  "subPracticeArea": "Autotransporte Federal — Procedimiento Sancionador",
+  "internalMatterNumber": "NYR-MX-2024-0261",
+  "courtCaseNumber": "1487/24-02-01-4",
+  "relatedFileNumbers": [
+    "PAS-CSICT-BC-071/2023",
+    "SCT-6-PC-04117/2019",
+    "CSICT-BC/DAF/RES-0912/2024"
+  ],
+  "jurisdiction": "Baja California / Tijuana",
+  "fuero": "federal",
+  "state": "Baja California",
+  "municipality": "Tijuana",
+  "judicialDistrict": "Sala Regional del Noroeste I",
+  "courtName": "Tribunal Federal de Justicia Administrativa, Sala Regional del Noroeste I",
+  "courtType": "Sala Regional del TFJA",
+  "competentAuthority": "Tribunal Federal de Justicia Administrativa",
+  "assignedJudge": "Mag. Lic. Efraín Osvaldo Villagómez Sarabia",
+  "courtClerk": "Lic. Perla Ivonne Manzanarez Cota",
+  "filingDate": "2024-04-22",
+  "proceduralStage": "Cerrada instrucción; pendiente de dictar sentencia definitiva, con incidente de incompetencia territorial resuelto y suspensión definitiva otorgada.",
+  "nextHearingDate": "2024-12-15",
+  "parties": [
+    { "role": "Actora", "name": "Transportes del Pacífico Fronterizo, S.A. de C.V.", "detail": "Empresa permisionaria de autotransporte federal de carga general." },
+    { "role": "Autoridad Demandada", "name": "Centro SICT Baja California", "detail": "Representado por el Lic. Rogelio Isidro Camacho Barragán; autoridad emisora de la resolución." },
+    { "role": "Representante Legal", "name": "Homero Baldenegro Islas", "detail": "Apoderado legal de la empresa actora." },
+    { "role": "Verificador", "name": "Ramiro Adalberto Cuamea Trejo", "detail": "Personal del Centro SICT que practicó la visita de verificación cuestionada." },
+    { "role": "Testigo de Asistencia", "name": "Wenceslao Iturbide Manjarrez", "detail": "Designado como testigo de asistencia; presunto primo del verificador Cuamea Trejo." },
+    { "role": "Perito en Transporte", "name": "Ing. Casimiro Abelardo Nájera Villaseñor", "detail": "Perito de la parte actora que dictamina sobre la desproporcionalidad de la sanción." }
+  ],
+  "attorneysOfRecord": [
+    "Lic. Nadia Esperanza Corcuera Villalpando",
+    "Lic. Bruno Adair Malacara Ontiveros"
+  ],
+  "opposingCounsel": [
+    "Lic. Rogelio Isidro Camacho Barragán"
+  ],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 3650000,
+  "legalAuthorities": [
+    "Ley Federal de Procedimiento Contencioso Administrativo (LFPCA)",
+    "Ley Federal de Procedimiento Administrativo (LFPA), arts. 35, 36, 60",
+    "Ley de Caminos, Puentes y Autotransporte Federal, arts. 12, 71, 74, 75",
+    "Reglamento de Autotransporte Federal y Servicios Auxiliares",
+    "Constitución Política de los Estados Unidos Mexicanos, arts. 14 y 16",
+    "Tesis 2a./J. 115/2005 — Competencia de las autoridades administrativas"
+  ],
+  "fictional": true
+}
