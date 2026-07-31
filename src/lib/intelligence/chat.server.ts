@@ -69,7 +69,6 @@ const MAX_TOTAL_CONTEXT_CHARS = 14_000;
 // Recent-conversation tail sent with each question, in characters.
 const MAX_HISTORY_CHARS = 4_000;
 
-
 async function fetchChatSections(db: Db, caseId: string): Promise<{ sections: ChatSections; corpus: string }> {
   const [findings, analysis, agents, score, theories, opps, witnesses, trial, docs] = await Promise.all([
     listFindings(db, caseId),
@@ -376,6 +375,13 @@ export async function answerCaseQuestion(args: {
   apiKey: string;
   apiKeys?: string[];
   question: string;
+  // The language the attorney currently has the UI toggled to. The chat is
+  // a live back-and-forth, not a fixed generated document — it should
+  // answer in whatever language the attorney is reading the screen in
+  // right now, not whatever cases.report_language happened to be set to
+  // when the report was generated. Falls back to that stored report
+  // locale only when the client didn't send one (older clients).
+  locale?: "es" | "en";
 }) {
   const { db, caseId, userId, apiKey, apiKeys, question } = args;
 
@@ -387,7 +393,7 @@ export async function answerCaseQuestion(args: {
     content: question,
   });
 
-  const locale = await getReportLocale(db, caseId);
+  const locale = args.locale ?? (await getReportLocale(db, caseId));
 
   const [{ ctx, corpus }, history] = await Promise.all([
     buildChatContext(db, caseId, question),
@@ -468,7 +474,6 @@ ${question}`,
 
     return { answer: notice, suggestsRerun: false, rerunReason: null, error: true };
   }
-
 
   // Strip the report-update marker (rule 7 above) before anything else
   // touches the text — grounding checks and the stored/displayed content
