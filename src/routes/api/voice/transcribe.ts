@@ -46,16 +46,6 @@ export const Route = createFileRoute("/api/voice/transcribe")({
         const { resolveVoiceProviderChain, flattenVoiceChain } = await import("@/lib/ai-key-router.server");
         const chain = await resolveVoiceProviderChain(supabase, userId);
         const attempts = flattenVoiceChain(chain);
-        if (attempts.length === 0) {
-          return new Response(
-            JSON.stringify({
-              error: "No voice-capable AI provider configured",
-              detail: "Add a Groq, OpenAI, or Gemini key in Admin \u2192 AI Providers to use voice.",
-              diag: { userKeyCount: chain.userKeyCount, hasPlatform: chain.hasPlatform },
-            }),
-            { status: 500, headers: { "Content-Type": "application/json" } },
-          );
-        }
 
         const incoming = await request.formData();
         const file = incoming.get("file");
@@ -89,7 +79,9 @@ export const Route = createFileRoute("/api/voice/transcribe")({
 
         const audioBytes = await file.arrayBuffer();
 
-        const { transcribeAudio, isRotatableError, VoiceProviderError } = await import("@/lib/voice/adapters.server");
+        const { transcribeAudio, transcribeViaGateway, VoiceProviderError } = await import(
+          "@/lib/voice/adapters.server"
+        );
 
         // Try every key across every configured provider in priority order.
         // Only advance on an auth/quota/payment failure — anything else
@@ -121,6 +113,31 @@ export const Route = createFileRoute("/api/voice/transcribe")({
           }
         }
 
+        // Last resort: the platform gateway, so dictation keeps working when
+        // the attorney's own keys are quota-exhausted or revoked.
+        let gatewayError = "";
+        try {
+          const text = await transcribeViaGateway({ audioBytes, mime, ext, language });
+          if (text.trim()) {
+            console.warn("[voice/transcribe] served via platform gateway fallback");
+            return Response.json({ text });
+          }
+        } catch (err) {
+          gatewayError = err instanceof Error ? err.message : String(err);
+          console.warn(`[voice/transcribe] gateway fallback failed: ${gatewayError}`);
+        }
+
+        if (attempts.length === 0) {
+          return new Response(
+            JSON.stringify({
+              error: "No voice-capable AI provider configured",
+              detail: "Add a Groq, OpenAI, or Gemini key in Admin \u2192 AI Providers to use voice.",
+              diag: { userKeyCount: chain.userKeyCount, hasPlatform: chain.hasPlatform, gatewayError },
+            }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          );
+        }
+
         return new Response(
           JSON.stringify({
             error: `STT ${lastStatus}`,
@@ -130,6 +147,7 @@ export const Route = createFileRoute("/api/voice/transcribe")({
               providersTried: [...new Set(attempts.slice(0, triedCount).map((a) => a.provider))],
               triedCount,
               lastProvider,
+              gatewayError,
             },
           }),
           { status: lastStatus, headers: { "Content-Type": "application/json" } },
