@@ -1,15 +1,5 @@
 // Canonical CaseAnalysis — the 17-section single source of truth.
-//
-// All completed pipelines project their engine output into this exact shape,
-// which is what the report renderer, PDF/DOCX/JSON exports, and validator
-// operate against. Empty sections are represented explicitly (empty arrays,
-// `null`, or `{ status: "missing", reason }`) — never omitted — so the
-// validator and renderer can distinguish "engine ran and found nothing" from
-// "engine never ran".
-//
-// Report Engine v1.0 — the 17-section contract is locked. See docs/FREEZE.md.
-// Sections may not be added, removed, renamed, or reordered without a new
-// release tag and documented business justification.
+// Report Engine v1.0 — locked contract.
 
 import { assertSectionsLocked, LOCKED_CANONICAL_SECTIONS, REPORT_ENGINE_VERSION } from "./sections.lock";
 
@@ -26,7 +16,7 @@ export type Finding = {
   description: string;
   category: string;
   severity: "critical" | "high" | "medium" | "low" | "info";
-  confidence: number; // 0..1
+  confidence: number;
   legal_significance?: string | null;
   potential_impact?: string | null;
   affected_party?: string | null;
@@ -34,16 +24,9 @@ export type Finding = {
   suppressed?: boolean;
   quarantined?: boolean;
   verification_status?: string | null;
-  // Phase 3 (consensus): provenance + earned agreement. Optional so every
-  // pre-existing producer and fixture stays valid.
   source_module?: string | null;
   supporting_engines?: string[];
-  /** Distinct engines behind this claim; 0 when unknown. */
   agreement?: number;
-  /**
-   * Agreement weighted by voice kind (deterministic stage 1.6, LLM 1.0).
-   * Ranking uses this; promotion thresholds use the raw `agreement` count.
-   */
   agreement_weight?: number;
   finding_status?: "promoted" | "verified" | "disputed" | "candidate";
 };
@@ -125,7 +108,7 @@ export type ImpeachmentItem = {
 
 export type WorkProductDoc = {
   id: string;
-  kind: string; // motion, brief, memo, letter
+  kind: string;
   title: string;
   body: string;
   citations: Citation[];
@@ -135,7 +118,7 @@ export type WorkProductDoc = {
 export type ExecutiveSummary = {
   headline: string;
   narrative: string;
-  top_findings: string[]; // finding IDs
+  top_findings: string[];
   case_type?: string | null;
 };
 
@@ -167,7 +150,7 @@ export interface CaseAnalysis {
   Facts: Facts;
   Timeline: TimelineEvent[];
   Evidence: Finding[];
-  Findings: Finding[]; // superset; Evidence is filtered subset
+  Findings: Finding[];
   Witnesses: Witness[];
   Contradictions: Contradiction[];
   Discovery: DiscoveryGap[];
@@ -201,14 +184,7 @@ export const CANONICAL_SECTIONS: (keyof CaseAnalysis)[] = [
   "Appendices",
 ];
 
-// Runtime enforcement: the module-level section list must match the locked
-// Report Engine v1.0 contract. This assertion will fail at import time if
-// a future edit changes the section list.
 assertSectionsLocked(CANONICAL_SECTIONS);
-
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
 
 export type ValidationIssue = {
   section: string;
@@ -254,7 +230,10 @@ export function validateCaseAnalysis(analysis: unknown): ValidationResult {
   const push = (issue: ValidationIssue) => issues.push(issue);
 
   if (!analysis || typeof analysis !== "object") {
-    return { ok: false, issues: [{ section: "root", code: "missing_section", message: "Analysis payload is not an object." }] };
+    return {
+      ok: false,
+      issues: [{ section: "root", code: "missing_section", message: "Analysis payload is not an object." }],
+    };
   }
   const a = analysis as Partial<CaseAnalysis>;
 
@@ -264,53 +243,99 @@ export function validateCaseAnalysis(analysis: unknown): ValidationResult {
     }
   }
 
-  // Metadata
   if (a.Metadata) {
-    if (!a.Metadata.caseId) push({ section: "Metadata", code: "empty_required", message: "Metadata.caseId is required." });
-    if (!a.Metadata.generatedAt) push({ section: "Metadata", code: "empty_required", message: "Metadata.generatedAt is required." });
+    if (!a.Metadata.caseId)
+      push({ section: "Metadata", code: "empty_required", message: "Metadata.caseId is required." });
+    if (!a.Metadata.generatedAt)
+      push({ section: "Metadata", code: "empty_required", message: "Metadata.generatedAt is required." });
   }
 
-  // ExecutiveSummary
   if (a.ExecutiveSummary) {
-    if (!a.ExecutiveSummary.headline?.trim()) push({ section: "ExecutiveSummary", code: "empty_required", message: "ExecutiveSummary.headline is empty." });
-    if (looksLikePlaceholder(a.ExecutiveSummary.headline)) push({ section: "ExecutiveSummary", code: "placeholder_value", message: "ExecutiveSummary.headline contains a placeholder." });
-    if (looksLikePlaceholder(a.ExecutiveSummary.narrative)) push({ section: "ExecutiveSummary", code: "placeholder_value", message: "ExecutiveSummary.narrative contains a placeholder." });
+    if (!a.ExecutiveSummary.headline?.trim())
+      push({ section: "ExecutiveSummary", code: "empty_required", message: "ExecutiveSummary.headline is empty." });
+    if (looksLikePlaceholder(a.ExecutiveSummary.headline))
+      push({
+        section: "ExecutiveSummary",
+        code: "placeholder_value",
+        message: "ExecutiveSummary.headline contains a placeholder.",
+      });
+    if (looksLikePlaceholder(a.ExecutiveSummary.narrative))
+      push({
+        section: "ExecutiveSummary",
+        code: "placeholder_value",
+        message: "ExecutiveSummary.narrative contains a placeholder.",
+      });
   }
 
-  // Findings — every non-suppressed finding needs at least one citation.
   const findings = Array.isArray(a.Findings) ? a.Findings : [];
   for (const f of findings) {
     if (f.suppressed || f.quarantined) continue;
-    if (!f.title?.trim()) push({ section: "Findings", code: "empty_required", message: "Finding missing title.", ref: f.id });
+    if (!f.title?.trim())
+      push({ section: "Findings", code: "empty_required", message: "Finding missing title.", ref: f.id });
     if (looksLikePlaceholder(f.title) || looksLikePlaceholder(f.description)) {
-      push({ section: "Findings", code: "placeholder_value", message: `Finding "${f.title}" contains a placeholder.`, ref: f.id });
+      push({
+        section: "Findings",
+        code: "placeholder_value",
+        message: `Finding "${f.title}" contains a placeholder.`,
+        ref: f.id,
+      });
     }
     if (!hasValidCitation(f.citations)) {
-      push({ section: "Findings", code: "missing_citation", message: `Finding "${f.title}" has no supporting citation.`, ref: f.id });
+      push({
+        section: "Findings",
+        code: "missing_citation",
+        message: `Finding "${f.title}" has no supporting citation.`,
+        ref: f.id,
+      });
     }
     if (typeof f.confidence !== "number" || f.confidence < 0 || f.confidence > 1) {
-      push({ section: "Findings", code: "unsupported_conclusion", message: `Finding "${f.title}" has invalid confidence.`, ref: f.id });
+      push({
+        section: "Findings",
+        code: "unsupported_conclusion",
+        message: `Finding "${f.title}" has invalid confidence.`,
+        ref: f.id,
+      });
     }
   }
 
-  // Witnesses — a stated witness must cite the source document.
   for (const w of Array.isArray(a.Witnesses) ? a.Witnesses : []) {
-    if (!w.name?.trim()) push({ section: "Witnesses", code: "empty_required", message: "Witness missing name.", ref: w.id });
-    if (!hasValidCitation(w.citations)) push({ section: "Witnesses", code: "missing_citation", message: `Witness "${w.name}" has no source citation.`, ref: w.id });
+    if (!w.name?.trim())
+      push({ section: "Witnesses", code: "empty_required", message: "Witness missing name.", ref: w.id });
+    if (!hasValidCitation(w.citations))
+      push({
+        section: "Witnesses",
+        code: "missing_citation",
+        message: `Witness "${w.name}" has no source citation.`,
+        ref: w.id,
+      });
   }
 
-  // Contradictions
   for (const c of Array.isArray(a.Contradictions) ? a.Contradictions : []) {
-    if (!hasValidCitation(c.citations)) push({ section: "Contradictions", code: "missing_citation", message: "Contradiction missing citation.", ref: c.id });
+    if (!hasValidCitation(c.citations))
+      push({
+        section: "Contradictions",
+        code: "missing_citation",
+        message: "Contradiction missing citation.",
+        ref: c.id,
+      });
   }
 
-  // WorkProduct — rejected docs surface as unsupported conclusions.
   for (const w of Array.isArray(a.WorkProduct) ? a.WorkProduct : []) {
     if (w.verification?.status === "rejected") {
-      push({ section: "WorkProduct", code: "unsupported_conclusion", message: `Work product "${w.title}" was rejected by the verifier.`, ref: w.id });
+      push({
+        section: "WorkProduct",
+        code: "unsupported_conclusion",
+        message: `Work product "${w.title}" was rejected by the verifier.`,
+        ref: w.id,
+      });
     }
     if (!hasValidCitation(w.citations) && w.verification?.status !== "empty") {
-      push({ section: "WorkProduct", code: "missing_citation", message: `Work product "${w.title}" has no supporting citations.`, ref: w.id });
+      push({
+        section: "WorkProduct",
+        code: "missing_citation",
+        message: `Work product "${w.title}" has no supporting citations.`,
+        ref: w.id,
+      });
     }
   }
 
@@ -324,7 +349,7 @@ export function strictValidateCaseAnalysis(analysis: unknown): ValidationResult 
   const a = analysis as Partial<CaseAnalysis>;
   const locked = new Set<string>(LOCKED_CANONICAL_SECTIONS);
   for (const key of Object.keys(a)) {
-    if (key === "_canonical") continue; // marker field, not a report section
+    if (key === "_canonical") continue;
     if (!locked.has(key)) {
       result.issues.push({
         section: key,
@@ -336,10 +361,6 @@ export function strictValidateCaseAnalysis(analysis: unknown): ValidationResult 
   }
   return result;
 }
-
-// ---------------------------------------------------------------------------
-// countFindings — canonical validated findings only
-// ---------------------------------------------------------------------------
 
 export function countFindings(analysis: Pick<CaseAnalysis, "Findings"> | null | undefined): number {
   const findings = analysis?.Findings;
@@ -356,10 +377,6 @@ export function countFindings(analysis: Pick<CaseAnalysis, "Findings"> | null | 
   }
   return count;
 }
-
-// ---------------------------------------------------------------------------
-// Empty scaffold — used as a starting point by the writer.
-// ---------------------------------------------------------------------------
 
 export function emptyCaseAnalysis(meta: CanonicalMetadata): CaseAnalysis {
   return {
