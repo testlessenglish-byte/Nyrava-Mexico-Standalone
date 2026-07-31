@@ -85,7 +85,6 @@ export type StageDef = {
   readonly timeoutMs?: number;
 };
 
-
 // -----------------------------------------------------------------------------
 // THE canonical stage list. Order == execution order == UI display order.
 // -----------------------------------------------------------------------------
@@ -312,16 +311,34 @@ export const PIPELINE_STAGE_TO_ENGINE: Readonly<Record<string, string>> = Object
 // is the consumer of this gate, not a precondition for itself — including it
 // would make the pre-flight check permanently unsatisfiable (it can only
 // become "completed" after it has already run).
+//
+// 2026-07-31: per explicit direction, the report must not generate until
+// EVERY stage has reached a terminal state — not just the stages marked
+// requirement:"blocking". Confirmed live in a real case: work_product
+// (requirement:"optional") was stuck at status "running" while the
+// pipeline continued straight through report generation and the final
+// multi-agent review, producing a report next to a permanently-dangling
+// "still running" engine. This intentionally no longer filters by
+// `requirement` — it lists every stage except report_generator itself
+// (self-referential, see note above) and multi_agent (runs AFTER report,
+// so it can never be a precondition for it). The underlying `requirement`
+// field on each CANONICAL_STAGES entry is left untouched — it's still used
+// elsewhere (e.g. whether a failed stage flips the whole pipeline run to
+// "failed"), and this change is scoped to the report gate only.
 export const REPORT_BLOCKING_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
-  (s) => s.requirement === "blocking" && s.engine !== "report_generator",
+  (s) => s.engine !== "report_generator" && s.key !== "multi_agent",
 ).map((s) => s.engine);
 
 export const REPORT_ENRICHING_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
   (s) => s.requirement === "enriching",
 ).map((s) => s.engine);
 
-/** All engines the report gate considers (blocking + enriching). */
-export const REPORT_REQUIRED_ENGINES: readonly string[] = [...REPORT_BLOCKING_ENGINES, ...REPORT_ENRICHING_ENGINES];
+/** All engines the report gate considers (blocking + enriching, deduped —
+ * every stage is now in REPORT_BLOCKING_ENGINES, so this would otherwise
+ * double-count the subset that's also requirement:"enriching"). */
+export const REPORT_REQUIRED_ENGINES: readonly string[] = Array.from(
+  new Set([...REPORT_BLOCKING_ENGINES, ...REPORT_ENRICHING_ENGINES]),
+);
 
 /** Subset the Command Center dashboard summarizes. Same list — kept for API compat. */
 export const COMMAND_CENTER_ENGINES: readonly string[] = REPORT_REQUIRED_ENGINES;
@@ -528,7 +545,5 @@ export function stageTimeoutMs(stageKey: string): number | undefined {
 
 /** Every stage that declares a timeout ceiling, keyed by stage key. */
 export const STAGE_TIMEOUT_MS: Readonly<Record<string, number>> = Object.freeze(
-  Object.fromEntries(
-    CANONICAL_STAGES.filter((s) => typeof s.timeoutMs === "number").map((s) => [s.key, s.timeoutMs!]),
-  ),
+  Object.fromEntries(CANONICAL_STAGES.filter((s) => typeof s.timeoutMs === "number").map((s) => [s.key, s.timeoutMs!])),
 );
