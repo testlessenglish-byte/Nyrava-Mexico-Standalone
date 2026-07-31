@@ -155,46 +155,53 @@ export const Route = createFileRoute("/api/voice/speak")({
 
         const input = cleaned.slice(0, 3000);
         const resolvedVoice = voice || "alloy";
-        const chunks = chunkText(input, MAX_CHARS_PER_CHUNK);
 
         let lastStatus = 500;
         let lastMessage = "";
         let lastProvider = "";
         let triedCount = 0;
-        let attemptStart = 0; // once an attempt works for one chunk, try it first for the rest
-        const audioChunks: ArrayBuffer[] = [];
+        let chunkCount = 0;
+        let chunksCompleted = 0;
 
-        chunkLoop: for (const chunk of chunks) {
-          for (let offset = 0; offset < attempts.length; offset++) {
-            const i = (attemptStart + offset) % attempts.length;
-            const { provider, key } = attempts[i];
-            triedCount++;
-            try {
-              const wav = await speakText({ provider, apiKey: key, text: chunk, voice: resolvedVoice, language });
-              audioChunks.push(wav);
-              attemptStart = i;
-              continue chunkLoop;
-            } catch (err) {
-              lastProvider = provider;
-              if (err instanceof VoiceProviderError) {
-                lastStatus = err.status;
-                lastMessage = err.message;
-                if (offset < attempts.length - 1 && err.rotatable) {
-                  console.warn(`[voice/speak] ${provider} attempt ${i} failed (${err.status}), trying next`);
-                  continue;
-                }
-              } else {
-                lastMessage = err instanceof Error ? err.message : String(err);
+        // One provider synthesizes the WHOLE answer, chunked to ITS own
+        // input limit. Previously each 180-char chunk could land on a
+        // different provider, so a mid-answer rotation spliced two sample
+        // rates into one WAV and the tail came out garbled — and any single
+        // failed chunk threw away every chunk already paid for. Now a
+        // provider either delivers the complete answer or we move on.
+        for (let i = 0; i < attempts.length; i++) {
+          const { provider, key } = attempts[i];
+          const limit = PROVIDER_CHUNK_LIMIT[provider] ?? FALLBACK_CHUNK_LIMIT;
+          const chunks = chunkText(input, limit);
+          chunkCount = chunks.length;
+          triedCount++;
+          const parts: ArrayBuffer[] = [];
+          try {
+            for (const chunk of chunks) {
+              parts.push(await speakText({ provider, apiKey: key, text: chunk, voice: resolvedVoice, language }));
+            }
+            if (parts.length > 0) {
+              chunksCompleted = parts.length;
+              return new Response(concatWav(parts), { headers: { "Content-Type": "audio/wav" } });
+            }
+          } catch (err) {
+            lastProvider = provider;
+            chunksCompleted = parts.length;
+            if (err instanceof VoiceProviderError) {
+              lastStatus = err.status;
+              lastMessage = err.message;
+              if (!err.rotatable) {
+                console.warn(`[voice/speak] ${provider} failed hard (${err.status}); not rotating`);
+                break;
               }
-              break chunkLoop;
+              console.warn(`[voice/speak] ${provider} failed (${err.status}) after ${parts.length}/${chunks.length} chunks, trying next`);
+            } else {
+              lastMessage = err instanceof Error ? err.message : String(err);
+              console.warn(`[voice/speak] ${provider} threw; trying next`);
             }
           }
         }
 
-        if (audioChunks.length === chunks.length && chunks.length > 0) {
-          const combined = concatWav(audioChunks);
-          return new Response(combined, { headers: { "Content-Type": "audio/wav" } });
-        }
 
         // Last resort: the platform gateway. Reached when the attorney has no
         // voice-capable key at all, or every one of theirs failed (quota,
