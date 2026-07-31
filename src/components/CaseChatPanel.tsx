@@ -508,7 +508,7 @@ export function CaseChatPanel({
                         <div className="flex items-center gap-1.5 text-xs text-emerald-500">
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                           {regeneratedVersions[m.id]
-                            ? t("chat.report.updatedTo", { version: regeneratedVersions[m.id] as string })
+                            ? t("chat.report.updatedTo", { version: regeneratedVersions[m.id] ?? "" })
                             : t("chat.report.updated")}
                         </div>
                       ) : (
@@ -543,7 +543,7 @@ export function CaseChatPanel({
                         <div className="flex items-center gap-1.5 text-xs text-emerald-500">
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                           {regeneratedVersions[m.id]
-                            ? t("chat.report.updatedTo", { version: regeneratedVersions[m.id] as string })
+                            ? t("chat.report.updatedTo", { version: regeneratedVersions[m.id] ?? "" })
                             : t("chat.report.updated")}
                         </div>
                       ) : (
