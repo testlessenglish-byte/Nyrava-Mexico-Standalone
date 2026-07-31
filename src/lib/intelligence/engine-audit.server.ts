@@ -70,7 +70,6 @@ export type EngineStats = {
   };
 };
 
-
 export type EngineResult<T> = { value: T; stats?: EngineStats };
 
 function labelEngine(engine: string): string {
@@ -81,9 +80,34 @@ function labelEngine(engine: string): string {
 }
 
 /**
+ * True when a Supabase/Postgres insert error is a unique-constraint
+ * violation (Postgres error code 23505). We use this to detect the
+ * `pipeline_engine_runs_one_active_per_engine` partial unique index
+ * rejecting a second concurrent "running" row for the same case+engine.
+ */
+function isUniqueViolation(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false;
+  if (err.code === "23505") return true;
+  // Fallback string match in case the driver doesn't surface `.code`.
+  return typeof err.message === "string" && err.message.includes("duplicate key value violates unique constraint");
+}
+
+/**
  * Wrap an engine invocation so its execution is recorded in
  * pipeline_engine_runs. The wrapped fn may return either a plain value or
  * { value, stats } to declare its accepted/rejected/suppressed counts.
+ *
+ * Concurrency note: two invocations for the same case+engine can start
+ * within milliseconds of each other (parallel batch dispatch, retries,
+ * etc.). The SELECT-based check below is a fast, friendly pre-check only —
+ * it is NOT what prevents duplicates, because a SELECT-then-INSERT has a
+ * race window. The actual guard is the partial unique index
+ * `pipeline_engine_runs_one_active_per_engine` on
+ * (case_id, engine) WHERE status = 'running', enforced atomically by
+ * Postgres at INSERT time. If two invocations both pass the SELECT check,
+ * only one INSERT will succeed; the other gets a unique-violation error,
+ * which we catch below and convert into the same friendly
+ * "duplicate run prevented" error the SELECT check produces.
  */
 export async function runEngine<T>(
   db: Db,
@@ -93,6 +117,8 @@ export async function runEngine<T>(
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
   const staleCutoff = new Date(Date.now() - 20 * 60_000).toISOString();
+
+  // Fast, friendly pre-check (not the real guard — see note above).
   const { data: activeRun, error: activeRunErr } = await db
     .from("pipeline_engine_runs")
     .select("id,started_at")
@@ -114,11 +140,12 @@ export async function runEngine<T>(
   await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} started`, {
     meta: { engine: args.engine, status: "running" },
   });
-  // Insert running row. We REQUIRE an id back — if the insert silently
-  // returns no row (RLS quirk, driver oddity), we must fail loudly rather
-  // than let the engine run without a ledger anchor, because a subsequent
-  // exception would then have no row to flip to `failed` and leave the
-  // engine perceived as never-started.
+
+  // Insert running row. This is the real, atomic duplicate-run guard:
+  // the partial unique index on (case_id, engine) WHERE status='running'
+  // means Postgres itself rejects a second concurrent "running" insert
+  // for the same case+engine, closing the race window the SELECT above
+  // can't close on its own.
   const { data: inserted, error: insertErr } = await db
     .from("pipeline_engine_runs")
     .insert({
@@ -132,6 +159,16 @@ export async function runEngine<T>(
     } as never)
     .select("id")
     .maybeSingle();
+
+  if (insertErr && isUniqueViolation(insertErr)) {
+    await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} duplicate run blocked`, {
+      level: "warn",
+      meta: { engine: args.engine, status: "duplicate_blocked" },
+    });
+    throw new Error(
+      `runEngine(${args.engine}): duplicate run prevented — another invocation is already running for this case`,
+    );
+  }
   if (insertErr || !inserted?.id) {
     const reason = insertErr?.message ?? "insert returned no id";
     throw new Error(`runEngine(${args.engine}): failed to create ledger row — ${reason}`);
@@ -145,10 +182,9 @@ export async function runEngine<T>(
       { runId, traceId: runId, replay: { engine: args.engine, case_id: args.caseId } },
       async () => fn(),
     );
-    const isWrapped =
-      result && typeof result === "object" && "value" in (result as Record<string, unknown>);
-    const value = (isWrapped ? (result as EngineResult<T>).value : (result as T));
-    const stats = (isWrapped ? (result as EngineResult<T>).stats ?? {} : {}) as EngineStats;
+    const isWrapped = result && typeof result === "object" && "value" in (result as Record<string, unknown>);
+    const value = isWrapped ? (result as EngineResult<T>).value : (result as T);
+    const stats = (isWrapped ? ((result as EngineResult<T>).stats ?? {}) : {}) as EngineStats;
     const runtime = Date.now() - t0;
     const finalStatus = stats.outcome === "negative" ? "completed_negative" : "completed";
     const telemetry = summarizeScope(scope);
@@ -169,27 +205,30 @@ export async function runEngine<T>(
         calls: telemetry.calls,
       };
     }
-    const { error: updErr } = await db.from("pipeline_engine_runs").update({
-      status: finalStatus,
-      ended_at: new Date().toISOString(),
-      runtime_ms: runtime,
-      generated: stats.generated ?? 0,
-      accepted: stats.accepted ?? 0,
-      rejected: stats.rejected ?? 0,
-      suppressed_ess: stats.suppressed_ess ?? 0,
-      suppressed_validator: stats.suppressed_validator ?? 0,
-      provider: stats.provider ?? telemetry.provider ?? null,
-      model: stats.model ?? telemetry.model ?? null,
-      prompt_version: stats.prompt_version ?? null,
-      tokens_in: stats.tokens_in ?? telemetry.tokensIn ?? 0,
-      tokens_out: stats.tokens_out ?? telemetry.tokensOut ?? 0,
-      retry_count: (stats.retry_count ?? 0) + telemetry.retryCount,
-      cost_usd: stats.cost_usd ?? Number(telemetry.costUsd.toFixed(6)) ?? 0,
-      rows_written: stats.rows_written ?? null,
-      db_write_confirmed: stats.db_write_confirmed ?? true,
-      meta: mergedMeta as never,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any).eq("id", id);
+    const { error: updErr } = await db
+      .from("pipeline_engine_runs")
+      .update({
+        status: finalStatus,
+        ended_at: new Date().toISOString(),
+        runtime_ms: runtime,
+        generated: stats.generated ?? 0,
+        accepted: stats.accepted ?? 0,
+        rejected: stats.rejected ?? 0,
+        suppressed_ess: stats.suppressed_ess ?? 0,
+        suppressed_validator: stats.suppressed_validator ?? 0,
+        provider: stats.provider ?? telemetry.provider ?? null,
+        model: stats.model ?? telemetry.model ?? null,
+        prompt_version: stats.prompt_version ?? null,
+        tokens_in: stats.tokens_in ?? telemetry.tokensIn ?? 0,
+        tokens_out: stats.tokens_out ?? telemetry.tokensOut ?? 0,
+        retry_count: (stats.retry_count ?? 0) + telemetry.retryCount,
+        cost_usd: stats.cost_usd ?? Number(telemetry.costUsd.toFixed(6)) ?? 0,
+        rows_written: stats.rows_written ?? null,
+        db_write_confirmed: stats.db_write_confirmed ?? true,
+        meta: mergedMeta as never,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+      .eq("id", id);
     if (updErr) {
       throw new Error(`ledger update failed: ${updErr.message}`);
     }
@@ -198,17 +237,19 @@ export async function runEngine<T>(
       meta: { engine: args.engine, status: finalStatus, runtime_ms: runtime, ...stats },
     });
     return value;
-
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const runtime = Date.now() - t0;
     if (isCheckpointError(e)) {
-      await db.from("pipeline_engine_runs").update({
-        status: "queued",
-        ended_at: new Date().toISOString(),
-        runtime_ms: runtime,
-        error: `Checkpoint — ${e.progress}`.slice(0, 2000),
-      }).eq("id", id);
+      await db
+        .from("pipeline_engine_runs")
+        .update({
+          status: "queued",
+          ended_at: new Date().toISOString(),
+          runtime_ms: runtime,
+          error: `Checkpoint — ${e.progress}`.slice(0, 2000),
+        })
+        .eq("id", id);
       terminalWritten = true;
       await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} checkpointed`, {
         level: "warn",
@@ -216,12 +257,15 @@ export async function runEngine<T>(
       });
       throw e;
     }
-    await db.from("pipeline_engine_runs").update({
-      status: "failed",
-      ended_at: new Date().toISOString(),
-      runtime_ms: runtime,
-      error: msg.slice(0, 2000),
-    }).eq("id", id);
+    await db
+      .from("pipeline_engine_runs")
+      .update({
+        status: "failed",
+        ended_at: new Date().toISOString(),
+        runtime_ms: runtime,
+        error: msg.slice(0, 2000),
+      })
+      .eq("id", id);
     terminalWritten = true;
     await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} failed`, {
       level: "error",
@@ -233,19 +277,22 @@ export async function runEngine<T>(
     // force the row failed so it can never stay `running` forever.
     if (!terminalWritten) {
       try {
-        await db.from("pipeline_engine_runs").update({
-          status: "failed",
-          ended_at: new Date().toISOString(),
-          runtime_ms: Date.now() - t0,
-          error: "engine exited without writing terminal state",
-        }).eq("id", id).eq("status", "running");
+        await db
+          .from("pipeline_engine_runs")
+          .update({
+            status: "failed",
+            ended_at: new Date().toISOString(),
+            runtime_ms: Date.now() - t0,
+            error: "engine exited without writing terminal state",
+          })
+          .eq("id", id)
+          .eq("status", "running");
       } catch (finalErr) {
         console.warn(`[runEngine] finally cleanup failed for ${args.engine}`, finalErr);
       }
     }
   }
 }
-
 
 /**
  * Record that an engine was prevented from running because one or more
@@ -319,7 +366,9 @@ export async function clearEngineRuns(db: Db, caseId: string) {
 export async function buildEnginesSummary(db: Db, caseId: string) {
   const { data } = await db
     .from("pipeline_engine_runs")
-    .select("engine,status,runtime_ms,generated,accepted,rejected,suppressed_ess,suppressed_validator,skipped_reason,error,started_at,ended_at")
+    .select(
+      "engine,status,runtime_ms,generated,accepted,rejected,suppressed_ess,suppressed_validator,skipped_reason,error,started_at,ended_at",
+    )
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
   const out: Record<string, unknown> = {};
