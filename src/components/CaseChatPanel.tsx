@@ -78,7 +78,7 @@ export function CaseChatPanel({
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const fetchChat = useServerFn(getCaseChat);
   const askAi = useServerFn(askCaseAi);
   const clearChat = useServerFn(clearCaseChat);
@@ -311,11 +311,11 @@ export function CaseChatPanel({
   };
 
   const suggestions = [
-    "Summarize this case for me.",
-    "What is the strongest argument we have?",
-    "Where is the evidence weakest?",
-    "What evidence should I upload next?",
-    "What motions should be filed first?",
+    t("chat.suggestion.summarize"),
+    t("chat.suggestion.strongest"),
+    t("chat.suggestion.weakest"),
+    t("chat.suggestion.nextEvidence"),
+    t("chat.suggestion.motions"),
   ];
 
   return (
@@ -330,7 +330,7 @@ export function CaseChatPanel({
       <div
         role={expanded ? "dialog" : undefined}
         aria-modal={expanded || undefined}
-        aria-label={expanded ? "Talk To Case — expanded" : undefined}
+        aria-label={expanded ? t("chat.expanded.label") : undefined}
         className={
           expanded
             ? "fixed inset-0 z-50 flex flex-col bg-card md:inset-6 md:rounded-xl md:border md:border-border md:shadow-2xl"
@@ -350,8 +350,8 @@ export function CaseChatPanel({
           <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-accent bg-background/80 backdrop-blur-sm">
             <div className="text-center">
               <Upload className="mx-auto h-8 w-8 text-accent" />
-              <p className="mt-2 text-sm font-semibold text-foreground">Drop files to attach to this case</p>
-              <p className="text-xs text-muted-foreground">PDF, DOCX, ZIP, images, scans — up to 50 MB each</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">{t("chat.drop.title")}</p>
+              <p className="text-xs text-muted-foreground">{t("chat.drop.hint")}</p>
             </div>
           </div>
         )}
@@ -360,36 +360,36 @@ export function CaseChatPanel({
           <div className="flex min-w-0 items-center gap-2">
             <MessageSquare className="h-4 w-4 shrink-0 text-accent" />
             <h3 className="truncate text-sm font-semibold">
-              {caseName ? `Talking to: ${caseName}` : "Case Intelligence"}
+              {caseName ? t("chat.header.talkingTo", { name: caseName }) : t("chat.header.default")}
             </h3>
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setShowEvidence((v) => !v)}
               className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs ${showEvidence ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"}`}
-              title="Show evidence in this case"
+              title={t("chat.evidence.title")}
             >
-              <FolderOpen className="h-3 w-3" /> Evidence ({docs.length})
+              <FolderOpen className="h-3 w-3" /> {t("chat.evidence", { count: docs.length })}
             </button>
             <button
               onClick={() => clear.mutate()}
               disabled={history.length === 0}
               className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
             >
-              <Trash2 className="h-3 w-3" /> Clear
+              <Trash2 className="h-3 w-3" /> {t("chat.clear")}
             </button>
             <button
               onClick={() => setExpanded((v) => !v)}
               className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-              title={expanded ? "Collapse to normal view" : "Expand to full-screen reading view"}
+              title={expanded ? t("chat.collapse.title") : t("chat.expand.title")}
             >
               {expanded ? (
                 <>
-                  <Minimize2 className="h-3 w-3" /> Close
+                  <Minimize2 className="h-3 w-3" /> {t("chat.close")}
                 </>
               ) : (
                 <>
-                  <Maximize2 className="h-3 w-3" /> Expand
+                  <Maximize2 className="h-3 w-3" /> {t("chat.expand")}
                 </>
               )}
             </button>
@@ -400,7 +400,7 @@ export function CaseChatPanel({
           <div className="max-h-56 overflow-y-auto border-b border-border bg-background/40 px-3 py-2">
             {docs.length === 0 ? (
               <p className="px-1 py-3 text-xs text-muted-foreground">
-                No evidence uploaded yet. Drag files anywhere on this chat, or use the paperclip below.
+                {t("chat.evidence.none")}
               </p>
             ) : (
               <ul className="space-y-1">
@@ -429,7 +429,7 @@ export function CaseChatPanel({
                         }
                       }}
                       className="rounded p-1 text-muted-foreground hover:text-foreground"
-                      title="Download"
+                      title={t("chat.download")}
                     >
                       <Download className="h-3.5 w-3.5" />
                     </button>
@@ -438,7 +438,7 @@ export function CaseChatPanel({
                         if (confirm(`Delete "${d.filename}"?`)) del.mutate(d.id);
                       }}
                       className="rounded p-1 text-muted-foreground hover:text-destructive"
-                      title="Delete"
+                      title={t("chat.delete")}
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -453,8 +453,7 @@ export function CaseChatPanel({
           {history.length === 0 && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Ask anything about this case. Drag files into this window to add evidence — Nyrava Intelligence will
-                read them and tell you what's still missing.
+                {t("chat.empty")}
               </p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => (
@@ -509,13 +508,13 @@ export function CaseChatPanel({
                         <div className="flex items-center gap-1.5 text-xs text-emerald-500">
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                           {regeneratedVersions[m.id]
-                            ? `Report updated to v${regeneratedVersions[m.id]}`
-                            : "Report updated"}
+                            ? t("chat.report.updatedTo", { version: regeneratedVersions[m.id] as string })
+                            : t("chat.report.updated")}
                         </div>
                       ) : (
                         <>
                           <p className="text-xs text-foreground/80">
-                            {m.metadata?.rerun_reason || "This resolves something the report flagged."}
+                            {m.metadata?.rerun_reason || t("chat.report.flagged")}
                           </p>
                           <button
                             onClick={() => handleRegenerate(m, precedingQuestion)}
@@ -527,7 +526,7 @@ export function CaseChatPanel({
                             ) : (
                               <RotateCw className="h-3 w-3" />
                             )}
-                            {isRegeneratingThis ? regen.progress || "Regenerating…" : "Regenerate report with this"}
+                            {isRegeneratingThis ? regen.progress || t("chat.report.regenerating") : t("chat.report.regenerate")}
                           </button>
                         </>
                       )}
@@ -544,8 +543,8 @@ export function CaseChatPanel({
                         <div className="flex items-center gap-1.5 text-xs text-emerald-500">
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                           {regeneratedVersions[m.id]
-                            ? `Report updated to v${regeneratedVersions[m.id]}`
-                            : "Report updated"}
+                            ? t("chat.report.updatedTo", { version: regeneratedVersions[m.id] as string })
+                            : t("chat.report.updated")}
                         </div>
                       ) : (
                         <button
@@ -558,14 +557,14 @@ export function CaseChatPanel({
                           }
                           disabled={regen.busy}
                           className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary/60 hover:text-foreground disabled:opacity-50"
-                          title="Not covered by an automatic flag — manually push this into the report and rerun"
+                          title={t("chat.report.manualTitle")}
                         >
                           {isRegeneratingThis ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <FilePenLine className="h-3 w-3" />
                           )}
-                          {isRegeneratingThis ? regen.progress || "Updating…" : "Update report with this"}
+                          {isRegeneratingThis ? regen.progress || t("chat.report.updatingShort") : t("chat.report.update")}
                         </button>
                       )}
                     </div>
@@ -577,14 +576,14 @@ export function CaseChatPanel({
           {ask.isPending && (
             <div className="flex justify-start">
               <div className="text-sm text-muted-foreground">
-                <Loader2 className="inline h-3.5 w-3.5 animate-spin" /> Thinking…
+                <Loader2 className="inline h-3.5 w-3.5 animate-spin" /> {t("chat.thinking")}
               </div>
             </div>
           )}
           {upload.isPending && (
             <div className="flex justify-start">
               <div className="text-xs text-muted-foreground">
-                <Loader2 className="inline h-3 w-3 animate-spin" /> Uploading evidence to this case…
+                <Loader2 className="inline h-3 w-3 animate-spin" /> {t("chat.uploading")}
               </div>
             </div>
           )}
@@ -607,7 +606,7 @@ export function CaseChatPanel({
               onClick={() => fileRef.current?.click()}
               disabled={upload.isPending}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:text-accent disabled:opacity-50"
-              title="Attach evidence"
+              title={t("chat.attach")}
               type="button"
             >
               <Paperclip className="h-4 w-4" />
@@ -618,7 +617,7 @@ export function CaseChatPanel({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               rows={1}
-              placeholder="Ask Nyrava Intelligence or drop files…"
+              placeholder={t("chat.placeholder")}
               // The text input is its own selection scope; CSS hint keeps mobile
               // long-press select-all from bleeding into surrounding chat content.
               style={{ WebkitUserSelect: "text", userSelect: "text" }}
@@ -630,7 +629,7 @@ export function CaseChatPanel({
               className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
-              <span className="hidden sm:inline">Send</span>
+              <span className="hidden sm:inline">{t("chat.send")}</span>
             </button>
           </div>
         </div>
