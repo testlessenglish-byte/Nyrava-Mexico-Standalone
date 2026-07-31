@@ -1,0 +1,18 @@
+numero,documento,fecha,oferente,tipo_prueba,relevancia
+1,Acta de presentacion de extranjeros,2026-01-14,INM,Documental publica,Acredita hora y circunstancias del operativo migratorio
+2,Resolucion de alojamiento en estacion migratoria,2026-01-15,INM,Documental publica,Acredita el fundamento y motivacion del alojamiento
+3,Solicitud de reconocimiento de la condicion de refugiado,2026-01-15,COMAR / quejosos,Documental publica,Acredita la fecha en que se manifesto la solicitud
+4,Transcripcion de entrevista de elegibilidad Wilmer Bautista,2026-01-20,COMAR,Documental publica,Acredita el relato de persecucion y ausencia de interprete manifestada por el solicitante
+5,Informe especial de supervision CNDH,2026-01-26,CNDH,Documental publica,Acredita condiciones de alojamiento y hallazgos sobre interprete y salud
+6,Certificados medicos de ingreso y nota de seguimiento,2026-01-14 / 2026-01-23,INM,Documental publica,Acredita estado de salud y omisiones en expediente clinico de la menor
+7,Dictamen psicosocial del nucleo familiar,2026-01-26,INM,Documental publica,Acredita afectacion emocional de los menores y recomendacion de medida alternativa
+8,Comparecencia del agente Osiel Enriquez Zorrilla,2026-01-24,CNDH,Testimonial,Version sobre hora del operativo y presencia de interprete
+9,Comparecencia de la agente Cinthia Solorzano Marin,2026-01-24,CNDH,Testimonial,Version contradictoria sobre hora del operativo y ausencia de interprete
+10,Oficios internos del INM (5 oficios compilados),2026-01-15 a 2026-02-03,INM,Documental publica,Acredita gestiones de canalizacion y cumplimiento de suspension
+11,Constancia de tramite de la COMAR,2026-01-30,COMAR,Documental publica,Acredita fecha de recepcion formal de la solicitud distinta a la de presentacion
+12,Demanda de amparo indirecto,2026-02-02,Quejosos,Documental publica,Fija la litis constitucional y actos reclamados
+13,Informe justificado de la autoridad responsable,2026-02-10,INM,Documental publica,Postura de la autoridad responsable sobre legalidad del acto
+14,Resolucion de suspension de plano y provisional,2026-02-04,Juzgado Segundo de Distrito,Documental publica,Acredita medida cautelar decretada a favor de los quejosos
+15,Acuerdo de reconocimiento de la condicion de refugiado,2026-02-20,COMAR,Documental publica,Resuelve de fondo la solicitud de refugio a favor de la familia
+16,Cedulas de identidad hondurenas y actas de nacimiento,2026-01-15,Quejosos,Documental privada,Acredita identidad y nacionalidad del grupo familiar
+17,Denuncia PN-EP-2025-4471 ante Policia Nacional de Honduras,2025-12-29,Quejosos,Documental privada,Acredita denuncia previa de los hechos de persecucion en pais de origen
