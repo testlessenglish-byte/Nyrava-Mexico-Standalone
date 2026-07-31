@@ -492,27 +492,10 @@ ${question}`,
   // should never see the raw marker.
   const { clean: cleanText, suggestsRerun, reason: rerunReason } = extractRerunSignal(r.text);
 
-  // Grounding check — previously citation honesty (rule 5 above) was
-  // enforced by prompt instruction only, unlike every generation path
-  // elsewhere in the codebase (work product, motion drafts) which re-check
-  // the model's output in code. Reuses the existing sentence-traceability
-  // validator rather than building new verification logic. Chat answers
-  // legitimately include general legal explanation not verbatim in the
-  // corpus (procedural rules, definitions), so this flags low-groundedness
-  // with an advisory banner rather than silently deleting sentences the way
-  // validateProseAgainstCorpus does for narrative report sections — deleting
-  // chunks out of a conversational reply would break its flow in a way that
-  //'s fine for a formal report section but not for a chat answer.
-  let finalAnswer = cleanText;
-  if (corpus) {
-    const { validateProseAgainstCorpus } = await import("./sufficiency.server");
-    const { kept, dropped } = validateProseAgainstCorpus(cleanText, corpus);
-    const total = kept + dropped;
-    const groundingRatio = total > 0 ? kept / total : 1;
-    if (total >= 4 && groundingRatio < 0.6) {
-      finalAnswer = `> ⚠️ **Note:** several statements in this answer could not be directly traced to the uploaded case file. Verify against source documents before relying on them.\n\n${cleanText}`;
-    }
-  }
+  // Citation honesty (rule 5 above) is enforced by prompt instruction only for
+  // chat. The previous post-hoc grounding check prepended an advisory banner to
+  // nearly every answer and cost extra work per reply, so it was removed.
+  const finalAnswer = cleanText;
 
   const { getKeyIdByIndex } = await import("../ai-key-router.server");
   const groqKeyId = getKeyIdByIndex(userId, "groq", r.keyIndex);
