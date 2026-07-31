@@ -1,0 +1,2 @@
+ALTER TABLE public.cases ADD COLUMN IF NOT EXISTS matter_metadata jsonb;
+COMMENT ON COLUMN public.cases.matter_metadata IS 'Structured Mexican court-file metadata (expediente, juzgado, partes, etapa procesal, etc.). Populated automatically by seeded benchmark corpora and editable by the owner.';

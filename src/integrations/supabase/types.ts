@@ -1966,6 +1966,7 @@ export type Database = {
           jurisdiction_profile: Json | null
           legal_qa_report: Json | null
           lifecycle_status: string | null
+          matter_metadata: Json | null
           name: string
           next_stage: string | null
           opportunities_at: string | null
@@ -2020,6 +2021,7 @@ export type Database = {
           jurisdiction_profile?: Json | null
           legal_qa_report?: Json | null
           lifecycle_status?: string | null
+          matter_metadata?: Json | null
           name: string
           next_stage?: string | null
           opportunities_at?: string | null
@@ -2074,6 +2076,7 @@ export type Database = {
           jurisdiction_profile?: Json | null
           legal_qa_report?: Json | null
           lifecycle_status?: string | null
+          matter_metadata?: Json | null
           name?: string
           next_stage?: string | null
           opportunities_at?: string | null
