@@ -241,6 +241,28 @@ const GEMINI_VOICE_MAP: Record<string, string> = {
   verse: "Callirrhoe",
 };
 
+// Groq's Orpheus model accepts ONLY its own six voice names — sending the
+// platform's OpenAI-style ids ("alloy", "nova", ...) is a hard 400
+// ("voice must be one of the following voices: [autumn diana hannah austin
+// daniel troy]"). Map by gender/character so the voice the attorney picked
+// still sounds close when a request lands on Groq.
+const GROQ_VOICE_MAP: Record<string, string> = {
+  // female
+  alloy: "diana",
+  nova: "diana",
+  shimmer: "hannah",
+  coral: "autumn",
+  sage: "hannah",
+  fable: "autumn",
+  // male
+  onyx: "austin",
+  echo: "daniel",
+  ash: "troy",
+  ballad: "daniel",
+  verse: "troy",
+};
+const GROQ_VALID_VOICES = new Set(["autumn", "diana", "hannah", "austin", "daniel", "troy"]);
+
 export interface SpeakArgs {
   provider: VoiceProvider;
   apiKey: string;
@@ -249,6 +271,7 @@ export interface SpeakArgs {
   /** BCP-47-ish hint ("es" | "en") — the UI's current language toggle. */
   language?: "es" | "en";
 }
+
 
 /** Returns raw WAV bytes, ready to stream back to the browser as-is. */
 export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
