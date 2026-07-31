@@ -64,6 +64,29 @@ function pickMime(): string | null {
   return null;
 }
 
+// Strip markdown so the voice doesn't read "asterisk asterisk" and hash
+// signs aloud, and cap the utterance so one turn stays conversational.
+function speakableText(raw: string): string {
+  const clean = raw
+    .replace(/\[\[RERUN_SUGGESTED:[^\]]*\]\]/g, "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^\s*[-*•]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*\*|__|\*|_|`|>/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\n/g, " ")
+    .trim();
+  const MAX = 700;
+  if (clean.length <= MAX) return clean;
+  const cut = clean.lastIndexOf(". ", MAX);
+  return clean.slice(0, cut > 200 ? cut + 1 : MAX).trim();
+}
+
+
+
 function StageRow({ label, stage, hint }: { label: string; stage: Stage; hint?: string }) {
   const icon =
     stage === "ok" ? (
