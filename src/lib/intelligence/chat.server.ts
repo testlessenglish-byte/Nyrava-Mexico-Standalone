@@ -382,8 +382,12 @@ export async function answerCaseQuestion(args: {
   // when the report was generated. Falls back to that stored report
   // locale only when the client didn't send one (older clients).
   locale?: "es" | "en";
+  // Voice Companion turns are spoken aloud, not read. Long markdown answers
+  // are unusable as speech (dozens of TTS chunks, minutes of monologue), so
+  // voice mode asks for a short conversational reply with no markdown.
+  voiceMode?: boolean;
 }) {
-  const { db, caseId, userId, apiKey, apiKeys, question } = args;
+  const { db, caseId, userId, apiKey, apiKeys, question, voiceMode } = args;
 
   // Persist user message
   await db.from("case_chat_messages").insert({
