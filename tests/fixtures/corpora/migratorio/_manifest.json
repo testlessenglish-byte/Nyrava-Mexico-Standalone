@@ -1,0 +1,50 @@
+{
+  "title": "Amparo Indirecto 587/2026-V — Wilmer Alexánder Bautista Reyes y otros vs. Autoridades Migratorias y COMAR",
+  "description": "Juicio de amparo indirecto promovido por una familia hondureña en contra de la privación de la libertad prolongada en la Estación Migratoria 'Siglo XXI' en Tapachula, Chiapas. Los quejosos alegan que, a pesar de haber solicitado la condición de refugiado ante la COMAR, la autoridad migratoria los mantiene alojados sin considerar medidas alternativas al alojamiento, especialmente tratándose de menores de edad. El expediente incluye actas de presentación, resoluciones de alojamiento, solicitudes ante la COMAR, informes de la CNDH y testimonios de agentes migratorios que presentan contradicciones sobre el procedimiento de detención y el uso de intérpretes. Se cuestiona la legalidad del alojamiento prolongado y la falta de valoración del interés superior de la niñez.",
+  "caseType": "administrativo",
+  "practiceArea": "Derecho Migratorio",
+  "subPracticeArea": "migratorio y refugio",
+  "internalMatterNumber": "CDH-TAP-2026-0042",
+  "courtCaseNumber": "Amparo Indirecto 587/2026-V",
+  "relatedFileNumbers": [
+    "INM/CHIS/EST/2026/03318",
+    "COMAR/CHIS/2026/01452"
+  ],
+  "jurisdiction": "Federal",
+  "fuero": "federal",
+  "state": "Chiapas",
+  "municipality": "Tapachula",
+  "judicialDistrict": "Vigésimo Circuito",
+  "courtName": "Juzgado Segundo de Distrito en el Estado de Chiapas",
+  "courtType": "Juzgado de Distrito",
+  "competentAuthority": "Poder Judicial de la Federación",
+  "assignedJudge": "Dr. Fernando Abelardo Coutiño Villatoro",
+  "courtClerk": "Lic. Norma Idalia Pérez Cancino",
+  "filingDate": "2026-02-02",
+  "proceduralStage": "Suspensión de plano concedida; pendiente de audiencia constitucional",
+  "nextHearingDate": "2026-03-12",
+  "parties": [
+    { "role": "Quejoso", "name": "Wilmer Alexánder Bautista Reyes", "detail": "Nacionalidad hondureña, padre de familia" },
+    { "role": "Quejosa", "name": "Digna Esperanza Portillo Mejía", "detail": "Nacionalidad hondureña, madre de familia" },
+    { "role": "Quejosos (Menores)", "name": "Kevin Josué y Ashley Nicole Bautista Portillo", "detail": "Representados por sus padres" },
+    { "role": "Autoridad Responsable", "name": "Subdelegado Federal de Control y Verificación Migratoria del INM", "detail": "Autoridad ordenadora del alojamiento" },
+    { "role": "Autoridad Responsable", "name": "Titular de la Coordinación de Campo de la COMAR en Tapachula", "detail": "Autoridad encargada del trámite de refugio" },
+    { "role": "Autoridad Responsable", "name": "Encargado de la Estación Migratoria 'Siglo XXI'", "detail": "Ejecutor material del alojamiento" },
+    { "role": "Representante Legal", "name": "Lic. Cindy Marisol Argueta Domínguez", "detail": "Centro de Dignificación Humana A.C." }
+  ],
+  "attorneysOfRecord": ["Lic. Cindy Marisol Argueta Domínguez, cédula 9834217"],
+  "opposingCounsel": ["Agente del Ministerio Público de la Federación adscrito"],
+  "caseStatus": "En trámite",
+  "priority": "muy alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 0,
+  "legalAuthorities": [
+    "Constitución Política de los Estados Unidos Mexicanos, arts. 1, 4, 11, 16, 22",
+    "Ley de Migración, arts. 68, 70, 99, 101, 111, 112",
+    "Ley sobre Refugiados, Protección Complementaria y Asilo Político, arts. 11, 13, 18, 21",
+    "Ley de Amparo, arts. 15, 126",
+    "Convención sobre el Estatuto de los Refugiados de 1951",
+    "Convención sobre los Derechos del Niño"
+  ],
+  "fictional": true
+}

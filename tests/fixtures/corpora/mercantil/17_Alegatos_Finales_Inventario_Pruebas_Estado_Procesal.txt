@@ -1,0 +1,34 @@
+ALEGATOS FINALES, INVENTARIO DE PRUEBAS Y ESTADO PROCESAL ACTUAL
+Expediente 1042/2026 — Juzgado Segundo de Juicio Ejecutivo Mercantil, Monterrey, N.L.
+
+I. ALEGATOS DE LA PARTE ACTORA (presentados el 20 de junio de 2026)
+El Lic. Ernesto Iván Salazar Peña sostiene: 1) los pagarés son títulos de crédito autónomos y literales conforme al artículo 5 de la LGTOC, cuya obligación de pago no admite excepciones causales ajenas al texto del documento, salvo las taxativamente previstas en el artículo 8 LGTOC. 2) Respecto del Pagaré A, aun de acreditarse la alteración, el artículo 13 LGTOC obliga a los signatarios conforme al texto original, por lo que subsiste obligación de pago por $1,150,000.00 M.N. como mínimo. 3) Los pagos de $930,000.00 M.N. deben aplicarse a intereses moratorios antes que a capital, conforme a la cláusula décima segunda del contrato, por lo que no extinguen la suerte principal reclamada. 4) La testimonial de Ocampo Rentería debe desestimarse por su manifiesto interés en perjudicar a la actora, dado el litigio laboral pendiente. 5) La objeción parcialmente fundada de las capturas de WhatsApp confirma que dicha prueba no puede ser determinante en la sentencia.
+
+II. ALEGATOS DE LA PARTE DEMANDADA (presentados el 20 de junio de 2026)
+La Lic. Karla Fabiola Menchaca Zapata sostiene: 1) el Pagaré A fue materialmente alterado, según lo determinó de forma pericial e imparcial el propio perito designado a propuesta de la actora, por lo que en el mejor de los casos sólo procede el cobro de $1,150,000.00 M.N. por ese título, y no $1,750,000.00 M.N. 2) Los Pagarés B y C fueron firmados en blanco y llenados sin la conciliación previa exigida contractualmente, en contravención del artículo 15 LGTOC, lo que constituye llenado abusivo oponible a la propia beneficiaria original. 3) Los pagos de $930,000.00 M.N. están documentados con SPEI, complementos de pago propios de la actora y conceptos bancarios expresos vinculados a la línea de crédito y al pagaré de agosto, y su falta de anotación en los títulos es imputable exclusivamente a la actora conforme al artículo 130 LGTOC, sin que dicha omisión pueda perjudicar al deudor que sí pagó. 4) El dictamen contable no controvertido en su núcleo esencial (existencia de los pagos, saldo contable de $2,579,600.00 M.N.) y la certificación contable independiente de fecha posterior corroboran una diferencia de $1,800,400.00 M.N. respecto de lo reclamado. 5) La tasa moratoria de 6% mensual (72% anual) debe reducirse de oficio por notoriamente usuraria, conforme a la jurisprudencia 1a./J. 46/2014 y 1a./J. 47/2014 y a la Convención Americana sobre Derechos Humanos, tomando como referencia la tasa contractual de 3% mensual y el CAT promedio de mercado.
+
+III. INVENTARIO GENERAL DE PRUEBAS DEL EXPEDIENTE
+1. Tres pagarés originales (documento 03) — ofrecida por actora — desahogada.
+2. Contrato GFN-LC-2024-0087 (documento 03) — ofrecida por ambas — desahogada.
+3. Estados de cuenta bancarios Banorte y BBVA (documento 09) — ofrecida por ambas — desahogada.
+4. CFDI y complementos de pago (documento 10) — ofrecida por actora, exhibida por requerimiento judicial — desahogada.
+5. Correos de cobranza (documento 11) — ofrecida por actora — desahogada, sin objeción.
+6. Capturas de WhatsApp (documento 12) — ofrecida por demandada — objetada por actora — valorada como indicio por resolución interlocutoria de 16 de junio de 2026 (documento 16).
+7. Dictamen grafoscópico (documento 04-A) — ofrecida por demandada, perito único designado — desahogada y ratificada.
+8. Dictamen contable de la demandada (documento 04-B) — ofrecida por demandada, perito único designado ante omisión de la actora — desahogada y ratificada.
+9. Testimonial de Silverio Manuel Ocampo Rentería (documento 05) — ofrecida por demandada — desahogada, con interés manifiesto hecho constar.
+10. Confesional ficta del representante legal de la actora (documento 05) — desahogada por incomparecencia.
+11. Estado de cuenta certificado por C.P. Reséndez Loera (documento 13) — ofrecida por demandada como superveniente — PENDIENTE DE ADMISIÓN.
+12. CSV detallado de pagos (documento 14) — anexo del anterior — PENDIENTE DE ADMISIÓN.
+13. Informe pericial contable de parte de la actora (documento 15-A) — acompañado a alegatos, extemporáneo — sujeto a valoración limitada conforme al artículo 1253 del Código de Comercio.
+14. Testimonial de Lucía Fernanda Villarreal Botello (documento 15-B) — ofrecida por actora, superveniente, desahogada por exhorto — de conocimiento indirecto.
+15. Inventario de bienes embargados (documento 08) — diligencia de ejecución — sin objeción.
+
+IV. ESTADO PROCESAL ACTUAL (al 25 de junio de 2026)
+- Cerrada la etapa de desahogo de pruebas ordinarias desde el 28 de mayo de 2026.
+- Resuelto el incidente de objeción de documentos mediante interlocutoria de 16 de junio de 2026, valorando las capturas de WhatsApp como indicio.
+- Presentados los alegatos de ambas partes el 20 de junio de 2026.
+- PENDIENTE de resolución el escrito de admisión de prueba superveniente (estado de cuenta certificado y CSV de pagos, documentos 13 y 14), promovido por la demandada el 12 de junio de 2026, sin que a la fecha exista acuerdo del juzgado sobre su admisión.
+- Citación para sentencia definitiva: pendiente de dictarse el acuerdo correspondiente una vez resuelta la admisión de la prueba superveniente; se estima que el juzgado se pronunciará en los próximos diez días hábiles.
+- No existe hasta la fecha sentencia definitiva ni sentencia interlocutoria adicional distinta a la relativa al incidente de objeción de documentos.
+- El embargo trabado sobre los bienes relacionados en el inventario (documento 08) continúa vigente, con el propio demandado como depositario, sin que se haya solicitado ampliación ni reducción de embargo.
