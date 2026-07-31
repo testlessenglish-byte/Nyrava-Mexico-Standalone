@@ -469,7 +469,7 @@ CONVERSATION SO FAR:
 ${(history.data ?? [])
   .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
   .join("\n\n")
-  .slice(-MAX_HISTORY_CHARS)}
+  .slice(voiceMode ? -1_500 : -MAX_HISTORY_CHARS)}
 
 CURRENT QUESTION:
 ${question}`,
