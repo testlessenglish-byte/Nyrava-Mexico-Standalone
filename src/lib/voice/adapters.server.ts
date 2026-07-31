@@ -278,16 +278,19 @@ export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
   const { provider, apiKey, text, voice } = args;
 
   if (provider === "groq") {
+    const lower = voice.toLowerCase();
+    const groqVoice = GROQ_VALID_VOICES.has(lower) ? lower : (GROQ_VOICE_MAP[lower] ?? "diana");
     const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "canopylabs/orpheus-v1-english",
         input: text,
-        voice,
+        voice: groqVoice,
         response_format: "wav",
       }),
     });
+
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new VoiceProviderError(
