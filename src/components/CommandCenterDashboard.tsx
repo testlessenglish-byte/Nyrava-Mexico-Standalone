@@ -71,9 +71,15 @@ type Props = {
   documentsCount: number;
   report: ReportLike | null | undefined;
   caseRow?: Record<string, unknown> | null;
+  /** Live row counts from the case page; fall back to canonical report counts. */
+  findingsCount?: number;
+  witnessesCount?: number;
+  /** Opens a workspace tab when a summary tile is clicked. */
+  onOpenTab?: (tab: string) => void;
   onOpenChat: () => void;
   onOpenVoice?: () => void;
 };
+
 
 // ---------------------------------------------------------------
 // Node configuration for the central radar. Each node maps to one
@@ -133,8 +139,12 @@ export function CommandCenterDashboard({
   documentsCount,
   report,
   caseRow,
+  findingsCount,
+  witnessesCount,
+  onOpenTab,
   onOpenChat,
   onOpenVoice,
+
 }: Props) {
   const { t, locale } = useI18n();
   const { runs: engineRows, latestByEngine, progress: execProgress, isRunning } = useCaseExecution(caseId);
@@ -194,6 +204,11 @@ export function CommandCenterDashboard({
 
   // ---------------- derived metrics ----------------
   const counts = useMemo(() => getCanonicalCounts(report ?? null), [report]);
+  // Live table rows win over the report snapshot: a case can have witness /
+  // finding rows persisted before (or without) a finished report.
+  const findingsTotal = Math.max(findingsCount ?? 0, counts.findings);
+  const witnessesTotal = Math.max(witnessesCount ?? 0, counts.witnesses);
+
   const ess = useMemo(() => getEssState(report ?? null), [report]);
   const scores = useMemo(() => getScores(report ?? null), [report]);
   const parity = useMemo(() => paritySignature(report ?? null), [report]);
@@ -290,13 +305,50 @@ export function CommandCenterDashboard({
         </div>
       </div>
 
-      {/* ============ INTELLIGENCE SUMMARY (5 tiles) ============ */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <SummaryTile icon={FileText} label={t("cc.tile.documents")} value={documentsCount} tint="cyan" />
-        <SummaryTile icon={ShieldAlert} label={t("cc.tile.evidence")} value={counts.evidence + counts.findings} tint="emerald" />
-        <SummaryTile icon={Users} label={t("cc.tile.witnesses")} value={counts.witnesses} tint="violet" />
-        <SummaryTile icon={AlertTriangle} label={t("cc.tile.contradictions")} value={counts.contradictions} tint="amber" />
-        <SummaryTile icon={Target} label={t("cc.tile.gaps")} value={counts.missing_evidence} tint="rose" />
+      {/* ============ INTELLIGENCE SUMMARY ============ */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <SummaryTile
+          icon={FileText}
+          label={t("cc.tile.documents")}
+          value={documentsCount}
+          tint="cyan"
+          onClick={onOpenTab ? () => onOpenTab("intel") : undefined}
+        />
+        <SummaryTile
+          icon={Sparkles}
+          label={t("cc.tile.findings")}
+          value={findingsTotal}
+          tint="amber"
+          onClick={onOpenTab ? () => onOpenTab("findings") : undefined}
+        />
+        <SummaryTile
+          icon={ShieldAlert}
+          label={t("cc.tile.evidence")}
+          value={counts.evidence + counts.findings}
+          tint="emerald"
+          onClick={onOpenTab ? () => onOpenTab("evidence") : undefined}
+        />
+        <SummaryTile
+          icon={Users}
+          label={t("cc.tile.witnesses")}
+          value={witnessesTotal}
+          tint="violet"
+          onClick={onOpenTab ? () => onOpenTab("witnesses") : undefined}
+        />
+        <SummaryTile
+          icon={AlertTriangle}
+          label={t("cc.tile.contradictions")}
+          value={counts.contradictions}
+          tint="amber"
+          onClick={onOpenTab ? () => onOpenTab("analyzers") : undefined}
+        />
+        <SummaryTile
+          icon={Target}
+          label={t("cc.tile.gaps")}
+          value={counts.missing_evidence}
+          tint="rose"
+          onClick={onOpenTab ? () => onOpenTab("analyzers") : undefined}
+        />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -305,6 +357,7 @@ export function CommandCenterDashboard({
         <MiniBadge icon={Radar} label={t("cc.tile.timeline")} value={counts.timeline_events} />
         <MiniBadge icon={Activity} label={t("cc.tile.constitutional")} value={counts.constitutional} />
       </div>
+
 
       {/* ============ ANALYSIS COMMAND CENTER ============ */}
       <div className="rounded-2xl border border-amber-400/15 bg-background/60 p-5">
@@ -682,20 +735,34 @@ function SummaryTile({
   label,
   value,
   tint,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
   tint: keyof typeof TINTS;
+  onClick?: () => void;
 }) {
-  return (
-    <div className={`rounded-xl border bg-gradient-to-br p-3 ${TINTS[tint]}`}>
+  const inner = (
+    <>
       <Icon className="h-4 w-4 opacity-80" />
       <div className="mt-1 text-2xl font-bold tabular-nums text-white">{value}</div>
       <div className="text-[11px] uppercase tracking-wider opacity-80">{label}</div>
-    </div>
+    </>
+  );
+  const base = `rounded-xl border bg-gradient-to-br p-3 ${TINTS[tint]}`;
+  if (!onClick) return <div className={base}>{inner}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${base} w-full text-left transition hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50`}
+    >
+      {inner}
+    </button>
   );
 }
+
 
 function MiniBadge({
   icon: Icon,

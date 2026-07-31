@@ -662,7 +662,11 @@ function Workspace() {
                   documentsCount={docs.length}
                   report={report as unknown as Parameters<typeof getCanonicalCounts>[0]}
                   caseRow={c as unknown as Record<string, unknown>}
+                  findingsCount={findings.length}
+                  witnessesCount={witnesses.length}
+                  onOpenTab={(k) => setTab(k as Tab)}
                   onOpenChat={() => setTab("chat")}
+
                 />
                 <div className="mt-6">
                   <PipelinePanel
