@@ -91,9 +91,6 @@ async function recordAgent(db: Db, ctx: RunCtx, def: AgentDefinition, startedAt:
     result.output && typeof result.output === "object" && !Array.isArray(result.output)
       ? (result.output as Record<string, unknown>)
       : {};
-  // Every agent_logs row carries the run's analysis_mode so the ledger UI
-  // and post-hoc audit can attribute results to strict/balanced/exploratory
-  // without reverse-engineering it from the report.
   const outputWithMode: Record<string, unknown> = { ...outputObj, analysis_mode: ctx.analysisMode };
   const stats =
     outputObj.agent_stats && typeof outputObj.agent_stats === "object" && !Array.isArray(outputObj.agent_stats)
@@ -151,8 +148,6 @@ async function safeRun(fn: () => Promise<AgentResult>, def: AgentDefinition): Pr
   }
 }
 
-// ----- Individual agent implementations -----
-
 async function agentIntake(ctx: RunCtx): Promise<AgentResult> {
   const { data, error } = await ctx.db
     .from("documents")
@@ -204,11 +199,6 @@ async function hasCompletedEngine(db: Db, caseId: string, engine: string): Promi
 }
 
 async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
-  // READ-ONLY release-gate check. This stage runs AFTER report generation
-  // and its only job is to verify prior stages actually completed — it must
-  // never trigger a live pipeline run itself. Silently re-running extraction
-  // here (the old behavior) meant a "QA pass" on an already-published report
-  // could mutate the underlying case data out from under it.
   const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "extraction");
   const { count } = await ctx.db
     .from("document_pages")
@@ -227,7 +217,6 @@ async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
 }
 
 async function agentEntities(ctx: RunCtx): Promise<AgentResult> {
-  // READ-ONLY release-gate check — see agentOcr comment.
   const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "analyzers");
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
@@ -275,9 +264,6 @@ async function agentEvidence(ctx: RunCtx): Promise<AgentResult> {
 }
 
 async function agentContradictions(ctx: RunCtx): Promise<AgentResult> {
-  // Derived — Analyzers already produced grounded contradictions in one
-  // batched pass. Re-running the standalone LLM engine here duplicated work
-  // and burned through the 30K TPM cap on any large corpus.
   const m = await import("@/lib/intelligence/derived-engines.server");
   const out = await m.deriveContradictions(ctx.db, ctx.caseId);
   return {
@@ -292,13 +278,6 @@ async function agentContradictions(ctx: RunCtx): Promise<AgentResult> {
 }
 
 async function agentLegal(ctx: RunCtx): Promise<AgentResult> {
-  // READ-ONLY release-gate check. Previously this UNCONDITIONALLY called
-  // pipe.runAgents() on every single release-gate pass — meaning every time
-  // this "QA" stage ran, it silently re-triggered a live LLM re-analysis of
-  // the case (chain_of_custody / constitutional_compliance /
-  // procedural_violations / witness_credibility), potentially producing
-  // different findings than what the report was already generated from.
-  // A release gate must only verify, never regenerate.
   const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "agents");
   const { count } = await ctx.db
     .from("agent_findings")
@@ -317,10 +296,6 @@ async function agentLegal(ctx: RunCtx): Promise<AgentResult> {
 }
 
 async function agentRisk(ctx: RunCtx): Promise<AgentResult> {
-  // READ-ONLY release-gate check. Previously this UNCONDITIONALLY called
-  // pipe.runScoring() on every release-gate pass — silently re-scoring the
-  // case after the report (which embeds the score) had already been
-  // generated and shown to the user. See agentLegal comment above.
   const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "scoring");
   const { data: score } = await ctx.db.from("case_scores").select("*").eq("case_id", ctx.caseId).maybeSingle();
   const ok = alreadyDone && !!score;
@@ -336,12 +311,6 @@ async function agentRisk(ctx: RunCtx): Promise<AgentResult> {
 }
 
 async function agentReport(ctx: RunCtx): Promise<AgentResult> {
-  // READ-ONLY release-gate check. Previously this UNCONDITIONALLY called
-  // pipe.runReport() on every release-gate pass — meaning the "QA gate"
-  // could regenerate the very report it was supposed to be validating,
-  // right after the user already saw it marked "complete." A release gate
-  // must only check whether a report exists and is well-formed (that's
-  // agentQA's job below) — it must never (re)create one.
   const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "report_generator");
   const { data: report } = await ctx.db
     .from("reports")
@@ -360,20 +329,6 @@ async function agentReport(ctx: RunCtx): Promise<AgentResult> {
   };
 }
 
-// Attorney-facing prose columns on `reports` — the ONLY content a reader
-// ever sees as narrative. Deliberately excludes `full_report`: that column
-// is internal telemetry (validation/policy strings, QA diagnostics,
-// agent_statistics metadata, pipeline_warnings, strategy_center UI labels,
-// etc.) which is hardcoded in English regardless of `report_language` and
-// is never rendered to the user as case narrative.
-//
-// 2026-07-30 investigation: the QA "single_language" gate was scanning
-// `full_report` wholesale and failing non-English cases on words like
-// "Evidence"/"Witness"/"Findings"/"corroborating" that came from
-// `validation.claim_strength_guardrail.policy`,
-// `validation.quality_gate.dimensions.*.detail`, `agent_statistics.rows[*]`
-// (agent_name/primary_function), and `strategy_center` question labels —
-// none of which is narrative. Scope the scan to the real prose fields only.
 const QA_NARRATIVE_FIELDS = [
   "executive_summary",
   "attorney_summary",
@@ -396,7 +351,6 @@ const QA_NARRATIVE_FIELDS = [
 ] as const;
 
 async function agentQA(ctx: RunCtx): Promise<AgentResult> {
-  // Validate formatting, references, consistency.
   const { data: report } = await ctx.db
     .from("reports")
     .select(
@@ -421,8 +375,6 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
 
   const { getReportLocale } = await import("@/lib/mexico-lock");
   const locale = await getReportLocale(ctx.db, ctx.caseId);
-  // Scan ONLY the narrative columns — never `full_report` (see comment above
-  // QA_NARRATIVE_FIELDS).
   const narrativeValues = QA_NARRATIVE_FIELDS.map((field) => (report as Record<string, unknown> | null)?.[field]);
   const reportText = collectReportText(narrativeValues).join("\n").slice(0, 200_000);
   const languageLeaks = detectReportLanguageLeaks(reportText, locale);
@@ -442,9 +394,6 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
   };
 }
 
-// Mode-aware thresholds. Strict raises the bar for release; exploratory
-// lowers it so pre-release drafts still surface. Balanced is the current
-// production default and preserves prior behavior exactly.
 const JUDGE_THRESHOLDS: Record<AnalysisMode, { reject: number; needsRevision: number }> = {
   strict: { reject: 0.4, needsRevision: 0.7 },
   balanced: { reject: 0.25, needsRevision: 0.5 },
@@ -457,10 +406,6 @@ const HALLUCINATION_THRESHOLDS: Record<AnalysisMode, number> = {
 };
 
 async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
-  // Independent review: sanity-checks the report against structural quality
-  // signals (citation density, contradiction load, finding confidence).
-  // A finding counts as cited only when it has BOTH a source document and a
-  // verbatim source quote — the exact same contract hallucination review uses.
   const t = JUDGE_THRESHOLDS[ctx.analysisMode];
   let verdict: "approve" | "needs_revision" | "reject" = "approve";
   const notes: string[] = [];
@@ -553,19 +498,11 @@ async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
   };
 }
 
-// ----- Master loop -----
-
 export async function runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
   runId: string;
   released: boolean;
   results: Array<AgentResult & { agent: AgentDefinition }>;
 }> {
-  // Wrap the entire run in the ambient AI user scope so every callGroq()
-  // call inside any agent (including agentEntities -> runAnalyzers) can
-  // resolve this user's full provider/key rotation pool (Groq, Gemini,
-  // etc.) from user_ai_keys — matching what pipeline-runner.server.ts
-  // already does for the 5-stage pipeline. Without this, ambient scope is
-  // empty here and agents silently fall back to Groq-only with no fallback.
   const { withAIUser } = await import("@/lib/ai/user-scope.server");
   return withAIUser(args.userId, () => _runMultiAgentPipeline(args));
 }
@@ -611,8 +548,19 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
   const results: Array<AgentResult & { agent: AgentDefinition }> = [];
   const FATAL = new Set(["intake", "ocr", "entities"]);
 
+  // Guard against missing represented party
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: caseMeta } = await (args.db as any)
+    .from("cases")
+    .select("represented_party")
+    .eq("id", args.caseId)
+    .maybeSingle();
+  if (!caseMeta?.represented_party) {
+    console.warn(`[multi-agent] Warning: Case ${args.caseId} has no represented_party defined.`);
+  }
+
   for (const def of AGENT_DEFINITIONS) {
-    if (def.key === "orchestrator") continue; // handled separately as final summary
+    if (def.key === "orchestrator") continue;
     const fn = runners[def.key];
     const t0 = Date.now();
     trace("agent.start", { agent_index: def.index, agent_key: def.key, agent_name: def.name });
@@ -627,7 +575,6 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
       runtime_ms: Date.now() - t0,
     });
     if (result.status === "failed" && FATAL.has(def.key)) {
-      // Mark remaining downstream agents blocked and bail out.
       for (const rest of AGENT_DEFINITIONS) {
         if (rest.key === "orchestrator") continue;
         if (rest.index <= def.index) continue;
@@ -648,14 +595,12 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
     }
   }
 
-  // Release gate: QA + Judge + Hallucination must all be success.
   const byKey = new Map(results.map((r) => [r.agent.key, r]));
   const qaOk = byKey.get("qa")?.status === "success";
   const judgeOk = byKey.get("judge")?.status === "success";
   const halOk = byKey.get("hallucination")?.status === "success";
   const released = qaOk && judgeOk && halOk;
 
-  // Final orchestrator log entry (Agent 13).
   const orchDef = AGENT_DEFINITIONS.find((d) => d.key === "orchestrator")!;
   const orchResult: AgentResult = {
     status: released ? "success" : "failed",
@@ -688,13 +633,10 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
     runtime_ms: Date.now() - orchStarted,
   });
 
-  // The report writer runs before QA/Judge/Hallucination/Orchestrator finish.
-  // Restamp the saved report with the completed run's measurable agent output
-  // so exports cannot claim agents executed without showing produced/skipped/
-  // suppressed counts for every applicable agent.
   try {
     const agentStatistics = await buildAgentStatistics(args.db, args.caseId, { runId });
-    const { data: report } = await args.db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: report } = await (args.db as any)
       .from("reports")
       .select("full_report")
       .eq("case_id", args.caseId)
@@ -704,7 +646,8 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
         ? { ...(report.full_report as Record<string, unknown>) }
         : {};
     full.agent_statistics = agentStatistics as unknown as Record<string, unknown>;
-    await args.db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (args.db as any)
       .from("reports")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .update({ full_report: full as any })
@@ -713,13 +656,14 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
     console.warn("[multi-agent] failed to restamp report agent statistics", e);
   }
 
-  // Stamp the case with the release decision.
-  const { data: beforeStatus } = await args.db
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: beforeStatus } = await (args.db as any)
     .from("cases")
     .select("status,status_message")
     .eq("id", args.caseId)
     .maybeSingle();
-  await args.db
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (args.db as any)
     .from("cases")
     .update({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
