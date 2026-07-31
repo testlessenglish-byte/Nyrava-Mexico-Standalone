@@ -204,6 +204,8 @@ export const Route = createFileRoute("/api/voice/speak")({
               lastProvider,
               chunkCount: chunks.length,
               chunksCompleted: audioChunks.length,
+              gatewayError,
+
             },
           }),
           { status: lastStatus, headers: { "Content-Type": "application/json" } },
