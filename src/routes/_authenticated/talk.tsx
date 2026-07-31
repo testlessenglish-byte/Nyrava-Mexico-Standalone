@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useMemo, useEffect } from "react";
 import { listCases } from "@/lib/cases.functions";
+import { useI18n } from "@/i18n";
 import { CaseChatPanel } from "@/components/CaseChatPanel";
 import { VoiceCompanion } from "@/components/VoiceCompanion";
 import { MessageSquare, Plus, FolderOpen, ChevronDown, Mic } from "lucide-react";
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/_authenticated/talk")({
 });
 
 function TalkPage() {
+  const { t } = useI18n();
   const fetchCases = useServerFn(listCases);
   const { data, isLoading } = useQuery({
     queryKey: ["cases"],
@@ -37,35 +39,35 @@ function TalkPage() {
           <MessageSquare className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Talk To Cases</h1>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{t("talk.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pick a case and ask anything. Answers are grounded in that case's evidence and findings.
+            {t("talk.subtitle")}
           </p>
         </div>
       </header>
 
       {isLoading ? (
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">
-          Loading your cases…
+          {t("talk.loading")}
         </div>
       ) : cases.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card/60 p-10 text-center">
           <FolderOpen className="mx-auto h-10 w-10 text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">
-            Upload a case first, then come back to chat with it.
+            {t("talk.empty")}
           </p>
           <Link
             to="/new"
             className="mt-5 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            <Plus className="h-4 w-4" /> New case
+            <Plus className="h-4 w-4" /> {t("talk.newCase")}
           </Link>
         </div>
       ) : (
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-card/60 p-3">
             <label className="mb-1.5 block px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Active case
+              {t("talk.activeCase")}
             </label>
             <div className="relative">
               <select
@@ -88,13 +90,13 @@ function TalkPage() {
               onClick={() => setMode("chat")}
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${mode === "chat" ? "bg-primary text-primary-foreground" : "border border-border bg-background text-muted-foreground hover:text-foreground"}`}
             >
-              <MessageSquare className="h-3.5 w-3.5" /> Text
+              <MessageSquare className="h-3.5 w-3.5" /> {t("talk.mode.text")}
             </button>
             <button
               onClick={() => setMode("voice")}
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${mode === "voice" ? "bg-primary text-primary-foreground" : "border border-border bg-background text-muted-foreground hover:text-foreground"}`}
             >
-              <Mic className="h-3.5 w-3.5" /> Voice
+              <Mic className="h-3.5 w-3.5" /> {t("talk.mode.voice")}
             </button>
           </div>
 
