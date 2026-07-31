@@ -227,3 +227,51 @@ export function flattenVoiceChain(
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Voice key cooldowns
+// ---------------------------------------------------------------------------
+// Text chat has ai/cooldown.server.ts so a rate-limited key isn't retried
+// first on every subsequent call. Voice had no equivalent: a key that just
+// answered 429 sat at the head of the chain and was tried again on the very
+// next utterance, paying a full round-trip of latency before rotating. This
+// is the voice-scoped equivalent — deliberately a REORDER, never a removal,
+// so a cooled-down key is still tried if every other candidate fails.
+const VOICE_COOLDOWN_MS = 60_000;
+const _voiceCooldowns = new Map<string, number>();
+
+function voiceCooldownKey(provider: string, keyId: string | null, key: string): string {
+  return `${provider}:${keyId ?? `raw:${key.slice(-6)}`}`;
+}
+
+export function markVoiceKeyCooldown(
+  provider: string,
+  keyId: string | null,
+  key: string,
+  status: number,
+): void {
+  // Only quota/rate/auth failures — a bad-audio 400 says nothing about the key.
+  if (status !== 429 && status !== 401 && status !== 402 && status !== 403 && status < 500) return;
+  const ttl = status === 401 || status === 403 ? VOICE_COOLDOWN_MS * 5 : VOICE_COOLDOWN_MS;
+  _voiceCooldowns.set(voiceCooldownKey(provider, keyId, key), Date.now() + ttl);
+}
+
+/** Stable-sorts recently-failed keys to the back of the chain. */
+export function applyVoiceCooldowns<T extends { provider: string; key: string; keyId: string | null }>(
+  attempts: T[],
+): T[] {
+  const now = Date.now();
+  const cooled = (a: T) => {
+    const until = _voiceCooldowns.get(voiceCooldownKey(a.provider, a.keyId, a.key));
+    return until != null && until > now;
+  };
+  const hot = attempts.filter((a) => !cooled(a));
+  const cold = attempts.filter((a) => cooled(a));
+  return [...hot, ...cold];
+}
+
+/** Clears every voice cooldown — used by the admin "Limpiar estado" action. */
+export function clearVoiceCooldowns(): void {
+  _voiceCooldowns.clear();
+}
+
