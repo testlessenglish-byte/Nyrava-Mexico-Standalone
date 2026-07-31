@@ -54,8 +54,18 @@ export function isRotatableError(status: number, bodyText: string): boolean {
     )
   )
     return true;
+  // Request-shape rejections: the provider cannot accept THIS request (e.g.
+  // Groq's Orpheus only accepts its own voice names). Every key for that
+  // provider fails identically, but another provider can serve it — rotate
+  // rather than dead-ending the whole request.
+  if (
+    status === 400 &&
+    /voice must be one of|unsupported voice|invalid.*voice|invalid_request_error/i.test(bodyText)
+  )
+    return true;
   return false;
 }
+
 
 
 // ---------------------------------------------------------------------------
@@ -231,6 +241,28 @@ const GEMINI_VOICE_MAP: Record<string, string> = {
   verse: "Callirrhoe",
 };
 
+// Groq's Orpheus model accepts ONLY its own six voice names — sending the
+// platform's OpenAI-style ids ("alloy", "nova", ...) is a hard 400
+// ("voice must be one of the following voices: [autumn diana hannah austin
+// daniel troy]"). Map by gender/character so the voice the attorney picked
+// still sounds close when a request lands on Groq.
+const GROQ_VOICE_MAP: Record<string, string> = {
+  // female
+  alloy: "diana",
+  nova: "diana",
+  shimmer: "hannah",
+  coral: "autumn",
+  sage: "hannah",
+  fable: "autumn",
+  // male
+  onyx: "austin",
+  echo: "daniel",
+  ash: "troy",
+  ballad: "daniel",
+  verse: "troy",
+};
+const GROQ_VALID_VOICES = new Set(["autumn", "diana", "hannah", "austin", "daniel", "troy"]);
+
 export interface SpeakArgs {
   provider: VoiceProvider;
   apiKey: string;
@@ -240,21 +272,25 @@ export interface SpeakArgs {
   language?: "es" | "en";
 }
 
+
 /** Returns raw WAV bytes, ready to stream back to the browser as-is. */
 export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
   const { provider, apiKey, text, voice } = args;
 
   if (provider === "groq") {
+    const lower = voice.toLowerCase();
+    const groqVoice = GROQ_VALID_VOICES.has(lower) ? lower : (GROQ_VOICE_MAP[lower] ?? "diana");
     const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "canopylabs/orpheus-v1-english",
         input: text,
-        voice,
+        voice: groqVoice,
         response_format: "wav",
       }),
     });
+
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new VoiceProviderError(
@@ -338,4 +374,57 @@ export function reorderForTtsLocale<T extends { provider: VoiceProvider }>(
   const groq = chain.filter((c) => c.provider === "groq");
   const rest = chain.filter((c) => c.provider !== "groq");
   return [...rest, ...groq];
+}
+
+// ---------------------------------------------------------------------------
+// Last-resort platform fallback: the Lovable AI Gateway. Used only after the
+// attorney's own provider keys are exhausted (quota, bad key, model refusal)
+// so voice never hard-fails on a personal-key problem.
+// ---------------------------------------------------------------------------
+const GATEWAY_BASE = "https://ai.gateway.lovable.dev/v1";
+
+export async function speakViaGateway(text: string, voice: string): Promise<ArrayBuffer> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new VoiceProviderError("Gateway TTS unavailable (no platform key)", 500, false);
+  const resolvedVoice = OPENAI_VALID_VOICES.has(voice.toLowerCase()) ? voice.toLowerCase() : "alloy";
+  const res = await fetch(`${GATEWAY_BASE}/audio/speech`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "openai/gpt-4o-mini-tts",
+      input: text,
+      voice: resolvedVoice,
+      response_format: "wav",
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new VoiceProviderError(`Gateway TTS ${res.status}: ${body.slice(0, 300)}`, res.status, false);
+  }
+  return await res.arrayBuffer();
+}
+
+export async function transcribeViaGateway(args: {
+  audioBytes: ArrayBuffer;
+  mime: string;
+  ext: string;
+  language?: "es" | "en";
+}): Promise<string> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new VoiceProviderError("Gateway STT unavailable (no platform key)", 500, false);
+  const form = new FormData();
+  form.append("model", "openai/gpt-4o-transcribe");
+  form.append("file", new Blob([args.audioBytes], { type: args.mime }), `recording.${args.ext}`);
+  if (args.language) form.append("language", args.language);
+  const res = await fetch(`${GATEWAY_BASE}/audio/transcriptions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new VoiceProviderError(`Gateway STT ${res.status}: ${body.slice(0, 300)}`, res.status, false);
+  }
+  const json = (await res.json().catch(() => ({}))) as { text?: string };
+  return json.text ?? "";
 }

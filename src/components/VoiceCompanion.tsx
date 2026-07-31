@@ -595,7 +595,13 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
 
       // TTS
       if (prefs.voice_muted || !prefs.voice_autoplay) {
-        setDiag((d) => ({ ...d, tts: "skipped", play: "skipped" }));
+        // Make the skip explicit — a bare dash here reads like a failure.
+        setDiag((d) => ({
+          ...d,
+          tts: "skipped",
+          play: "skipped",
+          error: t(prefs.voice_muted ? "voiceCompanion.error.muted" : "voiceCompanion.error.autoplayOff"),
+        }));
         if (conversationRef.current) {
           setStatus("listening");
           setTimeout(() => {
@@ -604,6 +610,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
         } else setStatus("idle");
         return;
       }
+
       setDiag((d) => ({ ...d, tts: "running" }));
       const ttsRes = await fetch("/api/voice/speak", {
         method: "POST",

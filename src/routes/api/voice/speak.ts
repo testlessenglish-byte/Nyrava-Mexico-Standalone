@@ -100,7 +100,10 @@ export const Route = createFileRoute("/api/voice/speak")({
         const { supabase, userId } = authed;
 
         const { resolveVoiceProviderChain, flattenVoiceChain } = await import("@/lib/ai-key-router.server");
-        const { speakText, reorderForTtsLocale, VoiceProviderError } = await import("@/lib/voice/adapters.server");
+        const { speakText, speakViaGateway, reorderForTtsLocale, VoiceProviderError } = await import(
+          "@/lib/voice/adapters.server"
+        );
+
 
         const { text, voice, locale } = (await request.json().catch(() => ({}))) as {
           text?: string;
@@ -112,16 +115,6 @@ export const Route = createFileRoute("/api/voice/speak")({
         const chain = await resolveVoiceProviderChain(supabase, userId);
         let attempts = flattenVoiceChain(chain);
         attempts = reorderForTtsLocale(attempts, language);
-        if (attempts.length === 0) {
-          return new Response(
-            JSON.stringify({
-              error: "No voice-capable AI provider configured",
-              detail: "Add a Groq, OpenAI, or Gemini key in Admin \u2192 AI Providers to use voice.",
-              diag: { userKeyCount: chain.userKeyCount, hasPlatform: chain.hasPlatform },
-            }),
-            { status: 500, headers: { "Content-Type": "application/json" } },
-          );
-        }
 
         const cleaned = (text ?? "").trim();
         if (!cleaned) return new Response("Empty text", { status: 400 });
@@ -164,10 +157,41 @@ export const Route = createFileRoute("/api/voice/speak")({
           }
         }
 
-        if (audioChunks.length === chunks.length) {
+        if (audioChunks.length === chunks.length && chunks.length > 0) {
           const combined = concatWav(audioChunks);
           return new Response(combined, { headers: { "Content-Type": "audio/wav" } });
         }
+
+        // Last resort: the platform gateway. Reached when the attorney has no
+        // voice-capable key at all, or every one of theirs failed (quota,
+        // revoked key, model refusal). Voice should never hard-fail on a
+        // personal-key problem alone.
+        let gatewayError = "";
+        try {
+          const gatewayChunks: ArrayBuffer[] = [];
+          for (const chunk of chunks) {
+            gatewayChunks.push(await speakViaGateway(chunk, resolvedVoice));
+          }
+          if (gatewayChunks.length === chunks.length && chunks.length > 0) {
+            console.warn("[voice/speak] served via platform gateway fallback");
+            return new Response(concatWav(gatewayChunks), { headers: { "Content-Type": "audio/wav" } });
+          }
+        } catch (err) {
+          gatewayError = err instanceof Error ? err.message : String(err);
+          console.warn(`[voice/speak] gateway fallback failed: ${gatewayError}`);
+        }
+
+        if (attempts.length === 0) {
+          return new Response(
+            JSON.stringify({
+              error: "No voice-capable AI provider configured",
+              detail: "Add a Groq, OpenAI, or Gemini key in Admin \u2192 AI Providers to use voice.",
+              diag: { userKeyCount: chain.userKeyCount, hasPlatform: chain.hasPlatform, gatewayError },
+            }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          );
+        }
+
 
         return new Response(
           JSON.stringify({
@@ -180,6 +204,8 @@ export const Route = createFileRoute("/api/voice/speak")({
               lastProvider,
               chunkCount: chunks.length,
               chunksCompleted: audioChunks.length,
+              gatewayError,
+
             },
           }),
           { status: lastStatus, headers: { "Content-Type": "application/json" } },
