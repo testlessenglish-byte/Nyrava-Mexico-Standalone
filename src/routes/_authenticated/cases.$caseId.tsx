@@ -2694,9 +2694,43 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
               </div>
             </li>
           </ul>
+          {(changeLog.sections_changed?.length ?? 0) > 0 && (
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Secciones actualizadas / Sections revised
+              </div>
+              <ul className="mt-1 flex flex-wrap gap-2">
+                {changeLog.sections_changed!.map((s) => {
+                  const title = REPORT_SECTION_ORDER.find((x) => x.key === s.section)?.title ?? s.section;
+                  return (
+                    <li
+                      key={s.section}
+                      className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
+                      title={`${s.prev_chars ?? 0} → ${s.now_chars ?? 0} chars`}
+                    >
+                      {title} · {s.status}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {(changeLog.drivers?.length ?? 0) > 0 && (
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Por qué cambió / Why it changed
+              </div>
+              <ul className="mt-1 list-disc pl-5 text-sm">
+                {changeLog.drivers!.map((d, i) => (
+                  <li key={i}>{d}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {changeLog.note && <p className="mt-2 text-xs text-muted-foreground">{changeLog.note}</p>}
         </Panel>
       )}
+
 
       {ess.scoresSuppressed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
