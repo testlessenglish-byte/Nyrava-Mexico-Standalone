@@ -405,7 +405,7 @@ export async function answerCaseQuestion(args: {
   // mode reads a trimmed context and a shorter history window, which cuts
   // prompt size (and time-to-first-token) roughly in half without changing
   // what the model can cite for a short conversational reply.
-  const [built, history, profileRes, lastTurnRes] = await Promise.all([
+  const [built, history, profileRes, settingsRes, lastTurnRes] = await Promise.all([
     buildChatContext(db, caseId, question),
     db
       .from("case_chat_messages")
@@ -413,7 +413,11 @@ export async function answerCaseQuestion(args: {
       .eq("case_id", caseId)
       .order("created_at")
       .limit(voiceMode ? 6 : 12),
-    db.from("profiles").select("display_name,full_name").eq("id", userId).maybeSingle(),
+    db.from("profiles").select("display_name,full_name,email").eq("id", userId).maybeSingle(),
+    // The attorney-editable name lives in user_settings.display_name (Account
+    // page). profiles.display_name is auto-filled at signup from the email
+    // local-part, so it must never be used as a human name.
+    db.from("user_settings").select("display_name").eq("user_id", userId).maybeSingle(),
     // Second-to-last message overall (the one before the question we just
     // persisted) tells us whether this is a fresh session or a turn inside an
     // ongoing exchange. That drives whether the assistant greets by name.
@@ -431,11 +435,22 @@ export async function answerCaseQuestion(args: {
   // Personalization: greet by the attorney's first name, and only at the start
   // of a session (first message ever, or after a 45-minute gap) so it doesn't
   // become repetitive inside an active conversation.
-  const rawName =
-    (profileRes.data as { display_name?: string | null; full_name?: string | null } | null)?.display_name ??
-    (profileRes.data as { full_name?: string | null } | null)?.full_name ??
-    "";
+  const profile = profileRes.data as
+    | { display_name?: string | null; full_name?: string | null; email?: string | null }
+    | null;
+  const emailLocal = (profile?.email ?? "").split("@")[0]?.trim().toLowerCase() ?? "";
+  // Never greet with an email address or an email-derived handle.
+  const isEmailish = (v: string) => {
+    const s = v.trim().toLowerCase();
+    return !s || s.includes("@") || (emailLocal.length > 0 && s === emailLocal);
+  };
+  const rawName = [
+    (settingsRes.data as { display_name?: string | null } | null)?.display_name ?? "",
+    profile?.full_name ?? "",
+    profile?.display_name ?? "",
+  ].find((v) => !isEmailish(v ?? "")) ?? "";
   const firstName = rawName.trim().split(/\s+/)[0] ?? "";
+
   const prevAt = (lastTurnRes.data as { created_at?: string } | null)?.created_at;
   const isReturning = Boolean(prevAt);
   const gapMs = prevAt ? Date.now() - new Date(prevAt).getTime() : Number.POSITIVE_INFINITY;
