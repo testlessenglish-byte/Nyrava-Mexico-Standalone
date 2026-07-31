@@ -307,10 +307,21 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
     }
   }
 
-  await db.from("case_theories").delete().eq("case_id", caseId);
+  // 2026-07-30: these calls never checked Supabase's `error` return, so a
+  // real write failure (RLS denial, constraint violation, bad column type,
+  // etc.) was silently swallowed — the code proceeded as if it had
+  // succeeded, and the ONLY symptom was a persistence-verification failure
+  // three quarters of a pipeline later ("case_theories: expected >=2 row(s)
+  // for case, found 0") with no indication of the actual cause. Throwing
+  // here surfaces the real Postgres error immediately, at the point of
+  // failure, instead of as an unexplained row-count mismatch downstream.
+  const delRes = await db.from("case_theories").delete().eq("case_id", caseId);
+  if (delRes.error) {
+    throw new Error(`case_theories delete failed for case ${caseId}: ${delRes.error.message}`);
+  }
   if (keptTheories.length) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.from("case_theories").insert(
+    const insRes = await db.from("case_theories").insert(
       keptTheories.map((t, idx) => ({
         case_id: caseId,
         user_id: userId,
@@ -326,6 +337,11 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
         citations: (gated[idx]?.citations ?? []) as J,
       })) as any,
     );
+    if (insRes.error) {
+      throw new Error(
+        `case_theories insert failed for case ${caseId} (${keptTheories.length} row(s)): ${insRes.error.message}`,
+      );
+    }
   }
 
   await clearFindingsByModule(db, caseId, "engine:theory");
@@ -891,7 +907,12 @@ ${ctx.corpus}`,
       },
     };
   }
-  await db.from("case_witnesses").delete().eq("case_id", caseId);
+  // 2026-07-30: same fix as the theory engine above — surface real
+  // Postgres errors from this delete/insert instead of swallowing them.
+  const witnessDelRes = await db.from("case_witnesses").delete().eq("case_id", caseId);
+  if (witnessDelRes.error) {
+    throw new Error(`case_witnesses delete failed for case ${caseId}: ${witnessDelRes.error.message}`);
+  }
   // Deterministic, ROLE-AWARE credibility_risk per witness — computed once
   // here so both the DB row and the finding below use the same canonical,
   // auditable number instead of the LLM's independent guess. The Mexican
@@ -904,7 +925,7 @@ ${ctx.corpus}`,
   );
   {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.from("case_witnesses").insert(
+    const witnessInsRes = await db.from("case_witnesses").insert(
       witnesses.map((w, i) => ({
         case_id: caseId,
         user_id: userId,
@@ -944,6 +965,11 @@ ${ctx.corpus}`,
         citations: (gated[i]?.citations ?? []) as J,
       })) as any,
     );
+    if (witnessInsRes.error) {
+      throw new Error(
+        `case_witnesses insert failed for case ${caseId} (${witnesses.length} row(s)): ${witnessInsRes.error.message}`,
+      );
+    }
   }
 
   await clearFindingsByModule(db, caseId, "engine:witness");
