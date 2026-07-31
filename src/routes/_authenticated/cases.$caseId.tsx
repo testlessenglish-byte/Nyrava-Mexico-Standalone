@@ -516,6 +516,10 @@ function Workspace() {
             invalidate={invalidate}
           />
 
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <MatterMetadataCard metadata={(c as any).matter_metadata ?? null} />
+
+
           <div className="rounded-xl border border-border bg-card p-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("caseWorkspace.downloads")}
