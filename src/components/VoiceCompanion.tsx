@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { askCaseAi } from "@/lib/cases.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { useI18n } from "@/i18n";
 import {
   Mic,
   MicOff,
@@ -128,6 +129,7 @@ function StatusPill({ status }: { status: Status }) {
 
 export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?: string }) {
   const ask = useServerFn(askCaseAi);
+  const { locale } = useI18n();
   const [diag, setDiag] = useState<Diag>(emptyDiag);
   const [status, setStatus] = useState<Status>("idle");
   const [recording, setRecording] = useState(false);
@@ -489,6 +491,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
       setDiag((d) => ({ ...d, stt: "running" }));
       const fd = new FormData();
       fd.append("file", blob, `recording.${mime.includes("mp4") ? "mp4" : "webm"}`);
+      fd.append("language", locale);
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData.session?.access_token;
       if (!authToken) {
@@ -525,7 +528,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
       setDiag((d) => ({ ...d, stt: "ok", transcript }));
 
       setDiag((d) => ({ ...d, ai: "running" }));
-      const aiResult = (await ask({ data: { caseId, question: transcript } })) as { answer?: string } | string;
+      const aiResult = (await ask({ data: { caseId, question: transcript, locale } })) as { answer?: string } | string;
       const reply = typeof aiResult === "string" ? aiResult : (aiResult?.answer ?? "");
       if (!reply.trim()) {
         setStatus("error");
@@ -557,6 +560,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
           voice: prefs.voice_id,
           speed: prefs.voice_speed,
           instructions: instructionsFor(),
+          locale,
         }),
       });
       if (!ttsRes.ok) {
@@ -718,11 +722,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
         />
         <StageRow label="Text-to-speech" stage={diag.tts} />
         <StageRow label="Playback" stage={diag.play} />
-        {diag.error && (
-          <div className="mt-2 rounded bg-red-500/10 px-2 py-1.5 text-xs text-red-300">
-            {diag.error}
-          </div>
-        )}
+        {diag.error && <div className="mt-2 rounded bg-red-500/10 px-2 py-1.5 text-xs text-red-300">{diag.error}</div>}
       </div>
 
       {diag.transcript && (
