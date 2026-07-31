@@ -175,7 +175,7 @@ export const Route = createFileRoute("/api/voice/speak")({
 
         const chain = await resolveVoiceProviderChain(supabase, userId);
         let attempts = flattenVoiceChain(chain);
-        attempts = reorderForTtsLocale(attempts, language);
+        attempts = applyVoiceCooldowns(reorderForTtsLocale(attempts, language));
 
         const cleaned = (text ?? "").trim();
         if (!cleaned) return new Response("Empty text", { status: 400 });
