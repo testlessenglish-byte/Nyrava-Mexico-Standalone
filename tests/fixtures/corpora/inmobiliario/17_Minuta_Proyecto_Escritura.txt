@@ -1,0 +1,60 @@
+MINUTA DE PROYECTO DE ESCRITURA CON OBSERVACIONES PENDIENTES
+Instrumento en proyecto número 18,742, Volumen 402
+Notaría Pública No. 7 de Mérida, Yucatán
+Fecha de elaboración de la minuta: 10 de marzo de 2026
+Elaboró: Lic. Andrea Sofía Canché Uc, proyectista, con revisión del Lic. Fernando Javier Barrera Solís, Notario Titular
+
+1. ENCABEZADO PROYECTADO DEL INSTRUMENTO
+"En la ciudad de Mérida, Yucatán, a los ___ días del mes de ___ de 2026, yo, Licenciado FERNANDO JAVIER BARRERA SOLÍS, Notario Público número 7 de esta demarcación, hago constar el CONTRATO DE COMPRAVENTA que celebran, por una parte WENDY ALEJANDRA PAT CEBALLOS y [PENDIENTE INCLUIR A BRUNO EMILIO PAT CEBALLOS O SU REPRESENTANTE], como integrantes de la sucesión intestamentaria a bienes de Rogelio Pat Chan, a quienes en lo sucesivo se denominará 'LA PARTE VENDEDORA'; y por la otra, GRUPO HOTELERO XKALAK, S.A. DE C.V., representada por su apoderado Ing. Marcos Iván Rosado Bacab, a quien en lo sucesivo se denominará 'LA PARTE COMPRADORA'..."
+
+2. OBSERVACIONES PENDIENTES DE SUBSANAR ANTES DE PROTOCOLIZAR (EN ORDEN DE PRIORIDAD)
+
+OBSERVACIÓN 1 — GRAVAMEN HIPOTECARIO VIGENTE
+Estatus: ABIERTA
+Detalle: El certificado de libertad de gravamen de fecha 12 de febrero de 2026 reporta hipoteca vigente a favor de Banco Regional del Sureste, S.A., inscrita en 2011, sin cancelación registral. No podrá insertarse en la escritura definitiva la declaración de que el inmueble se transmite "libre de gravamen" hasta que se obtenga la carta de liberación del acreedor y se inscriba el convenio de cancelación correspondiente, o bien se pacte expresamente la subrogación, liberación o retención de parte del precio para el pago del crédito remanente, si lo hubiere.
+Responsable de subsanar: Sucesión vendedora (Lic. Humberto Aldair Chuc Balam)
+Fecha límite propuesta: 31 de marzo de 2026
+
+OBSERVACIÓN 2 — COMPARECENCIA DEL HEREDERO BRUNO EMILIO PAT CEBALLOS
+Estatus: ABIERTA
+Detalle: A la fecha de esta minuta, dicho heredero no ha comparecido ni otorgado poder notarial apostillado. La escritura definitiva no puede otorgarse respecto de la totalidad de los derechos hereditarios (100%) sin su comparecencia o representación formal. Alternativa en análisis: escriturar únicamente el 50% de derechos de Wendy Alejandra Pat Ceballos y dejar pendiente el 50% restante para instrumento complementario posterior, lo cual requiere conformidad expresa y por escrito de la parte compradora.
+Responsable de subsanar: Sucesión vendedora
+Fecha límite propuesta: 31 de marzo de 2026
+
+OBSERVACIÓN 3 — DISCREPANCIA DE SUPERFICIE
+Estatus: ABIERTA
+Detalle: Existen tres cifras de superficie distintas (escritura antecedente 612.35 m², plano catastral municipal 598.70 m² y levantamiento topográfico de campo 587.10 m²). Debe determinarse la superficie definitiva a insertar en la nueva escritura, ya sea mediante deslinde catastral formal o mediante cláusula de rectificación de medidas y linderos inserta en el propio instrumento, con la comparecencia de los colindantes si fuera necesario, y ajustar en consecuencia el precio pactado si las partes así lo convienen.
+Responsable de subsanar: Ambas partes, con apoyo del topógrafo y de la Notaría
+Fecha límite propuesta: 15 de abril de 2026
+
+OBSERVACIÓN 4 — ADEUDO DE SERVICIO DE AGUA
+Estatus: ABIERTA
+Detalle: El estado de cuenta de JAPAY refleja un adeudo de $19,505.50 M.N., que contradice la declaración de la vendedora en el contrato de promesa en el sentido de que no existían adeudos de agua. Deberá liquidarse dicho adeudo antes de la firma, o en su defecto, descontarse del precio a pagar a la vendedora, dejándose constancia expresa en la escritura definitiva.
+Responsable de subsanar: Sucesión vendedora
+Fecha límite propuesta: 31 de marzo de 2026
+
+OBSERVACIÓN 5 — POSESIÓN ANTICIPADA NO FORMALIZADA
+Estatus: ABIERTA
+Detalle: Se tiene reporte de que la posesión física fue entregada de facto al comprador desde el 03 de febrero de 2026 para trabajos preliminares, lo cual no es consistente con la cláusula quinta del contrato de promesa (entrega de posesión hasta la firma de escritura definitiva). Debe formalizarse mediante convenio modificatorio con deslinde de responsabilidades por eventuales daños, riesgos y obligaciones fiscales o de servicios durante el periodo de posesión anticipada.
+Responsable de subsanar: Ambas partes, con visto bueno de la Notaría
+Fecha límite propuesta: 20 de marzo de 2026
+
+OBSERVACIÓN 6 — ANTECEDENTE EJIDAL SIN EXPEDIENTE COMPLETO
+Estatus: ABIERTA, DE BAJO RIESGO
+Detalle: No se ha localizado el expediente agrario completo de la desincorporación de 1987. Se recomienda continuar la gestión ante el Registro Agrario Nacional, sin que esta observación deba, por sí sola, detener el cierre, dado el tiempo transcurrido y las transmisiones onerosas subsecuentes, pero debe quedar constancia documental del seguimiento.
+Responsable de subsanar: Notaría, con apoyo del Lic. Humberto Aldair Chuc Balam
+Fecha límite propuesta: Seguimiento continuo, sin bloquear cierre
+
+3. CLÁUSULA PROYECTADA DE CONDICIONANTES (BORRADOR, SUJETA A REVISIÓN)
+"Las partes convienen expresamente en que el presente instrumento no surtirá plenos efectos traslativos de dominio en tanto no se acredite ante esta Notaría el cumplimiento de las observaciones 1, 2, 3 y 4 de la minuta de cierre de fecha 10 de marzo de 2026, obrante en el apéndice del presente protocolo..."
+
+4. RECOMENDACIÓN FINAL DE LA NOTARÍA
+No se recomienda otorgar la escritura definitiva en tanto subsistan las Observaciones 1, 2, 3 y 4. La Observación 5 debe formalizarse de manera urgente por el riesgo de responsabilidad civil derivado de la posesión anticipada no documentada. La Observación 6 puede darse seguimiento en paralelo sin detener el cierre.
+
+_______________________________
+Lic. Andrea Sofía Canché Uc
+Proyectista
+
+_______________________________
+Lic. Fernando Javier Barrera Solís
+Notario Público No. 7 de Mérida, Yucatán

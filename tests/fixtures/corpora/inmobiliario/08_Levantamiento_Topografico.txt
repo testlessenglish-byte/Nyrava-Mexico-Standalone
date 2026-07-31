@@ -1,0 +1,42 @@
+LEVANTAMIENTO TOPOGRÁFICO Y MEMORIA DESCRIPTIVA
+
+Elaborado por: Ing. Topógrafo Wilberth Emmanuel Dzul Xool, Cédula Profesional 6612034
+Empresa: Geodesia y Topografía del Mayab, S.C.
+Solicitante: Grupo Hotelero Xkalak, S.A. de C.V.
+Fecha de trabajo de campo: 18 y 19 de enero de 2026
+Fecha de emisión de memoria: 25 de enero de 2026
+Equipo utilizado: Estación total Leica TS07, con apoyo de receptor GNSS para georreferenciación
+
+1. OBJETO
+Determinar con precisión las medidas, colindancias y superficie real del predio ubicado en Calle 60 número 415, entre calles 35 y 37, Colonia Centro, Mérida, Yucatán, con motivo de la operación de compraventa en curso.
+
+2. MEMORIA DESCRIPTIVA (COORDENADAS UTM, DATUM ITRF2008, ZONA 16N)
+Vértice 1: X=222,140.35, Y=2,282,910.12
+Vértice 2: X=222,164.20, Y=2,282,911.05
+Vértice 3: X=222,163.80, Y=2,282,886.40
+Vértice 4: X=222,139.95, Y=2,282,885.60
+
+Rumbos y distancias:
+V1-V2: N 88°14'22" E, 23.87 m (colindancia con calle 60)
+V2-V3: S 01°45'10" E, 24.67 m (colindancia con propiedad de Farmacia Peninsular, S.A. de C.V.)
+V3-V4: S 88°09'55" O, 23.86 m (colindancia con estacionamiento público)
+V4-V1: N 01°38'40" O, 24.68 m (colindancia con propiedad de familia Interián Pool)
+
+SUPERFICIE CALCULADA POR EL MÉTODO DE COORDENADAS: 587.10 m²
+
+3. OBSERVACIONES DE CAMPO
+Durante el levantamiento se identificó que la colindancia poniente del predio, históricamente descrita en la escritura antecedente número 9,015 con una medida de 25.00 metros, en la actualidad presenta una invasión menor por parte del estacionamiento público colindante, equivalente a una franja aproximada de 0.30 metros de ancho a todo lo largo del lindero, además de que la superficie total física resultó considerablemente menor a la consignada en el título (612.35 m²), con una diferencia de 25.25 m².
+
+No se advirtieron elementos físicos (bardas, mojoneras) que permitan atribuir la diferencia únicamente a la invasión detectada, por lo que se presume que pudo existir, adicionalmente, un error de medición o de redacción en alguna de las transmisiones históricas del predio, o bien una cesión no documentada de una fracción del terreno en fecha no determinada.
+
+4. RECOMENDACIÓN TÉCNICA
+Se recomienda a las partes: (i) solicitar deslinde administrativo ante la autoridad catastral municipal; (ii) en su caso, tramitar juicio o procedimiento notarial de rectificación de área y medidas conforme a la legislación registral del Estado de Yucatán, previo a la protocolización de la compraventa definitiva; y (iii) ajustar, de ser el caso, el precio pactado en proporción a la superficie realmente transmitida.
+
+5. CONCLUSIÓN
+Superficie real medida en campo: 587.10 m²
+Superficie según escritura antecedente 9,015: 612.35 m²
+Diferencia: -25.25 m² (-4.12%)
+
+_______________________________
+Ing. Wilberth Emmanuel Dzul Xool
+Topógrafo responsable

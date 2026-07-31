@@ -1,0 +1,31 @@
+HOSPITAL COUNTRY 2000, GUADALAJARA, JALISCO
+EXPEDIENTE CLÍNICO NÚMERO HC-88213
+PACIENTE: RIGOBERTO ESPARZA MONTENEGRO
+FECHA DE NACIMIENTO: 03/05/1946
+SERVICIO: Geriatría y Neurología
+
+RESUMEN CRONOLÓGICO DE NOTAS DE EVOLUCIÓN (extracto certificado remitido a solicitud judicial)
+
+Nota del 14/09/2023 (Dr. Ausencio Ramiro Villagómez Peña, Neurólogo, cédula 4471029): Paciente masculino de 77 años, referido por deterioro progresivo de memoria de aproximadamente dos años de evolución, con episodios de desorientación en tiempo y espacio, dificultad para reconocer familiares en dos ocasiones reportadas por la cuidadora. Exploración neurológica sin focalización motora. Se solicita resonancia magnética cerebral y batería neuropsicológica completa. IMPRESIÓN DIAGNÓSTICA: Trastorno Neurocognitivo Mayor, probable etiología mixta (vascular y degenerativa), a confirmar.
+
+Nota del 02/10/2023: Resultado de resonancia magnética cerebral: atrofia cortical difusa moderada, leucoaraiosis periventricular grado II, microinfartos lacunares en ganglios basales bilaterales. Compatible con demencia mixta.
+
+Nota del 18/11/2023: Se inicia manejo farmacológico con Rivastigmina 4.6 mg parches transdérmicos. Paciente acompañado por su cuidadora, Sra. Rosalinda Juárez Campuzano, quien refiere episodios de confusión vespertina ("sundowning") y desorientación nocturna recurrente.
+
+Nota del 20/02/2024: Control neurológico. Se ajusta dosis de Rivastigmina a 9.5 mg. Paciente presenta fluctuaciones en el estado de alerta; en algunos momentos del día se muestra orientado y conversador, en otros presenta confusión evidente. Cuidadora refiere que el paciente en ocasiones no reconoce el día de la semana ni recuerda eventos recientes, aunque conserva memoria remota relativamente preservada.
+
+[NOTA: Se hace constar que, entre la nota del 20/02/2024 y la siguiente disponible en autos del 25/07/2024, existe un periodo de aproximadamente cinco meses respecto del cual la parte incidentista NO acompañó las notas de evolución correspondientes a las consultas de control que, según la bitácora de citas del hospital, tuvieron lugar el 22/03/2024, el 17/05/2024 y el 21/06/2024. El apoderado de la incidentista manifestó que dichas notas "no le fueron proporcionadas en su totalidad por el área de expedientes clínicos del hospital", solicitando al juzgado requerir directamente al nosocomio su exhibición íntegra.]
+
+Nota del 25/07/2024 (Dr. Ausencio Ramiro Villagómez Peña): Control de seguimiento. Se agrega Memantina 10 mg al esquema. Paciente presenta deterioro cognitivo que se cataloga clínicamente como MODERADO A SEVERO. Escala de Deterioro Global (GDS) de Reisberg: estadio 5-6. Se recomienda supervisión constante y se desaconseja que el paciente tome decisiones financieras o legales relevantes sin acompañamiento y valoración específica de capacidad.
+
+Nota del 22/11/2024 (Dra. Yolanda Beatriz Camarena Fonseca, Neuropsicóloga, cédula 5981102): VALORACIÓN NEUROPSICOLÓGICA. Se aplica Mini Examen Mental de Folstein (MMSE), obteniendo puntaje de 14/30 puntos, compatible con deterioro cognitivo moderado a severo. Se aplica también prueba de dibujo del reloj, con ejecución severamente alterada. Paciente presenta desorientación temporal completa (no identifica día, mes ni año), desorientación espacial parcial, falla severa en memoria de fijación (0/3 palabras a los cinco minutos) y juicio abstracto notoriamente disminuido. CONCLUSIÓN: Los hallazgos son compatibles con deterioro cognitivo de grado moderado a severo que compromete de manera significativa la capacidad de comprensión, retención y juicio del paciente.
+
+Nota del 10/12/2024: Ingreso a urgencias por cuadro de broncoaspiración. Se hospitaliza para manejo con antibioticoterapia.
+
+Nota del 15/12/2025: Reingreso hospitalario por insuficiencia respiratoria aguda. Deterioro clínico progresivo.
+
+Nota del 22/12/2025: Defunción del paciente a las 03:40 horas por insuficiencia respiratoria aguda secundaria a neumonía intrahospitalaria, en contexto de demencia mixta avanzada.
+
+CONSTANCIA DEL ÁREA DE EXPEDIENTES CLÍNICOS: Se hace constar que el presente extracto fue remitido en respuesta al requerimiento judicial de fecha 10 de marzo de 2026, y que las notas correspondientes a las consultas de control de fechas 22/03/2024, 17/05/2024 y 21/06/2024 no obran localizadas en el archivo físico ni electrónico del expediente a la fecha de esta certificación, sin que se precise la causa de dicha ausencia.
+
+Firma: Lic. Patricia Noemí Rangel Aguayo, Jefa del Departamento de Expedientes Clínicos, Hospital Country 2000.
