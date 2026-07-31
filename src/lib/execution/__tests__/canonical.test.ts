@@ -58,11 +58,13 @@ describe("canonical execution architecture", () => {
     }
   });
 
-  it("classifies exactly extraction/analyzers/agents/jurisdiction_intel/scoring/legal_qa as blocking (report_generator excluded — it's the gate consumer)", () => {
-    expect([...REPORT_BLOCKING_ENGINES].sort()).toEqual(
-      ["extraction", "analyzers", "agents", "jurisdiction_intel", "scoring", "legal_qa"].sort(),
+  it("classifies every stage except report_generator and multi_agent as blocking for the report gate (2026-07-31: widened from the requirement:'blocking' subset per explicit direction — report must not generate until everything has run)", () => {
+    const expected = CANONICAL_STAGES.filter((s) => s.engine !== "report_generator" && s.key !== "multi_agent").map(
+      (s) => s.engine,
     );
+    expect([...REPORT_BLOCKING_ENGINES].sort()).toEqual([...expected].sort());
     expect(REPORT_BLOCKING_ENGINES).not.toContain("report_generator");
+    expect(REPORT_BLOCKING_ENGINES).not.toContain("multi_agent");
     expect(REPORT_ENRICHING_ENGINES.length).toBeGreaterThan(0);
   });
 
@@ -74,9 +76,7 @@ describe("canonical execution architecture", () => {
   });
 
   it("report gate passes when every blocking engine is completed or skipped", () => {
-    const rows = REPORT_BLOCKING_ENGINES.map((e, i) =>
-      row(e, i === 0 ? "skipped" : "completed"),
-    );
+    const rows = REPORT_BLOCKING_ENGINES.map((e, i) => row(e, i === 0 ? "skipped" : "completed"));
     expect(canGenerateReport(rows).ok).toBe(true);
   });
 
@@ -98,11 +98,7 @@ describe("canonical execution architecture", () => {
   });
 
   it("computeProgress percent tracks completed + skipped, excluding multi_agent", () => {
-    const rows = [
-      row("extraction", "completed"),
-      row("analyzers", "completed"),
-      row("agents", "skipped"),
-    ];
+    const rows = [row("extraction", "completed"), row("analyzers", "completed"), row("agents", "skipped")];
     const p = computeProgress(rows);
     // 3 counted out of (CANONICAL_STAGES.length - 1) since multi_agent is excluded.
     expect(p.completedStages).toBe(3);
