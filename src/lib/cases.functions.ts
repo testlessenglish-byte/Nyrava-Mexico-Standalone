@@ -1298,6 +1298,7 @@ export const askCaseAi = createServerFn({ method: "POST" })
       apiKeys: keys,
       question: data.question,
       locale: data.locale,
+      voiceMode: data.voiceMode,
     });
   });
 
