@@ -13,10 +13,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
-// Groq/Orpheus caps input at 200 chars/request; other providers are far
-// more generous, but chunking uniformly keeps one code path and keeps
-// per-request latency low across the board.
-const MAX_CHARS_PER_CHUNK = 180;
+// Per-request input caps differ wildly by provider. Groq/Orpheus caps at
+// ~200 chars, so it needs many small requests; OpenAI and Gemini happily
+// take a paragraph at a time. Chunking everyone at Groq's limit turned a
+// single 1,200-char answer into ~7 sequential provider calls, which is
+// where the "works at first, dies later" behaviour came from: seven times
+// the latency and seven independent chances to hit a quota wall mid-answer.
+const PROVIDER_CHUNK_LIMIT: Record<string, number> = {
+  groq: 180,
+  openai: 1800,
+  gemini: 1200,
+};
+const GATEWAY_CHUNK_LIMIT = 1800;
+const FALLBACK_CHUNK_LIMIT = 180;
 
 function chunkText(text: string, maxLen: number): string[] {
   const chunks: string[] = [];
@@ -41,29 +50,54 @@ function chunkText(text: string, maxLen: number): string[] {
   return chunks;
 }
 
-// Concatenate multiple same-format WAV buffers into one playable WAV by
-// keeping the first file's header and appending everyone's PCM data, then
-// rewriting the RIFF/data sizes.
+// WAV headers are not a fixed 44 bytes — OpenAI and some encoders insert
+// LIST/INFO chunks before `data`, so a hardcoded 44 slices real audio off
+// the front of every chunk (audible clicks) or, worse, treats metadata as
+// samples. Locate the actual `data` chunk instead.
+function wavDataOffset(buf: ArrayBuffer): number {
+  const view = new DataView(buf);
+  // RIFF header is 12 bytes, then a sequence of {id:4, size:4, payload}.
+  let pos = 12;
+  while (pos + 8 <= buf.byteLength) {
+    const id = String.fromCharCode(
+      view.getUint8(pos),
+      view.getUint8(pos + 1),
+      view.getUint8(pos + 2),
+      view.getUint8(pos + 3),
+    );
+    const size = view.getUint32(pos + 4, true);
+    if (id === "data") return pos + 8;
+    pos += 8 + size + (size % 2); // chunks are word-aligned
+  }
+  return 44; // not a WAV we understand — fall back to the common case
+}
+
+// Concatenate same-format WAV buffers into one playable WAV by keeping the
+// first file's header and appending everyone's PCM data, then rewriting the
+// RIFF/data sizes. Only ever called with buffers from a SINGLE provider —
+// mixing providers here would splice together different sample rates and
+// produce chipmunk/slow-motion audio partway through an answer.
 function concatWav(buffers: ArrayBuffer[]): ArrayBuffer {
   if (buffers.length === 1) return buffers[0];
-  const headerSize = 44;
-  const dataParts = buffers.map((b) => b.slice(headerSize));
+  const firstDataAt = wavDataOffset(buffers[0]);
+  const dataParts = buffers.map((b) => b.slice(wavDataOffset(b)));
   const totalDataLen = dataParts.reduce((sum, b) => sum + b.byteLength, 0);
 
-  const header = new Uint8Array(buffers[0].slice(0, headerSize));
-  const out = new Uint8Array(headerSize + totalDataLen);
+  const header = new Uint8Array(buffers[0].slice(0, firstDataAt));
+  const out = new Uint8Array(firstDataAt + totalDataLen);
   out.set(header, 0);
-  let offset = headerSize;
+  let offset = firstDataAt;
   for (const part of dataParts) {
     out.set(new Uint8Array(part), offset);
     offset += part.byteLength;
   }
 
   const view = new DataView(out.buffer);
-  view.setUint32(4, 36 + totalDataLen, true);
-  view.setUint32(40, totalDataLen, true);
+  view.setUint32(4, firstDataAt - 8 + totalDataLen, true); // RIFF size
+  view.setUint32(firstDataAt - 4, totalDataLen, true); // data chunk size
   return out.buffer;
 }
+
 
 async function requireAuthedClient(
   request: Request,
@@ -121,46 +155,53 @@ export const Route = createFileRoute("/api/voice/speak")({
 
         const input = cleaned.slice(0, 3000);
         const resolvedVoice = voice || "alloy";
-        const chunks = chunkText(input, MAX_CHARS_PER_CHUNK);
 
         let lastStatus = 500;
         let lastMessage = "";
         let lastProvider = "";
         let triedCount = 0;
-        let attemptStart = 0; // once an attempt works for one chunk, try it first for the rest
-        const audioChunks: ArrayBuffer[] = [];
+        let chunkCount = 0;
+        let chunksCompleted = 0;
 
-        chunkLoop: for (const chunk of chunks) {
-          for (let offset = 0; offset < attempts.length; offset++) {
-            const i = (attemptStart + offset) % attempts.length;
-            const { provider, key } = attempts[i];
-            triedCount++;
-            try {
-              const wav = await speakText({ provider, apiKey: key, text: chunk, voice: resolvedVoice, language });
-              audioChunks.push(wav);
-              attemptStart = i;
-              continue chunkLoop;
-            } catch (err) {
-              lastProvider = provider;
-              if (err instanceof VoiceProviderError) {
-                lastStatus = err.status;
-                lastMessage = err.message;
-                if (offset < attempts.length - 1 && err.rotatable) {
-                  console.warn(`[voice/speak] ${provider} attempt ${i} failed (${err.status}), trying next`);
-                  continue;
-                }
-              } else {
-                lastMessage = err instanceof Error ? err.message : String(err);
+        // One provider synthesizes the WHOLE answer, chunked to ITS own
+        // input limit. Previously each 180-char chunk could land on a
+        // different provider, so a mid-answer rotation spliced two sample
+        // rates into one WAV and the tail came out garbled — and any single
+        // failed chunk threw away every chunk already paid for. Now a
+        // provider either delivers the complete answer or we move on.
+        for (let i = 0; i < attempts.length; i++) {
+          const { provider, key } = attempts[i];
+          const limit = PROVIDER_CHUNK_LIMIT[provider] ?? FALLBACK_CHUNK_LIMIT;
+          const chunks = chunkText(input, limit);
+          chunkCount = chunks.length;
+          triedCount++;
+          const parts: ArrayBuffer[] = [];
+          try {
+            for (const chunk of chunks) {
+              parts.push(await speakText({ provider, apiKey: key, text: chunk, voice: resolvedVoice, language }));
+            }
+            if (parts.length > 0) {
+              chunksCompleted = parts.length;
+              return new Response(concatWav(parts), { headers: { "Content-Type": "audio/wav" } });
+            }
+          } catch (err) {
+            lastProvider = provider;
+            chunksCompleted = parts.length;
+            if (err instanceof VoiceProviderError) {
+              lastStatus = err.status;
+              lastMessage = err.message;
+              if (!err.rotatable) {
+                console.warn(`[voice/speak] ${provider} failed hard (${err.status}); not rotating`);
+                break;
               }
-              break chunkLoop;
+              console.warn(`[voice/speak] ${provider} failed (${err.status}) after ${parts.length}/${chunks.length} chunks, trying next`);
+            } else {
+              lastMessage = err instanceof Error ? err.message : String(err);
+              console.warn(`[voice/speak] ${provider} threw; trying next`);
             }
           }
         }
 
-        if (audioChunks.length === chunks.length && chunks.length > 0) {
-          const combined = concatWav(audioChunks);
-          return new Response(combined, { headers: { "Content-Type": "audio/wav" } });
-        }
 
         // Last resort: the platform gateway. Reached when the attorney has no
         // voice-capable key at all, or every one of theirs failed (quota,
@@ -169,10 +210,10 @@ export const Route = createFileRoute("/api/voice/speak")({
         let gatewayError = "";
         try {
           const gatewayChunks: ArrayBuffer[] = [];
-          for (const chunk of chunks) {
+          for (const chunk of chunkText(input, GATEWAY_CHUNK_LIMIT)) {
             gatewayChunks.push(await speakViaGateway(chunk, resolvedVoice));
           }
-          if (gatewayChunks.length === chunks.length && chunks.length > 0) {
+          if (gatewayChunks.length > 0) {
             console.warn("[voice/speak] served via platform gateway fallback");
             return new Response(concatWav(gatewayChunks), { headers: { "Content-Type": "audio/wav" } });
           }
@@ -180,6 +221,7 @@ export const Route = createFileRoute("/api/voice/speak")({
           gatewayError = err instanceof Error ? err.message : String(err);
           console.warn(`[voice/speak] gateway fallback failed: ${gatewayError}`);
         }
+
 
         if (attempts.length === 0) {
           return new Response(
@@ -202,8 +244,9 @@ export const Route = createFileRoute("/api/voice/speak")({
               providersAvailable: [...new Set(attempts.map((a) => a.provider))],
               triedCount,
               lastProvider,
-              chunkCount: chunks.length,
-              chunksCompleted: audioChunks.length,
+              chunkCount,
+              chunksCompleted,
+
               gatewayError,
 
             },

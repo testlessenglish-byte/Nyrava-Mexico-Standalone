@@ -12,6 +12,11 @@
 // even though they're valid providers for text chat.
 import type { VoiceProvider } from "@/lib/ai-key-router.server";
 
+// Providers occasionally accept a request and then never respond. Without a
+// deadline the whole voice turn hangs until the platform kills it, which is
+// what a mid-conversation "it just stopped working" usually is.
+const VOICE_TIMEOUT_MS = 45_000;
+
 export class VoiceProviderError extends Error {
   readonly status: number;
   readonly rotatable: boolean;
@@ -133,6 +138,7 @@ export async function transcribeAudio(args: TranscribeArgs): Promise<string> {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
+      signal: AbortSignal.timeout(VOICE_TIMEOUT_MS),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -156,6 +162,7 @@ export async function transcribeAudio(args: TranscribeArgs): Promise<string> {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
+      signal: AbortSignal.timeout(VOICE_TIMEOUT_MS),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -186,6 +193,7 @@ export async function transcribeAudio(args: TranscribeArgs): Promise<string> {
         contents: [{ parts: [{ inline_data: { mime_type: mime, data: b64 } }, { text: prompt }] }],
         generationConfig: { temperature: 0 },
       }),
+    signal: AbortSignal.timeout(VOICE_TIMEOUT_MS),
     },
   );
   if (!res.ok) {
@@ -289,6 +297,7 @@ export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
         voice: groqVoice,
         response_format: "wav",
       }),
+      signal: AbortSignal.timeout(VOICE_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -313,6 +322,7 @@ export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
         voice: resolvedVoice,
         response_format: "wav",
       }),
+      signal: AbortSignal.timeout(VOICE_TIMEOUT_MS),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -340,6 +350,7 @@ export async function speakText(args: SpeakArgs): Promise<ArrayBuffer> {
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: resolvedVoice } } },
         },
       }),
+    signal: AbortSignal.timeout(VOICE_TIMEOUT_MS),
     },
   );
   if (!res.ok) {
@@ -396,6 +407,7 @@ export async function speakViaGateway(text: string, voice: string): Promise<Arra
       voice: resolvedVoice,
       response_format: "wav",
     }),
+    signal: AbortSignal.timeout(VOICE_TIMEOUT_MS),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
