@@ -1,0 +1,21 @@
+numero,documento,oferente,tipo_prueba,fecha_documento,relacionado_con,estado
+1,Acta de Investigacion CP-MZO/INV/041/2026,Autoridad (Capitania),Documental publica,2026-02-17,Hechos del abordaje,Admitida
+2,Protesta de Mar del Capitan Iannis Papadakis,Demandada,Documental privada,2026-02-15,Version del buque,Admitida
+3,Transcripcion Diario de Navegacion,Demandada,Documental privada,2026-02-14,Secuencia de ordenes,Admitida
+4,Informe del Practico Ernesto Gamaliel Farias Coutino,Autoridad,Documental publica,2026-02-16,Causa de la maniobra,Admitida
+5,Cartas de Protesta cruzadas,Ambas partes,Documental privada,2026-02-15/16,Reserva de derechos,Admitida
+6,Testimonial Jose Luis Ancona Baeza (contramaestre),Actora,Testimonial,2026-02-18,Demora de ordenes de maquina,Admitida
+7,Testimonial Ederson Gomez Castrejon (timonel),Demandada,Testimonial,2026-02-18,Ejecucion de ordenes de timon,Admitida
+8,Testimonial Rustam Nazarov (segundo oficial),Demandada,Testimonial,2026-02-19,Transmision de ordenes/tension del cabo,Admitida
+9,Dictamen Pericial Nautico Wenceslao Dominguez Zaragoza,Perito tercero en discordia,Pericial,2026-06-30,Causa tecnica del contacto,Admitida
+10,Dictamen de Cuantificacion de Danos Baltazar Osiel Chapa Villagomez,Actora,Pericial,2026-07-05,Monto de la reclamacion,Admitida
+11,Poliza y Condiciones del Seguro P&I Golden Horn,Demandada / tercero llamado,Documental privada,2025-02-20,Cobertura y reserva de derechos,Admitida
+12,Conocimiento de Embarque PSCL-MZO-2026-008841,Demandada,Documental privada,2026-02-15,Contexto operativo y retraso de descarga,Admitida
+13,Contrato de Remolque SEPROPAC-Naviera,Ambas partes,Documental privada,2026-02-12,Reparto contractual de responsabilidad,Admitida
+14,Oficio SEMAR 4RN/DGAJ/0512/2026,Autoridad,Documental publica,2026-03-06,Seguimiento administrativo,Admitida
+15,Oficio API-MZO/DG/0198/2026,Actora (API Manzanillo),Documental publica,2026-02-18,Danos a infraestructura portuaria,Admitida
+16,Denuncia Ambiental PFPA/32/2C.27.2/0089/2026,Tercero (ONG ambiental),Documental publica,2026-02-20,Discrepancia en volumen de derrame,Admitida
+17,Demanda Ordinaria Federal 96/2026,Actora,Escrito inicial,2026-03-12,Prestaciones reclamadas,Admitida
+18,Contestacion de Demanda,Demandada,Escrito de contestacion,2026-04-08,Excepciones opuestas,Admitida
+19,Registros AIS del buque y del remolcador,Perito tercero,Documental tecnica,2026-02-14,Velocidad y trayectoria del remolcador,Admitida
+20,Facturas de reparacion del remolcador Manzanillo XII,Actora (SEPROPAC),Documental privada,2026-04-10,Acreditacion del dano material,Pendiente de exhibicion completa
