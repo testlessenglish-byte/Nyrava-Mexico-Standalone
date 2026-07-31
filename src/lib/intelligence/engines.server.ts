@@ -784,20 +784,111 @@ export async function runWitnessEngine(args: {
   const ctx = await buildContext(db, caseId);
   if (!ctx.corpus) throw new Error("No extracted documents.");
 
-  const r = await callGroq({
+  const locale = await getReportLocale(db, caseId);
+  const mxLockPrefix = mexicoLock(locale);
+  const mxRoleInstruction =
+    "State the declarant's MEXICAN procedural role in `role` using Mexican terminology (víctima u ofendido, testigo, perito, policía primer respondiente, Ministerio Público, imputado, quejoso, autoridad responsable, tercero interesado, servidor público, autoridad fiscal, actor, demandado, trabajador, patrón). Never use United States roles such as plaintiff, defendant in a civil sense, prosecutor or deponent. ";
+  const forbiddenPhraseInstruction =
+    'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ';
+
+  // ---------------------------------------------------------------------
+  // Pass 1 — cheap witness-name discovery. Was previously folded into the
+  // same call that also had to produce a full 15-field profile per witness;
+  // splitting it out means this pass has a small, fast, bounded output
+  // (names + a one-line role hint) regardless of how many documents are in
+  // the corpus, so it reliably finishes well inside the witness stage's
+  // 45s checkpoint budget (STAGE_BUDGET_MS.witness in
+  // pipeline-checkpoint.server.ts) even on a large case.
+  // ---------------------------------------------------------------------
+  const namesCall = await callGroq({
     apiKey,
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) +
-      "\n\n" +
-      "You profile every witness in a case. ONLY include witnesses whose names appear verbatim in the corpus. " +
-      "For each, score reliability, bias, consistency, corroboration, opportunity to observe, and credibility risk. " +
-      "State the declarant's MEXICAN procedural role in `role` using Mexican terminology (víctima u ofendido, testigo, perito, policía primer respondiente, Ministerio Público, imputado, quejoso, autoridad responsable, tercero interesado, servidor público, autoridad fiscal, actor, demandado, trabajador, patrón). Never use United States roles such as plaintiff, defendant in a civil sense, prosecutor or deponent. " +
-      "Every witness MUST include at least one verbatim quote (from the corpus) showing their testimony. " +
-      'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
+      mxLockPrefix +
+      "\n\nIdentify every person in this case corpus who testifies, declares, gives a statement, or otherwise " +
+      "appears as a witness/declarant in the broad Mexican procedural sense (testigo, perito, policía primer " +
+      "respondiente, víctima u ofendido, Ministerio Público, autoridad responsable, etc.). " +
+      "ONLY include names that appear verbatim in the corpus. Do not profile them yet — just identify who they are. " +
       "Output STRICT JSON only.",
     userContent: `Return STRICT JSON:
+{ "witness_names": [ { "name": string, "role_hint": string } ] }
+
+CASE CORPUS:
+${ctx.corpus}`,
+    json: true,
+    temperature: 0.1,
+    // Small and bounded — this pass never needs more than a short list of
+    // names, so capping output keeps it fast even if left unset elsewhere.
+    maxTokens: 2000,
+  });
+  await logUsage(db, {
+    userId,
+    caseId,
+    operation: "witness_names",
+    model: namesCall.model,
+    provider: namesCall.provider,
+    inputTokens: namesCall.inputTokens,
+    outputTokens: namesCall.outputTokens,
+    totalTokens: namesCall.totalTokens,
+    latencyMs: namesCall.latencyMs,
+    success: true,
+    keyIndex: namesCall.keyIndex,
+  });
+  const namesParsed =
+    parseJsonLoose<{ witness_names?: Array<{ name?: string; role_hint?: string }> }>(
+      namesCall.text,
+    ) ?? {};
+  const candidateNames = (namesParsed.witness_names ?? [])
+    .map((w) => ({ name: (w.name ?? "").trim(), roleHint: (w.role_hint ?? "").trim() }))
+    .filter((w) => w.name.length > 0);
+  console.info(
+    `[engine:witness] case=${caseId} pass1_names=${candidateNames.length} pass1_text_chars=${namesCall.text?.length ?? 0}`,
+  );
+
+  // ---------------------------------------------------------------------
+  // Pass 2 — profile witnesses in small chunks, run with bounded
+  // concurrency. Each chunk still gets the exact same detailed profiling
+  // schema/instructions the single mega-call used to send for every
+  // witness at once; the only change is how many witnesses one call is
+  // asked to profile, which is what keeps each individual call's output
+  // small enough to reliably finish inside the checkpoint budget.
+  // Concurrency is capped (not full Promise.all over every chunk) per the
+  // reviewed rate-limit guidance — a few concurrent Groq calls is fine,
+  // one per witness would not be.
+  // ---------------------------------------------------------------------
+  const WITNESS_CHUNK_SIZE = 2;
+  const WITNESS_CONCURRENCY = 3;
+  const chunks: Array<typeof candidateNames> = [];
+  for (let i = 0; i < candidateNames.length; i += WITNESS_CHUNK_SIZE) {
+    chunks.push(candidateNames.slice(i, i + WITNESS_CHUNK_SIZE));
+  }
+
+  async function profileChunk(
+    chunk: typeof candidateNames,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<Array<WitnessProfile & { citations?: any[] }>> {
+    const chunkList = chunk
+      .map((w) => `- ${w.name}${w.roleHint ? ` (${w.roleHint})` : ""}`)
+      .join("\n");
+    const r = await callGroq({
+      apiKey,
+      apiKeys,
+      model: MODEL,
+      systemInstruction:
+        mxLockPrefix +
+        "\n\n" +
+        `Profile ONLY the following ${chunk.length === 1 ? "witness" : "witnesses"} from this case — do not include anyone else, ` +
+        "even if other names appear in the corpus. ONLY use information that appears verbatim in the corpus. " +
+        "For each, score reliability, bias, consistency, corroboration, opportunity to observe, and credibility risk. " +
+        mxRoleInstruction +
+        "Every witness MUST include at least one verbatim quote (from the corpus) showing their testimony. " +
+        forbiddenPhraseInstruction +
+        "Output STRICT JSON only.",
+      userContent: `Witnesses to profile:
+${chunkList}
+
+Return STRICT JSON:
 {
   "witnesses": [
     {
@@ -820,27 +911,52 @@ export async function runWitnessEngine(args: {
 
 CASE CORPUS:
 ${ctx.corpus}`,
-    json: true,
-    temperature: 0.2,
-  });
-  await logUsage(db, {
-    userId,
-    caseId,
-    operation: "witness",
-    model: r.model,
-    provider: r.provider,
-    inputTokens: r.inputTokens,
-    outputTokens: r.outputTokens,
-    totalTokens: r.totalTokens,
-    latencyMs: r.latencyMs,
-    success: true,
-    keyIndex: r.keyIndex,
-  });
+      json: true,
+      temperature: 0.2,
+    });
+    await logUsage(db, {
+      userId,
+      caseId,
+      operation: "witness",
+      model: r.model,
+      provider: r.provider,
+      inputTokens: r.inputTokens,
+      outputTokens: r.outputTokens,
+      totalTokens: r.totalTokens,
+      latencyMs: r.latencyMs,
+      success: true,
+      keyIndex: r.keyIndex,
+    });
+    const parsed =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      parseJsonLoose<{ witnesses?: Array<WitnessProfile & { citations?: any[] }> }>(r.text) ?? {};
+    return parsed.witnesses ?? [];
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parsed = parseJsonLoose<{ witnesses?: Array<WitnessProfile & { citations?: any[] }> }>(r.text) ?? {};
-  const rawWitnesses = parsed.witnesses ?? [];
+  const rawWitnesses: Array<WitnessProfile & { citations?: any[] }> = [];
+  for (let i = 0; i < chunks.length; i += WITNESS_CONCURRENCY) {
+    const group = chunks.slice(i, i + WITNESS_CONCURRENCY);
+    const settled = await Promise.allSettled(group.map((chunk) => profileChunk(chunk)));
+    for (let j = 0; j < settled.length; j++) {
+      const res = settled[j];
+      if (res.status === "fulfilled") {
+        rawWitnesses.push(...res.value);
+      } else {
+        // One chunk failing (timeout, transient provider error) degrades
+        // gracefully to "this witness didn't get profiled" rather than
+        // failing the whole stage — the same fail-open posture the rest of
+        // this pipeline already uses for non-fatal stages.
+        console.warn(
+          `[engine:witness] case=${caseId} chunk_failed names=${JSON.stringify(group[j].map((w) => w.name))} error=${
+            res.reason instanceof Error ? res.reason.message : String(res.reason)
+          }`,
+        );
+      }
+    }
+  }
   console.info(
-    `[engine:witness] case=${caseId} llm_raw=${rawWitnesses.length} llm_text_chars=${r.text?.length ?? 0} llm_preview=${JSON.stringify((r.text ?? "").slice(0, 240))}`,
+    `[engine:witness] case=${caseId} llm_raw=${rawWitnesses.length} chunks=${chunks.length} chunk_size=${WITNESS_CHUNK_SIZE} concurrency=${WITNESS_CONCURRENCY}`,
   );
 
   // Validate: name must appear in extracted entities AND at least one
@@ -884,9 +1000,23 @@ ${ctx.corpus}`,
     `[engine:witness] case=${caseId} llm=${rawWitnesses.length} valid_names=${validWitnesses.length} after_gate=${witnesses.length} rejected_unverified=${validWitnesses.length - witnesses.length}`,
   );
 
-  // If the LLM legitimately returned zero witness candidates, treat the run
-  // as a successful no-op (many cases — e.g. Civil filings — genuinely have
-  // no testifying witnesses to profile). Preserve any prior rows untouched.
+  // Two distinct "zero" cases, now that profiling is chunked — must not be
+  // conflated:
+  //   1. Pass 1 legitimately found nobody (candidateNames.length === 0):
+  //      many cases (e.g. Civil filings) genuinely have no testifying
+  //      witnesses. Real no-op, preserve prior rows untouched.
+  //   2. Pass 1 found candidates but every pass-2 chunk failed
+  //      (transient provider error, rate limit, etc.): this is a real
+  //      failure, not an empty case — silently treating it as "no
+  //      witnesses" would incorrectly wipe/skip witness data for a case
+  //      that does have them. Throw so the pipeline's existing stage-
+  //      failure/checkpoint handling in pipeline-runner.server.ts takes
+  //      over (retry on next tick) instead of a silent, wrong no-op.
+  if (candidateNames.length > 0 && rawWitnesses.length === 0) {
+    throw new Error(
+      `Witness profiling failed for all ${chunks.length} chunk(s) covering ${candidateNames.length} candidate name(s) — see chunk_failed warnings above.`,
+    );
+  }
   if (rawWitnesses.length === 0) {
     await setCase(db, caseId, { witnesses_at: new Date().toISOString() });
     return { witnesses: [], audit: { input: 0, rejected_not_in_entities: 0, rejected_unverified: 0, accepted: 0 } };

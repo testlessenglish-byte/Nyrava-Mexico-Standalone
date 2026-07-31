@@ -1061,8 +1061,70 @@ async function _runPipelineForCase(
     startFrom: startFrom ?? null,
   });
 
-  for (let i = 0; i < stages.length; i++) {
-    const s = stages[i];
+  // ---------------------------------------------------------------------
+  // Parallel execution batches — addendum: safe concurrency for genuinely
+  // independent stages. Traced from CANONICAL_STAGES' own dependsOn graph
+  // (not reordered, not modified): every stage in a batch depends only on
+  // stages that complete BEFORE the batch starts, and none of them depends
+  // on another member of the same batch. Everything else (the
+  // perspectives -> theories -> strategy -> {litigation_strategy_center,
+  // work_product} chain) is a genuine sequential dependency chain and stays
+  // serial — parallelizing it would run a stage before its real upstream
+  // input exists.
+  //   Batch A: perspectives, opportunities, trial_prep, witness — all four
+  //     depend only on [analyzers, agents].
+  //   Batch B: litigation_strategy_center, work_product — both depend only
+  //     on strategy (+ stages already satisfied by the time strategy is
+  //     done); neither depends on the other.
+  const PARALLEL_BATCHES: readonly (readonly PipelineStageKey[])[] = [
+    ["perspectives", "opportunities", "trial_prep", "witness"],
+    ["litigation_strategy_center", "work_product"],
+  ];
+  // The trigger for a batch must be whichever member actually occurs
+  // EARLIEST in `stages` (materia-filtered order can differ from the array
+  // above, and — critically — `witness` occurs earlier than `perspectives`
+  // in CANONICAL_STAGES itself). Registering the wrong trigger would let an
+  // earlier member run solo, then get re-executed when the batch fires
+  // later at its declared-first member's position: this tick's
+  // `latestStatusByEngine` snapshot is taken once at the very start of the
+  // invocation and is never updated mid-tick, so `alreadyDone()` has no way
+  // to see "this member already completed a few iterations ago" — it would
+  // silently run (and re-bill) that engine twice in the same tick.
+  const batchLeader = new Map<PipelineStageKey, readonly PipelineStageKey[]>();
+  for (const batch of PARALLEL_BATCHES) {
+    let earliest: PipelineStageKey | null = null;
+    let earliestIdx = Infinity;
+    for (const k of batch) {
+      const idx = stages.findIndex((st) => st.key === k);
+      if (idx >= 0 && idx < earliestIdx) {
+        earliestIdx = idx;
+        earliest = k;
+      }
+    }
+    if (earliest) batchLeader.set(earliest, batch);
+  }
+  const handledByBatch = new Set<PipelineStageKey>();
+
+  // runOneStage is the exact per-stage logic that used to live inline in
+  // the loop below, unchanged line for line — only the control-flow
+  // mechanism changed: every `continue` became `return { kind: "..." }`,
+  // every early `return {...}` became `return { kind: "...", ... }`, and
+  // the one `throw` (fatal-stage failure) became a returned outcome the
+  // caller throws from, so this function is safe to call concurrently via
+  // Promise.allSettled without an unhandled rejection. Called exactly once
+  // per stage either way — sequentially for stages outside a batch,
+  // concurrently for stages inside one.
+  async function runOneStage(
+    s: (typeof stages)[number],
+    i: number,
+  ): Promise<
+    | { kind: "skipped" | "blocked" | "success" | "failed" }
+    | {
+        kind: "checkpoint_before_start" | "checkpoint" | "cancelled" | "checkpoint_loop_aborted";
+        index: number;
+      }
+    | { kind: "fatal_failed"; message: string }
+  > {
     const key = s.key as PipelineStageKey;
     const r = runners[key];
     const pct = Math.floor((i / total) * 95);
@@ -1076,7 +1138,7 @@ async function _runPipelineForCase(
         index: i + 1,
         prior_status: latestStatusByEngine.get(engineForStage(key)) ?? null,
       });
-      continue;
+      return { kind: "skipped" };
     }
 
     // Dependency gate — record a `blocked` row so the ledger, UI, and report
@@ -1122,7 +1184,7 @@ async function _runPipelineForCase(
         `stage.blocked:${s.key}`,
       );
       console.warn(`[pipeline] ${s.key} BLOCKED — ${reason}`);
-      continue;
+      return { kind: "blocked" };
     }
 
     await updateCase(
@@ -1159,12 +1221,7 @@ async function _runPipelineForCase(
       } catch {
         /* noop */
       }
-      return {
-        ok: true,
-        completedStages: i,
-        warnings: [{ key: s.key, error: "checkpoint" }],
-        failedAt: s.key,
-      };
+      return { kind: "checkpoint_before_start", index: i };
     }
 
     trace("stage.start", { stage: s.key, index: i + 1, progress_pct: pct });
@@ -1209,6 +1266,7 @@ async function _runPipelineForCase(
           /* best-effort */
         }
       }
+      return { kind: "success" };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg === "Cancelled by user" || (e instanceof Error && e.name === "CancelledError")) {
@@ -1217,7 +1275,7 @@ async function _runPipelineForCase(
           `stage.cancelled:${s.key}`,
         );
         trace("pipeline.cancelled", { stage: s.key });
-        return { ok: false, cancelled: true, failedAt: s.key, completedStages: i };
+        return { kind: "cancelled", index: i };
       }
       if (e instanceof Error && e.name === "CheckpointRequired") {
         // Loop-breaker: if this stage has already checkpointed repeatedly it is
@@ -1251,7 +1309,7 @@ async function _runPipelineForCase(
             },
             `stage.checkpoint_loop:${s.key}`,
           );
-          return { ok: false, failedAt: s.key, completedStages: i };
+          return { kind: "checkpoint_loop_aborted", index: i };
         }
         try {
           const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
@@ -1273,12 +1331,7 @@ async function _runPipelineForCase(
         } catch {
           /* noop */
         }
-        return {
-          ok: true,
-          completedStages: i,
-          warnings: [{ key: s.key, error: "checkpoint" }],
-          failedAt: s.key,
-        };
+        return { kind: "checkpoint", index: i };
       }
       failed.add(key);
       trace("stage.failed", {
@@ -1302,10 +1355,109 @@ async function _runPipelineForCase(
           },
           `stage.failed:${s.key}`,
         );
-        throw new Error(`[${s.label}] ${msg}`);
+        return { kind: "fatal_failed", message: `[${s.label}] ${msg}` };
       }
       console.warn(`[pipeline] non-fatal failure at ${s.key}: ${msg}`);
+      return { kind: "failed" };
     }
+  }
+
+  // Interprets one stage's outcome exactly the way the loop used to inline
+  // — same early-returns, same throw. Shared by the serial path and the
+  // batch path below so neither can drift from the other's semantics.
+  function earlyReturnFor(outcome: Awaited<ReturnType<typeof runOneStage>>): {
+    ok: boolean;
+    cancelled?: true;
+    failedAt?: string;
+    completedStages: number;
+    warnings?: Array<{ key: string; error: string }>;
+  } | null {
+    switch (outcome.kind) {
+      case "checkpoint_before_start":
+        return {
+          ok: true,
+          completedStages: outcome.index,
+          warnings: [{ key: stages[outcome.index].key, error: "checkpoint" }],
+          failedAt: stages[outcome.index].key,
+        };
+      case "cancelled":
+        return {
+          ok: false,
+          cancelled: true,
+          failedAt: stages[outcome.index].key,
+          completedStages: outcome.index,
+        };
+      case "checkpoint_loop_aborted":
+        return { ok: false, failedAt: stages[outcome.index].key, completedStages: outcome.index };
+      case "checkpoint":
+        return {
+          ok: true,
+          completedStages: outcome.index,
+          warnings: [{ key: stages[outcome.index].key, error: "checkpoint" }],
+          failedAt: stages[outcome.index].key,
+        };
+      default:
+        return null;
+    }
+  }
+
+  for (let i = 0; i < stages.length; i++) {
+    const s = stages[i];
+    const key = s.key as PipelineStageKey;
+
+    // Already executed as part of an earlier parallel batch this tick.
+    if (handledByBatch.has(key)) continue;
+
+    const batch = batchLeader.get(key);
+    if (batch) {
+      // Resolve every batch member to its {stage, index} pair — order in
+      // `stages` may differ slightly from PARALLEL_BATCHES' declared order
+      // once jurisdiction-aware stage filtering has run, and a member may
+      // not be present at all for this case type.
+      const members = batch
+        .map((k) => ({ k, idx: stages.findIndex((st) => st.key === k) }))
+        .filter((m) => m.idx >= 0);
+      for (const m of members) handledByBatch.add(m.k);
+
+      trace("stage.batch_start", { batch: batch, members: members.map((m) => m.k) });
+      const settled = await Promise.allSettled(
+        members.map((m) => runOneStage(stages[m.idx], m.idx)),
+      );
+      // runOneStage never throws (every path returns a discriminated
+      // outcome), so every settled result is "fulfilled" in practice —
+      // treat an unexpected rejection as a non-fatal failure rather than
+      // letting it crash the whole batch.
+      const outcomes = settled.map((res) =>
+        res.status === "fulfilled" ? res.value : { kind: "failed" as const },
+      );
+      trace("stage.batch_complete", {
+        batch,
+        outcomes: outcomes.map((o, idx) => ({ stage: members[idx].k, kind: o.kind })),
+      });
+
+      // Same priority order the serial path already implies: a cancel or a
+      // checkpoint anywhere in the tick stops the whole invocation. Checked
+      // across the batch once, using whichever member hit it.
+      const cancelled = outcomes.find((o) => o.kind === "cancelled");
+      if (cancelled) return earlyReturnFor(cancelled)!;
+      const loopAborted = outcomes.find((o) => o.kind === "checkpoint_loop_aborted");
+      if (loopAborted) return earlyReturnFor(loopAborted)!;
+      const checkpointed = outcomes.find(
+        (o) => o.kind === "checkpoint" || o.kind === "checkpoint_before_start",
+      );
+      if (checkpointed) return earlyReturnFor(checkpointed)!;
+      const fatal = outcomes.find((o) => o.kind === "fatal_failed");
+      if (fatal && fatal.kind === "fatal_failed") throw new Error(fatal.message);
+
+      continue;
+    }
+
+    const outcome = await runOneStage(s, i);
+    if (outcome.kind === "fatal_failed") throw new Error(outcome.message);
+    const early = earlyReturnFor(outcome);
+    if (early) return early;
+    // "skipped" | "blocked" | "success" | "failed" all just continue —
+    // identical to the old inline continue/fallthrough behavior.
   }
 
   // Truthful final status. Multi-agent may have already stamped the case as
