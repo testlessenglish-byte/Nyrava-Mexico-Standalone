@@ -13,6 +13,7 @@ import {
 } from "@/lib/cases.functions";
 import { useAddEvidenceAndRerun } from "@/hooks/useAddEvidenceAndRerun";
 import { ChatMarkdown } from "@/lib/chat-markdown";
+import { useI18n } from "@/i18n";
 import {
   Loader2,
   MessageSquare,
@@ -77,6 +78,7 @@ export function CaseChatPanel({
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { locale } = useI18n();
   const fetchChat = useServerFn(getCaseChat);
   const askAi = useServerFn(askCaseAi);
   const clearChat = useServerFn(clearCaseChat);
@@ -117,7 +119,7 @@ export function CaseChatPanel({
   const prevHistoryLenRef = useRef(0);
 
   const ask = useMutation({
-    mutationFn: (question: string) => askAi({ data: { caseId, question } }),
+    mutationFn: (question: string) => askAi({ data: { caseId, question, locale } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", caseId] }),
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Chat failed"),
   });
@@ -481,7 +483,6 @@ export function CaseChatPanel({
             const suggestsRerun = m.role === "assistant" && !isErrorNotice && !!m.metadata?.suggests_rerun;
             const alreadyRegenerated = Object.prototype.hasOwnProperty.call(regeneratedVersions, m.id);
             const isRegeneratingThis = regeneratingId === m.id;
-
 
             return (
               <div
