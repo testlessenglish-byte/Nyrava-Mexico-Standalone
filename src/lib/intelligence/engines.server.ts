@@ -432,6 +432,7 @@ export async function runOpportunityEngine(args: {
       "You are a dual-perspective trial strategist. Every opportunity MUST cite at least one structured evidence citation with a verbatim quote copied from the corpus. " +
       "If you cannot back an opportunity with a corpus quote, omit it — an empty array is a valid response. " +
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
+      'Before recommending any filing, motion, or procedural action, check the case timeline/chronology in the corpus and analysis below for whether that exact action already happened. NEVER recommend an action (e.g. "file the X", "prepare the Y") that the timeline already shows as filed, granted, denied, or otherwise completed — recommend the NEXT unresolved step instead. ' +
       "Output STRICT JSON only.",
     userContent: `${caseFrame}
 
