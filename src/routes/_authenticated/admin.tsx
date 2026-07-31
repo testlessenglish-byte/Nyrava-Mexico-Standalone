@@ -7,7 +7,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CaseActionsMenu } from "@/components/CaseActionsMenu";
 import { UserActionsMenu } from "@/components/UserActionsMenu";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -83,7 +89,8 @@ function AdminDashboard() {
           <h2 className="text-lg font-semibold text-destructive">Couldn't load admin console</h2>
           <p className="mt-2 text-sm text-destructive/90">{(error as Error).message}</p>
           <p className="mt-3 text-xs text-muted-foreground">
-            If you're the project owner and have never been granted admin, go to Settings → "Claim owner / admin role".
+            If you're the project owner and have never been granted admin, go to Settings → "Claim
+            owner / admin role".
           </p>
         </div>
       </div>
@@ -101,60 +108,63 @@ function AdminDashboard() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-10">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:flex sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4">
         <div className="flex min-w-0 items-center gap-2">
-          <ShieldCheck className="h-6 w-6 text-accent" />
+          <ShieldCheck className="h-6 w-6 shrink-0 text-accent" />
           <h1 className="min-w-0 text-3xl font-semibold">Administrator console</h1>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             to="/admin/pipeline-ledger"
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
           >
             Pipeline Ledger →
           </Link>
-          <Link to="/admin/users" className="rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted">
+          <Link
+            to="/admin/users"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
+          >
             Users & Roles →
           </Link>
           <Link
             to="/admin/team"
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted flex items-center gap-1.5"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
           >
             <UserPlus className="h-3.5 w-3.5" /> Team & Seats →
           </Link>
           <Link
             to="/admin/ai-providers"
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
           >
             AI Providers →
           </Link>
           <Link
             to="/admin/billing"
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
           >
             Billing Plans →
           </Link>
           <Link
             to="/admin/beta"
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted flex items-center gap-1.5"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
           >
             <UserPlus className="h-3.5 w-3.5" /> Beta Testers →
           </Link>
           <Link
             to="/admin/demo-cases"
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted flex items-center gap-1.5"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
           >
             <FlaskConical className="h-3.5 w-3.5" /> Demo Cases →
           </Link>
           <Link
             to="/admin/legal-coverage"
-            className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary hover:bg-primary/20 flex items-center gap-1.5"
+            className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 sm:text-sm"
           >
             <ShieldCheck className="h-3.5 w-3.5" /> Cobertura Legal MX →
           </Link>
           <Link
             to="/admin/legal-knowledge"
-            className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-accent hover:bg-accent/20 flex items-center gap-1.5"
+            className="flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20 sm:text-sm"
           >
             <FlaskConical className="h-3.5 w-3.5" /> Legal Knowledge Network →
           </Link>
@@ -207,8 +217,12 @@ function AdminDashboard() {
               <td className="px-4 py-2">
                 <StatusBadge status={c.status} progress={100} />
               </td>
-              <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{c.user_id.slice(0, 8)}…</td>
-              <td className="px-4 py-2 text-muted-foreground">{new Date(c.created_at).toLocaleString()}</td>
+              <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+                {c.user_id.slice(0, 8)}…
+              </td>
+              <td className="px-4 py-2 text-muted-foreground">
+                {new Date(c.created_at).toLocaleString()}
+              </td>
               <td className="px-4 py-2 text-right">
                 <CaseActionsMenu
                   caseId={c.id}
@@ -238,7 +252,9 @@ function AdminDashboard() {
             <tr key={u.id} className="border-t border-border">
               <td className="px-4 py-2">{u.email}</td>
               <td className="px-4 py-2">{u.full_name}</td>
-              <td className="px-4 py-2 text-muted-foreground">{new Date(u.created_at).toLocaleString()}</td>
+              <td className="px-4 py-2 text-muted-foreground">
+                {new Date(u.created_at).toLocaleString()}
+              </td>
               <td className="px-4 py-2">
                 {u.is_blocked ? (
                   <span className="inline-flex items-center rounded-full border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
@@ -279,12 +295,16 @@ function AdminDashboard() {
         <Table cols={["When", "Op", "Model", "Tokens", "Latency", "OK"]}>
           {usagePager.items.map((u, i) => (
             <tr key={i} className="border-t border-border">
-              <td className="px-4 py-2 text-muted-foreground">{new Date(u.created_at).toLocaleString()}</td>
+              <td className="px-4 py-2 text-muted-foreground">
+                {new Date(u.created_at).toLocaleString()}
+              </td>
               <td className="px-4 py-2">{u.operation}</td>
               <td className="px-4 py-2 font-mono text-xs">{u.model}</td>
               <td className="px-4 py-2 tabular-nums">{u.total_tokens ?? "—"}</td>
               <td className="px-4 py-2 tabular-nums">{u.latency_ms} ms</td>
-              <td className="px-4 py-2">{u.success ? "✓" : <span className="text-destructive">✗</span>}</td>
+              <td className="px-4 py-2">
+                {u.success ? "✓" : <span className="text-destructive">✗</span>}
+              </td>
             </tr>
           ))}
         </Table>
@@ -324,7 +344,8 @@ function AuditLogSection({
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
 
   const deleteM = useMutation({
-    mutationFn: (vars: { ids?: string[]; deleteAll?: boolean; action?: string }) => deleteEntries({ data: vars }),
+    mutationFn: (vars: { ids?: string[]; deleteAll?: boolean; action?: string }) =>
+      deleteEntries({ data: vars }),
     onSuccess: (_r, vars) => {
       toast.success(
         vars.deleteAll
@@ -358,7 +379,14 @@ function AuditLogSection({
   return (
     <Section
       title="Admin audit log"
-      action={<Pager page={pager.page} totalPages={pager.totalPages} totalItems={filtered.length} onPage={setPage} />}
+      action={
+        <Pager
+          page={pager.page}
+          totalPages={pager.totalPages}
+          totalItems={filtered.length}
+          onPage={setPage}
+        />
+      }
     >
       <div className="rounded-xl border border-border bg-card">
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-4 py-2 text-xs">
@@ -397,7 +425,8 @@ function AuditLogSection({
                 disabled={deleteM.isPending}
                 className="inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/20 disabled:opacity-50"
               >
-                <Trash2 className="h-3.5 w-3.5" /> Delete {filter === "all" ? "all" : `all "${filter}"`}
+                <Trash2 className="h-3.5 w-3.5" /> Delete{" "}
+                {filter === "all" ? "all" : `all "${filter}"`}
               </button>
             )}
           </div>
@@ -471,7 +500,10 @@ function AuditLogSection({
         </div>
       </div>
 
-      <AlertDialog open={confirmBulk !== null} onOpenChange={(open) => !open && setConfirmBulk(null)}>
+      <AlertDialog
+        open={confirmBulk !== null}
+        onOpenChange={(open) => !open && setConfirmBulk(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -488,7 +520,11 @@ function AuditLogSection({
             <AlertDialogAction
               onClick={() => {
                 if (confirmBulk === "selected") deleteM.mutate({ ids: Array.from(selected) });
-                else deleteM.mutate({ deleteAll: true, action: filter === "all" ? undefined : filter });
+                else
+                  deleteM.mutate({
+                    deleteAll: true,
+                    action: filter === "all" ? undefined : filter,
+                  });
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -553,14 +589,16 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
           <div className="flex-1 space-y-3">
             <p className="text-muted-foreground">
               Create a fresh case seeded with the substantive evidence corpus bundled at
-              <span className="font-mono"> tests/fixtures/corpora/&lt;area&gt;/</span>. Use this to verify witness,
-              opportunity, trial-prep, and discovery engines against real named-individual content instead of the
-              one-line routing-benchmark stubs.
+              <span className="font-mono"> tests/fixtures/corpora/&lt;area&gt;/</span>. Use this to
+              verify witness, opportunity, trial-prep, and discovery engines against real
+              named-individual content instead of the one-line routing-benchmark stubs.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Select value={selected} onValueChange={setSelected} disabled={isLoading || busy}>
                 <SelectTrigger className="w-auto min-w-[220px] bg-background text-sm">
-                  <SelectValue placeholder={isLoading ? "Cargando acervos…" : "Automático — detectar materia"} />
+                  <SelectValue
+                    placeholder={isLoading ? "Cargando acervos…" : "Automático — detectar materia"}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">
@@ -583,7 +621,9 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
               </button>
               {result && (
                 <button
-                  onClick={() => navigate({ to: "/cases/$caseId", params: { caseId: result.caseId } })}
+                  onClick={() =>
+                    navigate({ to: "/cases/$caseId", params: { caseId: result.caseId } })
+                  }
                   className="rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted"
                 >
                   Open case →
@@ -593,7 +633,8 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
             {result && (
               <div className="rounded-md border border-success/40 bg-success/10 p-3 text-xs">
                 <div className="font-medium text-success">
-                  Uploaded {result.documentCount} documents · {result.extractedChars.toLocaleString()} bytes total.
+                  Uploaded {result.documentCount} documents ·{" "}
+                  {result.extractedChars.toLocaleString()} bytes total.
                 </div>
                 {result.detectedLabel && (
                   <div className="mt-1 text-muted-foreground">
@@ -604,8 +645,8 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
                 )}
                 <div className="mt-1 font-mono text-muted-foreground">case_id: {result.caseId}</div>
                 <div className="mt-1 text-muted-foreground">
-                  Open the case and click <span className="font-medium">Run Case</span> to extract + analyze against
-                  substantive evidence.
+                  Open the case and click <span className="font-medium">Run Case</span> to extract +
+                  analyze against substantive evidence.
                 </div>
               </div>
             )}
@@ -639,7 +680,8 @@ function Pager({
   totalItems: number;
   onPage: (page: number) => void;
 }) {
-  if (totalPages <= 1) return <span className="text-xs text-muted-foreground">{totalItems} total</span>;
+  if (totalPages <= 1)
+    return <span className="text-xs text-muted-foreground">{totalItems} total</span>;
   return (
     <div className="flex shrink-0 items-center gap-2 rounded-md border border-border bg-card px-2 py-1">
       <button
@@ -695,7 +737,15 @@ function Stat({
   );
 }
 
-function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section className="mt-10">
       <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
