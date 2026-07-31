@@ -1,0 +1,26 @@
+REPORTE COMPLETO DE ACCESO BIOMÉTRICO — SISTEMA KRONOS
+Centro de Distribución Azcapotzalco
+Expediente 318/2026 — Documental exhibida por la demandada en cumplimiento del apercibimiento del artículo 804 LFT
+
+RESUMEN ANUAL 2025 (enero a diciembre)
+Total de registros de entrada: 312.
+Promedio de hora de entrada: 06:52 horas.
+Promedio de hora de salida: 18:14 horas.
+Jornada promedio efectiva (descontando una hora de comida): 10 horas 22 minutos.
+Semanas con 6 días laborados: 41 de 47 semanas registradas (resto con incidencias justificadas).
+Domingos con registro de acceso: 44 fechas a lo largo del año.
+Usuario del sistema: mortigoza (activo del 4 de febrero de 2014 al 9 de diciembre de 2025, sin interrupciones ni suspensiones registradas durante el periodo de octubre 2024 a diciembre 2025 pese al alegado cambio a esquema de honorarios).
+
+EXTRACTO DICIEMBRE 2025
+01/12/2025  Entrada 06:55  Salida 18:20
+02/12/2025  Entrada 06:50  Salida 18:10
+03/12/2025  Entrada 06:58  Salida 19:02
+07/12/2025 (domingo)  Entrada 07:10  Salida 15:40
+08/12/2025  Entrada 06:49  Salida 18:05
+09/12/2025  Entrada 06:58  Salida 14:31  [Último registro — usuario desactivado 14:47 horas por administrador "amenendez"]
+
+OBSERVACIÓN TÉCNICA DEL ADMINISTRADOR DEL SISTEMA
+Se certifica que el nivel de acceso de la actora durante todo el periodo de octubre de 2024 a diciembre de 2025 fue idéntico al de empleados de nómina, sin distinción alguna respecto de "prestadores de servicios externos", quienes en este centro de distribución cuentan con un perfil de acceso diferenciado ("visitante/proveedor") que no le fue asignado a la actora en ningún momento.
+
+CONSTANCIA DE COTEJO
+El presente reporte fue cotejado por el Secretario de Instrucción con la base de datos original del sistema Kronos durante la inspección judicial practicada el 20 de mayo de 2026, sin encontrarse discrepancias.
