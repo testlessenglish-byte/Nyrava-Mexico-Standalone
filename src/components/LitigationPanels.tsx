@@ -2,8 +2,20 @@
 // Pure presentation — pulls from data already loaded via getCase.
 import { useState } from "react";
 import {
-  Shield, Scale, Gavel, Users, ChevronRight, AlertTriangle, CheckCircle2,
-  HelpCircle, Sparkles, FileQuestion, Link2, ShieldAlert, Clock, FileSearch,
+  Shield,
+  Scale,
+  Gavel,
+  Users,
+  ChevronRight,
+  AlertTriangle,
+  CheckCircle2,
+  HelpCircle,
+  Sparkles,
+  FileQuestion,
+  Link2,
+  ShieldAlert,
+  Clock,
+  FileSearch,
 } from "lucide-react";
 
 type Confidence = "confirmed" | "likely" | "possible" | "unknown" | null | undefined;
@@ -19,8 +31,11 @@ export function ConfidenceBadge({ value }: { value: Confidence }) {
   const v = value ?? "unknown";
   const Icon = v === "confirmed" ? CheckCircle2 : v === "unknown" ? HelpCircle : Sparkles;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${CONFIDENCE_STYLE[v]}`}>
-      <Icon className="h-3 w-3" />{v}
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${CONFIDENCE_STYLE[v]}`}
+    >
+      <Icon className="h-3 w-3" />
+      {v}
     </span>
   );
 }
@@ -45,16 +60,29 @@ type PerspectiveRow = {
   strength_score: number | null;
   risk_score: number | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  strengths: any; weaknesses: any; opposing_arguments: any;
+  strengths: any;
+  weaknesses: any;
+  opposing_arguments: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  counter_arguments: any; key_evidence: any; recommended_actions: any;
+  counter_arguments: any;
+  key_evidence: any;
+  recommended_actions: any;
 };
 
 const PERSPECTIVE_ICON: Record<string, typeof Shield> = {
-  defensa: Shield, ministerio_publico: Gavel, parte_actora: Scale, parte_demandada: Scale,
-  quejoso: Scale, autoridad_responsable: Gavel, juzgador: Gavel, independiente: Scale,
-  appellate: Scale, jury: Users, independent: FileSearch,
-  judicial: Gavel, investigator: FileSearch,
+  defensa: Shield,
+  ministerio_publico: Gavel,
+  parte_actora: Scale,
+  parte_demandada: Scale,
+  quejoso: Scale,
+  autoridad_responsable: Gavel,
+  juzgador: Gavel,
+  independiente: Scale,
+  appellate: Scale,
+  jury: Users,
+  independent: FileSearch,
+  judicial: Gavel,
+  investigator: FileSearch,
 };
 
 export function PerspectivesPanel({ perspectives }: { perspectives: PerspectiveRow[] }) {
@@ -97,14 +125,18 @@ export function PerspectivesPanel({ perspectives }: { perspectives: PerspectiveR
             </div>
             {current.summary && <p className="text-sm text-muted-foreground">{current.summary}</p>}
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <ScoreRing label="Case strength" value={current.strength_score} tone="good" />
-              <ScoreRing label="Risk" value={current.risk_score} tone="bad" />
+              <ScoreRing label="Fortaleza del caso" value={current.strength_score} tone="good" />
+              <ScoreRing label="Riesgo" value={current.risk_score} tone="bad" />
             </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <ListCard title="Strengths" icon={CheckCircle2} accent="success"
-              items={asArr(current.strengths)} render={(s) => (
+            <ListCard
+              title="Strengths"
+              icon={CheckCircle2}
+              accent="success"
+              items={asArr(current.strengths)}
+              render={(s) => (
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-sm font-medium">{s.title}</div>
@@ -112,9 +144,14 @@ export function PerspectivesPanel({ perspectives }: { perspectives: PerspectiveR
                   </div>
                   {s.confidence_label && <ConfidenceBadge value={s.confidence_label} />}
                 </div>
-              )} />
-            <ListCard title="Weaknesses" icon={AlertTriangle} accent="destructive"
-              items={asArr(current.weaknesses)} render={(s) => (
+              )}
+            />
+            <ListCard
+              title="Weaknesses"
+              icon={AlertTriangle}
+              accent="destructive"
+              items={asArr(current.weaknesses)}
+              render={(s) => (
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-sm font-medium">{s.title}</div>
@@ -122,37 +159,66 @@ export function PerspectivesPanel({ perspectives }: { perspectives: PerspectiveR
                   </div>
                   {s.confidence_label && <ConfidenceBadge value={s.confidence_label} />}
                 </div>
-              )} />
-            <ListCard title="Opposing arguments" icon={ShieldAlert} accent="warning"
-              items={asArr(current.opposing_arguments)} render={(s) => (
+              )}
+            />
+            <ListCard
+              title="Opposing arguments"
+              icon={ShieldAlert}
+              accent="warning"
+              items={asArr(current.opposing_arguments)}
+              render={(s) => (
                 <div>
                   <div className="text-sm">{s.argument}</div>
-                  {s.strength && <span className="mt-1 inline-block text-[10px] uppercase tracking-wider text-muted-foreground">strength: {s.strength}</span>}
+                  {s.strength && (
+                    <span className="mt-1 inline-block text-[10px] uppercase tracking-wider text-muted-foreground">
+                      strength: {s.strength}
+                    </span>
+                  )}
                 </div>
-              )} />
-            <ListCard title="Counter-arguments" icon={Sparkles} accent="accent"
-              items={asArr(current.counter_arguments)} render={(s) => (
+              )}
+            />
+            <ListCard
+              title="Counter-arguments"
+              icon={Sparkles}
+              accent="accent"
+              items={asArr(current.counter_arguments)}
+              render={(s) => (
                 <div>
                   <div className="text-sm font-medium">{s.argument}</div>
                   {s.rationale && <div className="mt-0.5 text-xs text-muted-foreground">{s.rationale}</div>}
                 </div>
-              )} />
-            <ListCard title="Key evidence" icon={Link2} accent="accent"
-              items={asArr(current.key_evidence)} render={(s) => (
+              )}
+            />
+            <ListCard
+              title="Key evidence"
+              icon={Link2}
+              accent="accent"
+              items={asArr(current.key_evidence)}
+              render={(s) => (
                 <div>
                   <div className="text-sm font-medium">{s.item}</div>
                   {s.why_it_matters && <div className="mt-0.5 text-xs text-muted-foreground">{s.why_it_matters}</div>}
                 </div>
-              )} />
-            <ListCard title="Recommended actions" icon={ChevronRight} accent="accent"
-              items={asArr(current.recommended_actions)} render={(s) => (
+              )}
+            />
+            <ListCard
+              title="Recommended actions"
+              icon={ChevronRight}
+              accent="accent"
+              items={asArr(current.recommended_actions)}
+              render={(s) => (
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm">{s.action}</div>
                   {s.priority && (
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${priorityClass(s.priority)}`}>{s.priority}</span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${priorityClass(s.priority)}`}
+                    >
+                      {s.priority}
+                    </span>
                   )}
                 </div>
-              )} />
+              )}
+            />
           </div>
         </div>
       )}
@@ -173,18 +239,23 @@ type EvidenceRow = {
 };
 
 const CLASS_LABEL: Record<string, { label: string; icon: typeof Link2; tone: string }> = {
-  corroborating: { label: "Corroborating", icon: CheckCircle2, tone: "text-success" },
-  contradictory: { label: "Contradictory", icon: AlertTriangle, tone: "text-destructive" },
-  weak: { label: "Weak", icon: HelpCircle, tone: "text-warning" },
-  missing: { label: "Missing", icon: FileQuestion, tone: "text-warning" },
-  undisclosed: { label: "Undisclosed", icon: ShieldAlert, tone: "text-destructive" },
-  brady: { label: "Brady Risk", icon: ShieldAlert, tone: "text-destructive" },
-  chain_of_custody: { label: "Chain-of-Custody", icon: Link2, tone: "text-warning" },
-  timeline_inconsistency: { label: "Timeline Issue", icon: Clock, tone: "text-warning" },
+  corroborating: { label: "Corroborante", icon: CheckCircle2, tone: "text-success" },
+  contradictory: { label: "Contradictoria", icon: AlertTriangle, tone: "text-destructive" },
+  weak: { label: "Débil", icon: HelpCircle, tone: "text-warning" },
+  missing: { label: "Faltante", icon: FileQuestion, tone: "text-warning" },
+  undisclosed: { label: "No revelada", icon: ShieldAlert, tone: "text-destructive" },
+  brady: { label: "Riesgo Brady", icon: ShieldAlert, tone: "text-destructive" },
+  chain_of_custody: { label: "Cadena de Custodia", icon: Link2, tone: "text-warning" },
+  timeline_inconsistency: {
+    label: "Inconsistencia de Cronología",
+    icon: Clock,
+    tone: "text-warning",
+  },
 };
 
 export function EvidenceIntelPanel({
-  evidence, documents,
+  evidence,
+  documents,
 }: {
   evidence: EvidenceRow[];
   documents: { id: string; filename: string }[];
@@ -239,7 +310,11 @@ export function EvidenceIntelPanel({
 
       <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
         {visible.map((e) => {
-          const meta = CLASS_LABEL[e.classification] ?? { label: e.classification, icon: Link2, tone: "text-muted-foreground" };
+          const meta = CLASS_LABEL[e.classification] ?? {
+            label: e.classification,
+            icon: Link2,
+            tone: "text-muted-foreground",
+          };
           const Icon = meta.icon;
           return (
             <div key={e.id} className="p-4">
@@ -252,7 +327,9 @@ export function EvidenceIntelPanel({
                     <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
                       <span className={`rounded-full px-2 py-0.5 ${meta.tone} bg-secondary/60`}>{meta.label}</span>
                       {e.severity && <span className="rounded-full bg-secondary/60 px-2 py-0.5">{e.severity}</span>}
-                      {e.affected_party && <span className="rounded-full bg-secondary/60 px-2 py-0.5">{e.affected_party}</span>}
+                      {e.affected_party && (
+                        <span className="rounded-full bg-secondary/60 px-2 py-0.5">{e.affected_party}</span>
+                      )}
                       {e.document_id && docMap.get(e.document_id) && (
                         <span className="rounded-full bg-secondary/60 px-2 py-0.5">{docMap.get(e.document_id)}</span>
                       )}
@@ -266,12 +343,23 @@ export function EvidenceIntelPanel({
                       const tl = Array.isArray(ex.linked_timeline_event_ids) ? ex.linked_timeline_event_ids : [];
                       const any = sup.length + con.length + wit.length + tl.length;
                       if (!any) return null;
-                      const setTab = (t: string) => { try { window.dispatchEvent(new CustomEvent("nyrava:set-tab", { detail: t })); } catch { /* noop */ } };
-                      const chip = (label: string, n: number, tab: string, tone: string) => n > 0 && (
-                        <button key={label} onClick={() => setTab(tab)} className={`rounded-full px-2 py-0.5 text-[10px] ${tone} hover:brightness-110`}>
-                          {label}: {n}
-                        </button>
-                      );
+                      const setTab = (t: string) => {
+                        try {
+                          window.dispatchEvent(new CustomEvent("nyrava:set-tab", { detail: t }));
+                        } catch {
+                          /* noop */
+                        }
+                      };
+                      const chip = (label: string, n: number, tab: string, tone: string) =>
+                        n > 0 && (
+                          <button
+                            key={label}
+                            onClick={() => setTab(tab)}
+                            className={`rounded-full px-2 py-0.5 text-[10px] ${tone} hover:brightness-110`}
+                          >
+                            {label}: {n}
+                          </button>
+                        );
                       return (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {chip("Supports", sup.length, "findings", "bg-emerald-500/15 text-emerald-300")}
@@ -302,17 +390,31 @@ type StrategyRow = {
   risk_score: number | null;
   confidence_label: Confidence;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  motion_rankings: any; anticipated_opposing: any; counter_arguments: any; next_actions: any;
+  motion_rankings: any;
+  anticipated_opposing: any;
+  counter_arguments: any;
+  next_actions: any;
 };
 
 export function StrategyPanel({
-  strategy, onRun, running,
+  strategy,
+  onRun,
+  running,
 }: {
   strategy: StrategyRow[];
   onRun: (perspective: string) => void;
   running: boolean;
 }) {
-  const allP = ["independiente","juzgador","ministerio_publico","defensa","parte_actora","parte_demandada","quejoso","autoridad_responsable"] as const;
+  const allP = [
+    "independiente",
+    "juzgador",
+    "ministerio_publico",
+    "defensa",
+    "parte_actora",
+    "parte_demandada",
+    "quejoso",
+    "autoridad_responsable",
+  ] as const;
   const existing = new Set(strategy.map((s) => s.perspective));
   const [active, setActive] = useState<string>(strategy[0]?.perspective ?? "independent");
   const current = strategy.find((s) => s.perspective === active);
@@ -326,7 +428,8 @@ export function StrategyPanel({
             onClick={() => setActive(p)}
             className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium capitalize ${active === p ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:bg-secondary"}`}
           >
-            {p}{existing.has(p) ? "" : " ·"}
+            {p}
+            {existing.has(p) ? "" : " ·"}
           </button>
         ))}
         <button
@@ -352,61 +455,92 @@ export function StrategyPanel({
             </div>
             {current.summary && <p className="text-sm text-muted-foreground">{current.summary}</p>}
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <ScoreRing label="Case strength" value={current.case_strength_score} tone="good" />
-              <ScoreRing label="Risk" value={current.risk_score} tone="bad" />
+              <ScoreRing label="Fortaleza del caso" value={current.case_strength_score} tone="good" />
+              <ScoreRing label="Riesgo" value={current.risk_score} tone="bad" />
             </div>
           </div>
 
-          <ListCard title="Motion rankings" icon={Gavel} accent="accent"
-            items={asArr(current.motion_rankings)} render={(m) => (
+          <ListCard
+            title="Motion rankings"
+            icon={Gavel}
+            accent="accent"
+            items={asArr(current.motion_rankings)}
+            render={(m) => (
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-medium">{m.motion}</div>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${strengthClass(m.strength)}`}>{m.strength ?? "—"}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${strengthClass(m.strength)}`}
+                  >
+                    {m.strength ?? "—"}
+                  </span>
                 </div>
                 {m.rationale && <div className="mt-1 text-xs text-muted-foreground">{m.rationale}</div>}
                 {asArr(m.draft_outline).length > 0 && (
                   <ul className="mt-2 list-disc pl-5 text-xs text-foreground/80">
-                    {asArr(m.draft_outline).map((o, i) => <li key={i}>{String(o)}</li>)}
+                    {asArr(m.draft_outline).map((o, i) => (
+                      <li key={i}>{String(o)}</li>
+                    ))}
                   </ul>
                 )}
               </div>
-            )} />
+            )}
+          />
 
-          <ListCard title="Anticipated opposing arguments" icon={ShieldAlert} accent="warning"
-            items={asArr(current.anticipated_opposing)} render={(m) => (
+          <ListCard
+            title="Anticipated opposing arguments"
+            icon={ShieldAlert}
+            accent="warning"
+            items={asArr(current.anticipated_opposing)}
+            render={(m) => (
               <div>
                 <div className="text-sm">{m.argument}</div>
                 <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                   likelihood {m.likelihood ?? "?"} · impact {m.impact ?? "?"}
                 </div>
               </div>
-            )} />
+            )}
+          />
 
-          <ListCard title="Counter-arguments" icon={Sparkles} accent="accent"
-            items={asArr(current.counter_arguments)} render={(m) => (
+          <ListCard
+            title="Counter-arguments"
+            icon={Sparkles}
+            accent="accent"
+            items={asArr(current.counter_arguments)}
+            render={(m) => (
               <div>
                 <div className="text-sm font-medium">vs. “{m.for_argument}”</div>
                 {m.counter && <div className="mt-1 text-xs text-muted-foreground">{m.counter}</div>}
               </div>
-            )} />
+            )}
+          />
 
-          <ListCard title="Recommended next actions" icon={ChevronRight} accent="accent"
-            items={asArr(current.next_actions)} render={(m) => (
+          <ListCard
+            title="Recommended next actions"
+            icon={ChevronRight}
+            accent="accent"
+            items={asArr(current.next_actions)}
+            render={(m) => (
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-sm">
-                    {m.step ? `${m.step}. ` : ""}{m.action}
+                    {m.step ? `${m.step}. ` : ""}
+                    {m.action}
                   </div>
                   <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                     {m.owner ?? "—"} · {m.due_window ?? "—"}
                   </div>
                 </div>
                 {m.priority && (
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${priorityClass(m.priority)}`}>{m.priority}</span>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${priorityClass(m.priority)}`}
+                  >
+                    {m.priority}
+                  </span>
                 )}
               </div>
-            )} />
+            )}
+          />
         </div>
       )}
     </div>
@@ -415,7 +549,9 @@ export function StrategyPanel({
 
 // ============= helpers =============
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function asArr(v: any): any[] { return Array.isArray(v) ? v : []; }
+function asArr(v: any): any[] {
+  return Array.isArray(v) ? v : [];
+}
 
 function priorityClass(p?: string) {
   if (p === "high") return "bg-destructive/15 text-destructive";
@@ -430,7 +566,11 @@ function strengthClass(s?: string) {
 }
 
 function ListCard<T>({
-  title, icon: Icon, accent, items, render,
+  title,
+  icon: Icon,
+  accent,
+  items,
+  render,
 }: {
   title: string;
   icon: typeof Shield;
@@ -456,7 +596,9 @@ function ListCard<T>({
       ) : (
         <ul className="space-y-3">
           {items.map((item, i) => (
-            <li key={i} className="rounded-lg bg-secondary/40 p-3">{render(item)}</li>
+            <li key={i} className="rounded-lg bg-secondary/40 p-3">
+              {render(item)}
+            </li>
           ))}
         </ul>
       )}
