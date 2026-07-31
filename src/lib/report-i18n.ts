@@ -43,7 +43,7 @@ const ES: Record<string, string> = {
   "[FACT]": "[HECHO]",
   "Related findings:": "Hallazgos relacionados:",
   "LEGAL BASIS": "FUNDAMENTO LEGAL",
-  "STATUS": "ESTADO",
+  STATUS: "ESTADO",
   "Critical Issues": "Cuestiones Críticas",
   "High-Priority Issues": "Cuestiones de Alta Prioridad",
   "Moderate Issues": "Cuestiones Moderadas",
@@ -53,19 +53,19 @@ const ES: Record<string, string> = {
   "Grouped by severity so the issues most likely to affect the outcome are read first. Each finding lists a confidence level (how sure the classification is), an evidence strength (how well-sourced it is), and any related findings elsewhere in this report.":
     "Agrupados por gravedad para que las cuestiones con mayor probabilidad de incidir en el resultado se lean primero. Cada hallazgo indica un nivel de confianza (qué tan segura es la clasificación), una fuerza probatoria (qué tan sustentado está) y los hallazgos relacionados en otras partes de este reporte.",
   // statCards dashboard tile labels/values (executive summary metric grid)
-  "Scores": "Puntajes",
-  "Limited": "Limitado",
-  "Suppressed": "Suprimido",
+  Scores: "Puntajes",
+  Limited: "Limitado",
+  Suppressed: "Suprimido",
   "Documents Analyzed": "Documentos Analizados",
   "Constitutional Issues": "Cuestiones Constitucionales",
   "Missing Evidence": "Evidencia Faltante",
   "Agents Producing Output": "Agentes con Resultados",
   "Engine Version": "Versión del Motor",
-  "Strong": "Sólida",
-  "Moderate": "Moderada",
-  "CONFIDENCE": "CONFIANZA",
+  Strong: "Sólida",
+  Moderate: "Moderada",
+  CONFIDENCE: "CONFIANZA",
   "EVIDENCE STRENGTH": "FUERZA PROBATORIA",
-  "SOURCES": "FUENTES",
+  SOURCES: "FUENTES",
   "ATTORNEY WORK PRODUCT  \u00b7  PRIVILEGED & CONFIDENTIAL":
     "PRODUCTO DE TRABAJO DEL ABOGADO  \u00b7  PRIVILEGIADO Y CONFIDENCIAL",
   "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations.":
@@ -145,8 +145,7 @@ const ES: Record<string, string> = {
   Generated: "Generado",
   Engine: "Motor",
   Skipped: "Omitido",
-  "Skipped — Not applicable to selected case type":
-    "Omitido — No aplicable a la materia seleccionada",
+  "Skipped — Not applicable to selected case type": "Omitido — No aplicable a la materia seleccionada",
   "Primary Defense": "Defensa Principal",
   "Primary Trial Theme": "Tema Central del Juicio",
   "Most Dangerous Witness": "Testigo Más Riesgoso",
@@ -271,6 +270,27 @@ const ES: Record<string, string> = {
   "Discovery Request": "Requerimiento probatorio",
   "Discovery Gap": "Omisión probatoria",
   "Chain of Custody": "Cadena de custodia",
+  // 2026-07-31: litigation-impact.ts DIMENSION_DISPLAY titles — statCards()
+  // runs every label through rt(), but most of these had no entry, so they
+  // rendered in raw English inside an otherwise-Spanish "Panel de Impacto
+  // Litigioso". "Chain of Custody" and "Evidence Strength" already worked
+  // (exact entry / pattern match respectively); the rest did not.
+  "Evidence Strength": "Fuerza Probatoria",
+  "Witness Reliability": "Confiabilidad de Testigos",
+  "Timeline Integrity": "Integridad Cronológica",
+  "Constitutional Risk": "Riesgo Constitucional",
+  "Investigation Completeness": "Integridad de la Investigación",
+  "Discovery Completeness": "Integridad del Descubrimiento Probatorio",
+  "Forensic Reliability": "Confiabilidad Forense",
+  "Procedural Integrity": "Integridad Procesal",
+  "Liability Confidence": "Confianza en la Responsabilidad",
+  "Causation Strength": "Fuerza del Nexo Causal",
+  "Damages Support": "Sustento de Daños",
+  "Expert Witness Support": "Sustento Pericial",
+  "Documentation Status": "Estado de la Documentación",
+  "Discovery Compliance": "Cumplimiento del Descubrimiento Probatorio",
+  "Litigation Risk": "Riesgo Litigioso",
+  "Settlement Leverage": "Ventaja para Negociación",
   Deposition: "Declaración",
   deposition: "declaración",
   Pleadings: "Promociones",
@@ -351,6 +371,7 @@ const ES: Record<string, string> = {
   "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.":
     "Sustentado en evidencia. Citas auditadas. Diseñado para trabajo de inteligencia jurídica sensible.",
   "Case Strength": "Fortaleza del Caso",
+  "Risk Score": "Puntuación de Riesgo",
   "Work product": "Producto de trabajo",
   "Primary Evidence:": "Evidencia principal:",
   "PRIMARY EVIDENCE": "EVIDENCIA PRINCIPAL",
@@ -382,7 +403,6 @@ const ES: Record<string, string> = {
   "HYPOTHESIS REQUIRES VERIFICATION": "HIPÓTESIS — REQUIERE VERIFICACIÓN",
   more: "más",
 };
-
 
 /**
  * Pattern rules applied after exact-match lookup, for strings the exporter
@@ -429,6 +449,26 @@ const REPLACERS: readonly { re: RegExp; fn: (m: RegExpMatchArray) => string }[] 
   {
     re: /^Insufficient evidence to draft a facts narrative[.\u2026]*$/i,
     fn: () => "El corpus disponible no acredita hechos suficientes para redactar la narrativa fáctica.",
+  },
+  // 2026-07-31: litigation-impact.ts badge values ("Weak", "Moderate",
+  // "Below Average", "Strong", "Low", "High", "Critical") get concatenated
+  // with the numeric score before reaching rt() — e.g. "Weak - 39/100" —
+  // so neither the exact-match dictionary nor a plain word lookup could
+  // ever match. This catches the badge word and re-attaches the score.
+  {
+    re: /^(Strong|Moderate|Below Average|Weak|Low|High|Critical)\s*-\s*(.+)$/,
+    fn: (m) => {
+      const es: Record<string, string> = {
+        Strong: "Sólida",
+        Moderate: "Moderada",
+        "Below Average": "Por Debajo del Promedio",
+        Weak: "Débil",
+        Low: "Bajo",
+        High: "Alto",
+        Critical: "Crítico",
+      };
+      return `${es[m[1]] ?? m[1]} - ${m[2]}`;
+    },
   },
 ];
 
@@ -530,7 +570,9 @@ const DEFAULT_ROLES: ProceduralRoles = {
 /** Resolve the procedural party roles that apply to a materia / case type. */
 export function resolveProceduralRoles(materia: string | null | undefined): ProceduralRoles {
   if (!materia) return DEFAULT_ROLES;
-  const key = String(materia).toLowerCase().replace(/[\s-]+/g, "_");
+  const key = String(materia)
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
   if (ROLE_BY_MATERIA[key]) return ROLE_BY_MATERIA[key];
   if (/amparo/.test(key)) return ROLE_BY_MATERIA.amparo;
   if (/penal|criminal/.test(key)) return ROLE_BY_MATERIA.penal;
