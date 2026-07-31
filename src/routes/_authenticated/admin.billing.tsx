@@ -16,6 +16,7 @@ import {
   XCircle,
   RefreshCw,
   Layers,
+  Gauge,
   Eye,
   Check,
   Tag,
@@ -56,6 +57,14 @@ type Draft = {
   per_seat_price_cents: number | null;
   per_seat_stripe_price_id: string;
   internal_notes: string;
+  // Usage metering — see usage.server.ts. null = unlimited.
+  ai_requests_monthly: number | null;
+  talk_to_case_monthly: number | null;
+  case_limit: number | null;
+  storage_gb_limit: number | null;
+  team_member_limit: number | null;
+  byok_allowed: boolean;
+  overage_price_cents: number | null;
 };
 
 function toDraft(p: BillingPlanRow): Draft {
@@ -88,6 +97,14 @@ function toDraft(p: BillingPlanRow): Draft {
       typeof px.per_seat_price_cents === "number" ? px.per_seat_price_cents : null,
     per_seat_stripe_price_id: px.per_seat_stripe_price_id ?? "",
     internal_notes: px.internal_notes ?? "",
+    ai_requests_monthly: typeof p.ai_requests_monthly === "number" ? p.ai_requests_monthly : null,
+    talk_to_case_monthly:
+      typeof p.talk_to_case_monthly === "number" ? p.talk_to_case_monthly : null,
+    case_limit: typeof p.case_limit === "number" ? p.case_limit : null,
+    storage_gb_limit: typeof p.storage_gb_limit === "number" ? p.storage_gb_limit : null,
+    team_member_limit: typeof p.team_member_limit === "number" ? p.team_member_limit : null,
+    byok_allowed: p.byok_allowed ?? true,
+    overage_price_cents: typeof p.overage_price_cents === "number" ? p.overage_price_cents : null,
   };
 }
 
@@ -109,6 +126,13 @@ function emptyDraft(nextSort: number): Draft {
     per_seat_price_cents: null,
     per_seat_stripe_price_id: "",
     internal_notes: "",
+    ai_requests_monthly: null,
+    talk_to_case_monthly: null,
+    case_limit: null,
+    storage_gb_limit: null,
+    team_member_limit: null,
+    byok_allowed: true,
+    overage_price_cents: null,
   };
 }
 
@@ -184,6 +208,27 @@ function AdminBillingPage() {
               : null,
           per_seat_stripe_price_id: d.per_seat_stripe_price_id.trim() || null,
           internal_notes: d.internal_notes.trim() || null,
+          ai_requests_monthly:
+            typeof d.ai_requests_monthly === "number"
+              ? Math.max(0, Math.round(d.ai_requests_monthly))
+              : null,
+          talk_to_case_monthly:
+            typeof d.talk_to_case_monthly === "number"
+              ? Math.max(0, Math.round(d.talk_to_case_monthly))
+              : null,
+          case_limit:
+            typeof d.case_limit === "number" ? Math.max(0, Math.round(d.case_limit)) : null,
+          storage_gb_limit:
+            typeof d.storage_gb_limit === "number" ? Math.max(0, d.storage_gb_limit) : null,
+          team_member_limit:
+            typeof d.team_member_limit === "number"
+              ? Math.max(0, Math.round(d.team_member_limit))
+              : null,
+          byok_allowed: d.byok_allowed,
+          overage_price_cents:
+            typeof d.overage_price_cents === "number"
+              ? Math.max(0, Math.round(d.overage_price_cents))
+              : null,
         },
       });
     },
@@ -216,7 +261,10 @@ function AdminBillingPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">
       <div className="flex items-center gap-2">
-        <Link to="/admin" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+        <Link
+          to="/admin"
+          className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
+        >
           <ChevronLeft className="h-4 w-4" /> Admin
         </Link>
       </div>
@@ -256,7 +304,8 @@ function AdminBillingPage() {
               onChange={(patch) => patchDraft(p.id, patch)}
               onSave={() => upsertM.mutate(d)}
               onDelete={() => {
-                if (confirm(`Delete plan "${p.label}"? This cannot be undone.`)) deleteM.mutate(p.id);
+                if (confirm(`Delete plan "${p.label}"? This cannot be undone.`))
+                  deleteM.mutate(p.id);
               }}
               saving={upsertM.isPending && upsertM.variables?.id === p.id}
               deleting={deleteM.isPending && deleteM.variables === p.id}
@@ -309,7 +358,13 @@ function GroupLabel({
  * hood (unchanged data flow, unchanged save payload) — this just removes
  * the "type 4900 to mean $49.00" mental-math step from the actual editing
  * experience. */
-function PriceCentsInput({ cents, onChange }: { cents: number; onChange: (cents: number) => void }) {
+function PriceCentsInput({
+  cents,
+  onChange,
+}: {
+  cents: number;
+  onChange: (cents: number) => void;
+}) {
   const dollars = Math.round(cents || 0) / 100;
   return (
     <div className="relative">
@@ -327,6 +382,52 @@ function PriceCentsInput({ cents, onChange }: { cents: number; onChange: (cents:
           onChange(Number.isFinite(v) ? Math.round(v * 100) : 0);
         }}
       />
+    </div>
+  );
+}
+
+/** Nullable numeric limit input — checking "Unlimited" clears the field to
+ * null (no cap), otherwise stores a plain number. Used for every usage
+ * metering limit below (AI requests, Talk-to-Case, cases, storage, seats). */
+function LimitInput({
+  value,
+  onChange,
+  step,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  step?: number;
+}) {
+  const isUnlimited = value == null;
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="number"
+        min={0}
+        step={step ?? 1}
+        disabled={isUnlimited}
+        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm tabular-nums disabled:opacity-40"
+        value={isUnlimited ? "" : value}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === "") {
+            onChange(null);
+            return;
+          }
+          const v = Number(raw);
+          onChange(Number.isFinite(v) ? v : null);
+        }}
+        placeholder="Unlimited"
+      />
+      <label className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          className="h-3.5 w-3.5 rounded border-border accent-accent"
+          checked={isUnlimited}
+          onChange={(e) => onChange(e.target.checked ? null : 0)}
+        />
+        Unlimited
+      </label>
     </div>
   );
 }
@@ -378,7 +479,9 @@ function PlanPreviewCard({ draft }: { draft: Draft }) {
           {draft.self_serve ? "Subscribe" : "Contact us"}
         </div>
 
-        {!draft.active && <div className="mt-3 text-center text-xs text-muted-foreground">Hidden from /billing</div>}
+        {!draft.active && (
+          <div className="mt-3 text-center text-xs text-muted-foreground">Hidden from /billing</div>
+        )}
       </div>
     </div>
   );
@@ -420,14 +523,19 @@ function PlanEditor({
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-semibold">{isNew ? "New plan" : draft.label || draft.key}</h3>
               {!draft.active && (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Inactive</span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  Inactive
+                </span>
               )}
               {dirty && (
-                <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs text-warning">Unsaved changes</span>
+                <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs text-warning">
+                  Unsaved changes
+                </span>
               )}
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">
-              {draft.self_serve ? "Self-serve checkout" : "Contact-us only"} · Sort order {draft.sort_order}
+              {draft.self_serve ? "Self-serve checkout" : "Contact-us only"} · Sort order{" "}
+              {draft.sort_order}
             </div>
           </div>
         </div>
@@ -437,14 +545,19 @@ function PlanEditor({
             disabled={saving || !dirty}
             className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
+            Save
           </button>
           <button
             onClick={onDelete}
             disabled={deleting}
             className="flex items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"
           >
-            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {deleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
             {deleteLabel ?? "Delete"}
           </button>
         </div>
@@ -489,7 +602,10 @@ function PlanEditor({
             <GroupLabel icon={DollarSign}>Pricing</GroupLabel>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field label="Price">
-                <PriceCentsInput cents={draft.price_cents} onChange={(price_cents) => onChange({ price_cents })} />
+                <PriceCentsInput
+                  cents={draft.price_cents}
+                  onChange={(price_cents) => onChange({ price_cents })}
+                />
               </Field>
               <Field label="Currency (3-letter)">
                 <input
@@ -561,6 +677,65 @@ function PlanEditor({
           )}
 
           <div>
+            <GroupLabel icon={Gauge}>Usage limits (monthly, resets each billing cycle)</GroupLabel>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="AI requests / month">
+                <LimitInput
+                  value={draft.ai_requests_monthly}
+                  onChange={(v) => onChange({ ai_requests_monthly: v })}
+                />
+              </Field>
+              <Field label="Talk-to-Case conversations / month">
+                <LimitInput
+                  value={draft.talk_to_case_monthly}
+                  onChange={(v) => onChange({ talk_to_case_monthly: v })}
+                />
+              </Field>
+              <Field label="Max active cases">
+                <LimitInput
+                  value={draft.case_limit}
+                  onChange={(v) => onChange({ case_limit: v })}
+                />
+              </Field>
+              <Field label="Storage limit (GB)">
+                <LimitInput
+                  value={draft.storage_gb_limit}
+                  onChange={(v) => onChange({ storage_gb_limit: v })}
+                  step={0.5}
+                />
+              </Field>
+              <Field label="Team / firm seats">
+                <LimitInput
+                  value={draft.team_member_limit}
+                  onChange={(v) => onChange({ team_member_limit: v })}
+                />
+              </Field>
+              <Field label="Overage price (reserved for future pay-as-you-go)">
+                <PriceCentsInput
+                  cents={draft.overage_price_cents ?? 0}
+                  onChange={(cents) => onChange({ overage_price_cents: cents > 0 ? cents : null })}
+                />
+              </Field>
+            </div>
+            <label className="mt-4 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-border accent-accent"
+                checked={draft.byok_allowed}
+                onChange={(e) => onChange({ byok_allowed: e.target.checked })}
+              />
+              Allow Bring-Your-Own-Key (users on this plan may connect their own AI provider keys to
+              bypass the platform allowance)
+            </label>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Check "Unlimited" to remove a cap entirely (e.g. Enterprise). AI requests cover Case
+              Intelligence processing, AI document analysis, report generation, motion generation,
+              strategic analysis, and future intelligence modules — Talk-to-Case is metered
+              separately since it performs continuous AI reasoning.
+            </p>
+          </div>
+
+          <div>
             <GroupLabel icon={ListChecks}>Internal notes (not shown to customers)</GroupLabel>
             <textarea
               className="min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
@@ -627,7 +802,15 @@ function PlanEditor({
   );
 }
 
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <label className={`block ${className ?? ""}`}>
       <div className="mb-1 text-xs text-muted-foreground">{label}</div>
@@ -691,14 +874,20 @@ function StripeConfigPanel() {
     <div className="rounded-xl border border-border bg-card p-5 md:p-6">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <ShieldCheck className={`h-4 w-4 ${bothConfigured ? "text-success" : "text-muted-foreground"}`} />
+          <ShieldCheck
+            className={`h-4 w-4 ${bothConfigured ? "text-success" : "text-muted-foreground"}`}
+          />
           <h2 className="font-semibold">Stripe configuration</h2>
           {/* Nyrava ↔ Stripe connection indicator — a quick "is this actually
               wired end-to-end" read before scanning the two chips below. */}
           <div className="ml-1 flex items-center gap-1.5" aria-hidden="true">
-            <span className={`h-2 w-2 rounded-full ${bothConfigured ? "bg-success" : "bg-destructive"}`} />
+            <span
+              className={`h-2 w-2 rounded-full ${bothConfigured ? "bg-success" : "bg-destructive"}`}
+            />
             <span className="h-px w-6 bg-border" />
-            <span className={`h-2 w-2 rounded-full ${bothConfigured ? "bg-success" : "bg-muted"}`} />
+            <span
+              className={`h-2 w-2 rounded-full ${bothConfigured ? "bg-success" : "bg-muted"}`}
+            />
           </div>
         </div>
         <button
@@ -718,7 +907,13 @@ function StripeConfigPanel() {
           <StatusChip
             ok={s.hasSecretKey}
             label="Stripe secret key configured"
-            detail={s.secretKeyMode ? `${s.secretKeyMode} mode` : s.hasSecretKey ? "unrecognized prefix" : undefined}
+            detail={
+              s.secretKeyMode
+                ? `${s.secretKeyMode} mode`
+                : s.hasSecretKey
+                  ? "unrecognized prefix"
+                  : undefined
+            }
           />
           <StatusChip
             ok={s.hasWebhookSecret}
@@ -731,19 +926,23 @@ function StripeConfigPanel() {
       <p className="mb-4 flex items-start gap-1.5 text-xs text-muted-foreground">
         <Webhook className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>
-          Webhook endpoint: <code className="font-mono">/api/public/hooks/stripe-webhook</code> — set this in Stripe
-          Dashboard → Developers → Webhooks, subscribed to <code className="font-mono">checkout.session.completed</code>
-          , <code className="font-mono">customer.subscription.updated</code>,{" "}
+          Webhook endpoint: <code className="font-mono">/api/public/hooks/stripe-webhook</code> —
+          set this in Stripe Dashboard → Developers → Webhooks, subscribed to{" "}
+          <code className="font-mono">checkout.session.completed</code>,{" "}
+          <code className="font-mono">customer.subscription.updated</code>,{" "}
           <code className="font-mono">customer.subscription.deleted</code>, and{" "}
           <code className="font-mono">invoice.payment_failed</code>.
         </span>
       </p>
 
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Recent deliveries</h3>
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        Recent deliveries
+      </h3>
       {eventsQ.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
       {!eventsQ.isLoading && events.length === 0 && (
         <div className="text-sm text-muted-foreground">
-          No webhook events received yet — once Stripe sends its first event, it&apos;ll show up here.
+          No webhook events received yet — once Stripe sends its first event, it&apos;ll show up
+          here.
         </div>
       )}
       {events.length > 0 && (

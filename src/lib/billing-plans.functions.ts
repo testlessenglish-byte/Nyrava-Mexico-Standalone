@@ -12,7 +12,11 @@ export type BillingPlanRow = Database["public"]["Tables"]["billing_plans"]["Row"
 
 const planInput = z.object({
   id: z.string().uuid().optional(),
-  key: z.string().min(1).max(64).regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / dash / underscore"),
+  key: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9_-]+$/i, "Key must be alphanumeric / dash / underscore"),
   label: z.string().min(1).max(120),
   tagline: z.string().max(500).default(""),
   features: z.array(z.string().min(1).max(300)).default([]),
@@ -30,11 +34,20 @@ const planInput = z.object({
   per_seat_stripe_price_id: z.string().trim().max(200).nullable().optional(),
   // Admin-only. Never surfaced on /billing.
   internal_notes: z.string().max(4000).nullable().optional(),
+  // Usage metering — see usage.server.ts. null = unlimited for every one of these.
+  ai_requests_monthly: z.number().int().min(0).nullable().optional(),
+  talk_to_case_monthly: z.number().int().min(0).nullable().optional(),
+  case_limit: z.number().int().min(0).nullable().optional(),
+  storage_gb_limit: z.number().min(0).nullable().optional(),
+  team_member_limit: z.number().int().min(0).nullable().optional(),
+  byok_allowed: z.boolean().default(true),
+  overage_price_cents: z.number().int().min(0).nullable().optional(),
 });
 
-
 async function requireAdmin(ctx: { supabase: Db; userId: string }) {
-  const { data: isAdmin, error } = await ctx.supabase.rpc("is_admin_tier", { _user_id: ctx.userId });
+  const { data: isAdmin, error } = await ctx.supabase.rpc("is_admin_tier", {
+    _user_id: ctx.userId,
+  });
   if (error) throw new Error(error.message);
   if (!isAdmin) throw new Error("Forbidden — admin required.");
 }
@@ -70,7 +83,8 @@ export const adminUpsertBillingPlan = createServerFn({ method: "POST" })
       key: data.key,
       label: data.label,
       tagline: data.tagline,
-      features: data.features as unknown as Database["public"]["Tables"]["billing_plans"]["Insert"]["features"],
+      features:
+        data.features as unknown as Database["public"]["Tables"]["billing_plans"]["Insert"]["features"],
       price_cents: data.price_cents,
       currency: data.currency.toLowerCase(),
       interval: data.interval,
@@ -83,12 +97,25 @@ export const adminUpsertBillingPlan = createServerFn({ method: "POST" })
       per_seat_price_cents:
         typeof data.per_seat_price_cents === "number" ? data.per_seat_price_cents : null,
       per_seat_stripe_price_id: data.per_seat_stripe_price_id?.trim() || null,
+      ai_requests_monthly:
+        typeof data.ai_requests_monthly === "number" ? data.ai_requests_monthly : null,
+      talk_to_case_monthly:
+        typeof data.talk_to_case_monthly === "number" ? data.talk_to_case_monthly : null,
+      case_limit: typeof data.case_limit === "number" ? data.case_limit : null,
+      storage_gb_limit: typeof data.storage_gb_limit === "number" ? data.storage_gb_limit : null,
+      team_member_limit: typeof data.team_member_limit === "number" ? data.team_member_limit : null,
+      byok_allowed: data.byok_allowed,
+      overage_price_cents:
+        typeof data.overage_price_cents === "number" ? data.overage_price_cents : null,
     } as unknown as Database["public"]["Tables"]["billing_plans"]["Insert"];
 
     const notes = data.internal_notes?.trim() || null;
     const saveNotes = async (planId: string) => {
       if (notes === null) {
-        const { error } = await ctx.supabase.from("billing_plan_notes").delete().eq("plan_id", planId);
+        const { error } = await ctx.supabase
+          .from("billing_plan_notes")
+          .delete()
+          .eq("plan_id", planId);
         if (error) throw new Error(error.message);
         return;
       }
@@ -118,7 +145,6 @@ export const adminUpsertBillingPlan = createServerFn({ method: "POST" })
     await saveNotes(inserted.id);
     return { ...inserted, internal_notes: notes };
   });
-
 
 export const adminDeleteBillingPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

@@ -13,6 +13,7 @@ import {
   Sparkles,
   Settings,
   CreditCard,
+  Gauge,
   Activity,
   HelpCircle,
   LogOut,
@@ -68,6 +69,11 @@ export function UserMenu({ initials, displayName, email, isAdmin }: Props) {
         <DropdownMenuItem asChild>
           <Link to="/billing" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" /> Billing
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/usage" className="flex items-center gap-2">
+            <Gauge className="h-4 w-4" /> Usage
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

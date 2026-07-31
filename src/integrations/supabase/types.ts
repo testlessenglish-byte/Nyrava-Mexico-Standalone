@@ -676,11 +676,15 @@ export type Database = {
       billing_plans: {
         Row: {
           active: boolean
+          ai_requests_monthly: number | null
+          byok_allowed: boolean
+          case_limit: number | null
           code: string
           contact_url: string | null
           created_at: string
           currency: string
           description: string | null
+          feature_flags: Json
           features: Json
           id: string
           included_seats: number
@@ -688,22 +692,30 @@ export type Database = {
           key: string | null
           label: string | null
           name: string
+          overage_price_cents: number | null
           per_seat_price_cents: number | null
           per_seat_stripe_price_id: string | null
           price_cents: number
           self_serve: boolean
           sort_order: number
+          storage_gb_limit: number | null
           stripe_price_id: string | null
           tagline: string | null
+          talk_to_case_monthly: number | null
+          team_member_limit: number | null
           updated_at: string
         }
         Insert: {
           active?: boolean
+          ai_requests_monthly?: number | null
+          byok_allowed?: boolean
+          case_limit?: number | null
           code: string
           contact_url?: string | null
           created_at?: string
           currency?: string
           description?: string | null
+          feature_flags?: Json
           features?: Json
           id?: string
           included_seats?: number
@@ -711,22 +723,30 @@ export type Database = {
           key?: string | null
           label?: string | null
           name: string
+          overage_price_cents?: number | null
           per_seat_price_cents?: number | null
           per_seat_stripe_price_id?: string | null
           price_cents?: number
           self_serve?: boolean
           sort_order?: number
+          storage_gb_limit?: number | null
           stripe_price_id?: string | null
           tagline?: string | null
+          talk_to_case_monthly?: number | null
+          team_member_limit?: number | null
           updated_at?: string
         }
         Update: {
           active?: boolean
+          ai_requests_monthly?: number | null
+          byok_allowed?: boolean
+          case_limit?: number | null
           code?: string
           contact_url?: string | null
           created_at?: string
           currency?: string
           description?: string | null
+          feature_flags?: Json
           features?: Json
           id?: string
           included_seats?: number
@@ -734,13 +754,17 @@ export type Database = {
           key?: string | null
           label?: string | null
           name?: string
+          overage_price_cents?: number | null
           per_seat_price_cents?: number | null
           per_seat_stripe_price_id?: string | null
           price_cents?: number
           self_serve?: boolean
           sort_order?: number
+          storage_gb_limit?: number | null
           stripe_price_id?: string | null
           tagline?: string | null
+          talk_to_case_monthly?: number | null
+          team_member_limit?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -4955,6 +4979,74 @@ export type Database = {
           },
         ]
       }
+      usage_counters: {
+        Row: {
+          ai_requests_used: number
+          created_at: string
+          period_month: string
+          reports_generated: number
+          talk_to_case_used: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_requests_used?: number
+          created_at?: string
+          period_month: string
+          reports_generated?: number
+          talk_to_case_used?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_requests_used?: number
+          created_at?: string
+          period_month?: string
+          reports_generated?: number
+          talk_to_case_used?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      usage_events: {
+        Row: {
+          case_id: string | null
+          created_at: string
+          feature: string
+          id: string
+          kind: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          case_id?: string | null
+          created_at?: string
+          feature: string
+          id?: string
+          kind: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string | null
+          created_at?: string
+          feature?: string
+          id?: string
+          kind?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_ai_keys: {
         Row: {
           calls_month: number
@@ -5395,6 +5487,16 @@ export type Database = {
         Returns: boolean
       }
       closing_readiness: { Args: { p_case_id: string }; Returns: number }
+      consume_usage: {
+        Args: {
+          p_amount?: number
+          p_kind: string
+          p_limit: number | null
+          p_user_id: string
+        }
+        Returns: { allowed: boolean; limit: number | null; used: number }[]
+      }
+      increment_reports_generated: { Args: { p_user_id: string }; Returns: undefined }
       firm_seat_usage: {
         Args: { _firm_id: string }
         Returns: {

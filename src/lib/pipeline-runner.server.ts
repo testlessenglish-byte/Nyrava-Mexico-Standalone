@@ -168,7 +168,6 @@ async function _runPipelineForCase(
     }
   };
 
-
   const updateCase = async (patch: Record<string, unknown>, source: string) => {
     const withHeartbeat: Record<string, unknown> = { ...patch };
     const statusValue = typeof patch.status === "string" ? patch.status : null;
@@ -1080,8 +1079,6 @@ async function _runPipelineForCase(
       continue;
     }
 
-
-
     // Dependency gate — record a `blocked` row so the ledger, UI, and report
     // gate all see the truth: this engine did not run because upstream failed.
     // Optional upstream stages are deliberately excluded: now that report
@@ -1200,6 +1197,17 @@ async function _runPipelineForCase(
         await prog.emitEvent(supabase, caseId, s.key, `${s.label} complete`);
       } catch {
         /* noop */
+      }
+      if (s.key === "report") {
+        // Dashboard-only tally — the AI request allowance for the whole
+        // pipeline run was already consumed once up front in
+        // queueCaseForPipeline (see usage.server.ts).
+        try {
+          const { bumpReportsGenerated } = await import("@/lib/usage.server");
+          bumpReportsGenerated(userId);
+        } catch {
+          /* best-effort */
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
