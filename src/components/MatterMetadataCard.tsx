@@ -6,7 +6,7 @@ import type { SeedMatterMetadata } from "@/lib/seed-metadata";
 /** Renders structured Mexican court-file metadata attached to a matter. */
 export function MatterMetadataCard({ metadata }: { metadata: unknown }) {
   const { t, locale } = useI18n();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   if (!metadata || typeof metadata !== "object") return null;
   const m = metadata as Partial<SeedMatterMetadata> & { corpus?: string };
