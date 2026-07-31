@@ -43,9 +43,10 @@ export const Route = createFileRoute("/api/voice/transcribe")({
         if (authed instanceof Response) return authed;
         const { supabase, userId } = authed;
 
-        const { resolveVoiceProviderChain, flattenVoiceChain } = await import("@/lib/ai-key-router.server");
+        const { resolveVoiceProviderChain, flattenVoiceChain, applyVoiceCooldowns, markVoiceKeyCooldown } =
+          await import("@/lib/ai-key-router.server");
         const chain = await resolveVoiceProviderChain(supabase, userId);
-        const attempts = flattenVoiceChain(chain);
+        const attempts = applyVoiceCooldowns(flattenVoiceChain(chain));
 
         const incoming = await request.formData();
         const file = incoming.get("file");
@@ -91,8 +92,10 @@ export const Route = createFileRoute("/api/voice/transcribe")({
         let lastMessage = "";
         let lastProvider = "";
         let triedCount = 0;
+        const deadProviders = new Set<string>();
         for (let i = 0; i < attempts.length; i++) {
-          const { provider, key } = attempts[i];
+          const { provider, key, keyId } = attempts[i];
+          if (deadProviders.has(provider)) continue;
           triedCount++;
           try {
             const text = await transcribeAudio({ provider, apiKey: key, audioBytes, mime, ext, language });
@@ -112,16 +115,23 @@ export const Route = createFileRoute("/api/voice/transcribe")({
             if (err instanceof VoiceProviderError) {
               lastStatus = err.status;
               lastMessage = err.message;
-              if (i < attempts.length - 1 && err.rotatable) {
+              markVoiceKeyCooldown(provider, keyId, key, err.status);
+              if (err.rotatable) {
                 console.warn(`[voice/transcribe] ${provider} key ${i} failed (${err.status}), trying next`);
                 continue;
               }
-            } else {
-              lastMessage = err instanceof Error ? err.message : String(err);
+              // Non-rotatable = this provider can't serve THIS request at
+              // all; its other keys would fail identically, but another
+              // provider still can. Skip the provider, not the whole chain.
+              deadProviders.add(provider);
+              console.warn(`[voice/transcribe] ${provider} failed hard (${err.status}); skipping its remaining keys`);
+              continue;
             }
+            lastMessage = err instanceof Error ? err.message : String(err);
             break;
           }
         }
+
 
         // Last resort: the platform gateway, so dictation keeps working when
         // the attorney's own keys are quota-exhausted or revoked.

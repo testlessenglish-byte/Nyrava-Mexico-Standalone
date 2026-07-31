@@ -159,7 +159,8 @@ export const Route = createFileRoute("/api/voice/speak")({
         if (authed instanceof Response) return authed;
         const { supabase, userId } = authed;
 
-        const { resolveVoiceProviderChain, flattenVoiceChain } = await import("@/lib/ai-key-router.server");
+        const { resolveVoiceProviderChain, flattenVoiceChain, applyVoiceCooldowns, markVoiceKeyCooldown } =
+          await import("@/lib/ai-key-router.server");
         const { speakText, speakViaGateway, reorderForTtsLocale, VoiceProviderError } = await import(
           "@/lib/voice/adapters.server"
         );
@@ -174,7 +175,7 @@ export const Route = createFileRoute("/api/voice/speak")({
 
         const chain = await resolveVoiceProviderChain(supabase, userId);
         let attempts = flattenVoiceChain(chain);
-        attempts = reorderForTtsLocale(attempts, language);
+        attempts = applyVoiceCooldowns(reorderForTtsLocale(attempts, language));
 
         const cleaned = (text ?? "").trim();
         if (!cleaned) return new Response("Empty text", { status: 400 });
@@ -195,8 +196,14 @@ export const Route = createFileRoute("/api/voice/speak")({
         // rates into one WAV and the tail came out garbled — and any single
         // failed chunk threw away every chunk already paid for. Now a
         // provider either delivers the complete answer or we move on.
+        const deadProviders = new Set<string>();
         for (let i = 0; i < attempts.length; i++) {
-          const { provider, key } = attempts[i];
+          const { provider, key, keyId } = attempts[i];
+          // A provider that already failed non-rotatably (its model refuses
+          // this request outright) fails identically on every one of its
+          // other keys — skip the rest of ITS keys, but keep going through
+          // the other providers instead of aborting the whole chain.
+          if (deadProviders.has(provider)) continue;
           const limit = PROVIDER_CHUNK_LIMIT[provider] ?? FALLBACK_CHUNK_LIMIT;
           const chunks = chunkText(input, limit);
           chunkCount = chunks.length;
@@ -223,9 +230,11 @@ export const Route = createFileRoute("/api/voice/speak")({
             if (err instanceof VoiceProviderError) {
               lastStatus = err.status;
               lastMessage = err.message;
+              markVoiceKeyCooldown(provider, keyId, key, err.status);
               if (!err.rotatable) {
-                console.warn(`[voice/speak] ${provider} failed hard (${err.status}); not rotating`);
-                break;
+                console.warn(`[voice/speak] ${provider} failed hard (${err.status}); skipping its remaining keys`);
+                deadProviders.add(provider);
+                continue;
               }
               console.warn(`[voice/speak] ${provider} failed (${err.status}) after ${parts.length}/${chunks.length} chunks, trying next`);
             } else {
@@ -234,6 +243,7 @@ export const Route = createFileRoute("/api/voice/speak")({
             }
           }
         }
+
 
 
         // Last resort: the platform gateway. Reached when the attorney has no

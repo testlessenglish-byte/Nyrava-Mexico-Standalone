@@ -46,11 +46,15 @@ export function isRotatableError(status: number, bodyText: string): boolean {
   // so both forms need to match or Gemini's quota errors get treated as
   // non-rotatable and rotation stops after the first key instead of trying
   // the next one.
-  if (
-    status === 429 &&
-    /insufficient_quota|quota exceeded|exceeded your current quota|resource_exhausted/i.test(bodyText)
-  )
-    return true; // hard quota, not a soft rate limit
+  // EVERY 429 rotates in voice, not just hard-quota ones. A soft rate limit
+  // ("please try again in 8s") used to be treated as non-rotatable, which
+  // dead-ended the whole voice turn on the first busy key even though other
+  // keys/providers in the chain were idle. Waiting out a retry-after is not
+  // an option for a live conversation — moving to the next key is.
+  if (status === 429) return true;
+  // Transient upstream failures: the next key/provider is worth a shot.
+  if (status >= 500) return true;
+
   // Provider-level model availability problems: the model exists but this
   // account can't use it (Groq requires org acceptance of Orpheus terms,
   // models get decommissioned/renamed). Every key for THAT provider fails
