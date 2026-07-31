@@ -46,6 +46,7 @@ import { AttorneyAssistancePanel } from "@/components/AttorneyAssistancePanel";
 import { LivePipelinePanel } from "@/components/LivePipelinePanel";
 import { CommandCenterDashboard } from "@/components/CommandCenterDashboard";
 import { useI18n } from "@/i18n";
+import { MatterMetadataCard } from "@/components/MatterMetadataCard";
 import { PipelinePanel } from "@/components/PipelinePanel";
 import { CaseControlPanel } from "@/components/CaseControlPanel";
 import { MultiAgentPanel } from "@/components/MultiAgentPanel";
