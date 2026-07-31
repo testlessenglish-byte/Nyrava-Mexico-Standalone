@@ -589,7 +589,7 @@ export function VoiceCompanion({ caseId, caseName }: { caseId: string; caseName?
           Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          text: reply,
+          text: speakableText(reply),
           voice: prefs.voice_id,
           speed: prefs.voice_speed,
           instructions: instructionsFor(),
