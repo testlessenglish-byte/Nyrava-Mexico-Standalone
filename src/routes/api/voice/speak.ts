@@ -100,7 +100,10 @@ export const Route = createFileRoute("/api/voice/speak")({
         const { supabase, userId } = authed;
 
         const { resolveVoiceProviderChain, flattenVoiceChain } = await import("@/lib/ai-key-router.server");
-        const { speakText, reorderForTtsLocale, VoiceProviderError } = await import("@/lib/voice/adapters.server");
+        const { speakText, speakViaGateway, reorderForTtsLocale, VoiceProviderError } = await import(
+          "@/lib/voice/adapters.server"
+        );
+
 
         const { text, voice, locale } = (await request.json().catch(() => ({}))) as {
           text?: string;
