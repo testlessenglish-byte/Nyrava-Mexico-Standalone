@@ -1,0 +1,51 @@
+{
+  "title": "Laboral 318/2026 — Marbella Ortigoza Sandoval vs. Servicios Logísticos Altavista",
+  "description": "Juicio laboral ordinario ante Tribunal Laboral Federal por despido injustificado de una supervisora de operaciones con doce años de antigüedad, con reclamo de indemnización constitucional, salarios caídos, prima de antigüedad, horas extraordinarias, prima dominical y reconocimiento de un salario integrado superior al registrado ante el IMSS. La demandada sostiene renuncia voluntaria y exhibe un escrito de renuncia cuya firma es objetada, además de negar la relación de subordinación durante los últimos catorce meses alegando prestación de servicios por honorarios a través de una empresa intermediaria. El expediente contiene la demanda, la contestación, el escrito de renuncia objetado, recibos CFDI de nómina, registros de acceso biométrico, dictamen grafoscópico y el acta de audiencia preliminar y de juicio.",
+  "caseType": "laboral",
+  "practiceArea": "Derecho Laboral",
+  "subPracticeArea": "Despido injustificado — simulación de relación laboral y subcontratación",
+  "internalMatterNumber": "NYR-MX-2026-0117",
+  "courtCaseNumber": "Expediente 318/2026",
+  "relatedFileNumbers": [
+    "Solicitud de conciliación prejudicial CFCRL/CDMX/I/2026/004871",
+    "Constancia de no conciliación de 22 de enero de 2026",
+    "Denuncia ante la Dirección General de Inspección Federal del Trabajo DGIFT/2026/00933"
+  ],
+  "jurisdiction": "Ciudad de México",
+  "fuero": "federal",
+  "state": "Ciudad de México",
+  "municipality": "Azcapotzalco",
+  "judicialDistrict": "Ciudad de México — Centro de Justicia Laboral Federal",
+  "courtName": "Tribunal Laboral Federal de Asuntos Individuales número 5, con sede en la Ciudad de México",
+  "courtType": "Tribunal Laboral Federal",
+  "competentAuthority": "Consejo de la Judicatura Federal",
+  "assignedJudge": "Lic. Nadia Concepción Berrones Aguilar, Jueza del Tribunal Laboral Federal número 5",
+  "courtClerk": "Lic. Édgar Fernando Palomares Cisneros, Secretario de Instrucción",
+  "filingDate": "2026-02-03",
+  "proceduralStage": "Audiencia de juicio celebrada; pendiente de alegatos y sentencia",
+  "nextHearingDate": "2026-07-14",
+  "parties": [
+    { "role": "Actora", "name": "Marbella Ortigoza Sandoval", "detail": "Supervisora de operaciones; ingreso 4 de febrero de 2014; despido alegado el 9 de diciembre de 2025" },
+    { "role": "Demandada", "name": "Servicios Logísticos Altavista, S.A. de C.V.", "detail": "Centro de distribución en Azcapotzalco, Ciudad de México" },
+    { "role": "Codemandada", "name": "Gestión de Talento Perinorte, S.C.", "detail": "Empresa señalada como intermediaria en el esquema de honorarios" },
+    { "role": "Representante legal de la demandada", "name": "Ing. Ariadna Sofía Menéndez Ovalle", "detail": "Directora de operaciones; suscribió el escrito de baja" },
+    { "role": "Perito grafoscópica de la actora", "name": "Mtra. Liliana Guadalupe Vergara Cortés", "detail": "Perito en grafoscopía, lista del Consejo de la Judicatura Federal" },
+    { "role": "Testigo", "name": "Ismael Antonio Barragán Quiñones", "detail": "Coordinador de almacén; presenció los hechos del 9 de diciembre de 2025" },
+    { "role": "Testigo", "name": "Yazmín Rocío Pacheco Delgadillo", "detail": "Auxiliar de recursos humanos de la demandada" }
+  ],
+  "attorneysOfRecord": ["Lic. Omar Ignacio Zaragoza Millán, cédula profesional 7391155"],
+  "opposingCounsel": ["Lic. Beatriz Elena Cortina Requena, cédula profesional 4820736"],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 1420000,
+  "legalAuthorities": [
+    "Ley Federal del Trabajo, arts. 8, 20, 21, 47, 48, 50, 53, 82, 84, 162, 784, 804, 805, 873-A, 884 y 899",
+    "Constitución Política de los Estados Unidos Mexicanos, art. 123 apartado A, fracciones XXII y XXII Bis",
+    "Ley Federal del Trabajo, arts. 12 a 15 y 41 (subcontratación de personal y sustitución patronal)",
+    "Ley del Seguro Social, arts. 15, 27 y 39 (salario base de cotización)",
+    "Tesis 2a./J. 41/2019 (10a.) — reversión de la carga de la prueba en el despido",
+    "Tesis PC.I.L. J/56 L (10a.) — simulación de relación laboral bajo régimen de honorarios"
+  ],
+  "fictional": true
+}

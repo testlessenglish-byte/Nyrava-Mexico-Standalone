@@ -1,0 +1,50 @@
+{
+  "title": "Ejecutivo Mercantil 1042/2026 — Grupo Ferretero del Norte vs. Distribuidora Insurgentes Monterrey",
+  "description": "Juicio ejecutivo mercantil promovido con base en tres pagarés suscritos por Distribuidora Insurgentes Monterrey, S.A. de C.V., y avalados por su administrador único, por un principal de $4,380,000.00 M.N. derivado de suministro de material ferretero a crédito. La demandada opone excepciones de alteración del documento, pago parcial no acreditado en el título y falta de personalidad del endosatario en procuración, y sostiene que dos de los pagarés fueron firmados en blanco al amparo de un contrato de línea de crédito revolvente. El expediente incluye los títulos de crédito, el contrato de suministro, estados de cuenta, dictamen pericial grafoscópico y documental contable, así como el acta de la audiencia de desahogo. Existen discrepancias entre las fechas de vencimiento impresas en los pagarés y los registros de la contabilidad electrónica de la actora.",
+  "caseType": "mercantil",
+  "practiceArea": "Derecho Mercantil",
+  "subPracticeArea": "Títulos de crédito — juicio ejecutivo mercantil",
+  "internalMatterNumber": "NYR-MX-2026-0111",
+  "courtCaseNumber": "Expediente 1042/2026",
+  "relatedFileNumbers": [
+    "Contrato de suministro con línea de crédito GFN-LC-2024-0087",
+    "Solicitud de conciliación PROFECO NL/MTY/C/2026/00921"
+  ],
+  "jurisdiction": "Nuevo León",
+  "fuero": "comun",
+  "state": "Nuevo León",
+  "municipality": "Monterrey",
+  "judicialDistrict": "Primer Distrito Judicial del Estado de Nuevo León",
+  "courtName": "Juzgado Segundo de Juicio Ejecutivo Mercantil del Primer Distrito Judicial, Monterrey, Nuevo León",
+  "courtType": "Juzgado Mercantil",
+  "competentAuthority": "Poder Judicial del Estado de Nuevo León (competencia concurrente, art. 104 fracción II CPEUM)",
+  "assignedJudge": "Lic. Ramón Alfredo Cavazos Villarreal, Juez Segundo de Juicio Ejecutivo Mercantil",
+  "courtClerk": "Lic. Diana Berenice Garza Treviño, Secretaria de Acuerdos",
+  "filingDate": "2026-02-11",
+  "proceduralStage": "Pruebas desahogadas; pendiente de alegatos y sentencia definitiva",
+  "nextHearingDate": "2026-07-09",
+  "parties": [
+    { "role": "Actora", "name": "Grupo Ferretero del Norte, S.A. de C.V.", "detail": "Beneficiaria de los pagarés; domicilio en Av. Ruiz Cortines 3410, Monterrey, N.L." },
+    { "role": "Demandada", "name": "Distribuidora Insurgentes Monterrey, S.A. de C.V.", "detail": "Suscriptora de los títulos" },
+    { "role": "Demandado (aval)", "name": "Baltazar Isidro Cantú Quiroga", "detail": "Administrador único y avalista por aval en el anverso de los tres pagarés" },
+    { "role": "Endosatario en procuración", "name": "Lic. Ernesto Iván Salazar Peña", "detail": "Cédula profesional 6644102" },
+    { "role": "Perito grafoscópico de la actora", "name": "Mtro. Ricardo Nahúm Lozano Ibarra", "detail": "Perito en documentoscopía y grafoscopía, registro PJENL-DOC-0217" },
+    { "role": "Perito contable de la demandada", "name": "C.P.C. Verónica Adriana Elizondo Fuentes", "detail": "Registro AGAFF 14882" },
+    { "role": "Testigo", "name": "Silverio Manuel Ocampo Rentería", "detail": "Ex gerente de crédito y cobranza de la actora" }
+  ],
+  "attorneysOfRecord": ["Lic. Ernesto Iván Salazar Peña, cédula profesional 6644102"],
+  "opposingCounsel": ["Lic. Karla Fabiola Menchaca Zapata, cédula profesional 8092271"],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "medio",
+  "estimatedValueMxn": 4380000,
+  "legalAuthorities": [
+    "Ley General de Títulos y Operaciones de Crédito, arts. 5, 8, 14, 15, 17, 76, 77, 79, 109, 110, 111, 126, 128, 151, 167 y 174",
+    "Código de Comercio, arts. 1049, 1061, 1069, 1391 fracción IV, 1392, 1396, 1399, 1401, 1403 y 1414 bis",
+    "Código Civil Federal, arts. 2062 y 2078 (supletoriedad)",
+    "Ley de Instituciones de Crédito, art. 68 (no aplicable: título ejecutivo distinto)",
+    "Tesis 1a./J. 42/2017 (10a.) — pagaré firmado en blanco y carga de la prueba de la alteración",
+    "Tesis 1a./J. 17/2022 (11a.) — intereses moratorios notoriamente usurarios y control ex officio"
+  ],
+  "fictional": true
+}
