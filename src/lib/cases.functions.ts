@@ -2043,6 +2043,10 @@ export const clearAiCooldowns = createServerFn({ method: "POST" })
     if (!adminRole) throw new Error("Forbidden");
     const { clearGroqCooldowns, listGroqCooldowns } = await import("@/lib/ai/router.server");
     const cleared = clearGroqCooldowns(data.model);
+    // Voice keeps its own short cooldown map (TTS/STT rotation); clearing
+    // text cooldowns without it left voice still avoiding a recovered key.
+    const { clearVoiceCooldowns } = await import("@/lib/ai-key-router.server");
+    clearVoiceCooldowns();
     return { ts: Date.now(), cleared, model: data.model, remaining: listGroqCooldowns() };
   });
 export const listCases = createServerFn({ method: "GET" })
