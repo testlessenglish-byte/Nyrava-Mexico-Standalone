@@ -372,11 +372,19 @@ ${briefText}`,
       const bothHigh = sA >= RECONCILE_HIGH_THRESHOLD && sB >= RECONCILE_HIGH_THRESHOLD;
       const unreconciled = Math.abs(sA - sB) <= RECONCILE_CLOSE_MARGIN;
       if (bothHigh && unreconciled) {
-        const note = {
-          title: "Unreconciled opposing strength scores",
-          detail: `${a} (${sA}) and ${b} (${sB}) were scored independently and both came back high with no differentiation — one side's evidence should typically outweigh the other's. Treat both scores as provisional until reviewed together.`,
-          confidence_label: "possible" as const,
-        };
+        const locale = await getReportLocale(db, caseId);
+        const note =
+          locale === "en"
+            ? {
+                title: "Both sides scored similarly strong",
+                detail: `The ${a} and ${b} analyses both came back with a high strength score (${sA} and ${sB}) and neither clearly outweighs the other. That's unusual — normally one side's evidence is stronger. Review both analyses together before relying on either score.`,
+                confidence_label: "possible" as const,
+              }
+            : {
+                title: "Ambas partes obtuvieron una puntuación de fortaleza igualmente alta",
+                detail: `Los análisis de ${a} y ${b} obtuvieron cada uno una puntuación de fortaleza alta (${sA} y ${sB}) sin que una parte supere claramente a la otra. Esto es inusual — normalmente la evidencia de una de las partes es más sólida. Revise ambos análisis en conjunto antes de basarse en cualquiera de las dos puntuaciones.`,
+                confidence_label: "possible" as const,
+              };
         for (const row of [rowA, rowB]) {
           const existing = Array.isArray(row.weaknesses) ? row.weaknesses : [];
           await db
