@@ -1,0 +1,17 @@
+clave_muestra,parametro,unidad,resultado,limite_NOM-001-SEMARNAT-2021_rio_uso_publico_urbano_PM,cumple,metodo_analitico
+LAV-0741-MC,pH,unidades de pH,5.4,5.5-10.0,No cumple,NMX-AA-008-SCFI-2016
+LAV-0741-MC,Demanda Química de Oxígeno (DQO),mg/L,890,150,No cumple,NMX-AA-030/2-SCFI-2011
+LAV-0741-MC,Demanda Bioquímica de Oxígeno 5 días (DBO5),mg/L,410,60,No cumple,NMX-AA-028-SCFI-2001
+LAV-0741-MC,Sólidos Suspendidos Totales,mg/L,610,60,No cumple,NMX-AA-034-SCFI-2015
+LAV-0741-MC,Grasas y Aceites,mg/L,58,15,No cumple,NMX-AA-005-SCFI-2013
+LAV-0741-MC,Color (Pt-Co, ADMI),unidades ADMI,1420,No especifica valor numerico; se evalua remocion 75%,No cumple (sin evidencia de remocion),NMX-AA-045-SCFI-2001
+LAV-0741-MC,Cromo Total,mg/L,3.8,1.0,No cumple,NMX-AA-044-SCFI-2014
+LAV-0741-MC,Plomo Total,mg/L,0.31,0.2,No cumple,NMX-AA-051-SCFI-2016
+LAV-0741-MC,Cadmio Total,mg/L,0.04,0.1,Cumple,NMX-AA-051-SCFI-2016
+LAV-0741-MC,Arsenico Total,mg/L,0.03,0.1,Cumple,NMX-AA-051-SCFI-2016
+LAV-0741-MC,Nitrogeno Total,mg/L,38,15,No cumple,NMX-AA-026-SCFI-2010
+LAV-0741-MC,Fosforo Total,mg/L,12,5,No cumple,NMX-AA-029-SCFI-2001
+LAV-0741-MC,Coliformes Fecales,NMP/100 mL,180000,1000,No cumple,NMX-AA-042-SCFI-2015
+LAV-0741-M1,Temperatura,grados Celsius,34,40,Cumple,NMX-AA-007-SCFI-2013
+LAV-0741-M2,Sustancias Activas al Azul de Metileno (SAAM),mg/L,9.6,5,No cumple,NMX-AA-039-SCFI-2001
+LAV-0741-M3,Mercurio Total,mg/L,0.004,0.005,Cumple,NMX-AA-051-SCFI-2016

@@ -1,0 +1,78 @@
+LABORATORIO AMBIENTAL VOLCANES, S.C.
+Acreditación EMA-A-0398-014/19 — Aprobación PROFEPA/APROB-LAB-0398
+
+FORMATO DE CADENA DE CUSTODIA DE MUESTRAS
+Folio: LAV-CC-0741-2026
+
+DATOS GENERALES
+Cliente/Autoridad solicitante: Procuraduría Federal de Protección al Ambiente, Delegación Puebla
+Expediente relacionado: PFPA-DEL-PUE-OI-0341/2026
+Sitio de muestreo: Punto de descarga final de Textiles Atoyac del Poniente, S.A. de C.V., Av. Industrial Cholultécatl 340, San Pedro Cholula, Puebla
+Cuerpo receptor: Canal de conducción hacia el Río Atoyac
+Responsable de muestreo: Q. Rodolfo Emiliano Bustos Franco, cédula profesional 5498231
+Personal de la autoridad presente: Adalberto Yáñez Cuapio, Rebeca Ivonne Salmerón Contreras
+
+REGISTRO DE MUESTRAS
+
+Clave de muestra: LAV-0741-M1
+Tipo: Simple
+Fecha de toma: 12/02/2026
+Hora de toma: 16:20 horas
+Punto: Descarga final, canal a cielo abierto
+Preservación: Refrigeración 4°C, H2SO4 pH<2 para DQO/DBO
+Envase: Polietileno alta densidad 1 L
+Sello de seguridad: SG-8841
+
+Clave de muestra: LAV-0741-M2
+Tipo: Simple
+Fecha de toma: 12/02/2026
+Hora de toma: 16:32 horas
+Punto: Descarga final, canal a cielo abierto
+Preservación: Refrigeración 4°C
+Envase: Polietileno alta densidad 1 L
+Sello de seguridad: SG-8842
+
+Clave de muestra: LAV-0741-M3
+Tipo: Simple
+Fecha de toma: 12/02/2026
+Hora de toma: 16:44 horas
+Punto: Descarga final, canal a cielo abierto
+Preservación: Refrigeración 4°C, HNO3 pH<2 para metales
+Envase: Polietileno alta densidad 1 L
+Sello de seguridad: SG-8843
+
+Clave de muestra: LAV-0741-MC
+Tipo: Compuesta (integración de alícuotas cada 20 minutos)
+Fecha de toma: 12/02/2026
+Hora de inicio de integración: 15:55 horas
+Hora de término de integración: 16:35 horas
+Punto: Descarga final, canal a cielo abierto
+Preservación: Refrigeración 4°C
+Envase: Polietileno alta densidad 4 L
+Sello de seguridad: SG-8844
+
+CADENA DE CUSTODIA — TRASLADO Y RECEPCIÓN
+
+Entregado por: Q. Rodolfo Emiliano Bustos Franco (muestreador)
+Fecha y hora de entrega en sitio: 12/02/2026, 16:50 horas
+Recibido por (transporte): C. Ovidio Farfán Meléndez, chofer autorizado del Laboratorio Ambiental Volcanes, S.C.
+Condiciones de traslado: Hielera con refrigerantes, temperatura registrada de traslado 3.8°C
+Hora de salida del sitio: 12/02/2026, 17:05 horas
+Hora de llegada a laboratorio: 12/02/2026, 19:40 horas
+Recibido en laboratorio por: Q.F.B. Norma Idalia Casasola Prieto, Responsable de Recepción de Muestras
+Temperatura de recepción registrada: 5.1°C
+Observaciones de recepción: Muestras íntegras, sellos de seguridad intactos, sin evidencia de manipulación.
+
+OBSERVACIÓN SOBRE HORARIOS
+
+Se hace constar que, conforme a los registros de este formato de cadena de custodia, la toma de las muestras se llevó a cabo entre las 15:55 y las 16:50 horas del 12 de febrero de 2026, con integración de la muestra compuesta iniciada a las 15:55 horas. Se advierte que el acta circunstanciada de visita de inspección levantada por el personal de la PROFEPA refiere el inicio de la toma de muestras a las 16:45 horas, existiendo una discrepancia de aproximadamente cincuenta minutos entre ambos documentos, la cual deberá ser aclarada por los inspectores actuantes y el personal del laboratorio a efecto de dar certeza a la cadena de custodia.
+
+FIRMAS
+
+_____________________________          _____________________________
+Q. Rodolfo Emiliano Bustos Franco       C. Ovidio Farfán Meléndez
+Muestreador                             Transportista
+
+_____________________________          _____________________________
+Q.F.B. Norma Idalia Casasola Prieto     Adalberto Yáñez Cuapio
+Recepción de Laboratorio                Inspector Federal PFPA (testigo de la toma)
