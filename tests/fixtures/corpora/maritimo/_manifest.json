@@ -1,0 +1,77 @@
+{
+  "title": "Juicio Ordinario Federal 96/2026 — ASIPONA Manzanillo y SEPROPAC vs. Pacific Star Container Lines Ltd.",
+  "description": "Litigio derivado de un abordaje en la dársena de Ciabora, Puerto de Manzanillo, entre el buque portacontenedores 'MN Estrella del Pacífico X' y el remolcador 'Manzanillo XII'. La controversia involucra daños a la infraestructura portuaria (duque de alba 4), daños estructurales al remolcador y un derrame menor de hidrocarburos (IFO-380). La parte actora reclama responsabilidad civil objetiva y daños y perjuicios, mientras que la demandada invoca la limitación de responsabilidad del armador y atribuye el siniestro a negligencia en la maniobra del remolcador y factores meteorológicos (abatimiento por viento). El expediente incluye actas de investigación de la Capitanía de Puerto, testimonios de la tripulación, peritajes náuticos y de cuantificación de daños, y pólizas de seguro de P&I.",
+  "caseType": "administrativo",
+  "practiceArea": "Derecho Marítimo",
+  "subPracticeArea": "marítimo y portuario",
+  "internalMatterNumber": "NYR-MX-MAR-2026-0037",
+  "courtCaseNumber": "96/2026",
+  "relatedFileNumbers": [
+    "CP-MZO/INV/041/2026"
+  ],
+  "jurisdiction": "Federal",
+  "fuero": "federal",
+  "state": "Colima",
+  "municipality": "Manzanillo",
+  "judicialDistrict": "Segundo Distrito en el Estado de Colima",
+  "courtName": "Juzgado Segundo de Distrito en el Estado de Colima",
+  "courtType": "Juzgado de Distrito",
+  "competentAuthority": "Poder Judicial de la Federación / Secretaría de Marina (Capitanía de Puerto)",
+  "assignedJudge": "Lic. Adolfo Ricardo Ceballos Anguiano",
+  "courtClerk": "Lic. Bruno Emilio Larios Fuentevilla",
+  "filingDate": "2026-03-18",
+  "proceduralStage": "Etapa de ofrecimiento y admisión de pruebas; peritaje tercero en discordia rendido.",
+  "nextHearingDate": "2026-08-14",
+  "parties": [
+    {
+      "role": "Actora (Litisconsorte)",
+      "name": "Administración Portuaria Integral de Manzanillo, S.A. de C.V. (ASIPONA)",
+      "detail": "Administrador del recinto portuario, reclama daños a infraestructura."
+    },
+    {
+      "role": "Actora (Litisconsorte)",
+      "name": "Servicios Portuarios de Remolque del Pacífico, S.A. de C.V. (SEPROPAC)",
+      "detail": "Propietaria del remolcador Manzanillo XII, reclama daños al casco."
+    },
+    {
+      "role": "Demandada",
+      "name": "Pacific Star Container Lines Ltd.",
+      "detail": "Propietaria y armadora del buque Estrella del Pacífico X (Bandera Panamá)."
+    },
+    {
+      "role": "Demandada (Solidaria)",
+      "name": "Agencia Marítima del Pacífico, S.A. de C.V.",
+      "detail": "Agente naviero consignatario en México."
+    },
+    {
+      "role": "Tercero llamado a juicio",
+      "name": "The Golden Horn P&I Association",
+      "detail": "Club de Protección e Indemnización (Aseguradora del buque)."
+    },
+    {
+      "role": "Autoridad Administrativa",
+      "name": "Capitanía de Puerto de Manzanillo",
+      "detail": "Emisora del acta de investigación CP-MZO/INV/041/2026."
+    }
+  ],
+  "attorneysOfRecord": [
+    "Lic. Renata Ibáñez Colchado",
+    "Lic. Marcos Iván Bermúdez Solano"
+  ],
+  "opposingCounsel": [
+    "Lic. Cuauhtémoc Salvatierra Nogales"
+  ],
+  "caseStatus": "En trámite",
+  "priority": "muy alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 45000000,
+  "legalAuthorities": [
+    "Ley de Navegación y Comercio Marítimos (LNCM), arts. 129, 148, 156",
+    "Ley de Puertos",
+    "Convenio Internacional para Prevenir la Contaminación por los Buques (MARPOL 73/78)",
+    "Convenio sobre el Reglamento Internacional para Prevenir los Abordajes (COLREG 1972)",
+    "Ley Federal de Procedimiento Administrativo (LFPA)",
+    "Ley General del Equilibrio Ecológico y la Protección al Ambiente (LGEEPA)"
+  ],
+  "fictional": true
+}

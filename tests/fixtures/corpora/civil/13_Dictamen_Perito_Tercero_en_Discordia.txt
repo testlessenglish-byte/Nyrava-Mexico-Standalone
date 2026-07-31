@@ -1,0 +1,36 @@
+DICTAMEN DEL PERITO TERCERO EN DISCORDIA EN INGENIERÍA CIVIL Y ESTRUCTURAS
+Expediente 587/2026 — Juzgado Cuarto Civil de Partido de León, Guanajuato
+Perito tercero en discordia: Ing. Salvador Emmanuel Ruvalcaba Nieto
+Cédula profesional 5,220,317. Lista oficial de peritos del Poder Judicial del Estado de Guanajuato, especialidad estructuras, folio PJ-GTO-LST-0091.
+Designación: auto de 2 de junio de 2026. Fecha de rendición: 20 de junio de 2026.
+
+I. ANTECEDENTES
+El suscrito fue designado ante la discrepancia sustancial entre los dictámenes rendidos por el Ing. Sergio Ulises Bermúdez Alanís (perito actora, 12 de mayo de 2026) y el Ing. Héctor Ramiro Zúñiga Lomelí (perito demandada, 15 de mayo de 2026), particularmente en cuanto a porcentaje de avance, resistencia del concreto, origen de las fisuras y monto de reparación.
+
+II. METODOLOGÍA
+Inspección física el 10 de junio de 2026, con notificación y citación de ambas partes y sus peritos, quienes comparecieron. Se solicitó y obtuvo copia íntegra del informe de laboratorio LM-2026-0338 de CIATEC, A.C., cotejando directamente los resultados con el perito emisor, Ing. Química Alma Delia Portillo Nava, quien ratificó telefónicamente ante el suscrito los valores de resistencia reportados. Se practicó esclerometría adicional en 8 puntos y extracción de un corazón adicional en TB-4 (C-4), ensayado en el mismo laboratorio, folio LM-2026-0402.
+
+III. RESULTADOS
+A) AVANCE FÍSICO REAL: 78.1%, cifra intermedia entre las sostenidas por ambos peritos de parte. El suscrito considera que el dictamen de la demandada sobreestima el avance al computar como ejecutados conceptos de cancelería e impermeabilización que, coincide con ambos peritos de parte y con la inspección judicial, NO estaban instalados a la fecha de esta pericial.
+B) RESISTENCIA DEL CONCRETO: el corazón adicional C-4 (TB-4) arrojó 197 kg/cm², consistente con los valores de 189 y 213 kg/cm² reportados por el perito de la actora. El suscrito CONFIRMA que los elementos TB-3 y TB-4 no alcanzan f'c=250 kg/cm² y descarta el rango "235 a 260 kg/cm²" estimado por esclerometría sin corazones por el perito de la demandada, al ser la esclerometría un método indirecto de menor confiabilidad que el ensayo destructivo de corazones cuando ambos están disponibles, conforme a la propia norma NMX-C-192-ONNCCE.
+C) FISURAS: el patrón diagonal, la abertura de hasta 1.1 mm y el recubrimiento deficiente de 1.4 cm en TB-3 son compatibles con esfuerzo cortante asociado a la resistencia deficiente del concreto, y no exclusivamente con contracción plástica. No obstante, el suscrito no descarta que factores de curado hayan contribuido de forma secundaria.
+D) CANCELERÍA E IMPERMEABILIZACIÓN: se confirma que ninguno de los dos conceptos fue instalado a la fecha de esta pericial, independientemente de la causa de dicha falta de instalación, la cual escapa al ámbito técnico de este dictamen.
+E) COSTO DE REPARACIÓN (precios de junio de 2026):
+  - Encamisado y refuerzo de TB-3 y TB-4: $296,000.00
+  - Resane y corrección de recubrimientos: $79,500.00
+  - Impermeabilización de azotea 118 m²: $138,900.00
+  - Instalación de cancelería suministrada: $88,700.00
+  TOTAL: $603,100.00 M.N.
+
+IV. CONCLUSIONES
+PRIMERA. El avance físico real es de 78.1%, inferior al sostenido por la demandada e inferior en menor medida al sostenido por el perito de la actora.
+SEGUNDA. Los elementos estructurales TB-3 y TB-4 no cumplen la resistencia contractual de f'c=250 kg/cm², dato confirmado por dos ensayos independientes de laboratorio sobre tres corazones distintos.
+TERCERA. Las fisuras tienen origen preponderantemente estructural por deficiencia de resistencia y recubrimiento.
+CUARTA. Los conceptos de cancelería e impermeabilización, cobrados en las estimaciones 5 y 6, no estaban ejecutados a la fecha de ninguna de las tres inspecciones periciales realizadas en el expediente (22-23 abril, 24 abril y 10 de junio de 2026).
+QUINTA. El costo razonable de reparación se estima en $603,100.00 M.N.
+
+V. OBSERVACIÓN FINAL
+El suscrito hace notar que la falta de acompañamiento del reporte íntegro de laboratorio por el perito de la actora en su dictamen original fue subsanada mediante el cotejo directo realizado por este perito tercero, por lo que dicha objeción del perito de la demandada queda superada para efectos de esta pericial dirimente.
+
+PROTESTO CONDUCIRME CON VERDAD Y IMPARCIALIDAD
+Ing. Salvador Emmanuel Ruvalcaba Nieto

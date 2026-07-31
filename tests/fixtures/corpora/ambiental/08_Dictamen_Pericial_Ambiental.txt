@@ -1,0 +1,43 @@
+DICTAMEN TÉCNICO PERICIAL EN MATERIA DE INGENIERÍA AMBIENTAL
+Expediente PFPA/22.3/2C.28/0741/2026
+
+Perito designado por la autoridad: Dra. Leticia Marlene Huerta Solórzano
+Registro Federal de Peritos: SEMARNAT-PFPA-0245
+Especialidad: Ingeniería Ambiental, Tratamiento de Aguas Residuales Industriales
+
+I. OBJETO DEL DICTAMEN
+
+Determinar, desde el punto de vista técnico, si la descarga de aguas residuales de la planta de Textiles Atoyac del Poniente, S.A. de C.V. hacia el Río Atoyac, muestreada el 12 de febrero de 2026, excedió los límites máximos permisibles de la NOM-001-SEMARNAT-2021, así como establecer, en su caso, el nexo causal entre dicha descarga y el eventual daño ambiental denunciado, y evaluar la operatividad de la planta de tratamiento de aguas residuales (PTAR) de la empresa.
+
+II. METODOLOGÍA
+
+Se realizó el análisis documental del expediente, incluyendo el acta de inspección, la cadena de custodia, el dictamen de resultados analíticos del Laboratorio Ambiental Volcanes, S.C., la contestación de la empresa emplazada, y visita técnica de campo realizada el 2 de abril de 2026 con acompañamiento de personal de la PROFEPA y representante de la empresa.
+
+III. ANÁLISIS TÉCNICO
+
+1. De acuerdo con el dictamen de resultados analíticos LAV-0741-2026, la muestra compuesta LAV-0741-MC arrojó los siguientes valores relevantes: DQO 890 mg/L (límite NOM-001-SEMARNAT-2021 para descarga a ríos de uso público urbano, promedio mensual: 150 mg/L); DBO5 410 mg/L (límite 60 mg/L); Sólidos Suspendidos Totales 610 mg/L (límite 60 mg/L); pH 5.4 (rango permisible 5.5 a 10.0); Cromo Total 3.8 mg/L (límite 1.0 mg/L); Color 1420 unidades ADMI, sin evidencia de remoción del 75% requerida por la norma. Estos valores exceden de manera significativa, entre 4 y 6 veces, los límites máximos permisibles aplicables.
+
+Se hace notar una discrepancia entre el valor de Cromo Total citado en la presente pericial (3.8 mg/L, conforme al dictamen de laboratorio original) y el valor de 2.9 mg/L que fue transcrito en el proyecto de resolución administrativa que me fue puesto a la vista para consulta, lo cual sugiere un error de transcripción en dicho proyecto que deberá corregirse antes de la emisión de la resolución definitiva, a fin de evitar que la sanción se sustente en un dato inexacto.
+
+2. La visita técnica de campo permitió constatar que la PTAR de la empresa cuenta con capacidad instalada de tratamiento de 45 litros por segundo, mientras que el caudal de descarga registrado en el medidor instalado corresponde a un promedio de 52 litros por segundo en los últimos tres meses, lo que evidencia una condición de sobrecarga hidráulica que resulta consistente con una eficiencia de remoción deficiente de contaminantes, en particular de sólidos suspendidos y materia orgánica.
+
+3. Respecto de la causa de la falla reportada por la empresa (descompostura de bomba dosificadora BD-450), se considera técnicamente plausible que dicha falla haya contribuido a la deficiente remoción de color y metales pesados, sin embargo, la magnitud de los excedentes observados en parámetros como DQO, DBO5 y Sólidos Suspendidos Totales no es explicable únicamente por dicha falla puntual, sino que resulta más consistente con una condición de sobrecarga operativa sostenida en el tiempo, lo cual es coincidente con los señalamientos de vecinos respecto de descargas de coloración anómala observadas de manera reiterada desde meses previos al muestreo.
+
+4. Del daño ambiental: se recomienda la práctica de un estudio de caracterización de sedimentos y biota acuática en un tramo de al menos 2 kilómetros aguas abajo del punto de descarga, a efecto de cuantificar la afectación al ecosistema fluvial, mismo que no obra en el expediente al momento de emitir el presente dictamen y que se considera EVIDENCIA FALTANTE indispensable para determinar con precisión el alcance del daño ambiental resarcible en términos de la Ley Federal de Responsabilidad Ambiental.
+
+IV. CONCLUSIONES
+
+PRIMERA. Los resultados analíticos de la muestra LAV-0741-MC exceden los límites máximos permisibles de la NOM-001-SEMARNAT-2021 en los parámetros de pH, DQO, DBO5, Sólidos Suspendidos Totales, Grasas y Aceites, Color, Cromo Total, Plomo Total, Nitrógeno Total, Fósforo Total y Coliformes Fecales.
+
+SEGUNDA. Se advierte una condición de sobrecarga operativa de la PTAR consistente con un patrón sostenido de deficiente tratamiento, no explicable únicamente por la falla puntual reportada por la empresa.
+
+TERCERA. Se recomienda ordenar la práctica de un estudio de caracterización de sedimentos y biota acuática para determinar el alcance preciso del daño ambiental.
+
+CUARTA. Se recomienda a la autoridad corregir el dato de Cromo Total citado en el proyecto de resolución para hacerlo consistente con el dictamen de laboratorio original.
+
+Puebla, Puebla, a 15 de abril de 2026.
+
+_____________________________
+Dra. Leticia Marlene Huerta Solórzano
+Perito en Ingeniería Ambiental
+Registro SEMARNAT-PFPA-0245

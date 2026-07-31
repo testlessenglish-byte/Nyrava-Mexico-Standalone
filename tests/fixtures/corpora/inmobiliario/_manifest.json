@@ -1,0 +1,51 @@
+{
+  "title": "Escritura 18,742 — Compraventa Casa Comercial Itzimná (Grupo Hotelero Xkalak vs. Sucesión Pat Chan)",
+  "description": "Due diligence y proyecto de escritura pública para la compraventa de un inmueble comercial en el Centro Histórico de Mérida, Yucatán. La operación se encuentra en fase de cierre, enfrentando obstáculos críticos: una hipoteca vigente no cancelada en el RPP a favor de BANSURESTE, la falta de comparecencia de uno de los herederos (Bruno Emilio Pat Ceballos), discrepancias significativas en la superficie del predio (entre 612.35 m² registrales y 587.10 m² topográficos), adeudos de servicios de agua, y restricciones por ubicación en zona de monumentos históricos del INAH. Adicionalmente, se detectó una toma de posesión anticipada de facto por el comprador no formalizada y un antecedente ejidal de 1987 con expediente incompleto en el RAN.",
+  "caseType": "inmobiliario",
+  "practiceArea": "Derecho Inmobiliario y Notarial",
+  "subPracticeArea": "Compraventa mercantil y Due Diligence",
+  "internalMatterNumber": "NYR-MX-2026-0231",
+  "courtCaseNumber": "Instrumento 18,742, Volumen 402",
+  "relatedFileNumbers": [
+    "Expediente sucesorio 145/2025 de la Notaría Pública 12 de Mérida",
+    "Folio Real RPP-YUC-FR-88231",
+    "Certificado IRCEY-CLG-2026-011903",
+    "Cuenta catastral 07-01-0234-056-001"
+  ],
+  "jurisdiction": "Yucatán",
+  "fuero": "comun",
+  "state": "Yucatán",
+  "municipality": "Mérida",
+  "judicialDistrict": "Primer Departamento Judicial del Estado",
+  "courtName": "Notaría Pública Número 7 del Estado de Yucatán",
+  "courtType": "Notaría Pública",
+  "competentAuthority": "Gobierno del Estado de Yucatán / Instituto Registral y Catastral del Estado de Yucatán",
+  "assignedJudge": "Lic. Fernando Javier Barrera Solís, Notario Público No. 7",
+  "courtClerk": "Lic. Andrea Sofía Canché Uc, Proyectista",
+  "filingDate": "2026-01-02",
+  "proceduralStage": "Etapa de cierre y subsanación de observaciones previas a la protocolización",
+  "nextHearingDate": "2026-04-15",
+  "parties": [
+    { "role": "Comprador", "name": "Grupo Hotelero Xkalak, S.A. de C.V.", "detail": "Representada por Ing. Marcos Iván Rosado Bacab" },
+    { "role": "Vendedora", "name": "Sucesión intestamentaria a bienes de Rogelio Pat Chan", "detail": "Representada por la heredera Wendy Alejandra Pat Ceballos" },
+    { "role": "Heredero no compareciente", "name": "Bruno Emilio Pat Ceballos", "detail": "Co-heredero con derecho al 50% de la masa hereditaria, residente en Texas" },
+    { "role": "Acreedor Hipotecario", "name": "Banco Regional del Sureste, S.A. (BANSURESTE)", "detail": "Titular de hipoteca vigente por ,200,000.00 M.N. según CLG" },
+    { "role": "Asesora legal compradora", "name": "Lic. Renata Ibeth Couoh Dzul", "detail": "Responsable del Due Diligence legal" },
+    { "role": "Abogado de la sucesión", "name": "Lic. Humberto Aldair Chuc Balam", "detail": "Gestor de la regularización de la sucesión y gravámenes" }
+  ],
+  "attorneysOfRecord": ["Lic. Renata Ibeth Couoh Dzul"],
+  "opposingCounsel": ["Lic. Humberto Aldair Chuc Balam"],
+  "caseStatus": "En trámite de cierre",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 18500000,
+  "legalAuthorities": [
+    "Código Civil del Estado de Yucatán, arts. 1264, 1265, 1820 y 1821",
+    "Ley del Notariado del Estado de Yucatán, arts. 54, 78 y 82",
+    "Ley de Hacienda del Municipio de Mérida, arts. 45-52 (ISAI)",
+    "Ley del Impuesto sobre la Renta, arts. 119, 120, 126 y 127",
+    "Ley Agraria, arts. 23 fracción VIII y 82 (antecedente ejidal)",
+    "Ley Federal sobre Monumentos y Zonas Arqueológicos, Artísticos e Históricos, art. 42"
+  ],
+  "fictional": true
+}

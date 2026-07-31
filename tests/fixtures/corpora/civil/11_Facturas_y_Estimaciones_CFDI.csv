@@ -1,0 +1,11 @@
+folio_fiscal,fecha_emision,emisor,receptor,concepto,estimacion,subtotal_mxn,iva_mxn,total_mxn,estatus_pago,fecha_pago,observacion
+A1F3-CFDI-000114,2025-01-16,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Anticipo 30% contrato obra a precio alzado,ANTICIPO,861000.00,137760.00,998760.00,PAGADA,2025-01-16,SPEI clave 2025011640004178
+A1F3-CFDI-000129,2025-02-14,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Estimacion 1 - cimentacion y trazo,1,186000.00,29760.00,215760.00,PAGADA,2025-02-18,
+A1F3-CFDI-000141,2025-02-28,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Estimacion 2 - cimentacion,2,142500.00,22800.00,165300.00,PAGADA,2025-03-05,
+A1F3-CFDI-000158,2025-03-17,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Estimacion 3 - estructura planta baja,3,118000.00,18880.00,136880.00,PAGADA,2025-03-24,
+A1F3-CFDI-000177,2025-04-30,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Estimacion 4 - estructura planta alta,4,96000.00,15360.00,111360.00,PAGADA,2025-05-09,
+A1F3-CFDI-000203,2025-06-30,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Estimacion 5 - impermeabilizacion e hidrosanitario,5,212300.00,33968.00,246268.00,PAGADA,2025-07-08,Incluye impermeabilizacion azotea 58410.00 no ejecutada segun dictamen actora
+A1F3-CFDI-000219,2025-07-31,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Estimacion 6 - canceleria y pintura,6,184200.00,29472.00,213672.00,PAGADA,2025-08-12,Firmada con reserva manuscrita de verificacion fisica posterior
+A1F3-CFDI-000241,2025-08-08,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Estimacion 7 - canceleria y escalera de servicio,7,221400.00,35424.00,256824.00,NO PAGADA,,Objetada por correo 2025-08-20
+A1F3-CFDI-000258,2025-09-05,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Estimacion 8 - instalacion electrica y limpieza fina,8,191200.00,30592.00,221792.00,NO PAGADA,,Objetada por correo 2025-08-20
+A1F3-CFDI-000302,2025-10-14,Constructora Bajio Integral SA de CV,Alejandra Villasenor Padilla,Gastos de resguardo de material en obra,RECONVENCION,96000.00,15360.00,111360.00,NO PAGADA,,Sin desglose de periodo ni comprobante segun contestacion a reconvencion

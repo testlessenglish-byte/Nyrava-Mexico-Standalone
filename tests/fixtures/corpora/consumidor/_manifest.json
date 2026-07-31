@@ -1,0 +1,53 @@
+{
+  "title": "Colectivo 62/2026 y Expediente PFC.B.Q./000418/2026 — Consumidores vs. Telecomunicaciones Bajío Digital, S.A.P.I. de C.V. (NexoTel)",
+  "description": "Procedimiento administrativo ante PROFECO por 214 quejas acumuladas en contra de NexoTel por cargos no reconocidos, cláusulas abusivas en contrato de adhesión, incumplimiento de velocidad de internet contratada y penalización indebida por cancelación anticipada, que derivó en resolución con multa de $4,850,320.00 M.N., actualmente sub júdice mediante recurso de revisión, y en la Acción Colectiva 62/2026 ante el Juzgado Segundo de Distrito en el Estado de Querétaro promovida por la representación de 143 consumidores no conveniados. El expediente contiene testimonios divergentes de consumidores, testimonio de un ex ejecutivo de atención a clientes, dos dictámenes técnicos (uno original y uno complementario), evidencia de reconocimientos verbales de fallas sistémicas por agentes de atención contradichos por la postura institucional de la empresa, discrepancias reiteradas en el número de convenios individuales reportados (71, 96 y 112) y medidas precautorias de conservación de evidencia digital.",
+  "caseType": "administrativo",
+  "practiceArea": "Derecho Administrativo",
+  "subPracticeArea": "Protección al consumidor",
+  "internalMatterNumber": "NYR-MX-2026-0231",
+  "courtCaseNumber": "PFC.B.Q./000418/2026",
+  "relatedFileNumbers": [
+    "Juicio Colectivo 62/2026, Juzgado Segundo de Distrito en el Estado de Querétaro",
+    "RR-CGJ-2026-0891, Coordinación General Jurídica de PROFECO",
+    "Registro RCA-2024-TEL-00871, contrato de adhesión"
+  ],
+  "jurisdiction": "Querétaro",
+  "fuero": "federal",
+  "state": "Querétaro",
+  "municipality": "Querétaro",
+  "judicialDistrict": "Segundo Distrito en el Estado de Querétaro",
+  "courtName": "Juzgado Segundo de Distrito en el Estado de Querétaro / Delegación Querétaro de la PROFECO",
+  "courtType": "Juzgado de Distrito / Autoridad Administrativa Federal",
+  "competentAuthority": "Procuraduría Federal del Consumiddor (PROFECO) y Poder Judicial de la Federación",
+  "assignedJudge": "Lic. Fabián Emiliano Roldán Chapa, Juez Segundo de Distrito en el Estado de Querétaro",
+  "courtClerk": "Lic. Rebeca Ainhoa Solórzano Prieto, Secretaria de Acuerdos",
+  "filingDate": "2026-02-09",
+  "proceduralStage": "Recurso de revisión administrativo pendiente de resolución; Juicio Colectivo 62/2026 en etapa de excepciones y medidas precautorias, pendiente audiencia previa y de conciliación",
+  "nextHearingDate": "2026-10-20",
+  "parties": [
+    { "role": "Autoridad instructora / Denunciante colectivo", "name": "Lic. Fernanda Ibeth Oyervides Camarena", "detail": "Subprocuradora de Verificación y Vigilancia, Delegación Querétaro de PROFECO" },
+    { "role": "Proveedor demandado", "name": "Telecomunicaciones Bajío Digital, S.A.P.I. de C.V. (\"NexoTel\")", "detail": "Domicilio en Boulevard Bernardo Quintana 4200, Colonia Centro Sur, Querétaro" },
+    { "role": "Representante común de consumidores / Actor colectivo", "name": "Lic. Ismael Cordero Bátiz", "detail": "Apoderado de 214 consumidores acumulados y representante de la Asociación de Consumidores Queretanos de Telecomunicaciones, A.C." },
+    { "role": "Apoderado legal de la demandada", "name": "Lic. Óscar Iván Bermúdez Salgado", "detail": "Cédula profesional 4471029" },
+    { "role": "Testigo / Ex ejecutivo", "name": "Javier Alejandro Montemayor Ruelas", "detail": "Ex Gerente Regional de Atención a Clientes de NexoTel (marzo 2023-enero 2026)" },
+    { "role": "Perito oficial", "name": "Ing. Leonardo Abraham Nieves Cortázar", "detail": "Cédula profesional 6541209, Laboratorio Nacional de Protección al Consumidor" },
+    { "role": "Consumidor quejoso", "name": "Gerardo Emiliano Salcido Marroquín", "detail": "Folio Q-0129, reclamo por velocidad de internet" },
+    { "role": "Consumidora quejosa", "name": "Alma Rosa Villagómez Ochterena", "detail": "Folio Q-0142, penalización por falta de cobertura" },
+    { "role": "Juez", "name": "Lic. Fabián Emiliano Roldán Chapa", "detail": "Juez Segundo de Distrito en el Estado de Querétaro" }
+  ],
+  "attorneysOfRecord": ["Lic. Ismael Cordero Bátiz, cédula profesional 8829104"],
+  "opposingCounsel": ["Lic. Óscar Iván Bermúdez Salgado, cédula profesional 4471029"],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 35000000,
+  "legalAuthorities": [
+    "Ley Federal de Protección al Consumidor, arts. 1, 7, 10, 24, 56, 76 bis, 85, 86, 87, 92, 99, 111, 114, 126, 128 y 129",
+    "Código Federal de Procedimientos Civiles, arts. 578 a 626 (acciones colectivas)",
+    "Ley Federal de Telecomunicaciones y Radiodifusión, disposiciones sobre calidad del servicio",
+    "NOM-184-SCFI-2018, prestación de servicios de telecomunicaciones",
+    "Código Civil Federal, arts. 1910 y 2116 (aplicación supletoria, daños y perjuicios)",
+    "Artículo 17 constitucional (acceso a la justicia colectiva)"
+  ],
+  "fictional": true
+}

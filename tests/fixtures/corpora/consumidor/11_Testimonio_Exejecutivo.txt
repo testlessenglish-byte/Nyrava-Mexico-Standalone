@@ -1,0 +1,25 @@
+PROCURADURÍA FEDERAL DEL CONSUMIDOR — DELEGACIÓN QUERÉTARO
+TESTIMONIO DE EX EJECUTIVO DE ATENCIÓN A CLIENTES DE NEXOTEL
+Expediente PFC.B.Q./000418/2026 — Declaración voluntaria rendida ante la autoridad instructora
+Fecha: 12 de junio de 2026, 10:00 horas
+
+En la ciudad de Querétaro, comparece el señor JAVIER ALEJANDRO MONTEMAYOR RUELAS, quien manifiesta haber laborado como Gerente Regional de Atención a Clientes de Telecomunicaciones Bajío Digital, S.A.P.I. de C.V. entre marzo de 2023 y enero de 2026, fecha en que causó baja voluntaria de la empresa, y quien solicita se identifique con reserva parcial de datos personales sensibles en las versiones públicas del expediente, sin perjuicio de que su identidad completa obre en el expediente físico para efectos de valoración probatoria, en términos del artículo 24, fracción XIV, de la Ley Federal de Protección al Consumidor.
+
+Bajo protesta de decir verdad, declara:
+
+1. Que durante su gestión como Gerente Regional tuvo conocimiento directo de que el sistema de autoservicio implementado en agosto de 2025 (denominado internamente "NexoSelf 2.0") presentaba fallas documentadas de activación automática de servicios complementarios sin intervención del usuario, mismas que fueron reportadas al área de Sistemas mediante al menos once tickets internos entre agosto y noviembre de 2025, de los cuales únicamente tres fueron cerrados con solución efectiva.
+
+2. Que la Dirección Comercial de NexoTel, encabezada por el Director Comercial Ing. Gustavo Adolfo Peniche Rangel, instruyó verbalmente en una reunión de gerentes regionales celebrada el 14 de septiembre de 2025 que "no se debía ofrecer bonificación proactiva por activaciones de servicios complementarios, salvo que el cliente insistiera formalmente y amenazara con acudir a PROFECO", instrucción que el declarante calificó como contraria a la política pública de atención publicada por la propia empresa en su portal, y que atribuye a un objetivo de "maximizar el ARPU" (ingreso promedio por usuario) del trimestre.
+
+3. Que dicha instrucción es consistente, a su parecer, con la manifestación reconocida por la agente Brenda (operador 4471) en la llamada transcrita como documento 07, y con la respuesta de la agente "Ana" documentada en el WhatsApp exhibido como documento 09, en el sentido de que los agentes de primera línea sí tenían conocimiento de las fallas sistémicas, pero se les restringía la autorización para reconocerlo abiertamente o para ofrecer devoluciones completas sin escalamiento.
+
+4. Que, sin embargo, el declarante NO tuvo acceso directo a los registros técnicos del sistema NexoSelf 2.0 ni participó en su desarrollo, por lo que no puede afirmar con certeza técnica el número exacto de activaciones indebidas a nivel nacional, limitándose su conocimiento a lo reportado en la región Bajío (Querétaro, Guanajuato y Michoacán) y a lo que le fue comunicado verbalmente por el área de Sistemas y por la Dirección Comercial.
+
+5. Que su salida de la empresa en enero de 2026 obedeció, según manifiesta, a "diferencias con la nueva dirección comercial respecto de las políticas de atención a clientes", aclarando expresamente que no medió despido ni existe litigio laboral pendiente entre él y NexoTel, y que su comparecencia es enteramente voluntaria y no ha recibido compensación alguna por parte de los consumidores denunciantes ni de sus representantes.
+
+6. A pregunta expresa de la autoridad instructora sobre si guarda algún resentimiento o interés personal en contra de NexoTel que pudiera restar objetividad a su dicho, el declarante responde: "no tengo ningún interés económico en este asunto, simplemente me parece que la forma en que se manejó el tema de atención a clientes no fue correcta y creo que es importante que la autoridad lo sepa".
+
+NOTA DE LA AUTORIDAD INSTRUCTORA: Se hace constar que el presente testimonio, si bien resulta consistente con las evidencias documentales de los documentos 07, 08 y 09, constituye prueba testimonial de un ex empleado sin acceso a registros técnicos de primera mano, por lo que su valor probatorio pleno respecto de la existencia de una instrucción corporativa deliberada de no informar proactivamente deberá adminicularse con prueba documental adicional que en su caso sea requerida a la empresa, particularmente las minutas de la reunión de gerentes regionales del 14 de septiembre de 2025, mismas que NexoTel manifiesta no conservar (véase documento 15, Contestación).
+
+Firma: Javier Alejandro Montemayor Ruelas
+Recibió: Lic. Fernanda Ibeth Oyervides Camarena

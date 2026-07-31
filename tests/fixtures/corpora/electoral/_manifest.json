@@ -1,0 +1,53 @@
+{
+  "title": "TEEP-JIN-118/2026 y acumulado TEEP-JDC-045/2026 — Coalición \"Fuerza Zacatlán\" vs. Consejo Municipal Electoral de Zacatlán; escalado a SCM-JRC-041/2026",
+  "description": "Juicio de Inconformidad y JDC acumulados por la elección de Ayuntamiento de Zacatlán, Puebla (7 de junio de 2026), por presunto error aritmético en el cómputo municipal, recepción de votación por personas no autorizadas en las casillas 1204 B, 1207 C1 y 1210 B, cadena de custodia irregular del paquete 1207 C1, propaganda gubernamental indebida en periodo de campaña, rebase de tope de gastos de campaña de la fórmula ganadora y violencia política contra las mujeres en razón de género en agravio de la candidata Norma Alicia Reséndiz Cortés. El Tribunal Electoral del Estado de Puebla dictó sentencia el 3 de julio de 2026 anulando únicamente la casilla 1207 C1, declarando la VPG y reservando el pronunciamiento sobre el rebase de gastos. La Coalición actora impugnó parcialmente dicha sentencia mediante Juicio de Revisión Constitucional Electoral, actualmente en trámite ante la Sala Regional Ciudad de México del TEPJF.",
+  "caseType": "electoral",
+  "practiceArea": "Derecho Electoral",
+  "subPracticeArea": "Nulidad de votación y de elección municipal; violencia política contra las mujeres en razón de género",
+  "internalMatterNumber": "NYR-MX-2026-0231",
+  "courtCaseNumber": "TEEP-JIN-118/2026",
+  "relatedFileNumbers": [
+    "TEEP-JDC-045/2026",
+    "SCM-JRC-041/2026",
+    "OPLE-PUE/CQD/PES/089/2026",
+    "OPLE-PUE/CME-ZAC/198/2026"
+  ],
+  "jurisdiction": "Puebla / Federal (Sala Regional Ciudad de México, TEPJF)",
+  "fuero": "comun",
+  "state": "Puebla",
+  "municipality": "Zacatlán",
+  "judicialDistrict": "Distrito Local 12 de Puebla",
+  "courtName": "Tribunal Electoral del Estado de Puebla, Ponencia Dos; en revisión, Sala Regional Ciudad de México del Tribunal Electoral del Poder Judicial de la Federación",
+  "courtType": "Tribunal Electoral Local, con escalamiento a Sala Regional del TEPJF (fuero común con revisión constitucional federal)",
+  "competentAuthority": "Consejo Municipal Electoral de Zacatlán / OPLE Puebla / Instituto Nacional Electoral (fiscalización)",
+  "assignedJudge": "Mtro. Ubaldo Emilio Torres Cabañas, Magistrado de la Ponencia Dos del Tribunal Electoral del Estado de Puebla",
+  "courtClerk": "Lic. Dulce María Anzures Beltrán, Secretaria de Estudio y Cuenta",
+  "filingDate": "2026-06-12",
+  "proceduralStage": "Sentencia local dictada el 3 de julio de 2026 (nulidad de casilla 1207 C1, VPG declarada, rebase de gastos reservado); escalada mediante Juicio de Revisión Constitucional Electoral SCM-JRC-041/2026, en trámite ante la Sala Regional Ciudad de México del TEPJF (jurisdicción federal)",
+  "nextHearingDate": "2026-07-20",
+  "parties": [
+    { "role": "Actor (JIN)", "name": "Coalición \"Fuerza Zacatlán\" (Partido Alianza Serrana y Partido Encuentro Serrano)", "detail": "Representada por Efrén Osvaldo Landa Ibarra ante el Consejo Municipal Electoral de Zacatlán" },
+    { "role": "Actora (JDC)", "name": "Norma Alicia Reséndiz Cortés", "detail": "Candidata a la Presidencia Municipal de Zacatlán por la Coalición \"Fuerza Zacatlán\"; denunciante de VPG" },
+    { "role": "Tercero interesado", "name": "Rodrigo Iván Bautista Meléndez", "detail": "Candidato electo, postulado por el Partido Renovación Popular (PRP), representado por Salomón Gaytán Cordero" },
+    { "role": "Autoridad responsable", "name": "Consejo Municipal Electoral de Zacatlán (OPLE Puebla)", "detail": "Secretario Técnico: Lic. Cutberto Mancilla Reséndiz" },
+    { "role": "Autoridad de fiscalización", "name": "Unidad Técnica de Fiscalización del INE", "detail": "Dictamen Consolidado de rebase de gastos de campaña; Director: Mtro. Aldair Cassiano Prieto Villalba" },
+    { "role": "Presunto responsable de VPG", "name": "Rogelio Amancio Ferráez Solórzano", "detail": "Entonces Presidente Municipal de Zacatlán" },
+    { "role": "Testigo", "name": "Ismael Reséndiz Cano", "detail": "Primer Escrutador titular, casilla 1204 Básica" },
+    { "role": "Testigo", "name": "Braulio Enríquez Mota", "detail": "Segundo Escrutador titular, casilla 1207 Contigua 1" }
+  ],
+  "attorneysOfRecord": ["Lic. Dulce María Anzures Beltrán, Secretaria de Estudio y Cuenta, Ponencia Dos (apoyo jurisdiccional, no representación de parte)"],
+  "opposingCounsel": ["Salomón Gaytán Cordero, representante propietario del Partido Renovación Popular"],
+  "caseStatus": "En trámite (segunda instancia federal)",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": null,
+  "legalAuthorities": [
+    "Ley General de Instituciones y Procedimientos Electorales (LGIPE), arts. 3, párrafo 1, inciso k, y 442 Bis",
+    "Ley General del Sistema de Medios de Impugnación en Materia Electoral (LGSMIME), arts. 8, 14, 17, 18, 26, 27, 32, 49 a 52, 75 y 76",
+    "Código de Instituciones y Procesos Electorales del Estado de Puebla (CIPEEP), art. 82",
+    "Ley General de Acceso de las Mujeres a una Vida Libre de Violencia (LGAMVLV), arts. 20 Bis y 20 Ter",
+    "Constitución Política de los Estados Unidos Mexicanos, arts. 1o., 4o., 41 (Base III, apartado C) y 116, fracción IV",
+    "Jurisprudencia de la Sala Superior del TEPJF 21/2018 (elementos de la violencia política de género) y 9/98 (principio de conservación de los actos públicos válidamente celebrados)"
+  ],
+  "fictional": true
+}

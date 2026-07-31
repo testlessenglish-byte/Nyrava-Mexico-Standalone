@@ -1,0 +1,12 @@
+folio_acta,fecha,establecimiento,ubicacion,producto,lote,presentacion_ml,cantidad_unidades,precio_unitario_mxn,valor_total_mxn,estado_fisico,depositario
+IMPI-VIS-CDMX-0339/2025,2025-05-09,Licores Finos del Pedregal (exhibicion),Av. San Jeronimo 458 CDMX,XQUENDA MONTE MAYOR,LT-2024-118,750,48,580.00,27840.00,Buen estado,Osvaldo Emiliano Trujano Barajas
+IMPI-VIS-CDMX-0339/2025,2025-05-09,Licores Finos del Pedregal (bodega),Av. San Jeronimo 458 CDMX,XQUENDA MONTE MAYOR,LT-2024-118,750,300,580.00,174000.00,Buen estado,Osvaldo Emiliano Trujano Barajas
+IMPI-VIS-CDMX-0339/2025,2025-05-09,Licores Finos del Pedregal (bodega),Av. San Jeronimo 458 CDMX,XQUENDA MONTE MAYOR,LT-2024-203,750,152,580.00,88160.00,Buen estado,Osvaldo Emiliano Trujano Barajas
+IMPI-VIS-CDMX-0339/2025,2025-05-09,Licores Finos del Pedregal (bodega),Av. San Jeronimo 458 CDMX,XQUENDA MONTE MAYOR (merma),LT-2024-203,750,3,0.00,0.00,Botella rota en anaquel,Osvaldo Emiliano Trujano Barajas
+IMPI-VIS-GDL-0552/2025,2025-06-02,Vinateria del Centro Guadalajara,Av. Vallarta 1890 Guadalajara Jal.,XQUENDA MONTE MAYOR,LT-2024-118,750,60,595.00,35700.00,Buen estado,Cirilo Amado Requena Solis
+IMPI-VIS-GDL-0552/2025,2025-06-02,Vinateria del Centro Guadalajara,Av. Vallarta 1890 Guadalajara Jal.,XQUENDA MONTE MAYOR,LT-2024-118,375,24,340.00,8160.00,Buen estado,Cirilo Amado Requena Solis
+IMPI-VIS-MTY-0601/2025,2025-06-18,Mixologia y Destilados del Norte,Av. Constitucion 1120 Monterrey NL,XQUENDA MONTE MAYOR,LT-2024-203,750,36,610.00,21960.00,Buen estado,Xochitl Berenice Anaya Ponce
+IMPI-VIS-MTY-0601/2025,2025-06-18,Mixologia y Destilados del Norte,Av. Constitucion 1120 Monterrey NL,XQUENDA MONTE MAYOR (mercancia sin etiqueta NOM),LT-2024-203,750,10,0.00,0.00,Retenida sin etiqueta NOM-070,Xochitl Berenice Anaya Ponce
+IMPI-VIS-CDMX-0674/2025,2025-07-30,Bodega Central San Baltazar Spirits (verificacion complementaria),Calz. Porfirio Diaz 2210 Oaxaca de Juarez,XQUENDA MONTE MAYOR,LT-2025-011,750,215,580.00,124700.00,Buen estado,Wendolyne Ibarra Casillas
+IMPI-VIS-CDMX-0674/2025,2025-07-30,Bodega Central San Baltazar Spirits (verificacion complementaria),Calz. Porfirio Diaz 2210 Oaxaca de Juarez,XQUENDA MONTE MAYOR,LT-2025-011,375,80,340.00,27200.00,Buen estado,Wendolyne Ibarra Casillas
+TOTAL,,,,,,,,,507660.00,,

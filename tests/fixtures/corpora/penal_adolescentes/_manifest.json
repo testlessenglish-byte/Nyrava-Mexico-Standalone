@@ -1,0 +1,52 @@
+{
+  "title": "Carpeta CJ-ADOL-214/2026 — J.M.H.R. vs. Fiscalía General del Estado de Michoacán, robo calificado en pandilla",
+  "description": "Procedimiento especializado de justicia para adolescentes seguido en contra de J.M.H.R. (16 años, iniciales reservadas) por el hecho señalado como delito de robo calificado en pandilla, cometido con violencia moral y aprovechando la nocturnidad, en agravio de la negociación 'Abarrotes La Providencia' en Morelia, Michoacán, el 14 de febrero de 2026. El adolescente fue detenido en cuasi-flagrancia, vinculado a proceso el 20 de febrero de 2026 y sujeto a medida cautelar de resguardo domiciliario con supervisión electrónica en sustitución del internamiento preventivo. El expediente contiene registro de detención, cadena de custodia, informe policial homologado, dictamen de valuación, informe de descripción de videograbación del C5 (con material parcialmente sobrescrito), informe psicosocial, informe de seguimiento de la Unidad de Medidas Cautelares, entrevistas a víctima, testigo y coimputado con divergencias horarias y de versión, acta de careo, propuesta de suspensión condicional del proceso con plan individualizado de reparación, inventario general de pruebas y constancia de estado procesal actual. Existen inconsistencias relevantes: pérdida de material videográfico de las cámaras más próximas al hecho por falta de resguardo oportuno, ausencia de reconocimiento formal del adolescente por el único testigo presencial auditivo, divergencia horaria entre el ofendido y el testigo (aclarada parcialmente en careo), declaración parcialmente contradictoria del coimputado A.G.T., y discrepancia entre el efectivo asegurado ($3,845.00) y el declarado como faltante por el ofendido ($4,200.00).",
+  "caseType": "penal",
+  "practiceArea": "Derecho Penal",
+  "subPracticeArea": "Justicia para adolescentes — sistema integral de justicia penal para adolescentes",
+  "internalMatterNumber": "NYR-MX-2026-0214",
+  "courtCaseNumber": "CJ-ADOL-214/2026",
+  "relatedFileNumbers": [
+    "Carpeta de Investigación CI/FGE/MICH/MOR/UIDA/002187/2026",
+    "Folio C5-MOR-OF-0956/2026 (resguardo de videograbación)"
+  ],
+  "jurisdiction": "Michoacán de Ocampo",
+  "fuero": "comun",
+  "state": "Michoacán",
+  "municipality": "Morelia",
+  "judicialDistrict": "Distrito Judicial de Morelia",
+  "courtName": "Juzgado Especializado en Justicia para Adolescentes del Distrito Judicial de Morelia, Michoacán",
+  "courtType": "Juzgado Especializado en Justicia para Adolescentes",
+  "competentAuthority": "Poder Judicial del Estado de Michoacán de Ocampo",
+  "assignedJudge": "Lic. Fernando Adrián Ortega Villalpando, Juez del Juzgado Especializado en Justicia para Adolescentes",
+  "courtClerk": "Lic. Beatriz Adriana Nolasco Ferreira, Secretaria de Acuerdos",
+  "filingDate": "2026-02-15",
+  "proceduralStage": "Investigación complementaria concluida; pendiente audiencia de suspensión condicional del proceso a prueba señalada para el 18 de junio de 2026",
+  "nextHearingDate": "2026-06-18",
+  "parties": [
+    { "role": "Persona adolescente imputada", "name": "J.M.H.R. (iniciales reservadas)", "detail": "16 años, domicilio en colonia Ejido de Ocolusen, Morelia, Michoacán; vinculado a proceso por robo calificado en pandilla" },
+    { "role": "Representantes legales del adolescente", "name": "Rosalba Huerta Campos y Efraín Medina Salcido", "detail": "Madre y padrastro, con quienes reside el adolescente" },
+    { "role": "Defensor técnico", "name": "Lic. Ismael Bautista Coronado", "detail": "Defensor Público Especializado en Justicia para Adolescentes, Instituto de la Defensoría Pública del Estado de Michoacán" },
+    { "role": "Ministerio Público", "name": "Lic. Karina Ivonne Salcedo Barragán", "detail": "Agente del Ministerio Público adscrita a la UIDA, Fiscalía General del Estado de Michoacán" },
+    { "role": "Víctima u ofendido", "name": "Norberto Chávez Ibarra", "detail": "Propietario de la negociación 'Abarrotes La Providencia'" },
+    { "role": "Asesora jurídica de la víctima", "name": "Lic. Guadalupe Montserrat Reyes Palafox", "detail": "Coadyuvante de la víctima en el procedimiento" },
+    { "role": "Testigo", "name": "Aurelio Bermúdez Casillas", "detail": "Vecino colindante del negocio; reportó el hecho al 911" },
+    { "role": "Coimputado en carpeta conexa", "name": "A.G.T. (iniciales reservadas)", "detail": "16 años, con proceso separado en la misma carpeta judicial por conexidad" },
+    { "role": "Juez de conocimiento", "name": "Lic. Fernando Adrián Ortega Villalpando", "detail": "Juez del Juzgado Especializado en Justicia para Adolescentes del Distrito Judicial de Morelia" }
+  ],
+  "attorneysOfRecord": ["Lic. Ismael Bautista Coronado, Defensor Público Especializado en Justicia para Adolescentes"],
+  "opposingCounsel": ["Lic. Karina Ivonne Salcedo Barragán, Agente del Ministerio Público de la UIDA"],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "medio",
+  "estimatedValueMxn": 8495,
+  "legalAuthorities": [
+    "Ley Nacional del Sistema Integral de Justicia Penal para Adolescentes, arts. 1, 12, 22, 26, 37, 51, 58, 68, 100 a 108, 119, 122, 148 y 156",
+    "Código Nacional de Procedimientos Penales, arts. 146, 316 y 372 (aplicación supletoria)",
+    "Código Penal para el Estado de Michoacán de Ocampo, arts. 224, 225 fracción III y 227",
+    "Constitución Política de los Estados Unidos Mexicanos, arts. 16, 18 y 20",
+    "Convención sobre los Derechos del Niño, art. 16 (protección de la privacidad e interés superior de la niñez)",
+    "Ley de Justicia para Adolescentes del Estado de Michoacán de Ocampo (disposiciones complementarias de organización local)"
+  ],
+  "fictional": true
+}

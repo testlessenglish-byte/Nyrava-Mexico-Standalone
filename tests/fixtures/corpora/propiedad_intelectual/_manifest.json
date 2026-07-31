@@ -1,0 +1,50 @@
+{
+  "title": "Juicio de Nulidad 1187/26-EPI-01-3 — San Baltazar Spirits vs. IMPI (Tercero: Palenque Xquenda)",
+  "description": "Juicio contencioso administrativo federal en materia de propiedad intelectual. Se impugna la resolución del IMPI que declaró la nulidad del registro marcario 'XQUENDA MONTE MAYOR' por ser confusamente semejante a 'XQUENDA DEL MONTE', impuso una multa de 12,500 UMA y ordenó la destrucción de producto por uso indebido de la Denominación de Origen 'Mezcal'. La actora en nulidad alega indebida valoración de pruebas periciales (falta de perito tercero), falta de competencia del IMPI para valorar oficios de certificación privada y violación al derecho de audiencia de un tercero (proveedor). El expediente administrativo de origen presenta lagunas en la integración de facturación y un periodo de actuaciones faltante.",
+  "caseType": "administrativo",
+  "practiceArea": "Propiedad Intelectual",
+  "subPracticeArea": "propiedad intelectual",
+  "internalMatterNumber": "PI-MX-2025-0912",
+  "courtCaseNumber": "Juicio Contencioso Administrativo 1187/26-EPI-01-3",
+  "relatedFileNumbers": [
+    "P.C. 0912/2025 (I-284) 1874",
+    "Oficio COMERCAM/DG/1103/2025",
+    "Acta circunstanciada de inspección IMPI-VIS-OAX-0451/2025"
+  ],
+  "jurisdiction": "Federal",
+  "fuero": "federal",
+  "state": "Ciudad de México",
+  "municipality": "Cuauhtémoc",
+  "judicialDistrict": "Sala Especializada en Materia de Propiedad Intelectual",
+  "courtName": "Tribunal Federal de Justicia Administrativa, Sala Especializada en Materia de Propiedad Intelectual",
+  "courtType": "Sala Especializada",
+  "competentAuthority": "Tribunal Federal de Justicia Administrativa (TFJA)",
+  "assignedJudge": "Magistrada Instructora de la Ponencia I",
+  "courtClerk": "Lic. Antonio de Jesús Torres Ruíz, Secretario de Acuerdos",
+  "filingDate": "2026-02-09",
+  "proceduralStage": "Instrucción; periodo probatorio concluido; pendiente integración de expediente administrativo y cierre de instrucción",
+  "nextHearingDate": "2026-08-14",
+  "parties": [
+    { "role": "Actora en Nulidad / Demandada en origen", "name": "Comercializadora San Baltazar Spirits, S.A. de C.V.", "detail": "Titular de marca anulada; domicilio en CDMX" },
+    { "role": "Autoridad Demandada", "name": "Instituto Mexicano de la Propiedad Industrial (IMPI)", "detail": "Representado por el Director Divisional de Protección a la Propiedad Intelectual" },
+    { "role": "Tercero Interesado / Actora en origen", "name": "Palenque Xquenda, S.P.R. de R.L. de C.V.", "detail": "Titular de marca prioritaria 'XQUENDA DEL MONTE'" },
+    { "role": "Representante Legal (Actora)", "name": "Refugio Anselmo Bautista Cortés", "detail": "Maestro mezcalero y socio fundador de Palenque Xquenda" },
+    { "role": "Representante Legal (Demandada)", "name": "Wendolyne Ibarra Casillas", "detail": "Administradora única de San Baltazar Spirits" },
+    { "role": "Tercero no llamado", "name": "Agroindustrias del Nejapa, S. de R.L.", "detail": "Proveedor de granel y titular de la certificación cuya validez se cuestiona" }
+  ],
+  "attorneysOfRecord": ["Lic. Casimiro Ovidio Beltrones Zúñiga, cédula profesional 5502283"],
+  "opposingCounsel": ["Lic. Yolanda Ibeth Casasola Manrique, cédula profesional 6924017", "Lic. Herminia Concepción Solano Trejo (IMPI)"],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 6850000,
+  "legalAuthorities": [
+    "Ley Federal de Protección a la Propiedad Industrial, arts. 173 fr. II y XVII, 213, 258, 386 fr. I, VIII, IX, XVII y XX, 388, 397, 400 y 402",
+    "Convenio de París para la Protección de la Propiedad Industrial, arts. 6 bis y 10 bis",
+    "NOM-070-SCFI-2016 'Bebidas alcohólicas-Mezcal-Especificaciones'",
+    "Ley Federal de Procedimiento Contencioso Administrativo, arts. 1, 14, 46 y 50",
+    "Constitución Política de los Estados Unidos Mexicanos, art. 14 (derecho de audiencia)",
+    "Ley Federal de Protección al Consumidor, arts. 32 y 32 Bis"
+  ],
+  "fictional": true
+}

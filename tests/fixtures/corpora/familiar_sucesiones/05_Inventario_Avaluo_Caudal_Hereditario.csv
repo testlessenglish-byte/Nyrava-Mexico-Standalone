@@ -1,0 +1,11 @@
+folio,tipo_bien,descripcion,ubicacion_o_identificacion,valor_avaluo_pericial_mxn,valor_catastral_mxn,fecha_avaluo,perito_valuador,observaciones
+INV-01,Inmueble,Casa habitación (legado a Rosalinda Juárez Campuzano),"Av. Vallarta 5588, Col. Vallarta Poniente, Guadalajara, Jal., folio real 481-2200-A",5200000,3180000,2026-02-10,"Ing. Valuador Rodrigo Estrada Chávez, cédula 8823410",Diferencia relevante entre avalúo pericial y valor catastral municipal vigente
+INV-02,Inmueble,Local comercial arrendado,"Calzada Independencia 2210, local 3, Guadalajara, Jal., folio real 220-9981-B",1850000,1620000,2026-02-10,"Ing. Valuador Rodrigo Estrada Chávez, cédula 8823410",Arrendado a tercero, contrato vigente hasta 2027
+INV-03,Vehículo,Automóvil Toyota Camry 2021,"Placas JBH-2214, Jalisco",315000,,2026-02-11,"Ing. Valuador Rodrigo Estrada Chávez, cédula 8823410",Se encuentra en posesión de la legataria Rosalinda Juárez Campuzano
+INV-04,Cuenta bancaria,Cuenta de cheques BBVA,"Cuenta terminación 4471",612000,,2026-01-28,"Contador Everardo Palomera Ibarra, cédula 5541287",Saldo al día del fallecimiento
+INV-05,Cuenta bancaria,Cuenta de ahorro Banorte,"Cuenta terminación 8830",188500,,2026-01-28,"Contador Everardo Palomera Ibarra, cédula 5541287",Presenta movimientos previos al fallecimiento sujetos a revisión
+INV-06,Inversión,Pagaré a plazo fijo Scotiabank,"Contrato 774-2291",250000,,2026-01-28,"Contador Everardo Palomera Ibarra, cédula 5541287",Vence en octubre de 2026
+INV-07,Menaje de casa,Mobiliario y enseres domésticos,"Domicilio Av. Vallarta 5588",134000,,2026-02-12,"Ing. Valuador Rodrigo Estrada Chávez, cédula 8823410",Inventario físico levantado con presencia de albacea
+INV-08,Joyería,Lote de joyas y relojes,"Caja de seguridad Banorte sucursal Chapultepec",210000,,2026-02-15,"Perito valuador en joyería Marcela Ontiveros Reyna, cédula 6612903",Pendiente cotejo con póliza de seguro
+INV-09,Obra de arte,Colección de tres óleos firmados,"Domicilio Av. Vallarta 5588",95000,,2026-02-15,"Ing. Valuador Rodrigo Estrada Chávez, cédula 8823410",Sin certificado de autenticidad localizado
+TOTAL,,,,8854500,,,,Suma total del caudal hereditario según inventario preliminar presentado por la albacea

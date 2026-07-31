@@ -1,0 +1,27 @@
+DICTAMEN CONTABLE EN CONTRARIO Y TESTIMONIAL DIVERGENTE
+Expediente 1042/2026 — Juzgado Segundo de Juicio Ejecutivo Mercantil, Monterrey, N.L.
+
+A. INFORME PERICIAL CONTABLE DE PARTE, OFRECIDO POR LA ACTORA EN VÍA DE ALEGATOS
+Perito: C.P.C. Osvaldo Emiliano Barragán Solís, registro AGAFF 21077. Fechado el 9 de junio de 2026.
+
+Antecedente procesal: el perito tercero en discordia no fue designado y la actora no ofreció dictamen contable dentro del periodo probatorio (según se hizo constar en el dictamen de la C.P.C. Elizondo Fuentes de 21 de abril de 2026, apartado C). El presente informe se acompaña a los alegatos como documento privado de opinión técnica, no como pericial procesal, y su valoración queda sujeta a lo que determine el juzgador conforme al artículo 1253 del Código de Comercio, al no haber sido rendido dentro del periodo de ofrecimiento y desahogo de pruebas.
+
+Observaciones del informe:
+1. Los depósitos SPEI de $620,000.00 y $310,000.00 fueron aplicados por la actora, conforme a su política interna de cobranza, primero a los intereses moratorios devengados por el Pagaré A (vencido desde el 12 de diciembre de 2025) y no directamente a capital, por lo que la reducción del saldo insoluto de capital sería menor a la calculada por la perito de la demandada.
+2. Cuestiona que el concepto bancario "abono pagaré agosto" sea prueba suficiente de la voluntad de las partes de aplicar el pago a capital, por tratarse de una leyenda unilateral capturada por el ordenante y no pactada contractualmente como mecanismo de imputación.
+3. Sostiene que la cláusula décima segunda del contrato GFN-LC-2024-0087 (aplicación primero a gastos, luego intereses, luego capital) avala la imputación realizada por la actora y no la pretendida por la demandada.
+4. No controvierte, sin embargo, la existencia material de los pagos por $930,000.00 M.N., ni la ausencia de anotación de dichos pagos al reverso de los títulos, ni la falta de conciliación previa al llenado de los pagarés B y C exigida por la cláusula octava.
+
+Conclusión del informe: aun aplicando los pagos primero a intereses, subsistiría una diferencia relevante entre el importe reclamado y el saldo real, aunque en monto distinto al determinado por la perito de la demandada, sin que el propio informe ofrezca una cifra final de saldo.
+
+B. TESTIMONIAL DIVERGENTE DE LUCÍA FERNANDA VILLARREAL BOTELLO
+Ofrecida por la actora como prueba superveniente relacionada con la objeción de las capturas de WhatsApp; desahogada por exhorto ante el Juzgado de Distrito en Materia Civil el 3 de junio de 2026, previa admisión incidental.
+
+Generales: 34 años, Contadora Pública, actual Gerente de Crédito y Cobranza de Grupo Ferretero del Norte, S.A. de C.V., en el cargo desde diciembre de 2025, inmediatamente después de la salida de Silverio Manuel Ocampo Rentería.
+A la primera: que desconoce que existiera una práctica de recabar pagarés firmados en blanco, y que el manual de crédito y cobranza vigente, que dice conocer desde su ingreso, prohíbe expresamente esa práctica.
+A la segunda: que no puede afirmar ni negar cuál era la práctica anterior a su ingreso, por no haber laborado en la empresa antes de diciembre de 2025.
+A la tercera: que revisó el expediente físico de la demandada y encontró los tres pagarés ya completos en la caja fuerte, sin que exista constancia de conciliación firmada, pero que "eso no significa que no se haya hecho verbalmente".
+A la cuarta: que no conoce personalmente a Baltazar Isidro Cantú Quiroga ni participó en la relación comercial con la demandada antes de su ingreso al puesto.
+A repreguntas de la demandada: que su testimonio sobre la inexistencia de la práctica de pagarés en blanco se basa en el manual vigente desde 2026 y no en hechos propios anteriores a su ingreso, por lo que no puede afirmar qué ocurría durante la gestión de su antecesor.
+
+OBSERVACIÓN PARA VALORACIÓN: el testimonio de Villarreal Botello es formalmente contradictorio con el de Ocampo Rentería respecto de la existencia de la práctica de pagarés firmados en blanco, pero la testigo reconoce expresamente carecer de conocimiento directo de los hechos anteriores a diciembre de 2025, periodo en el que se suscribieron los tres pagarés base de la acción (agosto, septiembre y octubre de 2025), por lo que su dicho no controvierte de propio conocimiento los hechos relatados por Ocampo Rentería, sino que se limita a describir la política vigente al momento de su declaración.

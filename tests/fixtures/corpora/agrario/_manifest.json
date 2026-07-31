@@ -1,0 +1,57 @@
+{
+  "title": "Expediente Agrario 419/2026 — Ejido San Miguel Ameyalco vs. Trejo Villaseñor y Parques Industriales del Valle de Toluca",
+  "description": "Juicio agrario ante el Tribunal Unitario Agrario del Distrito 09 (Toluca, Estado de México) por nulidad de asamblea de delimitación, destino y asignación de tierras (ADDAT) de fecha 18 de mayo de 2024, nulidad de certificados parcelarios y de certificado de derechos de uso común, nulidad del convenio de aportación al fideicomiso F/48219, y restitución de la posesión de 42-00-00 hectáreas de uso común del paraje El Pedregal-Los Sabinos. Se demanda al posesionario individual Wenceslao Amado Trejo Villaseñor, quien reconviene la prescripción positiva de una fracción de 6 hectáreas, y a la empresa Parques Industriales del Valle de Toluca, S.A. de C.V., desarrolladora del proyecto industrial. El expediente contiene demanda, contestaciones, reconvención, acta de asamblea impugnada, lista de asistencia con discrepancias, carpeta básica del Registro Agrario Nacional, planos, certificados, testimoniales, peritajes en topografía y antropología social, inspección judicial, oficios de la Procuraduría Agraria, acuerdos del Tribunal y acta de audiencia de ley. Existen contradicciones plantadas relativas al quórum y fecha real de la asamblea, a la superficie del plano interno frente a la escritura del particular, al testimonio del comisariado ejidal frente a su propia acta, y a la ausencia física del acta de asamblea de 2019 sobre saneamiento de posesionarios internos.",
+  "caseType": "agrario",
+  "practiceArea": "Derecho Agrario",
+  "subPracticeArea": "Nulidad de asamblea ejidal, tierras de uso común y prescripción positiva agraria",
+  "internalMatterNumber": "NYR-MX-2026-0217",
+  "courtCaseNumber": "Expediente 419/2026",
+  "relatedFileNumbers": [
+    "Expediente de dotación 24/1938, Comisión Agraria Mixta",
+    "Folio ejidal RAN-15-EJI-0231-MEX",
+    "Oficio PA-EDOMEX-VIS-0876/2019",
+    "Certificado RAN-CERT-EDOMEX-08834",
+    "Fideicomiso F/48219, Banco Multiva, S.A."
+  ],
+  "jurisdiction": "Federal",
+  "fuero": "federal",
+  "state": "México",
+  "municipality": "Lerma",
+  "judicialDistrict": "Distrito 09 del Tribunal Unitario Agrario, con sede en Toluca",
+  "courtName": "Tribunal Unitario Agrario, Distrito 09, con sede en Toluca, Estado de México",
+  "courtType": "Tribunal Unitario Agrario",
+  "competentAuthority": "Tribunales Agrarios (Poder Judicial de la Federación, jurisdicción especializada)",
+  "assignedJudge": "Lic. Cuauhtémoc Isidro Fragoso Villaseñor, Magistrado",
+  "courtClerk": "Lic. Dalia Berenice Loyola Montes de Oca, Secretaria de Acuerdos",
+  "filingDate": "2026-01-14",
+  "proceduralStage": "Concluida la audiencia de ley e instrucción; en término de alegatos, pendiente turno para sentencia",
+  "nextHearingDate": "2026-04-29",
+  "parties": [
+    { "role": "Actor", "name": "Ejido San Miguel Ameyalco, por conducto de su Comisariado Ejidal (Rutilo Anselmo Bautista Cardoso, Presidente)", "detail": "Municipio de Lerma, Estado de México; domicilio en calle Independencia sin número, San Miguel Ameyalco" },
+    { "role": "Demandado / Reconvencionista", "name": "Wenceslao Amado Trejo Villaseñor", "detail": "Poseedor individual desde 2005 de fracción dentro del polígono de uso común; opone prescripción positiva" },
+    { "role": "Codemandada", "name": "Parques Industriales del Valle de Toluca, S.A. de C.V.", "detail": "Representada por Ing. Braulio Fermín Ocampo Sandoval; desarrolladora del proyecto \"Parque Ameyalco\"" },
+    { "role": "Codemandado / Tercero registral", "name": "Registro Agrario Nacional, Delegación Estado de México", "detail": "Representada por Lic. Bertha Idalia Moncada Reséndez, llamada por sus efectos registrales" },
+    { "role": "Tercero llamado a juicio", "name": "Procuraduría Agraria, Representación en el Estado de México", "detail": "Por conducto de la Visitaduría Agraria de Toluca, Lic. Fidencio Anselmo Marroquín Villaseñor" },
+    { "role": "Ex Presidente del Comisariado Ejidal (testigo)", "name": "Anastasio Ubaldo Salgado Herrera", "detail": "Presidió la asamblea impugnada de 18 de mayo de 2024; suscribió el convenio de aportación al fideicomiso" },
+    { "role": "Testigo", "name": "Cirilo Damián Quintanilla Rosas", "detail": "Ejidatario, certificado parcelario 231-014" },
+    { "role": "Testigo", "name": "Petra Aurora Nieves Camacho", "detail": "Ejidataria, certificado parcelario 231-057" }
+  ],
+  "attorneysOfRecord": ["Lic. Salomón Iker Vázquez Montemayor, cédula profesional 8214736"],
+  "opposingCounsel": [
+    "Lic. Graciela Montserrat Ibarra Cedillo, cédula profesional 6390147",
+    "Lic. Norberto Adán Quezada Fuentes, cédula profesional 7205518"
+  ],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 58800000,
+  "legalAuthorities": [
+    "Constitución Política de los Estados Unidos Mexicanos, artículo 27",
+    "Ley Agraria, artículos 9, 23 fracciones VIII y IX, 24, 25, 26, 27, 28, 43, 45, 48, 56, 61, 99, 163, 185 y 189",
+    "Ley Orgánica de los Tribunales Agrarios",
+    "Reglamento Interior del Registro Agrario Nacional, artículo 152 y correlativos",
+    "Código Federal de Procedimientos Civiles (aplicación supletoria)",
+    "Jurisprudencia agraria de la Suprema Corte de Justicia de la Nación en materia de nulidad de asambleas ejidales por falta de quórum y prescripción positiva agraria"
+  ],
+  "fictional": true
+}

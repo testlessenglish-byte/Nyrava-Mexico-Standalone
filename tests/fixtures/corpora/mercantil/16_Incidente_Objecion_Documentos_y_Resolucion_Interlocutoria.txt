@@ -1,0 +1,24 @@
+INCIDENTE DE OBJECIÓN DE DOCUMENTOS Y RESOLUCIÓN INTERLOCUTORIA
+Expediente 1042/2026 — Juzgado Segundo de Juicio Ejecutivo Mercantil, Monterrey, N.L.
+
+I. PROMOCIÓN DE OBJECIÓN (actora, 2 de junio de 2026)
+El Lic. Ernesto Iván Salazar Peña, en vía de incidente, objeta de falsas las capturas de conversación de WhatsApp exhibidas por la demandada como documental (identificadas en el expediente como documento 12), atribuidas a Silverio Manuel Ocampo Rentería, por las siguientes razones: (a) se exhiben como impresiones simples, sin cotejo con el dispositivo de origen; (b) no se ofreció pericial en informática forense para acreditar metadatos, hash o cadena de custodia; (c) el testigo Ocampo Rentería tiene juicio laboral pendiente contra la actora, lo que constituye interés directo en perjudicarla; (d) la fecha de las capturas (julio a octubre de 2025) es anterior a la salida del testigo (noviembre de 2025), por lo que pudo fabricarlas con información privilegiada de su antiguo puesto.
+
+II. CONTESTACIÓN AL INCIDENTE (demandada, 9 de junio de 2026)
+La Lic. Karla Fabiola Menchaca Zapata contesta que: (a) las capturas fueron reconocidas parcialmente por el propio contenido de la testimonial de Ocampo Rentería, quien confirmó en la audiencia de 28 de mayo de 2026 la práctica de recabar pagarés en blanco, hecho consistente con el contenido de la conversación; (b) el número telefónico de origen corresponde al registrado en la tarjeta de presentación institucional de Ocampo Rentería, exhibida como anexo; (c) reconoce que no se ofreció pericial en informática forense por razones de economía procesal, pero solicita que la conversación se valore como indicio en conjunto con la testimonial, no como prueba plena aislada; (d) la coincidencia de interés del testigo debe valorarse al ponderar su testimonio, no para excluir de plano un documento distinto.
+
+III. RESOLUCIÓN INTERLOCUTORIA
+Monterrey, Nuevo León, a 16 de junio de 2026.
+
+Vistas las constancias del incidente, con fundamento en los artículos 1247, 1248, 1298 y 1401 del Código de Comercio, se resuelve:
+
+PRIMERO. Se declara PARCIALMENTE FUNDADA la objeción de la parte actora. No se tiene a las capturas de WhatsApp como prueba plena de su contenido y autenticidad, ante la falta de pericial en informática forense y de cotejo directo con el dispositivo de origen, deficiencia que corresponde subsanar a quien ofrece la prueba y que no fue subsanada oportunamente por la demandada.
+
+SEGUNDO. No obstante lo anterior, se estima que las capturas SÍ PUEDEN SER VALORADAS COMO INDICIO, en términos del artículo 1298 del Código de Comercio, en concatenación con la testimonial de Silverio Manuel Ocampo Rentería —quien confirmó de viva voz en audiencia la práctica de recabar pagarés en blanco— y con la pericial grafoscópica, que determinó de forma técnica e independiente que la firma de los pagarés B y C es anterior al texto impreso. La coincidencia entre tres fuentes de prueba de distinta naturaleza (documental no plenamente autenticada, testimonial y pericial) robustece el valor indiciario conjunto, sin que ninguna de ellas por sí sola sea concluyente.
+
+TERCERO. Se previene a las partes que la valoración definitiva del conjunto probatorio, incluido el peso relativo del indicio aquí reconocido, se realizará en la sentencia definitiva, sin que esta resolución prejuzgue sobre el fondo del asunto ni sobre la procedencia de las excepciones opuestas.
+
+CUARTO. Notifíquese personalmente a las partes. Al no admitir apelación por tratarse de una interlocutoria dictada dentro de juicio ejecutivo mercantil de cuantía determinada en términos del artículo 1339 del Código de Comercio, se tiene por firme para efectos de la continuación del procedimiento.
+
+Lic. Ramón Alfredo Cavazos Villarreal, Juez
+Lic. Diana Berenice Garza Treviño, Secretaria de Acuerdos

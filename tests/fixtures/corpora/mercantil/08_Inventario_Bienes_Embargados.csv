@@ -1,0 +1,14 @@
+folio,descripcion,cantidad,valor_unitario_mxn,valor_total_mxn,ubicacion,estado
+1,Taladro percutor industrial marca Bosch GSB 21,14,2850.00,39900.00,Bodega A - anaquel 3,Nuevo en caja
+2,Esmeriladora angular 7 pulgadas,18,1620.00,29160.00,Bodega A - anaquel 4,Nuevo en caja
+3,Perfil estructural IPR 6x25 (tramos de 6m),86,4100.00,352600.00,Patio de maniobras,Usado - buen estado
+4,Lámina galvanizada calibre 26 (rollo),40,7850.00,314000.00,Bodega B,Nuevo
+5,Cemento gris CPC 30R (toneladas),52,2680.00,139360.00,Silo exterior,A granel
+6,Varilla corrugada 3/8 (toneladas),21,19800.00,415800.00,Patio de maniobras,Nuevo
+7,Camioneta pickup Nissan NP300 2022,1,285000.00,285000.00,Estacionamiento,Uso comercial - con adeudo de tenencia
+8,Camioneta pickup Ford Ranger 2019,1,198000.00,198000.00,Estacionamiento,Uso comercial - llanta trasera derecha ponchada
+9,Herramienta menor diversa (cajas),34,1250.00,42500.00,Bodega A - anaquel 1,Mixto usado/nuevo
+10,Compresor de aire industrial 5 HP,3,18400.00,55200.00,Bodega B,Usado - funcional
+TOTAL,,,,1871520.00,,
+NOTA,El valor total del presente inventario ($1,871,520.00 M.N.) es INFERIOR en $68,480.00 M.N. al valor provisional de $1,940,000.00 M.N. asentado en el acta de embargo de 19 de febrero de 2026,,,,,,
+NOTA2,El bien 7 reporta adeudo de tenencia vehicular no cuantificado a la fecha del inventario,,,,,,

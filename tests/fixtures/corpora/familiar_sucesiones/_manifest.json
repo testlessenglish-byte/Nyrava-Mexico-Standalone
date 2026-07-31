@@ -1,0 +1,57 @@
+{
+  "title": "Sucesorio Testamentario 1543/2026 — Esparza Montenegro vs. Juárez Campuzano",
+  "description": "Juicio sucesorio testamentario y acumulado incidente de nulidad de testamento público abierto por incapacidad natural del testador y captación dolosa de la voluntad. La litis principal versa sobre la validez del testamento número 8,912 otorgado ante el Notario 27 de Guadalajara en 2024, el cual revoca un testamento de 2016. La hija incidentista alega que el de cujus padecía un trastorno neurocognitivo mayor (Alzheimer/Vascular) que le impedía comprender el alcance del acto, favoreciendo injustamente a su cuidadora con un legado del inmueble de mayor valor. Existen discrepancias periciales sobre la fecha exacta de la pérdida de capacidad y contradicciones testimoniales sobre la presencia de la beneficiaria durante el acto notarial.",
+  "caseType": "familiar",
+  "practiceArea": "Derecho Familiar",
+  "subPracticeArea": "Sucesiones y testamentaría",
+  "internalMatterNumber": "NYR-MX-2026-0205",
+  "courtCaseNumber": "Expediente 1543/2026",
+  "relatedFileNumbers": [
+    "Escritura Pública 8,912 del Notario Público 27 de Guadalajara",
+    "Escritura Pública 4,115 del Notario Público 9 de Guadalajara",
+    "Expediente Clínico Hospital Country 2000 HC-88213"
+  ],
+  "jurisdiction": "Jalisco",
+  "fuero": "comun",
+  "state": "Jalisco",
+  "municipality": "Guadalajara",
+  "judicialDistrict": "Primer Distrito Judicial (Guadalajara)",
+  "courtName": "Juzgado Sexto Familiar del Distrito Judicial de Guadalajara, Jalisco",
+  "courtType": "Juzgado de lo Familiar",
+  "competentAuthority": "Poder Judicial del Estado de Jalisco",
+  "assignedJudge": "Lic. Flor Azucena Reynoso Camarena, Jueza Sexta de lo Familiar",
+  "courtClerk": "Lic. Iván de Jesús Barragán Covarrubias, Secretario de Acuerdos",
+  "filingDate": "2026-01-09",
+  "proceduralStage": "Citado para resolución interlocutoria dentro del incidente de nulidad",
+  "nextHearingDate": null,
+  "parties": [
+    { "role": "Denunciante y Albacea", "name": "Lucero Esparza Villalpando", "detail": "Hija del de cujus, heredera del 50% en el testamento impugnado." },
+    { "role": "Incidentista (Impugnante)", "name": "Diana Karina Esparza Villalpando", "detail": "Hija del de cujus, excluida del testamento de 2024; actora en la nulidad." },
+    { "role": "Coheredero", "name": "Marco Tulio Esparza Villalpando", "detail": "Hijo del de cujus, heredero del 25% en el testamento impugnado." },
+    { "role": "Legataria / Demandada incidental", "name": "Rosalinda Juárez Campuzano", "detail": "Cuidadora del de cujus y beneficiaria del inmueble en Av. Vallarta 5588." },
+    { "role": "Notario Autorizante", "name": "Lic. Héctor Emigdio Palafox Ruvalcaba", "detail": "Notario Público número 27 de Guadalajara, autor del testamento impugnado." },
+    { "role": "Perito Tercero en Discordia", "name": "Dr. Ramón Eliseo Castorena Guzmán", "detail": "Especialista en Psiquiatría Forense asignado por el juzgado." },
+    { "role": "Testigo Instrumental", "name": "Benjamín Octavio Sandoval Rizo", "detail": "Presente en el otorgamiento del testamento impugnado." },
+    { "role": "Testigo Instrumental", "name": "Guadalupe Adriana Mercado Orozco", "detail": "Presente en el otorgamiento del testamento impugnado." }
+  ],
+  "attorneysOfRecord": [
+    "Lic. Rodolfo Isaac Benavides Quezada (Albacea)",
+    "Lic. Osvaldo Francisco Noriega Castellanos (Incidentista)"
+  ],
+  "opposingCounsel": [
+    "Lic. Consuelo Adriana Montaño Esquivel (Legataria)"
+  ],
+  "caseStatus": "En trámite (Resolución de incidente de nulidad pendiente)",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 8450000,
+  "legalAuthorities": [
+    "Código Civil del Estado de Jalisco, artículos 3,265, 3,270, 3,306 y 3,310 (Capacidad y Nulidad)",
+    "Código de Procedimientos Civiles del Estado de Jalisco, artículos 87, 674 y 822 (Incidentes y Sucesiones)",
+    "Ley del Notariado del Estado de Jalisco, artículos sobre el deber de cerciorarse de la capacidad",
+    "Jurisprudencia 1a./J. 12/2012 (10a.) — TESTAMENTOS. LA CAPACIDAD PARA TESTAR DEBE EXISTIR AL MOMENTO DE SU OTORGAMIENTO.",
+    "Tesis: NULIDAD DE TESTAMENTO. LA CARGA DE LA PRUEBA CORRESPONDE A QUIEN ALEGA LA INCAPACIDAD (Registro 2017234)",
+    "Protocolo de Actuación para Quienes Imparten Justicia en Casos que Involucren Personas con Discapacidad (SCJN)"
+  ],
+  "fictional": true
+}

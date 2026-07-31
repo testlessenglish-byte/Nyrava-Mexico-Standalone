@@ -1,0 +1,33 @@
+PROCURADURÍA FEDERAL DEL CONSUMIDOR — DELEGACIÓN QUERÉTARO
+TRANSCRIPCIÓN DE GRABACIONES TELEFÓNICAS DE ATENCIÓN A CLIENTES
+Expediente PFC.B.Q./000418/2026 — Anexo probatorio, exhibido por Héctor Manuel Frausto Ledesma (folio Q-0177)
+
+Grabación 1: Llamada del 22 de septiembre de 2025, 16:42 horas, línea de atención NexoTel 800-639-6835. Duración: 11 minutos 24 segundos. Agente identificado como "Brenda, número de operador 4471".
+
+[Inicio de transcripción]
+
+AGENTE BRENDA (op. 4471): Gracias por comunicarse a NexoTel, le atiende Brenda, ¿con quién tengo el gusto?
+
+CLIENTE (Héctor Manuel Frausto Ledesma): Buenas tardes, le hablo porque en mi recibo me está cobrando un cargo de 349 pesos por "línea adicional" y yo no contraté eso.
+
+AGENTE BRENDA: Permítame verificar en el sistema... [pausa de 47 segundos]... Sí, señor, efectivamente veo aquí la activación del 18 de septiembre. Este... déjeme checarlo con mi supervisor porque la verdad esto se ha estado presentando bastante seguido en el sistema nuevo.
+
+CLIENTE: ¿Cómo que se ha estado presentando seguido?
+
+AGENTE BRENDA: Sí, este... la verdad es que desde que migramos al sistema de autoservicio nuevo en agosto, ha habido varios casos de activaciones que se disparan solas, es un tema que ya reportamos a sistemas pero todavía no nos dan una fecha de solución. Le voy a generar la bonificación de este cargo y también voy a cancelar la línea adicional.
+
+CLIENTE: ¿Y me van a devolver lo de los meses que ya pagué?
+
+AGENTE BRENDA: Eso ya no lo puedo autorizar yo directamente, señor, tendría que escalarlo a un supervisor, pero sí le confirmo que el problema es del sistema, no es que usted haya aceptado algo.
+
+[Fin de fragmento relevante]
+
+Grabación 2: Llamada del 25 de septiembre de 2025, 10:15 horas, escalada a supervisión. Agente identificado como "Ing. Marco Aurelio Beltrán Ochoa, Supervisor de Nivel 2".
+
+SUPERVISOR BELTRÁN: Buenos días, señor Frausto, soy Marco del área de supervisión de NexoTel. Reviso su caso y le comento que la política de la empresa es no reconocer devoluciones retroactivas mayores a un mes salvo autorización de dirección comercial, independientemente de que el cargo se haya originado por un error del sistema.
+
+CLIENTE: Pero la señorita Brenda me dijo que era un error conocido del sistema.
+
+SUPERVISOR BELTRÁN: Entiendo, pero esa información no está autorizada para dársela a los clientes, y lo que puedo ofrecerle es una bonificación de un mes como cortesía.
+
+NOTA DEL VISITADOR VERIFICADOR: Se advierte contradicción relevante entre la manifestación de la agente Brenda (op. 4471), quien reconoce expresamente que las activaciones no reconocidas derivan de una falla sistémica conocida por la empresa desde agosto de 2025, y la posición institucional sostenida por el supervisor Beltrán Ochoa y posteriormente por el apoderado legal de NexoTel en la audiencia conciliatoria (documento 03), quien niega la existencia de un patrón sistemático y atribuye los cargos a "aceptación por clic mal interpretada por el usuario". Esta contradicción es relevante para la valoración de la conducta reiterada prevista en el artículo 128 de la Ley Federal de Protección al Consumidor.

@@ -1,0 +1,33 @@
+folio,nombre_ejidatario,calidad,firma_presente,observacion
+1,Anastasio Ubaldo Salgado Herrera,Presidente Comisariado,SI,
+2,Herminia Yolanda Cisneros Palafox,Secretaria Comisariado,SI,
+3,Fermín Otoniel Reséndiz Lugo,Tesorero Comisariado,SI,
+4,Aurelio Nazario Tapia Melgoza,Presidente Consejo Vigilancia,SI,
+5,Cirilo Damián Quintanilla Rosas,Ejidatario,SI,
+6,Petra Aurora Nieves Camacho,Ejidataria,SI,
+7,Wenceslao Amado Trejo Villaseñor,No ejidatario,NO,No aparece en padrón vigente
+8,Herminio Salgado Ontiveros,Ejidatario,SI,
+9,Norma Alicia Ventura Belmonte,Ejidataria,SI,
+10,Rogelio Amancio Cedillo Pantoja,Ejidatario,SI,
+11,Efraín Osvaldo Marín Trujillo,Ejidatario,NO,Ausente
+12,Guillermina Ríos Solórzano,Ejidataria,SI,
+13,Baldemar Isauro Cortés Nava,Ejidatario,NO,Ausente
+14,Refugio Estela Bonilla Márquez,Ejidataria,SI,
+15,Constantino Higinio Alarcón Pizano,Ejidatario,SI,
+16,Aracely Guadalupe Torres Osnaya,Ejidataria,NO,Ausente
+17,Onésimo Reyes Camarena,Ejidatario,SI,
+18,Delfina Rosaura Gaspar Villagómez,Ejidataria,SI,
+19,Ubaldo Marcelino Peña Escamilla,Ejidatario,NO,Ausente
+20,Filomena Adelaida Rendón Zúñiga,Ejidataria,SI,
+21,Anselmo Baltasar Cuevas Montaño,Ejidatario,SI,
+22,Petronila Ofelia Sandoval Barajas,Ejidataria,NO,Ausente
+23,Hilario Ezequiel Domínguez Chávez,Ejidatario,SI,
+24,Cresencia Amalia Robledo Farías,Ejidataria,SI,
+25,Eleuterio Nazario Barrientos Solís,Ejidatario,NO,Ausente
+26,Otilia Bernarda Salcedo Prieto,Ejidataria,SI,
+27,Teodulo Amador Camargo Villegas,Ejidatario,NO,Ausente
+28,Guadalupe Concepción Herrejón Islas,Ejidataria,SI,
+29,Higinio Custodio Almazán Rivas,Ejidatario,NO,Ausente
+30,Aurora Leonila Guevara Montiel,Ejidataria,SI,
+NOTA1,"Total de firmas efectivamente asentadas en la lista original: 132 de 210 ejidatarios censados (62.85%)",,,
+NOTA2,"El acta de asamblea reporta 187 asistentes (89.04%); existe discrepancia de 55 firmas entre el acta y la lista física.",,,

@@ -1,0 +1,43 @@
+casilla,seccion,tipo,lista_nominal,PAS,PRP,otros_partidos,candidatos_no_registrados,votos_nulos,votacion_total_casilla,observacion
+0801 B,801,Basica,412,178,201,18,0,6,403,Ordinaria
+0801 C1,801,Contigua,398,165,189,15,0,4,373,Ordinaria
+0802 B,802,Basica,455,201,223,20,1,7,452,Ordinaria
+0802 C1,802,Contigua,440,190,210,17,0,5,422,Ordinaria
+0803 B,803,Basica,388,150,180,12,0,3,345,Ordinaria
+0804 B,804,Basica,502,240,225,22,0,8,495,Ordinaria
+0805 B,805,Basica,470,201,238,19,0,6,464,Ordinaria
+0806 B,806,Basica,415,175,205,14,0,5,399,Ordinaria
+1201 B,1201,Basica,480,215,220,21,0,7,463,Ordinaria
+1201 C1,1201,Contigua,460,198,215,18,0,6,437,Ordinaria
+1202 B,1202,Basica,392,160,190,13,0,4,367,Ordinaria
+1203 B,1203,Basica,505,230,240,20,1,9,500,Ordinaria
+1204 B,1204,Basica,420,110,275,17,0,5,407,Impugnada - recepcion por persona no autorizada
+1205 B,1205,Basica,398,178,182,15,0,4,379,Ordinaria
+1206 B,1206,Basica,433,190,200,18,0,6,414,Ordinaria
+1207 C1,1207,Contigua,410,95,270,16,0,5,386,Impugnada - recepcion por persona no autorizada y cadena de custodia irregular
+1208 B,1208,Basica,447,205,210,19,0,6,440,Ordinaria
+1209 B,1209,Basica,401,180,185,14,0,5,384,Ordinaria
+1210 B,1210,Basica,388,88,260,13,0,4,365,Impugnada - recepcion por persona no autorizada
+1211 B,1211,Basica,459,210,215,20,0,7,452,Ordinaria
+1301 B,1301,Basica,470,215,222,18,0,7,462,Ordinaria
+1302 B,1302,Basica,388,175,180,14,0,4,373,Ordinaria
+1303 B,1303,Basica,412,190,195,15,0,5,405,Ordinaria
+1304 B,1304,Basica,499,225,240,21,0,8,494,Ordinaria
+1305 B,1305,Basica,378,165,178,12,0,4,359,Ordinaria
+1306 B,1306,Basica,441,200,205,17,0,6,428,Ordinaria
+1307 B,1307,Basica,463,210,222,19,0,6,457,Ordinaria
+1308 B,1308,Basica,395,175,183,14,0,5,377,Ordinaria
+1309 B,1309,Basica,420,190,198,16,0,5,409,Ordinaria
+1310 B,1310,Basica,388,168,180,13,0,4,365,Ordinaria
+1311 B,1311,Basica,455,205,215,18,0,6,444,Ordinaria
+1312 B,1312,Basica,470,220,225,20,0,7,472,Observacion - suma no cuadra con boletas extraidas
+1313 B,1313,Basica,399,178,185,15,0,5,383,Ordinaria
+1314 B,1314,Basica,432,195,201,17,0,6,419,Ordinaria
+1315 B,1315,Basica,410,185,190,15,0,5,395,Ordinaria
+1316 B,1316,Basica,388,170,182,13,0,4,369,Ordinaria
+1317 B,1317,Basica,447,200,210,18,0,6,434,Ordinaria
+1318 B,1318,Basica,405,182,190,15,0,5,392,Ordinaria
+1319 B,1319,Basica,460,208,220,19,0,6,453,Ordinaria
+1320 B,1320,Basica,388,172,180,14,0,4,370,Ordinaria
+1321 B,1321,Basica,420,190,198,16,0,5,409,Ordinaria
+1322 B,1322,Basica,399,178,184,15,0,5,382,Ordinaria

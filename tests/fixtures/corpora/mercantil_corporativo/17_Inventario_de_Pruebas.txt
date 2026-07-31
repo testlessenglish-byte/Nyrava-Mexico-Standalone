@@ -1,0 +1,29 @@
+INVENTARIO DE PRUEBAS
+EXPEDIENTE MERCANTIL 733/2026
+(Formulado por la Secretaría de Acuerdos para efectos de la audiencia de juicio, conforme al artículo 1390 Bis 38 del Código de Comercio)
+
+No. | Prueba | Oferente | Documento del expediente | Admitida | Desahogada | Observaciones
+1 | Acta constitutiva y reformas | Ambas partes | Doc. 01 | Sí | Sí (documental) | Sin objeciones
+2 | Libro de Registro de Acciones | Actora | Doc. 02 | Sí | Sí (documental) | Objetada por la demandada en cuanto a la "Observación del Actor" incorporada unilateralmente; se admite con valor indiciario
+3 | Convenio entre Accionistas | Actora | Doc. 03 | Sí | Sí (documental) | Demandada objeta su oponibilidad a la sociedad, no su autenticidad
+4 | Convocatoria y constancia de publicación | Ambas partes | Doc. 04 | Sí | Sí (documental) | Sin objeciones en cuanto a autenticidad; controversia sobre suficiencia jurídica
+5 | Acta de Asamblea impugnada | Ambas partes | Doc. 05 | Sí | Sí (documental) | Actora solicita cotejo con Lista de Asistencia
+6 | Lista de Asistencia y poderes | Ambas partes | Doc. 06 | Sí | Sí (documental) | Prueba central de la discrepancia de quórum
+7 | Poder notarial del actor | Actora | Doc. 07 | Sí | Sí (documental) | Sin objeciones
+8 | Informe del Comisario | Ambas partes | Doc. 10 | Sí | Sí (documental) y ratificada vía testimonial | Ver testimonial documento 14
+9 | Estados financieros comparativos 2024-2025 | Actora | Doc. 11 | Sí | Sí (documental, cotejada con dictamen pericial) | Base del punto de pericia 5
+10 | Correos electrónicos entre socios | Actora | Doc. 12 | Sí | Sí (documental) | Demandada objeta a Braulio Alonso Ibarra Concha el correo del 5 de diciembre por "descontextualizado"; se admite y se valorará en sentencia
+11 | Capturas de WhatsApp "Consejo AgroTecnia" | Actora | (referida en carátula, anexo reservado) | Sí, con reservas | Pendiente de certificación mediante fedatario | Se ordenó certificación notarial adicional de la cadena de custodia digital antes de su valoración plena
+12 | Dictamen pericial contable | Perito tercero en discordia (designado ante discrepancia entre peritos de parte) | Doc. 13 | Sí | Sí | Los peritos de parte de ambos litigantes coincidieron sustancialmente con el perito tercero salvo en la calificación de "dolo" del Administrador Único
+13 | Testimoniales (Rentería Salcido, Zazueta Beltrán, Comisario Loaiza Tirado) | Ambas partes | Doc. 14 | Sí | Sí | Se desahogaron en audiencia de juicio del 9 de junio de 2026
+14 | Resolución interlocutoria de medidas cautelares | Oficiosa/ambas partes | Doc. 15 | Sí | Sí (documental) | Consta cumplimiento de la contragarantía
+15 | Escritura de aumento de capital de 2024 (folio 3 del Libro) | Demandada | Doc. 02 (Folio 3) | Sí | Sí (documental) | Ofrecida para acreditar que en 2024 sí hubo notificación y quórum válidos
+16 | Presuncional legal y humana | Ambas partes | N/A | Sí | Se tiene por desahogada por su propia naturaleza | —
+
+TOTAL DE PRUEBAS ADMITIDAS: 16. PRUEBAS PENDIENTES DE DESAHOGO FORMAL: 1 (certificación notarial de las capturas de WhatsApp, cuya falta de desahogo fue advertida por la Jueza en la audiencia de juicio y concedido plazo de 10 días para su perfeccionamiento, sin que a la fecha del cierre de instrucción conste dicha certificación en autos).
+
+NOTA DE LA SECRETARÍA: Se hace constar que, al no haberse perfeccionado la certificación de las capturas de WhatsApp dentro del plazo concedido, dicha prueba deberá valorarse en sentencia únicamente como indicio de baja eficacia probatoria, en términos del artículo 1205 y 1298-A del Código de Comercio, salvo que la parte oferente acredite causa justificada para su falta de perfeccionamiento.
+
+Culiacán Rosales, Sinaloa, a 22 de junio de 2026.
+Lic. Óscar Iván Beltrán Higuera
+Secretario de Acuerdos

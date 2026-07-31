@@ -1,0 +1,19 @@
+Numero,Acreedor,Tipo_de_credito,Monto_reclamado_MXN,Garantia,Grado_propuesto
+1,Banco Industrial de Monterrey S.A.,Credito con garantia real,63450000,Prenda sobre maquinaria CNC,Acreedor con garantia real (Art. 217 fraccion I y arts. 220-221 LCM)
+2,Servicio de Administracion Tributaria,Credito fiscal,19870400,Preferencia legal Art. 149 CFF,Acreedor fiscal (Art. 224 fraccion II LCM)
+3,Sindicato de Trabajadores STIMAHCS,Credito laboral (salarios e indemnizaciones),10450800,Preferencia constitucional,Acreedor laboral preferente (Art. 224 fraccion I y Art. 123 A fraccion XXIII CPEUM)
+4,Arrendadora Financiera del Norte S.A. de C.V.,Arrendamiento financiero,12300000,Reserva de dominio sobre naves industriales,Acreedor con garantia real
+5,Proveedora de Aceros del Norte S.A. de C.V.,Proveedor comercial,3750800,Sin garantia,Acreedor comun
+6,Componentes Metalicos del Bajio S.A. de C.V.,Proveedor comercial,8920300,Sin garantia,Acreedor comun
+7,Aluminios y Fundiciones de Coahuila S.A. de C.V.,Proveedor comercial,6540900,Sin garantia,Acreedor comun
+8,Transportes Industriales Regiomontanos S.A. de C.V.,Proveedor de servicios,2140600,Sin garantia,Acreedor comun
+9,Herramientas y Troqueles Especializados S.A. de C.V.,Proveedor comercial,4980200,Sin garantia,Acreedor comun
+10,Distribuidora Quimica del Noreste S.A. de C.V.,Proveedor comercial,3670500,Sin garantia,Acreedor comun
+11,Grupo Salinas Maquinaria S.A. de C.V. (parte relacionada, credito impugnado),Credito intercompania,15600000,Sin garantia (impugnado),Pendiente de resolucion por objecion
+12,Consultoria Fiscal y Contable Regia S.C.,Honorarios profesionales,780000,Sin garantia,Acreedor comun
+13,Infonavit,Aportaciones patronales,1920650,Preferencia legal,Acreedor fiscal
+14,Instituto Mexicano del Seguro Social,Cuotas obrero patronales,3120400,Preferencia legal,Acreedor fiscal
+15,Ex-trabajadores liquidados (lista nominal anexa),Credito laboral,4920500,Preferencia constitucional,Acreedor laboral preferente
+16,Cemex Distribucion S.A. de C.V.,Proveedor de insumos,2620000,Sin garantia,Acreedor comun
+17,Acreedores diversos menores (34 cuentas),Proveedores varios,29793000,Sin garantia,Acreedor comun
+TOTAL,,,194820150,,

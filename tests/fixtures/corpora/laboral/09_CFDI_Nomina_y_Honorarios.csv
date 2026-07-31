@@ -1,0 +1,21 @@
+periodo,tipo_comprobante,emisor,receptor,concepto,percepcion_base_mxn,bono_productividad_mxn,compensacion_nocturna_mxn,total_mxn
+2024-01,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,3400.00,31572.00
+2024-02,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,3400.00,31572.00
+2024-03,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,0.00,28172.00
+2024-04,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,3400.00,31572.00
+2024-05,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,3400.00,31572.00
+2024-06,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,3400.00,31572.00
+2024-07,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,3400.00,31572.00
+2024-08,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,3400.00,31572.00
+2024-09,Nomina,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Sueldo quincenal,18372.00,9800.00,3400.00,31572.00
+2024-10,Honorarios,Marbella Ortigoza Sandoval,Gestion de Talento Perinorte SC,Servicios de asesoria en logistica,18372.00,0.00,0.00,18372.00
+2024-10,Transferencia directa,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Bono de productividad,0.00,9800.00,0.00,9800.00
+2024-11,Honorarios,Marbella Ortigoza Sandoval,Gestion de Talento Perinorte SC,Servicios de asesoria en logistica,18372.00,0.00,0.00,18372.00
+2024-11,Transferencia directa,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Bono de productividad,0.00,9800.00,0.00,9800.00
+2024-12,Honorarios,Marbella Ortigoza Sandoval,Gestion de Talento Perinorte SC,Servicios de asesoria en logistica,18372.00,0.00,0.00,18372.00
+2024-12,Transferencia directa,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Bono de productividad,0.00,9800.00,0.00,9800.00
+2025-06,Honorarios,Marbella Ortigoza Sandoval,Gestion de Talento Perinorte SC,Servicios de asesoria en logistica,18372.00,0.00,0.00,18372.00
+2025-06,Transferencia directa,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Bono de productividad,0.00,9800.00,0.00,9800.00
+2025-11,Honorarios,Marbella Ortigoza Sandoval,Gestion de Talento Perinorte SC,Servicios de asesoria en logistica,18372.00,0.00,0.00,18372.00
+2025-11,Transferencia directa,Servicios Logisticos Altavista SA de CV,Marbella Ortigoza Sandoval,Bono de productividad,0.00,9800.00,0.00,9800.00
+NOTA,El bono de productividad se mantuvo fijo en 9800.00 MXN mensuales durante 23 meses consecutivos sin variacion pese a que la demandada alega que es variable y sujeto a metas trimestrales,,,,,,,

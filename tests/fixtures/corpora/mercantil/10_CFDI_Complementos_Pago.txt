@@ -1,0 +1,17 @@
+CFDI Y COMPLEMENTOS DE PAGO
+Expediente 1042/2026 — Documentales exhibidas por la actora en cumplimiento de requerimiento judicial
+
+I. CFDI DE INGRESO (muestra representativa de los 48 emitidos entre agosto y diciembre de 2025)
+Folio fiscal F-3285: emitido 03/12/2025, RFC receptor DIM950214KX3 (Distribuidora Insurgentes Monterrey), concepto "material ferretero diverso", importe $95,000.00 + IVA. Método de pago PPD.
+Folio fiscal F-3381: emitido 30/01/2026, mismo receptor, concepto "perfil estructural y lámina", importe $150,000.00 + IVA. Método de pago PPD.
+
+II. COMPLEMENTOS DE PAGO
+Complemento P-2211: timbrado 19/12/2025, 14:32 horas, relaciona el pago SPEI 2025121840009911 de $620,000.00, aplicado por la actora a "abono general a cuenta por cobrar", SIN relacionarlo con folio fiscal específico ni con los pagarés A, B o C.
+Complemento P-2314: timbrado 23/01/2026, 09:10 horas, relaciona el pago SPEI 2026012240003217 de $310,000.00, aplicado de la misma forma genérica.
+No se localizó complemento de pago que relacione los movimientos SPEI del 5 de diciembre de 2025 ($95,000.00) y del 5 de febrero de 2026 ($150,000.00) con los folios F-3285 y F-3381, respectivamente, no obstante que dichos folios fueron emitidos con método de pago "en parcialidades o diferido" (PPD), que exige la emisión de complemento de pago conforme al artículo 29-A del Código Fiscal de la Federación y la Resolución Miscelánea Fiscal vigente.
+
+III. OBSERVACIÓN PERICIAL PRELIMINAR (a reserva de ampliación por la perito contable)
+La ausencia de complementos de pago relacionados con las facturas F-3285 y F-3381 constituye un incumplimiento formal de la actora en su propia contabilidad electrónica, y dificulta establecer con precisión a qué conceptos se aplicaron los $930,000.00 M.N. que sí fueron relacionados mediante los complementos P-2211 y P-2314, dado que éstos se aplicaron de forma genérica ("abono a cuenta por cobrar") y no específicamente a los tres pagarés base de la acción.
+
+IV. CONSTANCIA
+Se certifica que los folios fiscales relacionados corresponden a los registros exhibidos por la actora al perito contable C.P.C. Verónica Adriana Elizondo Fuentes para la elaboración de su dictamen de 21 de abril de 2026.

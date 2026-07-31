@@ -1,0 +1,50 @@
+CONOCIMIENTO DE EMBARQUE (BILL OF LADING)
+NÚMERO: PSCL-MZO-2026-008841
+
+TRANSPORTISTA (CARRIER): Pacific Star Container Lines Ltd.
+BUQUE: "MN Estrella del Pacífico X" — IMO 9876543 — Viaje 0226W
+AGENTE NAVIERO CONSIGNATARIO EN MÉXICO: Agencia Marítima del Pacífico, S.A. de C.V.
+
+PUERTO DE CARGA: Puerto de Busan, República de Corea
+PUERTO DE DESCARGA: Puerto de Manzanillo, Colima, México (Terminal TEC II)
+FECHA ESTIMADA DE ARRIBO (ETA): 14 de febrero de 2026
+FECHA REAL DE ATRAQUE: 15 de febrero de 2026 (00:40 horas, con posterioridad al
+incidente objeto del expediente CP-MZO/INV/041/2026)
+
+EMBARCADOR (SHIPPER): Hanwoori Electronics Manufacturing Co., Ltd.
+CONSIGNATARIO (CONSIGNEE): Comercializadora e Importadora del Pacífico Mexicano,
+S.A. de C.V., con domicilio en Boulevard Miguel de la Madrid 1420, Manzanillo, Colima
+
+DESCRIPCIÓN DE LA MERCANCÍA:
+- 84 contenedores de 40 pies, conteniendo componentes electrónicos y electrodomésticos
+  de línea blanca, transportados bajo la cláusula "Shipper's Load, Stow and Count"
+- Peso bruto total declarado: 1,428,600 kg
+- Valor declarado para efectos de flete: USD $6,240,000.00
+
+CLÁUSULAS RELEVANTES PARA EL PRESENTE EXPEDIENTE:
+Cláusula 8 (Retraso). El transportista no será responsable por demoras en la entrega
+de la mercancía derivadas de causas ajenas a su control, incluyendo, sin limitación,
+incidentes de navegación o maniobra portuaria, congestión portuaria o instrucciones de
+la autoridad marítima competente, salvo dolo o culpa grave del transportista.
+Cláusula 12 (Limitación de Responsabilidad). En caso de pérdida o daño a la mercancía,
+la responsabilidad del transportista se limita a lo previsto en las Reglas de La Haya-
+Visby, según resulten aplicables, y en su caso, a los artículos correspondientes de la
+Ley de Navegación y Comercio Marítimos.
+Cláusula 19 (Retraso por Incidente Portuario). Se hace constar que, como consecuencia
+del incidente de abordaje ocurrido durante la maniobra de atraque del buque la noche
+del 14 de febrero de 2026, la descarga de los contenedores documentados en el presente
+conocimiento de embarque se retrasó 14 (catorce) horas respecto de la ventana de
+descarga originalmente programada, sin que a la fecha se haya reportado daño a la
+mercancía transportada, según acta de inspección de contenedores levantada por la
+terminal TEC II el 15 de febrero de 2026 a las 16:00 horas.
+
+OBSERVACIÓN PARA EL EXPEDIENTE: El presente conocimiento de embarque se incorpora al
+juicio ordinario federal 96/2026 únicamente como elemento de contexto operativo para
+acreditar la carga que transportaba el buque al momento del siniestro y el retraso
+subsecuente en la descarga, sin que la naviera haya recibido reclamación alguna por
+parte del consignatario o del embarcador respecto de daños a la mercancía.
+
+Agencia Marítima del Pacífico, S.A. de C.V.
+Por el Transportista
+
+Manzanillo, Colima, a 15 de febrero de 2026
