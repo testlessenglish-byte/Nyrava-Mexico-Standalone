@@ -405,7 +405,7 @@ export async function answerCaseQuestion(args: {
   // mode reads a trimmed context and a shorter history window, which cuts
   // prompt size (and time-to-first-token) roughly in half without changing
   // what the model can cite for a short conversational reply.
-  const [built, history] = await Promise.all([
+  const [built, history, profileRes, lastTurnRes] = await Promise.all([
     buildChatContext(db, caseId, question),
     db
       .from("case_chat_messages")
@@ -413,9 +413,39 @@ export async function answerCaseQuestion(args: {
       .eq("case_id", caseId)
       .order("created_at")
       .limit(voiceMode ? 6 : 12),
+    db.from("profiles").select("display_name,full_name").eq("id", userId).maybeSingle(),
+    // Second-to-last message overall (the one before the question we just
+    // persisted) tells us whether this is a fresh session or a turn inside an
+    // ongoing exchange. That drives whether the assistant greets by name.
+    db
+      .from("case_chat_messages")
+      .select("created_at")
+      .eq("case_id", caseId)
+      .order("created_at", { ascending: false })
+      .range(1, 1)
+      .maybeSingle(),
   ]);
   const corpus = built.corpus;
   const ctx = voiceMode && built.ctx.length > 6_000 ? `${built.ctx.slice(0, 6_000)}\n\n[...contexto abreviado para voz...]` : built.ctx;
+
+  // Personalization: greet by the attorney's first name, and only at the start
+  // of a session (first message ever, or after a 45-minute gap) so it doesn't
+  // become repetitive inside an active conversation.
+  const rawName =
+    (profileRes.data as { display_name?: string | null; full_name?: string | null } | null)?.display_name ??
+    (profileRes.data as { full_name?: string | null } | null)?.full_name ??
+    "";
+  const firstName = rawName.trim().split(/\s+/)[0] ?? "";
+  const prevAt = (lastTurnRes.data as { created_at?: string } | null)?.created_at;
+  const isReturning = Boolean(prevAt);
+  const gapMs = prevAt ? Date.now() - new Date(prevAt).getTime() : Number.POSITIVE_INFINITY;
+  const isNewSession = gapMs > 45 * 60 * 1000;
+  // Mexico City is the operating jurisdiction — time of day is computed there.
+  const hourMx = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", hour: "numeric", hour12: false }).format(new Date()),
+  );
+  const partOfDay = hourMx < 12 ? (locale === "en" ? "morning" : "mañana") : hourMx < 19 ? (locale === "en" ? "afternoon" : "tarde") : locale === "en" ? "evening" : "noche";
+
 
 
   // Provider failure must never leave the conversation silent. Before this,
