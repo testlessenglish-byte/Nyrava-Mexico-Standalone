@@ -139,8 +139,12 @@ export function CommandCenterDashboard({
   documentsCount,
   report,
   caseRow,
+  findingsCount,
+  witnessesCount,
+  onOpenTab,
   onOpenChat,
   onOpenVoice,
+
 }: Props) {
   const { t, locale } = useI18n();
   const { runs: engineRows, latestByEngine, progress: execProgress, isRunning } = useCaseExecution(caseId);
