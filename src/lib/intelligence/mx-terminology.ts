@@ -212,6 +212,22 @@ const US_TERM_RULES: readonly TermRule[] = [
   { term: "miranda rights", to: null },
   { term: "burden of proof", to: "carga de la prueba" },
   { term: "cross-examination", to: "interrogatorio de contraparte" },
+  // Stray English words/abbreviations that leak into otherwise-Spanish
+  // narrative prose. Distinct bug class from the terms above: those are
+  // legal-terminology substitutions; these are plain prose words an LLM
+  // occasionally leaves in English mid-sentence. findEnglishSentences()
+  // structurally can't catch this pattern — it only flags whole sentences
+  // that read as majority-English (8+ words, 4+ English markers), so a
+  // single English adjective or abbreviation sitting inside an otherwise-
+  // Spanish sentence sails through untouched. Caught here instead, at the
+  // same word-boundary/case-preserving remediation pass everything else on
+  // this list goes through.
+  { term: "well-supported", to: "bien respaldado" },
+  { term: "well supported", to: "bien respaldado" },
+  { term: "well-established", to: "bien establecido" },
+  { term: "well established", to: "bien establecido" },
+  { term: "TBD", to: "Pendiente" },
+  { term: "TBA", to: "Por confirmar" },
 ];
 
 /** Hard US-jurisdiction references — never auto-rewritten, always blocking. */
