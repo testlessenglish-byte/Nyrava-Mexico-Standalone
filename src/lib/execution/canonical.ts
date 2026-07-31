@@ -332,8 +332,15 @@ export const PIPELINE_STAGE_TO_ENGINE: Readonly<Record<string, string>> = Object
 // elsewhere (e.g. whether a failed stage flips the whole pipeline run to
 // "failed"), and this change is scoped to the report gate only.
 export const REPORT_BLOCKING_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
-  (s) => s.engine !== "report_generator" && s.key !== "multi_agent",
+  (s) => s.engine !== "report_generator",
 ).map((s) => s.engine);
+
+/** Engines whose stage is requirement:"optional". A failure here must not
+ * permanently block the report — the gate accepts them in any terminal
+ * state, including `failed`. */
+export const OPTIONAL_ENGINES: ReadonlySet<string> = new Set(
+  CANONICAL_STAGES.filter((s) => s.requirement === "optional").map((s) => s.engine),
+);
 
 export const REPORT_ENRICHING_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
   (s) => s.requirement === "enriching",
@@ -519,7 +526,10 @@ export function canGenerateReport(rows: ExecutionRow[]): ReportGate {
   const missing = (engines: readonly string[]) =>
     engines.filter((e) => {
       const s = latest.get(e)?.status;
-      return s !== "completed" && s !== "completed_negative" && s !== "skipped";
+      if (s === "completed" || s === "completed_negative" || s === "skipped") return false;
+      // Optional stages only need to be *finished*, not successful.
+      if (OPTIONAL_ENGINES.has(e) && (s === "failed" || s === "blocked")) return false;
+      return true;
     });
   const blocking = missing(REPORT_BLOCKING_ENGINES);
   return {
