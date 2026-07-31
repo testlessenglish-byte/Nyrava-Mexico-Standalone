@@ -1,0 +1,32 @@
+PROCURADURÍA FEDERAL DEL CONSUMIDOR — DELEGACIÓN QUERÉTARO
+RELACIÓN Y RESUMEN DE QUEJAS ACUMULADAS
+Expediente PFC.B.Q./000418/2026
+
+De conformidad con el artículo 111 de la Ley Federal de Protección al Consumidor, se acumulan al presente procedimiento las quejas presentadas en contra de Telecomunicaciones Bajío Digital, S.A.P.I. de C.V. por hechos de la misma naturaleza, en términos del oficio de acumulación DGCG/QRO/0412/2026.
+
+Resumen estadístico:
+- Total de quejas acumuladas al 20 de marzo de 2026: 214
+- Por cargos no reconocidos en estado de cuenta (rentas de equipo, seguros y paquetes premium no contratados): 188 quejas
+- Por incumplimiento de velocidad de internet contratada (mediciones inferiores al 40% de lo ofertado): 26 quejas
+- Monto total reclamado por bonificaciones y devoluciones: $2,318,940.00 M.N.
+- Periodo de las quejas: julio de 2025 a febrero de 2026
+
+Muestra representativa de quejas (folio interno / consumidor / fecha / motivo):
+
+Q-0031 / María Fernanda Elizondo Rangel / 03-jul-2025 / Cargo de $249.00 mensuales por "Seguro NexoProtege" no contratado, activado sin autorización desde la facturación de junio de 2025.
+
+Q-0058 / Rogelio Armando Castañón Ibarra / 11-jul-2025 / Cargo de $179.00 mensuales por "Paquete Streaming Plus" que la consumidora afirma jamás haber solicitado ni utilizado; NexoTel niega la queja aduciendo aceptación por clic registrada el 02-jun-2025.
+
+Q-0104 / Denisse Guadalupe Palafox Terán / 02-ago-2025 / Renta de equipo modem por $89.00 mensuales pese a haber adquirido equipo propio; NexoTel reconoce el error y ofrece bonificación de tres meses, la consumidora exige bonificación de doce meses (periodo completo del cobro indebido).
+
+Q-0129 / Gerardo Emiliano Salcido Marroquín / 19-ago-2025 / Velocidad de internet contratada de 200 Mbps, medición de PROFECO en sitio arrojó 74 Mbps promedio en horario pico (63% por debajo de lo contratado).
+
+Q-0142 / Alma Rosa Villagómez Ochterena / 05-sep-2025 / Cobro de penalización por cancelación anticipada de $8,940.00 M.N. tras solicitar baja por mudanza a zona sin cobertura NexoTel; la consumidora exhibe constancia de domicilio y aduce imposibilidad de recibir el servicio.
+
+Q-0177 / Héctor Manuel Frausto Ledesma / 22-sep-2025 / Cargo no reconocido de $349.00 por "activación de línea adicional" nunca solicitada; el consumidor exhibe grabación telefónica en la que un representante de NexoTel reconoce el error operativo del sistema (Anexo 3, transcripción en documento 07).
+
+Q-0186 / Consumidor con reserva de identidad ("Testigo Protegido 1") / 30-sep-2025 / Manifiesta haber sido empleado del centro de atención telefónica de NexoTel entre 2024 y 2025 y señala que existía una instrucción interna verbal de "no informar proactivamente" sobre cargos por servicios complementarios activados por defecto, contradiciendo la política pública de atención de NexoTel.
+
+[... continúa relación completa de 214 quejas en Anexo Digital QRO-2026-0418-QUEJAS, disponible para consulta en la Delegación]
+
+Se hace constar que, no obstante existir un patrón reiterado y sistemático en los cargos no reconocidos por "servicios complementarios" activados sin consentimiento expreso, NexoTel sostiene en su generalidad que dichas activaciones derivan de "aceptación por clic" en su portal de autoservicio, mecanismo cuya trazabilidad y confiabilidad fue cuestionada por el dictamen técnico (documento 05).
