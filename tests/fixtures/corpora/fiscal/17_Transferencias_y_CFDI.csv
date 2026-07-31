@@ -1,0 +1,25 @@
+folio_cfdi,proveedor,rfc_proveedor,fecha_cfdi,concepto,monto_antes_iva,iva,fecha_transferencia,cuenta_origen,cuenta_destino,referencia_bancaria,observacion
+A-0091,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-01-15,Diagnóstico inicial procesos textiles,2600000.00,416000.00,2021-01-29,0123456789 BBVA,014180001122334455,TRF-210129-01,
+A-0104,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-02-15,Consultoría rediseño línea 1,2600000.00,416000.00,2021-02-26,0123456789 BBVA,014180001122334455,TRF-210226-02,
+A-0117,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-03-15,Consultoría rediseño línea 2,2600000.00,416000.00,2021-03-25,0123456789 BBVA,014180001122334455,TRF-210325-03,Correo del proveedor de 18-mar-2021 reporta equipo incompleto
+A-0129,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-04-15,Capacitación técnica etapa 1,2600000.00,416000.00,2021-04-27,0123456789 BBVA,014180001122334455,TRF-210427-04,
+A-0141,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-05-16,Capacitación técnica etapa 2,2600000.00,416000.00,2021-05-28,0123456789 BBVA,014180001122334455,TRF-210528-05,
+A-0158,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-06-15,Consultoría rediseño línea 3,2600000.00,416000.00,2021-06-24,0123456789 BBVA,014180001122334455,TRF-210624-06,
+A-0172,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-07-15,Consultoría rediseño línea 4,2600000.00,416000.00,2021-07-27,0123456789 BBVA,014180001122334455,TRF-210727-07,
+A-0186,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-08-16,Capacitación técnica etapa 3,2600000.00,416000.00,2021-08-27,0123456789 BBVA,014180001122334455,TRF-210827-08,
+A-0199,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-09-15,Consultoría rediseño línea 5,2600000.00,416000.00,2021-09-24,0123456789 BBVA,014180001122334455,TRF-210924-09,
+A-0210,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-10-15,Capacitación técnica etapa 4,2600000.00,416000.00,2021-10-27,0123456789 BBVA,014180001122334455,TRF-211027-10,Fotografías anexas de instalación con fecha de archivo 2022-01-09
+A-0225,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-11-15,Cierre de diagnóstico y entrega final,2600000.00,416000.00,2021-11-26,0123456789 BBVA,014180001122334455,TRF-211126-11,
+A-0231,Servicios Corporativos Altavista SA de CV,SCA150714AB9,2021-12-10,Informe final de consultoría,1400000.00,224000.00,2021-12-20,0123456789 BBVA,014180001122334455,TRF-211220-12,
+B-3301,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-02-19,Suministro insumos textiles quincena 1,1745000.00,279200.00,2021-02-19,0123456789 BBVA,072180009988776655,TRF-210219-01,Entrega física confirmada por bitácora almacén
+B-3315,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-03-05,Suministro insumos textiles quincena 2,1745000.00,279200.00,2021-03-04,0123456789 BBVA,072180009988776655,TRF-210304-02,Transferencia previa a fecha del CFDI por un dia
+B-3329,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-03-19,Suministro insumos textiles quincena 3,1745000.00,279200.00,2021-03-19,0123456789 BBVA,072180009988776655,TRF-210319-03,Entrega física confirmada por bitácora almacén
+B-3342,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-04-05,Suministro insumos textiles quincena 4,1745000.00,279200.00,2021-04-05,0123456789 BBVA,072180009988776655,TRF-210405-04,
+B-3358,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-05-20,Suministro insumos textiles quincena 5,1745000.00,279200.00,2021-05-20,0123456789 BBVA,072180009988776655,TRF-210520-05,
+B-3371,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-06-04,Suministro insumos textiles quincena 6,1745000.00,279200.00,2021-06-04,0123456789 BBVA,072180009988776655,TRF-210604-06,
+B-3385,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-07-19,Suministro insumos textiles quincena 7,1745000.00,279200.00,2021-07-19,0123456789 BBVA,072180009988776655,TRF-210719-07,Entrega física confirmada por bitácora almacén
+B-3398,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-08-05,Suministro insumos textiles quincena 8,1745000.00,279200.00,2021-08-05,0123456789 BBVA,072180009988776655,TRF-210805-08,
+B-3410,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-09-20,Suministro insumos textiles quincena 9,1745000.00,279200.00,2021-09-20,0123456789 BBVA,072180009988776655,TRF-210920-09,
+B-3423,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-10-05,Suministro insumos textiles quincena 10,1745000.00,279200.00,2021-10-05,0123456789 BBVA,072180009988776655,TRF-211005-10,
+B-3437,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-11-19,Suministro insumos textiles quincena 11,1745000.00,279200.00,2021-11-19,0123456789 BBVA,072180009988776655,TRF-211119-11,
+B-3450,Comercializadora Insumos del Bajio SA de CV,CIB160203TZ4,2021-12-05,Suministro insumos textiles quincena 12,1745000.00,279200.00,2021-12-05,0123456789 BBVA,072180009988776655,TRF-211205-12,Entrega física confirmada por bitácora almacén
