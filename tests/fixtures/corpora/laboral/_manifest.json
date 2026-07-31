@@ -9,7 +9,8 @@
   "relatedFileNumbers": [
     "Solicitud de conciliación prejudicial CFCRL/CDMX/I/2026/004871",
     "Constancia de no conciliación de 22 de enero de 2026",
-    "Denuncia ante la Dirección General de Inspección Federal del Trabajo DGIFT/2026/00933"
+    "Denuncia ante la Dirección General de Inspección Federal del Trabajo DGIFT/2026/00933",
+    "Oficio STPS s/n de 3 de junio de 2026 — inexistencia de registro REPSE de Gestión de Talento Perinorte, S.C."
   ],
   "jurisdiction": "Ciudad de México",
   "fuero": "federal",
@@ -22,19 +23,61 @@
   "assignedJudge": "Lic. Nadia Concepción Berrones Aguilar, Jueza del Tribunal Laboral Federal número 5",
   "courtClerk": "Lic. Édgar Fernando Palomares Cisneros, Secretario de Instrucción",
   "filingDate": "2026-02-03",
-  "proceduralStage": "Audiencia de juicio celebrada; pendiente de alegatos y sentencia",
+  "proceduralStage": "Alegatos presentados; asunto visto para sentencia",
   "nextHearingDate": "2026-07-14",
   "parties": [
-    { "role": "Actora", "name": "Marbella Ortigoza Sandoval", "detail": "Supervisora de operaciones; ingreso 4 de febrero de 2014; despido alegado el 9 de diciembre de 2025" },
-    { "role": "Demandada", "name": "Servicios Logísticos Altavista, S.A. de C.V.", "detail": "Centro de distribución en Azcapotzalco, Ciudad de México" },
-    { "role": "Codemandada", "name": "Gestión de Talento Perinorte, S.C.", "detail": "Empresa señalada como intermediaria en el esquema de honorarios" },
-    { "role": "Representante legal de la demandada", "name": "Ing. Ariadna Sofía Menéndez Ovalle", "detail": "Directora de operaciones; suscribió el escrito de baja" },
-    { "role": "Perito grafoscópica de la actora", "name": "Mtra. Liliana Guadalupe Vergara Cortés", "detail": "Perito en grafoscopía, lista del Consejo de la Judicatura Federal" },
-    { "role": "Testigo", "name": "Ismael Antonio Barragán Quiñones", "detail": "Coordinador de almacén; presenció los hechos del 9 de diciembre de 2025" },
-    { "role": "Testigo", "name": "Yazmín Rocío Pacheco Delgadillo", "detail": "Auxiliar de recursos humanos de la demandada" }
+    {
+      "role": "Actora",
+      "name": "Marbella Ortigoza Sandoval",
+      "detail": "Supervisora de operaciones; ingreso 4 de febrero de 2014; despido alegado el 9 de diciembre de 2025"
+    },
+    {
+      "role": "Demandada",
+      "name": "Servicios Logísticos Altavista, S.A. de C.V.",
+      "detail": "Centro de distribución en Azcapotzalco, Ciudad de México"
+    },
+    {
+      "role": "Codemandada",
+      "name": "Gestión de Talento Perinorte, S.C.",
+      "detail": "Empresa señalada como intermediaria en el esquema de honorarios"
+    },
+    {
+      "role": "Representante legal de la demandada",
+      "name": "Ing. Ariadna Sofía Menéndez Ovalle",
+      "detail": "Directora de operaciones; suscribió el escrito de baja"
+    },
+    {
+      "role": "Perito grafoscópica de la actora",
+      "name": "Mtra. Liliana Guadalupe Vergara Cortés",
+      "detail": "Perito en grafoscopía, lista del Consejo de la Judicatura Federal"
+    },
+    {
+      "role": "Testigo",
+      "name": "Ismael Antonio Barragán Quiñones",
+      "detail": "Coordinador de almacén; presenció los hechos del 9 de diciembre de 2025"
+    },
+    {
+      "role": "Testigo",
+      "name": "Yazmín Rocío Pacheco Delgadillo",
+      "detail": "Auxiliar de recursos humanos de la demandada"
+    },
+    {
+      "role": "Testigo",
+      "name": "Rogelio Andrade Bustamante",
+      "detail": "Auxiliar de almacén; sustituyó a la actora en la coordinación tras su salida"
+    },
+    {
+      "role": "Testigo",
+      "name": "Norberto Aguilar Salcido",
+      "detail": "Director de Capital Humano de la demandada principal"
+    }
   ],
-  "attorneysOfRecord": ["Lic. Omar Ignacio Zaragoza Millán, cédula profesional 7391155"],
-  "opposingCounsel": ["Lic. Beatriz Elena Cortina Requena, cédula profesional 4820736"],
+  "attorneysOfRecord": [
+    "Lic. Omar Ignacio Zaragoza Millán, cédula profesional 7391155"
+  ],
+  "opposingCounsel": [
+    "Lic. Beatriz Elena Cortina Requena, cédula profesional 4820736"
+  ],
   "caseStatus": "En trámite",
   "priority": "alta",
   "riskLevel": "alto",
