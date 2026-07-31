@@ -1,0 +1,59 @@
+{
+  "title": "Amparo Indirecto 342/2026-II — Peraza Manzanilla vs. Juez de Control y otras (Proyecto Faro)",
+  "description": "Juicio de amparo indirecto promovido por el quejoso, privado de su libertad, contra la ejecución de un cateo que excedió el domicilio autorizado, el aseguramiento de los indicios IND-05 e IND-06, y la adquisición forense de dispositivos electrónicos sin autorización judicial específica ni observancia de la cadena de custodia respecto del indicio IND-02, así como su incorporación a la carpeta de investigación CI-FGE-QR/BJ/UIDFD/1120/2026 y sus efectos en la carpeta judicial CJ-214/2026. Se reclama violación a los arts. 14, 16 y 20 apartado B constitucionales. El expediente contiene la demanda, acuerdo de admisión, suspensión provisional y definitiva, informes previos y justificados de cuatro autoridades responsables, la audiencia constitucional con proyecto, la sentencia de amparo, el recurso de revisión y una matriz jurisprudencial. Existen contradicciones entre los informes justificados y las actas policiales relevantes para la estrategia constitucional.",
+  "caseType": "amparo",
+  "practiceArea": "Juicio de Amparo",
+  "subPracticeArea": "Amparo indirecto en materia penal — actos de autoridad en investigación",
+  "internalMatterNumber": "NYR-MX-2026-0088",
+  "courtCaseNumber": "Amparo Indirecto 342/2026-II",
+  "relatedFileNumbers": [
+    "Expediente auxiliar JF-QROO-AI-2026-00421",
+    "Carpeta de Investigación CI-FGE-QR/BJ/UIDFD/1120/2026",
+    "Carpeta Judicial CJ-214/2026",
+    "Amparo en Revisión 168/2026 (Tribunal Colegiado)"
+  ],
+  "jurisdiction": "Federal",
+  "fuero": "federal",
+  "state": "Quintana Roo",
+  "municipality": "Benito Juárez (Cancún)",
+  "judicialDistrict": "Vigésimo Séptimo Circuito, residencia Cancún",
+  "courtName": "Juzgado Primero de Distrito en el Estado de Quintana Roo, con residencia en Cancún",
+  "courtType": "Juzgado de Distrito (Poder Judicial de la Federación)",
+  "competentAuthority": "Consejo de la Judicatura Federal — Vigésimo Séptimo Circuito",
+  "assignedJudge": "Lic. Fernando Elías Zubiría Cáceres, Juez Primero de Distrito",
+  "courtClerk": "Lic. Perla Montserrat Kú Alcocer, Secretaria de Juzgado",
+  "filingDate": "2026-04-06",
+  "proceduralStage": "Sentencia dictada; recurso de revisión en trámite ante Tribunal Colegiado del Vigésimo Séptimo Circuito",
+  "nextHearingDate": null,
+  "parties": [
+    { "role": "Quejoso", "name": "Andrés Iván Peraza Manzanilla", "detail": "Por propio derecho, interno en el Centro de Reinserción Social de Cancún, Quintana Roo" },
+    { "role": "Autoridad responsable ordenadora", "name": "Jueza de Control del Distrito Judicial de Cancún — Lic. Marisol Cetina Bautista" },
+    { "role": "Autoridad responsable ejecutora", "name": "Agente del Ministerio Público UIDFD — Lic. Héctor Manuel Cauich Sansores" },
+    { "role": "Autoridad responsable ejecutora", "name": "Policía Tercero Óscar Damián Balam Tuz", "detail": "Agencia de Investigación Criminal, Coordinación Cancún" },
+    { "role": "Autoridad responsable ejecutora", "name": "Encargado del Almacén de Evidencia de la Coordinación Cancún" },
+    { "role": "Tercero interesado", "name": "Marina Puerto Azul, S. de R.L. de C.V.", "detail": "Por conducto de Claudia Rebeca Fonseca Iriarte; Blvd. Kukulcán km 4.5, local 12, Zona Hotelera, Cancún" },
+    { "role": "Ministerio Público de la Federación", "name": "Lic. Ariadna Sofía Renteral Bermúdez", "detail": "Adscrita al Juzgado Primero de Distrito en el Estado de Quintana Roo" }
+  ],
+  "attorneysOfRecord": [
+    "Lic. Ximena Berenice Toledo Aguilar, cédula profesional 8842137",
+    "Lic. Iker Salomón Domínguez Rejón, cédula profesional 9014772"
+  ],
+  "opposingCounsel": [
+    "Direcciones jurídicas de las autoridades responsables (FGE Quintana Roo y Poder Judicial del Estado)",
+    "Lic. Sandra Ivonne Requena Gómez (tercero interesado)"
+  ],
+  "caseStatus": "En revisión",
+  "priority": "critica",
+  "riskLevel": "alto",
+  "estimatedValueMxn": null,
+  "legalAuthorities": [
+    "CPEUM, arts. 1º, 14, 16, 17 y 20 apartado B",
+    "Ley de Amparo, arts. 1, 5, 61, 77, 107 fracc. III, 117, 124, 125, 128, 138, 147 y 217",
+    "Código Nacional de Procedimientos Penales, arts. 252, 282, 290, 291 y 293",
+    "Convención Americana sobre Derechos Humanos, arts. 8 y 11",
+    "Jurisprudencia P./J. 21/2014 (10a.) — jurisprudencia interamericana vinculante",
+    "Jurisprudencia 1a./J. 139/2011 (9a.) — prueba ilícita, Registro Digital 160509",
+    "Tesis 1a. CCLXXXVI/2018 (10a.) — cadena de custodia, Registro Digital 2018620"
+  ],
+  "fictional": true
+}

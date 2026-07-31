@@ -1,0 +1,55 @@
+{
+  "title": "FGJ Jalisco vs. Nava Cortés — Robo calificado con violencia (CI FGJ/JAL/UIP/00234/2026)",
+  "description": "Proceso penal acusatorio por robo calificado con violencia cometido el 14 de marzo de 2026 en la Av. Chapultepec Sur, colonia Americana, Guadalajara, en agravio de María Fernanda Robles Sandoval, con detención en flagrancia equiparada del imputado a dos cuadras del lugar y aseguramiento del teléfono celular sustraído. La carpeta integra entrevista de la víctima, informe policial homologado, registros de cadena de custodia de la navaja asegurada, dictámenes dactiloscópico, de videovigilancia, psicológico de la víctima y de valuación de bienes, autorización judicial para extracción del teléfono, reconocimiento en cámara de Gesell, descubrimiento probatorio de ambas partes, auto de vinculación a proceso y resolución de medida cautelar. La defensa sostiene coartada y promueve exclusión probatoria por deficiencias en el reconocimiento y en la cadena de custodia; existen discrepancias horarias entre el C5 y el informe policial útiles para análisis estratégico.",
+  "caseType": "penal",
+  "practiceArea": "Derecho Penal",
+  "subPracticeArea": "Delitos contra el patrimonio — sistema penal acusatorio",
+  "internalMatterNumber": "NYR-MX-2026-0032",
+  "courtCaseNumber": "Carpeta de Investigación FGJ/JAL/UIP/00234/2026",
+  "relatedFileNumbers": [
+    "Carpeta Judicial 631/2026 del Primer Distrito Judicial en Guadalajara",
+    "Oficio C5 Escudo Urbano FGJ/JAL/UIP/234-1/2026"
+  ],
+  "jurisdiction": "Estado de Jalisco",
+  "fuero": "comun",
+  "state": "Jalisco",
+  "municipality": "Guadalajara",
+  "judicialDistrict": "Primer Distrito Judicial, Guadalajara",
+  "courtName": "Juzgado de Control y Oralidad del Primer Distrito Judicial en Guadalajara",
+  "courtType": "Juzgado de Control (Sistema Penal Acusatorio)",
+  "competentAuthority": "Fiscalía General de Justicia del Estado de Jalisco — Unidad de Investigación de Delitos contra el Patrimonio",
+  "assignedJudge": "Lic. Verónica Aidé Zermeño Ochoa, Jueza de Control",
+  "courtClerk": "Lic. Omar Alejandro Padilla Rentería, Administrador de Sala",
+  "filingDate": "2026-03-15",
+  "proceduralStage": "Etapa intermedia — auto de apertura a juicio oral dictado",
+  "nextHearingDate": "2026-07-08",
+  "parties": [
+    { "role": "Imputado", "name": "Ricardo Emilio Nava Cortés", "detail": "Detenido en flagrancia equiparada el 15/03/2026 a las 01:20 hrs" },
+    { "role": "Víctima", "name": "María Fernanda Robles Sandoval", "detail": "Despojada de teléfono Samsung Galaxy S23, cartera y $2,400.00 M.N." },
+    { "role": "Agente del Ministerio Público", "name": "Lic. Jorge Aarón Delgado", "detail": "Unidad de Investigación de Delitos contra el Patrimonio" },
+    { "role": "Policía primer respondiente", "name": "Policía Segundo Gerardo Ismael Ávalos Zúñiga", "detail": "Comisaría de Guadalajara, placa GDL-2287" },
+    { "role": "Perito dactiloscopista", "name": "Q.F.B. Leticia Amparo Cisneros Bañuelos", "detail": "Instituto Jalisciense de Ciencias Forenses" },
+    { "role": "Perito en videovigilancia", "name": "Ing. Sergio Damián Loera Quintanar", "detail": "Escudo Urbano C5, Guadalajara" },
+    { "role": "Perita en psicología", "name": "Mtra. Alma Rosario Íñiguez Palomar", "detail": "Dictamen de afectación a la víctima" },
+    { "role": "Testigo de coartada", "name": "Ulises Antonio Barajas Meza", "detail": "Compañero de trabajo del imputado" }
+  ],
+  "attorneysOfRecord": ["Lic. Héctor Salvador Peña, defensor particular del imputado"],
+  "opposingCounsel": [
+    "Lic. Jorge Aarón Delgado (Ministerio Público)",
+    "Lic. Brenda Yaneth Solórzano Rivas (asesora jurídica de la víctima)"
+  ],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 32400,
+  "legalAuthorities": [
+    "CPEUM, arts. 16, 19 y 20 apartado B",
+    "Código Nacional de Procedimientos Penales, arts. 113, 146, 152, 155, 167, 227, 251, 277, 307, 316, 334 y 346",
+    "Código Penal para el Estado de Jalisco, arts. 233 y 234 fracc. I",
+    "Código Penal Federal, art. 367 (concordancia conceptual)",
+    "Protocolo Nacional de Actuación de Primer Respondiente y Acuerdo A/009/2015 (cadena de custodia)",
+    "Jurisprudencia 1a./J. 139/2011 (9a.) — prueba ilícita",
+    "Tesis 1a. XXIII/2018 (10a.) — reconocimiento en cámara de Gesell y derecho de defensa"
+  ],
+  "fictional": true
+}

@@ -42,9 +42,9 @@ const SMOKE_CASES: Array<{
   practiceArea: string;
   expect: { minTimeline: number; minFindings: number; expectContradictions: boolean };
 }> = [
-  { practiceArea: "penal",    expect: { minTimeline: 2, minFindings: 3, expectContradictions: true } },
-  { practiceArea: "laboral",  expect: { minTimeline: 2, minFindings: 3, expectContradictions: true } },
-  { practiceArea: "civil",    expect: { minTimeline: 2, minFindings: 2, expectContradictions: false } },
+  { practiceArea: "penal",                       expect: { minTimeline: 2, minFindings: 3, expectContradictions: true } },
+  { practiceArea: "benchmark_chiapas_familiar",  expect: { minTimeline: 3, minFindings: 3, expectContradictions: true } },
+  { practiceArea: "benchmark_faro_penal",        expect: { minTimeline: 3, minFindings: 3, expectContradictions: true } },
 ];
 
 // Generous — real LLM calls plus persistence. Individual it() gets its own timeout below.
@@ -207,7 +207,7 @@ async function seedCase(
   for (const [p, content] of Object.entries(CORPUS_FILES)) {
     if (!p.startsWith(prefix)) continue;
     const n = p.slice(prefix.length);
-    if (!n || n.toLowerCase() === "readme.md") continue;
+    if (!n || n.startsWith("_") || n.startsWith(".") || n.toLowerCase() === "readme.md") continue;
     uploads.push({ name: n, bytes: enc.encode(content) });
   }
   if (uploads.length === 0) throw new Error(`no bundled corpus for ${practiceArea}`);

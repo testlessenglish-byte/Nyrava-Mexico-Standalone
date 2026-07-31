@@ -568,7 +568,8 @@ function FixtureSeederPanel({ onSeeded }: { onSeeded: () => void }) {
                   </SelectItem>
                   {(corpora ?? []).map((c) => (
                     <SelectItem key={c.practiceArea} value={c.practiceArea}>
-                      {c.practiceArea} ({c.fileCount} files)
+                      {c.title ?? c.practiceArea}
+                      {c.courtCaseNumber ? ` — ${c.courtCaseNumber}` : ""} ({c.fileCount} docs)
                     </SelectItem>
                   ))}
                 </SelectContent>

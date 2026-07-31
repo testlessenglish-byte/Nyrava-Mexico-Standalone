@@ -1,0 +1,56 @@
+{
+  "title": "Proyecto Faro — FGE Q. Roo vs. Peraza Manzanilla (CI-FGE-QR/BJ/UIDFD/1120/2026)",
+  "description": "Investigación penal por fraude genérico agravado, uso de documento falso y administración fraudulenta en agravio de Marina Puerto Azul, S. de R.L. de C.V., derivada de la triangulación de pagos y facturación apócrifa atribuida al Director de Operaciones de Faro Náutico del Caribe, S.A. de C.V. La carpeta contiene denuncia anónima, acuerdo de inicio, entrevista de la víctima, solicitud y orden judicial de cateo, acta de cateo, informe policial homologado, inventario e indicios con registros de cadena de custodia, bitácora de evidencia digital y tres dictámenes periciales (informático, documentoscopía y videovigilancia), además de declaraciones de dos testigos y del policía investigador. La defensa promueve exclusión probatoria por cateo excedido y ruptura de cadena de custodia respecto de los indicios IND-02, IND-05 e IND-06; el expediente presenta discrepancias horarias y de embalaje idóneas para análisis estratégico.",
+  "caseType": "penal",
+  "practiceArea": "Derecho Penal",
+  "subPracticeArea": "Delitos financieros y documentales — sistema acusatorio",
+  "internalMatterNumber": "NYR-MX-2026-0087",
+  "courtCaseNumber": "Carpeta de Investigación CI-FGE-QR/BJ/UIDFD/1120/2026",
+  "relatedFileNumbers": [
+    "Carpeta Judicial de Control CJ-214/2026",
+    "Juicio de Amparo Indirecto JF-QROO-AI-2026-00421"
+  ],
+  "jurisdiction": "Quintana Roo",
+  "fuero": "comun",
+  "state": "Quintana Roo",
+  "municipality": "Benito Juárez (Cancún)",
+  "judicialDistrict": "Distrito Judicial de Cancún",
+  "courtName": "Juzgado de Control del Distrito Judicial de Cancún",
+  "courtType": "Juzgado de Control (Sistema Penal Acusatorio)",
+  "competentAuthority": "Fiscalía General del Estado de Quintana Roo — Vicefiscalía de Investigación y Procesos, Zona Norte",
+  "assignedJudge": "Lic. Marisol Cetina Bautista, Jueza de Control",
+  "courtClerk": "Lic. Aldo Fernando Uicab Poot, Administrador de Sala",
+  "filingDate": "2026-02-24",
+  "proceduralStage": "Etapa intermedia — debate de exclusión probatoria previo al auto de apertura a juicio oral",
+  "nextHearingDate": "2026-06-11",
+  "parties": [
+    { "role": "Imputado", "name": "Andrés Iván Peraza Manzanilla", "detail": "38 años, Director de Operaciones de Faro Náutico del Caribe, S.A. de C.V.; domicilio Calle Nichupté 214, SM 27, Cancún, C.P. 77509" },
+    { "role": "Víctima / Ofendido", "name": "Marina Puerto Azul, S. de R.L. de C.V.", "detail": "Representada por Claudia Rebeca Fonseca Iriarte, apoderada legal (escritura 14,882, vol. 92)" },
+    { "role": "Agente del Ministerio Público", "name": "Lic. Héctor Manuel Cauich Sansores", "detail": "Fiscal investigador adscrito a la UIDFD Zona Norte" },
+    { "role": "Policía de Investigación", "name": "Policía Tercero Óscar Damián Balam Tuz", "detail": "Placa AIC-QR-4471, Agencia de Investigación Criminal, Coordinación Cancún" },
+    { "role": "Perito en informática forense", "name": "Ing. Damaris Yolotzin Kantún Ceh", "detail": "Servicios Periciales FGE Q. Roo — adquisición de dispositivos" },
+    { "role": "Perito en documentoscopía", "name": "Lic. Rubén Alejandro Ontiveros Lara", "detail": "Servicios Periciales FGE Q. Roo" },
+    { "role": "Perito en videovigilancia", "name": "Ing. Marcela Pech Villanueva", "detail": "Servicios Periciales FGE Q. Roo" },
+    { "role": "Testigo A", "name": "Nayeli Guadalupe Espadas Chan", "detail": "Auxiliar contable de Faro Náutico del Caribe, S.A. de C.V." },
+    { "role": "Testigo B", "name": "Gilberto Ramón Novelo Aké", "detail": "Proveedor de servicios náuticos" },
+    { "role": "Notario", "name": "Lic. Emilio Santos Barrera", "detail": "Notario Público 34 del Estado de Quintana Roo" }
+  ],
+  "attorneysOfRecord": ["Lic. Ximena Berenice Toledo Aguilar, cédula profesional 8842137 (defensa particular)"],
+  "opposingCounsel": [
+    "Lic. Héctor Manuel Cauich Sansores (Ministerio Público)",
+    "Lic. Sandra Ivonne Requena Gómez (asesora jurídica de la víctima)"
+  ],
+  "caseStatus": "En trámite",
+  "priority": "critica",
+  "riskLevel": "critico",
+  "estimatedValueMxn": 8450000,
+  "legalAuthorities": [
+    "CPEUM, arts. 14, 16, 16 párr. undécimo (cateo), 19 y 20 apartado B",
+    "Código Nacional de Procedimientos Penales, arts. 227, 228, 252, 282, 290, 291, 293, 316, 334, 346 y 357",
+    "Código Penal para el Estado Libre y Soberano de Quintana Roo, arts. 191, 193 fracc. II, 197 y 232",
+    "Acuerdo A/009/2015 sobre cadena de custodia y Protocolo Nacional de Actuación de Primer Respondiente",
+    "Jurisprudencia 1a./J. 139/2011 (9a.) — prueba ilícita y efecto corruptor",
+    "Tesis 1a. CCLXXXVI/2018 (10a.) — cadena de custodia y valor probatorio de indicios"
+  ],
+  "fictional": true
+}
