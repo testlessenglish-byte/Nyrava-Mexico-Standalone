@@ -1,0 +1,2 @@
+ALTER TABLE public.case_domain_activations DROP CONSTRAINT IF EXISTS case_domain_activations_source_check;
+ALTER TABLE public.case_domain_activations ADD CONSTRAINT case_domain_activations_source_check CHECK (source = ANY (ARRAY['user'::text, 'hybrid'::text, 'evidence'::text, 'charging_docs'::text]));
