@@ -35,6 +35,7 @@ import {
   type BillingPlanRow,
 } from "@/lib/billing-plans.functions";
 import { adminGetMercadoPagoConfigStatus, adminListWebhookEvents } from "@/lib/billing.functions";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/admin/billing")({
   head: () => ({ meta: [{ title: "Billing plans — Admin" }] }),
@@ -165,6 +166,7 @@ function intervalSuffix(interval: Draft["interval"]): string {
 }
 
 function AdminBillingPage() {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const listFn = useServerFn(adminListBillingPlans);
   const upsertFn = useServerFn(adminUpsertBillingPlan);
@@ -259,7 +261,8 @@ function AdminBillingPage() {
       qc.invalidateQueries({ queryKey: ["admin-billing-plans"] });
       qc.invalidateQueries({ queryKey: ["billing-plans-public"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Delete failed"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : t("admin.billing.deleteFailed")),
   });
 
   const nextSort = (rows[rows.length - 1]?.sort_order ?? 0) + 10;
@@ -271,7 +274,7 @@ function AdminBillingPage() {
           to="/admin"
           className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
         >
-          <ChevronLeft className="h-4 w-4" /> Admin
+          <ChevronLeft className="h-4 w-4" /> {t("admin.billing.nav.admin")}
         </Link>
       </div>
 
@@ -280,13 +283,13 @@ function AdminBillingPage() {
           <CreditCard className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold leading-tight">Billing plans</h1>
+          <h1 className="text-2xl font-semibold leading-tight">{t("admin.billing.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Powers the public{" "}
+            {t("admin.billing.subtitle.pre")}{" "}
             <Link to="/billing" className="underline underline-offset-2 hover:text-foreground">
               /billing
             </Link>{" "}
-            page and Mercado Pago checkout.
+            {t("admin.billing.subtitle.post")}
           </p>
         </div>
       </div>
@@ -295,8 +298,12 @@ function AdminBillingPage() {
         <MercadoPagoConfigPanel />
       </div>
 
-      {plansQ.isLoading && <div className="mt-6 text-sm text-muted-foreground">Loading…</div>}
-      {plansQ.error && <div className="mt-6 text-sm text-destructive">Failed to load plans.</div>}
+      {plansQ.isLoading && (
+        <div className="mt-6 text-sm text-muted-foreground">{t("admin.billing.loading")}</div>
+      )}
+      {plansQ.error && (
+        <div className="mt-6 text-sm text-destructive">{t("admin.billing.loadError")}</div>
+      )}
 
       <div className="mt-8 space-y-5">
         {rows.map((p) => {
@@ -310,7 +317,7 @@ function AdminBillingPage() {
               onChange={(patch) => patchDraft(p.id, patch)}
               onSave={() => upsertM.mutate(d)}
               onDelete={() => {
-                if (confirm(`Delete plan "${p.label}"? This cannot be undone.`))
+                if (confirm(t("admin.billing.deleteConfirm", { label: p.label ?? p.key ?? "" })))
                   deleteM.mutate(p.id);
               }}
               saving={upsertM.isPending && upsertM.variables?.id === p.id}
@@ -331,14 +338,14 @@ function AdminBillingPage() {
             onDelete={() => setCreating(null)}
             saving={upsertM.isPending && !upsertM.variables?.id}
             deleting={false}
-            deleteLabel="Cancel"
+            deleteLabel={t("admin.billing.cancel")}
           />
         ) : (
           <button
             onClick={() => setCreating(emptyDraft(nextSort))}
             className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border bg-card/50 px-4 py-3 text-sm text-muted-foreground transition-colors hover:border-accent/50 hover:bg-card hover:text-foreground"
           >
-            <Plus className="h-4 w-4" /> Add plan
+            <Plus className="h-4 w-4" /> {t("admin.billing.addPlan")}
           </button>
         )}
       </div>
@@ -404,6 +411,7 @@ function LimitInput({
   onChange: (v: number | null) => void;
   step?: number;
 }) {
+  const { t } = useI18n();
   const isUnlimited = value == null;
   return (
     <div className="flex items-center gap-2">
@@ -423,7 +431,7 @@ function LimitInput({
           const v = Number(raw);
           onChange(Number.isFinite(v) ? v : null);
         }}
-        placeholder="Unlimited"
+        placeholder={t("admin.billing.unlimited")}
       />
       <label className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
         <input
@@ -432,7 +440,7 @@ function LimitInput({
           checked={isUnlimited}
           onChange={(e) => onChange(e.target.checked ? null : 0)}
         />
-        Unlimited
+        {t("admin.billing.unlimited")}
       </label>
     </div>
   );
@@ -442,6 +450,7 @@ function LimitInput({
  * as the admin edits — so pricing, features, and copy can be sanity-checked
  * without leaving this page or guessing how the raw fields will render. */
 function PlanPreviewCard({ draft }: { draft: Draft }) {
+  const { t } = useI18n();
   const features = draft.featuresText
     .split("\n")
     .map((s) => s.trim())
@@ -449,14 +458,16 @@ function PlanPreviewCard({ draft }: { draft: Draft }) {
   return (
     <div className="md:sticky md:top-6">
       <div className="mb-2.5 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        <Eye className="h-3.5 w-3.5" /> Customer preview
+        <Eye className="h-3.5 w-3.5" /> {t("admin.billing.preview.label")}
       </div>
       <div
         className={`rounded-xl border p-5 transition-opacity ${
           draft.active ? "border-border bg-card" : "border-border/50 bg-card/50 opacity-60"
         }`}
       >
-        <div className="text-base font-semibold">{draft.label || "Untitled plan"}</div>
+        <div className="text-base font-semibold">
+          {draft.label || t("admin.billing.preview.untitled")}
+        </div>
         {draft.tagline && <div className="mt-1 text-sm text-muted-foreground">{draft.tagline}</div>}
 
         <div className="mt-4 flex items-baseline gap-1">
@@ -478,15 +489,21 @@ function PlanPreviewCard({ draft }: { draft: Draft }) {
             ))}
           </ul>
         ) : (
-          <div className="mt-4 text-sm italic text-muted-foreground">No features listed yet.</div>
+          <div className="mt-4 text-sm italic text-muted-foreground">
+            {t("admin.billing.preview.noFeatures")}
+          </div>
         )}
 
         <div className="mt-5 rounded-md border border-border bg-background px-3 py-2 text-center text-sm font-medium text-muted-foreground">
-          {draft.self_serve ? "Subscribe" : "Contact us"}
+          {draft.self_serve
+            ? t("admin.billing.preview.subscribe")
+            : t("admin.billing.preview.contactUs")}
         </div>
 
         {!draft.active && (
-          <div className="mt-3 text-center text-xs text-muted-foreground">Hidden from /billing</div>
+          <div className="mt-3 text-center text-xs text-muted-foreground">
+            {t("admin.billing.preview.hidden")}
+          </div>
         )}
       </div>
     </div>
@@ -514,6 +531,7 @@ function PlanEditor({
   deleting: boolean;
   deleteLabel?: string;
 }) {
+  const { t } = useI18n();
   return (
     <div className="rounded-xl border border-border bg-card p-5 md:p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -527,21 +545,25 @@ function PlanEditor({
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold">{isNew ? "New plan" : draft.label || draft.key}</h3>
+              <h3 className="font-semibold">
+                {isNew ? t("admin.billing.plan.new") : draft.label || draft.key}
+              </h3>
               {!draft.active && (
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  Inactive
+                  {t("admin.billing.plan.inactive")}
                 </span>
               )}
               {dirty && (
                 <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs text-warning">
-                  Unsaved changes
+                  {t("admin.billing.plan.unsaved")}
                 </span>
               )}
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">
-              {draft.self_serve ? "Self-serve checkout" : "Contact-us only"} · Sort order{" "}
-              {draft.sort_order}
+              {draft.self_serve
+                ? t("admin.billing.plan.selfServe")
+                : t("admin.billing.plan.contactOnly")}{" "}
+              · {t("admin.billing.plan.sortOrder")} {draft.sort_order}
             </div>
           </div>
         </div>
@@ -552,7 +574,7 @@ function PlanEditor({
             className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{" "}
-            Save
+            {t("admin.billing.save")}
           </button>
           <button
             onClick={onDelete}
@@ -564,7 +586,7 @@ function PlanEditor({
             ) : (
               <Trash2 className="h-4 w-4" />
             )}
-            {deleteLabel ?? "Delete"}
+            {deleteLabel ?? t("admin.billing.delete")}
           </button>
         </div>
       </div>
@@ -574,9 +596,9 @@ function PlanEditor({
 
         <div className="space-y-6">
           <div>
-            <GroupLabel icon={Tag}>Identity</GroupLabel>
+            <GroupLabel icon={Tag}>{t("admin.billing.group.identity")}</GroupLabel>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field label="Key (used in checkout metadata)">
+              <Field label={t("admin.billing.field.key")}>
                 <input
                   className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm"
                   value={draft.key}
@@ -585,7 +607,7 @@ function PlanEditor({
                   placeholder="solo"
                 />
               </Field>
-              <Field label="Display label">
+              <Field label={t("admin.billing.field.label")}>
                 <input
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                   value={draft.label}
@@ -593,7 +615,7 @@ function PlanEditor({
                   placeholder="Solo"
                 />
               </Field>
-              <Field label="Tagline" className="md:col-span-2">
+              <Field label={t("admin.billing.field.tagline")} className="md:col-span-2">
                 <input
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                   value={draft.tagline}
@@ -605,15 +627,15 @@ function PlanEditor({
           </div>
 
           <div>
-            <GroupLabel icon={DollarSign}>Pricing</GroupLabel>
+            <GroupLabel icon={DollarSign}>{t("admin.billing.group.pricing")}</GroupLabel>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field label="Price">
+              <Field label={t("admin.billing.field.price")}>
                 <PriceCentsInput
                   cents={draft.price_cents}
                   onChange={(price_cents) => onChange({ price_cents })}
                 />
               </Field>
-              <Field label="Currency (3-letter)">
+              <Field label={t("admin.billing.field.currency")}>
                 <input
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm uppercase"
                   value={draft.currency}
@@ -621,18 +643,18 @@ function PlanEditor({
                   maxLength={3}
                 />
               </Field>
-              <Field label="Billing interval">
+              <Field label={t("admin.billing.field.interval")}>
                 <select
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                   value={draft.interval}
                   onChange={(e) => onChange({ interval: e.target.value as Draft["interval"] })}
                 >
-                  <option value="month">Monthly</option>
-                  <option value="year">Yearly</option>
-                  <option value="one_time">One-time</option>
+                  <option value="month">{t("admin.billing.interval.monthly")}</option>
+                  <option value="year">{t("admin.billing.interval.yearly")}</option>
+                  <option value="one_time">{t("admin.billing.interval.oneTime")}</option>
                 </select>
               </Field>
-              <Field label="Sort order (lower = earlier)">
+              <Field label={t("admin.billing.field.sortOrder")}>
                 <input
                   type="number"
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm tabular-nums"
@@ -645,9 +667,9 @@ function PlanEditor({
 
           {draft.self_serve && (
             <div>
-              <GroupLabel icon={Layers}>Seats</GroupLabel>
+              <GroupLabel icon={Layers}>{t("admin.billing.group.seats")}</GroupLabel>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Included seats (covered by base price)">
+                <Field label={t("admin.billing.field.includedSeats")}>
                   <input
                     type="number"
                     min={1}
@@ -658,7 +680,7 @@ function PlanEditor({
                     }
                   />
                 </Field>
-                <Field label="Per-seat price (optional add-on)">
+                <Field label={t("admin.billing.field.perSeatPrice")}>
                   <PriceCentsInput
                     cents={draft.per_seat_price_cents ?? 0}
                     onChange={(cents) =>
@@ -666,10 +688,7 @@ function PlanEditor({
                     }
                   />
                 </Field>
-                <Field
-                  label="Per-seat Stripe Price ID (legacy — not used by Mercado Pago checkout)"
-                  className="md:col-span-2"
-                >
+                <Field label={t("admin.billing.field.perSeatStripeId")} className="md:col-span-2">
                   <input
                     className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-xs opacity-60"
                     value={draft.per_seat_stripe_price_id}
@@ -678,50 +697,45 @@ function PlanEditor({
                   />
                 </Field>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Leave the per-seat fields blank for flat-price plans. Mercado Pago Preapproval
-                subscriptions don&apos;t support a second recurring line item the way Stripe did, so
-                per-seat pricing isn&apos;t currently automated at checkout — track seat counts here
-                and invoice/adjust manually, or via Admin → Team &amp; Seats.
-              </p>
+              <p className="mt-2 text-xs text-muted-foreground">{t("admin.billing.seats.note")}</p>
             </div>
           )}
 
           <div>
-            <GroupLabel icon={Gauge}>Usage limits (monthly, resets each billing cycle)</GroupLabel>
+            <GroupLabel icon={Gauge}>{t("admin.billing.group.usageLimits")}</GroupLabel>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field label="AI requests / month">
+              <Field label={t("admin.billing.field.aiRequests")}>
                 <LimitInput
                   value={draft.ai_requests_monthly}
                   onChange={(v) => onChange({ ai_requests_monthly: v })}
                 />
               </Field>
-              <Field label="Talk-to-Case conversations / month">
+              <Field label={t("admin.billing.field.talkToCase")}>
                 <LimitInput
                   value={draft.talk_to_case_monthly}
                   onChange={(v) => onChange({ talk_to_case_monthly: v })}
                 />
               </Field>
-              <Field label="Max active cases">
+              <Field label={t("admin.billing.field.caseLimit")}>
                 <LimitInput
                   value={draft.case_limit}
                   onChange={(v) => onChange({ case_limit: v })}
                 />
               </Field>
-              <Field label="Storage limit (GB)">
+              <Field label={t("admin.billing.field.storageLimit")}>
                 <LimitInput
                   value={draft.storage_gb_limit}
                   onChange={(v) => onChange({ storage_gb_limit: v })}
                   step={0.5}
                 />
               </Field>
-              <Field label="Team / firm seats">
+              <Field label={t("admin.billing.field.teamSeats")}>
                 <LimitInput
                   value={draft.team_member_limit}
                   onChange={(v) => onChange({ team_member_limit: v })}
                 />
               </Field>
-              <Field label="Overage price (reserved for future pay-as-you-go)">
+              <Field label={t("admin.billing.field.overagePrice")}>
                 <PriceCentsInput
                   cents={draft.overage_price_cents ?? 0}
                   onChange={(cents) => onChange({ overage_price_cents: cents > 0 ? cents : null })}
@@ -735,31 +749,27 @@ function PlanEditor({
                 checked={draft.byok_allowed}
                 onChange={(e) => onChange({ byok_allowed: e.target.checked })}
               />
-              Allow Bring-Your-Own-Key (users on this plan may connect their own AI provider keys to
-              bypass the platform allowance)
+              {t("admin.billing.byokAllow")}
             </label>
             <p className="mt-2 text-xs text-muted-foreground">
-              Check "Unlimited" to remove a cap entirely (e.g. Enterprise). AI requests cover Case
-              Intelligence processing, AI document analysis, report generation, motion generation,
-              strategic analysis, and future intelligence modules — Talk-to-Case is metered
-              separately since it performs continuous AI reasoning.
+              {t("admin.billing.usageLimits.note")}
             </p>
           </div>
 
           <div>
-            <GroupLabel icon={ListChecks}>Internal notes (not shown to customers)</GroupLabel>
+            <GroupLabel icon={ListChecks}>{t("admin.billing.group.internalNotes")}</GroupLabel>
             <textarea
               className="min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
               value={draft.internal_notes}
               onChange={(e) => onChange({ internal_notes: e.target.value })}
-              placeholder="Negotiation floors, deal notes, etc. Admin-only — never rendered on /billing."
+              placeholder={t("admin.billing.field.internalNotesPlaceholder")}
             />
           </div>
 
           <div>
-            <GroupLabel icon={CreditCard}>Checkout</GroupLabel>
+            <GroupLabel icon={CreditCard}>{t("admin.billing.group.checkout")}</GroupLabel>
             <div className="grid grid-cols-1 gap-4">
-              <Field label="Mercado Pago Plan ID (preapproval_plan_id)">
+              <Field label={t("admin.billing.field.mpPlanId")}>
                 <input
                   className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
                   value={draft.mercadopago_plan_id}
@@ -767,7 +777,7 @@ function PlanEditor({
                   placeholder="2c9380847...  (from POST /preapproval_plan)"
                 />
               </Field>
-              <Field label="Contact URL (used when self-serve is off)">
+              <Field label={t("admin.billing.field.contactUrl")}>
                 <input
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                   value={draft.contact_url}
@@ -779,7 +789,7 @@ function PlanEditor({
           </div>
 
           <div>
-            <GroupLabel icon={ListChecks}>Features (one per line)</GroupLabel>
+            <GroupLabel icon={ListChecks}>{t("admin.billing.group.features")}</GroupLabel>
             <textarea
               className="min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm"
               value={draft.featuresText}
@@ -795,7 +805,7 @@ function PlanEditor({
                 checked={draft.self_serve}
                 onChange={(e) => onChange({ self_serve: e.target.checked })}
               />
-              Self-serve checkout (uncheck for &quot;Contact us&quot;)
+              {t("admin.billing.checkbox.selfServe")}
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -804,7 +814,7 @@ function PlanEditor({
                 checked={draft.active}
                 onChange={(e) => onChange({ active: e.target.checked })}
               />
-              Active (visible on /billing)
+              {t("admin.billing.checkbox.active")}
             </label>
           </div>
         </div>
@@ -858,6 +868,7 @@ function StatusChip({ ok, label, detail }: { ok: boolean; label: string; detail?
  * exact URL with a copy button, the exact events to subscribe to, and a
  * direct link to where you do it. */
 function WebhookSetupBox() {
+  const { t } = useI18n();
   // Read the real domain client-side only (SSR has no window) — starts blank
   // and fills in on mount so this never causes a hydration mismatch.
   const [origin, setOrigin] = useState("");
@@ -870,8 +881,8 @@ function WebhookSetupBox() {
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text).then(
-      () => toast.success("Copied"),
-      () => toast.error("Couldn't copy — select and copy manually."),
+      () => toast.success(t("admin.billing.webhook.copied")),
+      () => toast.error(t("admin.billing.webhook.copyFailed")),
     );
   };
 
@@ -879,7 +890,7 @@ function WebhookSetupBox() {
     <div className="mb-4 rounded-lg border border-border/60 bg-secondary/20 p-4">
       <div className="mb-3 flex items-center gap-2">
         <Webhook className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold">Set up your Mercado Pago webhook</h3>
+        <h3 className="text-sm font-semibold">{t("admin.billing.webhook.setupTitle")}</h3>
       </div>
 
       <div className="mb-3 flex items-center gap-2">
@@ -890,51 +901,51 @@ function WebhookSetupBox() {
           onClick={() => copy(webhookUrl)}
           className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium hover:bg-muted"
         >
-          <Copy className="h-3.5 w-3.5" /> Copy URL
+          <Copy className="h-3.5 w-3.5" /> {t("admin.billing.webhook.copyUrl")}
         </button>
       </div>
 
       <ol className="mb-3 list-decimal space-y-1.5 pl-4 text-xs text-muted-foreground">
         <li>
-          Open{" "}
+          {t("admin.billing.webhook.step1")}{" "}
           <a
             href="https://www.mercadopago.com.mx/developers/panel/webhooks"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-foreground underline underline-offset-2 hover:text-primary"
           >
-            Mercado Pago → Your integrations → Webhooks <ExternalLink className="h-3 w-3" />
+            {t("admin.billing.webhook.step1Link")} <ExternalLink className="h-3 w-3" />
           </a>
         </li>
-        <li>Paste the URL above into the notification URL field and save.</li>
+        <li>{t("admin.billing.webhook.step2")}</li>
         <li>
-          Under events, subscribe to{" "}
+          {t("admin.billing.webhook.step3Pre")}{" "}
           <code className="rounded bg-background px-1 py-0.5 font-mono">
             subscription_preapproval
           </code>{" "}
-          and{" "}
+          {t("admin.billing.webhook.step3And")}{" "}
           <code className="rounded bg-background px-1 py-0.5 font-mono">
             subscription_authorized_payment
           </code>
           .
         </li>
         <li>
-          Mercado Pago shows a <strong>Signature Secret</strong> once the webhook is saved — copy it
-          and add it to your deployment&apos;s environment variables as{" "}
+          {t("admin.billing.webhook.step4Pre")}{" "}
+          <strong>{t("admin.billing.webhook.signatureSecret")}</strong>{" "}
+          {t("admin.billing.webhook.step4Post")}{" "}
           <code className="rounded bg-background px-1 py-0.5 font-mono">
             MERCADOPAGO_WEBHOOK_SECRET
           </code>
-          , then redeploy.
+          {t("admin.billing.webhook.step4End")}
         </li>
       </ol>
 
       <p className="text-xs text-muted-foreground">
-        Also set{" "}
+        {t("admin.billing.webhook.alsoSetPre")}{" "}
         <code className="rounded bg-background px-1 py-0.5 font-mono">
           MERCADOPAGO_ACCESS_TOKEN
         </code>{" "}
-        from Mercado Pago → Your integrations → Credentials if you haven&apos;t already. The chips
-        below turn green once both are detected.
+        {t("admin.billing.webhook.alsoSetPost")}
       </p>
     </div>
   );
@@ -957,6 +968,7 @@ function fmtWhen(s: string) {
  * https://<your-domain>/api/public/hooks/mercadopago-webhook, subscribed to
  * subscription_preapproval and subscription_authorized_payment. */
 function MercadoPagoConfigPanel() {
+  const { t } = useI18n();
   const statusFn = useServerFn(adminGetMercadoPagoConfigStatus);
   const eventsFn = useServerFn(adminListWebhookEvents);
 
@@ -978,7 +990,7 @@ function MercadoPagoConfigPanel() {
           <ShieldCheck
             className={`h-4 w-4 ${bothConfigured ? "text-success" : "text-muted-foreground"}`}
           />
-          <h2 className="font-semibold">Mercado Pago configuration</h2>
+          <h2 className="font-semibold">{t("admin.billing.mp.heading")}</h2>
           {/* Nyrava ↔ Mercado Pago connection indicator — a quick "is this
               actually wired end-to-end" read before scanning the two chips
               below. */}
@@ -999,28 +1011,34 @@ function MercadoPagoConfigPanel() {
           }}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
         >
-          <RefreshCw className="h-3 w-3" /> Refresh
+          <RefreshCw className="h-3 w-3" /> {t("admin.billing.mp.refresh")}
         </button>
       </div>
 
-      {statusQ.isLoading && <div className="text-sm text-muted-foreground">Checking…</div>}
+      {statusQ.isLoading && (
+        <div className="text-sm text-muted-foreground">{t("admin.billing.mp.checking")}</div>
+      )}
       {s && (
         <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           <StatusChip
             ok={s.hasAccessToken}
-            label="Mercado Pago access token configured"
+            label={t("admin.billing.mp.accessTokenLabel")}
             detail={
               s.accessTokenMode
-                ? `${s.accessTokenMode} mode`
+                ? t("admin.billing.mp.mode", { mode: s.accessTokenMode })
                 : s.hasAccessToken
-                  ? "unrecognized prefix"
+                  ? t("admin.billing.mp.unrecognizedPrefix")
                   : undefined
             }
           />
           <StatusChip
             ok={s.hasWebhookSecret}
-            label="Webhook signing secret configured"
-            detail={s.webhookSecretLast4 ? `ends …${s.webhookSecretLast4}` : undefined}
+            label={t("admin.billing.mp.webhookSecretLabel")}
+            detail={
+              s.webhookSecretLast4
+                ? t("admin.billing.mp.endsWith", { last4: s.webhookSecretLast4 })
+                : undefined
+            }
           />
         </div>
       )}
@@ -1028,24 +1046,33 @@ function MercadoPagoConfigPanel() {
       <WebhookSetupBox />
 
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        Recent deliveries
+        {t("admin.billing.mp.recentDeliveries")}
       </h3>
-      {eventsQ.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
-      {!eventsQ.isLoading && events.length === 0 && (
+      {eventsQ.isLoading && (
         <div className="text-sm text-muted-foreground">
-          No webhook events received yet — once Mercado Pago sends its first event, it&apos;ll show
-          up here.
+          {t("admin.billing.mp.loadingDeliveries")}
         </div>
+      )}
+      {!eventsQ.isLoading && events.length === 0 && (
+        <div className="text-sm text-muted-foreground">{t("admin.billing.mp.noDeliveries")}</div>
       )}
       {events.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-secondary/50 text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-3 py-2 text-left font-medium">Event</th>
-                <th className="px-3 py-2 text-left font-medium">Status</th>
-                <th className="px-3 py-2 text-left font-medium">Detail</th>
-                <th className="px-3 py-2 text-left font-medium">Received</th>
+                <th className="px-3 py-2 text-left font-medium">
+                  {t("admin.billing.mp.table.event")}
+                </th>
+                <th className="px-3 py-2 text-left font-medium">
+                  {t("admin.billing.mp.table.status")}
+                </th>
+                <th className="px-3 py-2 text-left font-medium">
+                  {t("admin.billing.mp.table.detail")}
+                </th>
+                <th className="px-3 py-2 text-left font-medium">
+                  {t("admin.billing.mp.table.received")}
+                </th>
               </tr>
             </thead>
             <tbody>
