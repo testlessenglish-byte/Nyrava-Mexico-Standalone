@@ -63,7 +63,9 @@ async function readCorpusFiles(area: PracticeArea): Promise<Array<{ name: string
         `Author it under tests/fixtures/corpora/<area>/ — see tests/fixtures/corpora/README.md.`,
     );
   }
-  const files = entries.filter((f) => !f.startsWith(".") && f.toLowerCase() !== "readme.md");
+  const files = entries.filter(
+    (f) => !f.startsWith(".") && !f.startsWith("_") && f.toLowerCase() !== "readme.md",
+  );
   if (files.length === 0) {
     throw new Error(`Corpus directory '${dir}' is empty.`);
   }
