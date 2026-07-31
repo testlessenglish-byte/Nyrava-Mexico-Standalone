@@ -224,7 +224,11 @@ export async function resolveActivations(
     : [];
 
   const [{ data: findings }, { data: documents }] = await Promise.all([
-    db.from("case_findings").select("id,source_module").eq("case_id", caseId).not("source_module", "like", PROJECTION_LIKE),
+    db
+      .from("case_findings")
+      .select("id,source_module")
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE),
     db.from("documents").select("id,filename,extracted_text").eq("case_id", caseId),
   ]);
 
@@ -245,7 +249,19 @@ export async function resolveActivations(
     const seen = new Set((existing ?? []).map((r) => `${r.domain}::${r.source}::${r.trigger_id ?? ""}`));
     const fresh = activations.filter((a) => !seen.has(`${a.domain}::${a.source}::${a.trigger_id ?? ""}`));
     if (fresh.length) {
-      await db.from("case_domain_activations").insert(
+      // 2026-07-31: this insert previously never checked Supabase's `error`
+      // return. The release-gate's cross_domain_no_audit check re-queries
+      // this exact table fresh, later in the same run — so a silently
+      // failed insert here means the manifest (built from the in-memory
+      // `activations` this function returns) says N cross-domain engines
+      // are active, while the DB the release gate reads says zero
+      // activation rows exist, and the ENTIRE report gets blocked on that
+      // mismatch. Confirmed against a real case (ambiental + penal
+      // cross-domain) where exactly this happened. Throwing here surfaces
+      // the real cause immediately instead of a confusing downstream
+      // "no activation audit rows were recorded" three pipeline stages
+      // later.
+      const { error: activationInsertError } = await db.from("case_domain_activations").insert(
         fresh.map((a) => ({
           case_id: caseId,
           domain: a.domain,
@@ -255,6 +271,11 @@ export async function resolveActivations(
           evidence_finding_ids: a.evidence_finding_ids,
         })),
       );
+      if (activationInsertError) {
+        throw new Error(
+          `case_domain_activations insert failed for case ${caseId} (${fresh.length} row(s)): ${activationInsertError.message}`,
+        );
+      }
     }
   }
 
