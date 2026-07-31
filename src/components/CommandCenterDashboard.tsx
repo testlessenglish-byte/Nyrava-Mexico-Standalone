@@ -71,9 +71,15 @@ type Props = {
   documentsCount: number;
   report: ReportLike | null | undefined;
   caseRow?: Record<string, unknown> | null;
+  /** Live row counts from the case page; fall back to canonical report counts. */
+  findingsCount?: number;
+  witnessesCount?: number;
+  /** Opens a workspace tab when a summary tile is clicked. */
+  onOpenTab?: (tab: string) => void;
   onOpenChat: () => void;
   onOpenVoice?: () => void;
 };
+
 
 // ---------------------------------------------------------------
 // Node configuration for the central radar. Each node maps to one
