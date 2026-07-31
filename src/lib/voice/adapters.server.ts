@@ -42,8 +42,21 @@ export function isRotatableError(status: number, bodyText: string): boolean {
     /insufficient_quota|quota exceeded|exceeded your current quota|resource_exhausted/i.test(bodyText)
   )
     return true; // hard quota, not a soft rate limit
+  // Provider-level model availability problems: the model exists but this
+  // account can't use it (Groq requires org acceptance of Orpheus terms,
+  // models get decommissioned/renamed). Every key for THAT provider fails
+  // the same way, but another provider in the chain can still speak — so
+  // rotate instead of dead-ending the whole request.
+  if (
+    (status === 400 || status === 404) &&
+    /model_terms_required|requires terms acceptance|model_not_found|does not exist|decommissioned|not supported/i.test(
+      bodyText,
+    )
+  )
+    return true;
   return false;
 }
+
 
 // ---------------------------------------------------------------------------
 // WAV helpers — every provider's audio is normalized to 16-bit PCM WAV
