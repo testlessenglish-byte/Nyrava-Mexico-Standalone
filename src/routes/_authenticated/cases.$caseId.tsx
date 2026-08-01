@@ -77,7 +77,12 @@ import {
   LitigationImpactDashboardSection,
   LitigationCommandCenterSection,
 } from "@/components/LitigationImpactDashboard";
-import { downloadJson, downloadPdf, downloadDocx, type CaseExportData } from "@/lib/export";
+// NOTE: intentionally a type-only import. `@/lib/export` statically imports
+// jsPDF (which transitively bundles html2canvas, a browser-only module) —
+// importing it at the top of this route pulls that into the SSR module
+// graph and crashes the server build. downloadPdf/downloadDocx/downloadJson
+// are loaded dynamically at each call site below instead.
+import type { CaseExportData } from "@/lib/export";
 import { getApplicableTabs } from "@/lib/intelligence/practice-areas";
 import {
   ArrowLeft,
@@ -522,7 +527,6 @@ function Workspace() {
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <MatterMetadataCard metadata={(c as any).matter_metadata ?? null} />
 
-
           <div className="rounded-xl border border-border bg-card p-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("caseWorkspace.downloads")}
@@ -532,7 +536,8 @@ function Workspace() {
                 icon={FileDown}
                 label={t("caseWorkspace.downloadPdf")}
                 disabled={reportBlocked || !hasReport}
-                onClick={() => {
+                onClick={async () => {
+                  const { downloadPdf } = await import("@/lib/export");
                   downloadPdf(exportData, c.name);
                   void logReportExport({
                     data: { caseId: c.id, format: "pdf", caseName: c.name },
@@ -543,7 +548,8 @@ function Workspace() {
                 icon={FileType}
                 label={t("caseWorkspace.downloadDocx")}
                 disabled={reportBlocked || !hasReport}
-                onClick={() => {
+                onClick={async () => {
+                  const { downloadDocx } = await import("@/lib/export");
                   downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
                   void logReportExport({
                     data: { caseId: c.id, format: "docx", caseName: c.name },
@@ -554,7 +560,8 @@ function Workspace() {
                 icon={FileJson}
                 label={t("caseWorkspace.downloadJson")}
                 disabled={false}
-                onClick={() => {
+                onClick={async () => {
+                  const { downloadJson } = await import("@/lib/export");
                   downloadJson(exportData, c.name);
                   void logReportExport({
                     data: { caseId: c.id, format: "json", caseName: c.name },
@@ -612,13 +619,15 @@ function Workspace() {
             }}
             hasReport={hasReport}
             reportBlocked={reportBlocked}
-            onDownloadPdf={() => {
+            onDownloadPdf={async () => {
+              const { downloadPdf } = await import("@/lib/export");
               downloadPdf(exportData, c.name);
               void logReportExport({
                 data: { caseId: c.id, format: "pdf", caseName: c.name },
               }).catch(() => {});
             }}
-            onDownloadDocx={() => {
+            onDownloadDocx={async () => {
+              const { downloadDocx } = await import("@/lib/export");
               downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
               void logReportExport({
                 data: { caseId: c.id, format: "docx", caseName: c.name },
@@ -668,7 +677,6 @@ function Workspace() {
                   witnessesCount={witnesses.length}
                   onOpenTab={(k) => setTab(k as Tab)}
                   onOpenChat={() => setTab("chat")}
-
                 />
                 <div className="mt-6">
                   <PipelinePanel
@@ -1098,28 +1106,20 @@ function DashboardTab({
             witnessCorrobs.length > 0
               ? Math.round(witnessCorrobs.reduce((a, b) => a + b, 0) / witnessCorrobs.length)
               : null;
-          if (
-            score.evidence_strength == null &&
-            corroborationLevel == null &&
-            score.overall_confidence == null
-          ) {
+          if (score.evidence_strength == null && corroborationLevel == null && score.overall_confidence == null) {
             return null;
           }
           return (
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-sm font-semibold">{t("dash.evidentiaryMetrics")}</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t("dash.evidentiaryMetrics.subtitle")}
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("dash.evidentiaryMetrics.subtitle")}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 <BigMetric label={t("dash.metric.evidenceStrength")} v={score.evidence_strength} />
                 <BigMetric label={t("dash.metric.corroborationLevel")} v={corroborationLevel} />
                 <BigMetric label={t("dash.metric.confidence")} v={score.overall_confidence} />
               </div>
               {witnessCorrobs.length === 0 && (
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  {t("dash.metric.corroborationLevel.noData")}
-                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">{t("dash.metric.corroborationLevel.noData")}</p>
               )}
             </div>
           );
@@ -1226,9 +1226,7 @@ function BigMetric({ label, v, inverse }: { label: string; v: number | null; inv
         <div className={`text-3xl font-semibold tabular-nums ${color}`}>{val ?? "—"}</div>
         {val != null && <div className="text-sm text-muted-foreground">/100</div>}
         {band && (
-          <span
-            className={`ml-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${band.badgeClass}`}
-          >
+          <span className={`ml-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${band.badgeClass}`}>
             {t(band.labelKey)}
           </span>
         )}
@@ -2451,10 +2449,7 @@ function ObjectivePanel({ r }: { r: Report }) {
   const en = o.locale === "en";
 
   return (
-    <Panel
-      title={en ? "Direct Answer" : "Respuesta Directa"}
-      subtitle={o.materia_label ?? undefined}
-    >
+    <Panel title={en ? "Direct Answer" : "Respuesta Directa"} subtitle={o.materia_label ?? undefined}>
       <p className="text-xs uppercase tracking-wider text-muted-foreground">{o.question}</p>
       <p className={`mt-2 text-base ${o.insufficient ? "text-amber-300" : ""}`}>{o.answer}</p>
       {o.confidence && (
@@ -2518,7 +2513,6 @@ function ObjectivePanel({ r }: { r: Report }) {
     </Panel>
   );
 }
-
 
 type ReportVersionRow = {
   id: string;
@@ -2780,7 +2774,6 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
           {changeLog.note && <p className="mt-2 text-xs text-muted-foreground">{changeLog.note}</p>}
         </Panel>
       )}
-
 
       {ess.scoresSuppressed && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
