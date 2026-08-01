@@ -5602,6 +5602,15 @@ export type Database = {
         Args: { _org: string; _user: string }
         Returns: boolean
       }
+      claim_engine_run: {
+        Args: {
+          _case_id: string
+          _engine: string
+          _meta?: Json
+          _user_id: string
+        }
+        Returns: string
+      }
       closing_readiness: { Args: { p_case_id: string }; Returns: number }
       consume_usage: {
         Args: {
