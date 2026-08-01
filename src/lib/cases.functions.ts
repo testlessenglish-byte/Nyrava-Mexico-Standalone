@@ -1237,6 +1237,25 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
       .eq("id", data.caseId);
     if (updateErr) throw new Error(updateErr.message);
 
+    // FIX (2026-08-01): nulling `scored_at` above is not enough on its own.
+    // Stage completion is derived EXCLUSIVELY from `pipeline_engine_runs`
+    // (see deriveStageState() in execution/canonical.ts) — the timestamp
+    // column is never consulted. So a resume that cleared `scored_at` while
+    // leaving the old `scoring` row at status "completed" caused the runner
+    // to skip scoring entirely on the resumed run. Scoring then never
+    // re-stamped `scored_at`, and the report stage — which calls
+    // assertPipelineOrder(caseRow, "report") — threw InvalidPipelineOrderError,
+    // forcing reportMode = "LIMITED" and suppressing scores/recommendations
+    // ("Suprimido") on a case that had otherwise run cleanly. Observed on two
+    // of six real cases (report_at set, scored_at null). Deleting the stale
+    // engine row keeps the two sources of truth consistent: if the timestamp
+    // is invalidated, the stage must actually re-run.
+    if (invalidatesScore) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("pipeline_engine_runs").delete().eq("case_id", data.caseId).eq("engine", "scoring");
+    }
+
+
     const { trace } = await import("@/lib/pipeline-trace.server");
     await trace({
       db: supabase,
