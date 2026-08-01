@@ -310,24 +310,59 @@ async function agentRisk(ctx: RunCtx): Promise<AgentResult> {
   };
 }
 
+// STRUCTURAL FIX (2026-08-01): this agent used to require
+// hasCompletedEngine(..., "report_generator"). That check is unsatisfiable
+// here: canonical.ts schedules `multi_agent` BEFORE `report` (report.dependsOn
+// includes "multi_agent"; multi_agent.dependsOn does not include report), so
+// report_generator has by definition not run when this agent executes. The
+// result was a permanent `failed` for agents 11 (report) and 12 (qa),
+// released:false on every run, and suppressed scores downstream.
+//
+// Chosen remedy: option 1 — drop the unsatisfiable completion check inside
+// multi_agent and verify report *readiness* instead. Option 2 (move the
+// verification to a real post-report pass) is already covered: the canonical
+// gate runs runReportQa() on the assembled report after report_generator
+// finishes (src/lib/canonical/report-qa.server.ts, called from gate.server.ts),
+// so a second post-report agent pass would duplicate it and would require
+// inverting the stage order the pipeline deliberately adopted on 2026-07-31.
 async function agentReport(ctx: RunCtx): Promise<AgentResult> {
-  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "report_generator");
   const { data: report } = await ctx.db
     .from("reports")
     .select("case_id,full_report,executive_summary")
     .eq("case_id", ctx.caseId)
     .maybeSingle();
-  const ok = alreadyDone && !!report;
+  // A report row only exists on a re-run (report_generator ran previously).
+  // On a first run we verify the inputs the report will be assembled from.
+  const scoringDone = await hasCompletedEngine(ctx.db, ctx.caseId, "scoring");
+  const { count: findingsCount } = await ctx.db
+    .from("case_findings")
+    .select("id", { count: "exact", head: true })
+    .eq("case_id", ctx.caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
+  const ready = scoringDone && (findingsCount ?? 0) > 0;
+  const ok = !!report || ready;
+  const errors: string[] = [];
+  if (!ok) {
+    if (!scoringDone) errors.push("Scoring stage has not completed; the report has no scored basis to assemble from.");
+    if ((findingsCount ?? 0) === 0) errors.push("No canonical findings available for the report.");
+  }
   return {
     status: ok ? "success" : "failed",
-    confidence: ok ? 0.9 : 0,
+    confidence: ok ? (report ? 0.9 : 0.8) : 0,
     processingTime: 0,
     tokensUsed: 0,
     outputFile: "draft_report.md",
-    errors: ok ? [] : ["Report stage did not complete before the release gate ran; nothing to verify."],
-    output: { case_id: report?.case_id ?? null, report_completed: alreadyDone },
+    errors,
+    output: {
+      case_id: report?.case_id ?? ctx.caseId,
+      mode: report ? "post_report_verification" : "pre_report_readiness",
+      report_exists: !!report,
+      scoring_completed: scoringDone,
+      findings_count: findingsCount ?? 0,
+    },
   };
 }
+
 
 const QA_NARRATIVE_FIELDS = [
   "executive_summary",
