@@ -2885,17 +2885,17 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
             AGENT_CORPUS_BUDGET_CHARS,
             AGENT_OVERHEAD.agents,
           );
+          const { listProviderRows } = await import("@/lib/ai/router.server");
           console.log("[DEBUG] packingCharBudget call", {
             stage: agent.type,
             engine,
             ceiling: AGENT_CORPUS_BUDGET_CHARS,
             overhead: AGENT_OVERHEAD.agents,
             budget: agentBudgetChars,
-            providers: (await import("@/lib/ai/router.server"))
-              .listProviderRows()
-              .then?.length,
+            providers: (await listProviderRows()).map((r) => r.provider_type),
           });
           const agentBatches = packChunks(chunks, agentBudgetChars);
+
 
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
