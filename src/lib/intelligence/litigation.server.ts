@@ -224,7 +224,7 @@ SHARED CASE BRIEF (single source of truth — do not request more documents):
 ${briefText}`,
         json: true,
         temperature: 0.2,
-      });
+      }));
       await logUsage(db, {
         userId,
         caseId,
