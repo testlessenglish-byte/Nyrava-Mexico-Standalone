@@ -894,6 +894,24 @@ async function _runPipelineForCase(
               rows_written: result.results.length,
               db_write_confirmed: true,
               meta: { run_id: result.runId, released: result.released },
+              // BUG FIX: runMultiAgentPipeline() never throws when its own
+              // internal QA/Judge/Hallucination release gate fails — it
+              // returns a normal value with released:false. runEngine() only
+              // distinguishes "threw" from "didn't throw", so without this,
+              // the ledger recorded status:"completed" for a run whose own
+              // result explicitly said "Release gate failed — QA/Judge/
+              // Hallucination did not all pass." `stats.outcome:"negative"`
+              // is the existing, already-supported mechanism (see
+              // engine-audit.server.ts) for "ran fine, substantive result is
+              // negative" — it persists status:"completed_negative" instead,
+              // so the ledger stops contradicting the inner result. This does
+              // NOT by itself block report generation (multi_agent is
+              // requirement:"optional" by design, so a flaky agent review
+              // must not permanently block the report) — see the explicit
+              // pre-flight check added in pipeline.server.ts::_runReportInner
+              // for the actual report-blocking behavior when release
+              // explicitly failed.
+              outcome: result.released ? undefined : ("negative" as const),
             },
           };
         }),
