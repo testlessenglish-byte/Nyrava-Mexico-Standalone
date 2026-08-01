@@ -2267,15 +2267,15 @@ export const listActivePipelineCases = createServerFn({ method: "GET" })
       "evidence_running",
       "sufficiency_running",
       "report_running",
-    ];
-    const { data, error } = await supabase
+    ] as const;
+    const { data, error } = await (supabase as any)
       .from("cases")
       .select("id")
       .is("deleted_at", null)
-      .in("status", ACTIVE)
+      .in("status", ACTIVE as unknown as string[])
       .limit(50);
     if (error) throw new Error(error.message);
-    return (data ?? []).map((r) => r.id as string);
+    return ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
   });
 
 export const listCases = createServerFn({ method: "GET" })
