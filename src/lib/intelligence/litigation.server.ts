@@ -169,24 +169,18 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
   const stageBudgetMs = budgetFor("perspectives");
   const stageStartedAt = Date.now();
 
-  // Previously every perspective was a fully sequential Groq call even
-  // though they all read the same cached SharedBrief — the SharedBrief
-  // refactor cut token cost per call but not call count, so 6+ applicable
-  // perspectives meant 6+ sequential round-trips. Batching with bounded
-  // concurrency cuts wall-clock time while still checking the checkpoint
-  // budget between batches (not between every single item, so an
-  // in-flight batch always finishes together rather than being cut mid-way).
-  // Sequential, not concurrent — see MIGRATION NOTE below. Was 3 (three
-  // simultaneous calls per batch); a 3-way concurrent burst against
-  // free-tier/limited-quota provider keys is much more likely to trip a
-  // rate limiter than the same total work spread out sequentially, even
-  // when the raw token volume is identical. This matches the more
-  // conservative choice already made for the "agents" stage
-  // (AGENT_CONCURRENCY = 1 in pipeline.server.ts) — perspectives was the
-  // one inconsistent outlier still running bursty. Trades some wall-clock
-  // time for reliability, which is the right tradeoff while running on
-  // constrained keys; revisit if/when provider headroom genuinely allows it.
-  const PERSPECTIVE_CONCURRENCY = 1;
+  // Perspectives all read the same cached SharedBrief, so they are fully
+  // independent calls. Running them one-at-a-time made this the single
+  // largest wall-clock sink in the pipeline (~20s x N applicable
+  // perspectives). They now run 3 at a time, but every provider call goes
+  // through the process-wide `withAiSlot` gate, so the peak request rate the
+  // Groq/Gemini key pool sees stays bounded no matter how many stages fan out
+  // simultaneously — the reliability concern that originally forced this to 1.
+  // The checkpoint budget is still checked between batches, so an in-flight
+  // batch always finishes together.
+  // ROLLBACK: set PERSPECTIVE_CONCURRENCY back to 1.
+  const { withAiSlot } = await import("../ai/concurrency.server");
+  const PERSPECTIVE_CONCURRENCY = 3;
   const batches: Perspective[][] = [];
   for (let i = 0; i < PERSPECTIVES.length; i += PERSPECTIVE_CONCURRENCY) {
     batches.push(PERSPECTIVES.slice(i, i + PERSPECTIVE_CONCURRENCY));
@@ -195,7 +189,7 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
   const runOnePerspective = async (perspective: Perspective) => {
     const t0 = Date.now();
     try {
-      const r = await callGroq({
+      const r = await withAiSlot(() => callGroq({
         apiKeys,
         model: MODEL,
         systemInstruction:
