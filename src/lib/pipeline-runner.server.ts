@@ -1147,6 +1147,11 @@ async function _runPipelineForCase(
   async function runOneStage(
     s: (typeof stages)[number],
     i: number,
+    // Stage key the case should resume from if THIS stage checkpoints. For a
+    // serial stage that is the stage itself; for a member of a parallel batch
+    // it is the batch leader, because stages between the leader and this
+    // member have not executed yet and must not be skipped on resume.
+    resumeKey: string = s.key,
   ): Promise<
     | { kind: "skipped" | "blocked" | "success" | "failed" }
     | {
@@ -1158,6 +1163,7 @@ async function _runPipelineForCase(
     const key = s.key as PipelineStageKey;
     const r = runners[key];
     const pct = Math.floor((i / total) * 95);
+
 
     // Idempotence gate — a stage that already reached a terminal
     // success/skipped state on an earlier tick is never re-executed.
