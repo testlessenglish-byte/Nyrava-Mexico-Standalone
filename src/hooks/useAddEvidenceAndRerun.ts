@@ -10,6 +10,7 @@
 // something that happens silently as a side effect of a chat reply.
 import { useCallback, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { drivePipeline } from "@/lib/pipeline-driver.client";
 import {
   addEvidenceAndRerun,
   queueCaseForPipeline,
@@ -62,6 +63,9 @@ export function useAddEvidenceAndRerun(caseId: string) {
         // a real worker: driveCasePipelineTick no-ops if another lease is
         // already active.
         setProgress("Running affected analysis stages…");
+        // Also hand the case to the navigation-independent driver so the run
+        // keeps advancing if the user leaves this page mid-rerun.
+        drivePipeline(caseId);
         let attempts = 0;
         const maxAttempts = 300; // ~10 minutes ceiling at ~2s/tick
         for (;;) {
