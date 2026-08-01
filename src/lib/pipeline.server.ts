@@ -2974,9 +2974,19 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                   userContent: `${agent.prompt}\n\nCASE CORPUS:\n${batchCorpus}`,
                   json: true,
                   temperature: 0.15,
+                  skipProviders: AGENT_SKIP_PROVIDERS,
                 }),
               );
+              console.log("[DEBUG] agent batch served", {
+                stage: agent.type,
+                engine,
+                batchIdx: idx,
+                chars: batchCorpus.length,
+                provider: r.provider,
+                model: r.model,
+              });
               lastModel = r.model;
+
               await logUsage(db, {
                 userId,
                 caseId,
