@@ -2680,9 +2680,28 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 const AGENT_ENGINE: Record<string, string> = {
   witness_credibility: "agent:witness_credibility",
   chain_of_custody: "chain_of_custody",
-  constitutional_compliance: "constitutional_compliance",
+  // 2026-08-01: `constitutional_compliance` IS a canonical stage
+  // (execution/canonical.ts), so the nested agent used to overwrite the
+  // canonical stage's row. Namespaced for the same reason as witness above.
+  // chain_of_custody / procedural_violations are NOT canonical stages — they
+  // stay bare, there is no collision to fix.
+  constitutional_compliance: "agent:constitutional_compliance",
   procedural_violations: "procedural_violations",
 };
+
+/**
+ * Providers excluded from the investigator-agent stage — both from the packing
+ * budget math AND from the runtime routing chain, which must stay in sync.
+ *
+ * Groq's ~5.5k-token input budget yields ~8,082 chars of usable corpus after
+ * the agent prompt overhead, which clamped every agent batch to that floor and
+ * produced 8+ batches per agent. Excluding it from the budget alone was not
+ * enough: a widened batch packed for OpenRouter/Gemini that fell back to Groq
+ * hit `fitOptsToBudget`, which SILENTLY TRUNCATES the corpus rather than
+ * erroring. Excluding it at both layers is the actual fix.
+ */
+const AGENT_SKIP_PROVIDERS = ["groq"] as const satisfies readonly ProviderType[];
+
 
 /**
  * How many investigator agents may execute simultaneously inside the "agents"
