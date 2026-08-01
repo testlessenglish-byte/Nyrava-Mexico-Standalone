@@ -1917,6 +1917,14 @@ async function buildCorpus(db: Db, caseId: string) {
 // correct guard is the runtime 413/429 auto-split below (splitOversizeChunk),
 // which shrinks only the batches that actually get rejected.
 const ANALYZER_CORPUS_BUDGET_CHARS = 60_000;
+// Agents carry a much smaller non-corpus prompt than the analyzers (2.7K vs
+// 4.9K chars of overhead) and each agent re-reads the whole corpus, so batch
+// COUNT is what dominated their wall clock: witness_credibility alone ran 8
+// sequential batches. A larger ceiling packs the same corpus into roughly half
+// as many calls. `packingCharBudget` still clamps this down to what the
+// narrowest usable provider accepts, and a 413 still auto-splits at runtime.
+// ROLLBACK: set this back to ANALYZER_CORPUS_BUDGET_CHARS.
+const AGENT_CORPUS_BUDGET_CHARS = 120_000;
 const ANALYZER_MIN_BATCH_CHARS = 8_000;
 
 type CorpusChunk = { docId: string; filename: string; index: number; text: string; size: number };
