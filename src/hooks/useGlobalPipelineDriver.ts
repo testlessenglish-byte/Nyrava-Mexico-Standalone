@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { driveCasePipelineTick, listActivePipelineCases } from "@/lib/cases.functions";
-import { configurePipelineDriver, drivePipeline } from "@/lib/pipeline-driver.client";
+import { configurePipelineDriver, drivePipeline } from "@/lib/pipeline-driver";
 
 export function useGlobalPipelineDriver() {
   const qc = useQueryClient();
