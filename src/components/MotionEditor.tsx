@@ -275,7 +275,9 @@ export function MotionEditor({
           <button
             type="button"
             title="Print"
-            onClick={() => printMotion(title, value)}
+            onClick={() =>
+              printMotion(title, value).catch((e) => toast.error(e instanceof Error ? e.message : "Print failed"))
+            }
             className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted/60"
           >
             <Printer className="h-3 w-3" /> Print
