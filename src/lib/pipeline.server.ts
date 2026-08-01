@@ -2881,10 +2881,22 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           // cap and (b) silently drops every document past the truncation.
           const { packingCharBudget: agentBudgetFn, PROMPT_OVERHEAD_CHARS: AGENT_OVERHEAD } =
             await import("@/lib/ai/router.server");
-          const agentBatches = packChunks(
-            chunks,
-            await agentBudgetFn(AGENT_CORPUS_BUDGET_CHARS, AGENT_OVERHEAD.agents),
+          const agentBudgetChars = await agentBudgetFn(
+            AGENT_CORPUS_BUDGET_CHARS,
+            AGENT_OVERHEAD.agents,
           );
+          const { listProviderRows } = await import("@/lib/ai/router.server");
+          console.log("[DEBUG] packingCharBudget call", {
+            stage: agent.type,
+            engine,
+            ceiling: AGENT_CORPUS_BUDGET_CHARS,
+            overhead: AGENT_OVERHEAD.agents,
+            budget: agentBudgetChars,
+            providers: (await listProviderRows()).map((r) => r.provider_type),
+          });
+          const agentBatches = packChunks(chunks, agentBudgetChars);
+
+
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
             batch
