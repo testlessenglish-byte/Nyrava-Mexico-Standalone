@@ -983,9 +983,63 @@ async function _runPipelineForCase(
 
     stages = stages.filter((s) => isStageRelevantForCaseType(mxCaseType, s.key));
   }
+  // Terminal ledger state for every engine, read once. Used to (a) clamp the
+  // resume point, (b) seed cross-tick dependency state, and (c) skip
+  // re-executing stages that already reached a terminal success/skipped state
+  // on an earlier tick (no redundant re-evaluation, no re-billed AI calls).
+  const latestStatusByEngine = new Map<string, string>();
+  const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
+  if (!reset) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: priorRuns, error: priorErr } = await (supabase as any)
+      .from("pipeline_engine_runs")
+      .select("engine,status,started_at")
+      .eq("case_id", caseId)
+      .order("started_at", { ascending: true });
+    if (priorErr) {
+      // Fail loudly rather than silently proceeding with an incomplete
+      // picture of prior failures — a swallowed error here is exactly the
+      // kind of gap that let work_product run past a failed perspectives.
+      throw new Error(
+        `failed to read pipeline_engine_runs history for resume: ${priorErr.message}`,
+      );
+    }
+    for (const row of (priorRuns ?? []) as Array<{ engine: string; status: string }>) {
+      latestStatusByEngine.set(row.engine, row.status); // ascending order → last write wins
+    }
+  }
+  const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
+  const alreadyDone = (k: PipelineStageKey) =>
+    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
+
+  // Resume point. `startFrom` names the stage that checkpointed, but stages do
+  // NOT always execute in index order: a parallel batch is driven by its
+  // earliest member, so a later member (e.g. `perspectives`, index 10) can
+  // checkpoint while stages at indices 6-9 (`evidence_intel`,
+  // `jurisdiction_intel`, `procedural_compliance`, `discovery`) have not run
+  // yet. Slicing blindly at `startFrom` silently dropped those stages for the
+  // rest of the run, leaving `discovery_at`/`evidence_intel_at` null, which
+  // suppressed scoring (PIPELINE_NOT_FINALIZED) and forced a LIMITED report.
+  // Never resume past a stage that has no terminal ledger row.
+  let effectiveStartFrom = startFrom ?? null;
   if (startFrom) {
     const idx = stages.findIndex((s) => s.key === startFrom);
-    if (idx > 0) stages = stages.slice(idx);
+    if (idx > 0) {
+      const firstIncomplete = stages.findIndex((s) => !alreadyDone(s.key as PipelineStageKey));
+      const sliceIdx = firstIncomplete >= 0 ? Math.min(idx, firstIncomplete) : idx;
+      if (sliceIdx !== idx) {
+        trace("pipeline.resume_clamped", {
+          requested: startFrom,
+          clamped_to: stages[sliceIdx].key,
+          skipped_incomplete: stages
+            .slice(sliceIdx, idx)
+            .filter((s) => !alreadyDone(s.key as PipelineStageKey))
+            .map((s) => s.key),
+        });
+      }
+      effectiveStartFrom = stages[sliceIdx].key;
+      if (sliceIdx > 0) stages = stages.slice(sliceIdx);
+    }
   }
 
   const total = stages.length;
@@ -1010,32 +1064,9 @@ async function _runPipelineForCase(
   // (e.g. `work_product`) could run unblocked even though its real upstream
   // dependency never completed. Reconstruct the missing history from the
   // persisted ledger for exactly the stages this tick will NOT re-attempt.
-  const resumeIdx = startFrom ? PIPELINE_STAGES.findIndex((s) => s.key === startFrom) : 0;
-  // Terminal ledger state for every engine, read once. Used both to seed
-  // cross-tick dependency state AND to skip re-executing stages that already
-  // reached a terminal success/skipped state on an earlier tick (Task 3:
-  // no redundant re-evaluation, no re-billed AI calls, much faster runs).
-  const latestStatusByEngine = new Map<string, string>();
-  const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
-  if (!reset) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: priorRuns, error: priorErr } = await (supabase as any)
-      .from("pipeline_engine_runs")
-      .select("engine,status,started_at")
-      .eq("case_id", caseId)
-      .order("started_at", { ascending: true });
-    if (priorErr) {
-      // Fail loudly rather than silently proceeding with an incomplete
-      // picture of prior failures — a swallowed error here is exactly the
-      // kind of gap that let work_product run past a failed perspectives.
-      throw new Error(
-        `failed to read pipeline_engine_runs history for resume: ${priorErr.message}`,
-      );
-    }
-    for (const row of (priorRuns ?? []) as Array<{ engine: string; status: string }>) {
-      latestStatusByEngine.set(row.engine, row.status); // ascending order → last write wins
-    }
-  }
+  const resumeIdx = effectiveStartFrom
+    ? PIPELINE_STAGES.findIndex((s) => s.key === effectiveStartFrom)
+    : 0;
   if (resumeIdx > 0) {
     const { seedResumeState } = await import("./pipeline-checkpoint.server");
     const seeded = seedResumeState({
@@ -1046,14 +1077,12 @@ async function _runPipelineForCase(
     for (const k of seeded.failed) failed.add(k as PipelineStageKey);
     for (const k of seeded.blocked) blocked.add(k as PipelineStageKey);
     trace("pipeline.resume_state_seeded", {
-      resume_from: startFrom,
+      resume_from: effectiveStartFrom,
       seeded_failed: [...failed],
       seeded_blocked: [...blocked],
     });
   }
-  const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
-  const alreadyDone = (k: PipelineStageKey) =>
-    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
+
 
 
   trace("pipeline.start", {
