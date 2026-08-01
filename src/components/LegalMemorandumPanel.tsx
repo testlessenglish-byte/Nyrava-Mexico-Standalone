@@ -1,5 +1,10 @@
 import { toast } from "sonner";
-import { downloadLegalMemoDocx, downloadLegalMemoPdf } from "@/lib/export-legal-memo";
+// NOTE: `@/lib/export-legal-memo` statically imports jsPDF (which
+// transitively bundles html2canvas, a browser-only module). This component
+// is rendered from `reports.tsx`, an SSR route, so a static import here
+// would pull jsPDF into the server bundle and crash the SSR build.
+// `downloadLegalMemoDocx`/`downloadLegalMemoPdf` are loaded dynamically
+// inside each button's onClick below instead.
 // Renders `report.full_report.legal_memorandum` as a court-ready
 // memorandum: Times New Roman, letter-sized page, IRAC blocks, hierarchical
 // section numbering, monospace pinpoint citations. Purely presentational —
@@ -88,7 +93,13 @@ function parseDisputed(entry: DisputedEntry): { claim: string; opposing?: string
 
 const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
-export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum | null | undefined; caseName?: string }) {
+export function LegalMemorandumPanel({
+  memo,
+  caseName,
+}: {
+  memo: LegalMemorandum | null | undefined;
+  caseName?: string;
+}) {
   if (!memo || typeof memo !== "object") return null;
 
   const cap = memo.caption ?? {};
@@ -131,7 +142,10 @@ export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum
       </header>
 
       {/* === EXECUTIVE SUMMARY === */}
-      {(exec.dispositive_recommendation || exec.case_strength || exec.primary_risk || (exec.urgent_actions?.length ?? 0) > 0) && (
+      {(exec.dispositive_recommendation ||
+        exec.case_strength ||
+        exec.primary_risk ||
+        (exec.urgent_actions?.length ?? 0) > 0) && (
         <section className="memo-section">
           <h2>Executive Summary</h2>
           {exec.dispositive_recommendation && (
@@ -168,7 +182,7 @@ export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum
       )}
 
       {/* === STATEMENT OF FACTS === */}
-      {((facts.chronology?.length ?? 0) + (facts.undisputed?.length ?? 0) + (facts.disputed?.length ?? 0) > 0) && (
+      {(facts.chronology?.length ?? 0) + (facts.undisputed?.length ?? 0) + (facts.disputed?.length ?? 0) > 0 && (
         <section className="memo-section">
           <h2>Statement of Facts</h2>
 
@@ -253,7 +267,9 @@ export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum
               {issue.conclusion && (
                 <div className="irac-row">
                   <span className="irac-label">Conclusion</span>
-                  <span className={`irac-content ${tokenClass("conclusion", issue.conclusion.split(/\s+/).slice(0, 2).join("-"))}`}>
+                  <span
+                    className={`irac-content ${tokenClass("conclusion", issue.conclusion.split(/\s+/).slice(0, 2).join("-"))}`}
+                  >
                     {issue.conclusion}
                   </span>
                 </div>
@@ -335,11 +351,15 @@ export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum
                   <td className="exhibit-id">{e.exhibit || "—"}</td>
                   <td>{e.description || "—"}</td>
                   <td className="citation">{e.page || "—"}</td>
-                  <td className="quote-cell">{e.key_quote ? `"${e.key_quote.slice(0, 200)}${e.key_quote.length > 200 ? "…" : ""}"` : "—"}</td>
+                  <td className="quote-cell">
+                    {e.key_quote ? `"${e.key_quote.slice(0, 200)}${e.key_quote.length > 200 ? "…" : ""}"` : "—"}
+                  </td>
                   <td>{e.proves || "—"}</td>
                   <td>
                     {e.admissibility_risk && (
-                      <span className={`risk-badge ${tokenClass("risk", e.admissibility_risk)}`}>{e.admissibility_risk}</span>
+                      <span className={`risk-badge ${tokenClass("risk", e.admissibility_risk)}`}>
+                        {e.admissibility_risk}
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -367,7 +387,9 @@ export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum
                 <tr key={i}>
                   <td>{r.risk || "—"}</td>
                   <td>
-                    {r.probability && <span className={`risk-badge ${tokenClass("risk", r.probability)}`}>{r.probability}</span>}
+                    {r.probability && (
+                      <span className={`risk-badge ${tokenClass("risk", r.probability)}`}>{r.probability}</span>
+                    )}
                   </td>
                   <td>
                     {r.impact && <span className={`risk-badge ${tokenClass("risk", r.impact)}`}>{r.impact}</span>}
@@ -397,7 +419,9 @@ export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum
               {actions.map((a, i) => (
                 <tr key={i}>
                   <td>
-                    {a.priority && <span className={`priority-badge ${tokenClass("priority", a.priority)}`}>{a.priority}</span>}
+                    {a.priority && (
+                      <span className={`priority-badge ${tokenClass("priority", a.priority)}`}>{a.priority}</span>
+                    )}
                   </td>
                   <td>{a.action || "—"}</td>
                   <td>{a.owner || "—"}</td>
@@ -419,6 +443,7 @@ export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum
           className="memo-export-btn"
           onClick={async () => {
             try {
+              const { downloadLegalMemoDocx } = await import("@/lib/export-legal-memo");
               await downloadLegalMemoDocx(memo, caseName ?? "case");
             } catch (e) {
               toast.error(`DOCX export failed: ${e instanceof Error ? e.message : "unknown"}`);
@@ -430,8 +455,9 @@ export function LegalMemorandumPanel({ memo, caseName }: { memo: LegalMemorandum
         <button
           type="button"
           className="memo-export-btn"
-          onClick={() => {
+          onClick={async () => {
             try {
+              const { downloadLegalMemoPdf } = await import("@/lib/export-legal-memo");
               downloadLegalMemoPdf(memo, caseName ?? "case");
             } catch (e) {
               toast.error(`PDF export failed: ${e instanceof Error ? e.message : "unknown"}`);
