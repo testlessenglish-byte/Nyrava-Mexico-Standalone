@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { stopDrivingPipeline } from "@/lib/pipeline-driver.client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CasePartiesPanel } from "@/components/casework/CasePartiesPanel";
@@ -3210,6 +3211,8 @@ function InlineCancelButton({ caseId, invalidate }: { caseId: string; invalidate
   const fm = useMutation({
     mutationFn: () => force({ data: { caseId } }),
     onSuccess: () => {
+      // Explicit stop is the only thing that kills the background loop.
+      stopDrivingPipeline(caseId);
       toast.success("Job force-stopped. You can restart any step now.");
       setRequested(false);
       invalidate();
