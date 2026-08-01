@@ -385,6 +385,13 @@ const QA_NARRATIVE_FIELDS = [
   "risk_analysis",
 ] as const;
 
+// Same structural constraint as agentReport: on a first run there is no
+// `reports` row yet, because report_generator runs AFTER multi_agent. The
+// report-shaped checks below are therefore only applied when a report row
+// actually exists (re-runs); otherwise QA audits what exists at this point in
+// the pipeline. The authoritative post-report QA is runReportQa() in
+// src/lib/canonical/report-qa.server.ts, invoked by the canonical gate once
+// report_generator has produced the analysis.
 async function agentQA(ctx: RunCtx): Promise<AgentResult> {
   const { data: report } = await ctx.db
     .from("reports")
@@ -394,13 +401,8 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
     .eq("case_id", ctx.caseId)
     .maybeSingle();
   const errors: string[] = [];
-  if (!report) errors.push("Report missing.");
-  const full = report?.full_report as Record<string, unknown> | null;
-  if (!full) errors.push("Report has no full_report payload.");
-  const summary = report?.executive_summary;
-  if (!summary || String(summary).trim().length < 80) {
-    errors.push("Executive summary missing or too short (<80 chars).");
-  }
+  const checked: string[] = ["findings_present"];
+
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
     .select("id", { count: "exact", head: true })
@@ -410,11 +412,21 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
 
   const { getReportLocale } = await import("@/lib/mexico-lock");
   const locale = await getReportLocale(ctx.db, ctx.caseId);
-  const narrativeValues = QA_NARRATIVE_FIELDS.map((field) => (report as Record<string, unknown> | null)?.[field]);
-  const reportText = collectReportText(narrativeValues).join("\n").slice(0, 200_000);
-  const languageLeaks = detectReportLanguageLeaks(reportText, locale);
-  if (languageLeaks.length > 0) {
-    errors.push(`Report language drift (${locale}): ${Array.from(new Set(languageLeaks)).slice(0, 8).join(", ")}.`);
+
+  if (report) {
+    checked.push("report_exists", "summary_length", "single_language");
+    const full = report.full_report as Record<string, unknown> | null;
+    if (!full) errors.push("Report has no full_report payload.");
+    const summary = report.executive_summary;
+    if (!summary || String(summary).trim().length < 80) {
+      errors.push("Executive summary missing or too short (<80 chars).");
+    }
+    const narrativeValues = QA_NARRATIVE_FIELDS.map((field) => (report as Record<string, unknown>)[field]);
+    const reportText = collectReportText(narrativeValues).join("\n").slice(0, 200_000);
+    const languageLeaks = detectReportLanguageLeaks(reportText, locale);
+    if (languageLeaks.length > 0) {
+      errors.push(`Report language drift (${locale}): ${Array.from(new Set(languageLeaks)).slice(0, 8).join(", ")}.`);
+    }
   }
 
   const pass = errors.length === 0;
@@ -425,7 +437,7 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
     tokensUsed: 0,
     outputFile: "qa_report.json",
     errors,
-    output: { pass, checked: ["report_exists", "summary_length", "findings_present", "single_language"], locale },
+    output: { pass, mode: report ? "post_report" : "pre_report", checked, locale },
   };
 }
 
