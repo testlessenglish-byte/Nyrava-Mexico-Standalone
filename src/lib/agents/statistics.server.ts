@@ -69,6 +69,7 @@ const AGENT_ENGINE_MAP: Record<string, string[]> = {
     "agents",
     "agent:witness_credibility",
     "constitutional_compliance",
+    "agent:constitutional_compliance",
     "chain_of_custody",
     "cross_examination",
     "trial_prep",
