@@ -3774,6 +3774,30 @@ async function ensureRequiredEngines(args: {
       runEngine(db, { caseId, userId, engine: "witness_intelligence" }, async () =>
         derived.deriveWitnessIntel(db, caseId),
       ),
+    // Both of these are requirement:"blocking" canonical stages, so the
+    // report pre-flight gate refuses to run without them. They previously
+    // had no entry here at all: any case whose pipeline never reached them
+    // (or lost their rows) failed backfill with "no runner registered" and
+    // then hard-failed with "core engines failed to complete".
+    jurisdiction_intel: () =>
+      runEngine(db, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
+        const { runJurisdictionIntelligence } = await import(
+          "./intelligence/jurisdiction-intel.server"
+        );
+        const value = await runJurisdictionIntelligence({ db, caseId });
+        return { value, stats: { generated: 1, accepted: 1 } };
+      }),
+    procedural_compliance: () =>
+      runEngine(db, { caseId, userId, engine: "procedural_compliance" }, async () => {
+        const { runProceduralCompliance } = await import(
+          "./intelligence/procedural-compliance.server"
+        );
+        const value = await runProceduralCompliance({ db, caseId, userId });
+        return {
+          value,
+          stats: { generated: value.evaluated, accepted: value.satisfied },
+        };
+      }),
     constitutional_compliance: () =>
       runEngine(db, { caseId, userId, engine: "constitutional_compliance" }, async () => ({
         value: { derived_from: "analyzers+agents" },
