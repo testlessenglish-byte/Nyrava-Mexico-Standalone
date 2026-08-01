@@ -10,7 +10,6 @@ import {
   updateCaseSettings,
   addEvidenceAndRerun,
   finalizeReportChangeLog,
-  driveCasePipelineTick,
   getCaseRunState,
   PIPELINE_STAGES,
 } from "@/lib/cases.functions";
@@ -56,10 +55,8 @@ export function CaseControlPanel({
   const queueFn = useServerFn(queueCaseForPipeline);
   const addFn = useServerFn(addEvidenceAndRerun);
   const finalizeFn = useServerFn(finalizeReportChangeLog);
-  const tickFn = useServerFn(driveCasePipelineTick);
   const runStateFn = useServerFn(getCaseRunState);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const drivingRef = useRef(false);
   const cancelWaitRef = useRef(false);
   const [addBusy, setAddBusy] = useState(false);
   const [addProgress, setAddProgress] = useState("");
