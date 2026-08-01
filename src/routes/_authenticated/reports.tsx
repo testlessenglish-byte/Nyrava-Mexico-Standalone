@@ -7,7 +7,13 @@ import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty, SuppressedNotice } from "@/components/modules/SuppressedNotice";
 import { isDeterministicFallback } from "@/lib/intelligence/canonical";
-import { downloadJson, downloadPdf, downloadDocx, type CaseExportData } from "@/lib/export";
+// NOTE: intentionally a type-only import. `@/lib/export` statically imports
+// jsPDF (which transitively bundles html2canvas, a browser-only module) —
+// importing it at the top of this file pulls that into the SSR module graph
+// and crashes the server build. `downloadPdf`/`downloadDocx`/`downloadJson`
+// are loaded dynamically inside each button's onClick below instead, so
+// Vite code-splits them into a client-only chunk that SSR never touches.
+import type { CaseExportData } from "@/lib/export";
 import { toast } from "sonner";
 import { useI18n } from "@/i18n";
 import { LegalMemorandumPanel, type LegalMemorandum } from "@/components/LegalMemorandumPanel";
@@ -61,8 +67,7 @@ function ReportsPage() {
   const reportCanonicalVersion =
     typeof report?.canonical_version === "number" ? (report.canonical_version as number) : null;
   const currentCanonicalVersion =
-    typeof (data as { canonical_current_version?: number | null } | undefined)?.canonical_current_version ===
-    "number"
+    typeof (data as { canonical_current_version?: number | null } | undefined)?.canonical_current_version === "number"
       ? ((data as { canonical_current_version?: number | null }).canonical_current_version as number)
       : null;
   const canonicalStale =
@@ -74,11 +79,7 @@ function ReportsPage() {
   const reportMode: "FULL" | "LIMITED" | null =
     report?.report_mode === "FULL" || report?.report_mode === "LIMITED" ? report.report_mode : null;
   const modeLabel =
-    reportMode === "FULL"
-      ? t("reports.mode.full")
-      : reportMode === "LIMITED"
-        ? t("reports.mode.limited")
-        : null;
+    reportMode === "FULL" ? t("reports.mode.full") : reportMode === "LIMITED" ? t("reports.mode.limited") : null;
 
   const run = (fn: () => void | Promise<void>, labelKey: string) => {
     const onFail = (e: unknown) => {
@@ -180,21 +181,36 @@ function ReportsPage() {
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   <button
-                    onClick={() => run(() => downloadPdf(data as CaseExportData, name), "reports.export.pdf")}
+                    onClick={() =>
+                      run(async () => {
+                        const { downloadPdf } = await import("@/lib/export");
+                        return downloadPdf(data as CaseExportData, name);
+                      }, "reports.export.pdf")
+                    }
                     className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"
                   >
                     <FileDown className="h-5 w-5 text-primary" />
                     <span className="text-sm font-medium">{t("reports.export.pdf")}</span>
                   </button>
                   <button
-                    onClick={() => run(() => downloadDocx(data as CaseExportData, name), "reports.export.docx")}
+                    onClick={() =>
+                      run(async () => {
+                        const { downloadDocx } = await import("@/lib/export");
+                        return downloadDocx(data as CaseExportData, name);
+                      }, "reports.export.docx")
+                    }
                     className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"
                   >
                     <FileType className="h-5 w-5 text-primary" />
                     <span className="text-sm font-medium">{t("reports.export.docx")}</span>
                   </button>
                   <button
-                    onClick={() => run(() => downloadJson(data as CaseExportData, name), "reports.export.json")}
+                    onClick={() =>
+                      run(async () => {
+                        const { downloadJson } = await import("@/lib/export");
+                        return downloadJson(data as CaseExportData, name);
+                      }, "reports.export.json")
+                    }
                     className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"
                   >
                     <FileJson className="h-5 w-5 text-primary" />
@@ -217,15 +233,21 @@ function ReportsPage() {
                   const rows = Object.entries(reasons).filter(([, v]) => (v ?? 0) > 0);
                   return (
                     <div className="rounded-xl border border-border bg-card/60 p-4">
-                      <p className="text-xs font-semibold uppercase text-muted-foreground">{t("reports.findingsSummary.title")}</p>
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        {t("reports.findingsSummary.title")}
+                      </p>
                       <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
                         <div>
                           <div className="text-2xl font-semibold">{fs.total_generated ?? 0}</div>
-                          <div className="text-xs text-muted-foreground">{t("reports.findingsSummary.totalGenerated")}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t("reports.findingsSummary.totalGenerated")}
+                          </div>
                         </div>
                         <div>
                           <div className="text-2xl font-semibold text-primary">{fs.displayed ?? 0}</div>
-                          <div className="text-xs text-muted-foreground">{t("reports.findingsSummary.verifiedAndDisplayed")}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t("reports.findingsSummary.verifiedAndDisplayed")}
+                          </div>
                         </div>
                         <div>
                           <div className="text-2xl font-semibold">{fs.suppressed ?? 0}</div>
@@ -234,7 +256,9 @@ function ReportsPage() {
                       </div>
                       {rows.length > 0 ? (
                         <div className="mt-3 border-t border-border pt-3">
-                          <p className="text-xs font-medium text-muted-foreground">{t("reports.findingsSummary.breakdown")}</p>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {t("reports.findingsSummary.breakdown")}
+                          </p>
                           <ul className="mt-1 space-y-0.5 text-xs">
                             {rows.map(([k, v]) => (
                               <li key={k} className="flex justify-between">
@@ -251,7 +275,9 @@ function ReportsPage() {
 
                 {report.executive_summary ? (
                   <div className="rounded-xl border border-border bg-card/60 p-4">
-                    <p className="text-xs font-semibold uppercase text-muted-foreground">{t("reports.executiveSummary.title")}</p>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">
+                      {t("reports.executiveSummary.title")}
+                    </p>
                     <p className="mt-2 whitespace-pre-wrap text-sm">{report.executive_summary}</p>
                   </div>
                 ) : null}
