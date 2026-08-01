@@ -2702,7 +2702,7 @@ const AGENT_ENGINE: Record<string, string> = {
  * hit `fitOptsToBudget`, which SILENTLY TRUNCATES the corpus rather than
  * erroring. Excluding it at both layers is the actual fix.
  */
-const AGENT_SKIP_PROVIDERS = ["groq"] as const satisfies readonly ProviderType[];
+const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
 
 
 /**
