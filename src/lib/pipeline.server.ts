@@ -9,6 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
 import { callGroq, parseJsonLoose, type GroqContent } from "./groq.server";
+import type { ProviderType } from "./ai/providers/types";
+
 import { mexicoLock, getReportLocale } from "@/lib/mexico-lock";
 import { sha256Hex } from "./hash.server";
 import {
