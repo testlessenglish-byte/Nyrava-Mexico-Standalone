@@ -1917,6 +1917,14 @@ async function buildCorpus(db: Db, caseId: string) {
 // correct guard is the runtime 413/429 auto-split below (splitOversizeChunk),
 // which shrinks only the batches that actually get rejected.
 const ANALYZER_CORPUS_BUDGET_CHARS = 60_000;
+// Agents carry a much smaller non-corpus prompt than the analyzers (2.7K vs
+// 4.9K chars of overhead) and each agent re-reads the whole corpus, so batch
+// COUNT is what dominated their wall clock: witness_credibility alone ran 8
+// sequential batches. A larger ceiling packs the same corpus into roughly half
+// as many calls. `packingCharBudget` still clamps this down to what the
+// narrowest usable provider accepts, and a 413 still auto-splits at runtime.
+// ROLLBACK: set this back to ANALYZER_CORPUS_BUDGET_CHARS.
+const AGENT_CORPUS_BUDGET_CHARS = 120_000;
 const ANALYZER_MIN_BATCH_CHARS = 8_000;
 
 type CorpusChunk = { docId: string; filename: string; index: number; text: string; size: number };
@@ -2120,34 +2128,41 @@ ${corpusText}`;
     await import("./pipeline-checkpoint.server");
   const analyzerBudgetMs = _analyzerBudgetFor("analyzers");
   const analyzerStartedAt = Date.now();
-  while (queue.length) {
-    if (Date.now() - analyzerStartedAt > analyzerBudgetMs && successes > 0) {
-      console.warn(`[analyzers] checkpoint reached after ${successes} batches — yielding, ${queue.length} remaining`);
-      throw new _AnalyzerCheckpoint("analyzers", `${successes} batches done, ${queue.length} remaining`);
-    }
-    batchIdx++;
-    const batch = queue.shift()!;
+  // Analyzer batches are independent reads over disjoint corpus slices, so
+  // they run in waves of ANALYZER_BATCH_CONCURRENCY instead of strictly one at
+  // a time. Every provider call goes through the process-wide `withAiSlot`
+  // gate, so total in-flight requests stay bounded. Failure handling (413
+  // split/requeue, cooldown checkpoint, provider-unavailable stop) is applied
+  // sequentially after each wave settles, exactly as before.
+  // ROLLBACK: set ANALYZER_BATCH_CONCURRENCY to 1.
+  const ANALYZER_BATCH_CONCURRENCY = 2;
+  const { withAiSlot: _withAiSlot, mapSettled: _mapSettled } = await import("@/lib/ai/concurrency.server");
+  type AnalyzerFailure = { batch: CorpusChunk[]; batchIdx: number; msg: string };
+
+  const runAnalyzerBatch = async (batch: CorpusChunk[], idx: number): Promise<AnalyzerFailure | null> => {
     const key = batch
       .map((c) => c.docId)
       .sort()
       .join("|");
     if (completedDocSets.has(key)) {
-      console.log(`[analyzers] batch ${batchIdx} skipped (already completed in prior run) docs=${batch.length}`);
-      continue;
+      console.log(`[analyzers] batch ${idx} skipped (already completed in prior run) docs=${batch.length}`);
+      return null;
     }
     const batchCorpus = batch.map((c) => c.text).join("\n\n");
     const startedAt = new Date().toISOString();
     const t0 = Date.now();
     try {
-      console.log(`[analyzers] batch ${batchIdx} start docs=${batch.length} chars=${batchCorpus.length}`);
-      const r = await callGroq({
-        apiKey,
-        apiKeys,
-        systemInstruction,
-        userContent: buildPrompt(batchCorpus),
-        json: true,
-        temperature: 0.1,
-      });
+      console.log(`[analyzers] batch ${idx} start docs=${batch.length} chars=${batchCorpus.length}`);
+      const r = await _withAiSlot(() =>
+        callGroq({
+          apiKey,
+          apiKeys,
+          systemInstruction,
+          userContent: buildPrompt(batchCorpus),
+          json: true,
+          temperature: 0.1,
+        }),
+      );
       await logUsage(db, {
         userId,
         caseId,
@@ -2188,24 +2203,18 @@ ${corpusText}`;
         suppressed_ess: 0,
         suppressed_validator: 0,
         meta: {
-          batchIdx,
+          batchIdx: idx,
           docs: batch.length,
           chars: batchCorpus.length,
           docIds: batch.map((c) => c.docId),
           provider: r.provider,
         } as any,
       } as any);
+      return null;
     } catch (e) {
       rethrowIfCheckpoint(e);
       const msg = e instanceof Error ? e.message : String(e);
-      const payloadTooLarge = isPayloadTooLargeError(msg);
-      const providerUnavailable = isProviderUnavailableError(msg);
-      const retryableTransport = isRetryableTransportError(msg);
-      const nonRetryable = isAuthProviderError(msg);
-      console.warn(
-        `[analyzers] batch ${batchIdx} failed (payload=${payloadTooLarge} providerUnavailable=${providerUnavailable} transport=${retryableTransport} nonRetryable=${nonRetryable}) chars=${batchCorpus.length}: ${msg.slice(0, 300)}`,
-      );
-
+      console.warn(`[analyzers] batch ${idx} failed chars=${batchCorpus.length}: ${msg.slice(0, 300)}`);
       await db.from("pipeline_engine_runs").insert({
         case_id: caseId,
         user_id: userId,
@@ -2220,41 +2229,61 @@ ${corpusText}`;
         suppressed_ess: 0,
         suppressed_validator: 0,
         meta: {
-          batchIdx,
+          batchIdx: idx,
           docs: batch.length,
           chars: batchCorpus.length,
           docIds: batch.map((c) => c.docId),
           error: msg.slice(0, 500),
         } as any,
       } as any);
+      return { batch, batchIdx: idx, msg };
+    }
+  };
+
+  let stopAnalyzers = false;
+  while (queue.length && !stopAnalyzers) {
+    if (Date.now() - analyzerStartedAt > analyzerBudgetMs && successes > 0) {
+      console.warn(`[analyzers] checkpoint reached after ${successes} batches — yielding, ${queue.length} remaining`);
+      throw new _AnalyzerCheckpoint("analyzers", `${successes} batches done, ${queue.length} remaining`);
+    }
+    const wave = queue.splice(0, ANALYZER_BATCH_CONCURRENCY);
+    const startIdx = batchIdx;
+    batchIdx += wave.length;
+    const settled = await _mapSettled(wave, ANALYZER_BATCH_CONCURRENCY, (batch, i) =>
+      runAnalyzerBatch(batch, startIdx + i + 1),
+    );
+    for (const res of settled) {
+      if (!res.ok) throw res.error; // checkpoint / programmer error — propagate
+      const failure = res.value;
+      if (!failure) continue;
+      const { batch, msg } = failure;
+      const payloadTooLarge = isPayloadTooLargeError(msg);
+      const providerUnavailable = isProviderUnavailableError(msg);
+      const retryableTransport = isRetryableTransportError(msg);
+      const nonRetryable = isAuthProviderError(msg);
       if (payloadTooLarge && !nonRetryable && batch.length > 1) {
-        // Split batch in half and re-queue.
         const mid = Math.ceil(batch.length / 2);
         queue.unshift(batch.slice(0, mid), batch.slice(mid));
-        console.log(`[analyzers] batch ${batchIdx} split → 2 sub-batches of ${mid}/${batch.length - mid}`);
+        console.log(`[analyzers] batch ${failure.batchIdx} split → 2 sub-batches of ${mid}/${batch.length - mid}`);
         continue;
       }
       if (payloadTooLarge && !nonRetryable && batch.length === 1 && batch[0].size > ANALYZER_MIN_BATCH_CHARS) {
-        // Single oversize doc: split its text.
         const halves = splitOversizeChunk(batch[0]);
         if (halves.length > 1) {
           queue.unshift(...halves.map((h) => [h]));
-          console.log(`[analyzers] batch ${batchIdx} single-doc split by text (${halves.length} halves)`);
+          console.log(`[analyzers] batch ${failure.batchIdx} single-doc split by text (${halves.length} halves)`);
           continue;
         }
       }
-      providerErrors.push(
-        `batch ${batchIdx} (${batch.length} docs, ${batchCorpus.length} chars): ${msg.slice(0, 300)}`,
-      );
+      providerErrors.push(`batch ${failure.batchIdx} (${batch.length} docs): ${msg.slice(0, 300)}`);
       if (isGroqCooldownOrRateLimit(msg)) {
         const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
         console.warn(`[analyzers] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`);
         throw new CheckpointRequired("analyzers", `after ${successes} successful batch(es) — ${msg.slice(0, 300)}`);
       }
       if (providerUnavailable || retryableTransport) {
-        console.warn(
-          `[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`,
-        );
+        console.warn(`[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`);
+        stopAnalyzers = true;
         break;
       }
     }
@@ -2854,7 +2883,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
             await import("@/lib/ai/router.server");
           const agentBatches = packChunks(
             chunks,
-            await agentBudgetFn(ANALYZER_CORPUS_BUDGET_CHARS, AGENT_OVERHEAD.agents),
+            await agentBudgetFn(AGENT_CORPUS_BUDGET_CHARS, AGENT_OVERHEAD.agents),
           );
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
@@ -2905,22 +2934,33 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           let batchIdx = 0;
           let successes = priorBatchMetas.length;
           let lastModel = MODEL;
-          while (queue.length) {
-            batchIdx++;
-            const batch = queue.shift()!;
+          // Batches of one agent are independent reads over disjoint corpus
+          // slices, so they run in waves instead of strictly one-at-a-time.
+          // Total provider pressure is still bounded by the process-wide
+          // `withAiSlot` gate, so 2 agents x 2 batches never exceeds the
+          // global in-flight cap. Failure handling (payload split/requeue,
+          // cooldown checkpoint, provider-unavailable break) is applied
+          // sequentially AFTER a wave settles, exactly as before.
+          // ROLLBACK: set AGENT_BATCH_CONCURRENCY to 1.
+          const AGENT_BATCH_CONCURRENCY = 2;
+          const { withAiSlot, mapSettled } = await import("@/lib/ai/concurrency.server");
+          type BatchFailure = { batch: CorpusChunk[]; batchIdx: number; msg: string };
+          const runOneBatch = async (batch: CorpusChunk[], idx: number): Promise<BatchFailure | null> => {
             const key = batchKey(batch);
-            if (completedBatchKeys.has(key)) continue;
+            if (completedBatchKeys.has(key)) return null;
             const batchCorpus = batch.map((c) => c.text).join("\n\n");
             const bt0 = Date.now();
             try {
-              const r = await callGroq({
-                apiKey,
-                apiKeys,
-                systemInstruction: `${areaPreamble}\n${agent.system}`,
-                userContent: `${agent.prompt}\n\nCASE CORPUS:\n${batchCorpus}`,
-                json: true,
-                temperature: 0.15,
-              });
+              const r = await withAiSlot(() =>
+                callGroq({
+                  apiKey,
+                  apiKeys,
+                  systemInstruction: `${areaPreamble}\n${agent.system}`,
+                  userContent: `${agent.prompt}\n\nCASE CORPUS:\n${batchCorpus}`,
+                  json: true,
+                  temperature: 0.15,
+                }),
+              );
               lastModel = r.model;
               await logUsage(db, {
                 userId,
@@ -2957,7 +2997,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                     suppressed_validator: 0,
                     meta: {
                       agent_type: agent.type,
-                      batchIdx,
+                      batchIdx: idx,
                       batchKey: key,
                       docs: batch.length,
                       chars: batchCorpus.length,
@@ -2973,15 +3013,12 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
               );
               completedBatchKeys.add(key);
               successes++;
+              return null;
             } catch (be) {
               rethrowIfCheckpoint(be);
               const bmsg = be instanceof Error ? be.message : String(be);
-              const payloadTooLarge = isPayloadTooLargeError(bmsg);
-              const providerUnavailable = isProviderUnavailableError(bmsg);
-              const retryableTransport = isRetryableTransportError(bmsg);
-              const nonRetryable = isAuthProviderError(bmsg);
               console.warn(
-                `[agent:${agent.type}] batch ${batchIdx} failed (payload=${payloadTooLarge} providerUnavailable=${providerUnavailable} transport=${retryableTransport}) chars=${batchCorpus.length}: ${bmsg.slice(0, 300)}`,
+                `[agent:${agent.type}] batch ${idx} failed chars=${batchCorpus.length}: ${bmsg.slice(0, 300)}`,
               );
               await logUsage(db, {
                 userId,
@@ -2992,6 +3029,27 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 success: false,
                 error: bmsg,
               });
+              return { batch, batchIdx: idx, msg: bmsg };
+            }
+          };
+
+          let stopAgent = false;
+          while (queue.length && !stopAgent) {
+            const wave: CorpusChunk[][] = queue.splice(0, AGENT_BATCH_CONCURRENCY);
+            const startIdx = batchIdx;
+            batchIdx += wave.length;
+            const settled = await mapSettled(wave, AGENT_BATCH_CONCURRENCY, (batch, i) =>
+              runOneBatch(batch, startIdx + i + 1),
+            );
+            for (const res of settled) {
+              if (!res.ok) throw res.error; // checkpoint / programmer error — propagate
+              const failure = res.value;
+              if (!failure) continue;
+              const { batch, msg: bmsg } = failure;
+              const payloadTooLarge = isPayloadTooLargeError(bmsg);
+              const providerUnavailable = isProviderUnavailableError(bmsg);
+              const retryableTransport = isRetryableTransportError(bmsg);
+              const nonRetryable = isAuthProviderError(bmsg);
               if (payloadTooLarge && !nonRetryable && batch.length > 1) {
                 const mid = Math.ceil(batch.length / 2);
                 queue.unshift(batch.slice(0, mid), batch.slice(mid));
@@ -3004,16 +3062,12 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                   continue;
                 }
               }
-              batchErrors.push(`batch ${batchIdx}: ${bmsg.slice(0, 200)}`);
+              batchErrors.push(`batch ${failure.batchIdx}: ${bmsg.slice(0, 200)}`);
               if (isGroqCooldownOrRateLimit(bmsg)) {
                 const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
                 console.warn(
                   `[agent:${agent.type}] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`,
                 );
-                // Instrumented so cooldown COUNT can be compared across
-                // concurrency settings, not just total wall clock. More
-                // frequent short stalls at the same total delay is a null
-                // result, and only this row makes that visible.
                 await _agentTrace({
                   db,
                   caseId,
@@ -3024,6 +3078,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                   durationMs: Date.now() - t0,
                   detail: {
                     concurrency: AGENT_CONCURRENCY,
+                    batch_concurrency: AGENT_BATCH_CONCURRENCY,
                     agent: agent.type,
                     batches_done: successes,
                     message: bmsg.slice(0, 300),
@@ -3038,6 +3093,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 console.warn(
                   `[agent:${agent.type}] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`,
                 );
+                stopAgent = true;
                 break;
               }
             }
