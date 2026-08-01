@@ -1112,12 +1112,11 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "ResumePipeline");
-    const { PIPELINE_STAGE_TO_ENGINE } = await import("@/lib/execution/canonical");
+    const { PIPELINE_STAGE_TO_ENGINE, CANONICAL_STAGES } = await import("@/lib/execution/canonical");
     const stageKeys = new Set<string>(PIPELINE_STAGES.map((s) => s.key));
-    // Honor a persisted checkpoint first. The background worker stores the
-    // exact next stage in cases.next_stage; recomputing from the ledger alone
-    // can fall back to extraction when a checkpoint row is queued/skipped or a
-    // prior ledger row was swept.
+    const blockingStageKeys = new Set<string>(
+      CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.key),
+    );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: caseRow, error: caseErr } = await (supabase as any)
       .from("cases")
@@ -1140,49 +1139,75 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
     }
 
     const persistedNext = typeof caseRow.next_stage === "string" ? caseRow.next_stage : null;
-    let resumeKey =
-      persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext)
-        ? persistedNext
-        : undefined;
+    const persistedCandidate =
+      persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext) ? persistedNext : undefined;
+
+    // Always compute the ledger-derived state — this is the single source of
+    // truth for what has actually completed (docs/ARCHITECTURE.md §1), and is
+    // now used unconditionally as a floor under the persisted checkpoint, not
+    // only as a fallback when the checkpoint is absent. A persisted
+    // `cases.next_stage` value is a performance optimization (avoids
+    // recomputing from the ledger on every resume for large cases) but must
+    // never be trusted to skip past a blocking-tier stage that the ledger
+    // shows incomplete — that was possible before this change and is the
+    // class of bug that can produce next_stage=trial_prep (or any later
+    // stage) while a required earlier stage (e.g. analyzers) never
+    // completed.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: rows, error: rowsErr } = await (supabase as any)
       .from("pipeline_engine_runs")
       .select("engine,status,ended_at,created_at")
       .eq("case_id", data.caseId);
     if (rowsErr) throw new Error(rowsErr.message);
-    if (!resumeKey) {
-      const latest = new Map<
-        string,
-        { status: string; created_at?: string | null; ended_at?: string | null }
-      >();
-      for (const r of (rows ?? []) as Array<{
-        engine: string;
-        status: string;
-        created_at?: string | null;
-        ended_at?: string | null;
-      }>) {
-        const prev = latest.get(r.engine);
-        const pt = new Date(prev?.created_at ?? prev?.ended_at ?? 0).getTime();
-        const rt = new Date(r.created_at ?? r.ended_at ?? 0).getTime();
-        if (!prev || rt >= pt) latest.set(r.engine, r);
+
+    const latest = new Map<
+      string,
+      { status: string; created_at?: string | null; ended_at?: string | null }
+    >();
+    for (const r of (rows ?? []) as Array<{
+      engine: string;
+      status: string;
+      created_at?: string | null;
+      ended_at?: string | null;
+    }>) {
+      const prev = latest.get(r.engine);
+      const pt = new Date(prev?.created_at ?? prev?.ended_at ?? 0).getTime();
+      const rt = new Date(r.created_at ?? r.ended_at ?? 0).getTime();
+      if (!prev || rt >= pt) latest.set(r.engine, r);
+    }
+    const completed = new Set<string>();
+    for (const [engine, row] of latest) {
+      if (row.status === "completed" || row.status === "completed_negative" || row.status === "skipped")
+        completed.add(engine);
+    }
+
+    // Earliest incomplete stage, and separately the earliest incomplete
+    // BLOCKING stage — the latter is the hard floor no checkpoint may skip.
+    let ledgerResumeKey: string | undefined;
+    let earliestIncompleteBlockingKey: string | undefined;
+    for (const s of PIPELINE_STAGES) {
+      const engine = PIPELINE_STAGE_TO_ENGINE[s.key];
+      const isIncomplete = !engine || !completed.has(engine);
+      if (isIncomplete && !ledgerResumeKey) ledgerResumeKey = s.key;
+      if (isIncomplete && blockingStageKeys.has(s.key) && !earliestIncompleteBlockingKey) {
+        earliestIncompleteBlockingKey = s.key;
       }
-      const completed = new Set<string>();
-      for (const [engine, row] of latest) {
-        if (
-          row.status === "completed" ||
-          row.status === "completed_negative" ||
-          row.status === "skipped"
-        )
-          completed.add(engine);
-      }
-      // Walk stages in order; first stage whose mapped engine isn't completed is the resume point.
-      for (const s of PIPELINE_STAGES) {
-        const engine = PIPELINE_STAGE_TO_ENGINE[s.key];
-        if (!engine || !completed.has(engine)) {
-          resumeKey = s.key;
-          break;
-        }
-      }
+    }
+
+    let resumeKey: string | undefined;
+    if (
+      earliestIncompleteBlockingKey &&
+      (!persistedCandidate ||
+        PIPELINE_STAGES.findIndex((s) => s.key === persistedCandidate) >
+          PIPELINE_STAGES.findIndex((s) => s.key === earliestIncompleteBlockingKey))
+    ) {
+      // The checkpoint (if any) would skip past an incomplete required
+      // stage — refuse it and resume at the required stage instead.
+      resumeKey = earliestIncompleteBlockingKey;
+    } else if (persistedCandidate) {
+      resumeKey = persistedCandidate;
+    } else {
+      resumeKey = ledgerResumeKey;
     }
     if (!resumeKey) {
       return { ok: true, alreadyComplete: true };
