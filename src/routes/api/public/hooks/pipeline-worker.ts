@@ -116,6 +116,107 @@ async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
   return claimed.data as { id: string; user_id: string; next_stage: string | null };
 }
 
+
+type LeasedCase = { id: string; user_id: string; next_stage: string | null };
+
+/**
+ * Run ONE leased case end-to-end. Fully scoped to `leased.id`: every read,
+ * write, trace and lease release targets that case only, so several of these
+ * can run concurrently in the same tick without touching each other.
+ */
+async function processLeasedCase(
+  admin: ReturnType<typeof createClient<Database>>,
+  leased: LeasedCase,
+): Promise<{ caseId: string; ok: boolean; error?: string; deferred?: boolean }> {
+  // Optional per-user ceiling (disabled by default — see pipeline-lease.server).
+  const { checkUserPipelineCapacity, releasePipelineLease } = await import(
+    "@/lib/pipeline-lease.server"
+  );
+  const capacity = await checkUserPipelineCapacity(
+    admin,
+    leased.user_id,
+    leased.id,
+    "pipeline-worker",
+  );
+  if (!capacity.ok) {
+    await releasePipelineLease(
+      admin,
+      leased.id,
+      "pipeline-worker",
+      `user_concurrency_limit ${capacity.active}/${capacity.limit}`,
+    );
+    await workerTracePersist(admin, leased.id, "worker.capacity_deferred", "warn", {
+      user_id: leased.user_id,
+      active_pipelines: capacity.active,
+      limit: capacity.limit,
+      reason: "user_concurrency_limit",
+    });
+    return { caseId: leased.id, ok: true, deferred: true };
+  }
+
+  const reset = leased.next_stage === "reset";
+  const startFrom = reset ? undefined : (leased.next_stage ?? undefined);
+  try {
+    const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
+    await workerTracePersist(admin, leased.id, "worker.pipeline_start", "start", {
+      reset,
+      startFrom: startFrom ?? null,
+    });
+    const result = await runPipelineForCase(admin, leased.user_id, {
+      caseId: leased.id,
+      reset,
+      startFrom,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const checkpointed = (result as any)?.warnings?.some((w: any) => w?.error === "checkpoint");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const failedAt = typeof (result as any)?.failedAt === "string" ? (result as any).failedAt : null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ok = (result as any)?.ok !== false;
+    if (!checkpointed && ok && !failedAt) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin as any)
+        .from("cases")
+        .update({ queued_at: null, worker_lease_until: null, next_stage: null })
+        .eq("id", leased.id);
+      await workerTracePersist(admin, leased.id, "worker.queue_cleared", "ok");
+    } else if (!checkpointed) {
+      await workerTracePersist(admin, leased.id, "worker.queue_preserved_terminal_state", "warn", {
+        ok,
+        failedAt,
+      });
+    } else {
+      await workerTracePersist(admin, leased.id, "worker.checkpoint_preserved", "warn", {
+        startFrom: startFrom ?? null,
+      });
+    }
+    return { caseId: leased.id, ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await workerTracePersist(
+      admin,
+      leased.id,
+      "worker.pipeline_failed",
+      "error",
+      { stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 6).join("\n") : null },
+      msg.slice(0, 2000),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any)
+      .from("cases")
+      .update({
+        queued_at: null,
+        worker_lease_until: null,
+        next_stage: null,
+        status: "failed",
+        status_message: "Worker error",
+        error: msg.slice(0, 2000),
+      })
+      .eq("id", leased.id);
+    return { caseId: leased.id, ok: false, error: msg };
+  }
+}
+
 export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
   server: {
     handlers: {
@@ -175,125 +276,36 @@ export const Route = createFileRoute("/api/public/hooks/pipeline-worker")({
           console.warn("[pipeline-worker] stall sweep failed", e);
         }
 
-        const leased = await leaseOneCase(admin);
-        if (!leased) {
+        // Drain SEVERAL cases per tick, in parallel. Each has its own CAS
+        // lease keyed by case_id, so Case A and Case B run truly
+        // concurrently instead of B waiting a full cron minute for A.
+        const maxPerTick = Math.max(1, Number(process.env.PIPELINE_WORKER_MAX_PER_TICK ?? 3));
+        const leasedCases: LeasedCase[] = [];
+        for (let i = 0; i < maxPerTick; i++) {
+          const next = await leaseOneCase(admin);
+          if (!next) break;
+          if (leasedCases.some((c) => c.id === next.id)) break;
+          leasedCases.push(next as LeasedCase);
+        }
+        if (leasedCases.length === 0) {
           return new Response(JSON.stringify({ ok: true, processed: 0 }), {
             headers: { "Content-Type": "application/json" },
           });
         }
 
-        // Per-user concurrency ceiling. The CAS lease above only guarantees
-        // one run PER CASE; without this a single account could have the
-        // worker driving N cases at once and exhaust the shared provider
-        // quota. Over the cap we release the lease and leave the case queued
-        // so a later tick picks it up.
-        const { checkUserPipelineCapacity, releasePipelineLease } = await import(
-          "@/lib/pipeline-lease.server"
+        const settled = await Promise.allSettled(
+          leasedCases.map((c) => processLeasedCase(admin, c)),
         );
-        const capacity = await checkUserPipelineCapacity(
-          admin,
-          leased.user_id,
-          leased.id,
-          "pipeline-worker",
+        const results = settled.map((r, i) =>
+          r.status === "fulfilled"
+            ? r.value
+            : { caseId: leasedCases[i].id, ok: false, error: String(r.reason) },
         );
-        if (!capacity.ok) {
-          await releasePipelineLease(
-            admin,
-            leased.id,
-            "pipeline-worker",
-            `user_concurrency_limit ${capacity.active}/${capacity.limit}`,
-          );
-          await workerTracePersist(admin, leased.id, "worker.capacity_deferred", "warn", {
-            user_id: leased.user_id,
-            active_pipelines: capacity.active,
-            limit: capacity.limit,
-            reason: "user_concurrency_limit",
-          });
-          return new Response(
-            JSON.stringify({ ok: true, processed: 0, deferred: leased.id, reason: "user_concurrency_limit" }),
-            { headers: { "Content-Type": "application/json" } },
-          );
-        }
-
-        const reset = leased.next_stage === "reset";
-        const startFrom = reset ? undefined : (leased.next_stage ?? undefined);
-        try {
-          const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
-          await workerTracePersist(admin, leased.id, "worker.pipeline_start", "start", {
-            reset,
-            startFrom: startFrom ?? null,
-          });
-          const result = await runPipelineForCase(admin, leased.user_id, {
-            caseId: leased.id,
-            reset,
-            startFrom,
-          });
-          // If the pipeline voluntarily checkpointed (a stage hit its wall-clock
-          // budget), `requeueForContinuation` has already re-set `queued_at` so
-          // the next worker tick picks this case back up. Do NOT clear the
-          // queue markers here in that case — doing so unconditionally wiped
-          // out that re-queue and orphaned the case (it would never be leased
-          // again, appearing stuck at "queued" forever).
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const checkpointed = (result as any)?.warnings?.some(
-            (w: any) => w?.error === "checkpoint",
-          );
-          const failedAt = typeof (result as any)?.failedAt === "string" ? (result as any).failedAt : null;
-          const ok = (result as any)?.ok !== false;
-          if (!checkpointed && ok && !failedAt) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (admin as any)
-              .from("cases")
-              .update({
-                queued_at: null,
-                worker_lease_until: null,
-                next_stage: null,
-              })
-              .eq("id", leased.id);
-            await workerTracePersist(admin, leased.id, "worker.queue_cleared", "ok");
-          } else if (!checkpointed) {
-            await workerTracePersist(admin, leased.id, "worker.queue_preserved_terminal_state", "warn", {
-              ok,
-              failedAt,
-            });
-          } else {
-            await workerTracePersist(admin, leased.id, "worker.checkpoint_preserved", "warn", {
-              startFrom: startFrom ?? null,
-            });
-          }
-          return new Response(
-            JSON.stringify({ ok: true, processed: 1, caseId: leased.id, result }),
-            { headers: { "Content-Type": "application/json" } },
-          );
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          await workerTracePersist(
-            admin,
-            leased.id,
-            "worker.pipeline_failed",
-            "error",
-            {
-              stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 6).join("\n") : null,
-            },
-            msg.slice(0, 2000),
-          );
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (admin as any)
-            .from("cases")
-            .update({
-              queued_at: null,
-              worker_lease_until: null,
-              next_stage: null,
-              status: "failed",
-              status_message: "Worker error",
-              error: msg.slice(0, 2000),
-            })
-            .eq("id", leased.id);
-          return new Response(
-            JSON.stringify({ ok: false, processed: 1, caseId: leased.id, error: msg }),
-            { status: 500, headers: { "Content-Type": "application/json" } },
-          );
-        }
+        const anyFailed = results.some((r) => !r.ok);
+        return new Response(
+          JSON.stringify({ ok: !anyFailed, processed: results.length, results }),
+          { status: anyFailed ? 500 : 200, headers: { "Content-Type": "application/json" } },
+        );
       },
     },
   },
