@@ -2905,22 +2905,33 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           let batchIdx = 0;
           let successes = priorBatchMetas.length;
           let lastModel = MODEL;
-          while (queue.length) {
-            batchIdx++;
-            const batch = queue.shift()!;
+          // Batches of one agent are independent reads over disjoint corpus
+          // slices, so they run in waves instead of strictly one-at-a-time.
+          // Total provider pressure is still bounded by the process-wide
+          // `withAiSlot` gate, so 2 agents x 2 batches never exceeds the
+          // global in-flight cap. Failure handling (payload split/requeue,
+          // cooldown checkpoint, provider-unavailable break) is applied
+          // sequentially AFTER a wave settles, exactly as before.
+          // ROLLBACK: set AGENT_BATCH_CONCURRENCY to 1.
+          const AGENT_BATCH_CONCURRENCY = 2;
+          const { withAiSlot, mapSettled } = await import("@/lib/ai/concurrency.server");
+          type BatchFailure = { batch: CorpusChunk[]; batchIdx: number; msg: string };
+          const runOneBatch = async (batch: CorpusChunk[], idx: number): Promise<BatchFailure | null> => {
             const key = batchKey(batch);
-            if (completedBatchKeys.has(key)) continue;
+            if (completedBatchKeys.has(key)) return null;
             const batchCorpus = batch.map((c) => c.text).join("\n\n");
             const bt0 = Date.now();
             try {
-              const r = await callGroq({
-                apiKey,
-                apiKeys,
-                systemInstruction: `${areaPreamble}\n${agent.system}`,
-                userContent: `${agent.prompt}\n\nCASE CORPUS:\n${batchCorpus}`,
-                json: true,
-                temperature: 0.15,
-              });
+              const r = await withAiSlot(() =>
+                callGroq({
+                  apiKey,
+                  apiKeys,
+                  systemInstruction: `${areaPreamble}\n${agent.system}`,
+                  userContent: `${agent.prompt}\n\nCASE CORPUS:\n${batchCorpus}`,
+                  json: true,
+                  temperature: 0.15,
+                }),
+              );
               lastModel = r.model;
               await logUsage(db, {
                 userId,
@@ -2957,7 +2968,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                     suppressed_validator: 0,
                     meta: {
                       agent_type: agent.type,
-                      batchIdx,
+                      batchIdx: idx,
                       batchKey: key,
                       docs: batch.length,
                       chars: batchCorpus.length,
@@ -2973,15 +2984,12 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
               );
               completedBatchKeys.add(key);
               successes++;
+              return null;
             } catch (be) {
               rethrowIfCheckpoint(be);
               const bmsg = be instanceof Error ? be.message : String(be);
-              const payloadTooLarge = isPayloadTooLargeError(bmsg);
-              const providerUnavailable = isProviderUnavailableError(bmsg);
-              const retryableTransport = isRetryableTransportError(bmsg);
-              const nonRetryable = isAuthProviderError(bmsg);
               console.warn(
-                `[agent:${agent.type}] batch ${batchIdx} failed (payload=${payloadTooLarge} providerUnavailable=${providerUnavailable} transport=${retryableTransport}) chars=${batchCorpus.length}: ${bmsg.slice(0, 300)}`,
+                `[agent:${agent.type}] batch ${idx} failed chars=${batchCorpus.length}: ${bmsg.slice(0, 300)}`,
               );
               await logUsage(db, {
                 userId,
@@ -2992,6 +3000,27 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 success: false,
                 error: bmsg,
               });
+              return { batch, batchIdx: idx, msg: bmsg };
+            }
+          };
+
+          let stopAgent = false;
+          while (queue.length && !stopAgent) {
+            const wave: CorpusChunk[][] = queue.splice(0, AGENT_BATCH_CONCURRENCY);
+            const startIdx = batchIdx;
+            batchIdx += wave.length;
+            const settled = await mapSettled(wave, AGENT_BATCH_CONCURRENCY, (batch, i) =>
+              runOneBatch(batch, startIdx + i + 1),
+            );
+            for (const res of settled) {
+              if (!res.ok) throw res.error; // checkpoint / programmer error — propagate
+              const failure = res.value;
+              if (!failure) continue;
+              const { batch, msg: bmsg } = failure;
+              const payloadTooLarge = isPayloadTooLargeError(bmsg);
+              const providerUnavailable = isProviderUnavailableError(bmsg);
+              const retryableTransport = isRetryableTransportError(bmsg);
+              const nonRetryable = isAuthProviderError(bmsg);
               if (payloadTooLarge && !nonRetryable && batch.length > 1) {
                 const mid = Math.ceil(batch.length / 2);
                 queue.unshift(batch.slice(0, mid), batch.slice(mid));
@@ -3004,16 +3033,12 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                   continue;
                 }
               }
-              batchErrors.push(`batch ${batchIdx}: ${bmsg.slice(0, 200)}`);
+              batchErrors.push(`batch ${failure.batchIdx}: ${bmsg.slice(0, 200)}`);
               if (isGroqCooldownOrRateLimit(bmsg)) {
                 const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
                 console.warn(
                   `[agent:${agent.type}] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`,
                 );
-                // Instrumented so cooldown COUNT can be compared across
-                // concurrency settings, not just total wall clock. More
-                // frequent short stalls at the same total delay is a null
-                // result, and only this row makes that visible.
                 await _agentTrace({
                   db,
                   caseId,
@@ -3024,6 +3049,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                   durationMs: Date.now() - t0,
                   detail: {
                     concurrency: AGENT_CONCURRENCY,
+                    batch_concurrency: AGENT_BATCH_CONCURRENCY,
                     agent: agent.type,
                     batches_done: successes,
                     message: bmsg.slice(0, 300),
@@ -3038,6 +3064,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 console.warn(
                   `[agent:${agent.type}] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`,
                 );
+                stopAgent = true;
                 break;
               }
             }
