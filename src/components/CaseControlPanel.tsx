@@ -10,7 +10,6 @@ import {
   updateCaseSettings,
   addEvidenceAndRerun,
   finalizeReportChangeLog,
-  driveCasePipelineTick,
   getCaseRunState,
   PIPELINE_STAGES,
 } from "@/lib/cases.functions";
@@ -18,6 +17,7 @@ import { AGENT_DEFINITIONS } from "@/lib/agents/types";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
 import { useI18n } from "@/i18n";
+import { drivePipeline } from "@/lib/pipeline-driver.client";
 
 const RUNNING_STATUSES = new Set([
   "queued",
@@ -55,10 +55,8 @@ export function CaseControlPanel({
   const queueFn = useServerFn(queueCaseForPipeline);
   const addFn = useServerFn(addEvidenceAndRerun);
   const finalizeFn = useServerFn(finalizeReportChangeLog);
-  const tickFn = useServerFn(driveCasePipelineTick);
   const runStateFn = useServerFn(getCaseRunState);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const drivingRef = useRef(false);
   const cancelWaitRef = useRef(false);
   const [addBusy, setAddBusy] = useState(false);
   const [addProgress, setAddProgress] = useState("");
@@ -85,44 +83,10 @@ export function CaseControlPanel({
   // problem than a blip.
   useEffect(() => {
     if (!running) return;
-    if (drivingRef.current) return;
-    drivingRef.current = true;
-    let cancelled = false;
-
-    (async () => {
-      let consecutiveFailures = 0;
-      const maxConsecutiveFailures = 5;
-      while (!cancelled) {
-        let delayMs = 2000;
-        try {
-          const res = await tickFn({ data: { caseId } });
-          consecutiveFailures = 0;
-          invalidate();
-          qc.invalidateQueries({ queryKey: ["case", caseId] });
-          if (res?.done) break;
-        } catch (e) {
-          consecutiveFailures += 1;
-          console.error(
-            `[pipeline] client-driven tick failed (attempt ${consecutiveFailures}/${maxConsecutiveFailures})`,
-            e,
-          );
-          if (consecutiveFailures >= maxConsecutiveFailures) {
-            toast.error(t("caseControl.toast.lostConnection"));
-            break;
-          }
-          // Back off a bit longer after a failure so a transient outage
-          // doesn't get hammered, but still keep retrying automatically.
-          delayMs = 4000 * consecutiveFailures;
-        }
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-      drivingRef.current = false;
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Delegate to the module-level driver so the loop survives unmount /
+    // navigation and runs independently per case_id. Intentionally no
+    // cleanup: leaving this page must NOT stop the run.
+    drivePipeline(caseId);
   }, [running, caseId]);
 
   // Run and Rerun both enqueue the case for the background worker. The

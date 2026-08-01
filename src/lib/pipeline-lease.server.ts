@@ -30,11 +30,16 @@ function isRunningStatus(status: string | null): boolean {
 
 /**
  * Cap on how many pipelines ONE user may have running at the same time.
- * Sized to what a single set of Groq/Gemini keys can sustain without
- * tripping provider rate limits. Override with PIPELINE_MAX_CONCURRENT.
+ *
+ * Default 0 = UNLIMITED. Multi-case concurrency is a product requirement:
+ * starting Case B must never queue, pause, or defer an active Case A.
+ * Provider pressure is handled where it belongs — key rotation, cooldowns
+ * and per-run concurrency limits inside the AI router — not by blocking a
+ * second matter. Set PIPELINE_MAX_CONCURRENT to a positive number to
+ * re-introduce a ceiling.
  */
 export const MAX_CONCURRENT_PIPELINES_PER_USER = Number(
-  process.env.PIPELINE_MAX_CONCURRENT ?? 2,
+  process.env.PIPELINE_MAX_CONCURRENT ?? 0,
 );
 
 /**
@@ -116,8 +121,10 @@ export async function checkUserPipelineCapacity(
   caseId: string,
   path: string,
 ): Promise<{ ok: boolean; active: number; limit: number; reason?: string }> {
-  const active = await countActiveUserPipelines(db, userId, caseId);
   const limit = MAX_CONCURRENT_PIPELINES_PER_USER;
+  // Unlimited (default): never count, never block — cases are independent.
+  if (!Number.isFinite(limit) || limit <= 0) return { ok: true, active: 0, limit: 0 };
+  const active = await countActiveUserPipelines(db, userId, caseId);
   if (active >= limit) {
     leaseLog("capacity_block", {
       path,

@@ -36,6 +36,7 @@ import { BackButton } from "@/components/BackButton";
 import { UserMenu } from "@/components/UserMenu";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useI18n } from "@/i18n";
+import { useGlobalPipelineDriver } from "@/hooks/useGlobalPipelineDriver";
 
 export const Route = createFileRoute("/_authenticated")({
   head: () => ({
@@ -94,6 +95,9 @@ const MOBILE_TABS: Array<{
 
 function AppLayout() {
   const { t } = useI18n();
+  // Navigation-independent pipeline driving: loops live in module state, so
+  // switching pages or cases never pauses an active run (one loop per case).
+  useGlobalPipelineDriver();
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [email, setEmail] = useState<string>("");

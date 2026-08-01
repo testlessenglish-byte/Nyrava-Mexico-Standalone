@@ -2238,6 +2238,46 @@ export const clearAiCooldowns = createServerFn({ method: "POST" })
     clearVoiceCooldowns();
     return { ts: Date.now(), cleared, model: data.model, remaining: listGroqCooldowns() };
   });
+/**
+ * Tiny probe used by the app-shell pipeline driver: ids of this user's cases
+ * that are queued/running. Deliberately separate from `listCases` (which is
+ * a heavy dashboard aggregate) because the shell polls this every 10s.
+ */
+export const listActivePipelineCases = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = await getAuthedContext(context, "ActivePipelines");
+    const ACTIVE = [
+      "queued",
+      "running",
+      "extracting",
+      "analyzing",
+      "scoring",
+      "reporting",
+      "generating_report",
+      "ocr",
+      "intelligence_running",
+      "extraction_running",
+      "extraction_complete",
+      "analyzers_running",
+      "analyzers_complete",
+      "agents_running",
+      "agents_complete",
+      "timeline_running",
+      "evidence_running",
+      "sufficiency_running",
+      "report_running",
+    ] as const;
+    const { data, error } = await (supabase as any)
+      .from("cases")
+      .select("id")
+      .is("deleted_at", null)
+      .in("status", ACTIVE as unknown as string[])
+      .limit(50);
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
+  });
+
 export const listCases = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
