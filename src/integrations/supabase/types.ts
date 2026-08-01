@@ -816,47 +816,6 @@ export type Database = {
           },
         ]
       }
-      cross_agent_audit: {
-        Row: {
-          case_id: string
-          checks: Json
-          conflicts: Json
-          created_at: string
-          id: string
-          report_version: number | null
-          status: string
-          user_id: string
-        }
-        Insert: {
-          case_id: string
-          checks?: Json
-          conflicts?: Json
-          created_at?: string
-          id?: string
-          report_version?: number | null
-          status?: string
-          user_id: string
-        }
-        Update: {
-          case_id?: string
-          checks?: Json
-          conflicts?: Json
-          created_at?: string
-          id?: string
-          report_version?: number | null
-          status?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cross_agent_audit_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       case_chat_messages: {
         Row: {
           case_id: string
@@ -1056,7 +1015,6 @@ export type Database = {
           created_at: string
           derived_from_finding_ids: string[]
           description: string
-          rationale: Json | null
           evidence_refs: Json | null
           evidence_strength: number | null
           evidence_type: string | null
@@ -1070,6 +1028,7 @@ export type Database = {
           priority: number | null
           projected_from_row_id: string | null
           projected_from_table: string | null
+          rationale: Json | null
           related_finding_ids: string[] | null
           severity: string
           source_doc_ids: string[] | null
@@ -1100,7 +1059,6 @@ export type Database = {
           created_at?: string
           derived_from_finding_ids?: string[]
           description: string
-          rationale?: Json | null
           evidence_refs?: Json | null
           evidence_strength?: number | null
           evidence_type?: string | null
@@ -1114,6 +1072,7 @@ export type Database = {
           priority?: number | null
           projected_from_row_id?: string | null
           projected_from_table?: string | null
+          rationale?: Json | null
           related_finding_ids?: string[] | null
           severity?: string
           source_doc_ids?: string[] | null
@@ -1144,7 +1103,6 @@ export type Database = {
           created_at?: string
           derived_from_finding_ids?: string[]
           description?: string
-          rationale?: Json | null
           evidence_refs?: Json | null
           evidence_strength?: number | null
           evidence_type?: string | null
@@ -1158,6 +1116,7 @@ export type Database = {
           priority?: number | null
           projected_from_row_id?: string | null
           projected_from_table?: string | null
+          rationale?: Json | null
           related_finding_ids?: string[] | null
           severity?: string
           source_doc_ids?: string[] | null
@@ -2276,6 +2235,47 @@ export type Database = {
           },
         ]
       }
+      cross_agent_audit: {
+        Row: {
+          case_id: string
+          checks: Json
+          conflicts: Json
+          created_at: string
+          id: string
+          report_version: number | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          checks?: Json
+          conflicts?: Json
+          created_at?: string
+          id?: string
+          report_version?: number | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          checks?: Json
+          conflicts?: Json
+          created_at?: string
+          id?: string
+          report_version?: number | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cross_agent_audit_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_case_documents: {
         Row: {
           created_at: string
@@ -2700,50 +2700,6 @@ export type Database = {
         }
         Relationships: []
       }
-      firm_invites: {
-        Row: {
-          accepted_at: string | null
-          email: string
-          firm_id: string
-          id: string
-          invited_at: string
-          invited_by: string
-          redeemed_user_id: string | null
-          role: string
-          status: string
-        }
-        Insert: {
-          accepted_at?: string | null
-          email: string
-          firm_id: string
-          id?: string
-          invited_at?: string
-          invited_by: string
-          redeemed_user_id?: string | null
-          role?: string
-          status?: string
-        }
-        Update: {
-          accepted_at?: string | null
-          email?: string
-          firm_id?: string
-          id?: string
-          invited_at?: string
-          invited_by?: string
-          redeemed_user_id?: string | null
-          role?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "firm_invites_firm_id_fkey"
-            columns: ["firm_id"]
-            isOneToOne: false
-            referencedRelation: "firms"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       finding_version_snapshots: {
         Row: {
           canonical_finding_id: string | null
@@ -2790,6 +2746,50 @@ export type Database = {
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      firm_invites: {
+        Row: {
+          accepted_at: string | null
+          email: string
+          firm_id: string
+          id: string
+          invited_at: string
+          invited_by: string
+          redeemed_user_id: string | null
+          role: string
+          status: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          email: string
+          firm_id: string
+          id?: string
+          invited_at?: string
+          invited_by: string
+          redeemed_user_id?: string | null
+          role?: string
+          status?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          email?: string
+          firm_id?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string
+          redeemed_user_id?: string | null
+          role?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firm_invites_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "firms"
             referencedColumns: ["id"]
           },
         ]
@@ -5607,12 +5607,15 @@ export type Database = {
         Args: {
           p_amount?: number
           p_kind: string
-          p_limit: number | null
+          p_limit: number
           p_user_id: string
         }
-        Returns: { allowed: boolean; limit: number | null; used: number }[]
+        Returns: {
+          allowed: boolean
+          limit: number
+          used: number
+        }[]
       }
-      increment_reports_generated: { Args: { p_user_id: string }; Returns: undefined }
       firm_seat_usage: {
         Args: { _firm_id: string }
         Returns: {
@@ -5631,6 +5634,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_reports_generated: {
+        Args: { p_user_id: string }
+        Returns: undefined
       }
       is_admin_tier: { Args: { _user_id: string }; Returns: boolean }
       is_case_manager: { Args: { _user_id: string }; Returns: boolean }

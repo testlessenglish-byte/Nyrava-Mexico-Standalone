@@ -196,7 +196,8 @@ export async function checkAndConsumeUsage(args: {
   const { data, error } = await admin.rpc("consume_usage", {
     p_user_id: userId,
     p_kind: kind,
-    p_limit: limit,
+    // The Postgres function treats NULL as unlimited, but generated types require a number.
+    p_limit: limit ?? 2_147_483_647,
     p_amount: amount,
   });
   if (error) throw new Error(error.message);

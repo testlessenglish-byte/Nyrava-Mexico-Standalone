@@ -4132,16 +4132,25 @@ async function _runReportInner(args: {
   const docLegend = docIndex
     .map((d) => `DOC ${d.doc_n} = "${d.filename}" (id=${d.document_id}, ${d.pages} pages)`)
     .join("\n");
-  const findingsLite = findings.map((f) => ({
-    id: f.id,
-    category: f.category,
-    severity: f.severity,
-    confidence: f.confidence,
-    title: f.title,
-    affected_party: f.affected_party,
-    description: (f.description ?? "").slice(0, 240),
-    legal_significance: f.legal_significance,
-  }));
+  // Prioritized findings payload: sorts critical and high-severity, high-confidence
+  // findings first so prompt truncation drops least important findings, never critical ones.
+  const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const findingsLite = [...findings]
+    .sort((a, b) => {
+      const sevDiff = (SEVERITY_RANK[a.severity] ?? 5) - (SEVERITY_RANK[b.severity] ?? 5);
+      if (sevDiff !== 0) return sevDiff;
+      return (b.confidence ?? 0) - (a.confidence ?? 0);
+    })
+    .map((f) => ({
+      id: f.id,
+      category: f.category,
+      severity: f.severity,
+      confidence: f.confidence,
+      title: f.title,
+      affected_party: f.affected_party,
+      description: (f.description ?? "").slice(0, 240),
+      legal_significance: f.legal_significance,
+    }));
 
   await setCase(db, caseId, {
     status_message: "Running litigation intelligence pass (Groq)",
