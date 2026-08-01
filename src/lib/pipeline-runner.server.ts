@@ -1338,7 +1338,7 @@ async function _runPipelineForCase(
               status: "failed",
               status_message: `Sin capacidad de IA — detenido en ${s.label}`,
               error: detail.slice(0, 2000),
-              next_stage: s.key,
+              next_stage: resumeKey,
               queued_at: null,
               worker_lease_until: null,
               stall_reason: "ai_capacity_exhausted",
@@ -1457,7 +1457,7 @@ async function _runPipelineForCase(
 
       trace("stage.batch_start", { batch: batch, members: members.map((m) => m.k) });
       const settled = await Promise.allSettled(
-        members.map((m) => runOneStage(stages[m.idx], m.idx)),
+        members.map((m) => runOneStage(stages[m.idx], m.idx, s.key)),
       );
       // runOneStage never throws (every path returns a discriminated
       // outcome), so every settled result is "fulfilled" in practice —
