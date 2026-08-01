@@ -2862,7 +2862,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
             await import("@/lib/ai/router.server");
           const agentBatches = packChunks(
             chunks,
-            await agentBudgetFn(ANALYZER_CORPUS_BUDGET_CHARS, AGENT_OVERHEAD.agents),
+            await agentBudgetFn(AGENT_CORPUS_BUDGET_CHARS, AGENT_OVERHEAD.agents),
           );
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
