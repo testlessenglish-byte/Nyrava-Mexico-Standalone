@@ -3743,6 +3743,8 @@ function dedupeFindings<T extends Record<string, unknown>>(
   const norm = (s: string) =>
     s
       .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language findings cluster correctly
       .replace(/[^a-z0-9 ]+/g, " ")
       .replace(/\s+/g, " ")
       .trim()

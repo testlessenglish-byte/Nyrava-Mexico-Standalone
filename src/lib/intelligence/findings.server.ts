@@ -401,6 +401,8 @@ export function resetFindingsAudit(caseId: string): void {
 function normTitleKey(s: string): string {
   return String(s ?? "")
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language finding titles dedupe correctly
     .replace(/[^a-z0-9 ]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()

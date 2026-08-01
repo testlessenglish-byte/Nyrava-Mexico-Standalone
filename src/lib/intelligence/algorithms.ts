@@ -137,7 +137,14 @@ export interface Statement {
   attributes?: Record<string, unknown>; // e.g. { time: "10:00", color: "red" }
   source_doc_id?: string;
 }
-const norm = (s: unknown) => String(s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+const norm = (s: unknown) =>
+  String(s ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language field values compare correctly
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 export function detectContradictions(stmts: Statement[]): Array<{
   a: Statement; b: Statement; field: string; valueA: unknown; valueB: unknown;
 }> {
