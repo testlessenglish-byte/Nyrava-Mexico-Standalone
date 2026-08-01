@@ -189,7 +189,7 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
   const runOnePerspective = async (perspective: Perspective) => {
     const t0 = Date.now();
     try {
-      const r = await withAiSlot(() => callGroq({
+      const r = await withAiSlot(async () => callGroq({
         apiKeys,
         model: MODEL,
         systemInstruction:
