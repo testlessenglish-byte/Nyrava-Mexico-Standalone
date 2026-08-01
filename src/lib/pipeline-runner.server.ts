@@ -1052,8 +1052,46 @@ async function _runPipelineForCase(
     });
   }
   const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
-  const alreadyDone = (k: PipelineStageKey) =>
-    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
+
+  // FIX (2026-08-01) — second, independent cause of suppressed scores.
+  // Stage completion was derived EXCLUSIVELY from pipeline_engine_runs, while
+  // several code paths invalidate a stage by nulling its timestamp column on
+  // `cases` (e.g. resumeCase() clears `scored_at` when resuming at or before
+  // scoring, so a bumped contradiction_at can't strand an older score). Those
+  // two sources then disagreed: the ledger still said scoring was "completed",
+  // so the resumed run skipped it, `scored_at` was never re-stamped, and the
+  // report stage's assertPipelineOrder(row, "report") threw
+  // INVALID_PIPELINE_ORDER → reportMode "LIMITED" → scores/recommendations
+  // rendered "Suprimido" on an otherwise clean case. Observed on 2 of 6 real
+  // cases (report_at set, scored_at null).
+  //
+  // Rule: for any stage that OWNS a timestamp column, a null timestamp means
+  // "not done", regardless of what the ledger says. The ledger can only mark a
+  // stage done, never override an explicit invalidation.
+  const stageTimestampColumn = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.timestampColumn;
+  const timestampCols = Array.from(
+    new Set(stages.map((s) => stageTimestampColumn(s.key)).filter((c): c is string => !!c)),
+  );
+  let caseTimestamps: Record<string, string | null> = {};
+  if (!reset && timestampCols.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tsRow } = await (supabase as any)
+      .from("cases")
+      .select(timestampCols.join(","))
+      .eq("id", caseId)
+      .maybeSingle();
+    caseTimestamps = (tsRow ?? {}) as Record<string, string | null>;
+  }
+  const alreadyDone = (k: PipelineStageKey) => {
+    if (!DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "")) return false;
+    const col = stageTimestampColumn(k);
+    if (col && Object.prototype.hasOwnProperty.call(caseTimestamps, col) && !caseTimestamps[col]) {
+      trace("pipeline.stage_invalidated_by_null_timestamp", { stage: k, timestamp_column: col });
+      return false;
+    }
+    return true;
+  };
+
 
   trace("pipeline.start", {
     total_stages: stages.length,
