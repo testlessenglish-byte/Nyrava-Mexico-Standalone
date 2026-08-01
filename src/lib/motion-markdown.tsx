@@ -10,7 +10,14 @@
 // vocabulary, and keeping it dependency-free avoids adding an unvetted
 // package to a legal-document rendering path.
 import { AlignmentType, Document, HeadingLevel, Paragraph, TabStopType, TextRun } from "docx";
-import jsPDF from "jspdf";
+// NOTE: type-only import — erased at compile time, so it does NOT pull the
+// real jsPDF module (which transitively bundles html2canvas, browser-only)
+// into the SSR bundle. This file also exports MotionPreview, which IS
+// statically imported and rendered by SSR routes, so a runtime jsPDF import
+// here would crash the server build. The real constructor is loaded
+// dynamically inside motionMarkdownToPdf() below, only when actually
+// invoked from a client-side click handler.
+import type jsPDF from "jspdf";
 
 export type MotionBlock =
   | { type: "hr" }
@@ -233,9 +240,10 @@ const PDF_CONTENT_W = PDF_PAGE_W - PDF_MARGIN * 2;
 const PDF_LINE_H = 14.4; // 12pt Times, ~1.2x leading
 const PDF_FOOTER_Y = PDF_PAGE_H - 40;
 
-export function motionMarkdownToPdf(title: string, markdown: string): jsPDF {
+export async function motionMarkdownToPdf(title: string, markdown: string): Promise<jsPDF> {
   const blocks = parseMotionMarkdown(markdown);
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const { default: JsPDFCtor } = await import("jspdf");
+  const doc = new JsPDFCtor({ unit: "pt", format: "letter" }) as jsPDF;
   let y = PDF_MARGIN;
   let page = 1;
   let sawFirstHr = false;
@@ -366,13 +374,13 @@ export function motionMarkdownToPdf(title: string, markdown: string): jsPDF {
 }
 
 export async function downloadMotionPdf(title: string, markdown: string) {
-  const doc = motionMarkdownToPdf(title, markdown);
+  const doc = await motionMarkdownToPdf(title, markdown);
   doc.save(`${slug(title)}.pdf`);
 }
 
 /** Opens the motion in a new tab as a PDF data URI and triggers the browser print dialog. */
-export function printMotion(title: string, markdown: string) {
-  const doc = motionMarkdownToPdf(title, markdown);
+export async function printMotion(title: string, markdown: string) {
+  const doc = await motionMarkdownToPdf(title, markdown);
   const blobUrl = doc.output("bloburl") as unknown as string;
   const win = window.open(blobUrl, "_blank");
   if (!win) return;
@@ -502,4 +510,3 @@ function slug(s: string) {
       .slice(0, 60) || "motion"
   );
 }
-
