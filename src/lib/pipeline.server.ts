@@ -4030,6 +4030,51 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
   // Collect pipeline warnings for inclusion in the final report (Section 10).
   const pipelineWarnings: string[] = ensured.failed.map((f) => `${f.engine}_failed`);
 
+  // Stale-suppression recovery. Scoring may have run at a moment when the
+  // upstream timestamps weren't written yet (out-of-order execution, an
+  // earlier tick that skipped discovery/evidence_intel, a checkpoint), which
+  // persists a null scorecard flagged PIPELINE_NOT_FINALIZED /
+  // INVALID_PIPELINE_ORDER. Backfill above has now completed those stages, so
+  // the suppression is stale — re-score before the report reads it, otherwise
+  // the report is forced to LIMITED with suppressed scores on a case that has
+  // full coverage.
+  try {
+    const { data: scoreRow } = await db
+      .from("case_scores")
+      .select("rationale,overall_confidence")
+      .eq("case_id", caseId)
+      .maybeSingle();
+    const flags = (
+      ((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ?? []) as unknown[]
+    ).map(String);
+    const stale = flags.some((f) =>
+      ["PIPELINE_NOT_FINALIZED", "INVALID_PIPELINE_ORDER", "CANONICAL_FINDINGS_EMPTY"].includes(f),
+    );
+    if (stale) {
+      const { data: tsRow } = await db
+        .from("cases")
+        .select("discovery_at,contradiction_at,evidence_intel_at")
+        .eq("id", caseId)
+        .maybeSingle();
+      const ts = tsRow as {
+        discovery_at: string | null;
+        contradiction_at: string | null;
+        evidence_intel_at: string | null;
+      } | null;
+      const finalizedNow = Boolean(ts?.discovery_at && ts?.contradiction_at && ts?.evidence_intel_at);
+      if (finalizedNow) {
+        console.warn(`[report] stale scoring suppression (${flags.join(",")}) — re-scoring before report`);
+        pipelineWarnings.push(`rescored_after_${flags[0].toLowerCase()}`);
+        await runScoring(args);
+      } else {
+        pipelineWarnings.push(`scoring_suppressed_${flags[0].toLowerCase()}`);
+      }
+    }
+  } catch (e) {
+    console.warn("[report] stale-suppression rescore check failed", e);
+  }
+
+
   await setCase(db, caseId, {
     status: "reporting",
     status_message: "Building litigation intelligence",
