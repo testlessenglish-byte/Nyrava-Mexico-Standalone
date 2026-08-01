@@ -71,11 +71,7 @@ function MotionPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
-      <ModuleHeader
-        icon={<Gavel className="h-5 w-5" />}
-        title={t("motion.title")}
-        subtitle={t("motion.subtitle")}
-      />
+      <ModuleHeader icon={<Gavel className="h-5 w-5" />} title={t("motion.title")} subtitle={t("motion.subtitle")} />
       {isLoading ? (
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">
           {t("motion.loadingCases")}
@@ -89,20 +85,12 @@ function MotionPage() {
                 {t("motion.loadingMotions")}
               </div>
             ) : motionsSuppressed ? (
-              <SuppressedNotice
-                title={t("motion.suppressed.title")}
-                detail={t("motion.suppressed.detail")}
-              />
+              <SuppressedNotice title={t("motion.suppressed.title")} detail={t("motion.suppressed.detail")} />
             ) : opps.length === 0 ? (
-              <ModuleEmpty
-                title={t("motion.empty.title")}
-                hint={t("motion.empty.hint")}
-              />
+              <ModuleEmpty title={t("motion.empty.title")} hint={t("motion.empty.hint")} />
             ) : (
               <>
-                {detFallback ? (
-                  <SuppressedNotice title={t("motion.limited")} />
-                ) : null}
+                {detFallback ? <SuppressedNotice title={t("motion.limited")} /> : null}
                 <div className="grid gap-3">
                   {opps.map((o) => (
                     <OpportunityCard
@@ -312,7 +300,10 @@ function MotionRow({
               <button
                 title={t("motion.action.print")}
                 onClick={() =>
-                  printMotion(String(existing.title ?? motionTitle), liveBody ?? String(existing.body_markdown ?? ""))
+                  printMotion(
+                    String(existing.title ?? motionTitle),
+                    liveBody ?? String(existing.body_markdown ?? ""),
+                  ).catch((e) => toast.error(e instanceof Error ? e.message : t("motion.toast.exportFailed")))
                 }
                 className="rounded p-1 text-muted-foreground hover:text-foreground"
               >
@@ -356,9 +347,7 @@ function MotionRow({
         </div>
       </div>
       {failed ? (
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          {existing?.error_message ?? t("motion.failed.retry")}
-        </p>
+        <p className="mt-1.5 text-xs text-muted-foreground">{existing?.error_message ?? t("motion.failed.retry")}</p>
       ) : null}
       {existing?.status === "unverified" || existing?.status === "rejected" ? (
         <p className="mt-1.5 text-xs text-amber-500">{existing.error_message}</p>
