@@ -17,6 +17,8 @@ import { missingMethodology } from "./methodology-attach.server";
 function titleKey(s: string): string {
   return s
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language QA duplicate checks are accurate
     .replace(/[^a-z0-9 ]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -137,7 +139,13 @@ function withinSectionDupes(a: CaseAnalysis): QaIssue[] {
     const seen = new Set<string>();
     let dup = 0;
     for (const k of keys) {
-      const norm = k.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+      const norm = k
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language QA duplicate checks are accurate
+        .replace(/[^a-z0-9 ]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
       if (!norm) continue;
       if (seen.has(norm)) dup++;
       seen.add(norm);
