@@ -1237,7 +1237,7 @@ async function _runPipelineForCase(
     if (remainingInvocationMs <= CHECKPOINT_SAFETY_BUFFER_MS) {
       try {
         const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
-        await requeueForContinuation(supabase, caseId, s.key);
+        await requeueForContinuation(supabase, caseId, resumeKey);
       } catch (rqErr) {
         console.warn(`[pipeline] re-queue before ${s.key} checkpoint failed`, rqErr);
       }
@@ -1349,7 +1349,7 @@ async function _runPipelineForCase(
         }
         try {
           const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
-          await requeueForContinuation(supabase, caseId, s.key);
+          await requeueForContinuation(supabase, caseId, resumeKey);
         } catch (rqErr) {
           console.warn(`[pipeline] re-queue after checkpoint failed`, rqErr);
         }
