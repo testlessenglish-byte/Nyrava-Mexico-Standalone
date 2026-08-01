@@ -10,7 +10,7 @@
 // something that happens silently as a side effect of a chat reply.
 import { useCallback, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { drivePipeline } from "@/lib/pipeline-driver.client";
+import { drivePipeline } from "@/lib/pipeline-driver";
 import {
   addEvidenceAndRerun,
   queueCaseForPipeline,
