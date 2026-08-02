@@ -259,16 +259,23 @@ export function computeESS(inputs: ESSInputs): ESSResult {
   // and suppresses the "minimal" insufficiency notice so downstream
   // labelling renders "Full Case Analysis".
   // ------------------------------------------------------------------
-  const overrideTriggered = hasChargingDocument || highWeightDocTypeCount > 0 || distinctDocTypeCount >= 3;
+  // A corpus of 15+ successfully parsed documents is, by itself, a
+  // substantive litigation record. It always unlocks Full Analysis —
+  // procedural-compliance checklist gaps are advisory for the attorney and
+  // never evidence-sufficiency gatekeepers.
+  const substantialCorpus = documentCount >= 15;
+  const overrideTriggered =
+    hasChargingDocument || highWeightDocTypeCount > 0 || distinctDocTypeCount >= 3 || substantialCorpus;
 
   if (overrideTriggered && (bin === "minimal" || bin === "low")) {
     bin = "medium";
     maxNarrativePages = Math.max(maxNarrativePages, 10);
     maxCharsPerSection = Math.max(maxCharsPerSection, 7_000);
     reasons.push(
-      `Full Analysis override: hasChargingDocument=${hasChargingDocument}, highWeightDocTypes=${highWeightDocTypeCount}, distinctDocTypes=${distinctDocTypeCount}.`,
+      `Full Analysis override: hasChargingDocument=${hasChargingDocument}, highWeightDocTypes=${highWeightDocTypeCount}, distinctDocTypes=${distinctDocTypeCount}, documents=${documentCount}.`,
     );
   }
+
 
   const allowQuantitativeScores = overrideTriggered ? true : bin !== "minimal" && factCount >= 5;
   const allowMotionGeneration = overrideTriggered ? true : bin !== "minimal" && factCount >= 4;
