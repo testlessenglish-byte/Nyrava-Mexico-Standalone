@@ -215,3 +215,64 @@ export function groundItems<T extends GroundableItem>(
 }
 
 export const INSUFFICIENT_EVIDENCE = "Insufficient evidence to support this conclusion.";
+
+// ---------------------------------------------------------------------------
+// Legal-authority citations (Amparo / constitutional / statutory / tesis).
+//
+// A reference to "CPEUM Art. 16" or "Tesis: 1a./J. 15/2019 (10a.)" is a
+// citation to public law, not a factual assertion about the case record. It
+// cannot be verified by verbatim substring matching against the evidentiary
+// corpus, because the text lives in the Constitution/SCJN registry, not in the
+// party's documents. Requiring a verbatim corpus match for those references
+// produced false "unverified" flags on Amparo and federal-administrative
+// matters and blocked the release gate.
+//
+// Verbatim grounding therefore applies to factual/documentary claims only.
+// This predicate is deliberately narrow: it matches only well-formed legal
+// authority references, never free prose.
+// ---------------------------------------------------------------------------
+
+const AUTHORITY_CODE_WORDS = [
+  "cpeum", "ccf", "cnpcf", "cpf", "cnpp", "lft", "lgsm", "lgt", "lgs", "lfpc",
+  "cff", "ccom", "lamparo", "ley de amparo", "constitucion", "constitución",
+  "constitucional", "codigo", "código", "ley federal", "ley general",
+  "reglamento", "convencion americana", "convención americana",
+  "pacto de san jose", "pacto de san josé",
+];
+
+const AUTHORITY_PATTERNS: RegExp[] = [
+  // Article references: "Art. 16", "Artículo 1o. constitucional", "arts. 14 y 16"
+  /\barts?\.?\s*\d+/i,
+  /\bart[íi]culos?\s+\d+/i,
+  // Tesis / jurisprudencia registry numbers
+  /\btesis\b/i,
+  /\bjurisprudencia\b/i,
+  /\b(?:1a|2a|P|PC)\.\s*\/\s*J\.\s*\d+\/\d{4}/i,
+  /\bregistro\s+(?:digital\s+)?\d{5,}/i,
+  // Official publications
+  /\bDOF\b/,
+  /\bSemanario\s+Judicial\b/i,
+];
+
+/**
+ * True when a citation string is a reference to public legal authority
+ * (constitutional/statutory article, tesis, jurisprudencia, official gazette)
+ * rather than a quote from a case document.
+ */
+export function isLegalAuthorityCitation(quote: string | null | undefined): boolean {
+  const q = (quote ?? "").trim();
+  if (q.length < 3) return false;
+  const lower = q.toLowerCase();
+  const hasAuthorityPattern = AUTHORITY_PATTERNS.some((rx) => rx.test(q));
+  if (!hasAuthorityPattern) return false;
+  // An article number alone is ambiguous; require a code/law/tesis anchor too,
+  // unless the reference is itself a tesis/jurisprudencia/registry identifier.
+  const selfIdentifying =
+    /\btesis\b/i.test(q) ||
+    /\bjurisprudencia\b/i.test(q) ||
+    /\b(?:1a|2a|P|PC)\.\s*\/\s*J\.\s*\d+\/\d{4}/i.test(q) ||
+    /\bregistro\s+(?:digital\s+)?\d{5,}/i.test(q) ||
+    /\bSemanario\s+Judicial\b/i.test(q);
+  if (selfIdentifying) return true;
+  return AUTHORITY_CODE_WORDS.some((w) => lower.includes(w));
+}
