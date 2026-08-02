@@ -131,7 +131,19 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   familiar: ["constitutional"],
   mercantil: ["constitutional"],
   fiscal: ["constitutional"],
-  administrativo: ["constitutional"],
+  // Juicio contencioso administrativo (TFJA, LFPCA): resolved on the written
+  // expediente — demanda, contestación, pruebas documentales, alegatos,
+  // sentencia. No live witness examination in the adversarial-trial sense
+  // (testimonial evidence is rare and, where offered, resolved by written
+  // interrogatorio, not cross-examination) and no oral trial with opening/
+  // closing statements to a fact-finder. Same rationale already applied to
+  // amparo and apelacion below — this was a gap, not an intentional
+  // difference: trial_prep's engine (engines.server.ts) literally produces
+  // opening_themes/closing_themes/witness_order/exhibit_order, none of
+  // which map onto a TFJA nullity action. Also fixes electoral and
+  // ambiental, which route through this same profile
+  // (PROFILE_BY_MATERIA above).
+  administrativo: ["constitutional", "witness", "trial_prep"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
   apelacion: ["constitutional", "witness", "trial_prep"],
   // Cierre inmobiliario: transaccional, no contencioso. Sin partes
@@ -244,10 +256,12 @@ export function mxRoleLabel(slug: string | null | undefined): string {
  */
 const SKIP_REASON_KEYS: Record<string, Partial<Record<MxPipelineProfile, string>>> = {
   witness: {
+    administrativo: "pipeline.skip.witness.administrativo",
     amparo: "pipeline.skip.witness.amparo",
     apelacion: "pipeline.skip.witness.apelacion",
   },
   trial_prep: {
+    administrativo: "pipeline.skip.trial_prep.administrativo",
     amparo: "pipeline.skip.trial_prep.amparo",
     apelacion: "pipeline.skip.trial_prep.apelacion",
   },
