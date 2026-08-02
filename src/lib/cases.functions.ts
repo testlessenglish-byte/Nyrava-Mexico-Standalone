@@ -2904,14 +2904,69 @@ const BLOCKED_REPORT_METADATA_ALLOWLIST = new Set([
 
 export function sanitizeBlockedReport<T extends Record<string, unknown> | null | undefined>(
   report: T,
+  opts?: { stale?: boolean },
 ): T {
   if (!report) return report;
-  if (!report.quality_blocked) return report;
+  const blocked = !!report.quality_blocked;
+  const stale = !!opts?.stale;
+  if (!blocked && !stale) return report;
   const sanitized: Record<string, unknown> = {};
   for (const key of Object.keys(report)) {
     sanitized[key] = BLOCKED_REPORT_METADATA_ALLOWLIST.has(key) ? report[key] : null;
   }
+  if (stale && !blocked) {
+    // Distinguish "blocked by the quality gate" from "stale relative to a
+    // later pipeline run" — same content-stripping treatment, different
+    // reason, so the UI can show accurate messaging instead of conflating
+    // the two. quality_blocked itself is left as whatever the row actually
+    // says (usually false here) since that reflects the report's own
+    // release-gate outcome, not this endpoint's freshness judgment.
+    sanitized.stale = true;
+    sanitized.stale_reason =
+      "A required pipeline stage completed more recently than this report was generated.";
+  }
   return sanitized as T;
+}
+
+/**
+ * Whether the case's single `reports` row (see the UNIQUE constraint on
+ * reports.case_id — there is never more than one, so "which version is
+ * active" is not the ambiguity; staleness is) predates the most recent
+ * completion of any blocking-tier pipeline stage for this case.
+ *
+ * reports is a singleton updated in place, not re-created per run, and
+ * nothing currently invalidates it when an earlier stage is retried after
+ * the report already exists. If a case is resumed (e.g. re-running
+ * analyzers after fixing an upstream issue) and, for any reason, the
+ * report stage itself doesn't re-run afterward, the old reports row keeps
+ * describing a superseded analysis with no signal to the reader that it's
+ * out of date.
+ *
+ * Deliberately fail-closed on missing timestamps: if the report has no
+ * updated_at/created_at, or a blocking engine's latest row has no
+ * timestamp, that comparison is skipped rather than assumed fresh.
+ */
+export function isReportStale(
+  report: { updated_at?: string | null; created_at?: string | null } | null | undefined,
+  pipelineRuns: Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
+  blockingEngines: ReadonlySet<string>,
+): boolean {
+  if (!report) return false;
+  const reportTime = Date.parse((report.updated_at || report.created_at) ?? "");
+  if (!Number.isFinite(reportTime)) return false;
+
+  const latestByEngine = new Map<string, number>();
+  for (const row of pipelineRuns) {
+    if (!blockingEngines.has(row.engine)) continue;
+    const t = Date.parse((row.ended_at || row.created_at) ?? "");
+    if (!Number.isFinite(t)) continue;
+    const prev = latestByEngine.get(row.engine) ?? -Infinity;
+    if (t > prev) latestByEngine.set(row.engine, t);
+  }
+  for (const t of latestByEngine.values()) {
+    if (t > reportTime) return true;
+  }
+  return false;
 }
 
 export const getCase = createServerFn({ method: "POST" })
@@ -3017,7 +3072,21 @@ export const getCase = createServerFn({ method: "POST" })
     // "blocked" state accurately but cannot construct a real PDF/DOCX from
     // the response. This is a change to the endpoint response shape for
     // blocked reports only — unblocked reports are returned unchanged.
-    const sanitizedReport = sanitizeBlockedReport(report.data);
+    // PR A item 2: a report is stale if any blocking-tier stage completed
+    // more recently than the report itself — see isReportStale's doc
+    // comment for why this matters (reports is a singleton row, never
+    // re-created per run, and nothing else currently invalidates it after
+    // an upstream retry).
+    const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
+    const blockingEngines = new Set(
+      CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.engine),
+    );
+    const reportIsStale = isReportStale(
+      report.data as { updated_at?: string | null; created_at?: string | null } | null,
+      (pipelineRuns.data ?? []) as Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
+      blockingEngines,
+    );
+    const sanitizedReport = sanitizeBlockedReport(report.data, { stale: reportIsStale });
     return {
       case: c.data,
       documents: docs.data ?? [],

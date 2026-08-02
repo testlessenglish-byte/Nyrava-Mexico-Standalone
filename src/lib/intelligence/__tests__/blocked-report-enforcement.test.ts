@@ -12,7 +12,7 @@
 // synthetic report shapes — no case-specific content, no fixture
 // hardcoding.
 import { describe, it, expect } from "vitest";
-import { sanitizeBlockedReport } from "@/lib/cases.functions";
+import { sanitizeBlockedReport, isReportStale } from "@/lib/cases.functions";
 
 describe("sanitizeBlockedReport", () => {
   it("strips substantive content fields when quality_blocked is true", () => {
@@ -81,5 +81,73 @@ describe("sanitizeBlockedReport", () => {
     };
     const result = sanitizeBlockedReport(blocked);
     expect(result?.some_brand_new_column_nobody_updated_the_allowlist_for).toBeNull();
+  });
+});
+
+describe("isReportStale", () => {
+  const BLOCKING = new Set(["extraction", "analyzers", "scoring"]);
+
+  it("is not stale when the report postdates every blocking-tier engine's latest run", () => {
+    const report = { updated_at: "2026-01-02T00:00:00Z" };
+    const runs = [
+      { engine: "extraction", ended_at: "2026-01-01T00:00:00Z" },
+      { engine: "analyzers", ended_at: "2026-01-01T12:00:00Z" },
+      { engine: "scoring", ended_at: "2026-01-01T18:00:00Z" },
+    ];
+    expect(isReportStale(report, runs, BLOCKING)).toBe(false);
+  });
+
+  it("is stale when a blocking-tier engine completed AFTER the report was generated (the resume/retry scenario)", () => {
+    const report = { updated_at: "2026-01-01T00:00:00Z" };
+    const runs = [
+      { engine: "extraction", ended_at: "2026-01-01T00:00:00Z" }, // original run
+      // Case was resumed and analyzers re-ran later, but the report row
+      // (singleton, updated in place) was never regenerated afterward.
+      { engine: "analyzers", ended_at: "2026-01-02T00:00:00Z" },
+    ];
+    expect(isReportStale(report, runs, BLOCKING)).toBe(true);
+  });
+
+  it("ignores non-blocking-tier engines entirely — an optional stage re-running later does not mark the report stale", () => {
+    const report = { updated_at: "2026-01-01T00:00:00Z" };
+    const runs = [
+      { engine: "extraction", ended_at: "2026-01-01T00:00:00Z" },
+      // "multi_agent" is not in the BLOCKING set for this test.
+      { engine: "multi_agent", ended_at: "2026-01-05T00:00:00Z" },
+    ];
+    expect(isReportStale(report, runs, BLOCKING)).toBe(false);
+  });
+
+  it("fails closed on a missing/unparseable report timestamp — never asserts staleness it can't support", () => {
+    expect(isReportStale({ updated_at: null, created_at: null }, [], BLOCKING)).toBe(false);
+    expect(isReportStale(null, [], BLOCKING)).toBe(false);
+  });
+
+  it("falls back to created_at when updated_at is absent", () => {
+    const report = { created_at: "2026-01-01T00:00:00Z" };
+    const runs = [{ engine: "extraction", ended_at: "2026-01-02T00:00:00Z" }];
+    expect(isReportStale(report, runs, BLOCKING)).toBe(true);
+  });
+});
+
+describe("sanitizeBlockedReport: staleness path", () => {
+  it("strips content and sets stale/stale_reason when stale is true, even if quality_blocked is false", () => {
+    const report = {
+      id: "report-1",
+      quality_blocked: false,
+      full_report: { some: "content" },
+      executive_summary: "An analysis that predates the latest pipeline run.",
+    };
+    const result = sanitizeBlockedReport(report, { stale: true });
+    expect(result?.full_report).toBeNull();
+    expect(result?.executive_summary).toBeNull();
+    expect(result?.stale).toBe(true);
+    expect(typeof result?.stale_reason).toBe("string");
+  });
+
+  it("does not touch a fresh, non-blocked report", () => {
+    const report = { id: "report-2", quality_blocked: false, full_report: { some: "content" } };
+    const result = sanitizeBlockedReport(report, { stale: false });
+    expect(result).toBe(report);
   });
 });
