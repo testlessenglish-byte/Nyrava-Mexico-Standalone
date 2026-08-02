@@ -1,39 +1,73 @@
 {
-  "id": "criminal-01-happy-path",
-  "description": "Fictional criminal case where every stage reports complete; no blocking or failures anywhere.",
-  "stageOutcomes": {
-    "evidence_map": { "status": "complete", "findings": 4 },
-    "evidence_intel": { "status": "complete", "findings": 7 },
-    "contradictions": { "status": "complete", "findings": 1 },
-    "witness": { "status": "complete", "findings": 2 },
-    "constitutional": { "status": "complete", "findings": 0 },
-    "discovery": { "status": "complete", "findings": 2 },
-    "perspectives": { "status": "complete", "findings": 4 },
-    "theories": { "status": "complete", "findings": 3 },
-    "opportunities": { "status": "complete", "findings": 5 },
-    "trial_prep": { "status": "complete", "findings": 1 },
-    "strategy": { "status": "complete", "findings": 1 },
-    "work_product": { "status": "complete", "findings": 1 },
-    "hallucination": { "status": "complete", "findings": 0 }
-  },
-  "expected": {
-    "stageCount": 13,
-    "failedStages": [],
-    "blockedStages": [],
-    "completeStages": [
-      "constitutional",
-      "contradictions",
-      "discovery",
-      "evidence_intel",
-      "evidence_map",
-      "hallucination",
-      "opportunities",
-      "perspectives",
-      "strategy",
-      "theories",
-      "trial_prep",
-      "witness",
-      "work_product"
-    ]
-  }
+    "id": "criminal-01-happy-path",
+    "description": "Fictional criminal case where every stage reports complete; no blocking or failures anywhere.",
+    "stageOutcomes": {
+        "evidence_map": {
+            "status": "complete",
+            "findings": 4
+        },
+        "evidence_intel": {
+            "status": "complete",
+            "findings": 7
+        },
+        "contradictions": {
+            "status": "complete",
+            "findings": 1
+        },
+        "witness": {
+            "status": "complete",
+            "findings": 2
+        },
+        "constitutional": {
+            "status": "complete",
+            "findings": 0
+        },
+        "discovery": {
+            "status": "complete",
+            "findings": 2
+        },
+        "perspectives": {
+            "status": "complete",
+            "findings": 4
+        },
+        "theories": {
+            "status": "complete",
+            "findings": 3
+        },
+        "opportunities": {
+            "status": "complete",
+            "findings": 5
+        },
+        "strategy": {
+            "status": "complete",
+            "findings": 1
+        },
+        "work_product": {
+            "status": "complete",
+            "findings": 1
+        },
+        "hallucination": {
+            "status": "complete",
+            "findings": 0
+        }
+    },
+    "expected": {
+        "stageCount": 12,
+        "failedStages": [],
+        "blockedStages": [],
+        "completeStages": [
+            "constitutional",
+            "contradictions",
+            "discovery",
+            "evidence_intel",
+            "evidence_map",
+            "hallucination",
+            "opportunities",
+            "perspectives",
+            "strategy",
+            "theories",
+            "witness",
+            "work_product"
+        ]
+    }
 }

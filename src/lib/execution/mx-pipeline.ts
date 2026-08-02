@@ -10,8 +10,9 @@
 //      constitutional/derechos-fundamentales engine on a mercantil contract.
 //   2. How each stage is NAMED for a Mexican attorney — as i18n keys, so the
 //      UI renders Spanish (default) or English from src/i18n/locales/*.json.
-//      Names are materia-aware: `trial_prep` is "Preparación para Juicio Oral"
-//      in penal, "Preparación para Audiencia" in laboral/civil.
+//      Names are materia-aware: `strategy` is "Estrategia de Defensa o
+//      Acusación" in penal, "Estrategia de Amparo (suspensión e
+//      improcedencia)" in amparo, "Estrategia Laboral" in laboral.
 //
 // Pure module: no i18n, no React, no Supabase — safe to import from server
 // functions, the worker, and the browser bundle alike.
@@ -114,6 +115,16 @@ export function resolveMxProfile(caseType: string | null | undefined): MxPipelin
  * hallucination, multi_agent) from every materia, which is why every case
  * reported most engines — including the 13-agent run — as skipped. Quota is
  * handled where it belongs: payload budgeting and provider cooldowns.
+ *
+ * 2026-08-02: trial_prep was removed from CANONICAL_STAGES entirely (not
+ * materia-excluded — it no longer exists as a stage at all, for any
+ * materia, including penal). Product decision: rather than keep patching
+ * its "Trial Prep & Jury Simulation" framing materia-by-materia (it had
+ * already caused one production stall via a stuck checkpoint, on top of
+ * genuinely not fitting most Mexican proceedings), it is removed pending a
+ * real, properly-scoped replacement rather than incremental fixes to the
+ * existing engine. Every "trial_prep" entry previously listed below is
+ * gone for that reason, not because it was re-included.
  */
 const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // Proceso penal acusatorio (CNPP): everything is relevant, including
@@ -121,7 +132,7 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   penal: [],
   // Juicio de amparo: se resuelve sobre el acto reclamado y el expediente —
   // no hay desahogo de testigos ni juicio oral.
-  amparo: ["witness", "trial_prep"],
+  amparo: ["witness"],
   // Violaciones a derechos humanos por autoridad: mismo alcance que penal.
   derechos_humanos: [],
   // Materia laboral (LFT / tribunales laborales): sí hay audiencia, no hay
@@ -143,9 +154,9 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // which map onto a TFJA nullity action. Also fixes electoral and
   // ambiental, which route through this same profile
   // (PROFILE_BY_MATERIA above).
-  administrativo: ["constitutional", "witness", "trial_prep"],
+  administrativo: ["constitutional", "witness"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
-  apelacion: ["constitutional", "witness", "trial_prep"],
+  apelacion: ["constitutional", "witness"],
   // Cierre inmobiliario: transaccional, no contencioso. Sin partes
   // adversas, sin audiencia, sin juicio — se excluyen todas las etapas de
   // litigio. `strategy` and `work_product` are ALSO excluded here, not just
@@ -168,7 +179,6 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   inmobiliario: [
     "constitutional",
     "witness",
-    "trial_prep",
     "discovery",
     "litigation_strategy_center",
     "theories",
@@ -260,11 +270,6 @@ const SKIP_REASON_KEYS: Record<string, Partial<Record<MxPipelineProfile, string>
     amparo: "pipeline.skip.witness.amparo",
     apelacion: "pipeline.skip.witness.apelacion",
   },
-  trial_prep: {
-    administrativo: "pipeline.skip.trial_prep.administrativo",
-    amparo: "pipeline.skip.trial_prep.amparo",
-    apelacion: "pipeline.skip.trial_prep.apelacion",
-  },
   constitutional: {
     laboral: "pipeline.skip.constitutional.ordinary",
     civil: "pipeline.skip.constitutional.ordinary",
@@ -305,7 +310,6 @@ export function mxPipelineStageKeys(caseType: string | null | undefined): string
  * resolves to `pipeline.stage.<key>`.
  */
 const STAGE_LABEL_VARIANTS: Record<string, readonly MxPipelineProfile[]> = {
-  trial_prep: ["penal", "laboral", "civil", "familiar", "mercantil", "fiscal", "administrativo"],
   strategy: ["penal", "amparo", "laboral"],
   litigation_strategy_center: ["amparo"],
   constitutional: ["amparo", "derechos_humanos"],
