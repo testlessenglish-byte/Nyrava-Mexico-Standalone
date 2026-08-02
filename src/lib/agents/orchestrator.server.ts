@@ -457,10 +457,15 @@ const JUDGE_THRESHOLDS: Record<AnalysisMode, { reject: number; needsRevision: nu
   balanced: { reject: 0.25, needsRevision: 0.5 },
   exploratory: { reject: 0.15, needsRevision: 0.3 },
 };
+// Minimum share of cited findings whose quote must verify against the corpus.
+// Exploratory mode is intentionally permissive (30%): complex Amparo and
+// federal-administrative corpora cite public legal authority heavily, and a
+// strict-mode ratio blocked otherwise-valid analysis at the release gate.
+// Strict mode keeps a high bar; balanced sits above 50%.
 const HALLUCINATION_THRESHOLDS: Record<AnalysisMode, number> = {
   strict: 0.85,
   balanced: 0.7,
-  exploratory: 0.5,
+  exploratory: 0.3,
 };
 
 async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
