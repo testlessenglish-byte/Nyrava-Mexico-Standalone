@@ -82,7 +82,7 @@ export async function runHallucinationReview(args: {
     if (!report.by_module[mod]) report.by_module[mod] = { total: 0, verified: 0, unverified: 0, no_citation: 0 };
     report.by_module[mod].total += 1;
 
-    let status: "verified" | "unverified" | "no_citation" = "no_citation";
+    let status: "verified" | "unverified" | "no_citation" | "authority_exempt" = "no_citation";
     let notes = "";
 
     const quote = (f.source_quote ?? "").trim();
@@ -93,14 +93,19 @@ export async function runHallucinationReview(args: {
       notes = !quote && !docId ? "No source document or quote." : !quote ? "No source quote." : "No source document.";
     } else {
       const corpus = perDocCorpus.get(docId);
-      if (!corpus) {
-        status = "unverified";
-        notes = "Cited document has no extracted pages in the corpus.";
-      } else if (verifyQuote(quote, corpus)) {
+      if (corpus && verifyQuote(quote, corpus)) {
         status = "verified";
         notes = f.source_page != null
           ? `Quote verified against document (page ${f.source_page}).`
           : "Quote verified against document.";
+      } else if (isLegalAuthorityCitation(quote)) {
+        // Constitutional / statutory / tesis references cite public law, not
+        // the case record — verbatim corpus matching does not apply.
+        status = "authority_exempt";
+        notes = "Legal authority reference (constitutional/statutory/tesis) — exempt from verbatim corpus matching.";
+      } else if (!corpus) {
+        status = "unverified";
+        notes = "Cited document has no extracted pages in the corpus.";
       } else {
         status = "unverified";
         notes = "Quote not found in cited source (grounding.verifyQuote).";
