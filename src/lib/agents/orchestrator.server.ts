@@ -457,15 +457,21 @@ const JUDGE_THRESHOLDS: Record<AnalysisMode, { reject: number; needsRevision: nu
   balanced: { reject: 0.25, needsRevision: 0.5 },
   exploratory: { reject: 0.15, needsRevision: 0.3 },
 };
-// Minimum share of cited findings whose quote must verify against the corpus.
-// Exploratory mode is intentionally permissive (30%): complex Amparo and
-// federal-administrative corpora cite public legal authority heavily, and a
-// strict-mode ratio blocked otherwise-valid analysis at the release gate.
-// Strict mode keeps a high bar; balanced sits above 50%.
+// Minimum share of cited findings whose quote must verify against the corpus
+// (after legal-authority citations are correctly exempted — see
+// grounding.server.ts::isLegalAuthorityCitation). The threshold was
+// temporarily lowered to 0.3 alongside a pattern-only authority-exemption
+// check; that check was confirmed, by direct reproduction, to exempt
+// fabricated factual claims merely phrased alongside a real article number,
+// which is exactly the class of claim this gate exists to catch. Restored
+// to 0.5 now that the exemption is properly scoped to quotes that are
+// SUBSTANTIALLY JUST a citation — genuine Amparo/administrative citation
+// density no longer needs a lowered bar to pass, since those citations are
+// now correctly exempted rather than miscounted as failures.
 const HALLUCINATION_THRESHOLDS: Record<AnalysisMode, number> = {
   strict: 0.85,
   balanced: 0.7,
-  exploratory: 0.3,
+  exploratory: 0.5,
 };
 
 async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
