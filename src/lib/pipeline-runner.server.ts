@@ -721,74 +721,6 @@ async function _runPipelineForCase(
           },
         ),
     },
-    trial_prep: {
-      // PRACTICE-AREA GATE: same class of bug as "constitutional" above —
-      // this stage ran unconditionally for every case type. trial_prep is
-      // allowed for general_civil/personal_injury/medical_malpractice/
-      // employment/criminal/civil_rights, but NOT for family or appellate
-      // (see PRACTICE_ENGINES in practice-areas.ts). Without this gate, a
-      // family or appellate case would get a "completed" trial_prep row that
-      // the manifest says should be skipped — the same
-      // release-gate "silent_activation" failure as constitutional_compliance.
-      run: async () => {
-        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } =
-          await import("./intelligence/practice-areas");
-        const { getActiveDomains } = await import("./intelligence/cross-domain.server");
-        const { recordSkipped } = await import("./intelligence/engine-audit.server");
-
-        const { data: caseRow } = await supabase
-          .from("cases")
-          .select("case_type" as any)
-          .eq("id", caseId)
-          .maybeSingle();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const area = String((caseRow as any)?.case_type ?? "general_civil");
-        const activeDomains = await getActiveDomains(supabase, caseId);
-
-        if (!isAnalyzerAllowed(area, "trial_prep", activeDomains)) {
-          await recordSkipped(supabase, {
-            caseId,
-            userId,
-            engine: "trial_prep" as never,
-            reason: SKIP_REASON_NOT_APPLICABLE,
-          });
-          return { skipped: true, reason: SKIP_REASON_NOT_APPLICABLE };
-        }
-
-        return persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: "trial_prep" },
-          async () => {
-            const value = (await eng.runTrialPrepEngine(baseArgs)) as {
-              findings_gate?: unknown;
-              findings_gate_mode?: unknown;
-              findings_gate_corpus?: unknown;
-            };
-            const { count } = await supabase
-              .from("case_trial_prep")
-              .select("id", { count: "exact", head: true })
-              .eq("case_id", caseId);
-            const n = count ?? (value ? 1 : 0);
-            return {
-              value,
-              stats: {
-                generated: n,
-                accepted: n,
-                rows_written: n,
-                meta: {
-                  source: "engine",
-                  evidence_gate: {
-                    mode: value.findings_gate_mode,
-                    audit: value.findings_gate,
-                    corpus: value.findings_gate_corpus,
-                  },
-                },
-              },
-            };
-          },
-        );
-      },
-    },
     strategy: {
       run: () =>
         persist.runCatalogedEngine(supabase, { caseId, userId, engine: "strategy" }, async () => {
@@ -1119,13 +1051,13 @@ async function _runPipelineForCase(
   // work_product} chain) is a genuine sequential dependency chain and stays
   // serial — parallelizing it would run a stage before its real upstream
   // input exists.
-  //   Batch A: perspectives, opportunities, trial_prep, witness — all four
+  //   Batch A: perspectives, opportunities, witness — all three
   //     depend only on [analyzers, agents].
   //   Batch B: litigation_strategy_center, work_product — both depend only
   //     on strategy (+ stages already satisfied by the time strategy is
   //     done); neither depends on the other.
   const PARALLEL_BATCHES: readonly (readonly PipelineStageKey[])[] = [
-    ["perspectives", "opportunities", "trial_prep", "witness"],
+    ["perspectives", "opportunities", "witness"],
     ["litigation_strategy_center", "work_product"],
   ];
   // The trigger for a batch must be whichever member actually occurs

@@ -678,67 +678,6 @@ async function _runPipelineForCase(
           };
         }),
     },
-    trial_prep: {
-      // PRACTICE-AREA GATE: mirrors the same gate already used for
-      // constitutional_compliance above. This engine previously ran
-      // unconditionally for every case type, including familiar and
-      // inmobiliario matters where MX_ENGINES explicitly excludes
-      // trial_prep — burning a real AI call and adding an unnecessary
-      // failure point on a case type it has no application to.
-      run: async () => {
-        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } = await import("./intelligence/practice-areas");
-        const { getActiveDomains } = await import("./intelligence/cross-domain.server");
-        const { recordSkipped } = await import("./intelligence/engine-audit.server");
-
-        const { data: caseRow } = await supabase
-          .from("cases")
-          .select("case_type" as any)
-          .eq("id", caseId)
-          .maybeSingle();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const area = String((caseRow as any)?.case_type ?? "general_civil");
-        const activeDomains = await getActiveDomains(supabase, caseId);
-
-        if (!isAnalyzerAllowed(area, "trial_prep", activeDomains)) {
-          await recordSkipped(supabase, {
-            caseId,
-            userId,
-            engine: "trial_prep" as never,
-            reason: SKIP_REASON_NOT_APPLICABLE,
-          });
-          return { skipped: true, reason: SKIP_REASON_NOT_APPLICABLE };
-        }
-
-        return persist.runCatalogedEngine(supabase, { caseId, userId, engine: "trial_prep" }, async () => {
-          const value = (await eng.runTrialPrepEngine(baseArgs)) as {
-            findings_gate?: unknown;
-            findings_gate_mode?: unknown;
-            findings_gate_corpus?: unknown;
-          };
-          const { count } = await supabase
-            .from("case_trial_prep")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const n = count ?? (value ? 1 : 0);
-          return {
-            value,
-            stats: {
-              generated: n,
-              accepted: n,
-              rows_written: n,
-              meta: {
-                source: "engine",
-                evidence_gate: {
-                  mode: value.findings_gate_mode,
-                  audit: value.findings_gate,
-                  corpus: value.findings_gate_corpus,
-                },
-              },
-            },
-          };
-        });
-      },
-    },
     strategy: {
       run: () =>
         persist.runCatalogedEngine(supabase, { caseId, userId, engine: "strategy" }, async () => {
