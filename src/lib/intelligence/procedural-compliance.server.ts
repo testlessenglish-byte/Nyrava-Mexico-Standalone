@@ -19,6 +19,9 @@ type Db = SupabaseClient<Database>;
 
 const SOURCE_MODULE = "engine:procedural_compliance";
 
+/** Whole-corpus scan budget for deterministic checklist matching (no AI cost). */
+const FULL_CORPUS_SCAN_LIMIT = 5_000_000;
+
 export type ProceduralComplianceReport = ComplianceReport & {
   stage_map: ProceduralStageResolution;
   missing_documents: MissingDocumentsReport;
