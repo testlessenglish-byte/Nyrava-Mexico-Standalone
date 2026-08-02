@@ -30,7 +30,9 @@ export type HallucinationReport = {
   verified: number;
   unverified: number;
   no_citation: number;
-  by_module: Record<string, { total: number; verified: number; unverified: number; no_citation: number }>;
+  /** Citations to public legal authority, exempt from verbatim corpus matching. */
+  authority_exempt: number;
+  by_module: Record<string, { total: number; verified: number; unverified: number; no_citation: number; authority_exempt: number }>;
   unverified_examples: Array<{ id: string; title: string; reason: string }>;
 };
 
