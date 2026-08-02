@@ -2118,9 +2118,20 @@ ${corpusText}`;
         keyIndex: r.keyIndex,
       });
       const parsed = parseJsonLoose<Record<string, unknown>>(r.text) ?? {};
+      // Real per-batch item count, computed BEFORE pushing into the
+      // shared `merged` accumulator (which multiple concurrent batches
+      // write into) so this stays correct under ANALYZER_BATCH_CONCURRENCY.
+      // Previously this diagnostic row hardcoded generated/accepted/etc to
+      // 0 unconditionally, making pipeline_engine_runs useless for telling
+      // "the model returned nothing" apart from "the model returned plenty
+      // but it was filtered downstream" — see docs incident trace 2026-08-02.
+      const parsedCounts: Partial<Record<keyof AnalyzerBucket, number>> = {};
       const push = (k: keyof AnalyzerBucket) => {
         const v = parsed[k];
-        if (Array.isArray(v)) merged[k].push(...v);
+        if (Array.isArray(v)) {
+          parsedCounts[k] = v.length;
+          merged[k].push(...v);
+        }
       };
       push("timeline");
       push("contradictions");
@@ -2128,6 +2139,7 @@ ${corpusText}`;
       push("procedural_issues");
       push("evidence_relationships");
       push("key_findings");
+      const generatedCount = Object.values(parsedCounts).reduce((a, b) => a + (b ?? 0), 0);
       successes++;
 
       await db.from("pipeline_engine_runs").insert({
@@ -2138,8 +2150,8 @@ ${corpusText}`;
         started_at: startedAt,
         ended_at: new Date().toISOString(),
         runtime_ms: Date.now() - t0,
-        generated: 0,
-        accepted: 0,
+        generated: generatedCount,
+        accepted: generatedCount,
         rejected: 0,
         suppressed_ess: 0,
         suppressed_validator: 0,
@@ -2149,6 +2161,10 @@ ${corpusText}`;
           chars: batchCorpus.length,
           docIds: batch.map((c) => c.docId),
           provider: r.provider,
+          model: r.model,
+          outputTokens: r.outputTokens,
+          parsedCounts,
+          rawResponsePreview: (r.text ?? "").slice(0, 2000),
         } as any,
       } as any);
       return null;
