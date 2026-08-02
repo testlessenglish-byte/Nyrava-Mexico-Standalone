@@ -19,6 +19,9 @@ type Db = SupabaseClient<Database>;
 
 const SOURCE_MODULE = "engine:procedural_compliance";
 
+/** Whole-corpus scan budget for deterministic checklist matching (no AI cost). */
+const FULL_CORPUS_SCAN_LIMIT = 5_000_000;
+
 export type ProceduralComplianceReport = ComplianceReport & {
   stage_map: ProceduralStageResolution;
   missing_documents: MissingDocumentsReport;
@@ -40,7 +43,10 @@ export async function runProceduralCompliance(args: {
     .maybeSingle();
   const materia = resolveMxProfile((caseRow as { case_type?: string | null } | null)?.case_type ?? null);
 
-  const corpusText = await loadCaseCorpusText(db, caseId);
+  // Compliance matching must scan the WHOLE corpus — a required procedural
+  // act argued deep in an Amparo file (page 40+) was previously invisible
+  // because the default corpus window truncated the text.
+  const corpusText = await loadCaseCorpusText(db, caseId, FULL_CORPUS_SCAN_LIMIT);
   const report = evaluateProceduralCompliance(materia, corpusText);
   const stage_map = resolveProceduralStage(materia, corpusText);
   const missing_documents = resolveMissingDocuments(materia, corpusText);
