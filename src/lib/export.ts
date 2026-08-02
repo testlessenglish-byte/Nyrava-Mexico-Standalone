@@ -4584,6 +4584,17 @@ function validateParity(opts: {
 }
 
 export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
+  // Explicit, redundant release-gate check at the actual point of export —
+  // do not rely solely on the upstream content-stripping in
+  // cases.functions.ts::getCase() (sanitizeBlockedReport). That fix removes
+  // the substantive fields a blocked report would need to render anything
+  // meaningful, but this file must not assume every caller went through
+  // that exact path. "Do not rely on frontend controls for release
+  // security" applies here too: this is backend/client-shared code, but
+  // the check belongs at the point of action, not just upstream.
+  if (asObj(data.report).quality_blocked === true) {
+    throw new Error("REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.");
+  }
   // Attorney mode (default): inline "[DOC N p.M]" citations become numbered
   // footnotes resolved to real document titles, collected in an Evidence
   // Sources appendix. Audit mode: citations stay inline but are rewritten to
@@ -4699,6 +4710,11 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
 
 // DOCX uses the SAME section plan, in the SAME order, gated by the SAME mode.
 export async function downloadDocx(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
+  // Same explicit, redundant release-gate check as downloadPdf — see the
+  // comment there for why this isn't relying solely on the upstream fix.
+  if (asObj(data.report).quality_blocked === true) {
+    throw new Error("REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.");
+  }
   // Same single-language rule as downloadPdf.
   setReportTemplateLocale(resolveReportLocale(data.report, data.case));
   initCitationContext(data, opts?.citationMode ?? "attorney");

@@ -151,3 +151,48 @@ describe("sanitizeBlockedReport: staleness path", () => {
     expect(result).toBe(report);
   });
 });
+
+describe("export.ts: explicit backend quality_blocked guard (defense-in-depth)", () => {
+  it("downloadPdf throws REPORT_BLOCKED when report.quality_blocked is true, before doing any rendering work", async () => {
+    const { downloadPdf } = await import("@/lib/export");
+    const data = {
+      case: { id: "case-1", name: "Generic Case" },
+      documents: [],
+      analysis: null,
+      agents: [],
+      score: null,
+      report: { quality_blocked: true },
+    };
+    await expect(downloadPdf(data as never, "test")).rejects.toThrow(/REPORT_BLOCKED/);
+  });
+
+  it("downloadDocx throws REPORT_BLOCKED when report.quality_blocked is true", async () => {
+    const { downloadDocx } = await import("@/lib/export");
+    const data = {
+      case: { id: "case-1", name: "Generic Case" },
+      documents: [],
+      analysis: null,
+      agents: [],
+      score: null,
+      report: { quality_blocked: true },
+    };
+    await expect(downloadDocx(data as never, "test")).rejects.toThrow(/REPORT_BLOCKED/);
+  });
+
+  it("does not throw REPORT_BLOCKED for an unblocked report (may still fail later for unrelated reasons — this only proves the guard itself doesn't false-positive)", async () => {
+    const { downloadPdf } = await import("@/lib/export");
+    const data = {
+      case: { id: "case-1", name: "Generic Case" },
+      documents: [],
+      analysis: null,
+      agents: [],
+      score: null,
+      report: { quality_blocked: false },
+    };
+    try {
+      await downloadPdf(data as never, "test");
+    } catch (e) {
+      expect(String(e instanceof Error ? e.message : e)).not.toMatch(/REPORT_BLOCKED/);
+    }
+  });
+});
