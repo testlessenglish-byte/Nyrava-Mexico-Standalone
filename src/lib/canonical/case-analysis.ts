@@ -29,6 +29,7 @@ export type Finding = {
   agreement?: number;
   agreement_weight?: number;
   finding_status?: "promoted" | "verified" | "disputed" | "candidate";
+  finding_type?: "DIRECT_EVIDENCE" | "EVIDENCE_BASED_INFERENCE" | "AI_THEORY" | string;
 };
 
 export type Witness = {
