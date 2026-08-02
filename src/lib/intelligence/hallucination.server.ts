@@ -73,15 +73,15 @@ export async function runHallucinationReview(args: {
 
   const report: HallucinationReport = {
     ran_at: new Date().toISOString(),
-    total: findings.length, verified: 0, unverified: 0, no_citation: 0,
+    total: findings.length, verified: 0, unverified: 0, no_citation: 0, authority_exempt: 0,
     by_module: {}, unverified_examples: [],
   };
 
   const nowIso = new Date().toISOString();
-  const updates: Array<{ id: string; status: "verified" | "unverified" | "no_citation"; notes: string }> = [];
+  const updates: Array<{ id: string; status: "verified" | "unverified" | "no_citation" | "authority_exempt"; notes: string }> = [];
   for (const f of findings) {
     const mod = f.source_module || "unknown";
-    if (!report.by_module[mod]) report.by_module[mod] = { total: 0, verified: 0, unverified: 0, no_citation: 0 };
+    if (!report.by_module[mod]) report.by_module[mod] = { total: 0, verified: 0, unverified: 0, no_citation: 0, authority_exempt: 0 };
     report.by_module[mod].total += 1;
 
     let status: "verified" | "unverified" | "no_citation" | "authority_exempt" = "no_citation";
