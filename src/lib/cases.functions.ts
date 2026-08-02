@@ -7,7 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
-import { PROJECTION_LIKE, selectFindings } from "@/lib/intelligence/finding-selection";
+import { PROJECTION_LIKE, selectFindings, isCanonicalFinding, type SelectableFinding } from "@/lib/intelligence/finding-selection";
 
 // Single source of truth for valid case_type values — derived from
 // PRACTICE_AREA_LABELS (practice-areas.ts) instead of hand-copied literal
@@ -3094,23 +3094,41 @@ export const getCase = createServerFn({ method: "POST" })
       score: score.data,
       report: sanitizedReport,
       canonical_current_version: canonicalCurrentVersion,
-      // Apply the same canonical inclusion rule used for the report's cover-page
-      // counters (getCanonicalScoringFindings / getFindingCounters): only
-      // `engine:*` findings are canonical — `analyzer:*` findings are provisional
-      // and must not appear as headline Key Findings while being excluded from
-      // the counters. Falls back to the unfiltered set if that would leave
-      // nothing to show (defensive — never render an empty findings section).
+      // Apply the same canonical inclusion rule used everywhere else
+      // (getCanonicalScoringFindings / isCanonicalFinding via the unified
+      // selectFindings() selector): BOTH `engine:*` AND `agent:*` findings
+      // are canonical, finalized pipeline output — only `analyzer:*`
+      // (provisional, pre-dedup) is excluded. Falls back to the unfiltered
+      // set if that would leave nothing to show (defensive — never render
+      // an empty findings section).
+      //
+      // FIX (2026-08-02): this filter previously had its own inline copy of
+      // the canonical rule that accepted ONLY `engine:*` findings, silently
+      // dropping every `agent:*` finding (witness_credibility,
+      // procedural_violations, chain_of_custody, constitutional_compliance)
+      // from the PDF/DOCX/JSON export and the report the user actually
+      // downloads — even though the internal report stage
+      // (pipeline.server.ts's consolidated_findings) had already been
+      // correctly fixed on 2026-07-13 to include both prefixes. Because
+      // getCase() (this function) is what feeds CaseExportData, the
+      // downloadable report kept reproducing the old bug via this
+      // un-updated duplicate: cases with real, verified agent:* findings
+      // showed only their engine:* subset (e.g. 8 real findings → 1 shown;
+      // 11 real findings → 2 shown), with the report's own "N hallazgos
+      // verificados" narrative accurately describing the undercounted
+      // array it was handed — the narrative wasn't wrong, its input was.
+      // Delegating to selectFindings() (default include: engine+agent)
+      // makes this the same single source of truth as every other
+      // consumer, so the export can't drift from the fix again.
       findings: (() => {
         const all = findings.data ?? [];
-        const canonical = all.filter((f) => {
-          const sm = String((f as { source_module?: string | null }).source_module ?? "");
-          const meta = (f as { metadata?: unknown }).metadata;
-          const provisional =
-            meta && typeof meta === "object" && !Array.isArray(meta)
-              ? (meta as Record<string, unknown>).provisional === true
-              : false;
-          return sm.startsWith("engine:") && !provisional;
-        });
+        // Cast only at the per-item predicate boundary (not the array
+        // itself) so `canonical` keeps the full Supabase row type instead
+        // of widening to the structural SelectableFinding shape — a
+        // whole-array cast/generic-inference-loss here previously caused
+        // getCase()'s serialized return type to collapse for every
+        // downstream consumer.
+        const canonical = all.filter((f) => isCanonicalFinding(f as unknown as SelectableFinding));
         return canonical.length > 0 ? canonical : all;
       })(),
       theories: theories.data ?? [],
