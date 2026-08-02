@@ -228,21 +228,48 @@ async function agentEntities(ctx: RunCtx): Promise<AgentResult> {
     .select("id", { count: "exact", head: true })
     .eq("case_id", ctx.caseId)
     .not("source_module", "like", PROJECTION_LIKE);
-  const ok = engineCompleted && (findingsCount ?? 0) > 0;
+  const hasFindings = (findingsCount ?? 0) > 0;
+  // FATAL gate: only "the analyzers stage itself never completed" belongs
+  // here. `entities` sits in the orchestrator's FATAL set, so a "failed"
+  // status here blocks all 10 downstream agents (timeline through
+  // hallucination) outright — see the FATAL-blocking loop below. Zero
+  // findings surviving the (now much stricter) evidence gate is a
+  // legitimately thin case, not a broken pipeline; treating it the same as
+  // "the stage never ran" wrongly prevented QA/Judge/Hallucination from
+  // ever running and — since a report-release-gate guard now refuses to
+  // generate a report at all when multi_agent's released flag is explicitly
+  // false — silently blocked report generation for every case where the
+  // stricter gate correctly rejected everything down to zero. QA and Judge
+  // each independently and correctly re-check "zero findings" on their own
+  // terms (agentQA: "No findings to support the report."; agentJudge:
+  // verdict "reject" / "No findings to evaluate.") and will still fail a
+  // genuinely empty case — that real rejection must come from them, not
+  // from a fatal short-circuit here that skips them entirely.
+  const ok = engineCompleted;
   return {
     status: ok ? "success" : "failed",
-    confidence: ok ? 0.85 : 0,
+    confidence: ok ? (hasFindings ? 0.85 : 0.5) : 0,
     processingTime: 0,
     tokensUsed: 0,
     outputFile: "entities.json",
-    errors: ok ? [] : ["Analyzers stage did not complete before the release gate ran; nothing to verify."],
+    errors: ok
+      ? hasFindings
+        ? []
+        : [
+            "Analyzers stage completed but zero findings survived the evidence gate — thin/strict case, not a pipeline failure. Downstream QA/Judge will independently assess whether this can release.",
+          ]
+      : ["Analyzers stage did not complete before the release gate ran; nothing to verify."],
     // `analyzers_completed` must answer the same question as `status`/`errors`
     // above. Previously this reported the raw pipeline_engine_runs ledger
     // flag (`engineCompleted`) even when `status` was "failed" because zero
     // findings survived — producing analyzers_completed: true in the same
     // result as an "Analyzers stage did not complete" error. Split the two
     // concepts explicitly instead of overloading one field.
-    output: { findings_count: findingsCount ?? 0, analyzers_engine_completed: engineCompleted, analyzers_completed: ok },
+    output: {
+      findings_count: findingsCount ?? 0,
+      analyzers_engine_completed: engineCompleted,
+      analyzers_completed: ok,
+    },
   };
 }
 
@@ -373,7 +400,6 @@ async function agentReport(ctx: RunCtx): Promise<AgentResult> {
     },
   };
 }
-
 
 const QA_NARRATIVE_FIELDS = [
   "executive_summary",
