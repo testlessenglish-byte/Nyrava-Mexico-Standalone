@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  verifyPersistence,
-  runVerifiedEngine,
-  ENGINE_TABLE_SPECS,
-} from "../engine-persistence.server";
+import { verifyPersistence, runVerifiedEngine, ENGINE_TABLE_SPECS } from "../engine-persistence.server";
 
 /**
  * Fake supabase client with:
@@ -14,7 +10,14 @@ import {
  *   - `.from("pipeline_events").insert(...)` used by emitEvent
  */
 function makeFakeDb(rowsByTable: Record<string, Array<{ id: string; case_id: string }>>) {
-  const ledger: Array<{ id: string; status: string; meta?: unknown; error?: string; db_write_confirmed?: boolean | null; rows_written?: number | null }> = [];
+  const ledger: Array<{
+    id: string;
+    status: string;
+    meta?: unknown;
+    error?: string;
+    db_write_confirmed?: boolean | null;
+    rows_written?: number | null;
+  }> = [];
   let ledgerSeq = 1;
 
   const client = {
@@ -48,7 +51,6 @@ function makeFakeDb(rowsByTable: Record<string, Array<{ id: string; case_id: str
           return makeFilter(rowsByTable[table] ?? []);
         },
 
-
         insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
           const rows = Array.isArray(payload) ? payload : [payload];
           if (table === "pipeline_engine_runs") {
@@ -67,18 +69,48 @@ function makeFakeDb(rowsByTable: Record<string, Array<{ id: string; case_id: str
           // Normal table insert — accept everything
           rowsByTable[table] = rowsByTable[table] ?? [];
           for (const r of rows) {
-            rowsByTable[table].push({ id: String(r.id ?? `${table}-${rowsByTable[table].length + 1}`), case_id: String(r.case_id ?? "case-1") });
+            rowsByTable[table].push({
+              id: String(r.id ?? `${table}-${rowsByTable[table].length + 1}`),
+              case_id: String(r.case_id ?? "case-1"),
+            });
           }
           return Promise.resolve({ data: null, error: null });
         },
         update(patch: Record<string, unknown>) {
-          return {
-            eq(_col: string, id: string) {
-              const row = ledger.find((r) => r.id === id);
-              if (row) Object.assign(row, patch);
-              return Promise.resolve({ data: null, error: null });
+          // Chainable filter builder, mirroring select() above. Production
+          // code has two distinct call shapes against this table:
+          //   1. runVerifiedEngine's own completion write: .eq("id", ledgerId)
+          //      — looks up the specific ledger row by id and patches it.
+          //   2. engine-audit.server.ts's zombie-row reaper: a generic
+          //      multi-filter update (.eq("case_id",...).eq("engine",...)
+          //      .eq("status","running").lt("started_at", cutoff)) with no
+          //      "id" filter at all — a background safety-net update that,
+          //      in these unit tests, never matches a real zombie row
+          //      (ledger entries here don't track case_id/engine/started_at)
+          //      and should just resolve as a no-op rather than throw.
+          const makeUpdateFilter = (filters: Array<[string, unknown]>) => ({
+            eq(col: string, val: unknown) {
+              return makeUpdateFilter([...filters, [col, val]]);
             },
-          };
+            lt() {
+              return makeUpdateFilter(filters);
+            },
+            gte() {
+              return makeUpdateFilter(filters);
+            },
+            then: (resolve: (v: unknown) => void) => {
+              const idFilter = filters.find(([col]) => col === "id");
+              if (idFilter) {
+                const row = ledger.find((r) => r.id === idFilter[1]);
+                if (row) Object.assign(row, patch);
+              }
+              // Any other filter combination (the zombie reaper's shape):
+              // no-op in these tests — no ledger row here carries
+              // case_id/engine/started_at to match against.
+              resolve({ data: null, error: null });
+            },
+          });
+          return makeUpdateFilter([]);
         },
       };
     },
@@ -152,12 +184,9 @@ describe("runVerifiedEngine", () => {
     // one theory should exist, but the table is empty.
     const db = makeFakeDb({ case_theories: [] });
     await expect(
-      runVerifiedEngine(
-        db,
-        { caseId: "c1", userId: "u1", engine: "theory" },
-        ENGINE_TABLE_SPECS.theory,
-        async () => ({ value: { theories: [{ theory_type: "defense" }] } }),
-      ),
+      runVerifiedEngine(db, { caseId: "c1", userId: "u1", engine: "theory" }, ENGINE_TABLE_SPECS.theory, async () => ({
+        value: { theories: [{ theory_type: "defense" }] },
+      })),
     ).rejects.toThrow(/Persistence verification failed for theory/);
     const failedRow = db.__ledger.find((r: { status: string }) => r.status === "failed");
     expect(failedRow).toBeTruthy();
