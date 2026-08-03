@@ -6141,14 +6141,40 @@ ${paginationTail}`;
   // a fresh analysis.
   await clearChunkCache();
 
-  await setCase(db, caseId, {
-    status: "complete",
-    status_message: "Litigation intelligence ready",
-    progress: 100,
-    report_at: new Date().toISOString(),
-    completed_at: new Date().toISOString(),
-    error: null,
-  });
+  // BUG FIX: this used to unconditionally stamp status="complete" here,
+  // which clobbered the "needs_revision" status the quality gate above
+  // (citation_audit / findings_projection_reconciliation / evidence gaps)
+  // had just set a few hundred lines earlier in this SAME function call.
+  // The outer pipeline-runner's own "preserve needs_revision" check never
+  // got a chance to help — by the time it inspects the case row after this
+  // function returns, this write had already overwritten it back to
+  // "complete". Net effect: a quality-blocked report (full_report never
+  // actually released) always showed the case as finished anyway. Respect
+  // quality_blocked here so a blocked report keeps the needs_revision
+  // status this function itself just set, instead of immediately
+  // overwriting its own signal.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isQualityBlocked = (reportRow as any).quality_blocked === true;
+  if (isQualityBlocked) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reasons = ((reportRow as any).quality_block_reasons as string[] | undefined) ?? [];
+    await setCase(db, caseId, {
+      status: "needs_revision",
+      status_message: `Report needs review: ${reasons.join(" | ")}`.slice(0, 2000),
+      progress: 100,
+      report_at: new Date().toISOString(),
+      error: null,
+    });
+  } else {
+    await setCase(db, caseId, {
+      status: "complete",
+      status_message: "Litigation intelligence ready",
+      progress: 100,
+      report_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      error: null,
+    });
+  }
   return {
     value: undefined,
     stats: {
