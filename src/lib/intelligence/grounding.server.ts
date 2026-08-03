@@ -131,6 +131,39 @@ export function verifyQuote(quote: string, corpus: GroundingCorpus): boolean {
   return verifyQuoteDetailed(quote, corpus).verified;
 }
 
+// A quote can legitimately verify against the FULL corpus (this function's
+// job) while the model's self-reported `doc_n` for it is simply wrong —
+// with a large multi-document corpus, LLMs frequently miscount which
+// document they're citing (a cover page or index file alone is enough to
+// shift every subsequent doc_n by one). Blindly trusting doc_n to assign
+// document_id produced real, verified findings attributed to the WRONG
+// document: invisible at write time (this check only confirms the quote
+// exists *somewhere*), but fatal later — runHallucinationReview() (see
+// hallucination.server.ts) re-verifies each finding's quote against ONLY
+// its recorded source_document_id's own text, so a correct quote with a
+// mis-attributed document_id fails that stricter, per-document check even
+// though nothing was fabricated. Confirmed against a real case: 6 of 8
+// findings failed Hallucination Review and blocked the release gate, while
+// every one of their quotes verified cleanly against the full corpus in
+// isolation — the quotes were real, the doc_n attributions weren't.
+//
+// Fix: confirm the quote against the CLAIMED document's own text first
+// (cheap, and correct in the common case); if that specific document
+// doesn't actually contain it, search the other candidate documents for
+// the one that does, and attach that instead of the model's guess.
+function findOwningDoc(
+  quote: string,
+  corpus: GroundingCorpus,
+  claimedDocN: number | null,
+): { doc_n: number; document_id: string; filename: string } | null {
+  const claimed = claimedDocN ? corpus.docs.find((d) => d.doc_n === claimedDocN) : null;
+  const docContains = (d: GroundingCorpus["docs"][number]) =>
+    verifyQuoteDetailed(quote, { text: norm(d.pages.join("\n")), docs: [] }).verified;
+  if (claimed && docContains(claimed)) return claimed;
+  const actual = corpus.docs.find(docContains);
+  return actual ?? claimed ?? null;
+}
+
 export function verifyEvidenceRefs(
   refs: RawCitation[] | undefined,
   corpus: GroundingCorpus,
@@ -143,12 +176,16 @@ export function verifyEvidenceRefs(
     if (!quote) continue;
     if (!verifyQuote(quote, corpus)) continue;
     const docN = typeof r.doc_n === "number" ? r.doc_n : null;
-    const doc = docN ? corpus.docs.find((d) => d.doc_n === docN) : null;
+    const explicitId = (r.document_id as string | undefined) ?? (r.doc_id as string | undefined);
+    // Only fall back to the doc_n-based lookup (now corrected to actually
+    // confirm the quote lives in that document) when the caller hasn't
+    // already supplied an explicit, trusted document_id/doc_id.
+    const doc = explicitId ? null : findOwningDoc(quote, corpus, docN);
     verified.push({
       ...r,
       quote,
       verified: true,
-      document_id: (r.document_id as string | undefined) ?? (r.doc_id as string | undefined) ?? doc?.document_id ?? null,
+      document_id: explicitId ?? doc?.document_id ?? null,
       filename: doc?.filename ?? null,
     });
   }
