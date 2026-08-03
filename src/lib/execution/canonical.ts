@@ -295,7 +295,6 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
   },
 ] as const;
 
-
 // Derived indexes — DO NOT rebuild these elsewhere.
 export const STAGE_BY_KEY: ReadonlyMap<string, StageDef> = new Map(CANONICAL_STAGES.map((s) => [s.key, s]));
 export const STAGE_BY_ENGINE: ReadonlyMap<string, StageDef> = new Map(CANONICAL_STAGES.map((s) => [s.engine, s]));
@@ -310,22 +309,58 @@ export const PIPELINE_STAGE_TO_ENGINE: Readonly<Record<string, string>> = Object
 // would make the pre-flight check permanently unsatisfiable (it can only
 // become "completed" after it has already run).
 //
-// 2026-07-31: per explicit direction, the report must not generate until
-// EVERY stage has reached a terminal state — not just the stages marked
-// requirement:"blocking". Confirmed live in a real case: work_product
-// (requirement:"optional") was stuck at status "running" while the
-// pipeline continued straight through report generation and the final
-// multi-agent review, producing a report next to a permanently-dangling
-// "still running" engine. This intentionally no longer filters by
-// `requirement` — it lists every stage except report_generator itself
-// (self-referential, see note above) and multi_agent (runs AFTER report,
-// so it can never be a precondition for it). The underlying `requirement`
-// field on each CANONICAL_STAGES entry is left untouched — it's still used
-// elsewhere (e.g. whether a failed stage flips the whole pipeline run to
-// "failed"), and this change is scoped to the report gate only.
+// Only stages declared requirement:"blocking" above actually prevent report
+// generation on FAILURE — this is the contract documented on RequirementLevel
+// itself ("blocking — report cannot be assembled without this engine";
+// "enriching — feeds sections; empty/failed is downgraded to partial
+// coverage"; "optional — decorative; never blocks"), and matches
+// computeProgress()'s own missingBlocking calculation below, which has
+// always filtered on `requirement === "blocking"`.
+//
+// 2026-08: previously widened to every stage except report_generator, on the
+// theory that the report must not generate until every stage has reached a
+// terminal state. That's a real concern (see REPORT_MUST_BE_TERMINAL_ENGINES
+// / stillInFlightEngines() below, which now handles it correctly) but the
+// wrong mechanism was used: it made every enriching/optional stage's FAILURE
+// — not just its still-running-ness — a hard blocker. Since those stages are
+// inherently probabilistic LLM calls (witness_intelligence, theories,
+// opportunities, strategy, litigation_strategy_center, work_product,
+// hallucination, perspectives, multi_agent, timeline, evidence_map,
+// contradictions, evidence_intelligence, discovery_gaps,
+// procedural_compliance, constitutional_compliance), a single transient
+// failure in any one of ~15 non-critical stages permanently wedged the
+// entire case, regardless of case type — matching the exact symptom this
+// was reverted for.
 export const REPORT_BLOCKING_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
+  (s) => s.engine !== "report_generator" && s.requirement === "blocking",
+).map((s) => s.engine);
+
+// Every non-report stage, blocking tier or not — used ONLY to guarantee the
+// report is never generated while one of them is genuinely still executing.
+// This is what actually prevents the "dangling running engine next to a
+// finished report" scenario the 2026-08 change above was trying to solve,
+// without conflating "still running" with "must succeed".
+export const REPORT_MUST_BE_TERMINAL_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
   (s) => s.engine !== "report_generator",
 ).map((s) => s.engine);
+
+/**
+ * Engines that are genuinely mid-flight right now (status "running" or
+ * "queued" — a checkpoint awaiting resumption). Does NOT flag engines that
+ * simply never ran or failed; that's what missingRequiredEngines /
+ * REPORT_BLOCKING_ENGINES are for. Callers should pause (not permanently
+ * fail) report generation while this is non-empty, then retry.
+ */
+export function stillInFlightEngines(
+  rows: ExecutionRow[],
+  engines: readonly string[] = REPORT_MUST_BE_TERMINAL_ENGINES,
+): string[] {
+  const latest = latestRowsByEngine(rows);
+  return engines.filter((e) => {
+    const s = latest.get(e)?.status;
+    return s === "running" || s === "queued";
+  });
+}
 
 /** Engines whose stage is requirement:"optional". A failure here must not
  * permanently block the report — the gate accepts them in any terminal
@@ -511,6 +546,8 @@ export type ReportGate = {
   ok: boolean;
   missingBlocking: string[];
   missingEnriching: string[];
+  /** Genuinely still executing — report should wait, then re-check, not fail. */
+  stillInFlight: string[];
 };
 
 export function canGenerateReport(rows: ExecutionRow[]): ReportGate {
@@ -518,16 +555,18 @@ export function canGenerateReport(rows: ExecutionRow[]): ReportGate {
   const missing = (engines: readonly string[]) =>
     engines.filter((e) => {
       const s = latest.get(e)?.status;
-      if (s === "completed" || s === "completed_negative" || s === "skipped") return false;
-      // Optional stages only need to be *finished*, not successful.
-      if (OPTIONAL_ENGINES.has(e) && (s === "failed" || s === "blocked")) return false;
-      return true;
+      return s !== "completed" && s !== "completed_negative" && s !== "skipped";
     });
+  // REPORT_BLOCKING_ENGINES is already scoped to requirement:"blocking"
+  // stages only, so no per-engine leniency is needed here — an
+  // enriching/optional stage's failure was never in this list to begin with.
   const blocking = missing(REPORT_BLOCKING_ENGINES);
+  const stillInFlight = stillInFlightEngines(rows);
   return {
-    ok: blocking.length === 0,
+    ok: blocking.length === 0 && stillInFlight.length === 0,
     missingBlocking: blocking,
     missingEnriching: missing(REPORT_ENRICHING_ENGINES),
+    stillInFlight,
   };
 }
 
