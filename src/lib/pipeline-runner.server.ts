@@ -1465,16 +1465,63 @@ async function _runPipelineForCase(
   // trace anywhere the attorney would see, yet the case read as fully done.
   // Surface it honestly instead — same finalStatus, but the message and
   // error field now say what actually came back empty.
-  const optionalFailures = [...new Set([...failed, ...blocked])]
-    .filter((k) => stageRequirement(k) === "optional")
-    .map((k) => PIPELINE_STAGES.find((s) => s.key === k)?.label ?? k);
+  const optionalFailureKeys = new Set(
+    [...new Set([...failed, ...blocked])].filter((k) => stageRequirement(k) === "optional"),
+  );
+
+  // Row-count reality check, independent of ledger status. `failed`/`blocked`
+  // above only reflect what THIS worker tick observed — but a run can span
+  // many ticks (each AI-provider checkpoint starts a fresh one with empty
+  // Sets), and an optional engine can end a PRIOR tick with a "completed"
+  // no-op ledger row that's never revisited. Confirmed on two real cases
+  // (Juicio Ordinario Federal 96/2026 — ASIPONA Manzanillo; Amparo Indirecto
+  // 342/2026-II): perspectives/opportunities/strategy/litigation_strategy_
+  // center/work_product each ended up with zero rows in their own table
+  // while the case still finalized as "Full pipeline complete" — in the
+  // second case, litigation_strategy_center's own "nothing to synthesize
+  // yet" no-op (litigation.server.ts) had apparently fired once, early,
+  // then was never retried even after theories/opportunities gained real
+  // data. A direct table count catches this regardless of which tick or
+  // code path produced the gap. Zero rows isn't always wrong (a case can
+  // legitimately have no opportunities), so this is reported as visibility
+  // for the attorney to judge, not asserted as a bug.
+  const OPTIONAL_OUTPUT_TABLES: Partial<Record<PipelineStageKey, string>> = {
+    perspectives: "case_perspectives",
+    theories: "case_theories",
+    opportunities: "case_opportunities",
+    strategy: "case_strategy",
+    litigation_strategy_center: "case_strategy_center",
+    work_product: "case_work_product",
+  };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: postRun } = await (supabase as any)
     .from("cases")
-    .select("status,status_message")
+    .select("status,status_message,case_type")
     .eq("id", caseId)
     .maybeSingle();
+
+  try {
+    const { isStageRelevantForCaseType } = await import("./execution/mx-pipeline");
+    const finalCaseType = (postRun as { case_type?: string | null } | null)?.case_type ?? null;
+    for (const [key, table] of Object.entries(OPTIONAL_OUTPUT_TABLES) as [PipelineStageKey, string][]) {
+      if (!isStageRelevantForCaseType(finalCaseType, key)) continue; // excluded for this materia — not a gap
+      if (optionalFailureKeys.has(key)) continue; // already flagged this tick
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count } = await (supabase as any)
+        .from(table)
+        .select("case_id", { count: "exact", head: true })
+        .eq("case_id", caseId);
+      if (!count) optionalFailureKeys.add(key);
+    }
+  } catch (e) {
+    console.warn("[pipeline] optional-engine output row check failed (non-fatal)", e);
+  }
+
+  const optionalFailures = [...optionalFailureKeys].map(
+    (k) => PIPELINE_STAGES.find((s) => s.key === k)?.label ?? k,
+  );
+
   const preserved = postRun?.status === "released" || postRun?.status === "needs_revision";
   const finalStatus = preserved ? postRun.status : hasFailures ? "failed" : "complete";
   const finalMessage = preserved
