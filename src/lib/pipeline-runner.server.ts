@@ -513,33 +513,49 @@ async function _runPipelineForCase(
     // engine's own return value where available. Meta.source labels the pipeline
     // ("llm" | "template" | "hybrid") so the UI stops showing 0/0/0 for engines
     // that produced legitimate deterministic output.
+    //
+    // FIX (2026-08-03): this was wired to deriveWitnessIntel — a pure count of
+    // pre-existing case_findings tagged as witness-related. Nothing upstream
+    // ever writes findings with that tag, so this always returned 0 regardless
+    // of what the case corpus actually contained, and case_witnesses (the
+    // table the report's "Inteligencia de Testigos" section reads) was NEVER
+    // populated by any code path the live pipeline actually executes.
+    // runWitnessEngine — the real LLM-based profiler that discovers
+    // candidate witnesses, verifies them against corpus entities, computes
+    // role-aware credibility, and writes case_witnesses — already existed
+    // and was already correctly wired to this exact stage, but only inside
+    // _runPipelineForCase, a duplicate of this function documented (commit
+    // 069cc48) as dead and unreachable. The live pipeline
+    // (pipeline-runner.server.ts, what driveCasePipelineTick actually calls)
+    // kept using the stub. Confirmed against multiple real cases today:
+    // witnesses_at stayed null and case_witnesses stayed empty on every
+    // single run, including cases whose source documents explicitly named
+    // testifying witnesses.
     witness: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: "witness_intelligence" },
-          async () => {
-            const d = await import("@/lib/intelligence/derived-engines.server");
-            const result = await d.deriveWitnessIntel(supabase, caseId);
-            const { count } = await supabase
-              .from("case_witnesses")
-              .select("id", { count: "exact", head: true })
-              .eq("case_id", caseId);
-            const rows = count ?? 0;
-            const generated = Math.max(result.stats.generated ?? 0, rows);
-            const accepted = Math.max(result.stats.accepted ?? 0, rows);
-            return {
-              value: result.value,
-              stats: {
-                generated,
-                accepted,
-                rejected: Math.max(0, generated - accepted),
-                rows_written: rows,
-                meta: { source: "derived", no_llm: true },
-              },
-            };
-          },
-        ),
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "witness_intelligence" }, async () => {
+          const value = (await eng.runWitnessEngine(baseArgs)) as {
+            witnesses?: unknown[];
+            audit?: { input?: number; accepted?: number };
+          };
+          const { count } = await supabase
+            .from("case_witnesses")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const rows = count ?? value.witnesses?.length ?? 0;
+          const gen = Math.max(value.audit?.input ?? 0, rows);
+          const acc = Math.max(value.audit?.accepted ?? 0, rows);
+          return {
+            value,
+            stats: {
+              generated: gen,
+              accepted: acc,
+              rejected: Math.max(0, gen - acc),
+              rows_written: rows,
+              meta: { source: "hybrid" },
+            },
+          };
+        }),
       stage: "witness_intel",
     },
     evidence_intel: {
