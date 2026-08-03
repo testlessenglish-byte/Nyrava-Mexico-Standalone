@@ -1056,11 +1056,23 @@ async function _runPipelineForCase(
 
     // Dependency gate — record a `blocked` row so the ledger, UI, and report
     // gate all see the truth: this engine did not run because upstream failed.
-    // Optional upstream stages are deliberately excluded: now that report
-    // depends on multi_agent (which is optional), a flaky agent review must
-    // not permanently block the report.
+    //
+    // Only a BLOCKING-tier upstream failure propagates as a block. This used
+    // to exclude only "optional" (`!== "optional"`), which meant an
+    // "enriching"-tier failure (e.g. witness_intelligence — a single
+    // duplicate-run race, nothing structural) permanently marked `report`
+    // itself as blocked. That contradicts canonical.ts's own documented
+    // contract for "enriching": "feeds sections; empty/failed is downgraded
+    // to partial coverage" — never a hard block — and it also bypassed
+    // canGenerateReport()'s correctly-tolerant gate (which only checks
+    // REPORT_BLOCKING_ENGINES), since this stricter check fires first and
+    // marks `report` "blocked" before report's own function body ever runs.
+    // Narrowed to `=== "blocking"` so enriching/optional upstream failures
+    // never block a dependent — they still surface as missing/partial via
+    // canGenerateReport()'s own missingEnriching tracking, which is the
+    // mechanism actually designed to represent that.
     const unmet = (DEPENDS_ON[key] ?? []).filter(
-      (d) => (failed.has(d) || blocked.has(d)) && stageRequirement(d) !== "optional",
+      (d) => (failed.has(d) || blocked.has(d)) && stageRequirement(d) === "blocking",
     );
 
     if (unmet.length > 0) {
