@@ -58,12 +58,38 @@ describe("canonical execution architecture", () => {
     }
   });
 
-  it("classifies every stage except report_generator as blocking for the report gate (2026-07-31: report runs last — every other stage, multi_agent included, must finish first)", () => {
-    const expected = CANONICAL_STAGES.filter((s) => s.engine !== "report_generator").map((s) => s.engine);
+  it('classifies only requirement:"blocking" stages as report-blocking (RequirementLevel contract: enriching/optional never block on failure)', () => {
+    const expected = CANONICAL_STAGES.filter(
+      (s) => s.engine !== "report_generator" && s.requirement === "blocking",
+    ).map((s) => s.engine);
     expect([...REPORT_BLOCKING_ENGINES].sort()).toEqual([...expected].sort());
     expect(REPORT_BLOCKING_ENGINES).not.toContain("report_generator");
-    expect(REPORT_BLOCKING_ENGINES).toContain("multi_agent");
+    // enriching/optional stages must never appear here, however they fail —
+    // this is the exact list that wedged every case type when it regressed
+    // to "every stage blocks".
+    expect(REPORT_BLOCKING_ENGINES).not.toContain("witness_intelligence");
+    expect(REPORT_BLOCKING_ENGINES).not.toContain("multi_agent");
+    expect(REPORT_BLOCKING_ENGINES).not.toContain("work_product");
     expect(REPORT_ENRICHING_ENGINES.length).toBeGreaterThan(0);
+  });
+
+  it("report gate is NOT blocked by a failed enriching/optional engine (only genuinely blocking-tier failures count)", () => {
+    const rows = [
+      ...REPORT_BLOCKING_ENGINES.map((e) => row(e, "completed")),
+      row("witness_intelligence", "failed"),
+      row("multi_agent", "failed"),
+    ];
+    const gate = canGenerateReport(rows);
+    expect(gate.ok).toBe(true);
+    expect(gate.missingBlocking.length).toBe(0);
+  });
+
+  it("report gate pauses (does not fail) while a non-blocking engine is genuinely still running", () => {
+    const rows = [...REPORT_BLOCKING_ENGINES.map((e) => row(e, "completed")), row("witness_intelligence", "running")];
+    const gate = canGenerateReport(rows);
+    expect(gate.ok).toBe(false);
+    expect(gate.stillInFlight).toContain("witness_intelligence");
+    expect(gate.missingBlocking.length).toBe(0);
   });
 
   it("report gate blocks when any blocking engine has not completed", () => {
