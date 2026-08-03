@@ -280,20 +280,75 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     label: "Generate Report",
     engine: "report_generator",
     timestampColumn: "report_at",
-    // FIX (2026-07-29): jurisdiction_intel is requirement:"blocking" (so
-    // canGenerateReport() already correctly refuses to generate without
-    // it) but wasn't reachable from this list, and nothing upstream of
-    // scoring/legal_qa/analyzers/agents depends on it either. That meant
-    // deriveStageState() could show this stage as "waiting" (ready to
-    // run) purely from those four completing, while the real server-side
-    // gate still correctly blocked report generation on jurisdiction_intel
-    // — a misleading UI state, not a data-correctness bug (the actual
-    // gate was always right), but confusing to anyone watching the
-    // pipeline. Added so the UI and the real gate agree.
-    dependsOn: ["scoring", "legal_qa", "analyzers", "agents", "jurisdiction_intel", "multi_agent"],
+    // FIX (2026-08): dependsOn previously listed only
+    // [scoring, legal_qa, analyzers, agents, jurisdiction_intel, multi_agent].
+    // Every OTHER stage (perspectives, opportunities, strategy, witness,
+    // theories, litigation_strategy_center, work_product, hallucination,
+    // discovery, evidence_intel, procedural_compliance, constitutional,
+    // contradictions, timeline, evidence_map) was reachable by the
+    // dependency graph before report ever ran, which let the scheduler
+    // dispatch report while those stages were still queued/running. The
+    // runtime pre-flight gate in _runReportInner() (stillInFlightEngines,
+    // now correctly checkpointing instead of hard-failing — see
+    // pipeline.server.ts) was the ONLY thing catching this, as a backstop
+    // after the fact. dependsOn is now exhaustive — literally every other
+    // canonical stage — so the primary scheduling path itself refuses to
+    // even attempt report until everything else has reached a terminal
+    // state. This list is asserted exhaustive at module load below
+    // (assertReportDependsOnIsExhaustive) specifically so a future stage
+    // added to CANONICAL_STAGES without also being added here fails loudly
+    // at import time instead of silently reproducing this exact bug.
+    dependsOn: [
+      "extraction",
+      "analyzers",
+      "agents",
+      "timeline",
+      "evidence_map",
+      "contradictions",
+      "witness",
+      "evidence_intel",
+      "jurisdiction_intel",
+      "procedural_compliance",
+      "constitutional",
+      "discovery",
+      "perspectives",
+      "theories",
+      "opportunities",
+      "strategy",
+      "litigation_strategy_center",
+      "work_product",
+      "hallucination",
+      "scoring",
+      "legal_qa",
+      "multi_agent",
+    ],
     requirement: "blocking",
   },
 ] as const;
+
+// ---------------------------------------------------------------------------
+// Self-check: report's dependsOn must always list every other stage key. If
+// this ever throws, a new stage was added to CANONICAL_STAGES above without
+// also being added to report.dependsOn — fix the array above, don't remove
+// this check. This is what prevents the class of bug fixed 2026-08 (report
+// generation racing ahead of perspectives/opportunities/strategy) from
+// silently recurring the next time a stage is added.
+// ---------------------------------------------------------------------------
+function assertReportDependsOnIsExhaustive(stages: readonly StageDef[]): void {
+  const reportStage = stages.find((s) => s.key === "report");
+  if (!reportStage) throw new Error('CANONICAL_STAGES: no stage with key "report" found');
+  const allOtherKeys = new Set(stages.filter((s) => s.key !== "report").map((s) => s.key));
+  const declared = new Set(reportStage.dependsOn);
+  const missing = [...allOtherKeys].filter((k) => !declared.has(k));
+  if (missing.length > 0) {
+    throw new Error(
+      `CANONICAL_STAGES: report.dependsOn is missing newly-added stage(s) [${missing.join(", ")}]. ` +
+        `report must depend on every other stage so it never dispatches before they finish — add ` +
+        `the missing key(s) to report.dependsOn in canonical.ts.`,
+    );
+  }
+}
+assertReportDependsOnIsExhaustive(CANONICAL_STAGES);
 
 // Derived indexes — DO NOT rebuild these elsewhere.
 export const STAGE_BY_KEY: ReadonlyMap<string, StageDef> = new Map(CANONICAL_STAGES.map((s) => [s.key, s]));
