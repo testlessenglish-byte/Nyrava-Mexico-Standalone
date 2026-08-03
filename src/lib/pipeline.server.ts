@@ -1418,7 +1418,20 @@ async function _runExtractionInner(args: {
       extractedFail += 1;
       continue;
     }
-    // Atomic claim: only proceed if row is not already being processed by another worker
+    // Atomic claim: only proceed if the row isn't currently being processed by
+    // another worker. A row can be stuck at status "extracting" forever if a
+    // prior attempt hung mid-download and the worker was killed before it
+    // could write a terminal status (confirmed in production: a plain-text
+    // file's download never resolved, the run stalled, and every subsequent
+    // Resume silently skipped that document forever because its status was
+    // still "extracting" — `.neq("status","extracting")` never matches a
+    // stuck row). Also allow reclaiming a stale claim: once
+    // last_extraction_attempt_at is old enough that a genuinely in-flight
+    // attempt would have hit its own DOWNLOAD_TIMEOUT_MS/stage timeout by
+    // now, it's safe to assume the prior attempt died without updating the
+    // row, not that it's still running.
+    const STALE_CLAIM_MS = 5 * 60_000;
+    const staleBeforeIso = new Date(Date.now() - STALE_CLAIM_MS).toISOString();
     const { data: claimed } = await db
       .from("documents")
       .update({
@@ -1427,7 +1440,7 @@ async function _runExtractionInner(args: {
         last_extraction_attempt_at: new Date().toISOString(),
       })
       .eq("id", d.id)
-      .neq("status", "extracting")
+      .or(`status.neq.extracting,last_extraction_attempt_at.lt.${staleBeforeIso}`)
       .select("id")
       .maybeSingle();
     if (!claimed) {
@@ -1435,7 +1448,21 @@ async function _runExtractionInner(args: {
       continue;
     }
     try {
-      const { data: blob, error: dlErr } = await db.storage.from("case-files").download(d.storage_path!);
+      // Storage downloads have no client-side timeout of their own — wrap so
+      // a hung network call fails this ONE document (caught below, marked
+      // failed, retry_count incremented) instead of consuming the whole
+      // stage's timeout budget on a single stuck file and blocking every
+      // other document behind it.
+      const DOWNLOAD_TIMEOUT_MS = 30_000;
+      const { data: blob, error: dlErr } = await Promise.race([
+        db.storage.from("case-files").download(d.storage_path!),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Storage download timed out after ${DOWNLOAD_TIMEOUT_MS}ms`)),
+            DOWNLOAD_TIMEOUT_MS,
+          ),
+        ),
+      ]);
       if (dlErr || !blob) throw new Error(dlErr?.message ?? "download failed");
       const bytes = new Uint8Array(await blob.arrayBuffer());
 
