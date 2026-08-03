@@ -1,10 +1,16 @@
 // =============================================================================
-// BLOCKING-STAGE GUARD
+// STAGE TIMEOUT GUARD
 //
-// `jurisdiction_intel` and `legal_qa` are BLOCKING stages: `report` cannot run
-// until they finish. Before this guard existed they had no wall-clock ceiling —
-// a stuck corpus read or a stalled translation call could leave the whole case
-// pinned in `running` forever, with nothing in the ledger explaining why.
+// Originally scoped to `jurisdiction_intel` and `legal_qa` (BLOCKING stages:
+// `report` cannot run until they finish) — before this guard existed they had
+// no wall-clock ceiling, so a stuck corpus read or a stalled translation call
+// could leave the whole case pinned in `running` forever, with nothing in the
+// ledger explaining why. Every stage in canonical.ts now declares a
+// `timeoutMs` (see pipeline-runner.server.ts's single wrap point), including
+// optional-tier stages like `perspectives`/`strategy` that were confirmed in
+// production to hang the same way and require a manual "Limpiar estado"
+// click to unstick — the message below is worded generically so it doesn't
+// overclaim "blocks the report" for a stage that doesn't.
 //
 // This module wraps any stage body so that:
 //   1. entry and exit are logged (console + pipeline_trace),
@@ -17,15 +23,19 @@
 // =============================================================================
 
 import { traceAsync } from "@/lib/pipeline-trace.server";
-import { stageTimeoutMs } from "./canonical";
+import { stageTimeoutMs, STAGE_BY_KEY } from "./canonical";
 
 export class StageTimeoutError extends Error {
   readonly stageKey: string;
   readonly timeoutMs: number;
   constructor(stageKey: string, timeoutMs: number) {
+    const requirement = STAGE_BY_KEY.get(stageKey)?.requirement ?? "blocking";
+    const impact =
+      requirement === "blocking"
+        ? "El caso no puede generar informe hasta que esta etapa complete correctamente."
+        : "Esta etapa es opcional y no bloquea el informe, pero no produjo resultados en este intento.";
     super(
-      `La etapa bloqueante "${stageKey}" excedió su límite de ${Math.round(timeoutMs / 1000)}s y fue abortada. ` +
-        `El caso no puede generar informe hasta que esta etapa complete correctamente.`,
+      `La etapa "${stageKey}" excedió su límite de ${Math.round(timeoutMs / 1000)}s y fue abortada. ${impact}`,
     );
     this.name = "StageTimeoutError";
     this.stageKey = stageKey;

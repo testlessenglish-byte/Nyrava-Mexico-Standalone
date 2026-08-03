@@ -362,46 +362,40 @@ async function _runPipelineForCase(
       engine?: string;
     }
   > = {
-    extraction: {
-      run: () => withStageTimeout("extraction", () => pipe.runExtraction(baseArgs), { caseId, userId }),
-      stage: "extraction",
-    },
+    extraction: { run: () => pipe.runExtraction(baseArgs), stage: "extraction" },
     agents: { run: () => pipe.runAgents(baseArgs), stage: "agents" },
     analyzers: { run: () => pipe.runAnalyzers(baseArgs), stage: "analyzers" },
     scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
     // Inteligencia de Jurisdicción — deterministic resolution of país/estado/
     // fuero/materia and the codes that govern the matter.
     jurisdiction_intel: {
+      // Stage-level timeout now applied uniformly at the runOneStage call
+      // site (see there for why) — no longer wrapped here individually.
       run: () =>
-        withStageTimeout(
-          "jurisdiction_intel",
-          () =>
-            persist.runCatalogedEngine(
-              supabase,
-              { caseId, userId, engine: "jurisdiction_intel" },
-              async () => {
-                const { runJurisdictionIntelligence } =
-                  await import("@/lib/intelligence/jurisdiction-intel.server");
-                const value = await runJurisdictionIntelligence({ db: supabase, caseId });
-                return {
-                  value,
-                  stats: {
-                    generated: 1,
-                    accepted: 1,
-                    rows_written: 1,
-                    db_write_confirmed: true,
-                    meta: {
-                      source: "deterministic",
-                      materia: value.materia,
-                      fuero: value.fuero,
-                      state: value.state?.name ?? null,
-                      state_source: value.state_source,
-                    },
-                  },
-                };
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "jurisdiction_intel" },
+          async () => {
+            const { runJurisdictionIntelligence } =
+              await import("@/lib/intelligence/jurisdiction-intel.server");
+            const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+            return {
+              value,
+              stats: {
+                generated: 1,
+                accepted: 1,
+                rows_written: 1,
+                db_write_confirmed: true,
+                meta: {
+                  source: "deterministic",
+                  materia: value.materia,
+                  fuero: value.fuero,
+                  state: value.state?.name ?? null,
+                  state_source: value.state_source,
+                },
               },
-            ),
-          { caseId, userId },
+            };
+          },
         ),
     },
 
@@ -438,38 +432,35 @@ async function _runPipelineForCase(
     // when a blocking violation survives remediation, which fails this stage
     // and blocks `report` (its dependent).
     legal_qa: {
+      // Stage-level timeout now applied uniformly at the runOneStage call
+      // site (see there for why) — no longer wrapped here individually.
       run: () =>
-        withStageTimeout(
-          "legal_qa",
-          () =>
-            persist.runCatalogedEngine(
-              supabase,
-              { caseId, userId, engine: "legal_qa" },
-              async () => {
-                const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-                // userId routes the translation remediation through the
-                // caller's own provider keys instead of platform credits.
-                const value = await runLegalQaGate({ db: supabase, caseId, userId });
-                return {
-                  value,
-                  stats: {
-                    generated: value.checked_fields,
-                    accepted: value.checked_fields - value.warnings.length,
-                    rejected: value.warnings.length,
-                    rows_written: value.remediated_fields,
-                    db_write_confirmed: true,
-                    meta: {
-                      source: "deterministic",
-                      materia: value.materia,
-                      locale: value.locale,
-                      remediated_fields: value.remediated_fields,
-                      warnings: value.warnings.length,
-                    },
-                  },
-                };
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "legal_qa" },
+          async () => {
+            const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+            // userId routes the translation remediation through the
+            // caller's own provider keys instead of platform credits.
+            const value = await runLegalQaGate({ db: supabase, caseId, userId });
+            return {
+              value,
+              stats: {
+                generated: value.checked_fields,
+                accepted: value.checked_fields - value.warnings.length,
+                rejected: value.warnings.length,
+                rows_written: value.remediated_fields,
+                db_write_confirmed: true,
+                meta: {
+                  source: "deterministic",
+                  materia: value.materia,
+                  locale: value.locale,
+                  remediated_fields: value.remediated_fields,
+                  warnings: value.warnings.length,
+                },
               },
-            ),
-          { caseId, userId },
+            };
+          },
         ),
     },
 
@@ -1229,13 +1220,29 @@ async function _runPipelineForCase(
       // only the coarse per-stage progress checks fire — which is exactly the
       // "died mid-Groq-call, never wrote terminal state" symptom.
       const stageBudgetMs = Math.min(budgetFor(s.key), WORKER_INVOCATION_BUDGET_MS);
-      await withHardCheckpointDeadline(
-        {
-          stage: s.key,
-          deadlineAt: Math.min(stageStart + stageBudgetMs, invocationDeadlineAt),
-          correlationId,
-        },
-        () => r.run(),
+      // withHardCheckpointDeadline is cooperative — it lets router.server.ts
+      // yield a clean CheckpointRequired between AI calls, but only if
+      // execution ever gets back to a checkpoint-aware call site. A stage
+      // that hangs INSIDE a single unresolved network call (Storage
+      // download, a Groq request that never returns) never gets there —
+      // confirmed in production for extraction, then again for
+      // perspectives/strategy, each requiring a manual "Limpiar estado"
+      // click to unstick. withStageTimeout is the hard backstop: a
+      // Promise.race that fires regardless of what the inner code is
+      // awaiting. Stages without a declared timeoutMs in canonical.ts run
+      // unbounded, unchanged from before.
+      await withStageTimeout(
+        s.key,
+        () =>
+          withHardCheckpointDeadline(
+            {
+              stage: s.key,
+              deadlineAt: Math.min(stageStart + stageBudgetMs, invocationDeadlineAt),
+              correlationId,
+            },
+            () => r.run(),
+          ),
+        { caseId, userId },
       );
       completed.add(key);
       trace("stage.complete", { stage: s.key, runtime_ms: Date.now() - stageStart });
