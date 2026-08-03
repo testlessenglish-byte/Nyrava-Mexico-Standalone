@@ -2879,41 +2879,6 @@ export const getMotionDrafts = createServerFn({ method: "POST" })
     return { drafts: await fetchDrafts(supabase, data.caseId) };
   });
 
-// Metadata fields safe to return for a quality_blocked report — enough for
-// the UI to render an accurate "blocked" state (report exists, here's why),
-// nothing that constitutes report content export.ts could render into a
-// PDF/DOCX. Every other column on `reports` is substantive content and is
-// stripped to null. New columns added to `reports` are content by default
-// (not returned when blocked) unless explicitly added to this allowlist —
-// deliberately fail-closed rather than fail-open.
-const BLOCKED_REPORT_METADATA_ALLOWLIST = new Set([
-  "id",
-  "case_id",
-  "user_id",
-  "created_at",
-  "updated_at",
-  "version",
-  "quality_blocked",
-  "quality_block_reasons",
-  "report_mode",
-  "generated_language",
-  "intelligence_version",
-  "canonical_version",
-  "change_log",
-]);
-
-export function sanitizeBlockedReport<T extends Record<string, unknown> | null | undefined>(
-  report: T,
-): T {
-  if (!report) return report;
-  if (!report.quality_blocked) return report;
-  const sanitized: Record<string, unknown> = {};
-  for (const key of Object.keys(report)) {
-    sanitized[key] = BLOCKED_REPORT_METADATA_ALLOWLIST.has(key) ? report[key] : null;
-  }
-  return sanitized as T;
-}
-
 export const getCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
@@ -3005,26 +2970,13 @@ export const getCase = createServerFn({ method: "POST" })
       .maybeSingle();
     const canonicalCurrentVersion =
       Number((canonRow as { version?: number } | null)?.version ?? NaN) || null;
-    // Backend enforcement of the frozen release contract (docs/FREEZE.md:
-    // "A report with quality_blocked=true must never produce a downloadable
-    // PDF or DOCX"). PDF/DOCX generation happens client-side in export.ts
-    // from data this endpoint supplies — there is no separate server-side
-    // export endpoint to gate. Previously that contract was enforced only in
-    // the frontend route component (cases.$caseId.tsx checking
-    // report.quality_blocked), which a direct call to this server function
-    // could bypass entirely. Strip every substantive content field down to
-    // an explicit metadata allowlist when blocked, so the UI can still show
-    // "blocked" state accurately but cannot construct a real PDF/DOCX from
-    // the response. This is a change to the endpoint response shape for
-    // blocked reports only — unblocked reports are returned unchanged.
-    const sanitizedReport = sanitizeBlockedReport(report.data);
     return {
       case: c.data,
       documents: docs.data ?? [],
       analysis: analysis.data,
       agents: agents.data ?? [],
       score: score.data,
-      report: sanitizedReport,
+      report: report.data,
       canonical_current_version: canonicalCurrentVersion,
       // Apply the same canonical inclusion rule used for the report's cover-page
       // counters (getCanonicalScoringFindings / getFindingCounters): only

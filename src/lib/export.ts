@@ -499,49 +499,6 @@ function getReportRow(data: CaseExportData): Record<string, unknown> {
   return (data.report ?? {}) as Record<string, unknown>;
 }
 
-/**
- * Whether this report's cover/footer may claim "evidence-grounded,
- * citation-audited" language. Previously this text printed unconditionally
- * on every report regardless of mode or verification outcome — including a
- * confirmed production case with zero findings, a failed inner release
- * gate, and QA/Judge/Hallucination explicitly rejecting the run.
- *
- * Derived from data.agent_logs — the same 13-agent audit rows the pipeline
- * already writes (see agents/orchestrator.server.ts) — rather than from
- * report_mode alone, per the explicit requirement that FULL/LIMITED mode is
- * not sufficient on its own: a report can be nominally FULL while its
- * citation/QA/Judge/Hallucination gate still failed.
- *
- * Deliberately fail-closed: if agent_logs is absent, empty, or any of the
- * three verification agents didn't run/succeed, no certification claim is
- * made. Only an explicit, confirmed pass earns the language.
- */
-export type CertificationState = "verified" | "unverified";
-
-export function deriveCertificationState(data: CaseExportData): CertificationState {
-  const logs = Array.isArray(data.agent_logs) ? data.agent_logs : [];
-  const latestByKey = new Map<string, Record<string, unknown>>();
-  for (const row of logs) {
-    const key = asStr(row.agent_key);
-    if (!key) continue;
-    const existing = latestByKey.get(key);
-    const existingTime = existing ? asStr(existing.started_at) : "";
-    const rowTime = asStr(row.started_at);
-    if (!existing || rowTime >= existingTime) latestByKey.set(key, row);
-  }
-  const requiredGates = ["qa", "judge", "hallucination"];
-  const allPassed = requiredGates.every((key) => {
-    const row = latestByKey.get(key);
-    return !!row && asStr(row.status) === "success";
-  });
-  return allPassed ? "verified" : "unverified";
-}
-
-const CERTIFICATION_TAGLINE: Record<CertificationState, string> = {
-  verified: "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.",
-  unverified: "Draft — citation verification not passed. Attorney review required before reliance.",
-};
-
 class PdfBuilder {
   doc: Pdf;
   // 0.75 inch margins (54pt) per professional memorandum standard.
@@ -761,13 +718,7 @@ class PdfBuilder {
   // Full-page premium cover: dark bleed, centered trust badge, wordmark,
   // case title in a serif face, work-product tag, and a footer metadata
   // bar. Caller must pageBreak() before rendering anything else.
-  premiumCover(opts: {
-    caseName: string;
-    description?: string;
-    engineVersion?: string;
-    matterId?: string;
-    certification?: CertificationState;
-  }) {
+  premiumCover(opts: { caseName: string; description?: string; engineVersion?: string; matterId?: string }) {
     const { pageW, pageH, margin } = this;
     // Full-bleed navy background
     this.doc.setFillColor(...PRIMARY);
@@ -870,7 +821,7 @@ class PdfBuilder {
     this.doc.setFontSize(8);
     this.doc.setTextColor(...BRAND_CYAN);
     this.doc.text(
-      CERTIFICATION_TAGLINE[opts.certification ?? "unverified"],
+      "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.",
       pageW / 2,
       pageH - 42,
       { align: "center" },
@@ -1677,7 +1628,6 @@ function renderCover(
     description: asStr(c.description) || undefined,
     engineVersion: asStr(r.intelligence_version) || undefined,
     matterId: asStr(c.id).slice(0, 8).toUpperCase() || undefined,
-    certification: deriveCertificationState(data),
   });
 
   // --- Page 2: executive dashboard (banner, gauges, findings, cards) ---
@@ -4816,7 +4766,7 @@ export async function downloadDocx(data: CaseExportData, name: string, opts?: { 
       spacing: { before: 60 },
       children: [
         new TextRun({
-          text: CERTIFICATION_TAGLINE[deriveCertificationState(data)],
+          text: "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.",
           italics: true,
           size: 16,
           color: CYAN,
