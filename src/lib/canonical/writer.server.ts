@@ -131,6 +131,22 @@ export async function projectCanonical(
     .eq("case_id", caseId)
     .order("created_at", { ascending: true });
   for (const f of safeArr(findings) as Record<string, unknown>[]) {
+    const findingType = (f.finding_type as string | null) ?? null;
+    const findingStatus = (f.finding_status as Finding["finding_status"]) ?? undefined;
+    // PR A item 4 (report-truthfulness audit): an AI_THEORY finding has, by
+    // construction, no verified evidence_refs/quote grounding it (see
+    // evidence-gate.server.ts's exemptCitation path and the
+    // procedural-compliance.server.ts fix that routes missing-checklist
+    // items through it). It must not render like a verified finding —
+    // appearing under Hallazgos Clave, contributing to verified-finding
+    // counts, or supporting scoring/recommendations/narrative text
+    // indistinguishably from grounded findings. Per the documented safe
+    // default ("exclude it from final reports; or place it in a clearly
+    // separate section — for limited reports, default to excluding"),
+    // this excludes it from the canonical Findings array entirely. The
+    // underlying case_findings row is untouched — this only affects what
+    // the report-facing CaseAnalysis object surfaces.
+    if (findingType === "AI_THEORY") continue;
     const finding: Finding = {
       id: String(f.id),
       title: String(f.title ?? ""),
@@ -147,6 +163,8 @@ export async function projectCanonical(
       supporting_engines: Array.isArray(f.supporting_engines) ? (f.supporting_engines as string[]).map(String) : [],
       suppressed: false,
       quarantined: /reject|quarantin/i.test(String(f.verification_status ?? "")),
+      finding_status: findingStatus,
+      finding_type: findingType ?? undefined,
     };
     analysis.Findings.push(finding);
     const src = String(f.source_module ?? "");

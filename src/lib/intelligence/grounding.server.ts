@@ -44,6 +44,12 @@ export type GroundingCorpus = {
 function norm(s: string): string {
   return s
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // fold accents (José -> jose) before ASCII filtering below,
+    // otherwise Spanish-language quotes and corpus text diverge whenever an
+    // LLM-produced citation drops/retypes a diacritic that the source text
+    // carries (or vice versa), causing verifyQuoteDetailed() to reject a
+    // substantively correct quote — see docs/BASELINE.md incident notes.
     .replace(/[\u2010-\u2015]/g, " ")
     .replace(/\s+/g, " ")
     .replace(/[\u2018\u2019]/g, "'")
@@ -209,3 +215,100 @@ export function groundItems<T extends GroundableItem>(
 }
 
 export const INSUFFICIENT_EVIDENCE = "Insufficient evidence to support this conclusion.";
+
+// ---------------------------------------------------------------------------
+// Legal-authority citations (Amparo / constitutional / statutory / tesis).
+//
+// A reference to "CPEUM Art. 16" or "Tesis: 1a./J. 15/2019 (10a.)" is a
+// citation to public law, not a factual assertion about the case record. It
+// cannot be verified by verbatim substring matching against the evidentiary
+// corpus, because the text lives in the Constitution/SCJN registry, not in the
+// party's documents. Requiring a verbatim corpus match for those references
+// produced false "unverified" flags on Amparo and federal-administrative
+// matters and blocked the release gate.
+//
+// IMPORTANT: the exemption below is narrower than "the quote contains a
+// citation-shaped substring". A pattern-only check was tried first and
+// confirmed, by direct reproduction, to exempt fabricated factual claims
+// merely because they were phrased alongside a real (or even a fabricated)
+// article number — e.g. "Conforme al art. 16 constitucional, la audiencia se
+// celebró el 15 de marzo... testigo Juan Pérez confirmó..." would pass
+// ungrounded, because the string contains "art. 16". That defeats the
+// purpose of the hallucination gate for exactly the claims it exists to
+// catch. isLegalAuthorityCitation therefore only exempts a quote when it is
+// SUBSTANTIALLY JUST the citation — after stripping recognized citation
+// structure words, grammatical connectors, and the common words that appear
+// inside official Mexican legal-source names (so "Constitución Política de
+// los Estados Unidos Mexicanos" normalizes to ~nothing, the same as
+// "Artículo 16" does), at most 2 meaningful tokens may remain. A quote
+// carrying an independent factual assertion alongside a citation — dates,
+// names, events, outcomes — retains far more than that and is correctly
+// NOT exempted, still subject to real verbatim corpus verification.
+// ---------------------------------------------------------------------------
+
+const AUTHORITY_PATTERNS: RegExp[] = [
+  // Article references: "Art. 16", "Artículo 1o. constitucional", "arts. 14 y 16"
+  /\barts?\.?\s*\d+/i,
+  /\bart[íi]culos?\s+\d+/i,
+  // Tesis / jurisprudencia registry numbers
+  /\btesis\b/i,
+  /\bjurisprudencia\b/i,
+  /\b(?:1a|2a|P|PC)\.\s*\/\s*J\.\s*\d+\/\d{4}/i,
+  /\bregistro\s+(?:digital\s+)?\d{5,}/i,
+  // Official publications
+  /\bDOF\b/,
+  /\bSemanario\s+Judicial\b/i,
+];
+
+// Grammatical connectors, citation-structure words, and words that commonly
+// appear inside the full official names of Mexican legal sources — a
+// curated, bounded list, in keeping with this codebase's existing
+// convention of explicit Mexican-law-specific vocabulary (see
+// mx-pipeline.ts's MX_PARTY_ROLES) rather than a general heuristic.
+const CITATION_STOPWORDS = new Set([
+  "de", "del", "la", "las", "el", "los", "en", "y", "o", "u", "a", "al", "con", "por",
+  "para", "segun", "conforme", "respecto", "asi", "como", "que", "su", "sus",
+  "articulo", "articulos", "art", "arts", "fraccion", "fracciones", "apartado",
+  "apartados", "inciso", "incisos", "parrafo", "parrafos", "numeral", "numerales",
+  "tesis", "jurisprudencia", "registro", "digital", "semanario", "judicial",
+  "gaceta", "epoca", "sala", "pleno", "tomo",
+  "politica", "estados", "unidos", "mexicanos", "nacional", "nacionales",
+  "procedimientos", "procedimiento", "penales", "penal", "civiles", "civil",
+  "familiares", "familiar", "mercantil", "mercantiles", "laboral", "laborales",
+  "federal", "federales", "general", "generales", "humanos", "humano", "americana",
+  "americano", "sobre", "san", "jose", "codigo", "constitucion", "constitucional",
+  "ley", "amparo", "reglamento", "pacto", "otras",
+  "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii",
+  "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx", "xxi", "xxii", "xxiii", "xxiv", "xxv",
+]);
+
+function stripDiacritics(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * True when a citation string is SUBSTANTIALLY JUST a reference to public
+ * legal authority (constitutional/statutory article, tesis, jurisprudencia,
+ * official gazette) — not a factual claim about the case that happens to
+ * mention one. See the module comment above for why this distinction is
+ * load-bearing, not cosmetic.
+ */
+export function isLegalAuthorityCitation(quote: string | null | undefined): boolean {
+  const q = (quote ?? "").trim();
+  if (q.length < 3) return false;
+  const hasAuthorityPattern = AUTHORITY_PATTERNS.some((rx) => rx.test(q));
+  if (!hasAuthorityPattern) return false;
+
+  const tokens = stripDiacritics(q.toLowerCase())
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const remaining = tokens.filter((t) => {
+    if (/^\d+$/.test(t)) return false; // bare numbers: article numbers, years
+    if (t.length < 3) return false;
+    return !CITATION_STOPWORDS.has(t);
+  });
+  // Almost nothing meaningful survives stripping citation vocabulary and
+  // connectors -> this quote IS the citation, nothing more.
+  return remaining.length <= 2;
+}

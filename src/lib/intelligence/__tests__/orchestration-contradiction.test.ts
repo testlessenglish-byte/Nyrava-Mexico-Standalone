@@ -59,19 +59,24 @@ describe("orchestrator agent output contradiction (agentEntities/agentOcr)", () 
     };
   }
 
-  it("agentEntities: analyzers_completed in output must agree with status/errors, not the raw ledger flag", async () => {
+  it("agentEntities: zero findings after a completed analyzers engine is a thin case, not a fatal failure — status/errors/analyzers_completed must all agree", async () => {
     const { __test__agentEntities } = await import("@/lib/agents/orchestrator.server");
     // Ledger says the `analyzers` engine row is completed, but zero findings
-    // survived (e.g. evidence-gate suppression) — this is the exact
-    // production scenario reported.
+    // survived (e.g. evidence-gate suppression). Per the documented design
+    // in orchestrator.server.ts (agentEntities), this is intentionally NOT
+    // treated as fatal — a fatal "failed" status here would block all 10
+    // downstream agents (timeline through hallucination) and prevent
+    // QA/Judge from ever independently assessing a legitimately thin case.
     const fakeCtx = { db: makeFakeDb({ engineCompleted: true, rowCount: 0 }) } as never;
     const result = await __test__agentEntities(fakeCtx);
 
-    expect(result.status).toBe("failed");
-    expect(result.errors.some((e) => e.includes("did not complete"))).toBe(true);
-    // The bug: this used to be `true` here (echoing the raw ledger flag)
-    // while status was "failed" in the very same object.
-    expect((result.output as Record<string, unknown>).analyzers_completed).toBe(false);
+    expect(result.status).toBe("success");
+    expect(result.errors.some((e) => e.includes("zero findings survived"))).toBe(true);
+    // analyzers_completed must track the engine-completion check (`status`),
+    // not the finding count — the two are now split into
+    // analyzers_engine_completed / analyzers_completed explicitly so they
+    // can never silently contradict `status` again.
+    expect((result.output as Record<string, unknown>).analyzers_completed).toBe(true);
   });
 
   it("agentEntities: reports success and analyzers_completed=true only when both the ledger and findings agree", async () => {
