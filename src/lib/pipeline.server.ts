@@ -2239,7 +2239,9 @@ ${corpusText}`;
         throw new CheckpointRequired("analyzers", `after ${successes} successful batch(es) — ${msg.slice(0, 300)}`);
       }
       if (providerUnavailable || retryableTransport) {
-        console.warn(`[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`);
+        console.warn(
+          `[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`,
+        );
         stopAnalyzers = true;
         break;
       }
@@ -2659,7 +2661,6 @@ const AGENT_ENGINE: Record<string, string> = {
  */
 const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
 
-
 /**
  * How many investigator agents may execute simultaneously inside the "agents"
  * stage.
@@ -2874,7 +2875,6 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           });
 
           const agentBatches = packChunks(chunks, agentBudgetChars);
-
 
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
@@ -3840,17 +3840,13 @@ async function ensureRequiredEngines(args: {
     // then hard-failed with "core engines failed to complete".
     jurisdiction_intel: () =>
       runEngine(db, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
-        const { runJurisdictionIntelligence } = await import(
-          "./intelligence/jurisdiction-intel.server"
-        );
+        const { runJurisdictionIntelligence } = await import("./intelligence/jurisdiction-intel.server");
         const value = await runJurisdictionIntelligence({ db, caseId });
         return { value, stats: { generated: 1, accepted: 1 } };
       }),
     procedural_compliance: () =>
       runEngine(db, { caseId, userId, engine: "procedural_compliance" }, async () => {
-        const { runProceduralCompliance } = await import(
-          "./intelligence/procedural-compliance.server"
-        );
+        const { runProceduralCompliance } = await import("./intelligence/procedural-compliance.server");
         const value = await runProceduralCompliance({ db, caseId, userId });
         return {
           value,
@@ -4001,9 +3997,9 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
       .select("rationale,overall_confidence")
       .eq("case_id", caseId)
       .maybeSingle();
-    const flags = (
-      ((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ?? []) as unknown[]
-    ).map(String);
+    const flags = (((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ?? []) as unknown[]).map(
+      String,
+    );
     const stale = flags.some((f) =>
       ["PIPELINE_NOT_FINALIZED", "INVALID_PIPELINE_ORDER", "CANONICAL_FINDINGS_EMPTY"].includes(f),
     );
@@ -4030,7 +4026,6 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
   } catch (e) {
     console.warn("[report] stale-suppression rescore check failed", e);
   }
-
 
   await setCase(db, caseId, {
     status: "reporting",
@@ -6648,9 +6643,7 @@ ${paginationTail}`;
       locale: (await getReportLocale(db, caseId)) === "en" ? "en" : "es",
       findings: findings as unknown as Parameters<typeof buildObjectiveBlock>[0]["findings"],
       contradictions: factualContradictions.length,
-      missingEvidence: missingGuarded.items as unknown as Parameters<
-        typeof buildObjectiveBlock
-      >[0]["missingEvidence"],
+      missingEvidence: missingGuarded.items as unknown as Parameters<typeof buildObjectiveBlock>[0]["missingEvidence"],
       scores: {
         strength: gatedScore(parsed.case_strength_score) as number | null,
         risk: gatedScore(parsed.risk_score) as number | null,
@@ -6663,8 +6656,6 @@ ${paginationTail}`;
   } catch (e) {
     console.warn("[report] objective block failed", e);
   }
-
-
 
   // STEP 2 directive — per-document Evidence Map, OCR coverage, and report
   // quality audit. All deterministic, all reconcilable against the persisted
@@ -6713,15 +6704,15 @@ ${paginationTail}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow.full_report as any).validation = valBlock;
 
-    // Priority 0/3/4 — incomplete citations QUARANTINE, they do NOT block.
-    // Supported findings render normally; unsupported ones are surfaced in
-    // the Citation Audit appendix. Only genuinely broken pipeline states
-    // (failed OCR) count as blocking quality issues.
+    // Unsupported citations and missing evidence now BLOCK (previously
+    // quarantine/warning-only). Per explicit confirmation: a defective
+    // report should never be silently published as "complete" — matches
+    // the fail-closed philosophy already used by the legal_qa stage.
     const blockReasons: string[] = [];
     if (citationAudit.quarantined > 0) {
-      pipelineWarnings.push(
-        `citation_audit: ${citationAudit.quarantined}/${citationAudit.total} finding(s) quarantined — see Citation Audit appendix. supported=${citationAudit.supported_pct}%`,
-      );
+      const msg = `citation_audit: ${citationAudit.quarantined}/${citationAudit.total} finding(s) quarantined — see Citation Audit appendix. supported=${citationAudit.supported_pct}%`;
+      pipelineWarnings.push(msg);
+      blockReasons.push(msg);
     }
     if (qualityAudit.total_findings > 0 && qualityAudit.fully_cited_pct < 100) {
       pipelineWarnings.push(
@@ -6737,14 +6728,96 @@ ${paginationTail}`;
       }
     }
     if (evidenceMap.totals.missing_evidence > 0) {
+      const msg = `evidence_map: ${evidenceMap.totals.missing_evidence}/${evidenceMap.totals.total} documents classified as missing_evidence (unreadable or empty).`;
+      pipelineWarnings.push(msg);
+      blockReasons.push(msg);
+    }
+
+    // --- Quality gate enforcement -----------------------------------
+    // scoreReportQuality() above computes a deterministic pass/fail
+    // (score >= 70, zero critical issues) but until now nothing read that
+    // result — a failed gate could still be marked quality_blocked=false.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const qualityGateResult = (reportRow.full_report as any)?.quality_gate as
+      | { passed?: boolean; score?: number; critical_issues?: string[] }
+      | undefined;
+    if (qualityGateResult && qualityGateResult.passed === false) {
+      const issues = qualityGateResult.critical_issues ?? [];
+      blockReasons.push(
+        `report_quality_gate: score ${qualityGateResult.score ?? "?"}/100 failed${
+          issues.length ? ` — ${issues.join("; ")}` : ""
+        }.`,
+      );
       pipelineWarnings.push(
-        `evidence_map: ${evidenceMap.totals.missing_evidence}/${evidenceMap.totals.total} documents classified as missing_evidence (unreadable or empty).`,
+        `report_quality_gate: failed (score=${qualityGateResult.score ?? "?"}, critical=${issues.length}).`,
       );
     }
+
+    // --- Silent finding-loss check -----------------------------------
+    // Catches the case where an engine's mirror-into-case_findings step
+    // failed (even after retry) or silently under-wrote rows relative to
+    // its own source table, neither of which the stage-completion check
+    // upstream can see (the engine's own declared table write succeeded;
+    // only the projection mirror failed).
+    try {
+      const { data: projFailures } = await db
+        .from("pipeline_engine_runs")
+        .select("id,error,meta,created_at")
+        .eq("case_id", caseId)
+        .eq("engine", "findings_projection")
+        .eq("status", "failed")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (projFailures && projFailures.length > 0) {
+        blockReasons.push(
+          `findings_projection: ${projFailures.length} engine(s) failed to mirror findings into case_findings after retry — report may be missing findings that were actually produced.`,
+        );
+        pipelineWarnings.push(
+          `findings_projection_incomplete: ${projFailures.length} failure(s) recorded; see pipeline_engine_runs (engine=findings_projection).`,
+        );
+      }
+
+      const { PROJECTABLE_TABLES, reconcileProjection } = await import("./intelligence/project-findings.server");
+      const reconciliation = await reconcileProjection(db, {
+        caseId,
+        tables: PROJECTABLE_TABLES,
+      });
+      if (!reconciliation.ok) {
+        const detail = reconciliation.mismatches
+          .map((m) => `${m.table}: ${m.projected_count}/${m.source_count}`)
+          .join(", ");
+        blockReasons.push(
+          `findings_projection_reconciliation: mirrored row count is short of source tables (${detail}).`,
+        );
+        pipelineWarnings.push(`findings_projection_reconciliation: mismatch — ${detail}.`);
+      }
+    } catch (reconErr) {
+      console.warn("[findings-projection-check] failed:", reconErr instanceof Error ? reconErr.message : reconErr);
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow as any).quality_blocked = blockReasons.length > 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow as any).quality_block_reasons = blockReasons;
+    // A blocked report is never "complete". `reports` has no status column
+    // of its own (quality_blocked/quality_block_reasons above are its
+    // signal) — the case-level status is the actual queue attorneys/ops
+    // see, and this codebase already has a real "held for review" status
+    // (`needs_revision`, see the multi-agent release gate above and the
+    // terminalStatuses set), so reuse it instead of inventing a new one.
+    if (blockReasons.length > 0) {
+      try {
+        await setCase(db, caseId, {
+          status: "needs_revision",
+          status_message: `Report needs review: ${blockReasons.join(" | ")}`.slice(0, 2000),
+        });
+      } catch (statusErr) {
+        console.warn(
+          "[quality-gate] failed to stamp needs_revision status on case:",
+          statusErr instanceof Error ? statusErr.message : statusErr,
+        );
+      }
+    }
   } catch (e) {
     console.warn("[evidence-map/ocr/quality/citation-audit] failed:", e instanceof Error ? e.message : e);
   }
