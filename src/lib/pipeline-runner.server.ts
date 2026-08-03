@@ -865,7 +865,7 @@ async function _runPipelineForCase(
       await recordSkipped(supabase, {
         caseId,
         userId,
-        engine: stage.key,
+        engine: CANONICAL_STAGES.find((s) => s.key === stage.key)?.engine ?? stage.key,
         reason,
       }).catch((e) => console.warn("[mx-pipeline] recordSkipped failed", stage.key, e));
     }
