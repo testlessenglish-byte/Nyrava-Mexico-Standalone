@@ -163,7 +163,6 @@ type Tab =
   | "theories"
   | "opportunities"
   | "witnesses"
-  | "trial"
   | "work"
   | "scorecard"
   | "chat"
@@ -217,7 +216,6 @@ const VALID_TABS = new Set<Tab>([
   "theories",
   "opportunities",
   "witnesses",
-  "trial",
   "work",
   "scorecard",
   "chat",
@@ -397,24 +395,6 @@ function Workspace() {
       }).length
     : 0;
 
-  const trialPrepData = trialPrep as unknown as Record<string, unknown> | null;
-  const trialPrepCount = trialPrepData
-    ? (
-        [
-          "opening_themes",
-          "closing_themes",
-          "trial_strengths",
-          "trial_risks",
-          "jury_concerns",
-          "most_persuasive_evidence",
-          "most_damaging_evidence",
-          "witness_order",
-          "exhibit_order",
-          "likely_objections",
-        ] as const
-      ).filter((k) => Array.isArray(trialPrepData[k]) && (trialPrepData[k] as unknown[]).length > 0).length
-    : 0;
-
   const scorecardData = score as unknown as Record<string, unknown> | null;
   const scorecardCount = scorecardData
     ? Object.keys((scorecardData.dimension_breakdowns as Record<string, unknown> | null) ?? {}).length
@@ -475,7 +455,6 @@ function Workspace() {
       count: opportunities.length,
     },
     { k: "witnesses", label: t("caseTab.witnesses"), icon: Users, count: witnesses.length },
-    { k: "trial", label: t("caseTab.trial"), icon: ShieldCheck, count: trialPrepCount },
     { k: "work", label: t("caseTab.work"), icon: BookOpen, count: workProduct.length },
     { k: "scorecard", label: t("caseTab.scorecard"), icon: Activity, count: scorecardCount },
     { k: "transaction_center", label: "Centro de Transacción", icon: Building2 },
@@ -767,7 +746,6 @@ function Workspace() {
             {tab === "theories" && <TheoriesTab theories={theories} />}
             {tab === "opportunities" && <OpportunitiesTab opps={opportunities} ranAt={c.opportunities_at} />}
             {tab === "witnesses" && <WitnessesTab witnesses={witnesses} ranAt={c.witnesses_at} />}
-            {tab === "trial" && <TrialPrepTab t={trialPrep} ranAt={c.trial_prep_at} />}
             {tab === "work" && <WorkProductTab docs={workProduct} />}
             {tab === "scorecard" && <ScorecardTab s={score as unknown as Score | null} />}
             {tab === "transaction_center" && <TransactionCenterPanel caseId={c.id} />}
@@ -1897,103 +1875,6 @@ function Metric({ label, v, inverse }: { label: string; v: number | null; invers
     <div className="text-center">
       <div className="text-[10px] uppercase tracking-wider">{label}</div>
       <div className={`text-sm font-semibold tabular-nums ${color}`}>{v ?? "—"}</div>
-    </div>
-  );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
-  if (!t)
-    return (
-      <Empty
-        msg={
-          ranAt
-            ? "No se generó preparación para audiencia. El motor corrió pero no produjo ejes de alegato, orden de testigos ni estimaciones sostenibles con el corpus probatorio actual."
-            : "Aún no hay preparación para audiencia. Ejecuta Preparación para Juicio Oral / Audiencia."
-        }
-      />
-    );
-  const ct = typeof t.case_type === "string" ? t.case_type : "general_civil";
-  const isCrim = ct === "penal" || ct === "criminal" || ct === "civil_rights";
-  const cm = (t.civil_metrics ?? {}) as Record<string, number | null>;
-  const pm = (t.penal_metrics ?? {}) as Record<string, number | null>;
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">
-          {isCrim ? "Estimación de resultado (Tribunal de Enjuiciamiento)" : "Estimación de resultado"}
-        </h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-4">
-          {isCrim ? (
-            <>
-              <BigMetric label="Vinculación a proceso" v={pm.vinculacion_proceso_pct ?? null} />
-              <BigMetric label="Sentencia condenatoria" v={pm.sentencia_condenatoria_pct ?? t.jury_conviction_pct} />
-              <BigMetric label="Sentencia absolutoria" v={pm.sentencia_absolutoria_pct ?? t.jury_acquittal_pct} />
-              <BigMetric label="Procedimiento abreviado" v={pm.procedimiento_abreviado_pct ?? t.jury_settlement_pct} />
-            </>
-          ) : (
-            <>
-              <BigMetric label="Plaintiff success" v={cm.plaintiff_success_pct ?? null} />
-              <BigMetric label="Defense success" v={cm.defense_success_pct ?? null} />
-              <BigMetric label="Settlement" v={cm.settlement_probability_pct ?? t.jury_settlement_pct} />
-              <BigMetric label="Comparative fault" v={cm.comparative_fault_estimate_pct ?? null} />
-            </>
-          )}
-        </div>
-        {isCrim && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Éxito estimado en recurso (apelación / amparo directo):{" "}
-            <span className="tabular-nums">{pm.recurso_exito_pct ?? t.jury_appeal_pct ?? "—"}</span>. En el sistema
-            penal acusatorio mexicano no existe jurado: la culpabilidad la determina el Tribunal de Enjuiciamiento.
-          </p>
-        )}
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <Block title="Ejes de apertura" items={t.opening_themes} />
-        <Block title="Ejes de clausura" items={t.closing_themes} />
-        <Block title="Fortalezas del caso" items={t.trial_strengths} />
-        <Block title="Riesgos del caso" items={t.trial_risks} />
-        <Block
-          title={isCrim ? "Riesgos de percepción ante el Tribunal" : "Riesgos de percepción"}
-          items={t.jury_concerns}
-        />
-
-        <Block title="Evidencia más persuasiva" items={t.most_persuasive_evidence} />
-        <Block title="Evidencia más perjudicial" items={t.most_damaging_evidence} />
-      </div>
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Orden de testigos</h3>
-        <ListSection
-          title=""
-          items={(t.witness_order ?? []).map((w: { name: string; reason: string }) => `${w.name} — ${w.reason}`)}
-        />
-      </div>
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Orden de pruebas</h3>
-        <ListSection
-          title=""
-          items={(t.exhibit_order ?? []).map((e: { exhibit: string; reason: string }) => `${e.exhibit} — ${e.reason}`)}
-        />
-      </div>
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Objeciones probables</h3>
-        <ListSection
-          title=""
-          items={(t.likely_objections ?? []).map(
-            (o: { objection: string; counter: string }) => `${o.objection} → contraargumento: ${o.counter}`,
-          )}
-        />
-      </div>
-    </div>
-  );
-}
-
-function Block({ title, items }: { title: string; items: unknown }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <ListSection title="" items={items} />
     </div>
   );
 }
