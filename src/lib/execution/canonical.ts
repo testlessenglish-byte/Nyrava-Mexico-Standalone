@@ -96,6 +96,15 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "extracted_at",
     dependsOn: [],
     requirement: "blocking",
+    // Per-document work has no internal network timeout (Supabase Storage
+    // download, vision OCR call) and the in-loop checkpoint can only yield
+    // BETWEEN documents — a hang on the very first document (processed
+    // still 0) has nothing to interrupt it. Confirmed in production: a
+    // 2.4KB plain-text file's extraction hung with zero progress until an
+    // unrelated ~5min worker-lease stall sweep eventually killed the case
+    // with a vague "worker timed out" message. This ceiling fails loudly
+    // and fast instead, same mechanism as jurisdiction_intel/legal_qa.
+    timeoutMs: 240_000,
   },
   {
     key: "analyzers",

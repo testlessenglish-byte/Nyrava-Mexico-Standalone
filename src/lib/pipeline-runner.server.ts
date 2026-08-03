@@ -362,7 +362,10 @@ async function _runPipelineForCase(
       engine?: string;
     }
   > = {
-    extraction: { run: () => pipe.runExtraction(baseArgs), stage: "extraction" },
+    extraction: {
+      run: () => withStageTimeout("extraction", () => pipe.runExtraction(baseArgs), { caseId, userId }),
+      stage: "extraction",
+    },
     agents: { run: () => pipe.runAgents(baseArgs), stage: "agents" },
     analyzers: { run: () => pipe.runAnalyzers(baseArgs), stage: "analyzers" },
     scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
