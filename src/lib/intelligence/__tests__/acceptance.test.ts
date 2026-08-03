@@ -11,6 +11,10 @@
 import { describe, it, expect } from "vitest";
 import {
   REPORT_REQUIRED_ENGINES,
+  REPORT_BLOCKING_ENGINES,
+  REPORT_ENRICHING_ENGINES,
+  REPORT_MUST_BE_TERMINAL_ENGINES,
+  canGenerateReport,
   missingRequiredEngines,
   completedPipelineStageCount,
   pipelineProgressPercent,
@@ -28,24 +32,65 @@ function row(engine: string, status: ExecutionRow["status"], iso = "2026-01-01T0
 }
 
 describe("Pre-flight report gate (single source of truth)", () => {
-  it("requires all 22 canonical engines (report_generator is the consumer, not a self-precondition)", () => {
-    // 2026-07-31: widened from "blocking"-only (14) to every stage, per
-    // explicit direction that report generation must wait for everything —
-    // not just the subset previously marked requirement:"blocking" —
-    // confirmed against a real case where an "optional" stage (work_product)
-    // was left stuck at "running" while the pipeline continued straight
-    // through report generation.
-    // 2026-08-02: trial_prep removed entirely from CANONICAL_STAGES (not
-    // materia-gated, removed outright — its "Trial Prep & Jury Simulation"
-    // framing does not fit Mexican procedure; product decision to drop it
-    // pending a real replacement rather than keep patching it), so the
-    // total dropped from 23 to 22.
-    expect(REPORT_REQUIRED_ENGINES.length).toBe(22);
-    expect(REPORT_REQUIRED_ENGINES).not.toContain("report_generator");
-    // 2026-07-31: multi_agent now runs BEFORE the report, so it is required.
-    expect(REPORT_REQUIRED_ENGINES).toContain("multi_agent");
-    // No duplicates
-    expect(new Set(REPORT_REQUIRED_ENGINES).size).toBe(REPORT_REQUIRED_ENGINES.length);
+  it("REPORT_BLOCKING_ENGINES is the failure-gating set: only requirement:'blocking' stages, 6 of them", () => {
+    // 2026-08-03: this is intentionally back down from the wider "every
+    // stage" set this test asserted on 2026-07-31. That wider version
+    // conflated two different concerns — "is this stage still running"
+    // and "did this stage succeed" — into one list, which meant a single
+    // transient FAILURE in any of ~15 inherently-probabilistic LLM stages
+    // (theories, opportunities, strategy, witness_intelligence, etc.)
+    // permanently wedged the case, matching the exact "report can't run"
+    // failure mode this was meant to prevent in the first place.
+    //
+    // The corrected design (see REPORT_MUST_BE_TERMINAL_ENGINES /
+    // stillInFlightEngines() in canonical.ts) separates the two concerns:
+    // REPORT_BLOCKING_ENGINES gates on FAILURE, scoped to only the stages
+    // truly required to assemble a report at all; REPORT_MUST_BE_TERMINAL_
+    // ENGINES gates on STILL RUNNING, covering every stage, so the report
+    // still can't generate while something is genuinely mid-flight (the
+    // original work_product "dangling running engine next to a finished
+    // report" bug this was all chasing) — without a non-critical failure
+    // blocking the case forever.
+    expect(REPORT_BLOCKING_ENGINES.length).toBe(6);
+    expect(REPORT_BLOCKING_ENGINES).not.toContain("report_generator");
+    expect(REPORT_BLOCKING_ENGINES).not.toContain("multi_agent");
+    expect(new Set(REPORT_BLOCKING_ENGINES).size).toBe(REPORT_BLOCKING_ENGINES.length);
+  });
+
+  it("REPORT_MUST_BE_TERMINAL_ENGINES covers every non-report stage (22) — this is what actually waits for everything", () => {
+    // multi_agent now runs BEFORE the report (reordered), so it's a real
+    // precondition and must appear here. trial_prep was removed from
+    // CANONICAL_STAGES entirely (product decision, 2026-08-02), so the
+    // total is 22, not 23.
+    expect(REPORT_MUST_BE_TERMINAL_ENGINES.length).toBe(22);
+    expect(REPORT_MUST_BE_TERMINAL_ENGINES).not.toContain("report_generator");
+    expect(REPORT_MUST_BE_TERMINAL_ENGINES).not.toContain("trial_prep");
+    expect(REPORT_MUST_BE_TERMINAL_ENGINES).toContain("multi_agent");
+    expect(new Set(REPORT_MUST_BE_TERMINAL_ENGINES).size).toBe(REPORT_MUST_BE_TERMINAL_ENGINES.length);
+  });
+
+  it("canGenerateReport refuses while a non-blocking stage is still running, even if every blocking stage succeeded", () => {
+    const rows: ExecutionRow[] = [
+      ...REPORT_BLOCKING_ENGINES.map((e) => row(e, "completed")),
+      ...REPORT_ENRICHING_ENGINES.map((e) => row(e, "completed")),
+      row("theory", "running"),
+      row("multi_agent", "completed"),
+    ];
+    const gate = canGenerateReport(rows);
+    expect(gate.ok).toBe(false);
+    expect(gate.stillInFlight).toContain("theory");
+  });
+
+  it("canGenerateReport does NOT permanently block on a non-blocking stage's failure, only on it still running", () => {
+    const rows: ExecutionRow[] = [
+      ...REPORT_BLOCKING_ENGINES.map((e) => row(e, "completed")),
+      ...REPORT_ENRICHING_ENGINES.map((e) => row(e, "completed")),
+      row("theory", "failed"),
+      row("multi_agent", "completed"),
+    ];
+    const gate = canGenerateReport(rows);
+    expect(gate.ok).toBe(true);
+    expect(gate.stillInFlight).toEqual([]);
   });
 
   it("every required engine is also part of the dashboard command center", () => {
