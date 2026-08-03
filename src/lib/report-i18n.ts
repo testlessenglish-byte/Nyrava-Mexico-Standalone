@@ -370,6 +370,8 @@ const ES: Record<string, string> = {
   "Confidential Attorney Work Product": "Producto de Trabajo del Abogado — Confidencial",
   "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.":
     "Sustentado en evidencia. Citas auditadas. Diseñado para trabajo de inteligencia jurídica sensible.",
+  "Draft — citation verification not passed. Attorney review required before reliance.":
+    "Borrador — la verificación de citas no fue superada. Requiere revisión del abogado antes de utilizarse.",
   "Case Strength": "Fortaleza del Caso",
   "Risk Score": "Puntuación de Riesgo",
   "Work product": "Producto de trabajo",
