@@ -332,6 +332,40 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
     }
   }
 
+  // 2026-08-03: case_theories has a UNIQUE(case_id, theory_type) constraint
+  // (one theory per Mexican procedural role, by design), but the model can
+  // — and did, reproducibly, on a real 18-document mercantil case — return
+  // two distinct theories tagged with the same theory_type (e.g. two
+  // separate parte_demandada theories built from different excepciones in
+  // the same contestación). The plain insert then violated the unique
+  // constraint and threw, which crashed the ENTIRE theory engine and lost
+  // every theory for the case — not just the duplicate — and after
+  // exhausting retries the orchestrator silently marked the stage skipped,
+  // so the report simply showed zero theories with no visible explanation.
+  // Fix: keep only the strongest theory per theory_type (by confidence,
+  // then by citation count as a tie-break) before persisting, instead of
+  // letting a same-role duplicate take down the whole engine.
+  const bestByType = new Map<string, number>(); // theory_type -> index into keptTheories/gated
+  keptTheories.forEach((t, idx) => {
+    const key = String(t.theory_type ?? "");
+    const existingIdx = bestByType.get(key);
+    if (existingIdx == null) {
+      bestByType.set(key, idx);
+      return;
+    }
+    const existing = keptTheories[existingIdx];
+    const existingConf = typeof existing.confidence === "number" ? existing.confidence : 0.5;
+    const candidateConf = typeof t.confidence === "number" ? t.confidence : 0.5;
+    const existingCites = gated[existingIdx]?.citations?.length ?? 0;
+    const candidateCites = gated[idx]?.citations?.length ?? 0;
+    if (candidateConf > existingConf || (candidateConf === existingConf && candidateCites > existingCites)) {
+      bestByType.set(key, idx);
+    }
+  });
+  const keptIndexes = Array.from(bestByType.values()).sort((a, b) => a - b);
+  const dedupedTheories = keptIndexes.map((idx) => keptTheories[idx]);
+  const dedupedGated = keptIndexes.map((idx) => gated[idx]);
+
   // 2026-07-30: these calls never checked Supabase's `error` return, so a
   // real write failure (RLS denial, constraint violation, bad column type,
   // etc.) was silently swallowed — the code proceeded as if it had
@@ -344,10 +378,10 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
   if (delRes.error) {
     throw new Error(`case_theories delete failed for case ${caseId}: ${delRes.error.message}`);
   }
-  if (keptTheories.length) {
+  if (dedupedTheories.length) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const insRes = await db.from("case_theories").insert(
-      keptTheories.map((t, idx) => ({
+      dedupedTheories.map((t, idx) => ({
         case_id: caseId,
         user_id: userId,
         theory_type: t.theory_type,
@@ -358,13 +392,13 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
         confidence: typeof t.confidence === "number" ? t.confidence : 0.5,
         risk: t.risk ?? null,
         key_assumptions: (t.key_assumptions ?? []) as J,
-        finding_type: gated[idx]?.finding_type ?? "DIRECT_EVIDENCE",
-        citations: (gated[idx]?.citations ?? []) as J,
+        finding_type: dedupedGated[idx]?.finding_type ?? "DIRECT_EVIDENCE",
+        citations: (dedupedGated[idx]?.citations ?? []) as J,
       })) as any,
     );
     if (insRes.error) {
       throw new Error(
-        `case_theories insert failed for case ${caseId} (${keptTheories.length} row(s)): ${insRes.error.message}`,
+        `case_theories insert failed for case ${caseId} (${dedupedTheories.length} row(s)): ${insRes.error.message}`,
       );
     }
   }
@@ -372,7 +406,7 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
   await clearFindingsByModule(db, caseId, "engine:theory");
   await addFindings(
     db,
-    keptTheories.map((t, idx) => ({
+    dedupedTheories.map((t, idx) => ({
       case_id: caseId,
       user_id: userId,
       source_module: `engine:theory:${t.theory_type}`,
@@ -393,18 +427,18 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
       affected_party: t.theory_type ?? null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ...({
-        finding_type: gated[idx]?.finding_type,
-        source_document_id: gated[idx]?.source_document_id,
-        source_doc_ids: gatedSourceDocIds(gated[idx]),
-        source_quote: gated[idx]?.source_quote,
-        source_page: gated[idx]?.source_page,
+        finding_type: dedupedGated[idx]?.finding_type,
+        source_document_id: dedupedGated[idx]?.source_document_id,
+        source_doc_ids: gatedSourceDocIds(dedupedGated[idx]),
+        source_quote: dedupedGated[idx]?.source_quote,
+        source_page: dedupedGated[idx]?.source_page,
       } as any),
       metadata: { theory: t as unknown as Record<string, unknown>, gate_audit: audit },
     })),
   );
 
   await setCase(db, caseId, { theories_at: new Date().toISOString() });
-  return { theories: keptTheories, audit };
+  return { theories: dedupedTheories, audit };
 }
 
 // =========================================================================
