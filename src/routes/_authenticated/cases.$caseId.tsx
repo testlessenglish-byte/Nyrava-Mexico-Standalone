@@ -83,6 +83,34 @@ import {
 // graph and crashes the server build. downloadPdf/downloadDocx/downloadJson
 // are loaded dynamically at each call site below instead.
 import type { CaseExportData } from "@/lib/export";
+
+// Pure mapping from a raw getCase() response to CaseExportData. Extracted
+// so it can be reused both for the page's live-render exportData (fed by
+// the polled React Query cache) AND for a forced fresh fetch immediately
+// before a download — see FIX (2026-08-02) at the download handlers below
+// for why the second use exists.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildExportData(raw: any): CaseExportData {
+  return {
+    case: raw.case as unknown as Record<string, unknown>,
+    documents: raw.documents as unknown as Record<string, unknown>[],
+    analysis: raw.analysis as unknown as Record<string, unknown> | null,
+    agents: raw.agents as unknown as Record<string, unknown>[],
+    score: raw.score as unknown as Record<string, unknown> | null,
+    report: raw.report as unknown as Record<string, unknown> | null,
+    findings: raw.findings as unknown as Record<string, unknown>[],
+    theories: raw.theories as unknown as Record<string, unknown>[],
+    opportunities: raw.opportunities as unknown as Record<string, unknown>[],
+    witnesses: raw.witnesses as unknown as Record<string, unknown>[],
+    trial_prep: raw.trial_prep as unknown as Record<string, unknown> | null,
+    work_product: raw.work_product as unknown as Record<string, unknown>[],
+    perspectives: (raw.perspectives ?? []) as unknown as Record<string, unknown>[],
+    evidence_intel: (raw.evidence_intel ?? []) as unknown as Record<string, unknown>[],
+    strategy: (raw.strategy ?? []) as unknown as Record<string, unknown>[],
+    strategy_center: (raw.strategy_center ?? null) as unknown as Record<string, unknown> | null,
+    agent_logs: (raw.agent_logs ?? []) as unknown as Record<string, unknown>[],
+  };
+}
 import { getApplicableTabs } from "@/lib/intelligence/practice-areas";
 import {
   ArrowLeft,
@@ -315,24 +343,35 @@ function Workspace() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportBlockReasons = (((report as any)?.quality_block_reasons as unknown[]) ?? []) as string[];
 
-  const exportData: CaseExportData = {
-    case: c as unknown as Record<string, unknown>,
-    documents: docs as unknown as Record<string, unknown>[],
-    analysis: analysis as unknown as Record<string, unknown> | null,
-    agents: agents as unknown as Record<string, unknown>[],
-    score: score as unknown as Record<string, unknown> | null,
-    report: report as unknown as Record<string, unknown> | null,
-    findings: findings as unknown as Record<string, unknown>[],
-    theories: theories as unknown as Record<string, unknown>[],
-    opportunities: opportunities as unknown as Record<string, unknown>[],
-    witnesses: witnesses as unknown as Record<string, unknown>[],
-    trial_prep: trialPrep as unknown as Record<string, unknown> | null,
-    work_product: workProduct as unknown as Record<string, unknown>[],
-    perspectives: perspectives as unknown as Record<string, unknown>[],
-    evidence_intel: evidenceIntel as unknown as Record<string, unknown>[],
-    strategy: strategy as unknown as Record<string, unknown>[],
-    strategy_center: strategyCenter as unknown as Record<string, unknown> | null,
-    agent_logs: agentLogs as unknown as Record<string, unknown>[],
+  const exportData: CaseExportData = buildExportData(data);
+
+  // FIX (2026-08-02): downloads previously used this same `exportData`
+  // object, which is only as fresh as the page's last React Query poll.
+  // Polling stops entirely once case.status leaves the "running" set
+  // (see refetchInterval above), so a download triggered right as a run
+  // finishes — or from a tab that's been sitting open — could bake a
+  // stale pre-completion snapshot into the PDF/DOCX/JSON: e.g. a report
+  // the backend had already finalized as report_mode "FULL" with real
+  // scores could still export showing "LIMITADO" with scores suppressed,
+  // because the browser simply hadn't re-fetched since an earlier,
+  // genuinely-Limited intermediate state. Confirmed against a real case
+  // where the reports row (report_mode, scores_suppressed, ESS override)
+  // was unambiguously FULL/unsuppressed at the DB level, yet the
+  // downloaded PDF still rendered Limited. Forcing one fresh fetch
+  // immediately before building the export payload closes that gap
+  // regardless of polling timing, without needing to change polling
+  // behavior itself. Falls back to the already-rendered exportData if the
+  // refetch fails, so a transient network hiccup can't block a download
+  // that would otherwise have worked.
+  const buildFreshExportData = async (): Promise<CaseExportData> => {
+    try {
+      const fresh = await fetchCase({ data: { caseId } });
+      qc.setQueryData(["case", caseId], fresh);
+      return buildExportData(fresh);
+    } catch (e) {
+      console.warn("[export] fresh refetch before download failed — using last-rendered data", e);
+      return exportData;
+    }
   };
 
   // Badge counts for tabs whose underlying data isn't a flat array — mirrors
@@ -538,7 +577,7 @@ function Workspace() {
                 disabled={reportBlocked || !hasReport}
                 onClick={async () => {
                   const { downloadPdf } = await import("@/lib/export");
-                  downloadPdf(exportData, c.name);
+                  downloadPdf(await buildFreshExportData(), c.name);
                   void logReportExport({
                     data: { caseId: c.id, format: "pdf", caseName: c.name },
                   }).catch(() => {});
@@ -550,7 +589,7 @@ function Workspace() {
                 disabled={reportBlocked || !hasReport}
                 onClick={async () => {
                   const { downloadDocx } = await import("@/lib/export");
-                  downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
+                  downloadDocx(await buildFreshExportData(), c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
                   void logReportExport({
                     data: { caseId: c.id, format: "docx", caseName: c.name },
                   }).catch(() => {});
@@ -562,7 +601,7 @@ function Workspace() {
                 disabled={false}
                 onClick={async () => {
                   const { downloadJson } = await import("@/lib/export");
-                  downloadJson(exportData, c.name);
+                  downloadJson(await buildFreshExportData(), c.name);
                   void logReportExport({
                     data: { caseId: c.id, format: "json", caseName: c.name },
                   }).catch(() => {});
@@ -621,14 +660,14 @@ function Workspace() {
             reportBlocked={reportBlocked}
             onDownloadPdf={async () => {
               const { downloadPdf } = await import("@/lib/export");
-              downloadPdf(exportData, c.name);
+              downloadPdf(await buildFreshExportData(), c.name);
               void logReportExport({
                 data: { caseId: c.id, format: "pdf", caseName: c.name },
               }).catch(() => {});
             }}
             onDownloadDocx={async () => {
               const { downloadDocx } = await import("@/lib/export");
-              downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
+              downloadDocx(await buildFreshExportData(), c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
               void logReportExport({
                 data: { caseId: c.id, format: "docx", caseName: c.name },
               }).catch(() => {});
