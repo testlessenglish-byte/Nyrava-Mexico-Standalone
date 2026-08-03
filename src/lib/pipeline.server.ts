@@ -3530,9 +3530,19 @@ ${JSON.stringify(findingsForLlm)}`,
 
   const allContribs = [...((s.positive_contributors as any[]) ?? []), ...((s.negative_contributors as any[]) ?? [])];
 
+  // The LLM is prompted to cite back finding_id values verbatim, but models
+  // routinely truncate or mangle long UUIDs when reproducing them (observed
+  // in production: "180a38b1-b1d" instead of the real 36-char UUID), which
+  // then blew up the case_scores upsert below with a Postgres
+  // "invalid input syntax for type uuid" error — failing the entire
+  // (blocking-tier) scoring stage over a single bad citation. Validate the
+  // shape AND cross-check against the real known finding ids so a
+  // hallucinated/truncated citation is dropped instead of reaching the DB.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const knownFindingIds = new Set(findings.map((f) => f.id));
   const ids = allContribs
     .map((c: any) => c?.finding_id)
-    .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+    .filter((id: unknown): id is string => typeof id === "string" && UUID_RE.test(id) && knownFindingIds.has(id));
 
   // DETERMINISTIC scorecard derived from verified findings. This overrides
   // the LLM's numeric outputs so every score is defensible by formula.
