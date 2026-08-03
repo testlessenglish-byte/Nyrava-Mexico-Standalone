@@ -7,7 +7,12 @@ import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
-import { PROJECTION_LIKE, selectFindings, isCanonicalFinding, type SelectableFinding } from "@/lib/intelligence/finding-selection";
+import {
+  PROJECTION_LIKE,
+  selectFindings,
+  isCanonicalFinding,
+  type SelectableFinding,
+} from "@/lib/intelligence/finding-selection";
 
 // Single source of truth for valid case_type values — derived from
 // PRACTICE_AREA_LABELS (practice-areas.ts) instead of hand-copied literal
@@ -60,15 +65,9 @@ async function getAuthedContext(context: AuthContext, label: string) {
 
   // Reject blocked accounts on every authenticated call. Uses the caller's own
   // RLS-scoped client, which is permitted to read its own profile row.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_blocked")
-    .eq("id", userId)
-    .maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("is_blocked").eq("id", userId).maybeSingle();
   if (profile?.is_blocked) {
-    throw new Error(
-      "Your account has been blocked by an administrator. Contact support for assistance.",
-    );
+    throw new Error("Your account has been blocked by an administrator. Contact support for assistance.");
   }
 
   return { supabase, userId };
@@ -227,25 +226,24 @@ type StepRunner = (a: {
 }) => Promise<unknown>;
 
 // Map runLabeledStep labels → pipeline stage keys for progress + gating.
-const LABEL_TO_STAGE: Record<string, import("@/lib/intelligence/progress.server").StageKey | null> =
-  {
-    Extraction: "extraction",
-    Analyzers: "analyzers",
-    Agents: "agents",
-    EvidenceIntel: "evidence_intel",
-    Contradictions: "contradictions",
-    Witness: "witness_intel",
-    DiscoveryGap: "discovery_gaps",
-    Theories: "theories",
-    Opportunities: "theories",
-    Strategy: "strategy",
-    Perspectives: null,
-    Scoring: "scoring",
-    Report: "report",
-    TrialPrep: null,
-    WorkProduct: null,
-    FullIntelligence: null,
-  };
+const LABEL_TO_STAGE: Record<string, import("@/lib/intelligence/progress.server").StageKey | null> = {
+  Extraction: "extraction",
+  Analyzers: "analyzers",
+  Agents: "agents",
+  EvidenceIntel: "evidence_intel",
+  Contradictions: "contradictions",
+  Witness: "witness_intel",
+  DiscoveryGap: "discovery_gaps",
+  Theories: "theories",
+  Opportunities: "theories",
+  Strategy: "strategy",
+  Perspectives: null,
+  Scoring: "scoring",
+  Report: "report",
+  TrialPrep: null,
+  WorkProduct: null,
+  FullIntelligence: null,
+};
 
 async function runLabeledStep({
   label,
@@ -263,8 +261,7 @@ async function runLabeledStep({
   // runs, but individual stage buttons used to fire AI calls straight past
   // it — a double-click, a stale retry, or a race with the background worker
   // could overlap token usage and write conflicting output for one stage.
-  const { assertCaseNotLeased, assertUserPipelineCapacity } =
-    await import("@/lib/pipeline-lease.server");
+  const { assertCaseNotLeased, assertUserPipelineCapacity } = await import("@/lib/pipeline-lease.server");
   await assertCaseNotLeased(supabase, caseId, `step:${label}`, userId);
   await assertUserPipelineCapacity(supabase, userId, caseId, `step:${label}`);
   const stage = LABEL_TO_STAGE[label] ?? null;
@@ -318,9 +315,7 @@ async function runLabeledStep({
   // the gap for every single-engine button in the app, not just one.
   const { withAIUser } = await import("@/lib/ai/user-scope.server");
   try {
-    await withAIUser(userId, () =>
-      fn({ db: supabase, caseId, userId, apiKey: activeKey, apiKeys: keys }),
-    );
+    await withAIUser(userId, () => fn({ db: supabase, caseId, userId, apiKey: activeKey, apiKeys: keys }));
     if (stage) {
       await prog.emitEvent(supabase, caseId, stage, `${label} complete`);
     }
@@ -366,8 +361,7 @@ async function runLabeledStep({
       friendly =
         "All configured AI providers are rate-limited or out of quota right now. Open Settings → AI Keys to add another provider as a fallback, or wait a few minutes and retry.";
     } else if (/401|403|invalid.+api.+key|unauthorized|rejected this api key/i.test(msg)) {
-      friendly =
-        "Every configured AI provider rejected its API key. Open Settings → AI Keys to check them.";
+      friendly = "Every configured AI provider rejected its API key. Open Settings → AI Keys to check them.";
     } else if (/no groq api key|GROQ_API_KEY|no.+key.+configured|no ai providers/i.test(msg)) {
       friendly = "No AI provider is configured. Open Settings → AI Keys to add one.";
     }
@@ -412,15 +406,7 @@ export const runAgentsStep = createServerFn({ method: "POST" })
     }),
   );
 
-export async function runTimelineAudit({
-  supabase,
-  userId,
-  caseId,
-}: {
-  supabase: Db;
-  userId: string;
-  caseId: string;
-}) {
+export async function runTimelineAudit({ supabase, userId, caseId }: { supabase: Db; userId: string; caseId: string }) {
   const [{ data: analysis }, { data: caseRow }] = await Promise.all([
     supabase.from("analyses").select("timeline").eq("case_id", caseId).maybeSingle(),
     supabase.from("cases").select("agents_at").eq("id", caseId).maybeSingle(),
@@ -442,11 +428,7 @@ export async function runTimelineAudit({
     // Persistence is additive; never fail the stage on a write hiccup.
     console.warn("[timeline] persistCanonicalTimeline failed:", e instanceof Error ? e.message : e);
   }
-  await supabase
-    .from("pipeline_engine_runs")
-    .delete()
-    .eq("case_id", caseId)
-    .eq("engine", "timeline");
+  await supabase.from("pipeline_engine_runs").delete().eq("case_id", caseId).eq("engine", "timeline");
   await audit.runEngine(supabase, { caseId, userId, engine: "timeline" }, async () => ({
     value: ct,
     stats: {
@@ -545,10 +527,8 @@ export const runDiscoveryGapStep = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "DiscoveryGap");
     const audit = await import("@/lib/intelligence/engine-audit.server");
     const derived = await import("@/lib/intelligence/derived-engines.server");
-    await audit.runEngine(
-      supabase,
-      { caseId: data.caseId, userId, engine: "discovery_gaps" },
-      async () => derived.deriveDiscoveryGaps(supabase, data.caseId),
+    await audit.runEngine(supabase, { caseId: data.caseId, userId, engine: "discovery_gaps" }, async () =>
+      derived.deriveDiscoveryGaps(supabase, data.caseId),
     );
     return { ok: true, derived_from: "analyzers" };
   });
@@ -560,10 +540,8 @@ export const runWitnessStep = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "Witness");
     const audit = await import("@/lib/intelligence/engine-audit.server");
     const derived = await import("@/lib/intelligence/derived-engines.server");
-    await audit.runEngine(
-      supabase,
-      { caseId: data.caseId, userId, engine: "witness_intelligence" },
-      async () => derived.deriveWitnessIntel(supabase, data.caseId),
+    await audit.runEngine(supabase, { caseId: data.caseId, userId, engine: "witness_intelligence" }, async () =>
+      derived.deriveWitnessIntel(supabase, data.caseId),
     );
     return { ok: true, derived_from: "agents.witness_credibility" };
   });
@@ -602,8 +580,7 @@ export const runFullIntelligenceStep = createServerFn({ method: "POST" })
   .inputValidator(stepInput)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "FullIntelligence");
-    const { claimPipelineLease, assertUserPipelineCapacity } =
-      await import("@/lib/pipeline-lease.server");
+    const { claimPipelineLease, assertUserPipelineCapacity } = await import("@/lib/pipeline-lease.server");
     await assertUserPipelineCapacity(supabase, userId, data.caseId, "runFullIntelligenceStep");
     const claim = await claimPipelineLease(supabase, data.caseId);
     if (!claim.claimed) return { ok: false, queued: false, ...claim };
@@ -620,8 +597,7 @@ export const runPerspectivesStep = createServerFn({ method: "POST" })
       label: "Perspectives",
       context,
       caseId: data.caseId,
-      loader: async () =>
-        (await import("@/lib/intelligence/litigation.server")).runPerspectivesEngine,
+      loader: async () => (await import("@/lib/intelligence/litigation.server")).runPerspectivesEngine,
     }),
   );
 
@@ -634,10 +610,8 @@ export const runEvidenceIntelStep = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "EvidenceIntel");
     const audit = await import("@/lib/intelligence/engine-audit.server");
     const derived = await import("@/lib/intelligence/derived-engines.server");
-    await audit.runEngine(
-      supabase,
-      { caseId: data.caseId, userId, engine: "evidence_intelligence" },
-      async () => derived.deriveEvidenceIntel(supabase, data.caseId),
+    await audit.runEngine(supabase, { caseId: data.caseId, userId, engine: "evidence_intelligence" }, async () =>
+      derived.deriveEvidenceIntel(supabase, data.caseId),
     );
     return { ok: true, derived_from: "analyzers" };
   });
@@ -696,10 +670,8 @@ export const runContradictionStep = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "Contradictions");
     const audit = await import("@/lib/intelligence/engine-audit.server");
     const derived = await import("@/lib/intelligence/derived-engines.server");
-    await audit.runEngine(
-      supabase,
-      { caseId: data.caseId, userId, engine: "contradictions" },
-      async () => derived.deriveContradictions(supabase, data.caseId),
+    await audit.runEngine(supabase, { caseId: data.caseId, userId, engine: "contradictions" }, async () =>
+      derived.deriveContradictions(supabase, data.caseId),
     );
     return { ok: true, derived_from: "analyzers" };
   });
@@ -750,8 +722,7 @@ export const runFullPipelineStep = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "FullPipeline");
-    const { claimPipelineLease, assertUserPipelineCapacity } =
-      await import("@/lib/pipeline-lease.server");
+    const { claimPipelineLease, assertUserPipelineCapacity } = await import("@/lib/pipeline-lease.server");
     await assertUserPipelineCapacity(supabase, userId, data.caseId, "runFullPipelineStep");
     const claim = await claimPipelineLease(supabase, data.caseId, { reset: data.reset });
     if (!claim.claimed) return { ok: false, queued: false, ...claim };
@@ -767,9 +738,7 @@ export const runFullPipelineStep = createServerFn({ method: "POST" })
 // gets an immediate response and the pipeline runs on the next cron tick.
 export const queueCaseForPipeline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ caseId: z.string().uuid(), reset: z.boolean().optional() }).parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid(), reset: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "QueueCase");
 
@@ -854,9 +823,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
     if (readErr) throw new Error(readErr.message);
     if (!existing) throw new Error("Case not found");
 
-    const leaseUntil = existing.worker_lease_until
-      ? new Date(existing.worker_lease_until).getTime()
-      : 0;
+    const leaseUntil = existing.worker_lease_until ? new Date(existing.worker_lease_until).getTime() : 0;
     const leaseActive = leaseUntil > Date.now();
     const runningStatuses = new Set([
       "queued",
@@ -1035,9 +1002,7 @@ export const driveCasePipelineTick = createServerFn({ method: "POST" })
       return { done: true as const, status: row.status as string, ran: false };
     }
 
-    const leaseUntil = row.worker_lease_until
-      ? new Date(row.worker_lease_until as string).getTime()
-      : 0;
+    const leaseUntil = row.worker_lease_until ? new Date(row.worker_lease_until as string).getTime() : 0;
     if (leaseUntil > Date.now()) {
       // Someone else (the real worker, or another open tab) already holds an
       // active lease on this case — don't double-run, just report status.
@@ -1045,8 +1010,7 @@ export const driveCasePipelineTick = createServerFn({ method: "POST" })
     }
 
     // Per-user concurrency ceiling applies to this browser-driven tick too.
-    const { assertUserPipelineCapacity: assertCapacityTick } =
-      await import("@/lib/pipeline-lease.server");
+    const { assertUserPipelineCapacity: assertCapacityTick } = await import("@/lib/pipeline-lease.server");
     await assertCapacityTick(supabase, userId, data.caseId, "driveCaseTick");
 
     // Claim a short lease via CAS so a concurrent tick/tab can't grab the
@@ -1054,10 +1018,7 @@ export const driveCasePipelineTick = createServerFn({ method: "POST" })
     // itself (in 20-minute increments) once it starts writing status.
     const claimUntil = new Date(Date.now() + 60_000).toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const base = (supabase as any)
-      .from("cases")
-      .update({ worker_lease_until: claimUntil })
-      .eq("id", data.caseId);
+    const base = (supabase as any).from("cases").update({ worker_lease_until: claimUntil }).eq("id", data.caseId);
     const claim = row.worker_lease_until
       ? await base.eq("worker_lease_until", row.worker_lease_until).select("id").maybeSingle()
       : await base.is("worker_lease_until", null).select("id").maybeSingle();
@@ -1076,11 +1037,7 @@ export const driveCasePipelineTick = createServerFn({ method: "POST" })
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: after } = await (supabase as any)
-      .from("cases")
-      .select("status")
-      .eq("id", data.caseId)
-      .maybeSingle();
+    const { data: after } = await (supabase as any).from("cases").select("status").eq("id", data.caseId).maybeSingle();
     const nowStatus = (after?.status as string) ?? row.status;
 
     return {
@@ -1125,9 +1082,7 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
     if (caseErr) throw new Error(caseErr.message);
     if (!caseRow) throw new Error("Case not found");
 
-    const leaseUntil = caseRow.worker_lease_until
-      ? new Date(caseRow.worker_lease_until as string).getTime()
-      : 0;
+    const leaseUntil = caseRow.worker_lease_until ? new Date(caseRow.worker_lease_until as string).getTime() : 0;
     if (leaseUntil > Date.now()) {
       return {
         ok: false,
@@ -1159,10 +1114,7 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
       .eq("case_id", data.caseId);
     if (rowsErr) throw new Error(rowsErr.message);
 
-    const latest = new Map<
-      string,
-      { status: string; created_at?: string | null; ended_at?: string | null }
-    >();
+    const latest = new Map<string, { status: string; created_at?: string | null; ended_at?: string | null }>();
     for (const r of (rows ?? []) as Array<{
       engine: string;
       status: string;
@@ -1212,22 +1164,28 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
       return { ok: true, alreadyComplete: true };
     }
 
-    const resumeEngine = PIPELINE_STAGE_TO_ENGINE[resumeKey];
-    if (resumeEngine) {
-      // Clear only stale in-progress marker rows for the stage we are about to
-      // resume. Completed upstream work is preserved, so this is not a rerun.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("pipeline_engine_runs")
-        .update({
-          status: "failed",
-          ended_at: new Date().toISOString(),
-          error: "Stale checkpoint cleared before resume",
-        })
-        .eq("case_id", data.caseId)
-        .eq("engine", resumeEngine)
-        .in("status", ["queued", "running"]);
-    }
+    // Clear EVERY stale queued/running row for this case, not just the one
+    // engine we're about to resume at. The worker-lease check above already
+    // guarantees nothing can legitimately still be executing for this case
+    // by this point, so any row still marked queued/running here is a
+    // zombie — including non-blocking-tier stages (e.g. theory/work_product)
+    // that this function's own resumeKey selection never looks at, but
+    // which the report gate's stillInFlightEngines() check does. Leaving
+    // those behind was silently defeating "Resume pipeline": the button
+    // would requeue the case at the right stage, but a leftover zombie
+    // elsewhere in the ledger could still perpetually pause report
+    // generation afterward with no obvious way for the user to clear it
+    // short of separately clicking "Clear stuck state" too.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("pipeline_engine_runs")
+      .update({
+        status: "failed",
+        ended_at: new Date().toISOString(),
+        error: "Stale checkpoint cleared before resume",
+      })
+      .eq("case_id", data.caseId)
+      .in("status", ["queued", "running"]);
 
     const queuedAt = new Date().toISOString();
 
@@ -1290,9 +1248,7 @@ export const clearPipelineStuckState = createServerFn({ method: "POST" })
       .maybeSingle();
     if (caseErr) throw new Error(caseErr.message);
     if (!caseRow) throw new Error("Case not found");
-    const leaseUntil = caseRow.worker_lease_until
-      ? new Date(caseRow.worker_lease_until as string).getTime()
-      : 0;
+    const leaseUntil = caseRow.worker_lease_until ? new Date(caseRow.worker_lease_until as string).getTime() : 0;
     if (leaseUntil > Date.now()) {
       return {
         ok: false,
@@ -1304,9 +1260,7 @@ export const clearPipelineStuckState = createServerFn({ method: "POST" })
 
     const persistedNext = typeof caseRow.next_stage === "string" ? caseRow.next_stage : null;
     let resumeKey =
-      persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext)
-        ? persistedNext
-        : undefined;
+      persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext) ? persistedNext : undefined;
     if (!resumeKey) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: rows, error: rowsErr } = await (supabase as any)
@@ -1314,10 +1268,7 @@ export const clearPipelineStuckState = createServerFn({ method: "POST" })
         .select("engine,status,ended_at,created_at")
         .eq("case_id", data.caseId);
       if (rowsErr) throw new Error(rowsErr.message);
-      const latest = new Map<
-        string,
-        { status: string; created_at?: string | null; ended_at?: string | null }
-      >();
+      const latest = new Map<string, { status: string; created_at?: string | null; ended_at?: string | null }>();
       for (const r of (rows ?? []) as Array<{
         engine: string;
         status: string;
@@ -1331,11 +1282,7 @@ export const clearPipelineStuckState = createServerFn({ method: "POST" })
       }
       const completed = new Set<string>();
       for (const [engine, row] of latest) {
-        if (
-          row.status === "completed" ||
-          row.status === "completed_negative" ||
-          row.status === "skipped"
-        ) {
+        if (row.status === "completed" || row.status === "completed_negative" || row.status === "skipped") {
           completed.add(engine);
         }
       }
@@ -1505,9 +1452,7 @@ export const listGroqKeys = createServerFn({ method: "GET" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("user_groq_keys")
-      .select(
-        "id,label,key_value,priority,is_active,last_used_at,last_error,last_error_at,created_at",
-      )
+      .select("id,label,key_value,priority,is_active,last_used_at,last_error,last_error_at,created_at")
       .eq("user_id", userId)
       .order("priority", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
@@ -1543,9 +1488,7 @@ export const listGroqKeys = createServerFn({ method: "GET" })
       groq_key_id: string | null;
     }>;
     const now = new Date();
-    const dayStart = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    ).toISOString();
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
 
     return {
       provider: "Groq",
@@ -1557,24 +1500,17 @@ export const listGroqKeys = createServerFn({ method: "GET" })
         // created-at slicing only for legacy rows with null groq_key_id.
         const attributed = usage.filter((u) => u.groq_key_id === r.id);
         const legacy = usage.filter(
-          (u) =>
-            u.groq_key_id == null &&
-            u.created_at >= r.created_at &&
-            (!nextAt || u.created_at < nextAt),
+          (u) => u.groq_key_id == null && u.created_at >= r.created_at && (!nextAt || u.created_at < nextAt),
         );
         const slice = [...attributed, ...legacy];
         const tokensOf = (arr: typeof slice) =>
-          arr.reduce(
-            (a, b) => a + (b.total_tokens ?? (b.input_tokens ?? 0) + (b.output_tokens ?? 0)),
-            0,
-          );
+          arr.reduce((a, b) => a + (b.total_tokens ?? (b.input_tokens ?? 0) + (b.output_tokens ?? 0)), 0);
         const tokens30d = tokensOf(slice);
         const today = slice.filter((u) => u.created_at >= dayStart);
         return {
           id: r.id,
           label: r.label,
-          masked:
-            r.key_value.length > 10 ? `${r.key_value.slice(0, 4)}…${r.key_value.slice(-4)}` : "•••",
+          masked: r.key_value.length > 10 ? `${r.key_value.slice(0, 4)}…${r.key_value.slice(-4)}` : "•••",
           priority: r.priority ?? i + 1,
           is_active: r.is_active,
           last_used_at: r.last_used_at,
@@ -1609,9 +1545,7 @@ export const addGroqKey = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "AddKey");
     const apiKey = data.apiKey.trim();
     if (!apiKey.startsWith("gsk_")) {
-      throw new Error(
-        `Groq keys start with "gsk_". Paste the full key from console.groq.com/keys.`,
-      );
+      throw new Error(`Groq keys start with "gsk_". Paste the full key from console.groq.com/keys.`);
     }
     const { pingProvider } = await import("@/lib/groq.server");
     const probe = await pingProvider("groq", apiKey);
@@ -1623,10 +1557,7 @@ export const addGroqKey = createServerFn({ method: "POST" })
       throw new Error(`Groq rejected this key: ${err}${hint}`);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existing } = await (supabase as any)
-      .from("user_groq_keys")
-      .select("priority")
-      .eq("user_id", userId);
+    const { data: existing } = await (supabase as any).from("user_groq_keys").select("priority").eq("user_id", userId);
     const maxPrio = ((existing ?? []) as Array<{ priority: number | null }>).reduce(
       (m, r) => Math.max(m, r.priority ?? 0),
       0,
@@ -1666,9 +1597,7 @@ export const setGroqKeyPriority = createServerFn({ method: "POST" })
 // without deleting their Groq keys.
 export const toggleGroqKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), isActive: z.boolean() }).parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), isActive: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "ToggleKey");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1683,16 +1612,12 @@ export const toggleGroqKey = createServerFn({ method: "POST" })
 
 export const replaceGroqKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), apiKey: z.string().min(10).max(500) }).parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), apiKey: z.string().min(10).max(500) }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "ReplaceKey");
     const apiKey = data.apiKey.trim();
     if (!apiKey.startsWith("gsk_")) {
-      throw new Error(
-        `Groq keys start with "gsk_". Paste the full key from console.groq.com/keys.`,
-      );
+      throw new Error(`Groq keys start with "gsk_". Paste the full key from console.groq.com/keys.`);
     }
     const { pingProvider } = await import("@/lib/groq.server");
     const probe = await pingProvider("groq", apiKey);
@@ -1719,11 +1644,7 @@ export const deleteGroqKey = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "DeleteKey");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
-      .from("user_groq_keys")
-      .delete()
-      .eq("id", data.id)
-      .eq("user_id", userId);
+    const { error } = await (supabase as any).from("user_groq_keys").delete().eq("id", data.id).eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -1762,9 +1683,7 @@ export const getGroqUsageSummary = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = await getAuthedContext(context, "Usage");
     const now = new Date();
-    const dayStart = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    ).toISOString();
+    const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
     // Load all saved user keys (ordered) so per-key breakdown is available
@@ -1796,9 +1715,7 @@ export const getGroqUsageSummary = createServerFn({ method: "GET" })
     const { data: rows } = await supabase
       .from("ai_usage")
 
-      .select(
-        "input_tokens,output_tokens,total_tokens,success,created_at,operation,groq_key_id" as any,
-      )
+      .select("input_tokens,output_tokens,total_tokens,success,created_at,operation,groq_key_id" as any)
       .eq("user_id", userId)
       .gte("created_at", monthStart)
       .order("created_at", { ascending: false })
@@ -1807,10 +1724,7 @@ export const getGroqUsageSummary = createServerFn({ method: "GET" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const list = (rows ?? []) as any[];
     const sumTok = (arr: typeof list) =>
-      arr.reduce(
-        (a, b) => a + (b.total_tokens ?? (b.input_tokens ?? 0) + (b.output_tokens ?? 0)),
-        0,
-      );
+      arr.reduce((a, b) => a + (b.total_tokens ?? (b.input_tokens ?? 0) + (b.output_tokens ?? 0)), 0);
 
     // Aggregate top-line (matches prior floors).
     const monthList = list.filter((r) => r.created_at >= monthFloor);
@@ -1824,10 +1738,7 @@ export const getGroqUsageSummary = createServerFn({ method: "GET" })
       const nextAt = allKeys[i + 1]?.created_at ?? null;
       const attributed = list.filter((r) => r.groq_key_id === k.id);
       const legacy = list.filter(
-        (r) =>
-          r.groq_key_id == null &&
-          r.created_at >= k.created_at &&
-          (!nextAt || r.created_at < nextAt),
+        (r) => r.groq_key_id == null && r.created_at >= k.created_at && (!nextAt || r.created_at < nextAt),
       );
       const scoped = [...attributed, ...legacy];
       const monthArr = scoped;
@@ -1836,8 +1747,7 @@ export const getGroqUsageSummary = createServerFn({ method: "GET" })
       return {
         id: k.id,
         label: k.label,
-        masked:
-          k.key_value.length > 10 ? `${k.key_value.slice(0, 4)}…${k.key_value.slice(-4)}` : "•••",
+        masked: k.key_value.length > 10 ? `${k.key_value.slice(0, 4)}…${k.key_value.slice(-4)}` : "•••",
         priority: k.priority ?? i + 1,
         tokensToday,
         tokensMonth: sumTok(monthArr),
@@ -1894,12 +1804,8 @@ export const getAiHealth = createServerFn({ method: "GET" })
     const { supabase, userId } = await assertHealthAdmin(context, "Health");
     const { getLlmDiagnostics, pingProvider, assertEnv } = await import("@/lib/groq.server");
     const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
-    const {
-      listProviderRows,
-      getProviderInputBudget,
-      invalidateProviderCaches,
-      clearAiProviderCooldowns,
-    } = await import("@/lib/ai/router.server");
+    const { listProviderRows, getProviderInputBudget, invalidateProviderCaches, clearAiProviderCooldowns } =
+      await import("@/lib/ai/router.server");
 
     // Refreshing this page is the user's "clear the stuck state" gesture:
     // drop the cached provider/key rows so newly added keys are seen right
@@ -1916,7 +1822,13 @@ export const getAiHealth = createServerFn({ method: "GET" })
         .filter((r) => r.enabled !== false)
         .map(async (r) => {
           const type = r.provider_type as
-            "groq" | "openai" | "anthropic" | "gemini" | "openrouter" | "ollama" | "lmstudio";
+            | "groq"
+            | "openai"
+            | "anthropic"
+            | "gemini"
+            | "openrouter"
+            | "ollama"
+            | "lmstudio";
           let keys: string[] = [];
           try {
             ({ keys } = await resolveProviderKeys(supabase, userId, type as never));
@@ -1936,9 +1848,7 @@ export const getAiHealth = createServerFn({ method: "GET" })
           for (let i = 0; i < candidates.length; i++) {
             let r: { ok: boolean; latencyMs: number; error?: string };
             try {
-              r = candidates[i]
-                ? await pingProvider(type, candidates[i]!)
-                : await pingProvider(type);
+              r = candidates[i] ? await pingProvider(type, candidates[i]!) : await pingProvider(type);
             } catch (e) {
               r = { ok: false, latencyMs: 0, error: e instanceof Error ? e.message : String(e) };
             }
@@ -2009,10 +1919,7 @@ export const getAiHealth = createServerFn({ method: "GET" })
     let backendErr: string | undefined;
     const t0 = Date.now();
     try {
-      const { error } = await supabase
-        .from("cases")
-        .select("id", { count: "exact", head: true })
-        .limit(1);
+      const { error } = await supabase.from("cases").select("id", { count: "exact", head: true }).limit(1);
       backendOk = !error;
       if (error) backendErr = error.message;
     } catch (e) {
@@ -2075,8 +1982,7 @@ export const runFailoverTest = createServerFn({ method: "POST" })
     const rows = (await listProviderRows()).filter((r) => r.enabled !== false);
     const targets = data.provider ? rows.filter((r) => r.provider_type === data.provider) : rows;
 
-    const prompt =
-      "Return a single sentence confirming you are responding. Include the word 'online'.";
+    const prompt = "Return a single sentence confirming you are responding. Include the word 'online'.";
     const sys = "You are a diagnostic responder. Keep replies under 30 words.";
     const results: ProbeResult[] = [];
 
@@ -2308,9 +2214,7 @@ export const listCases = createServerFn({ method: "GET" })
     const { supabase } = await getAuthedContext(context, "Cases");
     const { data, error } = await supabase
       .from("cases")
-      .select(
-        "id,name,status,progress,status_message,created_at,completed_at,archived_at,cancel_requested",
-      )
+      .select("id,name,status,progress,status_message,created_at,completed_at,archived_at,cancel_requested")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(500);
@@ -2330,9 +2234,7 @@ export const listCases = createServerFn({ method: "GET" })
     const [reportsRes, findingsRes, witnessesRes] = await Promise.all([
       supabase
         .from("reports")
-        .select(
-          "case_id,case_strength_score,risk_score,findings_count,contradictions_struct,missing_evidence_struct",
-        )
+        .select("case_id,case_strength_score,risk_score,findings_count,contradictions_struct,missing_evidence_struct")
         .in("case_id", ids),
       supabase
         .from("case_findings")
@@ -2362,12 +2264,8 @@ export const listCases = createServerFn({ method: "GET" })
 
     return cases.map((c) => {
       const r = reportByCase.get(c.id);
-      const contradictionCount = Array.isArray(r?.contradictions_struct)
-        ? r!.contradictions_struct.length
-        : null;
-      const discoveryGapCount = Array.isArray(r?.missing_evidence_struct)
-        ? r!.missing_evidence_struct.length
-        : null;
+      const contradictionCount = Array.isArray(r?.contradictions_struct) ? r!.contradictions_struct.length : null;
+      const discoveryGapCount = Array.isArray(r?.missing_evidence_struct) ? r!.missing_evidence_struct.length : null;
       return {
         ...c,
         score: r?.case_strength_score ?? null,
@@ -2398,10 +2296,7 @@ export const listAlerts = createServerFn({ method: "GET" })
     const ids = list.map((c) => c.id);
 
     const [agents, findings, reports] = await Promise.all([
-      supabase
-        .from("agent_findings")
-        .select("case_id,agent_type,summary,findings,updated_at")
-        .in("case_id", ids),
+      supabase.from("agent_findings").select("case_id,agent_type,summary,findings,updated_at").in("case_id", ids),
       supabase
         .from("case_findings")
         .select("id,case_id,title,severity,created_at")
@@ -2410,10 +2305,7 @@ export const listAlerts = createServerFn({ method: "GET" })
         .not("source_module", "like", PROJECTION_LIKE)
         .order("created_at", { ascending: false })
         .limit(200),
-      supabase
-        .from("reports")
-        .select("case_id,missing_evidence_report,updated_at")
-        .in("case_id", ids),
+      supabase.from("reports").select("case_id,missing_evidence_report,updated_at").in("case_id", ids),
     ]);
 
     const byCase = new Map(list.map((c) => [c.id, c]));
@@ -2502,15 +2394,10 @@ export const listAlerts = createServerFn({ method: "GET" })
 // -------- Workflow controls --------
 export const renameCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ caseId: z.string().uuid(), name: z.string().min(1).max(200) }).parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid(), name: z.string().min(1).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = await getAuthedContext(context, "Rename");
-    const { error } = await supabase
-      .from("cases")
-      .update({ name: data.name })
-      .eq("id", data.caseId);
+    const { error } = await supabase.from("cases").update({ name: data.name }).eq("id", data.caseId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -2590,9 +2477,7 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
 
 export const archiveCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ caseId: z.string().uuid(), archived: z.boolean() }).parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid(), archived: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = await getAuthedContext(context, "Archive");
     const { error } = await supabase
@@ -2617,10 +2502,7 @@ export const deleteCase = createServerFn({ method: "POST" })
     const isAdmin = Boolean(adminRole);
 
     // 1. Collect storage paths for all documents under this case
-    const { data: docs } = await supabase
-      .from("documents")
-      .select("storage_path")
-      .eq("case_id", data.caseId);
+    const { data: docs } = await supabase.from("documents").select("storage_path").eq("case_id", data.caseId);
     const paths = (docs ?? [])
       .map((d) => d.storage_path)
       .filter((p): p is string => typeof p === "string" && p.length > 0);
@@ -2805,9 +2687,7 @@ export const draftMotion = createServerFn({ method: "POST" })
         apiKey: activeKey,
         apiKeys: keys,
         motionTitle: data.motionTitle,
-        opportunityContext: data.opportunityDescription
-          ? { description: data.opportunityDescription }
-          : null,
+        opportunityContext: data.opportunityDescription ? { description: data.opportunityDescription } : null,
         caseLawCitations: data.caseLawCitations ?? null,
       });
       return { ok: true, draft };
@@ -2822,8 +2702,7 @@ export const draftMotion = createServerFn({ method: "POST" })
         friendly =
           "All configured AI providers are rate-limited or out of quota right now. Open Settings → AI Keys to add another provider as a fallback, or wait a few minutes and retry.";
       } else if (/401|403|invalid.+api.+key|unauthorized|rejected this api key/i.test(msg)) {
-        friendly =
-          "Every configured AI provider rejected its API key. Open Settings → AI Keys to check them.";
+        friendly = "Every configured AI provider rejected its API key. Open Settings → AI Keys to check them.";
       } else if (/no groq api key|GROQ_API_KEY|no.+key.+configured|no ai providers/i.test(msg)) {
         friendly = "No AI provider is configured. Open Settings → AI Keys to add one.";
       }
@@ -2867,8 +2746,7 @@ export const updateMotionDraftNotes = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "UpdateMotionDraftNotes");
-    const { updateMotionDraftNotes: updateNotes } =
-      await import("@/lib/intelligence/motion-draft.server");
+    const { updateMotionDraftNotes: updateNotes } = await import("@/lib/intelligence/motion-draft.server");
     const draft = await updateNotes({
       db: supabase,
       id: data.draftId,
@@ -2930,8 +2808,7 @@ export function sanitizeBlockedReport<T extends Record<string, unknown> | null |
     // says (usually false here) since that reflects the report's own
     // release-gate outcome, not this endpoint's freshness judgment.
     sanitized.stale = true;
-    sanitized.stale_reason =
-      "A required pipeline stage completed more recently than this report was generated.";
+    sanitized.stale_reason = "A required pipeline stage completed more recently than this report was generated.";
   }
   return sanitized as T;
 }
@@ -3005,9 +2882,7 @@ export const getCase = createServerFn({ method: "POST" })
       supabase.from("cases").select("*").eq("id", data.caseId).maybeSingle(),
       supabase
         .from("documents")
-        .select(
-          "id,filename,status,mime_type,size_bytes,error,extracted_text,metadata,entities,created_at,archived_at",
-        )
+        .select("id,filename,status,mime_type,size_bytes,error,extracted_text,metadata,entities,created_at,archived_at")
         .eq("case_id", data.caseId)
         .order("created_at"),
       supabase.from("analyses").select("*").eq("case_id", data.caseId).maybeSingle(),
@@ -3025,38 +2900,18 @@ export const getCase = createServerFn({ method: "POST" })
       supabase.from("case_opportunities").select("*").eq("case_id", data.caseId).order("severity"),
       supabase.from("case_witnesses").select("*").eq("case_id", data.caseId).order("name"),
       supabase.from("case_trial_prep").select("*").eq("case_id", data.caseId).maybeSingle(),
-      supabase
-        .from("case_work_product")
-        .select("*")
-        .eq("case_id", data.caseId)
-        .order("document_type"),
-      supabase
-        .from("case_perspectives")
-        .select("*")
-        .eq("case_id", data.caseId)
-        .order("perspective"),
-      supabase
-        .from("evidence_classifications")
-        .select("*")
-        .eq("case_id", data.caseId)
-        .order("created_at"),
+      supabase.from("case_work_product").select("*").eq("case_id", data.caseId).order("document_type"),
+      supabase.from("case_perspectives").select("*").eq("case_id", data.caseId).order("perspective"),
+      supabase.from("evidence_classifications").select("*").eq("case_id", data.caseId).order("created_at"),
       supabase.from("case_strategy").select("*").eq("case_id", data.caseId).order("created_at"),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any)
-        .from("case_strategy_center")
-        .select("*")
-        .eq("case_id", data.caseId)
-        .maybeSingle(),
+      (supabase as any).from("case_strategy_center").select("*").eq("case_id", data.caseId).maybeSingle(),
       supabase
         .from("pipeline_engine_runs")
         .select("id,engine,status,started_at,ended_at,created_at")
         .eq("case_id", data.caseId)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("agent_logs")
-        .select("*")
-        .eq("case_id", data.caseId)
-        .order("created_at", { ascending: false }),
+      supabase.from("agent_logs").select("*").eq("case_id", data.caseId).order("created_at", { ascending: false }),
     ]);
     // Phase 4: current canonical version, so the report header can say a
     // newer analysis exists instead of silently re-rendering.
@@ -3066,8 +2921,7 @@ export const getCase = createServerFn({ method: "POST" })
       .select("version")
       .eq("case_id", data.caseId)
       .maybeSingle();
-    const canonicalCurrentVersion =
-      Number((canonRow as { version?: number } | null)?.version ?? NaN) || null;
+    const canonicalCurrentVersion = Number((canonRow as { version?: number } | null)?.version ?? NaN) || null;
     // Backend enforcement of the frozen release contract (docs/FREEZE.md:
     // "A report with quality_blocked=true must never produce a downloadable
     // PDF or DOCX"). PDF/DOCX generation happens client-side in export.ts
@@ -3086,9 +2940,7 @@ export const getCase = createServerFn({ method: "POST" })
     // re-created per run, and nothing else currently invalidates it after
     // an upstream retry).
     const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
-    const blockingEngines = new Set(
-      CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.engine),
-    );
+    const blockingEngines = new Set(CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.engine));
     const reportIsStale = isReportStale(
       report.data as { updated_at?: string | null; created_at?: string | null } | null,
       (pipelineRuns.data ?? []) as Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
@@ -3179,11 +3031,7 @@ export const adminStats = createServerFn({ method: "GET" })
         .from("profiles")
         .select("id,email,full_name,created_at,is_blocked")
         .order("created_at", { ascending: false }),
-      supabaseAdmin
-        .from("reports")
-        .select("case_id,created_at")
-        .order("created_at", { ascending: false })
-        .limit(500),
+      supabaseAdmin.from("reports").select("case_id,created_at").order("created_at", { ascending: false }).limit(500),
       supabaseAdmin
         .from("ai_usage")
         .select("model,operation,total_tokens,latency_ms,success,created_at,user_id,case_id")
@@ -3267,9 +3115,7 @@ export const pipelineLedger = createServerFn({ method: "GET" })
       .object({
         caseId: z.string().uuid().optional(),
         engine: z.string().optional(),
-        status: z
-          .enum(["completed", "failed", "blocked", "skipped", "running", "queued"])
-          .optional(),
+        status: z.enum(["completed", "failed", "blocked", "skipped", "running", "queued"]).optional(),
         provider: z.string().optional(),
         limit: z.number().int().min(1).max(500).optional(),
       })
@@ -3307,23 +3153,14 @@ export const pipelineLedger = createServerFn({ method: "GET" })
       return acc;
     }, {});
     const totalTokens = rows.reduce(
-      (s, r) =>
-        s +
-        ((r as { tokens_in?: number }).tokens_in ?? 0) +
-        ((r as { tokens_out?: number }).tokens_out ?? 0),
+      (s, r) => s + ((r as { tokens_in?: number }).tokens_in ?? 0) + ((r as { tokens_out?: number }).tokens_out ?? 0),
       0,
     );
-    const totalCost = rows.reduce(
-      (s, r) => s + Number((r as { cost_usd?: number }).cost_usd ?? 0),
-      0,
-    );
+    const totalCost = rows.reduce((s, r) => s + Number((r as { cost_usd?: number }).cost_usd ?? 0), 0);
     const avgLatency =
       totalRuns === 0
         ? 0
-        : Math.round(
-            rows.reduce((s, r) => s + ((r as { runtime_ms?: number }).runtime_ms ?? 0), 0) /
-              totalRuns,
-          );
+        : Math.round(rows.reduce((s, r) => s + ((r as { runtime_ms?: number }).runtime_ms ?? 0), 0) / totalRuns);
     const confirmedWrites = rows.filter(
       (r) => (r as { db_write_confirmed?: boolean }).db_write_confirmed === true,
     ).length;
@@ -3497,9 +3334,7 @@ export const bootstrapAdmin = createServerFn({ method: "POST" })
       throw new Error("An administrator already exists. Ask them to grant you the admin role.");
     }
 
-    const { error } = await supabaseAdmin
-      .from("user_roles")
-      .insert({ user_id: userId, role: "admin" });
+    const { error } = await supabaseAdmin.from("user_roles").insert({ user_id: userId, role: "admin" });
     if (error) throw new Error(`Could not grant admin: ${error.message}`);
     return { ok: true, alreadyAdmin: false };
   });
@@ -3550,8 +3385,8 @@ export const uploadCaseEvidence = createServerFn({ method: "POST" })
       const { keys } = await resolveProviderKeys(supabase, userId, "groq");
       if (keys.length > 0) {
         const { runExtraction } = await import("@/lib/pipeline.server");
-        void runExtraction({ db: supabase, caseId, userId, apiKey: keys[0], apiKeys: keys }).catch(
-          (e) => console.error("[evidence] background extraction failed", e),
+        void runExtraction({ db: supabase, caseId, userId, apiKey: keys[0], apiKeys: keys }).catch((e) =>
+          console.error("[evidence] background extraction failed", e),
         );
       }
     } catch (e) {
@@ -3568,9 +3403,7 @@ export const listCaseDocuments = createServerFn({ method: "POST" })
     const { supabase } = await getAuthedContext(context, "ListDocs");
     const { data: rows } = await supabase
       .from("documents")
-      .select(
-        "id,filename,mime_type,size_bytes,status,storage_path,created_at,extracted_text,archived_at",
-      )
+      .select("id,filename,mime_type,size_bytes,status,storage_path,created_at,extracted_text,archived_at")
       .eq("case_id", data.caseId)
       .order("created_at", { ascending: false });
     return (rows ?? []).map((r) => ({
@@ -3593,9 +3426,7 @@ export const listCaseDocuments = createServerFn({ method: "POST" })
 export const archiveCaseDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z
-      .object({ caseId: z.string().uuid(), documentId: z.string().uuid(), archived: z.boolean() })
-      .parse(d),
+    z.object({ caseId: z.string().uuid(), documentId: z.string().uuid(), archived: z.boolean() }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "ArchiveDoc");
@@ -3617,9 +3448,7 @@ export const archiveCaseDocument = createServerFn({ method: "POST" })
 
 export const deleteCaseDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ caseId: z.string().uuid(), documentId: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid(), documentId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "DeleteDoc");
     const { data: doc } = await supabase
@@ -3673,9 +3502,7 @@ export const rollbackDocumentExtraction = createServerFn({ method: "POST" })
 
 export const getDocumentDownloadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ caseId: z.string().uuid(), documentId: z.string().uuid() }).parse(d),
-  )
+  .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid(), documentId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "DocDownload");
     const { data: doc } = await supabase
@@ -3752,10 +3579,7 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
       const ess = typeof (valBlock as any).ess === "number" ? (valBlock as any).ess : null;
       const [{ count: docCount }, { count: findCount }] = await Promise.all([
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any)
-          .from("documents")
-          .select("id", { count: "exact", head: true })
-          .eq("case_id", caseId),
+        (supabase as any).from("documents").select("id", { count: "exact", head: true }).eq("case_id", caseId),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any)
           .from("case_findings")
@@ -3774,10 +3598,7 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
           findingsCount: findCount ?? 0,
           contradictionCount: contradictions,
           ess,
-          score:
-            typeof cur.case_strength_score === "number"
-              ? (cur.case_strength_score as number)
-              : null,
+          score: typeof cur.case_strength_score === "number" ? (cur.case_strength_score as number) : null,
         },
       });
     }
@@ -3890,9 +3711,7 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
     const prev = snap.snapshot;
     const cur = report;
     const countContradictions = (r: Record<string, unknown> | null) =>
-      r && Array.isArray(r.contradictions_struct)
-        ? (r.contradictions_struct as unknown[]).length
-        : 0;
+      r && Array.isArray(r.contradictions_struct) ? (r.contradictions_struct as unknown[]).length : 0;
 
     // Which narrative sections actually changed, and why. Deterministic
     // string diff over the prose columns — no AI, no guessing.
@@ -3919,18 +3738,14 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
       "appendix_sources",
     ] as const;
     const asText = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-    const sectionsChanged = NARRATIVE_KEYS.filter((k) => asText(prev[k]) !== asText(cur[k])).map(
-      (k) => ({
-        section: k,
-        status: !asText(prev[k]) ? "added" : !asText(cur[k]) ? "removed" : "revised",
-        prev_chars: asText(prev[k]).length,
-        now_chars: asText(cur[k]).length,
-      }),
-    );
+    const sectionsChanged = NARRATIVE_KEYS.filter((k) => asText(prev[k]) !== asText(cur[k])).map((k) => ({
+      section: k,
+      status: !asText(prev[k]) ? "added" : !asText(cur[k]) ? "removed" : "revised",
+      prev_chars: asText(prev[k]).length,
+      now_chars: asText(cur[k]).length,
+    }));
 
-    const prevDocs = Number(
-      (prev.full_report as Record<string, unknown> | null)?.documents_total ?? NaN,
-    );
+    const prevDocs = Number((prev.full_report as Record<string, unknown> | null)?.documents_total ?? NaN);
     const nowDocs = (docsRes.data ?? []).length;
     const drivers: string[] = [];
     if (Number.isFinite(prevDocs) && nowDocs > prevDocs) {
@@ -3947,9 +3762,7 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
     const sPrev = typeof prev.case_strength_score === "number" ? prev.case_strength_score : null;
     const sNow = typeof cur.case_strength_score === "number" ? cur.case_strength_score : null;
     if (sPrev != null && sNow != null && sPrev !== sNow) {
-      drivers.push(
-        `La fuerza del caso pasó de ${sPrev} a ${sNow} tras la nueva evidencia verificada.`,
-      );
+      drivers.push(`La fuerza del caso pasó de ${sPrev} a ${sNow} tras la nueva evidencia verificada.`);
     }
     if (!!prev.scores_suppressed !== !!cur.scores_suppressed) {
       drivers.push(
@@ -3983,8 +3796,7 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
         findingDeltas.weakened.length +
         findingDeltas.resolved.length >
       0;
-    const unexplainedScoreChange =
-      scoreChanged && drivers.length === 0 && !hasFindingLevelExplanation;
+    const unexplainedScoreChange = scoreChanged && drivers.length === 0 && !hasFindingLevelExplanation;
 
     const changeLog = {
       generated_at: new Date().toISOString(),
@@ -4081,10 +3893,7 @@ export const setReportItemFlag = createServerFn({ method: "POST" })
     }
     const next = { ...current, [data.section]: section };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
-      .from("reports")
-      .update({ item_flags: next })
-      .eq("case_id", data.caseId);
+    const { error } = await (supabase as any).from("reports").update({ item_flags: next }).eq("case_id", data.caseId);
     if (error) throw new Error(error.message);
     return { ok: true, item_flags: next };
   });
