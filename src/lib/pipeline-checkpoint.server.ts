@@ -172,14 +172,54 @@ export async function withHardCheckpointDeadline<T>(
 ): Promise<T> {
   const deadlineAt = scope.deadlineAt;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let deadlineHit = false;
   const guard = new Promise<never>((_, reject) => {
     const ms = Math.max(0, deadlineAt - Date.now());
     timer = setTimeout(() => {
+      deadlineHit = true;
       reject(new CheckpointRequired(scope.stage, scope.progress ?? `${scope.stage}: hard deadline reached`));
     }, ms);
   });
   try {
     return await Promise.race([withCheckpointScope(scope, fn), guard]);
+  } catch (e) {
+    // BUG FIX: when the deadline (not `fn()` itself) is what settled this
+    // race, the real stage call underneath is NOT cancelled — it keeps
+    // running in the background, still holding its runEngine() ledger row
+    // at status='running'. In this serverless/worker environment that
+    // background call's execution context is very likely torn down the
+    // moment this invocation's response is sent, so that row can never
+    // reach a terminal state on its own. It used to sit "running" until the
+    // external stall-sweep (4 minutes) eventually force-failed it — during
+    // which every retry attempt for that exact engine hit "duplicate run
+    // prevented", confirmed live: `runEngine(strategy): duplicate run
+    // prevented — engine already running since <the original start time>`
+    // repeating unchanged across many retries, minutes apart. Reap it here,
+    // immediately, instead of waiting on the external watchdog.
+    if (deadlineHit && isCheckpointError(e)) {
+      try {
+        const { currentTraceScope } = await import("@/lib/pipeline-trace.server");
+        const trace = currentTraceScope();
+        if (trace?.db && trace.caseId) {
+          const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
+          const engine = CANONICAL_STAGES.find((s) => s.key === scope.stage)?.engine ?? scope.stage;
+          await trace.db
+            .from("pipeline_engine_runs")
+            .update({
+              status: "failed",
+              ended_at: new Date().toISOString(),
+              error: `Orphaned by hard checkpoint deadline (${scope.stage}) — the underlying call never returned before the deadline; reaped immediately instead of waiting for the stall-sweep window.`,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any)
+            .eq("case_id", trace.caseId)
+            .eq("engine", engine)
+            .eq("status", "running");
+        }
+      } catch (reapErr) {
+        console.warn(`[checkpoint] failed to reap orphaned row for ${scope.stage}`, reapErr);
+      }
+    }
+    throw e;
   } finally {
     if (timer) clearTimeout(timer);
   }
