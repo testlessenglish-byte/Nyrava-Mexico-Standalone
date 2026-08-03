@@ -2642,6 +2642,15 @@ export const deleteCase = createServerFn({ method: "POST" })
     //    opportunities, witnesses, perspectives, strategy, trial_prep,
     //    work_product, chat_messages, agent_findings, evidence_classifications,
     //    and pipeline_events automatically.
+    //
+    // pipeline_trace is the one exception: it was created without a FK to
+    // cases at all (see migration 20260803053000, which adds one), so on
+    // any deployment where that migration hasn't landed yet, CASCADE alone
+    // won't touch it and rows would be orphaned forever. Delete it
+    // explicitly first — harmless and a no-op once the FK exists and has
+    // already cascaded, since the row's simply gone by then.
+    await supabase.from("pipeline_trace").delete().eq("case_id", data.caseId);
+
     let deleteQuery = supabase.from("cases").delete().eq("id", data.caseId);
     if (!isAdmin) deleteQuery = deleteQuery.eq("user_id", userId);
     const { data: deleted, error } = await deleteQuery.select("id,name").maybeSingle();
