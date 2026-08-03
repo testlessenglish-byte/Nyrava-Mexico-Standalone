@@ -268,12 +268,26 @@ export async function projectCaseFindingsWithRetry(
 }
 
 /**
- * Reconciliation: compares row counts in the source engine tables against
- * the mirrored rows actually present in case_findings (source class
- * `projection:<table>`) for this case. A shortfall means projection rows
- * were silently lost somewhere between the RPC succeeding and the read
- * path — this is the check that catches that class of bug, independent of
- * whether projectCaseFindings itself reported an error.
+ * Reconciliation: compares the mirrored rows actually present in
+ * case_findings (source class `projection:<table>`) for this case against
+ * how many rows were actually ELIGIBLE to be projected — not the raw
+ * source-table row count. A shortfall against the eligible count means
+ * projection rows were silently lost somewhere between the RPC succeeding
+ * and the read path; this is the check that catches that class of bug,
+ * independent of whether projectCaseFindings itself reported an error.
+ *
+ * BUG FIX: this used to compare against the raw source-table row count
+ * instead of the eligible count. Some adapters deliberately filter rows in
+ * `build()` — e.g. case_witnesses only projects witnesses with
+ * credibility_risk >= 40 ("a clean witness is not a finding", see ADAPTERS
+ * above) — so a case with e.g. 10 witnesses and only 1 flagged as risky
+ * legitimately projects 1 row. That was being reported as "1/10 mirrored,
+ * 9 lost" and blocking report generation, when nothing was actually lost:
+ * the other 9 were correctly excluded by design. Re-running the same
+ * `build()` filter each adapter's real write path uses (via
+ * buildProjectionRows, not a fresh ad hoc rule) gives the true eligible
+ * count, so only a genuine short-write — eligible rows that never made it
+ * into case_findings — is flagged.
  */
 export async function reconcileProjection(
   db: Db,
@@ -287,9 +301,13 @@ export async function reconcileProjection(
 
   const anyDb = db as unknown as {
     from: (t: string) => {
+      select: (c: string) => {
+        eq: (col: string, v: string) => PromiseLike<{ data: unknown[] | null; error: unknown }>;
+      };
+    } & {
       select: (
         c: string,
-        opts?: { count?: "exact"; head?: boolean },
+        opts: { count: "exact"; head: boolean },
       ) => {
         eq: (col: string, v: string) => PromiseLike<{ count: number | null; error: unknown }>;
       };
@@ -298,8 +316,8 @@ export async function reconcileProjection(
 
   const mismatches: { table: string; source_count: number; projected_count: number }[] = [];
   for (const table of tables) {
-    const [sourceRes, projectedRes] = await Promise.all([
-      anyDb.from(table).select("id", { count: "exact", head: true }).eq("case_id", args.caseId),
+    const [sourceRowsRes, projectedRes] = await Promise.all([
+      anyDb.from(table).select(ADAPTERS[table].select).eq("case_id", args.caseId),
       (
         anyDb.from("case_findings") as unknown as {
           select: (
@@ -317,14 +335,17 @@ export async function reconcileProjection(
         .eq("case_id", args.caseId)
         .eq("source_module", `projection:${table}`),
     ]);
-    const sourceCount = sourceRes.error ? 0 : (sourceRes.count ?? 0);
+    const sourceRows = (sourceRowsRes as { data: unknown[] | null; error: unknown }).error
+      ? []
+      : (((sourceRowsRes as { data: unknown[] | null }).data ?? []) as Record<string, unknown>[]);
+    const eligibleCount = buildProjectionRows(table, sourceRows).length;
     const projectedCount = projectedRes.error ? 0 : (projectedRes.count ?? 0);
-    // Only a genuine shortfall counts — case_findings can legitimately have
-    // more rows than the source table (dedupe/consensus can still leave
-    // multiple projected rows per source row for compound findings), so
-    // only flag when projected < source.
-    if (sourceCount > 0 && projectedCount < sourceCount) {
-      mismatches.push({ table, source_count: sourceCount, projected_count: projectedCount });
+    // Only a genuine shortfall against the ELIGIBLE count counts —
+    // case_findings can legitimately have more rows than eligible (dedupe/
+    // consensus can still leave multiple projected rows per source row for
+    // compound findings), so only flag when projected < eligible.
+    if (eligibleCount > 0 && projectedCount < eligibleCount) {
+      mismatches.push({ table, source_count: eligibleCount, projected_count: projectedCount });
     }
   }
   return { ok: mismatches.length === 0, mismatches };
