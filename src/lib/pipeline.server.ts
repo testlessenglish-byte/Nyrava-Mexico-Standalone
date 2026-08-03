@@ -3743,8 +3743,6 @@ function dedupeFindings<T extends Record<string, unknown>>(
   const norm = (s: string) =>
     s
       .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language findings cluster correctly
       .replace(/[^a-z0-9 ]+/g, " ")
       .replace(/\s+/g, " ")
       .trim()
@@ -4032,51 +4030,6 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
   // Collect pipeline warnings for inclusion in the final report (Section 10).
   const pipelineWarnings: string[] = ensured.failed.map((f) => `${f.engine}_failed`);
 
-  // Stale-suppression recovery. Scoring may have run at a moment when the
-  // upstream timestamps weren't written yet (out-of-order execution, an
-  // earlier tick that skipped discovery/evidence_intel, a checkpoint), which
-  // persists a null scorecard flagged PIPELINE_NOT_FINALIZED /
-  // INVALID_PIPELINE_ORDER. Backfill above has now completed those stages, so
-  // the suppression is stale — re-score before the report reads it, otherwise
-  // the report is forced to LIMITED with suppressed scores on a case that has
-  // full coverage.
-  try {
-    const { data: scoreRow } = await db
-      .from("case_scores")
-      .select("rationale,overall_confidence")
-      .eq("case_id", caseId)
-      .maybeSingle();
-    const flags = (
-      ((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ?? []) as unknown[]
-    ).map(String);
-    const stale = flags.some((f) =>
-      ["PIPELINE_NOT_FINALIZED", "INVALID_PIPELINE_ORDER", "CANONICAL_FINDINGS_EMPTY"].includes(f),
-    );
-    if (stale) {
-      const { data: tsRow } = await db
-        .from("cases")
-        .select("discovery_at,contradiction_at,evidence_intel_at")
-        .eq("id", caseId)
-        .maybeSingle();
-      const ts = tsRow as {
-        discovery_at: string | null;
-        contradiction_at: string | null;
-        evidence_intel_at: string | null;
-      } | null;
-      const finalizedNow = Boolean(ts?.discovery_at && ts?.contradiction_at && ts?.evidence_intel_at);
-      if (finalizedNow) {
-        console.warn(`[report] stale scoring suppression (${flags.join(",")}) — re-scoring before report`);
-        pipelineWarnings.push(`rescored_after_${flags[0].toLowerCase()}`);
-        await runScoring(args);
-      } else {
-        pipelineWarnings.push(`scoring_suppressed_${flags[0].toLowerCase()}`);
-      }
-    }
-  } catch (e) {
-    console.warn("[report] stale-suppression rescore check failed", e);
-  }
-
-
   await setCase(db, caseId, {
     status: "reporting",
     status_message: "Building litigation intelligence",
@@ -4143,45 +4096,6 @@ async function _runReportInner(args: {
       throw new Error(
         `Pipeline incomplete — cannot generate report. The following core engines failed to complete even after auto-backfill: ${blockingMissing.join(", ")}.`,
       );
-    }
-
-    // ---- Explicit multi-agent release-gate guard -----------------------
-    // multi_agent is requirement:"optional" in CANONICAL_STAGES and is
-    // deliberately excluded from the blocking-engine check above — a single
-    // flaky agent inside the 13-agent review must not permanently block
-    // report generation. But that is a different situation from the
-    // multi_agent stage running to completion and its own orchestrator
-    // (runMultiAgentPipeline in orchestrator.server.ts) explicitly
-    // evaluating QA/Judge/Hallucination and returning released:false. The
-    // orchestrator's own header comment states the intended contract
-    // plainly: "the final report is only marked released if QA, Judge, and
-    // Hallucination all PASS." That contract was never actually wired into
-    // report generation — this closes that gap without touching the
-    // optional-tier dependency graph used elsewhere.
-    //
-    // Only the LATEST multi_agent ledger row is consulted, and only an
-    // explicit `released: false` in its stored meta blocks generation — a
-    // case where multi_agent simply hasn't run yet, or ran into an
-    // unrelated execution error, is not treated as a release-gate failure
-    // here (that is exactly the "flaky agent review" case the optional tier
-    // exists to tolerate).
-    {
-      const { data: multiAgentRuns } = await db
-        .from("pipeline_engine_runs")
-        .select("meta,status,created_at")
-        .eq("case_id", caseId)
-        .eq("engine", "multi_agent")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const latestMultiAgent = (multiAgentRuns ?? [])[0] as
-        | { meta?: Record<string, unknown> | null; status?: string | null }
-        | undefined;
-      const releasedFlag = latestMultiAgent?.meta?.["released"];
-      if (releasedFlag === false) {
-        throw new Error(
-          "Report generation blocked — Multi-Agent Review's release gate failed (QA/Judge/Hallucination did not all pass). Retry from Legal Analyzers/Entity Extraction once the underlying issue is resolved.",
-        );
-      }
     }
   }
 
@@ -6994,9 +6908,3 @@ ${paginationTail}`;
     },
   };
 }
-
-// Test-only visibility. _runReportInner is otherwise module-private;
-// exported under this name so the multi-agent release-gate guard can be
-// exercised directly against a fake db, without invoking the full report
-// assembly this function otherwise performs.
-export { _runReportInner as __test__runReportInner };

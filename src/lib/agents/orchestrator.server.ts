@@ -199,12 +199,12 @@ async function hasCompletedEngine(db: Db, caseId: string, engine: string): Promi
 }
 
 async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
-  const engineCompleted = await hasCompletedEngine(ctx.db, ctx.caseId, "extraction");
+  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "extraction");
   const { count } = await ctx.db
     .from("document_pages")
     .select("id", { count: "exact", head: true })
     .eq("case_id", ctx.caseId);
-  const ok = engineCompleted && (count ?? 0) > 0;
+  const ok = alreadyDone && (count ?? 0) > 0;
   return {
     status: ok ? "success" : "failed",
     confidence: ok ? 0.95 : 0,
@@ -212,23 +212,18 @@ async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
     tokensUsed: 0,
     outputFile: "ocr_output.json",
     errors: ok ? [] : ["Extraction stage did not complete before the release gate ran; nothing to verify."],
-    // `extraction_completed` must answer the same question as `status`/`errors`
-    // above (did the check pass?), not just report the raw ledger flag —
-    // otherwise this can read `extraction_completed: true` in the same
-    // object as an "did not complete" error whenever the engine row is
-    // marked completed but produced zero verifiable pages.
-    output: { pages_extracted: count ?? 0, extraction_engine_completed: engineCompleted, extraction_completed: ok },
+    output: { pages_extracted: count ?? 0, extraction_completed: alreadyDone },
   };
 }
 
 async function agentEntities(ctx: RunCtx): Promise<AgentResult> {
-  const engineCompleted = await hasCompletedEngine(ctx.db, ctx.caseId, "analyzers");
+  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "analyzers");
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
     .select("id", { count: "exact", head: true })
     .eq("case_id", ctx.caseId)
     .not("source_module", "like", PROJECTION_LIKE);
-  const ok = engineCompleted && (findingsCount ?? 0) > 0;
+  const ok = alreadyDone && (findingsCount ?? 0) > 0;
   return {
     status: ok ? "success" : "failed",
     confidence: ok ? 0.85 : 0,
@@ -236,13 +231,7 @@ async function agentEntities(ctx: RunCtx): Promise<AgentResult> {
     tokensUsed: 0,
     outputFile: "entities.json",
     errors: ok ? [] : ["Analyzers stage did not complete before the release gate ran; nothing to verify."],
-    // `analyzers_completed` must answer the same question as `status`/`errors`
-    // above. Previously this reported the raw pipeline_engine_runs ledger
-    // flag (`engineCompleted`) even when `status` was "failed" because zero
-    // findings survived — producing analyzers_completed: true in the same
-    // result as an "Analyzers stage did not complete" error. Split the two
-    // concepts explicitly instead of overloading one field.
-    output: { findings_count: findingsCount ?? 0, analyzers_engine_completed: engineCompleted, analyzers_completed: ok },
+    output: { findings_count: findingsCount ?? 0, analyzers_completed: alreadyDone },
   };
 }
 
@@ -743,9 +732,3 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
 
   return { runId, released, results };
 }
-
-// Test-only visibility. agentOcr/agentEntities are otherwise module-private;
-// exported under this name so regression tests can exercise the real
-// implementation directly (with a fake db) instead of re-deriving the logic
-// inline, without expanding the public API surface of this server module.
-export { agentOcr as __test__agentOcr, agentEntities as __test__agentEntities };

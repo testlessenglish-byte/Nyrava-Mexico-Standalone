@@ -202,7 +202,6 @@ export async function runTheoryEngine(args: {
   const { applyEvidenceGate, getAnalysisMode, textMatchesCaseType } = await import("./evidence-gate.server");
   const { buildGroundingCorpus } = await import("./grounding.server");
   const { resolveCaseType, isCriminalCaseType } = await import("../pipeline.server");
-  const { mxPartyRoleEnum, MX_PARTY_ROLES, requireMxProfile, mxRoleLabel } = await import("../execution/mx-pipeline");
   const mode = await getAnalysisMode(db, caseId);
   const caseType = await resolveCaseType(db, caseId, ctx.corpus.slice(0, 4000));
   const civil = !isCriminalCaseType(caseType);
@@ -216,27 +215,7 @@ export async function runTheoryEngine(args: {
       .filter((d) => d.status === "extracted")
       .map((d) => ({ id: d.id as string, filename: d.filename, extracted_text: d.extracted_text })),
   );
-  // Root fix: this previously offered the model a hardcoded, English,
-  // civil/criminal-binary enum ("plaintiff"|"defense"|"alternative" or
-  // "prosecution"|"defense"|"alternative") with no awareness of the
-  // actual parties or materia. For any non-criminal-litigation materia
-  // (administrativo, amparo, laboral, fiscal, familiar...) this is simply
-  // wrong vocabulary, and — critically — it has only two real-party slots,
-  // so a genuine third party (tercero interesado) had nowhere correct to
-  // go and got folded into "plaintiff" merely for not being the authority.
-  // mxPartyRoleEnum already encodes the correct, materia-specific Mexican
-  // procedural roles (including a third slot for materias where a tercero
-  // interesado is common — administrativo, amparo) and is already the
-  // established vocabulary every other engine's affected_party field uses
-  // (contradictions/missing_evidence/key_findings in this same file).
-  // Confirmed via a real production case: San Baltazar Spirits vs. IMPI
-  // (TFJA nulidad), tercero interesado Palenque Xquenda — Palenque's
-  // theory was rendered as "PLAINTIFF theory" solely because the old enum
-  // had no other slot for a private party that isn't the authority.
-  const profile = requireMxProfile(caseType);
-  const roles = MX_PARTY_ROLES[profile];
-  const validTheoryTypes = new Set([roles.a, roles.b, roles.c, roles.neutral].filter(Boolean) as string[]);
-  const allowedTheoryTypes = mxPartyRoleEnum(caseType);
+  const allowedTheoryTypes = civil ? `"plaintiff"|"defense"|"alternative"` : `"prosecution"|"defense"|"alternative"`;
   const caseFrame = civil
     ? `This is a CIVIL matter (case_type=${caseType}). NEVER produce a "prosecution" theory. Use civil terminology only.`
     : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology only — Ministerio Público, imputado, víctima u ofendido, sentencia condenatoria/absolutoria. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady).`;
@@ -253,8 +232,6 @@ export async function runTheoryEngine(args: {
       'Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ' +
       "Output STRICT JSON only.",
     userContent: `${caseFrame}
-
-theory_type MUST be the REAL Mexican procedural role of the specific named party this theory favors, as identified from the corpus and case analysis below — NOT a generic guess. If the corpus identifies a tercero interesado (a party who is neither the promovente/particular nor the responding authority — e.g. the original administrative complainant or beneficiary of a challenged act in an IMPI/TFJA nulidad, or the beneficiary of a challenged act in an amparo), a theory favoring that party's position MUST use the tercero_interesado role, never the promovente/particular role.
 
 Return STRICT JSON. Every theory MUST include a "citations" array with AT LEAST 2 verbatim quotes copied from the corpus.
 If you cannot back a theory with 2 verbatim quotes, omit it. An empty array is a valid response.
@@ -303,18 +280,16 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parsed = parseJsonLoose<{ theories?: Array<Theory & { citations?: any[] }> }>(r.text) ?? {};
   const rawTheories = (parsed.theories ?? []).filter((t) => {
-    // Reject any theory_type the model invented outside this materia's real
-    // role set (replaces the old civil-only "drop prosecution theories"
-    // check, which no longer applies now that theory_type is the real
-    // Mexican role vocabulary for every materia, not just penal).
-    if (!validTheoryTypes.has(String(t.theory_type ?? ""))) return false;
+    // Drop prosecution theories from civil matters and any theory whose text
+    // contains criminal-only vocabulary in a civil case.
+    if (civil && String(t.theory_type ?? "").toLowerCase() === "prosecution") return false;
     return textMatchesCaseType(`${t.theory_type ?? ""} ${t.narrative ?? ""}`, caseType);
   });
 
   // Gate every theory through the evidence validator. Strict mode requires
   // verbatim corpus support; rejected theories are simply not persisted.
   const gateInput = rawTheories.map((t) => ({
-    title: `${mxRoleLabel(t.theory_type)} theory`,
+    title: `${t.theory_type ?? "theory"} theory`,
     description: t.narrative ?? "",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     citations: (t.citations as any) ?? [],
@@ -377,20 +352,18 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
       user_id: userId,
       source_module: `engine:theory:${t.theory_type}`,
       category: "theory",
-      title: `Teoría — ${mxRoleLabel(t.theory_type)}`,
+      title: `${String(t.theory_type ?? "theory").toUpperCase()} theory of the case`,
       description: t.narrative ?? "",
       severity: "info" as const,
       confidence: typeof t.confidence === "number" ? t.confidence : 0.5,
       legal_significance: `Competing case theory (${t.theory_type})`,
       potential_impact: t.risk ?? null,
-      // theory_type IS the real, materia-aware Mexican procedural role
-      // (mxPartyRoleEnum) as of this fix — persist it directly instead of
-      // remapping through the old hardcoded defense/prosecution/both
-      // vocabulary, which was itself the root of the mislabeling bug and
-      // was inconsistent with how every other engine in this file writes
-      // affected_party (contradictions/missing_evidence/key_findings all
-      // already use the real mxPartyRoleEnum value untransformed).
-      affected_party: t.theory_type ?? null,
+      affected_party:
+        t.theory_type === "defense"
+          ? "defense"
+          : String(t.theory_type) === "prosecution" || String(t.theory_type) === "plaintiff"
+            ? "prosecution"
+            : "both",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ...({
         finding_type: gated[idx]?.finding_type,

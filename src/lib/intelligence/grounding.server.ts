@@ -44,12 +44,6 @@ export type GroundingCorpus = {
 function norm(s: string): string {
   return s
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // fold accents (José -> jose) before ASCII filtering below,
-    // otherwise Spanish-language quotes and corpus text diverge whenever an
-    // LLM-produced citation drops/retypes a diacritic that the source text
-    // carries (or vice versa), causing verifyQuoteDetailed() to reject a
-    // substantively correct quote — see docs/BASELINE.md incident notes.
     .replace(/[\u2010-\u2015]/g, " ")
     .replace(/\s+/g, " ")
     .replace(/[\u2018\u2019]/g, "'")

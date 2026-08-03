@@ -131,19 +131,7 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   familiar: ["constitutional"],
   mercantil: ["constitutional"],
   fiscal: ["constitutional"],
-  // Juicio contencioso administrativo (TFJA, LFPCA): resolved on the written
-  // expediente — demanda, contestación, pruebas documentales, alegatos,
-  // sentencia. No live witness examination in the adversarial-trial sense
-  // (testimonial evidence is rare and, where offered, resolved by written
-  // interrogatorio, not cross-examination) and no oral trial with opening/
-  // closing statements to a fact-finder. Same rationale already applied to
-  // amparo and apelacion below — this was a gap, not an intentional
-  // difference: trial_prep's engine (engines.server.ts) literally produces
-  // opening_themes/closing_themes/witness_order/exhibit_order, none of
-  // which map onto a TFJA nullity action. Also fixes electoral and
-  // ambiental, which route through this same profile
-  // (PROFILE_BY_MATERIA above).
-  administrativo: ["constitutional", "witness", "trial_prep"],
+  administrativo: ["constitutional"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
   apelacion: ["constitutional", "witness", "trial_prep"],
   // Cierre inmobiliario: transaccional, no contencioso. Sin partes
@@ -199,31 +187,16 @@ export function isStageRelevantForCaseType(caseType: string | null | undefined, 
  * build the AI-facing JSON schema's affected_party enum dynamically instead
  * of a fixed English pair.
  */
-export const MX_PARTY_ROLES: Record<
-  MxPipelineProfile,
-  { a: string; b: string; c?: string; neutral: string }
-> = {
+export const MX_PARTY_ROLES: Record<MxPipelineProfile, { a: string; b: string; neutral: string }> = {
   penal: { a: "ministerio_publico", b: "defensa", neutral: "ambas" },
-  // Amparo routinely has a tercero interesado (e.g. the beneficiary of the
-  // challenged act) distinct from both quejoso and autoridad responsable —
-  // without a third slot the model has nowhere correct to put that party.
-  amparo: { a: "quejoso", b: "autoridad_responsable", c: "tercero_interesado", neutral: "ambas" },
+  amparo: { a: "quejoso", b: "autoridad_responsable", neutral: "ambas" },
   derechos_humanos: { a: "quejoso", b: "autoridad_responsable", neutral: "ambas" },
   laboral: { a: "trabajador", b: "patron", neutral: "ambas" },
   civil: { a: "parte_actora", b: "parte_demandada", neutral: "ambas" },
   familiar: { a: "parte_actora", b: "parte_demandada", neutral: "ambas" },
   mercantil: { a: "parte_actora", b: "parte_demandada", neutral: "ambas" },
   fiscal: { a: "contribuyente", b: "autoridad_fiscal", neutral: "ambas" },
-  // Juicio contencioso administrativo de nulidad (TFJA) commonly has a
-  // tercero interesado — e.g. an IMPI nullity action brought by the
-  // sanctioned/rejected party (particular) against the authority
-  // (autoridad), where the original administrative complainant or the
-  // holder of the challenged registration is a third party with its own
-  // procedural standing, not the plaintiff and not the authority. Confirmed
-  // via a real production case (San Baltazar Spirits vs. IMPI, tercero:
-  // Palenque Xquenda) where the absence of this third slot caused the
-  // tercero's position to be misclassified as the plaintiff's.
-  administrativo: { a: "particular", b: "autoridad", c: "tercero_interesado", neutral: "ambas" },
+  administrativo: { a: "particular", b: "autoridad", neutral: "ambas" },
   apelacion: { a: "apelante", b: "apelado", neutral: "ambas" },
   inmobiliario: { a: "comprador", b: "vendedor", neutral: "ambas" },
 };
@@ -231,20 +204,7 @@ export const MX_PARTY_ROLES: Record<
 /** JSON-schema-ready enum string, e.g. `"parte_actora"|"parte_demandada"|"ambas"`, for a given case type. */
 export function mxPartyRoleEnum(caseType: string | null | undefined): string {
   const r = MX_PARTY_ROLES[requireMxProfile(caseType)];
-  const c = r.c ? `|"${r.c}"` : "";
-  return `"${r.a}"|"${r.b}"${c}|"${r.neutral}"`;
-}
-
-/** Human-readable label for a snake_case Mexican role slug, e.g.
- *  "tercero_interesado" -> "Tercero Interesado". These slugs are already
- *  valid Spanish terms (see MX_PARTY_ROLES), so a title-case formatter is
- *  sufficient — no separate translation table needed. */
-export function mxRoleLabel(slug: string | null | undefined): string {
-  return String(slug ?? "")
-    .split("_")
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ") || "Theory";
+  return `"${r.a}"|"${r.b}"|"${r.neutral}"`;
 }
 
 /**
@@ -256,12 +216,10 @@ export function mxRoleLabel(slug: string | null | undefined): string {
  */
 const SKIP_REASON_KEYS: Record<string, Partial<Record<MxPipelineProfile, string>>> = {
   witness: {
-    administrativo: "pipeline.skip.witness.administrativo",
     amparo: "pipeline.skip.witness.amparo",
     apelacion: "pipeline.skip.witness.apelacion",
   },
   trial_prep: {
-    administrativo: "pipeline.skip.trial_prep.administrativo",
     amparo: "pipeline.skip.trial_prep.amparo",
     apelacion: "pipeline.skip.trial_prep.apelacion",
   },

@@ -1112,11 +1112,12 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "ResumePipeline");
-    const { PIPELINE_STAGE_TO_ENGINE, CANONICAL_STAGES } = await import("@/lib/execution/canonical");
+    const { PIPELINE_STAGE_TO_ENGINE } = await import("@/lib/execution/canonical");
     const stageKeys = new Set<string>(PIPELINE_STAGES.map((s) => s.key));
-    const blockingStageKeys = new Set<string>(
-      CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.key),
-    );
+    // Honor a persisted checkpoint first. The background worker stores the
+    // exact next stage in cases.next_stage; recomputing from the ledger alone
+    // can fall back to extraction when a checkpoint row is queued/skipped or a
+    // prior ledger row was swept.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: caseRow, error: caseErr } = await (supabase as any)
       .from("cases")
@@ -1139,75 +1140,49 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
     }
 
     const persistedNext = typeof caseRow.next_stage === "string" ? caseRow.next_stage : null;
-    const persistedCandidate =
-      persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext) ? persistedNext : undefined;
-
-    // Always compute the ledger-derived state — this is the single source of
-    // truth for what has actually completed (docs/ARCHITECTURE.md §1), and is
-    // now used unconditionally as a floor under the persisted checkpoint, not
-    // only as a fallback when the checkpoint is absent. A persisted
-    // `cases.next_stage` value is a performance optimization (avoids
-    // recomputing from the ledger on every resume for large cases) but must
-    // never be trusted to skip past a blocking-tier stage that the ledger
-    // shows incomplete — that was possible before this change and is the
-    // class of bug that can produce next_stage=trial_prep (or any later
-    // stage) while a required earlier stage (e.g. analyzers) never
-    // completed.
+    let resumeKey =
+      persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext)
+        ? persistedNext
+        : undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: rows, error: rowsErr } = await (supabase as any)
       .from("pipeline_engine_runs")
       .select("engine,status,ended_at,created_at")
       .eq("case_id", data.caseId);
     if (rowsErr) throw new Error(rowsErr.message);
-
-    const latest = new Map<
-      string,
-      { status: string; created_at?: string | null; ended_at?: string | null }
-    >();
-    for (const r of (rows ?? []) as Array<{
-      engine: string;
-      status: string;
-      created_at?: string | null;
-      ended_at?: string | null;
-    }>) {
-      const prev = latest.get(r.engine);
-      const pt = new Date(prev?.created_at ?? prev?.ended_at ?? 0).getTime();
-      const rt = new Date(r.created_at ?? r.ended_at ?? 0).getTime();
-      if (!prev || rt >= pt) latest.set(r.engine, r);
-    }
-    const completed = new Set<string>();
-    for (const [engine, row] of latest) {
-      if (row.status === "completed" || row.status === "completed_negative" || row.status === "skipped")
-        completed.add(engine);
-    }
-
-    // Earliest incomplete stage, and separately the earliest incomplete
-    // BLOCKING stage — the latter is the hard floor no checkpoint may skip.
-    let ledgerResumeKey: string | undefined;
-    let earliestIncompleteBlockingKey: string | undefined;
-    for (const s of PIPELINE_STAGES) {
-      const engine = PIPELINE_STAGE_TO_ENGINE[s.key];
-      const isIncomplete = !engine || !completed.has(engine);
-      if (isIncomplete && !ledgerResumeKey) ledgerResumeKey = s.key;
-      if (isIncomplete && blockingStageKeys.has(s.key) && !earliestIncompleteBlockingKey) {
-        earliestIncompleteBlockingKey = s.key;
+    if (!resumeKey) {
+      const latest = new Map<
+        string,
+        { status: string; created_at?: string | null; ended_at?: string | null }
+      >();
+      for (const r of (rows ?? []) as Array<{
+        engine: string;
+        status: string;
+        created_at?: string | null;
+        ended_at?: string | null;
+      }>) {
+        const prev = latest.get(r.engine);
+        const pt = new Date(prev?.created_at ?? prev?.ended_at ?? 0).getTime();
+        const rt = new Date(r.created_at ?? r.ended_at ?? 0).getTime();
+        if (!prev || rt >= pt) latest.set(r.engine, r);
       }
-    }
-
-    let resumeKey: string | undefined;
-    if (
-      earliestIncompleteBlockingKey &&
-      (!persistedCandidate ||
-        PIPELINE_STAGES.findIndex((s) => s.key === persistedCandidate) >
-          PIPELINE_STAGES.findIndex((s) => s.key === earliestIncompleteBlockingKey))
-    ) {
-      // The checkpoint (if any) would skip past an incomplete required
-      // stage — refuse it and resume at the required stage instead.
-      resumeKey = earliestIncompleteBlockingKey;
-    } else if (persistedCandidate) {
-      resumeKey = persistedCandidate;
-    } else {
-      resumeKey = ledgerResumeKey;
+      const completed = new Set<string>();
+      for (const [engine, row] of latest) {
+        if (
+          row.status === "completed" ||
+          row.status === "completed_negative" ||
+          row.status === "skipped"
+        )
+          completed.add(engine);
+      }
+      // Walk stages in order; first stage whose mapped engine isn't completed is the resume point.
+      for (const s of PIPELINE_STAGES) {
+        const engine = PIPELINE_STAGE_TO_ENGINE[s.key];
+        if (!engine || !completed.has(engine)) {
+          resumeKey = s.key;
+          break;
+        }
+      }
     }
     if (!resumeKey) {
       return { ok: true, alreadyComplete: true };
@@ -2879,96 +2854,6 @@ export const getMotionDrafts = createServerFn({ method: "POST" })
     return { drafts: await fetchDrafts(supabase, data.caseId) };
   });
 
-// Metadata fields safe to return for a quality_blocked report — enough for
-// the UI to render an accurate "blocked" state (report exists, here's why),
-// nothing that constitutes report content export.ts could render into a
-// PDF/DOCX. Every other column on `reports` is substantive content and is
-// stripped to null. New columns added to `reports` are content by default
-// (not returned when blocked) unless explicitly added to this allowlist —
-// deliberately fail-closed rather than fail-open.
-const BLOCKED_REPORT_METADATA_ALLOWLIST = new Set([
-  "id",
-  "case_id",
-  "user_id",
-  "created_at",
-  "updated_at",
-  "version",
-  "quality_blocked",
-  "quality_block_reasons",
-  "report_mode",
-  "generated_language",
-  "intelligence_version",
-  "canonical_version",
-  "change_log",
-]);
-
-export function sanitizeBlockedReport<T extends Record<string, unknown> | null | undefined>(
-  report: T,
-  opts?: { stale?: boolean },
-): T {
-  if (!report) return report;
-  const blocked = !!report.quality_blocked;
-  const stale = !!opts?.stale;
-  if (!blocked && !stale) return report;
-  const sanitized: Record<string, unknown> = {};
-  for (const key of Object.keys(report)) {
-    sanitized[key] = BLOCKED_REPORT_METADATA_ALLOWLIST.has(key) ? report[key] : null;
-  }
-  if (stale && !blocked) {
-    // Distinguish "blocked by the quality gate" from "stale relative to a
-    // later pipeline run" — same content-stripping treatment, different
-    // reason, so the UI can show accurate messaging instead of conflating
-    // the two. quality_blocked itself is left as whatever the row actually
-    // says (usually false here) since that reflects the report's own
-    // release-gate outcome, not this endpoint's freshness judgment.
-    sanitized.stale = true;
-    sanitized.stale_reason =
-      "A required pipeline stage completed more recently than this report was generated.";
-  }
-  return sanitized as T;
-}
-
-/**
- * Whether the case's single `reports` row (see the UNIQUE constraint on
- * reports.case_id — there is never more than one, so "which version is
- * active" is not the ambiguity; staleness is) predates the most recent
- * completion of any blocking-tier pipeline stage for this case.
- *
- * reports is a singleton updated in place, not re-created per run, and
- * nothing currently invalidates it when an earlier stage is retried after
- * the report already exists. If a case is resumed (e.g. re-running
- * analyzers after fixing an upstream issue) and, for any reason, the
- * report stage itself doesn't re-run afterward, the old reports row keeps
- * describing a superseded analysis with no signal to the reader that it's
- * out of date.
- *
- * Deliberately fail-closed on missing timestamps: if the report has no
- * updated_at/created_at, or a blocking engine's latest row has no
- * timestamp, that comparison is skipped rather than assumed fresh.
- */
-export function isReportStale(
-  report: { updated_at?: string | null; created_at?: string | null } | null | undefined,
-  pipelineRuns: Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
-  blockingEngines: ReadonlySet<string>,
-): boolean {
-  if (!report) return false;
-  const reportTime = Date.parse((report.updated_at || report.created_at) ?? "");
-  if (!Number.isFinite(reportTime)) return false;
-
-  const latestByEngine = new Map<string, number>();
-  for (const row of pipelineRuns) {
-    if (!blockingEngines.has(row.engine)) continue;
-    const t = Date.parse((row.ended_at || row.created_at) ?? "");
-    if (!Number.isFinite(t)) continue;
-    const prev = latestByEngine.get(row.engine) ?? -Infinity;
-    if (t > prev) latestByEngine.set(row.engine, t);
-  }
-  for (const t of latestByEngine.values()) {
-    if (t > reportTime) return true;
-  }
-  return false;
-}
-
 export const getCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
@@ -3060,40 +2945,13 @@ export const getCase = createServerFn({ method: "POST" })
       .maybeSingle();
     const canonicalCurrentVersion =
       Number((canonRow as { version?: number } | null)?.version ?? NaN) || null;
-    // Backend enforcement of the frozen release contract (docs/FREEZE.md:
-    // "A report with quality_blocked=true must never produce a downloadable
-    // PDF or DOCX"). PDF/DOCX generation happens client-side in export.ts
-    // from data this endpoint supplies — there is no separate server-side
-    // export endpoint to gate. Previously that contract was enforced only in
-    // the frontend route component (cases.$caseId.tsx checking
-    // report.quality_blocked), which a direct call to this server function
-    // could bypass entirely. Strip every substantive content field down to
-    // an explicit metadata allowlist when blocked, so the UI can still show
-    // "blocked" state accurately but cannot construct a real PDF/DOCX from
-    // the response. This is a change to the endpoint response shape for
-    // blocked reports only — unblocked reports are returned unchanged.
-    // PR A item 2: a report is stale if any blocking-tier stage completed
-    // more recently than the report itself — see isReportStale's doc
-    // comment for why this matters (reports is a singleton row, never
-    // re-created per run, and nothing else currently invalidates it after
-    // an upstream retry).
-    const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
-    const blockingEngines = new Set(
-      CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.engine),
-    );
-    const reportIsStale = isReportStale(
-      report.data as { updated_at?: string | null; created_at?: string | null } | null,
-      (pipelineRuns.data ?? []) as Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
-      blockingEngines,
-    );
-    const sanitizedReport = sanitizeBlockedReport(report.data, { stale: reportIsStale });
     return {
       case: c.data,
       documents: docs.data ?? [],
       analysis: analysis.data,
       agents: agents.data ?? [],
       score: score.data,
-      report: sanitizedReport,
+      report: report.data,
       canonical_current_version: canonicalCurrentVersion,
       // Apply the same canonical inclusion rule used for the report's cover-page
       // counters (getCanonicalScoringFindings / getFindingCounters): only
