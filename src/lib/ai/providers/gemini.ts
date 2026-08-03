@@ -123,64 +123,108 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
       assertCheckpointBudget(`before gemini fetch ${model}`);
       const scopedTimeoutMs = aiCallTimeoutForCheckpoint(`gemini fetch ${model}`);
       const timeoutMs = Math.max(1_000, Math.min(o.timeoutMs ?? scopedTimeoutMs ?? PROVIDER_TIMEOUT_MS, PROVIDER_TIMEOUT_MS));
-      const to = withTimeout(o.signal, timeoutMs);
       const userText = typeof o.userContent === "string"
         ? o.userContent
         : o.userContent.map(p => p.type === "text" ? p.text : "").join("\n");
-      const body: Record<string, unknown> = {
-        contents: [{ role: "user", parts: [{ text: userText }] }],
-        generationConfig: {
-          temperature: o.temperature ?? 0.2,
-          maxOutputTokens: Math.min(o.maxTokens ?? 4096, 8192),
-          ...(o.json ? { responseMimeType: "application/json" } : {}),
-          // JSON-mode callers (analyzers, scoring, report structuring, etc.)
-          // need reliable structured extraction, not open-ended reasoning.
-          // Without this, "thinking" models (gemini-flash-latest and similar)
-          // spend most/all of maxOutputTokens on invisible internal reasoning
-          // before writing the JSON, leaving a small, roughly constant
-          // remainder for the actual answer — a technically-successful call
-          // (ok:true) that returns next to nothing, on every call, regardless
-          // of prompt size. See docs incident trace 2026-08-02 (analyzers
-          // stage returning empty findings for every case that drew Gemini).
-          ...(o.json ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
-        },
+
+      const buildBody = (includeThinkingConfig: boolean): Record<string, unknown> => {
+        const body: Record<string, unknown> = {
+          contents: [{ role: "user", parts: [{ text: userText }] }],
+          generationConfig: {
+            temperature: o.temperature ?? 0.2,
+            maxOutputTokens: Math.min(o.maxTokens ?? 4096, 8192),
+            ...(o.json ? { responseMimeType: "application/json" } : {}),
+            // JSON-mode callers (analyzers, scoring, report structuring, etc.)
+            // need reliable structured extraction, not open-ended reasoning.
+            // Without this, "thinking" models (gemini-flash-latest and similar)
+            // spend most/all of maxOutputTokens on invisible internal reasoning
+            // before writing the JSON, leaving a small, roughly constant
+            // remainder for the actual answer — a technically-successful call
+            // (ok:true) that returns next to nothing, on every call, regardless
+            // of prompt size. See docs incident trace 2026-08-02 (analyzers
+            // stage returning empty findings for every case that drew Gemini).
+            ...(o.json && includeThinkingConfig ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          },
+        };
+        if (o.systemInstruction) body.systemInstruction = { parts: [{ text: o.systemInstruction }] };
+        return body;
       };
-      if (o.systemInstruction) body.systemInstruction = { parts: [{ text: o.systemInstruction }] };
-      const aiCallId = `gemini-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      const promptSha256 = hashBody(body);
-      const engine = currentTelemetryScope()?.replay?.engine;
-      let res: Response;
-      try {
-        traceAsync({
-          phase: "ai",
-          step: "provider.request",
-          status: "start",
-          provider: "gemini",
-          model,
-          detail: { ai_call_id: aiCallId, engine: typeof engine === "string" ? engine : null, prompt_sha256: promptSha256 },
-        });
-        res = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          signal: to.signal,
-        });
-      } catch (e) {
+
+      // 2026-08-03: `thinkingConfig` isn't uniformly supported across every
+      // model/alias behind "gemini-flash-latest" — Google silently rotates
+      // what that alias resolves to, and not every generation recognizes the
+      // field. When it doesn't, Gemini rejects the ENTIRE request with a
+      // generic, undetailed "HTTP 400: Request contains an invalid
+      // argument." — indistinguishable from any other malformed-request 400
+      // from the message alone. This was firing on effectively every single
+      // JSON-mode call across every engine in a real production session
+      // (confirmed via pipeline_engine_runs telemetry — analyzers, theory,
+      // witness_credibility, report_generator all showed the identical
+      // error on both configured keys before falling back to openrouter),
+      // silently doubling or tripling the latency of nearly every pipeline
+      // stage and making long operations (like a full case Rerun) feel like
+      // they'd hung even though they were still grinding forward through
+      // fallback providers. Retrying the SAME model once with the
+      // thinking-disable field simply omitted (a request shape every Gemini
+      // model accepts) is a targeted, low-risk recovery: if the 400 was
+      // caused by something else entirely, this retry just fails the same
+      // way and falls through to the existing provider-fallback chain
+      // unchanged — it cannot make a genuine failure worse, and it directly
+      // removes the most common source of wasted round-trips when it is the
+      // cause.
+      const doFetch = async (includeThinkingConfig: boolean) => {
+        const body = buildBody(includeThinkingConfig);
+        const to = withTimeout(o.signal, timeoutMs);
+        const aiCallId = `gemini-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const promptSha256 = hashBody(body);
+        const engine = currentTelemetryScope()?.replay?.engine;
+        let res: Response;
+        try {
+          traceAsync({
+            phase: "ai",
+            step: "provider.request",
+            status: "start",
+            provider: "gemini",
+            model,
+            detail: { ai_call_id: aiCallId, engine: typeof engine === "string" ? engine : null, prompt_sha256: promptSha256 },
+          });
+          res = await fetch(`${baseUrl}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: to.signal,
+          });
+        } catch (e) {
+          to.cancel();
+          const message = to.timedOut() ? `gemini timed out after ${timeoutMs}ms` : (e instanceof Error ? e.message : String(e));
+          traceAsync({
+            phase: "ai",
+            step: "provider.request",
+            status: "error",
+            provider: "gemini",
+            model,
+            durationMs: Date.now() - t0,
+            error: message,
+            detail: { ai_call_id: aiCallId, engine: typeof engine === "string" ? engine : null, prompt_sha256: promptSha256 },
+          });
+          throw new Error(message);
+        }
         to.cancel();
-        const message = to.timedOut() ? `gemini timed out after ${timeoutMs}ms` : (e instanceof Error ? e.message : String(e));
-        traceAsync({
-          phase: "ai",
-          step: "provider.request",
-          status: "error",
-          provider: "gemini",
-          model,
-          durationMs: Date.now() - t0,
-          error: message,
-          detail: { ai_call_id: aiCallId, engine: typeof engine === "string" ? engine : null, prompt_sha256: promptSha256 },
-        });
-        throw new Error(message);
+        return { res, aiCallId, promptSha256, engine };
+      };
+
+      let { res, aiCallId, promptSha256, engine } = await doFetch(Boolean(o.json));
+      if (!res.ok && res.status === 400 && o.json) {
+        const probe = (await res.clone().text().catch(() => "")).toLowerCase();
+        if (probe.includes("invalid argument")) {
+          const retried = await doFetch(false);
+          res = retried.res;
+          aiCallId = retried.aiCallId;
+          promptSha256 = retried.promptSha256;
+          engine = retried.engine;
+        }
       }
-      to.cancel();
+
       assertCheckpointBudget(`after gemini fetch ${model}`);
       const latencyMs = Date.now() - t0;
       const providerRequestId =
