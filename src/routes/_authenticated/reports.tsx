@@ -55,29 +55,6 @@ function ReportsPage() {
     enabled: !!caseId,
   });
 
-  // FIX (2026-08-03): this page fetches once (no refetchInterval at all —
-  // even less protection than the case detail page had before its own
-  // fix), so `data` can be arbitrarily stale by the time someone clicks
-  // download: minutes old if they opened this page early and left it open
-  // while a run finished elsewhere, not just a few seconds. Confirmed
-  // against a real case: the database's report_mode was unambiguously FULL
-  // (ESS Full Analysis override triggered, scores/motions unsuppressed),
-  // but a PDF downloaded from this page still rendered LIMITADO. Same root
-  // cause and same fix as cases.$caseId.tsx's buildFreshExportData(): force
-  // one fresh fetch immediately before building the export payload, instead
-  // of trusting whatever this page happened to load with. This was a
-  // second, independent download path that fix never reached.
-  const buildFreshExportData = async (): Promise<CaseExportData> => {
-    if (!caseId) return data as CaseExportData;
-    try {
-      const fresh = await fetchCase({ data: { caseId } });
-      return fresh as unknown as CaseExportData;
-    } catch (e) {
-      console.warn("[export] fresh refetch before download failed — using last-loaded data", e);
-      return data as CaseExportData;
-    }
-  };
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const report = data?.report as any;
   const name = (data?.case as any)?.name ?? t("reports.export.defaultCaseName");
@@ -207,7 +184,7 @@ function ReportsPage() {
                     onClick={() =>
                       run(async () => {
                         const { downloadPdf } = await import("@/lib/export");
-                        return downloadPdf(await buildFreshExportData(), name);
+                        return downloadPdf(data as CaseExportData, name);
                       }, "reports.export.pdf")
                     }
                     className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"
@@ -219,7 +196,7 @@ function ReportsPage() {
                     onClick={() =>
                       run(async () => {
                         const { downloadDocx } = await import("@/lib/export");
-                        return downloadDocx(await buildFreshExportData(), name);
+                        return downloadDocx(data as CaseExportData, name);
                       }, "reports.export.docx")
                     }
                     className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"
@@ -231,7 +208,7 @@ function ReportsPage() {
                     onClick={() =>
                       run(async () => {
                         const { downloadJson } = await import("@/lib/export");
-                        return downloadJson(await buildFreshExportData(), name);
+                        return downloadJson(data as CaseExportData, name);
                       }, "reports.export.json")
                     }
                     className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"

@@ -131,39 +131,6 @@ export function verifyQuote(quote: string, corpus: GroundingCorpus): boolean {
   return verifyQuoteDetailed(quote, corpus).verified;
 }
 
-// A quote can legitimately verify against the FULL corpus (this function's
-// job) while the model's self-reported `doc_n` for it is simply wrong —
-// with a large multi-document corpus, LLMs frequently miscount which
-// document they're citing (a cover page or index file alone is enough to
-// shift every subsequent doc_n by one). Blindly trusting doc_n to assign
-// document_id produced real, verified findings attributed to the WRONG
-// document: invisible at write time (this check only confirms the quote
-// exists *somewhere*), but fatal later — runHallucinationReview() (see
-// hallucination.server.ts) re-verifies each finding's quote against ONLY
-// its recorded source_document_id's own text, so a correct quote with a
-// mis-attributed document_id fails that stricter, per-document check even
-// though nothing was fabricated. Confirmed against a real case: 6 of 8
-// findings failed Hallucination Review and blocked the release gate, while
-// every one of their quotes verified cleanly against the full corpus in
-// isolation — the quotes were real, the doc_n attributions weren't.
-//
-// Fix: confirm the quote against the CLAIMED document's own text first
-// (cheap, and correct in the common case); if that specific document
-// doesn't actually contain it, search the other candidate documents for
-// the one that does, and attach that instead of the model's guess.
-function findOwningDoc(
-  quote: string,
-  corpus: GroundingCorpus,
-  claimedDocN: number | null,
-): { doc_n: number; document_id: string; filename: string } | null {
-  const claimed = claimedDocN ? corpus.docs.find((d) => d.doc_n === claimedDocN) : null;
-  const docContains = (d: GroundingCorpus["docs"][number]) =>
-    verifyQuoteDetailed(quote, { text: norm(d.pages.join("\n")), docs: [] }).verified;
-  if (claimed && docContains(claimed)) return claimed;
-  const actual = corpus.docs.find(docContains);
-  return actual ?? claimed ?? null;
-}
-
 export function verifyEvidenceRefs(
   refs: RawCitation[] | undefined,
   corpus: GroundingCorpus,
@@ -176,16 +143,12 @@ export function verifyEvidenceRefs(
     if (!quote) continue;
     if (!verifyQuote(quote, corpus)) continue;
     const docN = typeof r.doc_n === "number" ? r.doc_n : null;
-    const explicitId = (r.document_id as string | undefined) ?? (r.doc_id as string | undefined);
-    // Only fall back to the doc_n-based lookup (now corrected to actually
-    // confirm the quote lives in that document) when the caller hasn't
-    // already supplied an explicit, trusted document_id/doc_id.
-    const doc = explicitId ? null : findOwningDoc(quote, corpus, docN);
+    const doc = docN ? corpus.docs.find((d) => d.doc_n === docN) : null;
     verified.push({
       ...r,
       quote,
       verified: true,
-      document_id: explicitId ?? doc?.document_id ?? null,
+      document_id: (r.document_id as string | undefined) ?? (r.doc_id as string | undefined) ?? doc?.document_id ?? null,
       filename: doc?.filename ?? null,
     });
   }
@@ -252,100 +215,3 @@ export function groundItems<T extends GroundableItem>(
 }
 
 export const INSUFFICIENT_EVIDENCE = "Insufficient evidence to support this conclusion.";
-
-// ---------------------------------------------------------------------------
-// Legal-authority citations (Amparo / constitutional / statutory / tesis).
-//
-// A reference to "CPEUM Art. 16" or "Tesis: 1a./J. 15/2019 (10a.)" is a
-// citation to public law, not a factual assertion about the case record. It
-// cannot be verified by verbatim substring matching against the evidentiary
-// corpus, because the text lives in the Constitution/SCJN registry, not in the
-// party's documents. Requiring a verbatim corpus match for those references
-// produced false "unverified" flags on Amparo and federal-administrative
-// matters and blocked the release gate.
-//
-// IMPORTANT: the exemption below is narrower than "the quote contains a
-// citation-shaped substring". A pattern-only check was tried first and
-// confirmed, by direct reproduction, to exempt fabricated factual claims
-// merely because they were phrased alongside a real (or even a fabricated)
-// article number — e.g. "Conforme al art. 16 constitucional, la audiencia se
-// celebró el 15 de marzo... testigo Juan Pérez confirmó..." would pass
-// ungrounded, because the string contains "art. 16". That defeats the
-// purpose of the hallucination gate for exactly the claims it exists to
-// catch. isLegalAuthorityCitation therefore only exempts a quote when it is
-// SUBSTANTIALLY JUST the citation — after stripping recognized citation
-// structure words, grammatical connectors, and the common words that appear
-// inside official Mexican legal-source names (so "Constitución Política de
-// los Estados Unidos Mexicanos" normalizes to ~nothing, the same as
-// "Artículo 16" does), at most 2 meaningful tokens may remain. A quote
-// carrying an independent factual assertion alongside a citation — dates,
-// names, events, outcomes — retains far more than that and is correctly
-// NOT exempted, still subject to real verbatim corpus verification.
-// ---------------------------------------------------------------------------
-
-const AUTHORITY_PATTERNS: RegExp[] = [
-  // Article references: "Art. 16", "Artículo 1o. constitucional", "arts. 14 y 16"
-  /\barts?\.?\s*\d+/i,
-  /\bart[íi]culos?\s+\d+/i,
-  // Tesis / jurisprudencia registry numbers
-  /\btesis\b/i,
-  /\bjurisprudencia\b/i,
-  /\b(?:1a|2a|P|PC)\.\s*\/\s*J\.\s*\d+\/\d{4}/i,
-  /\bregistro\s+(?:digital\s+)?\d{5,}/i,
-  // Official publications
-  /\bDOF\b/,
-  /\bSemanario\s+Judicial\b/i,
-];
-
-// Grammatical connectors, citation-structure words, and words that commonly
-// appear inside the full official names of Mexican legal sources — a
-// curated, bounded list, in keeping with this codebase's existing
-// convention of explicit Mexican-law-specific vocabulary (see
-// mx-pipeline.ts's MX_PARTY_ROLES) rather than a general heuristic.
-const CITATION_STOPWORDS = new Set([
-  "de", "del", "la", "las", "el", "los", "en", "y", "o", "u", "a", "al", "con", "por",
-  "para", "segun", "conforme", "respecto", "asi", "como", "que", "su", "sus",
-  "articulo", "articulos", "art", "arts", "fraccion", "fracciones", "apartado",
-  "apartados", "inciso", "incisos", "parrafo", "parrafos", "numeral", "numerales",
-  "tesis", "jurisprudencia", "registro", "digital", "semanario", "judicial",
-  "gaceta", "epoca", "sala", "pleno", "tomo",
-  "politica", "estados", "unidos", "mexicanos", "nacional", "nacionales",
-  "procedimientos", "procedimiento", "penales", "penal", "civiles", "civil",
-  "familiares", "familiar", "mercantil", "mercantiles", "laboral", "laborales",
-  "federal", "federales", "general", "generales", "humanos", "humano", "americana",
-  "americano", "sobre", "san", "jose", "codigo", "constitucion", "constitucional",
-  "ley", "amparo", "reglamento", "pacto", "otras",
-  "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii",
-  "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx", "xxi", "xxii", "xxiii", "xxiv", "xxv",
-]);
-
-function stripDiacritics(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-/**
- * True when a citation string is SUBSTANTIALLY JUST a reference to public
- * legal authority (constitutional/statutory article, tesis, jurisprudencia,
- * official gazette) — not a factual claim about the case that happens to
- * mention one. See the module comment above for why this distinction is
- * load-bearing, not cosmetic.
- */
-export function isLegalAuthorityCitation(quote: string | null | undefined): boolean {
-  const q = (quote ?? "").trim();
-  if (q.length < 3) return false;
-  const hasAuthorityPattern = AUTHORITY_PATTERNS.some((rx) => rx.test(q));
-  if (!hasAuthorityPattern) return false;
-
-  const tokens = stripDiacritics(q.toLowerCase())
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-  const remaining = tokens.filter((t) => {
-    if (/^\d+$/.test(t)) return false; // bare numbers: article numbers, years
-    if (t.length < 3) return false;
-    return !CITATION_STOPWORDS.has(t);
-  });
-  // Almost nothing meaningful survives stripping citation vocabulary and
-  // connectors -> this quote IS the citation, nothing more.
-  return remaining.length <= 2;
-}

@@ -4,7 +4,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
-import { withTraceScope, currentTraceScope, newCorrelationId, traceAsync } from "./pipeline-trace.server";
+import {
+  withTraceScope,
+  currentTraceScope,
+  newCorrelationId,
+  traceAsync,
+} from "./pipeline-trace.server";
 import esLocale from "@/i18n/locales/es.json";
 import enLocale from "@/i18n/locales/en.json";
 import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
@@ -147,7 +152,8 @@ async function _runPipelineForCase(
         .limit(1)
         .maybeSingle();
       const since =
-        (lastOk as { created_at?: string } | null)?.created_at ?? new Date(Date.now() - 6 * 60 * 60_000).toISOString();
+        (lastOk as { created_at?: string } | null)?.created_at ??
+        new Date(Date.now() - 6 * 60 * 60_000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count } = await (supabase as any)
         .from("pipeline_trace")
@@ -165,10 +171,19 @@ async function _runPipelineForCase(
   const updateCase = async (patch: Record<string, unknown>, source: string) => {
     const withHeartbeat: Record<string, unknown> = { ...patch };
     const statusValue = typeof patch.status === "string" ? patch.status : null;
-    const terminalStatuses = new Set(["complete", "released", "needs_revision", "failed", "cancelled"]);
-    const shouldExtendLease = statusValue === "intelligence_running" && !terminalStatuses.has(statusValue);
+    const terminalStatuses = new Set([
+      "complete",
+      "released",
+      "needs_revision",
+      "failed",
+      "cancelled",
+    ]);
+    const shouldExtendLease =
+      statusValue === "intelligence_running" && !terminalStatuses.has(statusValue);
     if (shouldExtendLease) {
-      withHeartbeat.worker_lease_until = new Date(Date.now() + RUNNER_LEASE_EXTENSION_MS).toISOString();
+      withHeartbeat.worker_lease_until = new Date(
+        Date.now() + RUNNER_LEASE_EXTENSION_MS,
+      ).toISOString();
     } else if (statusValue && terminalStatuses.has(statusValue)) {
       withHeartbeat.worker_lease_until = null;
     }
@@ -358,26 +373,31 @@ async function _runPipelineForCase(
         withStageTimeout(
           "jurisdiction_intel",
           () =>
-            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
-              const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
-              const value = await runJurisdictionIntelligence({ db: supabase, caseId });
-              return {
-                value,
-                stats: {
-                  generated: 1,
-                  accepted: 1,
-                  rows_written: 1,
-                  db_write_confirmed: true,
-                  meta: {
-                    source: "deterministic",
-                    materia: value.materia,
-                    fuero: value.fuero,
-                    state: value.state?.name ?? null,
-                    state_source: value.state_source,
+            persist.runCatalogedEngine(
+              supabase,
+              { caseId, userId, engine: "jurisdiction_intel" },
+              async () => {
+                const { runJurisdictionIntelligence } =
+                  await import("@/lib/intelligence/jurisdiction-intel.server");
+                const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+                return {
+                  value,
+                  stats: {
+                    generated: 1,
+                    accepted: 1,
+                    rows_written: 1,
+                    db_write_confirmed: true,
+                    meta: {
+                      source: "deterministic",
+                      materia: value.materia,
+                      fuero: value.fuero,
+                      state: value.state?.name ?? null,
+                      state_source: value.state_source,
+                    },
                   },
-                },
-              };
-            }),
+                };
+              },
+            ),
           { caseId, userId },
         ),
     },
@@ -385,26 +405,31 @@ async function _runPipelineForCase(
     // Análisis de Cumplimiento Procesal — materia checklist over the corpus.
     procedural_compliance: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "procedural_compliance" }, async () => {
-          const { runProceduralCompliance } = await import("@/lib/intelligence/procedural-compliance.server");
-          const value = await runProceduralCompliance({ db: supabase, caseId, userId });
-          return {
-            value,
-            stats: {
-              generated: value.evaluated,
-              accepted: value.satisfied,
-              rejected: value.evaluated - value.satisfied,
-              rows_written: value.findings_written,
-              db_write_confirmed: true,
-              meta: {
-                source: "deterministic",
-                materia: value.materia,
-                score: value.score,
-                missing_required: value.missing_required,
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "procedural_compliance" },
+          async () => {
+            const { runProceduralCompliance } =
+              await import("@/lib/intelligence/procedural-compliance.server");
+            const value = await runProceduralCompliance({ db: supabase, caseId, userId });
+            return {
+              value,
+              stats: {
+                generated: value.evaluated,
+                accepted: value.satisfied,
+                rejected: value.evaluated - value.satisfied,
+                rows_written: value.findings_written,
+                db_write_confirmed: true,
+                meta: {
+                  source: "deterministic",
+                  materia: value.materia,
+                  score: value.score,
+                  missing_required: value.missing_required,
+                },
               },
-            },
-          };
-        }),
+            };
+          },
+        ),
     },
     // Control de Calidad Jurídica — terminal gate before the report. Throws
     // when a blocking violation survives remediation, which fails this stage
@@ -414,29 +439,33 @@ async function _runPipelineForCase(
         withStageTimeout(
           "legal_qa",
           () =>
-            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
-              const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-              // userId routes the translation remediation through the
-              // caller's own provider keys instead of platform credits.
-              const value = await runLegalQaGate({ db: supabase, caseId, userId });
-              return {
-                value,
-                stats: {
-                  generated: value.checked_fields,
-                  accepted: value.checked_fields - value.warnings.length,
-                  rejected: value.warnings.length,
-                  rows_written: value.remediated_fields,
-                  db_write_confirmed: true,
-                  meta: {
-                    source: "deterministic",
-                    materia: value.materia,
-                    locale: value.locale,
-                    remediated_fields: value.remediated_fields,
-                    warnings: value.warnings.length,
+            persist.runCatalogedEngine(
+              supabase,
+              { caseId, userId, engine: "legal_qa" },
+              async () => {
+                const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+                // userId routes the translation remediation through the
+                // caller's own provider keys instead of platform credits.
+                const value = await runLegalQaGate({ db: supabase, caseId, userId });
+                return {
+                  value,
+                  stats: {
+                    generated: value.checked_fields,
+                    accepted: value.checked_fields - value.warnings.length,
+                    rejected: value.warnings.length,
+                    rows_written: value.remediated_fields,
+                    db_write_confirmed: true,
+                    meta: {
+                      source: "deterministic",
+                      materia: value.materia,
+                      locale: value.locale,
+                      remediated_fields: value.remediated_fields,
+                      warnings: value.warnings.length,
+                    },
                   },
-                },
-              };
-            }),
+                };
+              },
+            ),
           { caseId, userId },
         ),
     },
@@ -445,26 +474,37 @@ async function _runPipelineForCase(
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "evidence_map" }, async () => {
-          const m = await import("@/lib/intelligence/evidence-map.server");
-          const em = await m.buildEvidenceMap(supabase, caseId);
-          return {
-            value: em,
-            stats: {
-              generated: em.totals.total,
-              accepted: em.totals.total - em.totals.missing_evidence,
-            },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "evidence_map" },
+          async () => {
+            const m = await import("@/lib/intelligence/evidence-map.server");
+            const em = await m.buildEvidenceMap(supabase, caseId);
+            return {
+              value: em,
+              stats: {
+                generated: em.totals.total,
+                accepted: em.totals.total - em.totals.missing_evidence,
+              },
+            };
+          },
+        ),
     },
     contradictions: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "contradictions" }, async () => {
-          const d = await import("@/lib/intelligence/derived-engines.server");
-          const result = await d.deriveContradictions(supabase, caseId);
-          await updateCase({ contradiction_at: new Date().toISOString() }, "pipeline.contradictions");
-          return result;
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "contradictions" },
+          async () => {
+            const d = await import("@/lib/intelligence/derived-engines.server");
+            const result = await d.deriveContradictions(supabase, caseId);
+            await updateCase(
+              { contradiction_at: new Date().toISOString() },
+              "pipeline.contradictions",
+            );
+            return result;
+          },
+        ),
       stage: "contradictions",
     },
     // Task-9/10 stat plumbing: engines whose output is a mix of LLM + deterministic
@@ -473,70 +513,61 @@ async function _runPipelineForCase(
     // engine's own return value where available. Meta.source labels the pipeline
     // ("llm" | "template" | "hybrid") so the UI stops showing 0/0/0 for engines
     // that produced legitimate deterministic output.
-    //
-    // FIX (2026-08-03): this was wired to deriveWitnessIntel — a pure count of
-    // pre-existing case_findings tagged as witness-related. Nothing upstream
-    // ever writes findings with that tag, so this always returned 0 regardless
-    // of what the case corpus actually contained, and case_witnesses (the
-    // table the report's "Inteligencia de Testigos" section reads) was NEVER
-    // populated by any code path the live pipeline actually executes.
-    // runWitnessEngine — the real LLM-based profiler that discovers
-    // candidate witnesses, verifies them against corpus entities, computes
-    // role-aware credibility, and writes case_witnesses — already existed
-    // and was already correctly wired to this exact stage, but only inside
-    // _runPipelineForCase, a duplicate of this function documented (commit
-    // 069cc48) as dead and unreachable. The live pipeline
-    // (pipeline-runner.server.ts, what driveCasePipelineTick actually calls)
-    // kept using the stub. Confirmed against multiple real cases today:
-    // witnesses_at stayed null and case_witnesses stayed empty on every
-    // single run, including cases whose source documents explicitly named
-    // testifying witnesses.
     witness: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "witness_intelligence" }, async () => {
-          const value = (await eng.runWitnessEngine(baseArgs)) as {
-            witnesses?: unknown[];
-            audit?: { input?: number; accepted?: number };
-          };
-          const { count } = await supabase
-            .from("case_witnesses")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const rows = count ?? value.witnesses?.length ?? 0;
-          const gen = Math.max(value.audit?.input ?? 0, rows);
-          const acc = Math.max(value.audit?.accepted ?? 0, rows);
-          return {
-            value,
-            stats: {
-              generated: gen,
-              accepted: acc,
-              rejected: Math.max(0, gen - acc),
-              rows_written: rows,
-              meta: { source: "hybrid" },
-            },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "witness_intelligence" },
+          async () => {
+            const d = await import("@/lib/intelligence/derived-engines.server");
+            const result = await d.deriveWitnessIntel(supabase, caseId);
+            const { count } = await supabase
+              .from("case_witnesses")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const rows = count ?? 0;
+            const generated = Math.max(result.stats.generated ?? 0, rows);
+            const accepted = Math.max(result.stats.accepted ?? 0, rows);
+            return {
+              value: result.value,
+              stats: {
+                generated,
+                accepted,
+                rejected: Math.max(0, generated - accepted),
+                rows_written: rows,
+                meta: { source: "derived", no_llm: true },
+              },
+            };
+          },
+        ),
       stage: "witness_intel",
     },
     evidence_intel: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "evidence_intelligence" }, async () => {
-          const d = await import("@/lib/intelligence/derived-engines.server");
-          const result = await d.deriveEvidenceIntel(supabase, caseId);
-          const gen = result.stats.generated ?? 0;
-          const acc = result.stats.accepted ?? gen;
-          await updateCase({ evidence_intel_at: new Date().toISOString() }, "pipeline.evidence_intel");
-          return {
-            value: result.value,
-            stats: {
-              generated: gen,
-              accepted: acc,
-              rejected: Math.max(0, gen - acc),
-              rows_written: gen,
-              meta: { source: "derived", no_llm: true },
-            },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "evidence_intelligence" },
+          async () => {
+            const d = await import("@/lib/intelligence/derived-engines.server");
+            const result = await d.deriveEvidenceIntel(supabase, caseId);
+            const gen = result.stats.generated ?? 0;
+            const acc = result.stats.accepted ?? gen;
+            await updateCase(
+              { evidence_intel_at: new Date().toISOString() },
+              "pipeline.evidence_intel",
+            );
+            return {
+              value: result.value,
+              stats: {
+                generated: gen,
+                accepted: acc,
+                rejected: Math.max(0, gen - acc),
+                rows_written: gen,
+                meta: { source: "derived", no_llm: true },
+              },
+            };
+          },
+        ),
       stage: "evidence_intel",
     },
     constitutional: {
@@ -551,7 +582,8 @@ async function _runPipelineForCase(
       // Mirrors the gate already used in runAgents() and
       // pipeline.server.ts's own constitutional stage.
       run: async () => {
-        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } = await import("./intelligence/practice-areas");
+        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } =
+          await import("./intelligence/practice-areas");
         const { getActiveDomains } = await import("./intelligence/cross-domain.server");
         const { recordSkipped } = await import("./intelligence/engine-audit.server");
 
@@ -585,37 +617,45 @@ async function _runPipelineForCase(
     },
     discovery: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "discovery_gaps" }, async () => {
-          const d = await import("@/lib/intelligence/derived-engines.server");
-          const result = await d.deriveDiscoveryGaps(supabase, caseId);
-          const n = result.stats.generated ?? 0;
-          await updateCase({ discovery_at: new Date().toISOString() }, "pipeline.discovery");
-          return {
-            value: result.value,
-            stats: {
-              generated: n,
-              accepted: n,
-              rows_written: n,
-              meta: { source: "derived", no_llm: true },
-            },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "discovery_gaps" },
+          async () => {
+            const d = await import("@/lib/intelligence/derived-engines.server");
+            const result = await d.deriveDiscoveryGaps(supabase, caseId);
+            const n = result.stats.generated ?? 0;
+            await updateCase({ discovery_at: new Date().toISOString() }, "pipeline.discovery");
+            return {
+              value: result.value,
+              stats: {
+                generated: n,
+                accepted: n,
+                rows_written: n,
+                meta: { source: "derived", no_llm: true },
+              },
+            };
+          },
+        ),
       stage: "discovery_gaps",
     },
     perspectives: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "perspectives" }, async () => {
-          const value = await lit.runPerspectivesEngine(baseArgs);
-          const { count } = await supabase
-            .from("case_perspectives")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const n = count ?? 0;
-          return {
-            value,
-            stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "perspectives" },
+          async () => {
+            const value = await lit.runPerspectivesEngine(baseArgs);
+            const { count } = await supabase
+              .from("case_perspectives")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const n = count ?? 0;
+            return {
+              value,
+              stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
+            };
+          },
+        ),
     },
     theories: {
       run: () =>
@@ -645,37 +685,109 @@ async function _runPipelineForCase(
     },
     opportunities: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "opportunity" }, async () => {
-          const value = (await eng.runOpportunityEngine(baseArgs)) as {
-            opportunities?: unknown[];
-            potential_opportunities?: unknown[];
-            audit?: { input?: number; rejected?: number; rejections?: unknown[] };
-          };
-          const { count } = await supabase
-            .from("case_opportunities")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const verified = value.opportunities?.length ?? 0;
-          const potential = value.potential_opportunities?.length ?? 0;
-          const rows = count ?? verified + potential;
-          const gen = Math.max(value.audit?.input ?? 0, verified + potential, rows);
-          const rejected = Math.max(value.audit?.rejected ?? potential, gen - verified);
-          return {
-            value,
-            stats: {
-              generated: gen,
-              accepted: verified,
-              rejected,
-              rows_written: rows,
-              meta: {
-                source: "engine",
-                verified_opportunities: verified,
-                potential_requires_review: potential,
-                gate_rejections: value.audit?.rejections ?? [],
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "opportunity" },
+          async () => {
+            const value = (await eng.runOpportunityEngine(baseArgs)) as {
+              opportunities?: unknown[];
+              potential_opportunities?: unknown[];
+              audit?: { input?: number; rejected?: number; rejections?: unknown[] };
+            };
+            const { count } = await supabase
+              .from("case_opportunities")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const verified = value.opportunities?.length ?? 0;
+            const potential = value.potential_opportunities?.length ?? 0;
+            const rows = count ?? verified + potential;
+            const gen = Math.max(value.audit?.input ?? 0, verified + potential, rows);
+            const rejected = Math.max(value.audit?.rejected ?? potential, gen - verified);
+            return {
+              value,
+              stats: {
+                generated: gen,
+                accepted: verified,
+                rejected,
+                rows_written: rows,
+                meta: {
+                  source: "engine",
+                  verified_opportunities: verified,
+                  potential_requires_review: potential,
+                  gate_rejections: value.audit?.rejections ?? [],
+                },
               },
-            },
-          };
-        }),
+            };
+          },
+        ),
+    },
+    trial_prep: {
+      // PRACTICE-AREA GATE: same class of bug as "constitutional" above —
+      // this stage ran unconditionally for every case type. trial_prep is
+      // allowed for general_civil/personal_injury/medical_malpractice/
+      // employment/criminal/civil_rights, but NOT for family or appellate
+      // (see PRACTICE_ENGINES in practice-areas.ts). Without this gate, a
+      // family or appellate case would get a "completed" trial_prep row that
+      // the manifest says should be skipped — the same
+      // release-gate "silent_activation" failure as constitutional_compliance.
+      run: async () => {
+        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } =
+          await import("./intelligence/practice-areas");
+        const { getActiveDomains } = await import("./intelligence/cross-domain.server");
+        const { recordSkipped } = await import("./intelligence/engine-audit.server");
+
+        const { data: caseRow } = await supabase
+          .from("cases")
+          .select("case_type" as any)
+          .eq("id", caseId)
+          .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const area = String((caseRow as any)?.case_type ?? "general_civil");
+        const activeDomains = await getActiveDomains(supabase, caseId);
+
+        if (!isAnalyzerAllowed(area, "trial_prep", activeDomains)) {
+          await recordSkipped(supabase, {
+            caseId,
+            userId,
+            engine: "trial_prep" as never,
+            reason: SKIP_REASON_NOT_APPLICABLE,
+          });
+          return { skipped: true, reason: SKIP_REASON_NOT_APPLICABLE };
+        }
+
+        return persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "trial_prep" },
+          async () => {
+            const value = (await eng.runTrialPrepEngine(baseArgs)) as {
+              findings_gate?: unknown;
+              findings_gate_mode?: unknown;
+              findings_gate_corpus?: unknown;
+            };
+            const { count } = await supabase
+              .from("case_trial_prep")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const n = count ?? (value ? 1 : 0);
+            return {
+              value,
+              stats: {
+                generated: n,
+                accepted: n,
+                rows_written: n,
+                meta: {
+                  source: "engine",
+                  evidence_gate: {
+                    mode: value.findings_gate_mode,
+                    audit: value.findings_gate,
+                    corpus: value.findings_gate_corpus,
+                  },
+                },
+              },
+            };
+          },
+        );
+      },
     },
     strategy: {
       run: () =>
@@ -695,59 +807,71 @@ async function _runPipelineForCase(
     },
     litigation_strategy_center: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "litigation_strategy_center" }, async () => {
-          const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { count } = await (supabase as any)
-            .from("case_strategy_center")
-            .select("case_id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const n = count ?? (value ? 1 : 0);
-          return {
-            value,
-            stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "litigation_strategy_center" },
+          async () => {
+            const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { count } = await (supabase as any)
+              .from("case_strategy_center")
+              .select("case_id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const n = count ?? (value ? 1 : 0);
+            return {
+              value,
+              stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
+            };
+          },
+        ),
     },
     work_product: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "work_product" }, async () => {
-          const value = (await eng.runWorkProductEngine(baseArgs)) as {
-            documents?: unknown[];
-            failed?: number;
-            verification?: {
-              total?: number;
-              clean?: number;
-              flagged?: number;
-              rejected?: number;
-              empty?: number;
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "work_product" },
+          async () => {
+            const value = (await eng.runWorkProductEngine(baseArgs)) as {
+              documents?: unknown[];
+              failed?: number;
+              verification?: {
+                total?: number;
+                clean?: number;
+                flagged?: number;
+                rejected?: number;
+                empty?: number;
+              };
             };
-          };
-          const { count } = await supabase
-            .from("case_work_product")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const rows = count ?? 0;
-          const gen = value.verification?.total ?? rows;
-          const acc = value.verification?.clean ?? rows;
-          const rej = (value.verification?.rejected ?? 0) + (value.verification?.empty ?? 0);
-          return {
-            value,
-            stats: {
-              generated: gen,
-              accepted: acc,
-              rejected: rej,
-              rows_written: rows,
-              meta: { source: "template", verification: value.verification ?? null },
-            },
-          };
-        }),
+            const { count } = await supabase
+              .from("case_work_product")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const rows = count ?? 0;
+            const gen = value.verification?.total ?? rows;
+            const acc = value.verification?.clean ?? rows;
+            const rej = (value.verification?.rejected ?? 0) + (value.verification?.empty ?? 0);
+            return {
+              value,
+              stats: {
+                generated: gen,
+                accepted: acc,
+                rejected: rej,
+                rows_written: rows,
+                meta: { source: "template", verification: value.verification ?? null },
+              },
+            };
+          },
+        ),
     },
     hallucination: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "hallucination" }, async () => ({
-          value: await hal.runHallucinationReview({ db: supabase, caseId }),
-        })),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "hallucination" },
+          async () => ({
+            value: await hal.runHallucinationReview({ db: supabase, caseId }),
+          }),
+        ),
     },
     multi_agent: {
       run: async () =>
@@ -797,10 +921,9 @@ async function _runPipelineForCase(
   // Dependency graph — derived from CANONICAL_STAGES so there is exactly
   // one place that defines stage dependencies platform-wide.
   const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
-  const DEPENDS_ON = Object.fromEntries(CANONICAL_STAGES.map((s) => [s.key, [...s.dependsOn]])) as Record<
-    PipelineStageKey,
-    PipelineStageKey[]
-  >;
+  const DEPENDS_ON = Object.fromEntries(
+    CANONICAL_STAGES.map((s) => [s.key, [...s.dependsOn]]),
+  ) as Record<PipelineStageKey, PipelineStageKey[]>;
   // "optional" stages (e.g. litigation_strategy_center, work_product,
   // trial_prep, theories, multi_agent) are documented in canonical.ts as
   // "decorative; never blocks" — the report gate (canGenerateReport) already
@@ -842,7 +965,8 @@ async function _runPipelineForCase(
   // stages that aren't legally relevant so they never occupy the ledger.
   let stages: (typeof PIPELINE_STAGES)[number][] = [...PIPELINE_STAGES];
   {
-    const { isStageRelevantForCaseType, stageSkipReasonKey } = await import("./execution/mx-pipeline");
+    const { isStageRelevantForCaseType, stageSkipReasonKey } =
+      await import("./execution/mx-pipeline");
     const { recordSkipped } = await import("./intelligence/engine-audit.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: mxCaseRow } = await (supabase as any)
@@ -852,9 +976,14 @@ async function _runPipelineForCase(
       .maybeSingle();
     const mxCaseType = (mxCaseRow as { case_type?: string | null } | null)?.case_type ?? null;
 
-    const mxLocale = (mxCaseRow as { report_language?: string | null } | null)?.report_language === "en" ? "en" : "es";
+    const mxLocale =
+      (mxCaseRow as { report_language?: string | null } | null)?.report_language === "en"
+        ? "en"
+        : "es";
     const dict: Record<string, string> =
-      mxLocale === "en" ? (enLocale as Record<string, string>) : (esLocale as Record<string, string>);
+      mxLocale === "en"
+        ? (enLocale as Record<string, string>)
+        : (esLocale as Record<string, string>);
 
     const excluded = stages.filter((s) => !isStageRelevantForCaseType(mxCaseType, s.key));
     for (const stage of excluded) {
@@ -865,7 +994,7 @@ async function _runPipelineForCase(
       await recordSkipped(supabase, {
         caseId,
         userId,
-        engine: CANONICAL_STAGES.find((s) => s.key === stage.key)?.engine ?? stage.key,
+        engine: stage.key,
         reason,
       }).catch((e) => console.warn("[mx-pipeline] recordSkipped failed", stage.key, e));
     }
@@ -889,14 +1018,17 @@ async function _runPipelineForCase(
       // Fail loudly rather than silently proceeding with an incomplete
       // picture of prior failures — a swallowed error here is exactly the
       // kind of gap that let work_product run past a failed perspectives.
-      throw new Error(`failed to read pipeline_engine_runs history for resume: ${priorErr.message}`);
+      throw new Error(
+        `failed to read pipeline_engine_runs history for resume: ${priorErr.message}`,
+      );
     }
     for (const row of (priorRuns ?? []) as Array<{ engine: string; status: string }>) {
       latestStatusByEngine.set(row.engine, row.status); // ascending order → last write wins
     }
   }
   const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
-  const alreadyDone = (k: PipelineStageKey) => DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
+  const alreadyDone = (k: PipelineStageKey) =>
+    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
 
   // Resume point. `startFrom` names the stage that checkpointed, but stages do
   // NOT always execute in index order: a parallel batch is driven by its
@@ -934,8 +1066,12 @@ async function _runPipelineForCase(
   const completed = new Set<PipelineStageKey>();
   const failed = new Set<PipelineStageKey>();
   const blocked = new Set<PipelineStageKey>();
-  const { withHardCheckpointDeadline, budgetFor, WORKER_INVOCATION_BUDGET_MS, CHECKPOINT_SAFETY_BUFFER_MS } =
-    await import("./pipeline-checkpoint.server");
+  const {
+    withHardCheckpointDeadline,
+    budgetFor,
+    WORKER_INVOCATION_BUDGET_MS,
+    CHECKPOINT_SAFETY_BUFFER_MS,
+  } = await import("./pipeline-checkpoint.server");
   const invocationDeadlineAt = runStart + WORKER_INVOCATION_BUDGET_MS;
 
   // Cross-tick dependency correctness. `failed`/`blocked` above only track
@@ -946,7 +1082,9 @@ async function _runPipelineForCase(
   // (e.g. `work_product`) could run unblocked even though its real upstream
   // dependency never completed. Reconstruct the missing history from the
   // persisted ledger for exactly the stages this tick will NOT re-attempt.
-  const resumeIdx = effectiveStartFrom ? PIPELINE_STAGES.findIndex((s) => s.key === effectiveStartFrom) : 0;
+  const resumeIdx = effectiveStartFrom
+    ? PIPELINE_STAGES.findIndex((s) => s.key === effectiveStartFrom)
+    : 0;
   if (resumeIdx > 0) {
     const { seedResumeState } = await import("./pipeline-checkpoint.server");
     const seeded = seedResumeState({
@@ -962,6 +1100,8 @@ async function _runPipelineForCase(
       seeded_blocked: [...blocked],
     });
   }
+
+
 
   trace("pipeline.start", {
     total_stages: stages.length,
@@ -979,13 +1119,13 @@ async function _runPipelineForCase(
   // work_product} chain) is a genuine sequential dependency chain and stays
   // serial — parallelizing it would run a stage before its real upstream
   // input exists.
-  //   Batch A: perspectives, opportunities, witness — all three
+  //   Batch A: perspectives, opportunities, trial_prep, witness — all four
   //     depend only on [analyzers, agents].
   //   Batch B: litigation_strategy_center, work_product — both depend only
   //     on strategy (+ stages already satisfied by the time strategy is
   //     done); neither depends on the other.
   const PARALLEL_BATCHES: readonly (readonly PipelineStageKey[])[] = [
-    ["perspectives", "opportunities", "witness"],
+    ["perspectives", "opportunities", "trial_prep", "witness"],
     ["litigation_strategy_center", "work_product"],
   ];
   // The trigger for a batch must be whichever member actually occurs
@@ -1042,6 +1182,7 @@ async function _runPipelineForCase(
     const r = runners[key];
     const pct = Math.floor((i / total) * 95);
 
+
     // Idempotence gate — a stage that already reached a terminal
     // success/skipped state on an earlier tick is never re-executed.
     if (alreadyDone(key)) {
@@ -1056,23 +1197,11 @@ async function _runPipelineForCase(
 
     // Dependency gate — record a `blocked` row so the ledger, UI, and report
     // gate all see the truth: this engine did not run because upstream failed.
-    //
-    // Only a BLOCKING-tier upstream failure propagates as a block. This used
-    // to exclude only "optional" (`!== "optional"`), which meant an
-    // "enriching"-tier failure (e.g. witness_intelligence — a single
-    // duplicate-run race, nothing structural) permanently marked `report`
-    // itself as blocked. That contradicts canonical.ts's own documented
-    // contract for "enriching": "feeds sections; empty/failed is downgraded
-    // to partial coverage" — never a hard block — and it also bypassed
-    // canGenerateReport()'s correctly-tolerant gate (which only checks
-    // REPORT_BLOCKING_ENGINES), since this stricter check fires first and
-    // marks `report` "blocked" before report's own function body ever runs.
-    // Narrowed to `=== "blocking"` so enriching/optional upstream failures
-    // never block a dependent — they still surface as missing/partial via
-    // canGenerateReport()'s own missingEnriching tracking, which is the
-    // mechanism actually designed to represent that.
+    // Optional upstream stages are deliberately excluded: now that report
+    // depends on multi_agent (which is optional), a flaky agent review must
+    // not permanently block the report.
     const unmet = (DEPENDS_ON[key] ?? []).filter(
-      (d) => (failed.has(d) || blocked.has(d)) && stageRequirement(d) === "blocking",
+      (d) => (failed.has(d) || blocked.has(d)) && stageRequirement(d) !== "optional",
     );
 
     if (unmet.length > 0) {
@@ -1174,21 +1303,6 @@ async function _runPipelineForCase(
         () => r.run(),
       );
       completed.add(key);
-      if (key === "report") {
-        // BUG FIX (see report_checkpoint_count desync): this is the live
-        // worker path (pipeline-worker.ts calls runPipelineForCase from
-        // THIS file, not pipeline.server.ts), so this reset — not the copy
-        // in pipeline.server.ts's own stage loop, which the worker never
-        // executes — is what actually needs to run on a clean finish.
-        await (supabase as any)
-          .from("cases")
-          .update({ report_checkpoint_count: 0 })
-          .eq("id", caseId)
-          .then(
-            () => {},
-            () => {},
-          );
-      }
       trace("stage.complete", { stage: s.key, runtime_ms: Date.now() - stageStart });
       try {
         await prog.emitEvent(supabase, caseId, s.key, `${s.label} complete`);
@@ -1257,36 +1371,17 @@ async function _runPipelineForCase(
         } catch (rqErr) {
           console.warn(`[pipeline] re-queue after checkpoint failed`, rqErr);
         }
-        if (s.key === "report") {
-          // BUG FIX: this file (pipeline-runner.server.ts) is the orchestrator
-          // the worker actually invokes (see pipeline-worker.ts), but the
-          // report_checkpoint_count increment previously only existed in
-          // pipeline.server.ts's own copy of this same catch block — which is
-          // never reached on the live path. runReport()'s MAX_REPORT_CHECKPOINTS
-          // backstop reads this column, so without incrementing it here the
-          // report stage could checkpoint indefinitely (as long as SOME AI call
-          // kept succeeding, which also keeps this file's separate
-          // stageCheckpointCount() loop-breaker from tripping) and never force
-          // finalization — exactly the "checkpoints forever, report_checkpoint_count
-          // stuck at 0, eventual stall-timeout failure" symptom.
-          try {
-            const { data: cur } = await (supabase as any)
-              .from("cases")
-              .select("report_checkpoint_count")
-              .eq("id", caseId)
-              .maybeSingle();
-            const next = ((cur as { report_checkpoint_count?: number } | null)?.report_checkpoint_count ?? 0) + 1;
-            await (supabase as any).from("cases").update({ report_checkpoint_count: next }).eq("id", caseId);
-            trace("report.checkpoint_count", { count: next });
-          } catch (cntErr) {
-            console.warn("[pipeline] failed to increment report_checkpoint_count", cntErr);
-          }
-        }
         trace("stage.checkpoint", { stage: s.key, runtime_ms: Date.now() - stageStart });
         try {
-          await prog.emitEvent(supabase, caseId, s.key, `${s.label} checkpointed — will resume on next worker tick`, {
-            level: "warn",
-          });
+          await prog.emitEvent(
+            supabase,
+            caseId,
+            s.key,
+            `${s.label} checkpointed — will resume on next worker tick`,
+            {
+              level: "warn",
+            },
+          );
         } catch {
           /* noop */
         }
@@ -1373,16 +1468,22 @@ async function _runPipelineForCase(
       // `stages` may differ slightly from PARALLEL_BATCHES' declared order
       // once jurisdiction-aware stage filtering has run, and a member may
       // not be present at all for this case type.
-      const members = batch.map((k) => ({ k, idx: stages.findIndex((st) => st.key === k) })).filter((m) => m.idx >= 0);
+      const members = batch
+        .map((k) => ({ k, idx: stages.findIndex((st) => st.key === k) }))
+        .filter((m) => m.idx >= 0);
       for (const m of members) handledByBatch.add(m.k);
 
       trace("stage.batch_start", { batch: batch, members: members.map((m) => m.k) });
-      const settled = await Promise.allSettled(members.map((m) => runOneStage(stages[m.idx], m.idx, s.key)));
+      const settled = await Promise.allSettled(
+        members.map((m) => runOneStage(stages[m.idx], m.idx, s.key)),
+      );
       // runOneStage never throws (every path returns a discriminated
       // outcome), so every settled result is "fulfilled" in practice —
       // treat an unexpected rejection as a non-fatal failure rather than
       // letting it crash the whole batch.
-      const outcomes = settled.map((res) => (res.status === "fulfilled" ? res.value : { kind: "failed" as const }));
+      const outcomes = settled.map((res) =>
+        res.status === "fulfilled" ? res.value : { kind: "failed" as const },
+      );
       trace("stage.batch_complete", {
         batch,
         outcomes: outcomes.map((o, idx) => ({ stage: members[idx].k, kind: o.kind })),
@@ -1395,7 +1496,9 @@ async function _runPipelineForCase(
       if (cancelled) return earlyReturnFor(cancelled)!;
       const loopAborted = outcomes.find((o) => o.kind === "checkpoint_loop_aborted");
       if (loopAborted) return earlyReturnFor(loopAborted)!;
-      const checkpointed = outcomes.find((o) => o.kind === "checkpoint" || o.kind === "checkpoint_before_start");
+      const checkpointed = outcomes.find(
+        (o) => o.kind === "checkpoint" || o.kind === "checkpoint_before_start",
+      );
       if (checkpointed) return earlyReturnFor(checkpointed)!;
       const fatal = outcomes.find((o) => o.kind === "fatal_failed");
       if (fatal && fatal.kind === "fatal_failed") throw new Error(fatal.message);
@@ -1494,7 +1597,8 @@ async function _runPipelineForCase(
   // effect on completedStages/warnings/finalStatus below. Wrapped so a
   // failure here can never turn a successful pipeline run into a failed one.
   try {
-    const { runCrossAgentValidator } = await import("@/lib/intelligence/cross-agent-validator.server");
+    const { runCrossAgentValidator } =
+      await import("@/lib/intelligence/cross-agent-validator.server");
     await runCrossAgentValidator(supabase, { caseId: opts.caseId, userId });
   } catch {
     /* advisory only — never affects the pipeline's own result */

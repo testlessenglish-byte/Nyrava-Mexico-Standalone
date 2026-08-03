@@ -16,12 +16,17 @@
 // inferred — fields the provider omits are stored as null/undefined.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { runEngine, type EngineName, type EngineResult, type EngineStats } from "./engine-audit.server";
+import {
+  runEngine,
+  type EngineName,
+  type EngineResult,
+  type EngineStats,
+} from "./engine-audit.server";
 import { withTelemetryScope, summarizeScope } from "../ai/telemetry.server";
 import { snapshotCorpus } from "./corpus-snapshot.server";
 import { engineVersion } from "./engine-fingerprint";
 import { trace, traceAsync } from "../pipeline-trace.server";
-import { projectCaseFindingsWithRetry, PROJECTABLE_TABLES } from "./project-findings.server";
+import { projectCaseFindings, PROJECTABLE_TABLES } from "./project-findings.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -77,7 +82,10 @@ export async function verifyPersistence(
     const keyColumn = exp.keyColumn ?? "case_id";
     const pkColumn = SINGLETON_TABLES.has(exp.table) ? keyColumn : "id";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (db as any).from(exp.table).select(pkColumn).eq(keyColumn, args.caseId);
+    const { data, error } = await (db as any)
+      .from(exp.table)
+      .select(pkColumn)
+      .eq(keyColumn, args.caseId);
     if (error) {
       errors.push(`${exp.table}: read-back failed — ${error.message}`);
       tables.push({ name: exp.table, expected_min: exp.expectedMin, actual: -1, primary_keys: [] });
@@ -93,7 +101,9 @@ export async function verifyPersistence(
     });
     allKeys.push(...ids);
     if (rows.length < exp.expectedMin) {
-      errors.push(`${exp.table}: expected >=${exp.expectedMin} row(s) for case, found ${rows.length}`);
+      errors.push(
+        `${exp.table}: expected >=${exp.expectedMin} row(s) for case, found ${rows.length}`,
+      );
     }
   }
 
@@ -160,7 +170,8 @@ export async function runVerifiedEngine<T>(
           const snap = await snapshotCorpus(db, args.caseId);
           s.corpus = snap;
           s.replay.corpus_hash = snap.corpus_hash;
-          if (snap.case_snapshot_version) s.replay.case_snapshot_version = snap.case_snapshot_version;
+          if (snap.case_snapshot_version)
+            s.replay.case_snapshot_version = snap.case_snapshot_version;
         } catch (e) {
           s.replay.corpus_snapshot_error = (e as Error)?.message ?? String(e);
         }
@@ -290,7 +301,8 @@ export async function runVerifiedEngine<T>(
     });
     if (!report.ok) {
       const err = new Error(`Persistence verification failed for ${args.engine}: ${report.error}`);
-      (err as unknown as { persistence?: PersistenceReport; telemetry?: unknown }).persistence = report;
+      (err as unknown as { persistence?: PersistenceReport; telemetry?: unknown }).persistence =
+        report;
       (err as unknown as { telemetry?: unknown }).telemetry = telemetry;
       throw err;
     }
@@ -300,16 +312,18 @@ export async function runVerifiedEngine<T>(
     // Additive and non-fatal — projected rows use the `projection:` source
     // class, which no pre-existing counter selects, and a failure here must
     // never fail an engine whose real output is already persisted.
-    const projectable = report.tables.map((t) => t.name).filter((t) => PROJECTABLE_TABLES.includes(t));
+    const projectable = report.tables
+      .map((t) => t.name)
+      .filter((t) => PROJECTABLE_TABLES.includes(t));
     if (projectable.length > 0) {
-      const projection = await projectCaseFindingsWithRetry(db, {
+      const projection = await projectCaseFindings(db, {
         caseId: args.caseId,
         tables: projectable,
       });
       traceAsync({
         phase: "db",
         step: `${args.engine}.findings_projected`,
-        status: projection.disabled ? "info" : projection.ok ? "ok" : "error",
+        status: projection.disabled ? "info" : projection.ok ? "ok" : "warn",
         error: projection.error ?? null,
         detail: {
           flag: "FINDINGS_PROJECTION_ENABLED",
@@ -318,37 +332,11 @@ export async function runVerifiedEngine<T>(
           tables: projection.tables,
           candidates: projection.candidates,
           rows_upserted: projection.written,
-          retried: projection.retried,
         },
         db,
         caseId: args.caseId,
         userId: args.userId,
       });
-      // Still failing after one retry: this is no longer "additive and
-      // non-fatal" — real engine output exists but the report-facing mirror
-      // of it is missing. Persist a durable marker so the report gate
-      // (pipeline.server.ts, report-quality section) can see this even
-      // though it runs in a later, unrelated call and has no other way to
-      // know this engine's projection silently failed.
-      if (!projection.ok && !projection.disabled) {
-        try {
-          await (db as unknown as { from: (t: string) => { insert: (v: unknown) => PromiseLike<unknown> } })
-            .from("pipeline_engine_runs")
-            .insert({
-              case_id: args.caseId,
-              user_id: args.userId,
-              engine: "findings_projection",
-              status: "failed",
-              error: `Projection failed for ${args.engine} after retry: ${projection.error ?? "unknown error"}`.slice(
-                0,
-                2000,
-              ),
-              meta: { source_engine: args.engine, tables: projection.tables, retried: projection.retried },
-            });
-        } catch (markErr) {
-          console.warn("[engine-persistence] failed to persist projection-failure marker:", markErr);
-        }
-      }
     }
 
     traceAsync({
@@ -394,7 +382,9 @@ export async function runVerifiedEngine<T>(
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ENGINE_TABLE_SPECS: Record<string, VerificationSpec<any>> = {
-  theory: (v: { theories?: unknown[] }) => [{ table: "case_theories", expectedMin: v?.theories?.length ?? 0 }],
+  theory: (v: { theories?: unknown[] }) => [
+    { table: "case_theories", expectedMin: v?.theories?.length ?? 0 },
+  ],
   opportunity: () => [
     // Optional engine — a legitimately thin corpus may yield zero
     // defensible opportunities. Persistence only fails on hard read errors.

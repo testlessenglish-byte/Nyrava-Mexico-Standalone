@@ -32,26 +32,6 @@ export const CASE_DERIVED_TABLES = [
   "reports",
   "pipeline_engine_runs",
   "pipeline_events",
-  // 2026-08-03: audited every table with a case_id column against this
-  // list (see commit message) looking specifically for pipeline-DERIVED
-  // output that a full Rerun should wipe but wasn't — as opposed to
-  // user-authored data (case_parties, case_tasks, case_communications,
-  // case_events) or billing/audit trails (ai_usage, usage_events,
-  // audit_logs), which correctly survive a rerun same as documents do.
-  // Found four genuine gaps, all pure pipeline-run artifacts:
-  "pipeline_trace",
-  // verification_items has UNIQUE(case_id, category) — leaving stale rows
-  // behind exposes a rerun to exactly the same class of crash as the
-  // case_theories UNIQUE(case_id, theory_type) bug fixed 2026-08-03 (a
-  // fresh run's insert collides with a leftover row from the previous
-  // run instead of starting clean).
-  "verification_items",
-  // References report_version / canonical_finding_id — after a rerun
-  // clears case_findings and reports, old snapshot rows here would
-  // otherwise dangle, referencing findings and report versions that no
-  // longer exist.
-  "finding_version_snapshots",
-  "cross_agent_audit",
 ] as const;
 
 // Every stage timestamp / cached artifact column on `cases` that must go back

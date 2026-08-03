@@ -118,36 +118,6 @@ export async function runEngine<T>(
   const t0 = Date.now();
   const staleCutoff = new Date(Date.now() - 20 * 60_000).toISOString();
 
-  // Zombie-row reaper. A "running" row is only ever flipped to a terminal
-  // status by this same function's own try/catch/finally — but if the
-  // process is killed from *outside* JS (platform request timeout,
-  // container restart, OOM) before that finally block runs, the row is
-  // permanently stuck at status="running". The partial unique index that
-  // enforces one-active-run-per-engine has no time-awareness (Postgres
-  // partial indexes can't reference now()), so a zombie row blocks every
-  // future insert for this case+engine forever, regardless of age — the
-  // only prior recovery path was a full pipeline restart from extraction
-  // via clearEngineRuns(), which auto-backfill (report step) never calls.
-  // Reap anything past the same staleCutoff used by the pre-check below,
-  // so a genuinely-dead run can never wedge a case indefinitely.
-  const { error: reapErr } = await db
-    .from("pipeline_engine_runs")
-    .update({
-      status: "failed",
-      ended_at: new Date().toISOString(),
-      error: `Auto-reaped: run exceeded ${20}min without a terminal write (likely killed by an external timeout/restart).`,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any)
-    .eq("case_id", args.caseId)
-    .eq("engine", args.engine)
-    .eq("status", "running")
-    .lt("started_at", staleCutoff);
-  if (reapErr) {
-    // Non-fatal: worst case we fall through to the pre-check/insert below
-    // exactly as before the reaper existed.
-    console.warn(`[runEngine] zombie-row reap failed for ${args.engine}/${args.caseId}`, reapErr);
-  }
-
   // Fast, friendly pre-check (not the real guard — see note above).
   const { data: activeRun, error: activeRunErr } = await db
     .from("pipeline_engine_runs")

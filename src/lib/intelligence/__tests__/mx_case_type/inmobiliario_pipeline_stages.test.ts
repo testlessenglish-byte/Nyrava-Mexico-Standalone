@@ -19,6 +19,7 @@ describe("inmobiliario pipeline stage relevance", () => {
   const LITIGATION_ONLY_STAGES = [
     "constitutional",
     "witness",
+    "trial_prep",
     "discovery",
     "litigation_strategy_center",
     "theories",
@@ -44,12 +45,8 @@ describe("inmobiliario pipeline stage relevance", () => {
   });
 
   it("does NOT exclude these same stages for a real litigation materia (civil) — the fix is scoped, not global", () => {
-    for (const stage of ["strategy", "work_product", "discovery"]) {
+    for (const stage of ["strategy", "work_product", "trial_prep", "discovery"]) {
       expect(isStageRelevantForCaseType("civil", stage)).toBe(true);
     }
-  });
-
-  it("trial_prep no longer exists as a stage at all, for any materia including inmobiliario", () => {
-    expect(mxPipelineStageKeys("inmobiliario")).not.toContain("trial_prep");
   });
 });

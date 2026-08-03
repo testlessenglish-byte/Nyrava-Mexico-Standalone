@@ -257,17 +257,983 @@ export async function runPipelineForCase(
   return runner.runPipelineForCase(supabase, userId, opts);
 }
 
-// NOTE (2026-08 cleanup): this file used to also define an unexported
-// `_runPipelineForCase()` — an ~900-line near-duplicate of the stage loop
-// that actually lives in pipeline-runner.server.ts. It was never called from
-// anywhere (runPipelineForCase() above always delegates to the runner
-// module), but it silently drifted out of sync with the real orchestrator —
-// e.g. it had its own copy of the report_checkpoint_count increment logic
-// that a bug investigation could easily mistake for live code, exactly as
-// happened here. Deleted outright rather than left as dead code: the real
-// implementation is pipeline-runner.server.ts's runPipelineForCase(), full
-// stop. If pipeline logic needs changing, that is the only file to edit.
+async function _runPipelineForCase(
+  supabase: Db,
+  userId: string,
+  opts: RunPipelineOpts,
+): Promise<{
+  ok: boolean;
+  cancelled?: boolean;
+  completedStages: number;
+  warnings?: Array<{ key: string; error: string }>;
+  failedAt?: string;
+}> {
+  const { caseId, startFrom, reset } = opts;
 
+  // Structured instrumentation — every stage transition and case-status write
+  // logs a single JSON line so the full automatic execution path can be
+  // reconstructed from worker logs. correlationId ties every line together.
+  const correlationId = `run-${caseId}-${Date.now().toString(36)}`;
+  const runStart = Date.now();
+  const trace = (event: string, extra: Record<string, unknown> = {}) => {
+    const payload = {
+      t: new Date().toISOString(),
+      corr: correlationId,
+      caseId,
+      userId,
+      event,
+      elapsed_ms: Date.now() - runStart,
+      ...extra,
+    };
+    console.info(`[pipeline] ${JSON.stringify(payload)}`);
+  };
+
+  const updateCase = async (patch: Record<string, unknown>, source: string) => {
+    const withHeartbeat: Record<string, unknown> = { ...patch };
+    const statusValue = typeof patch.status === "string" ? patch.status : null;
+    const terminalStatuses = new Set(["complete", "released", "needs_revision", "failed", "cancelled"]);
+    const shouldExtendLease = statusValue === "intelligence_running" && !terminalStatuses.has(statusValue);
+    if (shouldExtendLease) {
+      withHeartbeat.worker_lease_until = new Date(Date.now() + RUNNER_LEASE_EXTENSION_MS).toISOString();
+    } else if (statusValue && terminalStatuses.has(statusValue)) {
+      withHeartbeat.worker_lease_until = null;
+    }
+    const includesStatus = Object.prototype.hasOwnProperty.call(patch, "status");
+    let before: Record<string, unknown> | null = null;
+    if (includesStatus) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("cases")
+        .select("status,status_message,next_stage,queued_at,worker_lease_until")
+        .eq("id", caseId)
+        .maybeSingle();
+      before = (data ?? null) as Record<string, unknown> | null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("cases")
+      .update(withHeartbeat as any)
+      .eq("id", caseId);
+    if (error) throw new Error(`case update failed at ${source}: ${error.message}`);
+    if (includesStatus) {
+      trace("case.status.write", {
+        source,
+        previous_status: before?.status ?? null,
+        new_status: patch.status ?? null,
+        previous_next_stage: before?.next_stage ?? null,
+        new_next_stage: withHeartbeat.next_stage ?? before?.next_stage ?? null,
+        previous_lease_until: before?.worker_lease_until ?? null,
+        new_lease_until: withHeartbeat.worker_lease_until,
+      });
+    }
+  };
+
+  if (reset) {
+    await clearCaseDerivedData(supabase, caseId);
+    await updateCase({ ...CASE_RESET_FIELDS }, "pipeline.reset");
+  } else {
+    await supabase
+      .from("cases")
+      .update({ cancel_requested: false } as any)
+      .eq("id", caseId);
+  }
+
+  // Groq temporarily removed from the loop: the platform Groq key is dead
+  // and we don't want every batch to waste a guaranteed-401 attempt on it
+  // before falling through. apiKey/apiKeys are left empty here — the router
+  // still resolves this user's full active key set (currently Gemini) via
+  // the userId passed in baseArgs below, so nothing else needs to change.
+  // To bring Groq back later: restore the resolveProviderKeys(...,"groq")
+  // call that used to populate apiKey/apiKeys here.
+  const apiKey = "";
+  const keys: string[] = [];
+  const baseArgs = { db: supabase, caseId, userId, apiKey, apiKeys: keys };
+
+  const pipe = await import("@/lib/pipeline.server");
+  const eng = await import("@/lib/intelligence/engines.server");
+  const lit = await import("@/lib/intelligence/litigation.server");
+  const hal = await import("@/lib/intelligence/hallucination.server");
+  const prog = await import("@/lib/intelligence/progress.server");
+  const persist = await import("@/lib/intelligence/engine-persistence.server");
+  const audit = await import("@/lib/intelligence/engine-audit.server");
+
+  // Bug 2 (fix A): witness / discovery / evidence_intel are wired to the
+  // REAL LLM engines (runWitnessEngine / runDiscoveryGapEngine /
+  // runEvidenceIntelEngine). The prior `derive*` stubs counted findings
+  // categories that no upstream stage actually produced, so every dashboard
+  // count returned 0. The real engines already batch, gate, and cite; they
+  // just were never wired into this runner map.
+  //
+  // Phase 3 (reliability freeze): every audit.runEngine call for an engine
+  // that writes to the database is routed through persist.runCatalogedEngine,
+  // which re-queries the target table(s) after the engine returns. A silent
+  // insert failure → verification failure → engine marked `failed` →
+  // downstream dependents marked `blocked` by the loop below. No engine may
+  // report `completed` unless its persistence has been confirmed.
+  const runners: Record<
+    PipelineStageKey,
+    {
+      run: () => Promise<unknown>;
+      stage?: import("@/lib/intelligence/progress.server").StageKey;
+      engine?: string;
+    }
+  > = {
+    extraction: { run: () => pipe.runExtraction(baseArgs), stage: "extraction" },
+    agents: { run: () => pipe.runAgents(baseArgs), stage: "agents" },
+    analyzers: { run: () => pipe.runAnalyzers(baseArgs), stage: "analyzers" },
+    scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
+    jurisdiction_intel: {
+      run: () =>
+        withStageTimeout(
+          "jurisdiction_intel",
+          () =>
+            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
+              const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
+              const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+              return {
+                value,
+                stats: { generated: 1, accepted: 1, rows_written: 1, db_write_confirmed: true },
+              };
+            }),
+          { caseId, userId },
+        ),
+    },
+
+    procedural_compliance: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "procedural_compliance" }, async () => {
+          const { runProceduralCompliance } = await import("@/lib/intelligence/procedural-compliance.server");
+          const value = await runProceduralCompliance({ db: supabase, caseId, userId });
+          return {
+            value,
+            stats: {
+              generated: value.evaluated,
+              accepted: value.satisfied,
+              rows_written: value.findings_written,
+              db_write_confirmed: true,
+            },
+          };
+        }),
+    },
+    legal_qa: {
+      run: () =>
+        withStageTimeout(
+          "legal_qa",
+          () =>
+            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
+              const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+              const value = await runLegalQaGate({ db: supabase, caseId, userId });
+              return {
+                value,
+                stats: {
+                  generated: value.checked_fields,
+                  accepted: value.checked_fields - value.warnings.length,
+                  rows_written: value.remediated_fields,
+                  db_write_confirmed: true,
+                },
+              };
+            }),
+          { caseId, userId },
+        ),
+    },
+
+    report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
+    timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
+    evidence_map: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "evidence_map" }, async () => {
+          const m = await import("@/lib/intelligence/evidence-map.server");
+          const em = await m.buildEvidenceMap(supabase, caseId);
+          return {
+            value: em,
+            stats: {
+              generated: em.totals.total,
+              accepted: em.totals.total - em.totals.missing_evidence,
+            },
+          };
+        }),
+    },
+    contradictions: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "contradictions" }, async () => {
+          const d = await import("@/lib/intelligence/derived-engines.server");
+          const result = await d.deriveContradictions(supabase, caseId);
+          await updateCase({ contradiction_at: new Date().toISOString() }, "pipeline.contradictions");
+          return result;
+        }),
+      stage: "contradictions",
+    },
+    // Task-9/10 stat plumbing: engines whose output is a mix of LLM + deterministic
+    // templates now return real generated/accepted/rejected counts. Row counts come
+    // from the target case_* tables (source of truth), audit numbers come from the
+    // engine's own return value where available. Meta.source labels the pipeline
+    // ("llm" | "template" | "hybrid") so the UI stops showing 0/0/0 for engines
+    // that produced legitimate deterministic output.
+    witness: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "witness_intelligence" }, async () => {
+          const value = (await eng.runWitnessEngine(baseArgs)) as {
+            witnesses?: unknown[];
+            audit?: { input?: number; accepted?: number };
+          };
+          const { count } = await supabase
+            .from("case_witnesses")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const rows = count ?? value.witnesses?.length ?? 0;
+          const gen = Math.max(value.audit?.input ?? 0, rows);
+          const acc = Math.max(value.audit?.accepted ?? 0, rows);
+          return {
+            value,
+            stats: {
+              generated: gen,
+              accepted: acc,
+              rejected: Math.max(0, gen - acc),
+              rows_written: rows,
+              meta: { source: "hybrid" },
+            },
+          };
+        }),
+      stage: "witness_intel",
+    },
+    evidence_intel: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "evidence_intelligence" }, async () => {
+          const value = (await lit.runEvidenceIntelEngine(baseArgs)) as {
+            classifications?: number;
+            promoted_findings?: number;
+            promotion_gate?: unknown;
+            promotion_mode?: unknown;
+            promotion_corpus?: unknown;
+          };
+          const gen = value.classifications ?? 0;
+          const acc = value.promoted_findings ?? gen;
+          await updateCase({ evidence_intel_at: new Date().toISOString() }, "pipeline.evidence_intel");
+          return {
+            value,
+            stats: {
+              generated: gen,
+              accepted: acc,
+              rejected: Math.max(0, gen - acc),
+              rows_written: gen,
+              meta: {
+                source: "hybrid",
+                evidence_gate: {
+                  mode: value.promotion_mode,
+                  audit: value.promotion_gate,
+                  corpus: value.promotion_corpus,
+                },
+              },
+            },
+          };
+        }),
+      stage: "evidence_intel",
+    },
+    constitutional: {
+      // PRACTICE-AREA GATE: this stage previously ran unconditionally for
+      // every case type, which is what produced the release-gate
+      // "silent_activation:constitutional_compliance" failure — the engine
+      // ran to completion (with a stub value) even when the manifest listed
+      // it under skipped_engines. Mirrors the same gate already used in
+      // runAgents() and ensureRequiredEngines() above.
+      run: async () => {
+        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } = await import("./intelligence/practice-areas");
+        const { getActiveDomains } = await import("./intelligence/cross-domain.server");
+        const { recordSkipped } = await import("./intelligence/engine-audit.server");
+
+        const { data: caseRow } = await supabase
+          .from("cases")
+          .select("case_type" as any)
+          .eq("id", caseId)
+          .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const area = String((caseRow as any)?.case_type ?? "general_civil");
+        const activeDomains = await getActiveDomains(supabase, caseId);
+
+        if (!isAnalyzerAllowed(area, "constitutional_compliance", activeDomains)) {
+          await recordSkipped(supabase, {
+            caseId,
+            userId,
+            engine: "constitutional_compliance" as never,
+            reason: SKIP_REASON_NOT_APPLICABLE,
+          });
+          return { skipped: true, reason: SKIP_REASON_NOT_APPLICABLE };
+        }
+
+        return persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: "constitutional_compliance" },
+          async () => ({
+            value: { derived_from: "analyzers+agents" },
+          }),
+        );
+      },
+    },
+    discovery: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "discovery_gaps" }, async () => {
+          const value = (await eng.runDiscoveryGapEngine(baseArgs)) as {
+            findings_gate?: unknown;
+            findings_gate_mode?: unknown;
+            findings_gate_corpus?: unknown;
+          };
+          const { count } = await supabase
+            .from("case_findings")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId)
+            .like("source_module", "engine:discovery%");
+          const n = count ?? 0;
+          await updateCase({ discovery_at: new Date().toISOString() }, "pipeline.discovery");
+          return {
+            value,
+            stats: {
+              generated: n,
+              accepted: n,
+              rows_written: n,
+              meta: {
+                source: "engine",
+                evidence_gate: {
+                  mode: value.findings_gate_mode,
+                  audit: value.findings_gate,
+                  corpus: value.findings_gate_corpus,
+                },
+              },
+            },
+          };
+        }),
+      stage: "discovery_gaps",
+    },
+    perspectives: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "perspectives" }, async () => {
+          const value = await lit.runPerspectivesEngine(baseArgs);
+          const { count } = await supabase
+            .from("case_perspectives")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const n = count ?? 0;
+          return {
+            value,
+            stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
+          };
+        }),
+    },
+    theories: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "theory" }, async () => {
+          const value = (await eng.runTheoryEngine(baseArgs)) as {
+            theories?: unknown[];
+            audit?: { rejected?: number };
+          };
+          const { count } = await supabase
+            .from("case_theories")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const acc = count ?? value.theories?.length ?? 0;
+          const gen = acc + (value.audit?.rejected ?? 0);
+          return {
+            value,
+            stats: {
+              generated: gen,
+              accepted: acc,
+              rejected: Math.max(0, gen - acc),
+              rows_written: acc,
+              meta: { source: "engine" },
+            },
+          };
+        }),
+      stage: "theories",
+    },
+    opportunities: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "opportunity" }, async () => {
+          const value = (await eng.runOpportunityEngine(baseArgs)) as {
+            opportunities?: unknown[];
+            potential_opportunities?: unknown[];
+            audit?: { input?: number; rejected?: number; rejections?: unknown[] };
+          };
+          const { count } = await supabase
+            .from("case_opportunities")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const verified = value.opportunities?.length ?? 0;
+          const potential = value.potential_opportunities?.length ?? 0;
+          const rows = count ?? verified + potential;
+          const gen = Math.max(value.audit?.input ?? 0, verified + potential, rows);
+          const rejected = Math.max(value.audit?.rejected ?? potential, gen - verified);
+          return {
+            value,
+            stats: {
+              generated: gen,
+              accepted: verified,
+              rejected,
+              rows_written: rows,
+              meta: {
+                source: "engine",
+                verified_opportunities: verified,
+                potential_requires_review: potential,
+                gate_rejections: value.audit?.rejections ?? [],
+              },
+            },
+          };
+        }),
+    },
+    trial_prep: {
+      // PRACTICE-AREA GATE: mirrors the same gate already used for
+      // constitutional_compliance above. This engine previously ran
+      // unconditionally for every case type, including familiar and
+      // inmobiliario matters where MX_ENGINES explicitly excludes
+      // trial_prep — burning a real AI call and adding an unnecessary
+      // failure point on a case type it has no application to.
+      run: async () => {
+        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } = await import("./intelligence/practice-areas");
+        const { getActiveDomains } = await import("./intelligence/cross-domain.server");
+        const { recordSkipped } = await import("./intelligence/engine-audit.server");
+
+        const { data: caseRow } = await supabase
+          .from("cases")
+          .select("case_type" as any)
+          .eq("id", caseId)
+          .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const area = String((caseRow as any)?.case_type ?? "general_civil");
+        const activeDomains = await getActiveDomains(supabase, caseId);
+
+        if (!isAnalyzerAllowed(area, "trial_prep", activeDomains)) {
+          await recordSkipped(supabase, {
+            caseId,
+            userId,
+            engine: "trial_prep" as never,
+            reason: SKIP_REASON_NOT_APPLICABLE,
+          });
+          return { skipped: true, reason: SKIP_REASON_NOT_APPLICABLE };
+        }
+
+        return persist.runCatalogedEngine(supabase, { caseId, userId, engine: "trial_prep" }, async () => {
+          const value = (await eng.runTrialPrepEngine(baseArgs)) as {
+            findings_gate?: unknown;
+            findings_gate_mode?: unknown;
+            findings_gate_corpus?: unknown;
+          };
+          const { count } = await supabase
+            .from("case_trial_prep")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const n = count ?? (value ? 1 : 0);
+          return {
+            value,
+            stats: {
+              generated: n,
+              accepted: n,
+              rows_written: n,
+              meta: {
+                source: "engine",
+                evidence_gate: {
+                  mode: value.findings_gate_mode,
+                  audit: value.findings_gate,
+                  corpus: value.findings_gate_corpus,
+                },
+              },
+            },
+          };
+        });
+      },
+    },
+    strategy: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "strategy" }, async () => {
+          const value = await lit.runStrategyEngine(baseArgs);
+          const { count } = await supabase
+            .from("case_strategy")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const n = count ?? 0;
+          return {
+            value,
+            stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
+          };
+        }),
+      stage: "strategy",
+    },
+    // PIPELINE_STAGES (cases.functions.ts) lists 21 stages, but this object
+    // only ever implemented 20 of them — litigation_strategy_center had no
+    // entry at all. That's a missing-property error, not an extra/wrong
+    // field: TypeScript's Record<PipelineStageKey, {...}> requires every
+    // key in PipelineStageKey to be present, so the object literal never
+    // satisfied its own declared type. Mirrors the working implementation
+    // already present in pipeline-runner.server.ts.
+    litigation_strategy_center: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "litigation_strategy_center" }, async () => {
+          const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { count } = await (supabase as any)
+            .from("case_strategy_center")
+            .select("case_id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const n = count ?? (value ? 1 : 0);
+          return {
+            value,
+            stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
+          };
+        }),
+    },
+    work_product: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "work_product" }, async () => {
+          const value = (await eng.runWorkProductEngine(baseArgs)) as {
+            documents?: unknown[];
+            failed?: number;
+            verification?: {
+              total?: number;
+              clean?: number;
+              flagged?: number;
+              rejected?: number;
+              empty?: number;
+            };
+          };
+          const { count } = await supabase
+            .from("case_work_product")
+            .select("id", { count: "exact", head: true })
+            .eq("case_id", caseId);
+          const rows = count ?? 0;
+          const gen = value.verification?.total ?? rows;
+          const acc = value.verification?.clean ?? rows;
+          const rej = (value.verification?.rejected ?? 0) + (value.verification?.empty ?? 0);
+          return {
+            value,
+            stats: {
+              generated: gen,
+              accepted: acc,
+              rejected: rej,
+              rows_written: rows,
+              meta: { source: "template", verification: value.verification ?? null },
+            },
+          };
+        }),
+    },
+    hallucination: {
+      run: () =>
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "hallucination" }, async () => ({
+          value: await hal.runHallucinationReview({ db: supabase, caseId }),
+        })),
+    },
+    multi_agent: {
+      run: async () =>
+        audit.runEngine(supabase, { caseId, userId, engine: "multi_agent" }, async () => {
+          const { runMultiAgentPipeline } = await import("@/lib/agents/orchestrator.server");
+          const result = await runMultiAgentPipeline({
+            db: supabase,
+            userId,
+            caseId,
+            apiKey,
+            apiKeys: keys,
+          });
+          const successful = result.results.filter((r) => r.status === "success").length;
+          return {
+            value: result,
+            stats: {
+              generated: result.results.length,
+              accepted: successful,
+              rejected: result.results.length - successful,
+              rows_written: result.results.length,
+              db_write_confirmed: true,
+              meta: { run_id: result.runId, released: result.released },
+            },
+          };
+        }),
+    },
+  };
+
+  // Dependency graph — derived from CANONICAL_STAGES so there is exactly
+  // one place that defines stage dependencies platform-wide.
+  const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
+  const DEPENDS_ON = Object.fromEntries(CANONICAL_STAGES.map((s) => [s.key, [...s.dependsOn]])) as Record<
+    PipelineStageKey,
+    PipelineStageKey[]
+  >;
+  // See matching comment in pipeline-runner.server.ts: only blocking/enriching
+  // stage failures should flip the whole pipeline to "failed" — optional
+  // stages are documented as "decorative; never blocks".
+  const stageRequirement = (k: string): "blocking" | "enriching" | "optional" =>
+    CANONICAL_STAGES.find((c) => c.key === k)?.requirement ?? "blocking";
+
+  let stages: (typeof PIPELINE_STAGES)[number][] = [...PIPELINE_STAGES];
+  if (startFrom) {
+    const idx = stages.findIndex((s) => s.key === startFrom);
+    if (idx > 0) stages = stages.slice(idx);
+  }
+
+  // Clear stale failed/blocked pipeline_engine_runs rows for every engine
+  // this invocation is about to (re-)execute. Without this, a row left
+  // over from a prior tick (e.g. a transient provider 413, or a partial
+  // resume) is still the *latest* row for that engine until this run's own
+  // stage writes a fresh one. Any dependency check that reads
+  // latest-row-by-engine directly from the DB (assertCanRun,
+  // canGenerateReport, computeStageViews — see execution/canonical.ts)
+  // will see that stale failed/blocked status and gate a downstream stage
+  // (e.g. work_product) even though its upstream (e.g. strategy) goes on
+  // to complete later in this very run. `reset: true` already wipes the
+  // whole table so this is a no-op there; this specifically covers the
+  // non-reset re-run / resume path where individual stages only clear a
+  // hand-picked subset of engines (analyzers, agents) and everything else
+  // — strategy, work_product, multi_agent, etc. — was never cleared.
+  // Scoped to only the engines in `stages` so a resume tick never erases
+  // history for stages it isn't going to re-run.
+  {
+    const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
+    const engines = Array.from(new Set(stages.map((s) => engineForStage(s.key))));
+    if (engines.length > 0) {
+      const { error: staleClearErr } = await supabase
+        .from("pipeline_engine_runs")
+        .delete()
+        .eq("case_id", caseId)
+        .in("engine", engines)
+        .in("status", ["failed", "blocked"]);
+      if (staleClearErr) {
+        trace("pipeline.stale_row_clear_failed", { error: staleClearErr.message });
+      }
+    }
+  }
+
+  const total = stages.length;
+  const FATAL_STAGES = new Set<PipelineStageKey>(["extraction", "analyzers", "agents"]);
+  const stageFailures: Array<{ key: string; error: string }> = [];
+  const completed = new Set<PipelineStageKey>();
+  const failed = new Set<PipelineStageKey>();
+  const blocked = new Set<PipelineStageKey>();
+  const { withCheckpointScope, budgetFor, WORKER_INVOCATION_BUDGET_MS, CHECKPOINT_SAFETY_BUFFER_MS } =
+    await import("./pipeline-checkpoint.server");
+  const invocationDeadlineAt = runStart + WORKER_INVOCATION_BUDGET_MS;
+
+  // Cross-tick dependency correctness. `failed`/`blocked` above only track
+  // what THIS invocation observes. A case resumes across separate worker
+  // ticks via `startFrom`, which slices `stages` to start partway through —
+  // so any stage before that point (e.g. `perspectives` failing on tick 1)
+  // is invisible to tick 3's freshly-empty Sets, and a downstream dependent
+  // (e.g. `work_product`) could run unblocked even though its real upstream
+  // dependency never completed. Reconstruct the missing history from the
+  // persisted ledger for exactly the stages this tick will NOT re-attempt.
+  const resumeIdx = startFrom ? PIPELINE_STAGES.findIndex((s) => s.key === startFrom) : 0;
+  if (resumeIdx > 0) {
+    const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: priorRuns, error: priorErr } = await (supabase as any)
+      .from("pipeline_engine_runs")
+      .select("engine,status,started_at")
+      .eq("case_id", caseId)
+      .order("started_at", { ascending: true });
+    if (priorErr) {
+      // Fail loudly rather than silently proceeding with an incomplete
+      // picture of prior failures — a swallowed error here is exactly the
+      // kind of gap that let work_product run past a failed perspectives.
+      throw new Error(`failed to read pipeline_engine_runs history for resume: ${priorErr.message}`);
+    }
+    const latestStatusByEngine = new Map<string, string>();
+    for (const row of (priorRuns ?? []) as Array<{ engine: string; status: string }>) {
+      latestStatusByEngine.set(row.engine, row.status); // ascending order → last write wins
+    }
+    const { seedResumeState } = await import("./pipeline-checkpoint.server");
+    const seeded = seedResumeState({
+      priorStageKeys: PIPELINE_STAGES.slice(0, resumeIdx).map((s) => s.key),
+      engineForStage,
+      latestStatusByEngine,
+    });
+    for (const k of seeded.failed) failed.add(k as PipelineStageKey);
+    for (const k of seeded.blocked) blocked.add(k as PipelineStageKey);
+    trace("pipeline.resume_state_seeded", {
+      resume_from: startFrom,
+      seeded_failed: [...failed],
+      seeded_blocked: [...blocked],
+    });
+  }
+
+  trace("pipeline.start", {
+    total_stages: stages.length,
+    reset: !!reset,
+    startFrom: startFrom ?? null,
+  });
+
+  for (let i = 0; i < stages.length; i++) {
+    const s = stages[i];
+    const key = s.key as PipelineStageKey;
+    const r = runners[key];
+    const pct = Math.floor((i / total) * 95);
+
+    // Dependency gate — record a `blocked` row so the ledger, UI, and report
+    // gate all see the truth: this engine did not run because upstream failed.
+    const unmet = (DEPENDS_ON[key] ?? []).filter((d) => failed.has(d) || blocked.has(d));
+    if (unmet.length > 0) {
+      blocked.add(key);
+      const reason = `Blocked: upstream stage(s) failed — ${unmet.join(", ")}`;
+      if (stageRequirement(key) !== "optional") stageFailures.push({ key: s.key, error: reason });
+      trace("stage.blocked", { stage: s.key, index: i + 1, unmet });
+      try {
+        await prog.emitEvent(supabase, caseId, s.key, reason, { level: "warn" });
+      } catch {
+        /* noop */
+      }
+      try {
+        const { CANONICAL_STAGES: stagesDef } = await import("@/lib/execution/canonical");
+        const engineFor = (k: string) => stagesDef.find((st) => st.key === k)?.engine ?? k;
+        const audit = await import("@/lib/intelligence/engine-audit.server");
+        await audit.recordBlocked(supabase, {
+          caseId,
+          userId,
+          engine: engineFor(key),
+          blockingEngines: unmet.map(engineFor),
+          reason,
+        });
+      } catch (recErr) {
+        console.warn(`[pipeline] failed to record blocked row for ${s.key}`, recErr);
+      }
+      await updateCase(
+        {
+          status: "intelligence_running",
+          status_message: `${s.label} blocked (${i + 1}/${total})`,
+          progress: pct,
+          next_stage: s.key,
+        },
+        `stage.blocked:${s.key}`,
+      );
+      console.warn(`[pipeline] ${s.key} BLOCKED — ${reason}`);
+      continue;
+    }
+
+    await updateCase(
+      {
+        status: "intelligence_running",
+        status_message: `${s.label} (${i + 1}/${total})`,
+        progress: pct,
+        next_stage: s.key,
+      },
+      `stage.start:${s.key}`,
+    );
+
+    const remainingInvocationMs = invocationDeadlineAt - Date.now();
+    if (remainingInvocationMs <= CHECKPOINT_SAFETY_BUFFER_MS) {
+      try {
+        const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
+        await requeueForContinuation(supabase, caseId, s.key);
+      } catch (rqErr) {
+        console.warn(`[pipeline] re-queue before ${s.key} checkpoint failed`, rqErr);
+      }
+      trace("stage.checkpoint_before_start", {
+        stage: s.key,
+        index: i + 1,
+        remaining_invocation_ms: remainingInvocationMs,
+      });
+      try {
+        await prog.emitEvent(
+          supabase,
+          caseId,
+          s.key,
+          `${s.label} checkpointed before start — will resume on next worker tick`,
+          { level: "warn" },
+        );
+      } catch {
+        /* noop */
+      }
+      return {
+        ok: true,
+        completedStages: i,
+        warnings: [{ key: s.key, error: "checkpoint" }],
+        failedAt: s.key,
+      };
+    }
+
+    trace("stage.start", { stage: s.key, index: i + 1, progress_pct: pct });
+    try {
+      await prog.emitEvent(supabase, caseId, s.key, `${s.label} started`);
+    } catch {
+      /* noop */
+    }
+
+    const stageStart = Date.now();
+    try {
+      // Open the AsyncLocalStorage checkpoint scope so router.server.ts's
+      // assertCheckpointBudget / aiCallTimeoutForCheckpoint guards can see a
+      // real deadline and yield with CheckpointRequired before the worker is
+      // killed mid AI call. Without this scope those guards are no-ops and
+      // only the coarse per-stage progress checks fire — which is exactly the
+      // "died mid-Groq-call, never wrote terminal state" symptom.
+      const stageBudgetMs = Math.min(budgetFor(s.key), WORKER_INVOCATION_BUDGET_MS);
+      const { withHardCheckpointDeadline } = await import("./pipeline-checkpoint.server");
+      await withHardCheckpointDeadline(
+        {
+          stage: s.key,
+          deadlineAt: Math.min(stageStart + stageBudgetMs, invocationDeadlineAt),
+          correlationId,
+        },
+        () => r.run(),
+      );
+      completed.add(key);
+      if (key === "report") {
+        // Report stage finished cleanly — clear the checkpoint counter so a
+        // later regenerate starts with a fresh backstop budget.
+        await (supabase as any)
+          .from("cases")
+          .update({ report_checkpoint_count: 0 })
+          .eq("id", caseId)
+          .then(
+            () => {},
+            () => {},
+          );
+      }
+      trace("stage.complete", { stage: s.key, runtime_ms: Date.now() - stageStart });
+      try {
+        await prog.emitEvent(supabase, caseId, s.key, `${s.label} complete`);
+      } catch {
+        /* noop */
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === "Cancelled by user" || (e instanceof Error && e.name === "CancelledError")) {
+        await updateCase(
+          { status: "cancelled", status_message: `Cancelled at ${s.label}` },
+          `stage.cancelled:${s.key}`,
+        );
+        trace("pipeline.cancelled", { stage: s.key });
+        return { ok: false, cancelled: true, failedAt: s.key, completedStages: i };
+      }
+      if (e instanceof Error && e.name === "CheckpointRequired") {
+        try {
+          const { requeueForContinuation } = await import("@/lib/pipeline-stall.server");
+          await requeueForContinuation(supabase, caseId, s.key);
+        } catch (rqErr) {
+          console.warn(`[pipeline] re-queue after checkpoint failed`, rqErr);
+        }
+        if (s.key === "report") {
+          // Backstop counter — see MAX_REPORT_CHECKPOINTS. runReport() reads
+          // this on its next invocation to decide whether to keep retrying
+          // raw LLM calls or force finalization with whatever succeeded.
+          try {
+            const { data: cur } = await (supabase as any)
+              .from("cases")
+              .select("report_checkpoint_count")
+              .eq("id", caseId)
+              .maybeSingle();
+            const next = ((cur as { report_checkpoint_count?: number } | null)?.report_checkpoint_count ?? 0) + 1;
+            await (supabase as any).from("cases").update({ report_checkpoint_count: next }).eq("id", caseId);
+            trace("report.checkpoint_count", { count: next });
+          } catch (cntErr) {
+            console.warn("[pipeline] failed to increment report_checkpoint_count", cntErr);
+          }
+        }
+        trace("stage.checkpoint", { stage: s.key, runtime_ms: Date.now() - stageStart });
+        try {
+          await prog.emitEvent(supabase, caseId, s.key, `${s.label} checkpointed — will resume on next worker tick`, {
+            level: "warn",
+          });
+        } catch {
+          /* noop */
+        }
+        return {
+          ok: true,
+          completedStages: i,
+          warnings: [{ key: s.key, error: "checkpoint" }],
+          failedAt: s.key,
+        };
+      }
+      failed.add(key);
+      trace("stage.failed", {
+        stage: s.key,
+        runtime_ms: Date.now() - stageStart,
+        error: msg.slice(0, 500),
+      });
+      try {
+        await prog.emitEvent(supabase, caseId, s.key, msg, { level: "error" });
+      } catch {
+        /* noop */
+      }
+      if (stageRequirement(key) !== "optional") stageFailures.push({ key: s.key, error: msg });
+      if (FATAL_STAGES.has(key)) {
+        await updateCase(
+          {
+            status: "failed",
+            status_message: `Failed at ${s.label}`,
+            error: msg.slice(0, 2000),
+            next_stage: s.key,
+          },
+          `stage.failed:${s.key}`,
+        );
+        throw new Error(`[${s.label}] ${msg}`);
+      }
+      console.warn(`[pipeline] non-fatal failure at ${s.key}: ${msg}`);
+    }
+  }
+
+  // Truthful final status. Multi-agent may have already stamped the case as
+  // "released" or "needs_revision" — that is the authoritative post-pipeline
+  // state and must NOT be overwritten by a blanket "complete". Only fall
+  // back to complete/failed when multi-agent didn't stamp.
+  const hasFailures = stageFailures.length > 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: postRun } = await (supabase as any)
+    .from("cases")
+    .select("status,status_message")
+    .eq("id", caseId)
+    .maybeSingle();
+  const preserved = postRun?.status === "released" || postRun?.status === "needs_revision";
+  const finalStatus = preserved ? postRun.status : hasFailures ? "failed" : "complete";
+  const finalMessage = preserved
+    ? (postRun.status_message ?? "Pipeline finalized by multi-agent release gate.")
+    : hasFailures
+      ? `Pipeline finished with ${stageFailures.length} failed/blocked stage(s): ${stageFailures.map((f) => f.key).join(", ")}`
+      : "Full pipeline complete";
+  await updateCase(
+    {
+      status: finalStatus,
+      status_message: finalMessage,
+      progress: 100,
+      next_stage: null,
+      error: hasFailures
+        ? stageFailures
+            .map((f) => `${f.key}: ${f.error}`)
+            .join(" | ")
+            .slice(0, 2000)
+        : null,
+    },
+    "pipeline.finalize",
+  );
+
+  // Canonical projection — additive, never blocks legacy path. Projects every
+  // engine table into the 17-section CaseAnalysis, validates, and upserts to
+  // canonical_analysis. Validation failures are recorded on the row, not
+  // thrown, so the legacy report path stays intact.
+  try {
+    const { runCanonicalGate } = await import("@/lib/canonical/gate.server");
+    // canonical_analysis is service-role-write only (users get SELECT via RLS),
+    // so the projection must run with the privileged server client.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const reportMode = hasFailures ? "LIMITED" : "FULL";
+    const gate = await runCanonicalGate(supabaseAdmin as typeof supabase, caseId, reportMode);
+
+    trace("pipeline.canonical", {
+      ok: gate.ok,
+      status: gate.status,
+      issues: gate.validation.issues.length,
+    });
+  } catch (canonErr) {
+    console.warn("[pipeline] canonical projection failed:", canonErr);
+    trace("pipeline.canonical.failed", {
+      error: canonErr instanceof Error ? canonErr.message : String(canonErr),
+    });
+  }
+
+  trace("pipeline.finalized", {
+    total_runtime_ms: Date.now() - runStart,
+    final_status: finalStatus,
+    preserved_from_multi_agent: preserved,
+    failures: stageFailures.length,
+    completed: completed.size,
+    blocked: blocked.size,
+  });
+  return { ok: true, completedStages: total, warnings: stageFailures };
+}
+
+// ---------------------------------------------------------------
+// Restored pipeline step implementations (runExtraction, runAnalyzers,
 // runAgents, runScoring, runReport, retryFailedExtractions,
 // rollbackExtractions, resolveCaseType, isCriminalCaseType, detectCaseType).
 // Recovered from an earlier snapshot after these were lost from
@@ -1213,20 +2179,9 @@ ${corpusText}`;
         keyIndex: r.keyIndex,
       });
       const parsed = parseJsonLoose<Record<string, unknown>>(r.text) ?? {};
-      // Real per-batch item count, computed BEFORE pushing into the
-      // shared `merged` accumulator (which multiple concurrent batches
-      // write into) so this stays correct under ANALYZER_BATCH_CONCURRENCY.
-      // Previously this diagnostic row hardcoded generated/accepted/etc to
-      // 0 unconditionally, making pipeline_engine_runs useless for telling
-      // "the model returned nothing" apart from "the model returned plenty
-      // but it was filtered downstream" — see docs incident trace 2026-08-02.
-      const parsedCounts: Partial<Record<keyof AnalyzerBucket, number>> = {};
       const push = (k: keyof AnalyzerBucket) => {
         const v = parsed[k];
-        if (Array.isArray(v)) {
-          parsedCounts[k] = v.length;
-          merged[k].push(...v);
-        }
+        if (Array.isArray(v)) merged[k].push(...v);
       };
       push("timeline");
       push("contradictions");
@@ -1234,7 +2189,6 @@ ${corpusText}`;
       push("procedural_issues");
       push("evidence_relationships");
       push("key_findings");
-      const generatedCount = Object.values(parsedCounts).reduce((a, b) => a + (b ?? 0), 0);
       successes++;
 
       await db.from("pipeline_engine_runs").insert({
@@ -1245,8 +2199,8 @@ ${corpusText}`;
         started_at: startedAt,
         ended_at: new Date().toISOString(),
         runtime_ms: Date.now() - t0,
-        generated: generatedCount,
-        accepted: generatedCount,
+        generated: 0,
+        accepted: 0,
         rejected: 0,
         suppressed_ess: 0,
         suppressed_validator: 0,
@@ -1256,10 +2210,6 @@ ${corpusText}`;
           chars: batchCorpus.length,
           docIds: batch.map((c) => c.docId),
           provider: r.provider,
-          model: r.model,
-          outputTokens: r.outputTokens,
-          parsedCounts,
-          rawResponsePreview: (r.text ?? "").slice(0, 2000),
         } as any,
       } as any);
       return null;
@@ -1334,9 +2284,7 @@ ${corpusText}`;
         throw new CheckpointRequired("analyzers", `after ${successes} successful batch(es) — ${msg.slice(0, 300)}`);
       }
       if (providerUnavailable || retryableTransport) {
-        console.warn(
-          `[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`,
-        );
+        console.warn(`[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`);
         stopAnalyzers = true;
         break;
       }
@@ -1756,6 +2704,7 @@ const AGENT_ENGINE: Record<string, string> = {
  */
 const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
 
+
 /**
  * How many investigator agents may execute simultaneously inside the "agents"
  * stage.
@@ -1970,6 +2919,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           });
 
           const agentBatches = packChunks(chunks, agentBudgetChars);
+
 
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
@@ -2625,19 +3575,9 @@ ${JSON.stringify(findingsForLlm)}`,
 
   const allContribs = [...((s.positive_contributors as any[]) ?? []), ...((s.negative_contributors as any[]) ?? [])];
 
-  // The LLM is prompted to cite back finding_id values verbatim, but models
-  // routinely truncate or mangle long UUIDs when reproducing them (observed
-  // in production: "180a38b1-b1d" instead of the real 36-char UUID), which
-  // then blew up the case_scores upsert below with a Postgres
-  // "invalid input syntax for type uuid" error — failing the entire
-  // (blocking-tier) scoring stage over a single bad citation. Validate the
-  // shape AND cross-check against the real known finding ids so a
-  // hallucinated/truncated citation is dropped instead of reaching the DB.
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const knownFindingIds = new Set(findings.map((f) => f.id));
   const ids = allContribs
     .map((c: any) => c?.finding_id)
-    .filter((id: unknown): id is string => typeof id === "string" && UUID_RE.test(id) && knownFindingIds.has(id));
+    .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
 
   // DETERMINISTIC scorecard derived from verified findings. This overrides
   // the LLM's numeric outputs so every score is defensible by formula.
@@ -2945,13 +3885,17 @@ async function ensureRequiredEngines(args: {
     // then hard-failed with "core engines failed to complete".
     jurisdiction_intel: () =>
       runEngine(db, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
-        const { runJurisdictionIntelligence } = await import("./intelligence/jurisdiction-intel.server");
+        const { runJurisdictionIntelligence } = await import(
+          "./intelligence/jurisdiction-intel.server"
+        );
         const value = await runJurisdictionIntelligence({ db, caseId });
         return { value, stats: { generated: 1, accepted: 1 } };
       }),
     procedural_compliance: () =>
       runEngine(db, { caseId, userId, engine: "procedural_compliance" }, async () => {
-        const { runProceduralCompliance } = await import("./intelligence/procedural-compliance.server");
+        const { runProceduralCompliance } = await import(
+          "./intelligence/procedural-compliance.server"
+        );
         const value = await runProceduralCompliance({ db, caseId, userId });
         return {
           value,
@@ -3102,9 +4046,9 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
       .select("rationale,overall_confidence")
       .eq("case_id", caseId)
       .maybeSingle();
-    const flags = (((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ?? []) as unknown[]).map(
-      String,
-    );
+    const flags = (
+      ((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ?? []) as unknown[]
+    ).map(String);
     const stale = flags.some((f) =>
       ["PIPELINE_NOT_FINALIZED", "INVALID_PIPELINE_ORDER", "CANONICAL_FINDINGS_EMPTY"].includes(f),
     );
@@ -3131,6 +4075,7 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
   } catch (e) {
     console.warn("[report] stale-suppression rescore check failed", e);
   }
+
 
   await setCase(db, caseId, {
     status: "reporting",
@@ -3178,49 +4123,18 @@ async function _runReportInner(args: {
   // runReport() above auto-backfills missing engines first, so this gate
   // only trips when an engine genuinely cannot complete.
   {
-    const {
-      REPORT_REQUIRED_ENGINES,
-      REPORT_BLOCKING_ENGINES,
-      REPORT_MUST_BE_TERMINAL_ENGINES,
-      missingRequiredEngines,
-      stillInFlightEngines,
-    } = await import("@/lib/execution/canonical");
+    const { REPORT_REQUIRED_ENGINES, REPORT_BLOCKING_ENGINES, missingRequiredEngines } =
+      await import("@/lib/execution-state");
     const { data: runs } = await db
       .from("pipeline_engine_runs")
       .select("id,engine,status,started_at,ended_at,created_at")
       .eq("case_id", caseId)
-      .in("engine", REPORT_MUST_BE_TERMINAL_ENGINES as unknown as string[])
+      .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
       .order("created_at", { ascending: false });
     const rows = (runs ?? []) as never;
-
-    // A stage that's genuinely still executing (not failed, not missing —
-    // actively "running"/"queued") should pause report generation and let
-    // the caller retry shortly, not throw a terminal failure. This is what
-    // actually prevents a report from being generated next to a dangling
-    // in-flight engine, without treating every non-blocking engine's
-    // *failure* as fatal (see canonical.ts for the full history here).
-    const inFlight = stillInFlightEngines(rows);
-    if (inFlight.length) {
-      // BUG FIX: this used to `throw new Error(...)`, a plain error
-      // indistinguishable (to runEngine() in engine-audit.server.ts) from a
-      // genuine crash. That wrote pipeline_engine_runs.status = "failed" and
-      // fired a "Report Generator failed" event whose own message said "this
-      // is not a failure" — and nothing auto-retried it, so the case sat
-      // there until someone manually clicked Re-run. stillInFlightEngines()'s
-      // own doc comment states the intended contract: "Callers should pause
-      // (not permanently fail) report generation while this is non-empty,
-      // then retry." CheckpointRequired is the mechanism that actually does
-      // that — runEngine() records it as a "queued" checkpoint (not failed),
-      // and the stage loop's CheckpointRequired handler auto-requeues the
-      // case for the next worker tick, same as a genuine timeout checkpoint.
-      const { CheckpointRequired } = await import("@/lib/pipeline-checkpoint.server");
-      throw new CheckpointRequired("report", `waiting on in-flight engines: ${inFlight.join(", ")}`);
-    }
-
     const blockingMissing = missingRequiredEngines(rows, REPORT_BLOCKING_ENGINES);
-    const nonBlockingMissing = missingRequiredEngines(
-      rows,
-      REPORT_REQUIRED_ENGINES.filter((e) => !REPORT_BLOCKING_ENGINES.includes(e as never)),
+    const nonBlockingMissing = missingRequiredEngines(rows).filter(
+      (e) => !REPORT_BLOCKING_ENGINES.includes(e as never),
     );
     if (nonBlockingMissing.length) {
       pipelineWarnings.push(...nonBlockingMissing.map((e) => `${e}_incomplete`));
@@ -5779,7 +6693,9 @@ ${paginationTail}`;
       locale: (await getReportLocale(db, caseId)) === "en" ? "en" : "es",
       findings: findings as unknown as Parameters<typeof buildObjectiveBlock>[0]["findings"],
       contradictions: factualContradictions.length,
-      missingEvidence: missingGuarded.items as unknown as Parameters<typeof buildObjectiveBlock>[0]["missingEvidence"],
+      missingEvidence: missingGuarded.items as unknown as Parameters<
+        typeof buildObjectiveBlock
+      >[0]["missingEvidence"],
       scores: {
         strength: gatedScore(parsed.case_strength_score) as number | null,
         risk: gatedScore(parsed.risk_score) as number | null,
@@ -5792,6 +6708,8 @@ ${paginationTail}`;
   } catch (e) {
     console.warn("[report] objective block failed", e);
   }
+
+
 
   // STEP 2 directive — per-document Evidence Map, OCR coverage, and report
   // quality audit. All deterministic, all reconcilable against the persisted
@@ -5840,15 +6758,15 @@ ${paginationTail}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow.full_report as any).validation = valBlock;
 
-    // Unsupported citations and missing evidence now BLOCK (previously
-    // quarantine/warning-only). Per explicit confirmation: a defective
-    // report should never be silently published as "complete" — matches
-    // the fail-closed philosophy already used by the legal_qa stage.
+    // Priority 0/3/4 — incomplete citations QUARANTINE, they do NOT block.
+    // Supported findings render normally; unsupported ones are surfaced in
+    // the Citation Audit appendix. Only genuinely broken pipeline states
+    // (failed OCR) count as blocking quality issues.
     const blockReasons: string[] = [];
     if (citationAudit.quarantined > 0) {
-      const msg = `citation_audit: ${citationAudit.quarantined}/${citationAudit.total} finding(s) quarantined — see Citation Audit appendix. supported=${citationAudit.supported_pct}%`;
-      pipelineWarnings.push(msg);
-      blockReasons.push(msg);
+      pipelineWarnings.push(
+        `citation_audit: ${citationAudit.quarantined}/${citationAudit.total} finding(s) quarantined — see Citation Audit appendix. supported=${citationAudit.supported_pct}%`,
+      );
     }
     if (qualityAudit.total_findings > 0 && qualityAudit.fully_cited_pct < 100) {
       pipelineWarnings.push(
@@ -5864,96 +6782,14 @@ ${paginationTail}`;
       }
     }
     if (evidenceMap.totals.missing_evidence > 0) {
-      const msg = `evidence_map: ${evidenceMap.totals.missing_evidence}/${evidenceMap.totals.total} documents classified as missing_evidence (unreadable or empty).`;
-      pipelineWarnings.push(msg);
-      blockReasons.push(msg);
-    }
-
-    // --- Quality gate enforcement -----------------------------------
-    // scoreReportQuality() above computes a deterministic pass/fail
-    // (score >= 70, zero critical issues) but until now nothing read that
-    // result — a failed gate could still be marked quality_blocked=false.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const qualityGateResult = (reportRow.full_report as any)?.quality_gate as
-      | { passed?: boolean; score?: number; critical_issues?: string[] }
-      | undefined;
-    if (qualityGateResult && qualityGateResult.passed === false) {
-      const issues = qualityGateResult.critical_issues ?? [];
-      blockReasons.push(
-        `report_quality_gate: score ${qualityGateResult.score ?? "?"}/100 failed${
-          issues.length ? ` — ${issues.join("; ")}` : ""
-        }.`,
-      );
       pipelineWarnings.push(
-        `report_quality_gate: failed (score=${qualityGateResult.score ?? "?"}, critical=${issues.length}).`,
+        `evidence_map: ${evidenceMap.totals.missing_evidence}/${evidenceMap.totals.total} documents classified as missing_evidence (unreadable or empty).`,
       );
     }
-
-    // --- Silent finding-loss check -----------------------------------
-    // Catches the case where an engine's mirror-into-case_findings step
-    // failed (even after retry) or silently under-wrote rows relative to
-    // its own source table, neither of which the stage-completion check
-    // upstream can see (the engine's own declared table write succeeded;
-    // only the projection mirror failed).
-    try {
-      const { data: projFailures } = await db
-        .from("pipeline_engine_runs")
-        .select("id,error,meta,created_at")
-        .eq("case_id", caseId)
-        .eq("engine", "findings_projection")
-        .eq("status", "failed")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (projFailures && projFailures.length > 0) {
-        blockReasons.push(
-          `findings_projection: ${projFailures.length} engine(s) failed to mirror findings into case_findings after retry — report may be missing findings that were actually produced.`,
-        );
-        pipelineWarnings.push(
-          `findings_projection_incomplete: ${projFailures.length} failure(s) recorded; see pipeline_engine_runs (engine=findings_projection).`,
-        );
-      }
-
-      const { PROJECTABLE_TABLES, reconcileProjection } = await import("./intelligence/project-findings.server");
-      const reconciliation = await reconcileProjection(db, {
-        caseId,
-        tables: PROJECTABLE_TABLES,
-      });
-      if (!reconciliation.ok) {
-        const detail = reconciliation.mismatches
-          .map((m) => `${m.table}: ${m.projected_count}/${m.source_count}`)
-          .join(", ");
-        blockReasons.push(
-          `findings_projection_reconciliation: mirrored row count is short of source tables (${detail}).`,
-        );
-        pipelineWarnings.push(`findings_projection_reconciliation: mismatch — ${detail}.`);
-      }
-    } catch (reconErr) {
-      console.warn("[findings-projection-check] failed:", reconErr instanceof Error ? reconErr.message : reconErr);
-    }
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow as any).quality_blocked = blockReasons.length > 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow as any).quality_block_reasons = blockReasons;
-    // A blocked report is never "complete". `reports` has no status column
-    // of its own (quality_blocked/quality_block_reasons above are its
-    // signal) — the case-level status is the actual queue attorneys/ops
-    // see, and this codebase already has a real "held for review" status
-    // (`needs_revision`, see the multi-agent release gate above and the
-    // terminalStatuses set), so reuse it instead of inventing a new one.
-    if (blockReasons.length > 0) {
-      try {
-        await setCase(db, caseId, {
-          status: "needs_revision",
-          status_message: `Report needs review: ${blockReasons.join(" | ")}`.slice(0, 2000),
-        });
-      } catch (statusErr) {
-        console.warn(
-          "[quality-gate] failed to stamp needs_revision status on case:",
-          statusErr instanceof Error ? statusErr.message : statusErr,
-        );
-      }
-    }
   } catch (e) {
     console.warn("[evidence-map/ocr/quality/citation-audit] failed:", e instanceof Error ? e.message : e);
   }
@@ -6141,40 +6977,14 @@ ${paginationTail}`;
   // a fresh analysis.
   await clearChunkCache();
 
-  // BUG FIX: this used to unconditionally stamp status="complete" here,
-  // which clobbered the "needs_revision" status the quality gate above
-  // (citation_audit / findings_projection_reconciliation / evidence gaps)
-  // had just set a few hundred lines earlier in this SAME function call.
-  // The outer pipeline-runner's own "preserve needs_revision" check never
-  // got a chance to help — by the time it inspects the case row after this
-  // function returns, this write had already overwritten it back to
-  // "complete". Net effect: a quality-blocked report (full_report never
-  // actually released) always showed the case as finished anyway. Respect
-  // quality_blocked here so a blocked report keeps the needs_revision
-  // status this function itself just set, instead of immediately
-  // overwriting its own signal.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isQualityBlocked = (reportRow as any).quality_blocked === true;
-  if (isQualityBlocked) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const reasons = ((reportRow as any).quality_block_reasons as string[] | undefined) ?? [];
-    await setCase(db, caseId, {
-      status: "needs_revision",
-      status_message: `Report needs review: ${reasons.join(" | ")}`.slice(0, 2000),
-      progress: 100,
-      report_at: new Date().toISOString(),
-      error: null,
-    });
-  } else {
-    await setCase(db, caseId, {
-      status: "complete",
-      status_message: "Litigation intelligence ready",
-      progress: 100,
-      report_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-      error: null,
-    });
-  }
+  await setCase(db, caseId, {
+    status: "complete",
+    status_message: "Litigation intelligence ready",
+    progress: 100,
+    report_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+    error: null,
+  });
   return {
     value: undefined,
     stats: {

@@ -152,27 +152,7 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       label_en: "Legal or legitimate interest established",
       authority: "Ley de Amparo Art. 5 fr. I",
       requirement: "required",
-      // Mexican amparo pleadings argue standing in many equivalent ways —
-      // matching only "interés jurídico"/"interés legítimo" produced false
-      // "faltante" flags on demands that plainly argue standing.
-      patterns: [
-        "interes juridico",
-        "interes legitimo",
-        "afectacion a su esfera juridica",
-        "afectacion en su esfera juridica",
-        "esfera juridica del quejoso",
-        "agravio personal y directo",
-        "agravio directo y personal",
-        "perjuicio personal y directo",
-        "titular de un derecho subjetivo",
-        "derecho subjetivo publico",
-        "situacion juridica identificable",
-        "legitimacion activa",
-        "legitimacion en la causa",
-        "calidad de quejoso",
-        "acredita su interes",
-        "acreditar el interes",
-      ],
+      patterns: ["interes juridico", "interes legitimo"],
     },
     {
       id: "plazo_15_dias",
@@ -180,18 +160,7 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       label_en: "Filed within the 15-day term (with statutory exceptions)",
       authority: "Ley de Amparo Art. 17",
       requirement: "required",
-      patterns: [
-        "quince dias",
-        "15 dias",
-        "plazo para promover",
-        "plazo para la presentacion de la demanda",
-        "oportunidad de la demanda",
-        "presentada en tiempo",
-        "en tiempo y forma",
-        "articulo 17 de la ley de amparo",
-        "actos de imposible reparacion",
-        "no esta sujeta a plazo",
-      ],
+      patterns: ["quince dias", "15 dias", "plazo para promover"],
     },
     {
       id: "conceptos_violacion",
@@ -199,14 +168,7 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       label_en: "Grounds of constitutional violation stated",
       authority: "Ley de Amparo Art. 108 fr. VIII",
       requirement: "required",
-      patterns: [
-        "conceptos de violacion",
-        "concepto de violacion",
-        "agravios",
-        "violacion a los articulos",
-        "violaciones constitucionales",
-        "derechos humanos violados",
-      ],
+      patterns: ["conceptos de violacion", "agravios"],
     },
     {
       id: "suspension",
@@ -214,15 +176,7 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       label_en: "Stay (suspensión) requested and resolved",
       authority: "Ley de Amparo Art. 125–129",
       requirement: "recommended",
-      patterns: [
-        "suspension del acto",
-        "suspension provisional",
-        "suspension definitiva",
-        "suspension de plano",
-        "se concede la suspension",
-        "incidente de suspension",
-        "apariencia del buen derecho",
-      ],
+      patterns: ["suspension del acto", "suspension provisional", "suspension definitiva"],
     },
     {
       id: "informe_justificado",
@@ -230,7 +184,7 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       label_en: "Authority's justifying report",
       authority: "Ley de Amparo Art. 117",
       requirement: "required",
-      patterns: ["informe justificado", "informe previo", "rinde informe", "rindio su informe"],
+      patterns: ["informe justificado"],
     },
     {
       id: "principio_definitividad",
@@ -238,16 +192,8 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       label_en: "Principle of definitiveness satisfied",
       authority: "Ley de Amparo Art. 61 fr. XVIII",
       requirement: "required",
-      patterns: [
-        "definitividad",
-        "recurso ordinario agotado",
-        "agoto el recurso",
-        "no existe recurso ordinario",
-        "excepcion al principio de definitividad",
-        "recurso ordinario procedente",
-      ],
+      patterns: ["definitividad", "recurso ordinario agotado", "agoto el recurso"],
     },
-
   ],
   derechos_humanos: [
     {

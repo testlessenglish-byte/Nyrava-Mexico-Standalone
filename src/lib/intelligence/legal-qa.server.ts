@@ -21,7 +21,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { resolveMxProfile, type MxPipelineProfile } from "@/lib/execution/mx-pipeline";
-import { auditText, dedupeViolations, findEnglishSentences, remediateText, type QaViolation } from "./mx-terminology";
+import {
+  auditText,
+  dedupeViolations,
+  findEnglishSentences,
+  remediateText,
+  type QaViolation,
+} from "./mx-terminology";
 
 type Db = SupabaseClient<Database>;
 
@@ -67,14 +73,7 @@ const TARGETS: readonly {
     table: "case_findings",
     key: "case_id",
     idColumn: "id",
-    text: [
-      "title",
-      "description",
-      "legal_significance",
-      "strategic_significance",
-      "potential_impact",
-      "verification_notes",
-    ],
+    text: ["title", "description", "legal_significance", "strategic_significance", "potential_impact", "verification_notes"],
     json: [],
   },
   {
@@ -123,7 +122,11 @@ const TARGETS: readonly {
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 
-function remediateJson(value: JsonValue, profile: MxPipelineProfile, sink: { from: string; to: string }[]): JsonValue {
+function remediateJson(
+  value: JsonValue,
+  profile: MxPipelineProfile,
+  sink: { from: string; to: string }[],
+): JsonValue {
   if (typeof value === "string") {
     const { text, replacements } = remediateText(value, profile);
     sink.push(...replacements);
@@ -179,7 +182,11 @@ async function translateToSpanish(text: string, userId?: string): Promise<string
   }
 }
 
-export async function runLegalQaGate(args: { db: Db; caseId: string; userId?: string }): Promise<LegalQaReport> {
+export async function runLegalQaGate(args: {
+  db: Db;
+  caseId: string;
+  userId?: string;
+}): Promise<LegalQaReport> {
   const { db, caseId, userId } = args;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -222,9 +229,7 @@ export async function runLegalQaGate(args: { db: Db; caseId: string; userId?: st
     const translated = await translateOnce(text);
     if (!translated) return { text, changed: false };
     const { text: fixed } = remediateText(translated, materia);
-    // Full original and remediated text preserved (no truncation) — this is
-    // the audit trail an attorney relies on to see exactly what QA changed.
-    remediations.push({ table: ctx.table, field: ctx.field, from: text, to: fixed });
+    remediations.push({ table: ctx.table, field: ctx.field, from: text.slice(0, 200), to: fixed.slice(0, 200) });
     return { text: fixed, changed: true };
   }
 
@@ -232,7 +237,10 @@ export async function runLegalQaGate(args: { db: Db; caseId: string; userId?: st
     const columns = [...(target.idColumn ? [target.idColumn] : []), ...target.text, ...target.json];
     if (columns.length === 0) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (db as any).from(target.table).select(columns.join(", ")).eq(target.key, caseId);
+    const { data, error } = await (db as any)
+      .from(target.table)
+      .select(columns.join(", "))
+      .eq(target.key, caseId);
     // A table that doesn't exist / isn't readable must not crash the gate.
     if (error) continue;
     const rows = (data ?? []) as Record<string, unknown>[];
@@ -264,6 +272,7 @@ export async function runLegalQaGate(args: { db: Db; caseId: string; userId?: st
           violations.push({ ...v, table: target.table, field });
         }
       }
+
 
       for (const field of target.json) {
         const value = r[field] as JsonValue | undefined;
@@ -310,6 +319,7 @@ export async function runLegalQaGate(args: { db: Db; caseId: string; userId?: st
           }
         }
       }
+
 
       if (Object.keys(patch).length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
