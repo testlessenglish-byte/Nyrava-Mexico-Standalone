@@ -199,12 +199,12 @@ async function hasCompletedEngine(db: Db, caseId: string, engine: string): Promi
 }
 
 async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
-  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "extraction");
+  const engineCompleted = await hasCompletedEngine(ctx.db, ctx.caseId, "extraction");
   const { count } = await ctx.db
     .from("document_pages")
     .select("id", { count: "exact", head: true })
     .eq("case_id", ctx.caseId);
-  const ok = alreadyDone && (count ?? 0) > 0;
+  const ok = engineCompleted && (count ?? 0) > 0;
   return {
     status: ok ? "success" : "failed",
     confidence: ok ? 0.95 : 0,
@@ -212,26 +212,64 @@ async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
     tokensUsed: 0,
     outputFile: "ocr_output.json",
     errors: ok ? [] : ["Extraction stage did not complete before the release gate ran; nothing to verify."],
-    output: { pages_extracted: count ?? 0, extraction_completed: alreadyDone },
+    // `extraction_completed` must answer the same question as `status`/`errors`
+    // above (did the check pass?), not just report the raw ledger flag —
+    // otherwise this can read `extraction_completed: true` in the same
+    // object as an "did not complete" error whenever the engine row is
+    // marked completed but produced zero verifiable pages.
+    output: { pages_extracted: count ?? 0, extraction_engine_completed: engineCompleted, extraction_completed: ok },
   };
 }
 
 async function agentEntities(ctx: RunCtx): Promise<AgentResult> {
-  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "analyzers");
+  const engineCompleted = await hasCompletedEngine(ctx.db, ctx.caseId, "analyzers");
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
     .select("id", { count: "exact", head: true })
     .eq("case_id", ctx.caseId)
     .not("source_module", "like", PROJECTION_LIKE);
-  const ok = alreadyDone && (findingsCount ?? 0) > 0;
+  const hasFindings = (findingsCount ?? 0) > 0;
+  // FATAL gate: only "the analyzers stage itself never completed" belongs
+  // here. `entities` sits in the orchestrator's FATAL set, so a "failed"
+  // status here blocks all 10 downstream agents (timeline through
+  // hallucination) outright — see the FATAL-blocking loop below. Zero
+  // findings surviving the (now much stricter) evidence gate is a
+  // legitimately thin case, not a broken pipeline; treating it the same as
+  // "the stage never ran" wrongly prevented QA/Judge/Hallucination from
+  // ever running and — since a report-release-gate guard now refuses to
+  // generate a report at all when multi_agent's released flag is explicitly
+  // false — silently blocked report generation for every case where the
+  // stricter gate correctly rejected everything down to zero. QA and Judge
+  // each independently and correctly re-check "zero findings" on their own
+  // terms (agentQA: "No findings to support the report."; agentJudge:
+  // verdict "reject" / "No findings to evaluate.") and will still fail a
+  // genuinely empty case — that real rejection must come from them, not
+  // from a fatal short-circuit here that skips them entirely.
+  const ok = engineCompleted;
   return {
     status: ok ? "success" : "failed",
-    confidence: ok ? 0.85 : 0,
+    confidence: ok ? (hasFindings ? 0.85 : 0.5) : 0,
     processingTime: 0,
     tokensUsed: 0,
     outputFile: "entities.json",
-    errors: ok ? [] : ["Analyzers stage did not complete before the release gate ran; nothing to verify."],
-    output: { findings_count: findingsCount ?? 0, analyzers_completed: alreadyDone },
+    errors: ok
+      ? hasFindings
+        ? []
+        : [
+            "Analyzers stage completed but zero findings survived the evidence gate — thin/strict case, not a pipeline failure. Downstream QA/Judge will independently assess whether this can release.",
+          ]
+      : ["Analyzers stage did not complete before the release gate ran; nothing to verify."],
+    // `analyzers_completed` must answer the same question as `status`/`errors`
+    // above. Previously this reported the raw pipeline_engine_runs ledger
+    // flag (`engineCompleted`) even when `status` was "failed" because zero
+    // findings survived — producing analyzers_completed: true in the same
+    // result as an "Analyzers stage did not complete" error. Split the two
+    // concepts explicitly instead of overloading one field.
+    output: {
+      findings_count: findingsCount ?? 0,
+      analyzers_engine_completed: engineCompleted,
+      analyzers_completed: ok,
+    },
   };
 }
 
@@ -310,22 +348,56 @@ async function agentRisk(ctx: RunCtx): Promise<AgentResult> {
   };
 }
 
+// STRUCTURAL FIX (2026-08-01): this agent used to require
+// hasCompletedEngine(..., "report_generator"). That check is unsatisfiable
+// here: canonical.ts schedules `multi_agent` BEFORE `report` (report.dependsOn
+// includes "multi_agent"; multi_agent.dependsOn does not include report), so
+// report_generator has by definition not run when this agent executes. The
+// result was a permanent `failed` for agents 11 (report) and 12 (qa),
+// released:false on every run, and suppressed scores downstream.
+//
+// Chosen remedy: option 1 — drop the unsatisfiable completion check inside
+// multi_agent and verify report *readiness* instead. Option 2 (move the
+// verification to a real post-report pass) is already covered: the canonical
+// gate runs runReportQa() on the assembled report after report_generator
+// finishes (src/lib/canonical/report-qa.server.ts, called from gate.server.ts),
+// so a second post-report agent pass would duplicate it and would require
+// inverting the stage order the pipeline deliberately adopted on 2026-07-31.
 async function agentReport(ctx: RunCtx): Promise<AgentResult> {
-  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "report_generator");
   const { data: report } = await ctx.db
     .from("reports")
     .select("case_id,full_report,executive_summary")
     .eq("case_id", ctx.caseId)
     .maybeSingle();
-  const ok = alreadyDone && !!report;
+  // A report row only exists on a re-run (report_generator ran previously).
+  // On a first run we verify the inputs the report will be assembled from.
+  const scoringDone = await hasCompletedEngine(ctx.db, ctx.caseId, "scoring");
+  const { count: findingsCount } = await ctx.db
+    .from("case_findings")
+    .select("id", { count: "exact", head: true })
+    .eq("case_id", ctx.caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
+  const ready = scoringDone && (findingsCount ?? 0) > 0;
+  const ok = !!report || ready;
+  const errors: string[] = [];
+  if (!ok) {
+    if (!scoringDone) errors.push("Scoring stage has not completed; the report has no scored basis to assemble from.");
+    if ((findingsCount ?? 0) === 0) errors.push("No canonical findings available for the report.");
+  }
   return {
     status: ok ? "success" : "failed",
-    confidence: ok ? 0.9 : 0,
+    confidence: ok ? (report ? 0.9 : 0.8) : 0,
     processingTime: 0,
     tokensUsed: 0,
     outputFile: "draft_report.md",
-    errors: ok ? [] : ["Report stage did not complete before the release gate ran; nothing to verify."],
-    output: { case_id: report?.case_id ?? null, report_completed: alreadyDone },
+    errors,
+    output: {
+      case_id: report?.case_id ?? ctx.caseId,
+      mode: report ? "post_report_verification" : "pre_report_readiness",
+      report_exists: !!report,
+      scoring_completed: scoringDone,
+      findings_count: findingsCount ?? 0,
+    },
   };
 }
 
@@ -350,6 +422,13 @@ const QA_NARRATIVE_FIELDS = [
   "risk_analysis",
 ] as const;
 
+// Same structural constraint as agentReport: on a first run there is no
+// `reports` row yet, because report_generator runs AFTER multi_agent. The
+// report-shaped checks below are therefore only applied when a report row
+// actually exists (re-runs); otherwise QA audits what exists at this point in
+// the pipeline. The authoritative post-report QA is runReportQa() in
+// src/lib/canonical/report-qa.server.ts, invoked by the canonical gate once
+// report_generator has produced the analysis.
 async function agentQA(ctx: RunCtx): Promise<AgentResult> {
   const { data: report } = await ctx.db
     .from("reports")
@@ -359,13 +438,8 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
     .eq("case_id", ctx.caseId)
     .maybeSingle();
   const errors: string[] = [];
-  if (!report) errors.push("Report missing.");
-  const full = report?.full_report as Record<string, unknown> | null;
-  if (!full) errors.push("Report has no full_report payload.");
-  const summary = report?.executive_summary;
-  if (!summary || String(summary).trim().length < 80) {
-    errors.push("Executive summary missing or too short (<80 chars).");
-  }
+  const checked: string[] = ["findings_present"];
+
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
     .select("id", { count: "exact", head: true })
@@ -375,11 +449,21 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
 
   const { getReportLocale } = await import("@/lib/mexico-lock");
   const locale = await getReportLocale(ctx.db, ctx.caseId);
-  const narrativeValues = QA_NARRATIVE_FIELDS.map((field) => (report as Record<string, unknown> | null)?.[field]);
-  const reportText = collectReportText(narrativeValues).join("\n").slice(0, 200_000);
-  const languageLeaks = detectReportLanguageLeaks(reportText, locale);
-  if (languageLeaks.length > 0) {
-    errors.push(`Report language drift (${locale}): ${Array.from(new Set(languageLeaks)).slice(0, 8).join(", ")}.`);
+
+  if (report) {
+    checked.push("report_exists", "summary_length", "single_language");
+    const full = report.full_report as Record<string, unknown> | null;
+    if (!full) errors.push("Report has no full_report payload.");
+    const summary = report.executive_summary;
+    if (!summary || String(summary).trim().length < 80) {
+      errors.push("Executive summary missing or too short (<80 chars).");
+    }
+    const narrativeValues = QA_NARRATIVE_FIELDS.map((field) => (report as Record<string, unknown>)[field]);
+    const reportText = collectReportText(narrativeValues).join("\n").slice(0, 200_000);
+    const languageLeaks = detectReportLanguageLeaks(reportText, locale);
+    if (languageLeaks.length > 0) {
+      errors.push(`Report language drift (${locale}): ${Array.from(new Set(languageLeaks)).slice(0, 8).join(", ")}.`);
+    }
   }
 
   const pass = errors.length === 0;
@@ -390,7 +474,7 @@ async function agentQA(ctx: RunCtx): Promise<AgentResult> {
     tokensUsed: 0,
     outputFile: "qa_report.json",
     errors,
-    output: { pass, checked: ["report_exists", "summary_length", "findings_present", "single_language"], locale },
+    output: { pass, mode: report ? "post_report" : "pre_report", checked, locale },
   };
 }
 
@@ -399,6 +483,17 @@ const JUDGE_THRESHOLDS: Record<AnalysisMode, { reject: number; needsRevision: nu
   balanced: { reject: 0.25, needsRevision: 0.5 },
   exploratory: { reject: 0.15, needsRevision: 0.3 },
 };
+// Minimum share of cited findings whose quote must verify against the corpus
+// (after legal-authority citations are correctly exempted — see
+// grounding.server.ts::isLegalAuthorityCitation). The threshold was
+// temporarily lowered to 0.3 alongside a pattern-only authority-exemption
+// check; that check was confirmed, by direct reproduction, to exempt
+// fabricated factual claims merely phrased alongside a real article number,
+// which is exactly the class of claim this gate exists to catch. Restored
+// to 0.5 now that the exemption is properly scoped to quotes that are
+// SUBSTANTIALLY JUST a citation — genuine Amparo/administrative citation
+// density no longer needs a lowered bar to pass, since those citations are
+// now correctly exempted rather than miscounted as failures.
 const HALLUCINATION_THRESHOLDS: Record<AnalysisMode, number> = {
   strict: 0.85,
   balanced: 0.7,
@@ -465,8 +560,14 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
 async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
   const m = await import("@/lib/intelligence/hallucination.server");
   const report = await m.runHallucinationReview({ db: ctx.db, caseId: ctx.caseId });
-  const cited = report.verified + report.unverified;
-  const verifiedRatio = cited > 0 ? report.verified / cited : 1;
+  // Legal-authority citations (CPEUM/statutory articles, tesis, jurisprudencia)
+  // cannot be verified verbatim against the case corpus; they are counted as
+  // grounded rather than as failures. Verbatim matching governs documentary
+  // claims only.
+  const authorityExempt = report.authority_exempt ?? 0;
+  const grounded = report.verified + authorityExempt;
+  const cited = grounded + report.unverified;
+  const verifiedRatio = cited > 0 ? grounded / cited : 1;
   const citationCoverage = report.total > 0 ? cited / report.total : 0;
   const threshold = HALLUCINATION_THRESHOLDS[ctx.analysisMode];
   const pass = report.total > 0 && cited > 0 && verifiedRatio >= threshold;
@@ -488,6 +589,7 @@ async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
     output: {
       total: report.total,
       verified: report.verified,
+      authority_exempt: authorityExempt,
       unverified: report.unverified,
       no_citation: report.no_citation,
       citation_coverage: citationCoverage,
@@ -685,3 +787,9 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
 
   return { runId, released, results };
 }
+
+// Test-only visibility. agentOcr/agentEntities are otherwise module-private;
+// exported under this name so regression tests can exercise the real
+// implementation directly (with a fake db) instead of re-deriving the logic
+// inline, without expanding the public API surface of this server module.
+export { agentOcr as __test__agentOcr, agentEntities as __test__agentEntities };

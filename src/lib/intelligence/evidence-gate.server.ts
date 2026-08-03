@@ -248,11 +248,33 @@ function pickPrimaryCitation(item: EvidenceItem, corpus: GroundingCorpus) {
     }
     if (n.quote) candidates.push({ quote: n.quote, doc_n: n.doc_n, page: n.page, document_id });
   }
-  // Resolve document_id from doc_n when possible.
+  // Resolve document_id from doc_n — but confirm the quote actually
+  // appears in that specific document first, rather than trusting doc_n
+  // blindly. With a large multi-document corpus, LLMs frequently miscount
+  // which document they're citing (a cover page or index file alone is
+  // enough to shift every later doc_n by one). A quote that's genuinely
+  // real still passes the corpus-wide verifyQuoteDetailed() check below
+  // regardless of which document it's attributed to, so a bad doc_n was
+  // invisible here — it only surfaced later, when runHallucinationReview()
+  // (hallucination.server.ts) re-checks each finding's quote against ONLY
+  // its recorded document_id's own text and fails a genuinely-real finding
+  // because it was pinned to the wrong document. Confirmed against a real
+  // case: 6 of 8 findings failed Hallucination Review and blocked the
+  // report release gate this way, while every quote verified cleanly
+  // against the full corpus in isolation.
   for (const c of candidates) {
-    if (!c.document_id && c.doc_n) {
-      const d = corpus.docs.find((x) => x.doc_n === c.doc_n);
-      if (d) c.document_id = d.document_id;
+    if (c.document_id || !c.doc_n || !c.quote) continue;
+    const claimed = corpus.docs.find((x) => x.doc_n === c.doc_n);
+    const docHasQuote = (d: GroundingCorpus["docs"][number]) =>
+      verifyQuoteDetailed(
+        c.quote as string,
+        buildGroundingCorpus([{ id: d.document_id, filename: d.filename, extracted_text: d.pages.join("\n") }]),
+      ).verified;
+    if (claimed && docHasQuote(claimed)) {
+      c.document_id = claimed.document_id;
+    } else {
+      const actual = corpus.docs.find(docHasQuote);
+      c.document_id = (actual ?? claimed)?.document_id ?? null;
     }
   }
   return { candidates, malformed };

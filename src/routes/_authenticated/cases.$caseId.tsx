@@ -83,6 +83,34 @@ import {
 // graph and crashes the server build. downloadPdf/downloadDocx/downloadJson
 // are loaded dynamically at each call site below instead.
 import type { CaseExportData } from "@/lib/export";
+
+// Pure mapping from a raw getCase() response to CaseExportData. Extracted
+// so it can be reused both for the page's live-render exportData (fed by
+// the polled React Query cache) AND for a forced fresh fetch immediately
+// before a download — see FIX (2026-08-02) at the download handlers below
+// for why the second use exists.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildExportData(raw: any): CaseExportData {
+  return {
+    case: raw.case as unknown as Record<string, unknown>,
+    documents: raw.documents as unknown as Record<string, unknown>[],
+    analysis: raw.analysis as unknown as Record<string, unknown> | null,
+    agents: raw.agents as unknown as Record<string, unknown>[],
+    score: raw.score as unknown as Record<string, unknown> | null,
+    report: raw.report as unknown as Record<string, unknown> | null,
+    findings: raw.findings as unknown as Record<string, unknown>[],
+    theories: raw.theories as unknown as Record<string, unknown>[],
+    opportunities: raw.opportunities as unknown as Record<string, unknown>[],
+    witnesses: raw.witnesses as unknown as Record<string, unknown>[],
+    trial_prep: raw.trial_prep as unknown as Record<string, unknown> | null,
+    work_product: raw.work_product as unknown as Record<string, unknown>[],
+    perspectives: (raw.perspectives ?? []) as unknown as Record<string, unknown>[],
+    evidence_intel: (raw.evidence_intel ?? []) as unknown as Record<string, unknown>[],
+    strategy: (raw.strategy ?? []) as unknown as Record<string, unknown>[],
+    strategy_center: (raw.strategy_center ?? null) as unknown as Record<string, unknown> | null,
+    agent_logs: (raw.agent_logs ?? []) as unknown as Record<string, unknown>[],
+  };
+}
 import { getApplicableTabs } from "@/lib/intelligence/practice-areas";
 import {
   ArrowLeft,
@@ -135,7 +163,6 @@ type Tab =
   | "theories"
   | "opportunities"
   | "witnesses"
-  | "trial"
   | "work"
   | "scorecard"
   | "chat"
@@ -189,7 +216,6 @@ const VALID_TABS = new Set<Tab>([
   "theories",
   "opportunities",
   "witnesses",
-  "trial",
   "work",
   "scorecard",
   "chat",
@@ -315,24 +341,35 @@ function Workspace() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportBlockReasons = (((report as any)?.quality_block_reasons as unknown[]) ?? []) as string[];
 
-  const exportData: CaseExportData = {
-    case: c as unknown as Record<string, unknown>,
-    documents: docs as unknown as Record<string, unknown>[],
-    analysis: analysis as unknown as Record<string, unknown> | null,
-    agents: agents as unknown as Record<string, unknown>[],
-    score: score as unknown as Record<string, unknown> | null,
-    report: report as unknown as Record<string, unknown> | null,
-    findings: findings as unknown as Record<string, unknown>[],
-    theories: theories as unknown as Record<string, unknown>[],
-    opportunities: opportunities as unknown as Record<string, unknown>[],
-    witnesses: witnesses as unknown as Record<string, unknown>[],
-    trial_prep: trialPrep as unknown as Record<string, unknown> | null,
-    work_product: workProduct as unknown as Record<string, unknown>[],
-    perspectives: perspectives as unknown as Record<string, unknown>[],
-    evidence_intel: evidenceIntel as unknown as Record<string, unknown>[],
-    strategy: strategy as unknown as Record<string, unknown>[],
-    strategy_center: strategyCenter as unknown as Record<string, unknown> | null,
-    agent_logs: agentLogs as unknown as Record<string, unknown>[],
+  const exportData: CaseExportData = buildExportData(data);
+
+  // FIX (2026-08-02): downloads previously used this same `exportData`
+  // object, which is only as fresh as the page's last React Query poll.
+  // Polling stops entirely once case.status leaves the "running" set
+  // (see refetchInterval above), so a download triggered right as a run
+  // finishes — or from a tab that's been sitting open — could bake a
+  // stale pre-completion snapshot into the PDF/DOCX/JSON: e.g. a report
+  // the backend had already finalized as report_mode "FULL" with real
+  // scores could still export showing "LIMITADO" with scores suppressed,
+  // because the browser simply hadn't re-fetched since an earlier,
+  // genuinely-Limited intermediate state. Confirmed against a real case
+  // where the reports row (report_mode, scores_suppressed, ESS override)
+  // was unambiguously FULL/unsuppressed at the DB level, yet the
+  // downloaded PDF still rendered Limited. Forcing one fresh fetch
+  // immediately before building the export payload closes that gap
+  // regardless of polling timing, without needing to change polling
+  // behavior itself. Falls back to the already-rendered exportData if the
+  // refetch fails, so a transient network hiccup can't block a download
+  // that would otherwise have worked.
+  const buildFreshExportData = async (): Promise<CaseExportData> => {
+    try {
+      const fresh = await fetchCase({ data: { caseId } });
+      qc.setQueryData(["case", caseId], fresh);
+      return buildExportData(fresh);
+    } catch (e) {
+      console.warn("[export] fresh refetch before download failed — using last-rendered data", e);
+      return exportData;
+    }
   };
 
   // Badge counts for tabs whose underlying data isn't a flat array — mirrors
@@ -356,24 +393,6 @@ function Workspace() {
         const v = analyzersData[k];
         return Array.isArray(v) ? v.length > 0 : !!v;
       }).length
-    : 0;
-
-  const trialPrepData = trialPrep as unknown as Record<string, unknown> | null;
-  const trialPrepCount = trialPrepData
-    ? (
-        [
-          "opening_themes",
-          "closing_themes",
-          "trial_strengths",
-          "trial_risks",
-          "jury_concerns",
-          "most_persuasive_evidence",
-          "most_damaging_evidence",
-          "witness_order",
-          "exhibit_order",
-          "likely_objections",
-        ] as const
-      ).filter((k) => Array.isArray(trialPrepData[k]) && (trialPrepData[k] as unknown[]).length > 0).length
     : 0;
 
   const scorecardData = score as unknown as Record<string, unknown> | null;
@@ -436,7 +455,6 @@ function Workspace() {
       count: opportunities.length,
     },
     { k: "witnesses", label: t("caseTab.witnesses"), icon: Users, count: witnesses.length },
-    { k: "trial", label: t("caseTab.trial"), icon: ShieldCheck, count: trialPrepCount },
     { k: "work", label: t("caseTab.work"), icon: BookOpen, count: workProduct.length },
     { k: "scorecard", label: t("caseTab.scorecard"), icon: Activity, count: scorecardCount },
     { k: "transaction_center", label: "Centro de Transacción", icon: Building2 },
@@ -538,7 +556,7 @@ function Workspace() {
                 disabled={reportBlocked || !hasReport}
                 onClick={async () => {
                   const { downloadPdf } = await import("@/lib/export");
-                  downloadPdf(exportData, c.name);
+                  downloadPdf(await buildFreshExportData(), c.name);
                   void logReportExport({
                     data: { caseId: c.id, format: "pdf", caseName: c.name },
                   }).catch(() => {});
@@ -550,7 +568,7 @@ function Workspace() {
                 disabled={reportBlocked || !hasReport}
                 onClick={async () => {
                   const { downloadDocx } = await import("@/lib/export");
-                  downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
+                  downloadDocx(await buildFreshExportData(), c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
                   void logReportExport({
                     data: { caseId: c.id, format: "docx", caseName: c.name },
                   }).catch(() => {});
@@ -562,7 +580,7 @@ function Workspace() {
                 disabled={false}
                 onClick={async () => {
                   const { downloadJson } = await import("@/lib/export");
-                  downloadJson(exportData, c.name);
+                  downloadJson(await buildFreshExportData(), c.name);
                   void logReportExport({
                     data: { caseId: c.id, format: "json", caseName: c.name },
                   }).catch(() => {});
@@ -621,14 +639,14 @@ function Workspace() {
             reportBlocked={reportBlocked}
             onDownloadPdf={async () => {
               const { downloadPdf } = await import("@/lib/export");
-              downloadPdf(exportData, c.name);
+              downloadPdf(await buildFreshExportData(), c.name);
               void logReportExport({
                 data: { caseId: c.id, format: "pdf", caseName: c.name },
               }).catch(() => {});
             }}
             onDownloadDocx={async () => {
               const { downloadDocx } = await import("@/lib/export");
-              downloadDocx(exportData, c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
+              downloadDocx(await buildFreshExportData(), c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
               void logReportExport({
                 data: { caseId: c.id, format: "docx", caseName: c.name },
               }).catch(() => {});
@@ -728,7 +746,6 @@ function Workspace() {
             {tab === "theories" && <TheoriesTab theories={theories} />}
             {tab === "opportunities" && <OpportunitiesTab opps={opportunities} ranAt={c.opportunities_at} />}
             {tab === "witnesses" && <WitnessesTab witnesses={witnesses} ranAt={c.witnesses_at} />}
-            {tab === "trial" && <TrialPrepTab t={trialPrep} ranAt={c.trial_prep_at} />}
             {tab === "work" && <WorkProductTab docs={workProduct} />}
             {tab === "scorecard" && <ScorecardTab s={score as unknown as Score | null} />}
             {tab === "transaction_center" && <TransactionCenterPanel caseId={c.id} />}
@@ -1858,103 +1875,6 @@ function Metric({ label, v, inverse }: { label: string; v: number | null; invers
     <div className="text-center">
       <div className="text-[10px] uppercase tracking-wider">{label}</div>
       <div className={`text-sm font-semibold tabular-nums ${color}`}>{v ?? "—"}</div>
-    </div>
-  );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
-  if (!t)
-    return (
-      <Empty
-        msg={
-          ranAt
-            ? "No se generó preparación para audiencia. El motor corrió pero no produjo ejes de alegato, orden de testigos ni estimaciones sostenibles con el corpus probatorio actual."
-            : "Aún no hay preparación para audiencia. Ejecuta Preparación para Juicio Oral / Audiencia."
-        }
-      />
-    );
-  const ct = typeof t.case_type === "string" ? t.case_type : "general_civil";
-  const isCrim = ct === "penal" || ct === "criminal" || ct === "civil_rights";
-  const cm = (t.civil_metrics ?? {}) as Record<string, number | null>;
-  const pm = (t.penal_metrics ?? {}) as Record<string, number | null>;
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">
-          {isCrim ? "Estimación de resultado (Tribunal de Enjuiciamiento)" : "Estimación de resultado"}
-        </h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-4">
-          {isCrim ? (
-            <>
-              <BigMetric label="Vinculación a proceso" v={pm.vinculacion_proceso_pct ?? null} />
-              <BigMetric label="Sentencia condenatoria" v={pm.sentencia_condenatoria_pct ?? t.jury_conviction_pct} />
-              <BigMetric label="Sentencia absolutoria" v={pm.sentencia_absolutoria_pct ?? t.jury_acquittal_pct} />
-              <BigMetric label="Procedimiento abreviado" v={pm.procedimiento_abreviado_pct ?? t.jury_settlement_pct} />
-            </>
-          ) : (
-            <>
-              <BigMetric label="Plaintiff success" v={cm.plaintiff_success_pct ?? null} />
-              <BigMetric label="Defense success" v={cm.defense_success_pct ?? null} />
-              <BigMetric label="Settlement" v={cm.settlement_probability_pct ?? t.jury_settlement_pct} />
-              <BigMetric label="Comparative fault" v={cm.comparative_fault_estimate_pct ?? null} />
-            </>
-          )}
-        </div>
-        {isCrim && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Éxito estimado en recurso (apelación / amparo directo):{" "}
-            <span className="tabular-nums">{pm.recurso_exito_pct ?? t.jury_appeal_pct ?? "—"}</span>. En el sistema
-            penal acusatorio mexicano no existe jurado: la culpabilidad la determina el Tribunal de Enjuiciamiento.
-          </p>
-        )}
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <Block title="Ejes de apertura" items={t.opening_themes} />
-        <Block title="Ejes de clausura" items={t.closing_themes} />
-        <Block title="Fortalezas del caso" items={t.trial_strengths} />
-        <Block title="Riesgos del caso" items={t.trial_risks} />
-        <Block
-          title={isCrim ? "Riesgos de percepción ante el Tribunal" : "Riesgos de percepción"}
-          items={t.jury_concerns}
-        />
-
-        <Block title="Evidencia más persuasiva" items={t.most_persuasive_evidence} />
-        <Block title="Evidencia más perjudicial" items={t.most_damaging_evidence} />
-      </div>
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Orden de testigos</h3>
-        <ListSection
-          title=""
-          items={(t.witness_order ?? []).map((w: { name: string; reason: string }) => `${w.name} — ${w.reason}`)}
-        />
-      </div>
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Orden de pruebas</h3>
-        <ListSection
-          title=""
-          items={(t.exhibit_order ?? []).map((e: { exhibit: string; reason: string }) => `${e.exhibit} — ${e.reason}`)}
-        />
-      </div>
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Objeciones probables</h3>
-        <ListSection
-          title=""
-          items={(t.likely_objections ?? []).map(
-            (o: { objection: string; counter: string }) => `${o.objection} → contraargumento: ${o.counter}`,
-          )}
-        />
-      </div>
-    </div>
-  );
-}
-
-function Block({ title, items }: { title: string; items: unknown }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <ListSection title="" items={items} />
     </div>
   );
 }

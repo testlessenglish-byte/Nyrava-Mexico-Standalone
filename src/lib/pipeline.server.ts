@@ -9,6 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
 import { callGroq, parseJsonLoose, type GroqContent } from "./groq.server";
+import type { ProviderType } from "./ai/providers/types";
+
 import { mexicoLock, getReportLocale } from "@/lib/mexico-lock";
 import { sha256Hex } from "./hash.server";
 import {
@@ -675,67 +677,6 @@ async function _runPipelineForCase(
             },
           };
         }),
-    },
-    trial_prep: {
-      // PRACTICE-AREA GATE: mirrors the same gate already used for
-      // constitutional_compliance above. This engine previously ran
-      // unconditionally for every case type, including familiar and
-      // inmobiliario matters where MX_ENGINES explicitly excludes
-      // trial_prep — burning a real AI call and adding an unnecessary
-      // failure point on a case type it has no application to.
-      run: async () => {
-        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } = await import("./intelligence/practice-areas");
-        const { getActiveDomains } = await import("./intelligence/cross-domain.server");
-        const { recordSkipped } = await import("./intelligence/engine-audit.server");
-
-        const { data: caseRow } = await supabase
-          .from("cases")
-          .select("case_type" as any)
-          .eq("id", caseId)
-          .maybeSingle();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const area = String((caseRow as any)?.case_type ?? "general_civil");
-        const activeDomains = await getActiveDomains(supabase, caseId);
-
-        if (!isAnalyzerAllowed(area, "trial_prep", activeDomains)) {
-          await recordSkipped(supabase, {
-            caseId,
-            userId,
-            engine: "trial_prep" as never,
-            reason: SKIP_REASON_NOT_APPLICABLE,
-          });
-          return { skipped: true, reason: SKIP_REASON_NOT_APPLICABLE };
-        }
-
-        return persist.runCatalogedEngine(supabase, { caseId, userId, engine: "trial_prep" }, async () => {
-          const value = (await eng.runTrialPrepEngine(baseArgs)) as {
-            findings_gate?: unknown;
-            findings_gate_mode?: unknown;
-            findings_gate_corpus?: unknown;
-          };
-          const { count } = await supabase
-            .from("case_trial_prep")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const n = count ?? (value ? 1 : 0);
-          return {
-            value,
-            stats: {
-              generated: n,
-              accepted: n,
-              rows_written: n,
-              meta: {
-                source: "engine",
-                evidence_gate: {
-                  mode: value.findings_gate_mode,
-                  audit: value.findings_gate,
-                  corpus: value.findings_gate_corpus,
-                },
-              },
-            },
-          };
-        });
-      },
     },
     strategy: {
       run: () =>
@@ -2177,9 +2118,20 @@ ${corpusText}`;
         keyIndex: r.keyIndex,
       });
       const parsed = parseJsonLoose<Record<string, unknown>>(r.text) ?? {};
+      // Real per-batch item count, computed BEFORE pushing into the
+      // shared `merged` accumulator (which multiple concurrent batches
+      // write into) so this stays correct under ANALYZER_BATCH_CONCURRENCY.
+      // Previously this diagnostic row hardcoded generated/accepted/etc to
+      // 0 unconditionally, making pipeline_engine_runs useless for telling
+      // "the model returned nothing" apart from "the model returned plenty
+      // but it was filtered downstream" — see docs incident trace 2026-08-02.
+      const parsedCounts: Partial<Record<keyof AnalyzerBucket, number>> = {};
       const push = (k: keyof AnalyzerBucket) => {
         const v = parsed[k];
-        if (Array.isArray(v)) merged[k].push(...v);
+        if (Array.isArray(v)) {
+          parsedCounts[k] = v.length;
+          merged[k].push(...v);
+        }
       };
       push("timeline");
       push("contradictions");
@@ -2187,6 +2139,7 @@ ${corpusText}`;
       push("procedural_issues");
       push("evidence_relationships");
       push("key_findings");
+      const generatedCount = Object.values(parsedCounts).reduce((a, b) => a + (b ?? 0), 0);
       successes++;
 
       await db.from("pipeline_engine_runs").insert({
@@ -2197,8 +2150,8 @@ ${corpusText}`;
         started_at: startedAt,
         ended_at: new Date().toISOString(),
         runtime_ms: Date.now() - t0,
-        generated: 0,
-        accepted: 0,
+        generated: generatedCount,
+        accepted: generatedCount,
         rejected: 0,
         suppressed_ess: 0,
         suppressed_validator: 0,
@@ -2208,6 +2161,10 @@ ${corpusText}`;
           chars: batchCorpus.length,
           docIds: batch.map((c) => c.docId),
           provider: r.provider,
+          model: r.model,
+          outputTokens: r.outputTokens,
+          parsedCounts,
+          rawResponsePreview: (r.text ?? "").slice(0, 2000),
         } as any,
       } as any);
       return null;
@@ -2680,9 +2637,28 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 const AGENT_ENGINE: Record<string, string> = {
   witness_credibility: "agent:witness_credibility",
   chain_of_custody: "chain_of_custody",
-  constitutional_compliance: "constitutional_compliance",
+  // 2026-08-01: `constitutional_compliance` IS a canonical stage
+  // (execution/canonical.ts), so the nested agent used to overwrite the
+  // canonical stage's row. Namespaced for the same reason as witness above.
+  // chain_of_custody / procedural_violations are NOT canonical stages — they
+  // stay bare, there is no collision to fix.
+  constitutional_compliance: "agent:constitutional_compliance",
   procedural_violations: "procedural_violations",
 };
+
+/**
+ * Providers excluded from the investigator-agent stage — both from the packing
+ * budget math AND from the runtime routing chain, which must stay in sync.
+ *
+ * Groq's ~5.5k-token input budget yields ~8,082 chars of usable corpus after
+ * the agent prompt overhead, which clamped every agent batch to that floor and
+ * produced 8+ batches per agent. Excluding it from the budget alone was not
+ * enough: a widened batch packed for OpenRouter/Gemini that fell back to Groq
+ * hit `fitOptsToBudget`, which SILENTLY TRUNCATES the corpus rather than
+ * erroring. Excluding it at both layers is the actual fix.
+ */
+const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
+
 
 /**
  * How many investigator agents may execute simultaneously inside the "agents"
@@ -2881,10 +2857,25 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           // cap and (b) silently drops every document past the truncation.
           const { packingCharBudget: agentBudgetFn, PROMPT_OVERHEAD_CHARS: AGENT_OVERHEAD } =
             await import("@/lib/ai/router.server");
-          const agentBatches = packChunks(
-            chunks,
-            await agentBudgetFn(AGENT_CORPUS_BUDGET_CHARS, AGENT_OVERHEAD.agents),
+          const agentBudgetChars = await agentBudgetFn(
+            AGENT_CORPUS_BUDGET_CHARS,
+            AGENT_OVERHEAD.agents,
+            AGENT_SKIP_PROVIDERS,
           );
+          const { listProviderRows } = await import("@/lib/ai/router.server");
+          console.log("[DEBUG] packingCharBudget call", {
+            stage: agent.type,
+            engine,
+            ceiling: AGENT_CORPUS_BUDGET_CHARS,
+            overhead: AGENT_OVERHEAD.agents,
+            budget: agentBudgetChars,
+            skipProviders: AGENT_SKIP_PROVIDERS,
+            providers: (await listProviderRows()).map((r) => r.provider_type),
+          });
+
+          const agentBatches = packChunks(chunks, agentBudgetChars);
+
+
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
             batch
@@ -2959,9 +2950,19 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                   userContent: `${agent.prompt}\n\nCASE CORPUS:\n${batchCorpus}`,
                   json: true,
                   temperature: 0.15,
+                  skipProviders: AGENT_SKIP_PROVIDERS,
                 }),
               );
+              console.log("[DEBUG] agent batch served", {
+                stage: agent.type,
+                engine,
+                batchIdx: idx,
+                chars: batchCorpus.length,
+                provider: r.provider,
+                model: r.model,
+              });
               lastModel = r.model;
+
               await logUsage(db, {
                 userId,
                 caseId,
@@ -3697,6 +3698,8 @@ function dedupeFindings<T extends Record<string, unknown>>(
   const norm = (s: string) =>
     s
       .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language findings cluster correctly
       .replace(/[^a-z0-9 ]+/g, " ")
       .replace(/\s+/g, " ")
       .trim()
@@ -3984,6 +3987,51 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
   // Collect pipeline warnings for inclusion in the final report (Section 10).
   const pipelineWarnings: string[] = ensured.failed.map((f) => `${f.engine}_failed`);
 
+  // Stale-suppression recovery. Scoring may have run at a moment when the
+  // upstream timestamps weren't written yet (out-of-order execution, an
+  // earlier tick that skipped discovery/evidence_intel, a checkpoint), which
+  // persists a null scorecard flagged PIPELINE_NOT_FINALIZED /
+  // INVALID_PIPELINE_ORDER. Backfill above has now completed those stages, so
+  // the suppression is stale — re-score before the report reads it, otherwise
+  // the report is forced to LIMITED with suppressed scores on a case that has
+  // full coverage.
+  try {
+    const { data: scoreRow } = await db
+      .from("case_scores")
+      .select("rationale,overall_confidence")
+      .eq("case_id", caseId)
+      .maybeSingle();
+    const flags = (
+      ((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ?? []) as unknown[]
+    ).map(String);
+    const stale = flags.some((f) =>
+      ["PIPELINE_NOT_FINALIZED", "INVALID_PIPELINE_ORDER", "CANONICAL_FINDINGS_EMPTY"].includes(f),
+    );
+    if (stale) {
+      const { data: tsRow } = await db
+        .from("cases")
+        .select("discovery_at,contradiction_at,evidence_intel_at")
+        .eq("id", caseId)
+        .maybeSingle();
+      const ts = tsRow as {
+        discovery_at: string | null;
+        contradiction_at: string | null;
+        evidence_intel_at: string | null;
+      } | null;
+      const finalizedNow = Boolean(ts?.discovery_at && ts?.contradiction_at && ts?.evidence_intel_at);
+      if (finalizedNow) {
+        console.warn(`[report] stale scoring suppression (${flags.join(",")}) — re-scoring before report`);
+        pipelineWarnings.push(`rescored_after_${flags[0].toLowerCase()}`);
+        await runScoring(args);
+      } else {
+        pipelineWarnings.push(`scoring_suppressed_${flags[0].toLowerCase()}`);
+      }
+    }
+  } catch (e) {
+    console.warn("[report] stale-suppression rescore check failed", e);
+  }
+
+
   await setCase(db, caseId, {
     status: "reporting",
     status_message: "Building litigation intelligence",
@@ -4050,6 +4098,45 @@ async function _runReportInner(args: {
       throw new Error(
         `Pipeline incomplete — cannot generate report. The following core engines failed to complete even after auto-backfill: ${blockingMissing.join(", ")}.`,
       );
+    }
+
+    // ---- Explicit multi-agent release-gate guard -----------------------
+    // multi_agent is requirement:"optional" in CANONICAL_STAGES and is
+    // deliberately excluded from the blocking-engine check above — a single
+    // flaky agent inside the 13-agent review must not permanently block
+    // report generation. But that is a different situation from the
+    // multi_agent stage running to completion and its own orchestrator
+    // (runMultiAgentPipeline in orchestrator.server.ts) explicitly
+    // evaluating QA/Judge/Hallucination and returning released:false. The
+    // orchestrator's own header comment states the intended contract
+    // plainly: "the final report is only marked released if QA, Judge, and
+    // Hallucination all PASS." That contract was never actually wired into
+    // report generation — this closes that gap without touching the
+    // optional-tier dependency graph used elsewhere.
+    //
+    // Only the LATEST multi_agent ledger row is consulted, and only an
+    // explicit `released: false` in its stored meta blocks generation — a
+    // case where multi_agent simply hasn't run yet, or ran into an
+    // unrelated execution error, is not treated as a release-gate failure
+    // here (that is exactly the "flaky agent review" case the optional tier
+    // exists to tolerate).
+    {
+      const { data: multiAgentRuns } = await db
+        .from("pipeline_engine_runs")
+        .select("meta,status,created_at")
+        .eq("case_id", caseId)
+        .eq("engine", "multi_agent")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const latestMultiAgent = (multiAgentRuns ?? [])[0] as
+        | { meta?: Record<string, unknown> | null; status?: string | null }
+        | undefined;
+      const releasedFlag = latestMultiAgent?.meta?.["released"];
+      if (releasedFlag === false) {
+        throw new Error(
+          "Report generation blocked — Multi-Agent Review's release gate failed (QA/Judge/Hallucination did not all pass). Retry from Legal Analyzers/Entity Extraction once the underlying issue is resolved.",
+        );
+      }
     }
   }
 
@@ -6862,3 +6949,9 @@ ${paginationTail}`;
     },
   };
 }
+
+// Test-only visibility. _runReportInner is otherwise module-private;
+// exported under this name so the multi-agent release-gate guard can be
+// exercised directly against a fake db, without invoking the full report
+// assembly this function otherwise performs.
+export { _runReportInner as __test__runReportInner };

@@ -29,6 +29,8 @@ function isBlank(v: unknown): boolean {
 function titleKey(s: unknown): string {
   return String(s ?? "")
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language duplicate lines are actually caught
     .replace(/[^a-z0-9 ]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
