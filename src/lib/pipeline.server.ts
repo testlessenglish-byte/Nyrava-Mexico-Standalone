@@ -4073,18 +4073,38 @@ async function _runReportInner(args: {
   // runReport() above auto-backfills missing engines first, so this gate
   // only trips when an engine genuinely cannot complete.
   {
-    const { REPORT_REQUIRED_ENGINES, REPORT_BLOCKING_ENGINES, missingRequiredEngines } =
-      await import("@/lib/execution-state");
+    const {
+      REPORT_REQUIRED_ENGINES,
+      REPORT_BLOCKING_ENGINES,
+      REPORT_MUST_BE_TERMINAL_ENGINES,
+      missingRequiredEngines,
+      stillInFlightEngines,
+    } = await import("@/lib/execution/canonical");
     const { data: runs } = await db
       .from("pipeline_engine_runs")
       .select("id,engine,status,started_at,ended_at,created_at")
       .eq("case_id", caseId)
-      .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
+      .in("engine", REPORT_MUST_BE_TERMINAL_ENGINES as unknown as string[])
       .order("created_at", { ascending: false });
     const rows = (runs ?? []) as never;
+
+    // A stage that's genuinely still executing (not failed, not missing —
+    // actively "running"/"queued") should pause report generation and let
+    // the caller retry shortly, not throw a terminal failure. This is what
+    // actually prevents a report from being generated next to a dangling
+    // in-flight engine, without treating every non-blocking engine's
+    // *failure* as fatal (see canonical.ts for the full history here).
+    const inFlight = stillInFlightEngines(rows);
+    if (inFlight.length) {
+      throw new Error(
+        `Report generation paused — still finishing: ${inFlight.join(", ")}. This is not a failure; retry once they complete.`,
+      );
+    }
+
     const blockingMissing = missingRequiredEngines(rows, REPORT_BLOCKING_ENGINES);
-    const nonBlockingMissing = missingRequiredEngines(rows).filter(
-      (e) => !REPORT_BLOCKING_ENGINES.includes(e as never),
+    const nonBlockingMissing = missingRequiredEngines(
+      rows,
+      REPORT_REQUIRED_ENGINES.filter((e) => !REPORT_BLOCKING_ENGINES.includes(e as never)),
     );
     if (nonBlockingMissing.length) {
       pipelineWarnings.push(...nonBlockingMissing.map((e) => `${e}_incomplete`));
