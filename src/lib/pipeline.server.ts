@@ -3907,7 +3907,7 @@ async function ensureRequiredEngines(args: {
   // are respected. Practice-area gated engines that don't apply to this case
   // type are skipped here too (constitutional_compliance etc.) so the
   // report-pre-flight gate is satisfied without forcing irrelevant work.
-  const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE, buildCaseTypeManifest } =
+  const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE, buildCaseTypeManifest, PRACTICE_GATED_ENGINES } =
     await import("./intelligence/practice-areas");
   const { getActiveDomains } = await import("./intelligence/cross-domain.server");
   const { recordSkipped } = await import("./intelligence/engine-audit.server");
@@ -3934,7 +3934,28 @@ async function ensureRequiredEngines(args: {
   const ran: string[] = [];
   const failed: Array<{ engine: string; error: string }> = [];
   for (const engine of ordered) {
-    if (!isAnalyzerAllowed(area, engine, activeDomains)) {
+    // isAnalyzerAllowed()/MX_ENGINES is a small, deliberate per-materia
+    // allow-list for the handful of engines that are actually practice-area
+    // gated (constitutional_compliance, chain_of_custody, procedural_
+    // violations, trial_prep, cross_examination, property_verification,
+    // closing_readiness_scoring — see PRACTICE_GATED_ENGINES). It was never
+    // populated with the optional-tier intelligence engines (perspectives,
+    // opportunity, strategy, theory, litigation_strategy_center,
+    // work_product, hallucination, multi_agent) because those aren't
+    // materia-restricted — mx-pipeline.ts's EXCLUDED_STAGES is the
+    // authoritative source for that and already ran earlier in the
+    // pipeline. Applying isAnalyzerAllowed() to EVERY engine in
+    // REPORT_REQUIRED_ENGINES (which since 2026-07-31 is "every stage")
+    // meant any of those un-listed engines still mid-checkpoint at
+    // report-time got permanently marked "skipped" here — a DONE status
+    // that can never be retried — even though they were legitimately
+    // relevant and simply hadn't finished yet. Confirmed on a real case
+    // (Amparo Indirecto 412/2026): perspectives/opportunity/strategy were
+    // still checkpointing on an AI call when this ran, and all three were
+    // wrongly force-skipped in the same instant, moments before the report
+    // generated without their input. Scope the gate to the engines it was
+    // actually built for.
+    if (PRACTICE_GATED_ENGINES.has(engine) && !isAnalyzerAllowed(area, engine, activeDomains)) {
       await recordSkipped(db, {
         caseId,
         userId,
@@ -4105,8 +4126,7 @@ async function _runReportInner(args: {
   // runReport() above auto-backfills missing engines first, so this gate
   // only trips when an engine genuinely cannot complete.
   {
-    const { REPORT_REQUIRED_ENGINES, REPORT_BLOCKING_ENGINES, missingRequiredEngines } =
-      await import("@/lib/execution-state");
+    const { REPORT_REQUIRED_ENGINES, canGenerateReport } = await import("@/lib/execution-state");
     const { data: runs } = await db
       .from("pipeline_engine_runs")
       .select("id,engine,status,started_at,ended_at,created_at")
@@ -4114,16 +4134,25 @@ async function _runReportInner(args: {
       .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
       .order("created_at", { ascending: false });
     const rows = (runs ?? []) as never;
-    const blockingMissing = missingRequiredEngines(rows, REPORT_BLOCKING_ENGINES);
-    const nonBlockingMissing = missingRequiredEngines(rows).filter(
-      (e) => !REPORT_BLOCKING_ENGINES.includes(e as never),
-    );
-    if (nonBlockingMissing.length) {
-      pipelineWarnings.push(...nonBlockingMissing.map((e) => `${e}_incomplete`));
+    // FIX: this previously called missingRequiredEngines(rows,
+    // REPORT_BLOCKING_ENGINES) directly, which has NO optional-tier
+    // exemption at all (that logic only lives inside canGenerateReport()'s
+    // own missing() closure) — despite a comment a few lines below this
+    // block claiming multi_agent (requirement:"optional") was "deliberately
+    // excluded from the blocking-engine check above." It wasn't: any
+    // optional-tier engine that was merely failed/blocked (not just
+    // missing) was still counted here and could throw. Use
+    // canGenerateReport() directly so this gate has exactly the same
+    // blocking/optional-tier semantics as everywhere else in the platform
+    // that answers "can this case generate a report" — single source of
+    // truth, not a second hand-rolled copy of the same decision.
+    const gate = canGenerateReport(rows);
+    if (gate.missingEnriching.length) {
+      pipelineWarnings.push(...gate.missingEnriching.map((e) => `${e}_incomplete`));
     }
-    if (blockingMissing.length) {
+    if (!gate.ok) {
       throw new Error(
-        `Pipeline incomplete — cannot generate report. The following core engines failed to complete even after auto-backfill: ${blockingMissing.join(", ")}.`,
+        `Pipeline incomplete — cannot generate report. The following core engines failed to complete even after auto-backfill: ${gate.missingBlocking.join(", ")}.`,
       );
     }
 
