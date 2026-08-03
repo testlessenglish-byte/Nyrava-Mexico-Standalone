@@ -119,9 +119,6 @@ export const UNIVERSAL_ENGINES = new Set<string>([
 /** Engines that run only for specific materias. */
 export const PRACTICE_GATED_ENGINES = new Set<string>([
   "constitutional_compliance",
-  // Nested verification agent (inside the "agents" wrapper). Namespaced so it
-  // cannot overwrite the independent `constitutional_compliance` stage above.
-  "agent:constitutional_compliance",
   "chain_of_custody",
   "procedural_violations",
   "trial_prep",

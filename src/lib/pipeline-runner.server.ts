@@ -1055,7 +1055,6 @@ async function _runPipelineForCase(
   const alreadyDone = (k: PipelineStageKey) =>
     DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
 
-
   trace("pipeline.start", {
     total_stages: stages.length,
     reset: !!reset,

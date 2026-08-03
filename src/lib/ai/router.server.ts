@@ -618,24 +618,17 @@ export async function listProviderRows() {
 export async function packingCharBudget(
   ceilingChars: number,
   overheadChars: number = PROMPT_OVERHEAD_CHARS.default,
-  skipProviders: ProviderType[] = [],
 ): Promise<number> {
   const rows = await loadProviderRows();
-  const skipped = new Set(skipProviders);
   // Per-provider corpus capacity, after reserving completion tokens and the
   // non-corpus prompt overhead (Mexico-lock preamble, JSON schema, role text).
-  // Providers the CALL SITE will also exclude at routing time (`skipProviders`
-  // passed to routeAI/callGroq) must be excluded here too — otherwise the
-  // budget is packed for a provider that can never serve the request.
   const capacities: number[] = [];
   for (const r of rows) {
-    if (skipped.has(r.provider_type)) continue;
     capacities.push(
       Math.floor(providerAvailableInputBudget(r.provider_type, { json: true }) * 3.5 - overheadChars),
     );
   }
   if (capacities.length === 0) return ceilingChars;
-
 
   // Pack to the NARROWEST provider so every provider stays eligible — but only
   // among providers that can actually hold at least MIN_PACKING_CHARS of
