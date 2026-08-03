@@ -524,15 +524,17 @@ function Workspace() {
         </div>
       </div>
 
-      {(running || c.status === "failed" || c.status === "cancelled") && (
+      {(running || c.status === "failed" || c.status === "cancelled" || (c.status === "complete" && c.error)) && (
         <div
-          className={`mt-4 rounded-xl border p-4 ${c.status === "failed" ? "border-destructive/40 bg-destructive/5" : c.status === "cancelled" ? "border-border bg-muted/40" : "border-border bg-card"}`}
+          className={`mt-4 rounded-xl border p-4 ${c.status === "failed" ? "border-destructive/40 bg-destructive/5" : c.status === "cancelled" ? "border-border bg-muted/40" : c.status === "complete" ? "border-amber-500/40 bg-amber-500/5" : "border-border bg-card"}`}
         >
           <div className="flex items-center gap-2 text-sm font-medium">
             {c.status === "failed" ? (
               <AlertCircle className="h-4 w-4 text-destructive" />
             ) : c.status === "cancelled" ? (
               <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            ) : c.status === "complete" ? (
+              <AlertCircle className="h-4 w-4 text-amber-500" />
             ) : (
               <Loader2 className="h-4 w-4 animate-spin text-accent" />
             )}

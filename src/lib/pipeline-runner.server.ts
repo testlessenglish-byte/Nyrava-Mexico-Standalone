@@ -1451,6 +1451,24 @@ async function _runPipelineForCase(
   // state and must NOT be overwritten by a blanket "complete". Only fall
   // back to complete/failed when multi-agent didn't stamp.
   const hasFailures = stageFailures.length > 0;
+
+  // Optional-tier stages (perspectives, opportunities, strategy, theories,
+  // litigation_strategy_center, work_product, hallucination, multi_agent)
+  // deliberately never flip finalStatus to "failed" — a flaky optional
+  // engine must not block the report. But that means a real failure in one
+  // of them (e.g. an AI provider outage mid-run) previously vanished
+  // entirely: the case still finalized as status="complete",
+  // status_message="Full pipeline complete", with `error` left null, while
+  // e.g. Perspectivas/Oportunidades/Estrategia silently held zero rows.
+  // Confirmed on a real case (Juicio Ordinario Federal 96/2026 — ASIPONA
+  // Manzanillo): perspectives + opportunities + strategy all failed with no
+  // trace anywhere the attorney would see, yet the case read as fully done.
+  // Surface it honestly instead — same finalStatus, but the message and
+  // error field now say what actually came back empty.
+  const optionalFailures = [...new Set([...failed, ...blocked])]
+    .filter((k) => stageRequirement(k) === "optional")
+    .map((k) => PIPELINE_STAGES.find((s) => s.key === k)?.label ?? k);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: postRun } = await (supabase as any)
     .from("cases")
@@ -1463,7 +1481,9 @@ async function _runPipelineForCase(
     ? (postRun.status_message ?? "Pipeline finalized by multi-agent release gate.")
     : hasFailures
       ? `Pipeline finished with ${stageFailures.length} failed/blocked stage(s): ${stageFailures.map((f) => f.key).join(", ")}`
-      : "Full pipeline complete";
+      : optionalFailures.length > 0
+        ? `Full pipeline complete — ${optionalFailures.length} engine(s) produced no output: ${optionalFailures.join(", ")}`
+        : "Full pipeline complete";
   await updateCase(
     {
       status: finalStatus,
@@ -1475,7 +1495,9 @@ async function _runPipelineForCase(
             .map((f) => `${f.key}: ${f.error}`)
             .join(" | ")
             .slice(0, 2000)
-        : null,
+        : optionalFailures.length > 0
+          ? `Engines that produced no output (optional — did not block the report): ${optionalFailures.join(", ")}. Check Live Debug for the underlying error.`
+          : null,
     },
     "pipeline.finalize",
   );
