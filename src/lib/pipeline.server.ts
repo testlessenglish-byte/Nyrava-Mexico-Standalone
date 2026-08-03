@@ -4106,9 +4106,20 @@ async function _runReportInner(args: {
     // *failure* as fatal (see canonical.ts for the full history here).
     const inFlight = stillInFlightEngines(rows);
     if (inFlight.length) {
-      throw new Error(
-        `Report generation paused — still finishing: ${inFlight.join(", ")}. This is not a failure; retry once they complete.`,
-      );
+      // BUG FIX: this used to `throw new Error(...)`, a plain error
+      // indistinguishable (to runEngine() in engine-audit.server.ts) from a
+      // genuine crash. That wrote pipeline_engine_runs.status = "failed" and
+      // fired a "Report Generator failed" event whose own message said "this
+      // is not a failure" — and nothing auto-retried it, so the case sat
+      // there until someone manually clicked Re-run. stillInFlightEngines()'s
+      // own doc comment states the intended contract: "Callers should pause
+      // (not permanently fail) report generation while this is non-empty,
+      // then retry." CheckpointRequired is the mechanism that actually does
+      // that — runEngine() records it as a "queued" checkpoint (not failed),
+      // and the stage loop's CheckpointRequired handler auto-requeues the
+      // case for the next worker tick, same as a genuine timeout checkpoint.
+      const { CheckpointRequired } = await import("@/lib/pipeline-checkpoint.server");
+      throw new CheckpointRequired("report", `waiting on in-flight engines: ${inFlight.join(", ")}`);
     }
 
     const blockingMissing = missingRequiredEngines(rows, REPORT_BLOCKING_ENGINES);
