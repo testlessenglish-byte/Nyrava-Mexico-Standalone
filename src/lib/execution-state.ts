@@ -21,6 +21,7 @@ export {
   REPORT_BLOCKING_ENGINES,
   REPORT_ENRICHING_ENGINES,
   REPORT_REQUIRED_ENGINES,
+  REPORT_MUST_BE_TERMINAL_ENGINES,
   ENGINE_TIMESTAMP_FALLBACK,
   latestRowsByEngine,
   deriveStageState,
@@ -30,5 +31,5 @@ export {
   pipelineProgressPercent,
   canGenerateReport,
   missingRequiredEngines,
+  stillInFlightEngines,
 } from "@/lib/execution/canonical";
-
