@@ -20,9 +20,11 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[100rem] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
-        <Link to="/" className="flex min-w-0 items-center">
-
+        <Link to="/" className="flex min-w-0 items-center gap-3">
           <NyravaLogo size={64} withWordmark />
+          <span className="hidden rounded border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary sm:inline-block">
+            México
+          </span>
         </Link>
         <nav className="hidden items-center gap-8 lg:flex">
           {NAV.map((n) => (
