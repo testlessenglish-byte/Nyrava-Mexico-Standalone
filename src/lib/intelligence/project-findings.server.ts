@@ -55,7 +55,9 @@ export type ProjectionRow = {
 const SEVERITIES = new Set(["critical", "high", "medium", "low", "info"]);
 
 function normalizeSeverity(v: unknown, fallback = "medium"): string {
-  const s = String(v ?? "").toLowerCase().trim();
+  const s = String(v ?? "")
+    .toLowerCase()
+    .trim();
   return SEVERITIES.has(s) ? s : fallback;
 }
 
@@ -92,8 +94,7 @@ const ADAPTERS: Record<string, Adapter> = {
   // Mexican-vocabulary classification (corroborante, contradictoria,
   // cadena_de_custodia, faltante). Mirrored verbatim — no reinterpretation.
   evidence_classifications: {
-    select:
-      "id,document_id,classification,title,description,severity,confidence,affected_party,citations",
+    select: "id,document_id,classification,title,description,severity,confidence,affected_party,citations",
     build: (r) => {
       const id = String(r.id ?? "");
       const title = String(r.title ?? "").trim();
@@ -172,10 +173,7 @@ export type ProjectionResult = {
 };
 
 /** Build payloads from already-fetched rows. Pure — used by the unit tests. */
-export function buildProjectionRows(
-  table: string,
-  rows: ReadonlyArray<Record<string, unknown>>,
-): ProjectionRow[] {
+export function buildProjectionRows(table: string, rows: ReadonlyArray<Record<string, unknown>>): ProjectionRow[] {
   const adapter = ADAPTERS[table];
   if (!adapter) return [];
   const out: ProjectionRow[] = [];
@@ -211,7 +209,6 @@ export async function projectCaseFindings(
   const tables = Array.from(new Set(args.tables.filter((t) => ADAPTERS[t])));
   if (tables.length === 0) return { ok: true, tables: [], candidates: 0, written: 0 };
 
-
   try {
     const rows: ProjectionRow[] = [];
     // Table names are resolved at runtime from the adapter registry, so the
@@ -220,18 +217,12 @@ export async function projectCaseFindings(
     const anyDb = db as unknown as {
       from: (t: string) => {
         select: (c: string) => {
-          eq: (
-            col: string,
-            v: string,
-          ) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+          eq: (col: string, v: string) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
         };
       };
     };
     for (const table of tables) {
-      const { data, error } = await anyDb
-        .from(table)
-        .select(ADAPTERS[table].select)
-        .eq("case_id", args.caseId);
+      const { data, error } = await anyDb.from(table).select(ADAPTERS[table].select).eq("case_id", args.caseId);
       if (error) throw new Error(`${table}: ${error.message}`);
       rows.push(...buildProjectionRows(table, (data ?? []) as unknown as Record<string, unknown>[]));
     }
@@ -256,4 +247,85 @@ export async function projectCaseFindings(
       error: (e as Error)?.message ?? String(e),
     };
   }
+}
+
+/**
+ * Same as projectCaseFindings, but retries once on failure before giving up.
+ * Transient errors (network blip, momentary DB contention) are the common
+ * case for an RPC failure here; a single immediate retry clears most of
+ * them without meaningfully slowing the engine. If the retry also fails,
+ * the caller is responsible for persisting a durable failure marker — this
+ * function only reports the outcome, it never blocks anything by itself.
+ */
+export async function projectCaseFindingsWithRetry(
+  db: Db,
+  args: { caseId: string; tables: ReadonlyArray<string> },
+): Promise<ProjectionResult & { retried: boolean }> {
+  const first = await projectCaseFindings(db, args);
+  if (first.ok || first.disabled) return { ...first, retried: false };
+  const second = await projectCaseFindings(db, args);
+  return { ...second, retried: true };
+}
+
+/**
+ * Reconciliation: compares row counts in the source engine tables against
+ * the mirrored rows actually present in case_findings (source class
+ * `projection:<table>`) for this case. A shortfall means projection rows
+ * were silently lost somewhere between the RPC succeeding and the read
+ * path — this is the check that catches that class of bug, independent of
+ * whether projectCaseFindings itself reported an error.
+ */
+export async function reconcileProjection(
+  db: Db,
+  args: { caseId: string; tables: ReadonlyArray<string> },
+): Promise<{
+  ok: boolean;
+  mismatches: { table: string; source_count: number; projected_count: number }[];
+}> {
+  const tables = Array.from(new Set(args.tables.filter((t) => ADAPTERS[t])));
+  if (tables.length === 0) return { ok: true, mismatches: [] };
+
+  const anyDb = db as unknown as {
+    from: (t: string) => {
+      select: (
+        c: string,
+        opts?: { count?: "exact"; head?: boolean },
+      ) => {
+        eq: (col: string, v: string) => PromiseLike<{ count: number | null; error: unknown }>;
+      };
+    };
+  };
+
+  const mismatches: { table: string; source_count: number; projected_count: number }[] = [];
+  for (const table of tables) {
+    const [sourceRes, projectedRes] = await Promise.all([
+      anyDb.from(table).select("id", { count: "exact", head: true }).eq("case_id", args.caseId),
+      (
+        anyDb.from("case_findings") as unknown as {
+          select: (
+            c: string,
+            opts?: { count?: "exact"; head?: boolean },
+          ) => {
+            eq: (
+              col: string,
+              v: string,
+            ) => { eq: (col: string, v: string) => PromiseLike<{ count: number | null; error: unknown }> };
+          };
+        }
+      )
+        .select("id", { count: "exact", head: true })
+        .eq("case_id", args.caseId)
+        .eq("source_module", `projection:${table}`),
+    ]);
+    const sourceCount = sourceRes.error ? 0 : (sourceRes.count ?? 0);
+    const projectedCount = projectedRes.error ? 0 : (projectedRes.count ?? 0);
+    // Only a genuine shortfall counts — case_findings can legitimately have
+    // more rows than the source table (dedupe/consensus can still leave
+    // multiple projected rows per source row for compound findings), so
+    // only flag when projected < source.
+    if (sourceCount > 0 && projectedCount < sourceCount) {
+      mismatches.push({ table, source_count: sourceCount, projected_count: projectedCount });
+    }
+  }
+  return { ok: mismatches.length === 0, mismatches };
 }
