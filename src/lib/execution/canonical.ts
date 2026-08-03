@@ -113,6 +113,9 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "analysis_at",
     dependsOn: ["extraction"],
     requirement: "blocking",
+    // Same loop-over-N-items-with-per-item-AI-call shape as extraction, same
+    // "can only checkpoint between items" gap. See extraction's note above.
+    timeoutMs: 240_000,
   },
   {
     key: "agents",
@@ -121,14 +124,23 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "agents_at",
     dependsOn: ["extraction", "analyzers"],
     requirement: "blocking",
+    timeoutMs: 240_000,
   },
-  { key: "timeline", label: "Build Timeline", engine: "timeline", dependsOn: ["extraction"], requirement: "enriching" },
+  {
+    key: "timeline",
+    label: "Build Timeline",
+    engine: "timeline",
+    dependsOn: ["extraction"],
+    requirement: "enriching",
+    timeoutMs: 120_000,
+  },
   {
     key: "evidence_map",
     label: "Evidence Mapping",
     engine: "evidence_map",
     dependsOn: ["extraction"],
     requirement: "enriching",
+    timeoutMs: 120_000,
   },
   {
     key: "contradictions",
@@ -137,6 +149,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "contradiction_at",
     dependsOn: ["analyzers"],
     requirement: "enriching",
+    timeoutMs: 120_000,
   },
   {
     key: "witness",
@@ -145,6 +158,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "witnesses_at",
     dependsOn: ["analyzers", "agents"],
     requirement: "enriching",
+    timeoutMs: 240_000,
   },
   {
     key: "evidence_intel",
@@ -153,6 +167,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "evidence_intel_at",
     dependsOn: ["analyzers"],
     requirement: "enriching",
+    timeoutMs: 180_000,
   },
   {
     // Resolves país / entidad federativa / fuero / materia and the codes that
@@ -174,6 +189,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     engine: "procedural_compliance",
     dependsOn: ["analyzers", "jurisdiction_intel"],
     requirement: "enriching",
+    timeoutMs: 180_000,
   },
   {
     key: "constitutional",
@@ -181,6 +197,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     engine: "constitutional_compliance",
     dependsOn: ["analyzers"],
     requirement: "enriching",
+    timeoutMs: 120_000,
   },
   {
     key: "discovery",
@@ -189,14 +206,26 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "discovery_at",
     dependsOn: ["analyzers"],
     requirement: "enriching",
+    timeoutMs: 240_000,
   },
   {
+    // CONFIRMED IN PRODUCTION (Expediente Agrario 419/2026): this stage hung
+    // with zero progress and had to be manually cleared via "Limpiar
+    // estado" ~2.5 minutes in — same class of bug as extraction (see its
+    // note above): the per-batch checkpoint in litigation.server.ts can
+    // only yield BETWEEN batches, so a hang inside the very first batch's
+    // concurrent Groq calls has nothing to interrupt it. Because this stage
+    // is requirement:"optional" the hang doesn't fail the run, but it does
+    // starve theories/strategy/litigation_strategy_center of real input,
+    // which then thins out the evidence base enough to trip the
+    // Hallucination/Judge release gate and block the report anyway.
     key: "perspectives",
     label: "Multi-Perspective Analysis",
     engine: "perspectives",
     timestampColumn: "perspectives_at",
     dependsOn: ["analyzers", "agents"],
     requirement: "optional",
+    timeoutMs: 240_000,
   },
   {
     key: "theories",
@@ -205,6 +234,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "theories_at",
     dependsOn: ["perspectives"],
     requirement: "optional",
+    timeoutMs: 240_000,
   },
   {
     key: "opportunities",
@@ -213,14 +243,18 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "opportunities_at",
     dependsOn: ["analyzers", "agents"],
     requirement: "optional",
+    timeoutMs: 240_000,
   },
   {
+    // CONFIRMED IN PRODUCTION alongside perspectives above — same manual
+    // clear, same single-shot-Groq-call-with-no-internal-checkpoint shape.
     key: "strategy",
     label: "Strategy Synthesis",
     engine: "strategy",
     timestampColumn: "strategy_at",
     dependsOn: ["perspectives", "theories"],
     requirement: "optional",
+    timeoutMs: 240_000,
   },
   {
     key: "litigation_strategy_center",
@@ -232,6 +266,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     // summarize it too.
     dependsOn: ["theories", "opportunities", "witness", "strategy"],
     requirement: "optional",
+    timeoutMs: 240_000,
   },
   {
     key: "work_product",
@@ -240,6 +275,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "work_product_at",
     dependsOn: ["strategy"],
     requirement: "optional",
+    timeoutMs: 300_000,
   },
   {
     key: "hallucination",
@@ -248,6 +284,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "hallucination_at",
     dependsOn: ["analyzers", "agents"],
     requirement: "optional",
+    timeoutMs: 180_000,
   },
   {
     key: "scoring",
@@ -256,6 +293,7 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     timestampColumn: "scored_at",
     dependsOn: ["analyzers", "agents"],
     requirement: "blocking",
+    timeoutMs: 180_000,
   },
   {
     // Control de Calidad Jurídica — terminal gate. Remediates US/common-law
@@ -283,6 +321,9 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     engine: "multi_agent",
     dependsOn: ["scoring", "legal_qa", "analyzers", "agents"],
     requirement: "optional",
+    // Extra headroom over the other optional stages — this one legitimately
+    // runs 13 sub-agents in sequence/batches.
+    timeoutMs: 360_000,
   },
   {
     key: "report",
