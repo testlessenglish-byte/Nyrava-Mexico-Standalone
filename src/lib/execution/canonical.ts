@@ -206,6 +206,14 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     requirement: "optional",
   },
   {
+    key: "trial_prep",
+    label: "Trial Prep & Jury Simulation",
+    engine: "trial_prep",
+    timestampColumn: "trial_prep_at",
+    dependsOn: ["analyzers", "agents"],
+    requirement: "optional",
+  },
+  {
     key: "strategy",
     label: "Strategy Synthesis",
     engine: "strategy",

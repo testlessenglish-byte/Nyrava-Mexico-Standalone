@@ -266,16 +266,9 @@ export function getReportMode(r: ReportLike): ReportMode {
   const ess = getEssState(r);
   const fb = isDeterministicFallback(r);
   if (fb || ess.scoresSuppressed || ess.motionsSuppressed) return "LIMITED";
-  // A substantive corpus (Full Analysis override — 15+ parsed documents, a
-  // charging document, or broad document-type coverage) always unlocks FULL.
-  // Procedural-compliance checklist gaps are advisory for the attorney and
-  // must never act as evidence-sufficiency gatekeepers.
-  const essRaw = asObj(asObj(full.validation).evidence_sufficiency);
-  if (essRaw.fullAnalysisOverride === true) return "FULL";
   if (ess.level === "minimal" || ess.level === "unknown") return "LIMITED";
   return "FULL";
 }
-
 
 // ---- Practice Area (single source of truth for module isolation) -----
 export function getPracticeArea(r: ReportLike): string {

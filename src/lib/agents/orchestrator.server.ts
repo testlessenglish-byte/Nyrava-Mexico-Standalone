@@ -228,48 +228,21 @@ async function agentEntities(ctx: RunCtx): Promise<AgentResult> {
     .select("id", { count: "exact", head: true })
     .eq("case_id", ctx.caseId)
     .not("source_module", "like", PROJECTION_LIKE);
-  const hasFindings = (findingsCount ?? 0) > 0;
-  // FATAL gate: only "the analyzers stage itself never completed" belongs
-  // here. `entities` sits in the orchestrator's FATAL set, so a "failed"
-  // status here blocks all 10 downstream agents (timeline through
-  // hallucination) outright — see the FATAL-blocking loop below. Zero
-  // findings surviving the (now much stricter) evidence gate is a
-  // legitimately thin case, not a broken pipeline; treating it the same as
-  // "the stage never ran" wrongly prevented QA/Judge/Hallucination from
-  // ever running and — since a report-release-gate guard now refuses to
-  // generate a report at all when multi_agent's released flag is explicitly
-  // false — silently blocked report generation for every case where the
-  // stricter gate correctly rejected everything down to zero. QA and Judge
-  // each independently and correctly re-check "zero findings" on their own
-  // terms (agentQA: "No findings to support the report."; agentJudge:
-  // verdict "reject" / "No findings to evaluate.") and will still fail a
-  // genuinely empty case — that real rejection must come from them, not
-  // from a fatal short-circuit here that skips them entirely.
-  const ok = engineCompleted;
+  const ok = engineCompleted && (findingsCount ?? 0) > 0;
   return {
     status: ok ? "success" : "failed",
-    confidence: ok ? (hasFindings ? 0.85 : 0.5) : 0,
+    confidence: ok ? 0.85 : 0,
     processingTime: 0,
     tokensUsed: 0,
     outputFile: "entities.json",
-    errors: ok
-      ? hasFindings
-        ? []
-        : [
-            "Analyzers stage completed but zero findings survived the evidence gate — thin/strict case, not a pipeline failure. Downstream QA/Judge will independently assess whether this can release.",
-          ]
-      : ["Analyzers stage did not complete before the release gate ran; nothing to verify."],
+    errors: ok ? [] : ["Analyzers stage did not complete before the release gate ran; nothing to verify."],
     // `analyzers_completed` must answer the same question as `status`/`errors`
     // above. Previously this reported the raw pipeline_engine_runs ledger
     // flag (`engineCompleted`) even when `status` was "failed" because zero
     // findings survived — producing analyzers_completed: true in the same
     // result as an "Analyzers stage did not complete" error. Split the two
     // concepts explicitly instead of overloading one field.
-    output: {
-      findings_count: findingsCount ?? 0,
-      analyzers_engine_completed: engineCompleted,
-      analyzers_completed: ok,
-    },
+    output: { findings_count: findingsCount ?? 0, analyzers_engine_completed: engineCompleted, analyzers_completed: ok },
   };
 }
 
@@ -401,6 +374,7 @@ async function agentReport(ctx: RunCtx): Promise<AgentResult> {
   };
 }
 
+
 const QA_NARRATIVE_FIELDS = [
   "executive_summary",
   "attorney_summary",
@@ -483,17 +457,6 @@ const JUDGE_THRESHOLDS: Record<AnalysisMode, { reject: number; needsRevision: nu
   balanced: { reject: 0.25, needsRevision: 0.5 },
   exploratory: { reject: 0.15, needsRevision: 0.3 },
 };
-// Minimum share of cited findings whose quote must verify against the corpus
-// (after legal-authority citations are correctly exempted — see
-// grounding.server.ts::isLegalAuthorityCitation). The threshold was
-// temporarily lowered to 0.3 alongside a pattern-only authority-exemption
-// check; that check was confirmed, by direct reproduction, to exempt
-// fabricated factual claims merely phrased alongside a real article number,
-// which is exactly the class of claim this gate exists to catch. Restored
-// to 0.5 now that the exemption is properly scoped to quotes that are
-// SUBSTANTIALLY JUST a citation — genuine Amparo/administrative citation
-// density no longer needs a lowered bar to pass, since those citations are
-// now correctly exempted rather than miscounted as failures.
 const HALLUCINATION_THRESHOLDS: Record<AnalysisMode, number> = {
   strict: 0.85,
   balanced: 0.7,
@@ -560,14 +523,8 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
 async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
   const m = await import("@/lib/intelligence/hallucination.server");
   const report = await m.runHallucinationReview({ db: ctx.db, caseId: ctx.caseId });
-  // Legal-authority citations (CPEUM/statutory articles, tesis, jurisprudencia)
-  // cannot be verified verbatim against the case corpus; they are counted as
-  // grounded rather than as failures. Verbatim matching governs documentary
-  // claims only.
-  const authorityExempt = report.authority_exempt ?? 0;
-  const grounded = report.verified + authorityExempt;
-  const cited = grounded + report.unverified;
-  const verifiedRatio = cited > 0 ? grounded / cited : 1;
+  const cited = report.verified + report.unverified;
+  const verifiedRatio = cited > 0 ? report.verified / cited : 1;
   const citationCoverage = report.total > 0 ? cited / report.total : 0;
   const threshold = HALLUCINATION_THRESHOLDS[ctx.analysisMode];
   const pass = report.total > 0 && cited > 0 && verifiedRatio >= threshold;
@@ -589,7 +546,6 @@ async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
     output: {
       total: report.total,
       verified: report.verified,
-      authority_exempt: authorityExempt,
       unverified: report.unverified,
       no_citation: report.no_citation,
       citation_coverage: citationCoverage,

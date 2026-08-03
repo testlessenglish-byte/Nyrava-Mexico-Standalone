@@ -9,15 +9,13 @@ import type { CaseAnalysis } from "./case-analysis";
 function norm(s: string): string {
   return String(s ?? "")
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language finding text dedupes correctly
     .replace(/[^a-z0-9 ]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function tokens(s: string): Set<string> {
-  const STOP = new Set(["the", "and", "for", "with", "that", "this", "los", "las", "del", "que", "por", "con", "para", "una"]);
+  const STOP = new Set(["the", "and", "for", "with", "that", "this"]);
   return new Set(norm(s).split(" ").filter((t) => t.length > 2 && !STOP.has(t)));
 }
 

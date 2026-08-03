@@ -138,18 +138,18 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
 };
 
 export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
-  penal: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  civil: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  mercantil: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
+  penal: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  civil: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  mercantil: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
   familiar: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  laboral: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  administrativo: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  fiscal: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  amparo: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  constitucional: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  electoral: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  agrario: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  ambiental: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
+  laboral: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  administrativo: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  fiscal: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  amparo: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  constitucional: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  electoral: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  agrario: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  ambiental: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
   inmobiliario: ["opportunities", "perspectives", "scorecard", "transaction_center"],
 };
 

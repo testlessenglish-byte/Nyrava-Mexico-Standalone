@@ -133,16 +133,6 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
           temperature: o.temperature ?? 0.2,
           maxOutputTokens: Math.min(o.maxTokens ?? 4096, 8192),
           ...(o.json ? { responseMimeType: "application/json" } : {}),
-          // JSON-mode callers (analyzers, scoring, report structuring, etc.)
-          // need reliable structured extraction, not open-ended reasoning.
-          // Without this, "thinking" models (gemini-flash-latest and similar)
-          // spend most/all of maxOutputTokens on invisible internal reasoning
-          // before writing the JSON, leaving a small, roughly constant
-          // remainder for the actual answer — a technically-successful call
-          // (ok:true) that returns next to nothing, on every call, regardless
-          // of prompt size. See docs incident trace 2026-08-02 (analyzers
-          // stage returning empty findings for every case that drew Gemini).
-          ...(o.json ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
         },
       };
       if (o.systemInstruction) body.systemInstruction = { parts: [{ text: o.systemInstruction }] };

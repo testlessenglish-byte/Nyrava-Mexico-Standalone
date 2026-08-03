@@ -28,19 +28,14 @@ function row(engine: string, status: ExecutionRow["status"], iso = "2026-01-01T0
 }
 
 describe("Pre-flight report gate (single source of truth)", () => {
-  it("requires all 22 canonical engines (report_generator is the consumer, not a self-precondition)", () => {
+  it("requires all 23 canonical engines (report_generator is the consumer, not a self-precondition)", () => {
     // 2026-07-31: widened from "blocking"-only (14) to every stage, per
     // explicit direction that report generation must wait for everything —
     // not just the subset previously marked requirement:"blocking" —
     // confirmed against a real case where an "optional" stage (work_product)
     // was left stuck at "running" while the pipeline continued straight
     // through report generation.
-    // 2026-08-02: trial_prep removed entirely from CANONICAL_STAGES (not
-    // materia-gated, removed outright — its "Trial Prep & Jury Simulation"
-    // framing does not fit Mexican procedure; product decision to drop it
-    // pending a real replacement rather than keep patching it), so the
-    // total dropped from 23 to 22.
-    expect(REPORT_REQUIRED_ENGINES.length).toBe(22);
+    expect(REPORT_REQUIRED_ENGINES.length).toBe(23);
     expect(REPORT_REQUIRED_ENGINES).not.toContain("report_generator");
     // 2026-07-31: multi_agent now runs BEFORE the report, so it is required.
     expect(REPORT_REQUIRED_ENGINES).toContain("multi_agent");
