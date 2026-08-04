@@ -7309,6 +7309,17 @@ ${paginationTail}`;
     risk_score: gatedScore(parsed.risk_score),
     scores_suppressed: isLimited,
     motions_suppressed: isLimited,
+    // FIX (2026-08-04): reports.report_mode and reports.findings_count are
+    // real top-level columns (see migration 20260710001630) that a database
+    // trigger (tg_mirror_reports_to_canonical) mirrors into
+    // canonical_analysis on every write -- but this upsert only ever set
+    // `report_mode` nested inside full_report.audit.report_mode, never as
+    // its own column, so both columns (and their canonical_analysis mirror)
+    // stayed permanently null even on a fully-populated report. Confirmed on
+    // a live case: full report content, scores_suppressed/motions_suppressed
+    // correctly false, but report_mode/findings_count null on the row.
+    report_mode: reportMode,
+    findings_count: findings.length,
     engines_summary: enginesSummary as unknown as J,
     intelligence_version: INTELLIGENCE_VERSION,
     // Phase 4: which canonical_analysis.version this report was rendered
