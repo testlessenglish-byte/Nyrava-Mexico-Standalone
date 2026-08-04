@@ -248,6 +248,143 @@ export const markAuthorityVerified = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * Phase 2 (Knowledge Library) "authority supersession" — deliberately a
+ * human-reviewed action, not automated detection. legal_authorities has
+ * carried a superseded_by_id column and verification_status has included
+ * 'superseded' as a valid value since the original NLKN migration
+ * (20260726000000), but nothing in the codebase ever set either: confirmed
+ * zero references outside the generated Supabase types. Attempting to
+ * detect supersession automatically (e.g. NLP over "esta tesis interrumpe
+ * la jurisprudencia X" free text) would mean an algorithm making a legal
+ * determination about which authority is currently binding — exactly the
+ * kind of fabricated-precision risk this platform's evidence-provenance
+ * work has spent this whole phase trying to eliminate elsewhere. A human
+ * reviewer marking it explicitly, the same pattern already established and
+ * shipped for markAuthorityVerified above, carries none of that risk.
+ */
+export type AuthoritySearchResult = {
+  id: string;
+  kind: string;
+  title: string;
+  shortTitle: string | null;
+  citation: string | null;
+  publishedAt: string | null;
+  verificationStatus: string;
+};
+
+/** Lookup for the supersession picker UI — verified jurisprudencia/court_decision only, since those are the only kinds this platform currently cites as case law (see case-law.server.ts). */
+export const searchVerifiedAuthorities = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => {
+    const o = (d ?? {}) as { query?: string };
+    const query = typeof o.query === "string" ? o.query.trim() : "";
+    if (query.length < 3) throw new Error("query must be at least 3 characters");
+    return { query };
+  })
+  .handler(async ({ data, context }): Promise<{ rows: AuthoritySearchResult[] }> => {
+    const { supabase: db, userId } = context;
+    await requireAdmin({ supabase: db, userId });
+
+    const { data: rows, error } = await db
+      .from("legal_authorities")
+      .select("id,kind,title,short_title,citation,published_at,verification_status")
+      .in("kind", ["jurisprudencia", "court_decision"])
+      .eq("verification_status", "verified")
+      .or(`title.ilike.%${data.query}%,short_title.ilike.%${data.query}%,citation.ilike.%${data.query}%`)
+      .order("published_at", { ascending: false })
+      .limit(10);
+    if (error) throw new Error(error.message);
+
+    type AuthoritySearchRow = {
+      id: string;
+      kind: string;
+      title: string;
+      short_title: string | null;
+      citation: string | null;
+      published_at: string | null;
+      verification_status: string;
+    };
+    return {
+      rows: ((rows ?? []) as AuthoritySearchRow[]).map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        title: r.title,
+        shortTitle: r.short_title,
+        citation: r.citation,
+        publishedAt: r.published_at,
+        verificationStatus: r.verification_status,
+      })),
+    };
+  });
+
+/**
+ * Write side. Requires both authorities to actually exist (a typo'd id
+ * must fail loudly, not silently write a dangling reference — superseded_
+ * by_id has ON DELETE SET NULL for real deletions, but that's not the same
+ * guarantee as validating the id was ever real in the first place), and
+ * refuses to point at a superseding authority that is itself already
+ * marked superseded — a superseded row does not describe currently-binding
+ * law, so it cannot be *the* answer for what currently supersedes
+ * something else; the reviewer should point at that authority's own
+ * eventual replacement instead. Chains longer than one hop (A superseded
+ * by B, B later superseded by C) are not otherwise validated here — that
+ * is a deliberate, narrow scope limit, not an oversight.
+ */
+export const markAuthoritySuperseded = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => {
+    const o = d as { authorityId?: string; supersededByAuthorityId?: string };
+    if (typeof o.authorityId !== "string" || o.authorityId.length === 0) {
+      throw new Error("authorityId required");
+    }
+    if (typeof o.supersededByAuthorityId !== "string" || o.supersededByAuthorityId.length === 0) {
+      throw new Error("supersededByAuthorityId required");
+    }
+    if (o.authorityId === o.supersededByAuthorityId) {
+      throw new Error("an authority cannot supersede itself");
+    }
+    return { authorityId: o.authorityId, supersededByAuthorityId: o.supersededByAuthorityId };
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const { supabase: db, userId } = context;
+    await requireAdmin({ supabase: db, userId });
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: rows, error: lookupErr } = await supabaseAdmin
+      .from("legal_authorities")
+      .select("id,verification_status")
+      .in("id", [data.authorityId, data.supersededByAuthorityId]);
+    if (lookupErr) throw new Error(lookupErr.message);
+
+    type LookupRow = { id: string; verification_status: string };
+    const byId = new Map(((rows ?? []) as LookupRow[]).map((r) => [r.id, r.verification_status]));
+    if (!byId.has(data.authorityId)) throw new Error(`authority ${data.authorityId} not found`);
+    if (!byId.has(data.supersededByAuthorityId)) {
+      throw new Error(`superseding authority ${data.supersededByAuthorityId} not found`);
+    }
+    if (byId.get(data.supersededByAuthorityId) === "superseded") {
+      throw new Error(
+        "the superseding authority is itself marked superseded — point to its own replacement instead",
+      );
+    }
+
+    const { error } = await supabaseAdmin
+      .from("legal_authorities")
+      .update({
+        verification_status: "superseded",
+        superseded_by_id: data.supersededByAuthorityId,
+      } as never)
+      .eq("id", data.authorityId);
+    if (error) throw new Error(error.message);
+
+    console.info(
+      `[legal-knowledge] authority ${data.authorityId} marked superseded by ${data.supersededByAuthorityId}, admin ${userId}`,
+    );
+    return { ok: true };
+  });
+
 export type TestConnectorSyncResult = {
   connectorCode: string;
   status: "completed" | "completed_with_errors" | "failed";
