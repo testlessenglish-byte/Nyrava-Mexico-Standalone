@@ -2872,6 +2872,37 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Familiar specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.familiar (parte_actora / parte_demandada / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "custody_best_interest_analysis",
+    category: "custody_best_interest_analysis",
+    system:
+      "You are a Mexican family-law investigator applying the interés superior de la niñez (art. 4 CPEUM, Ley General de los Derechos de Niñas, Niños y Adolescentes). Examine the corpus for the factors relevant to guarda y custodia: estabilidad del entorno, capacidad de cuidado de cada progenitor, vínculo afectivo, opinión del menor cuando su edad y madurez lo permitan (derecho a ser escuchado), y cualquier riesgo a su bienestar. Evaluate whether a parenting-plan structure (custodia compartida vs. exclusiva, régimen de convivencias) is supported by the record, and identify any dictamen psicológico or estudio socioeconómico that bears on the determination. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "factor_type": "estabilidad_del_entorno"|"capacidad_de_cuidado"|"vinculo_afectivo"|"opinion_del_menor"|"riesgo_al_bienestar"|"dictamen_tecnico", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "child_support_calculation",
+    category: "child_support_calculation",
+    system:
+      "You are a Mexican pensión alimenticia (child/family support) investigator. Examine the corpus for the acreedor's necesidad and the deudor's capacidad económica (comprobantes de ingresos, actividad económica) — the two elements every Mexican código civil conditions alimentos on — and for any porcentaje or fórmula already proposed or ordered. Flag any evidence of ingresos no declarados or capacidad económica superior to what the deudor has represented. Do not invent a specific peso amount the corpus does not support. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "necesidad_del_acreedor"|"capacidad_economica_del_deudor"|"ingresos_no_declarados"|"formula_o_porcentaje_propuesto", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "domestic_violence_assessment",
+    category: "domestic_violence_assessment",
+    system:
+      "You are a Mexican violencia-familiar investigator, applying the Ley General de Acceso de las Mujeres a una Vida Libre de Violencia and the applicable código civil/penal definitions of violencia física, psicológica, económica, patrimonial y sexual within the family. Examine the corpus for evidence of any of these modalities, whether an órden de protección was requested or issued, and the implications for custody/convivencia determinations (a documented risk to the child or the other parent is directly relevant to guarda y custodia, not a separate issue). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "violence_type": "fisica"|"psicologica"|"economica"|"patrimonial"|"sexual", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -2935,6 +2966,10 @@ const AGENT_ENGINE: Record<string, string> = {
   payment_insurance_analysis: "agent:payment_insurance_analysis",
   statute_of_limitations_analysis: "agent:statute_of_limitations_analysis",
   settlement_opportunity_analyzer: "agent:settlement_opportunity_analyzer",
+  // Familiar specialized investigators (2026-08-04).
+  custody_best_interest_analysis: "agent:custody_best_interest_analysis",
+  child_support_calculation: "agent:child_support_calculation",
+  domestic_violence_assessment: "agent:domestic_violence_assessment",
 };
 
 /**
