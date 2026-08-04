@@ -6331,10 +6331,29 @@ ${paginationTail}`;
   // Findings-derived rows are merged in and deduped by quote text so nothing
   // is shown twice. Mirrors the merge-not-replace fix already applied to
   // evidenceIndex just below.
+  // FIX (2026-08-04): this mapping previously dropped every provenance field
+  // grounding.server.ts's verifyEvidenceRefs() computes beyond the basics
+  // (document_id/page/quote) -- character offsets, the located page, the
+  // document/citation SHA-256 hashes, and whether the citation had to be
+  // re-attributed to a different document than the LLM claimed. Those fields
+  // are the whole point of Phase 1 evidence provenance (character-level
+  // location + cryptographic fingerprint for every statement in the Citation
+  // Index) and were being computed then silently discarded here. Carried
+  // through now via a spread of whatever verifyEvidenceRefs actually
+  // produced, with the existing explicit fields kept as the documented
+  // fallback chain for refs that predate this fix or came from a path that
+  // doesn't run through grounding.server.ts.
   const findingsCitations = findings
     .flatMap((f: any, i) => {
       const refs = Array.isArray(f.evidence_refs) ? f.evidence_refs : [];
       return refs.slice(0, 3).map((ref: any, j: number) => ({
+        start_offset: null,
+        end_offset: null,
+        page_located: null,
+        document_hash: null,
+        citation_hash: null,
+        source_reattributed: false,
+        ...ref,
         id: `F${i + 1}-${j + 1}`,
         doc_n: typeof ref.doc_n === "number" ? ref.doc_n : null,
         document_id: ref.document_id ?? ref.doc_id ?? f.source_document_id ?? null,
