@@ -128,6 +128,48 @@ describe("isReportStale", () => {
     const runs = [{ engine: "extraction", ended_at: "2026-01-02T00:00:00Z" }];
     expect(isReportStale(report, runs, BLOCKING)).toBe(true);
   });
+
+  // Regression for the pipeline-runner.server.ts staleness override: a stale
+  // report is dropped from the resume state so the "report" stage gets a
+  // real chance to regenerate (see _runPipelineForCase's staleness-override
+  // block). These tests prove the specific properties that override relies
+  // on — the full pipeline run itself is not unit-testable in isolation
+  // (it needs a live/mocked Supabase + AI provider stack), but its
+  // correctness reduces entirely to isReportStale()'s behavior across a
+  // regenerate cycle, which IS directly testable here.
+  it("regeneration cycle: once the report is rewritten with a timestamp newer than every blocking engine, staleness clears", () => {
+    const BLOCKING2 = new Set(["extraction", "analyzers", "scoring"]);
+    const runs = [
+      { engine: "extraction", ended_at: "2026-01-01T00:00:00Z" },
+      { engine: "analyzers", ended_at: "2026-01-02T00:00:00Z" }, // re-ran after the old report
+    ];
+    const staleReport = { updated_at: "2026-01-01T06:00:00Z" };
+    expect(isReportStale(staleReport, runs, BLOCKING2)).toBe(true);
+
+    // runReport() always deletes+rewrites the report_generator ledger row
+    // and the `reports` singleton on a real regeneration — simulate that:
+    // the new report's updated_at is set at generation time, necessarily
+    // after every blocking engine row it just read.
+    const regeneratedReport = { updated_at: "2026-01-03T00:00:00Z" };
+    expect(isReportStale(regeneratedReport, runs, BLOCKING2)).toBe(false);
+  });
+
+  it("no infinite regeneration loop: staleness cannot re-trigger from the same blocking-engine rows once the report postdates them", () => {
+    // If regeneration only bumped the report's timestamp without any
+    // blocking engine ALSO re-running afterward, a second staleness check
+    // against the SAME runs must stay false — otherwise the pipeline would
+    // regenerate forever on every tick even though nothing upstream changed.
+    const BLOCKING2 = new Set(["extraction", "analyzers"]);
+    const runs = [
+      { engine: "extraction", ended_at: "2026-01-01T00:00:00Z" },
+      { engine: "analyzers", ended_at: "2026-01-01T00:00:00Z" },
+    ];
+    const report = { updated_at: "2026-01-01T00:00:01Z" };
+    expect(isReportStale(report, runs, BLOCKING2)).toBe(false);
+    // Checking again with the identical inputs (simulating the next tick)
+    // must be stable, not flip to true.
+    expect(isReportStale(report, runs, BLOCKING2)).toBe(false);
+  });
 });
 
 describe("sanitizeBlockedReport: staleness path", () => {

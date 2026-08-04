@@ -210,7 +210,12 @@ export async function runTheoryEngine(args: {
     .from("documents")
     .select("id,filename,extracted_text,status")
     .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    // Secondary sort on `id` for deterministic doc_n numbering — see the
+    // identical note in shared-brief.server.ts's loadCorpus(). Keeps this
+    // grounding-verification corpus's document order aligned with the
+    // corpus the generating engine's prompt actually showed the model.
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const groundCorpus = buildGroundingCorpus(
     (docsForGround ?? [])
       .filter((d) => d.status === "extracted")
@@ -435,7 +440,12 @@ export async function runOpportunityEngine(args: {
     .from("documents")
     .select("id,filename,extracted_text,status")
     .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    // Secondary sort on `id` for deterministic doc_n numbering — see the
+    // identical note in shared-brief.server.ts's loadCorpus(). Keeps this
+    // grounding-verification corpus's document order aligned with the
+    // corpus the generating engine's prompt actually showed the model.
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const groundCorpus = buildGroundingCorpus(
     (docsForGround ?? [])
       .filter((d) => d.status === "extracted")
@@ -1518,9 +1528,13 @@ export async function runWorkProductEngine(args: {
   // source text and the known filename list. Deterministic ordering.
   const docsRes = await db
     .from("documents")
-    .select("filename,extracted_text,status")
+    .select("id,filename,extracted_text,status")
     .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    // "Deterministic ordering" above wasn't actually deterministic without
+    // a tiebreaker for rows sharing the same created_at — see the note in
+    // shared-brief.server.ts's loadCorpus().
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const docRows = (docsRes.data ?? []).filter((d) => d.status === "extracted");
   const corpusIndex = buildCorpusIndex(docRows);
   const knownFilenames = docRows.map((d) => d.filename).filter(Boolean) as string[];

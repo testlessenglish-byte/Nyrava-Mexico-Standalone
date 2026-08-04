@@ -113,11 +113,34 @@ const SIGNALS: Record<MxCaseType, Array<[RegExp, number]>> = {
     [/\bcfdi\b/gi, 2],
   ],
   constitucional: [
+    // These two are the actual proceeding types this materia means:
+    // controversia constitucional (a dispute between branches/levels of
+    // government) and acción de inconstitucionalidad (filed by specific
+    // qualified entities directly with the SCJN). Neither can co-occur
+    // with amparo terminology in the same case — they're mutually
+    // exclusive proceedings.
     [/\bcontroversia constitucional\b/gi, 3],
     [/\bacci[oó]n de inconstitucionalidad\b/gi, 3],
-    [/\bcpeum\b|\bconstituci[oó]n pol[ií]tica de los estados unidos mexicanos\b/gi, 2],
-    [/\bderechos humanos\b|\bcontrol de convencionalidad\b/gi, 2],
-    [/\bjurisprudencia de la scjn\b/gi, 2],
+    // FIX: these three were weight 2 — decisive enough, combined with
+    // repetition, to outscore amparo's own weight-3 signals on a case
+    // whose SUBSTANCE is heavily about constitutional/human-rights
+    // doctrine (e.g. an indigenous-rights amparo indirecto, which
+    // legitimately discusses CPEUM, derechos humanos, and SCJN
+    // jurisprudencia at length as the basis for its claim). None of these
+    // three terms is exclusive to a controversia constitucional/acción de
+    // inconstitucionalidad — amparo, penal, and administrativo cases
+    // routinely cite them too. Confirmed on a real case (Amparo Indirecto
+    // 412/2026, an indigenous-consultation matter): classified as
+    // "constitucional" despite being unambiguously an amparo indirecto by
+    // its own caption, which then drove the wrong procedural profile
+    // (derechos_humanos instead of amparo) and produced report
+    // recommendations to file a controversia constitucional / acción de
+    // inconstitucionalidad — filings that don't apply to an individual
+    // amparo proceeding at all. Downgraded to weak hints; see the
+    // resolveMxCaseType() override below for the actual tie-break.
+    [/\bcpeum\b|\bconstituci[oó]n pol[ií]tica de los estados unidos mexicanos\b/gi, 1],
+    [/\bderechos humanos\b|\bcontrol de convencionalidad\b/gi, 1],
+    [/\bjurisprudencia de la scjn\b/gi, 1],
   ],
   inmobiliario: [
     [/\bcompraventa\b/gi, 2],
@@ -187,7 +210,35 @@ export function classifyMexicanCaseType(text: string | null | undefined): MxClas
 
   const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   const total = ranked.reduce((acc, [, v]) => acc + v, 0);
-  const [topType, topScore] = ranked[0] ?? ["civil", 0];
+  let [topType, topScore] = ranked[0] ?? ["civil", 0];
+
+  // Tie-break: "constitucional" means controversia constitucional / acción
+  // de inconstitucionalidad specifically — proceedings that cannot co-occur
+  // with amparo terminology in the same case (mutually exclusive filing
+  // types). If "constitucional" is winning WITHOUT either of its own
+  // decisive markers actually matching (i.e. purely on the weak, widely-
+  // shared derechos-humanos/CPEUM/SCJN-jurisprudencia hints), and "amparo"
+  // has any real signal at all, amparo should win — a case can legitimately
+  // discuss human-rights doctrine at length as the SUBSTANCE of an amparo
+  // claim (e.g. an indigenous-consultation amparo indirecto) without being
+  // a controversia constitucional. Confirmed on a real case (Amparo
+  // Indirecto 412/2026) misclassified as "constitucional", which then drove
+  // the wrong procedural profile (derechos_humanos instead of amparo) and
+  // produced report recommendations to file a controversia constitucional /
+  // acción de inconstitucionalidad — filings that don't apply to an
+  // individual amparo proceeding. `total` (the confidence denominator) is
+  // deliberately left as the honest sum of every materia's raw signal —
+  // only which materia is declared the winner changes.
+  if (topType === "constitucional" && (scores.amparo ?? 0) > 0) {
+    const decisiveConstitucionalHit = /\bcontroversia constitucional\b|\bacci[oó]n de inconstitucionalidad\b/gi.test(
+      haystack,
+    );
+    if (!decisiveConstitucionalHit) {
+      topType = "amparo";
+      topScore = scores.amparo;
+    }
+  }
+
   if (!topScore) {
     return { caseType: "civil", confidence: 0, matched: [], scores };
   }

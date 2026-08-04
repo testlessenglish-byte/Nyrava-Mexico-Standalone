@@ -1860,7 +1860,14 @@ async function buildCorpus(db: Db, caseId: string) {
     .from("documents")
     .select("id,filename,extracted_text,metadata,entities,status")
     .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    // Secondary sort on `id` — see the identical note in
+    // shared-brief.server.ts's loadCorpus(). This is the doc_n numbering
+    // ("DOCUMENT N" headers) analyzers/agents prompts use; it must stay
+    // deterministic and aligned with every other independent re-query of
+    // the same documents, or a cited doc_n silently resolves to the wrong
+    // document later.
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const extracted = (docs ?? []).filter((d) => d.status === "extracted");
   const chunks: CorpusChunk[] = extracted.map((d, i) => {
     const header = `=== DOCUMENT ${i + 1} (id=${d.id}): ${d.filename} ===`;

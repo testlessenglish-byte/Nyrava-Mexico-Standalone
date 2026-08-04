@@ -423,7 +423,10 @@ export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; use
     .from("documents")
     .select("id,filename,extracted_text,status")
     .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    // Secondary sort on `id` for deterministic doc_n numbering — see the
+    // identical note in shared-brief.server.ts's loadCorpus().
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const docsById = new Map((currentDocs ?? []).map((d) => [d.id as string, d]));
   const citationDocs: Array<{ id: string; filename: string; extracted_text: string | null }> = [];
   let remainingCitationChars = 120_000;

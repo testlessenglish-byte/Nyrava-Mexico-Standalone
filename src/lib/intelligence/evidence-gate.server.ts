@@ -473,7 +473,10 @@ export async function buildEntityIndex(
     .from("documents")
     .select("id,filename,extracted_text,entities,status")
     .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    // Secondary sort on `id` for deterministic doc_n numbering — see the
+    // identical note in shared-brief.server.ts's loadCorpus().
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const extracted = (docs ?? []).filter((d) => d.status === "extracted");
   const corpus = buildGroundingCorpus(
     extracted.map((d) => ({ id: d.id as string, filename: d.filename, extracted_text: d.extracted_text })),
