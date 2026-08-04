@@ -136,6 +136,58 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   // Constitucional (controversia constitucional / acción de
   // inconstitucionalidad) only:
   "agent:constitutional_controversy_analysis",
+  // Penal specialized investigator agents:
+  "agent:search_warrant_arrest_legality",
+  "agent:forensic_digital_evidence_analysis",
+  "agent:reasonable_doubt_defense_theory",
+  "agent:sentencing_analysis",
+  "agent:appeal_opportunity_detection",
+  // Agrario specialized investigator agents:
+  "agent:ran_record_certificate_review",
+  "agent:ejido_assembly_analysis",
+  "agent:communal_land_indigenous_rights",
+  "agent:boundary_possession_analysis",
+  "agent:agrarian_jurisdiction_restitution",
+  // Civil specialized investigator agents:
+  "agent:contract_analysis_ambiguity",
+  "agent:liability_damages_assessment",
+  "agent:payment_insurance_analysis",
+  "agent:statute_of_limitations_analysis",
+  "agent:settlement_opportunity_analyzer",
+  // Familiar specialized investigator agents:
+  "agent:custody_best_interest_analysis",
+  "agent:child_support_calculation",
+  "agent:domestic_violence_assessment",
+  // Mercantil specialized investigator agents:
+  "agent:corporate_governance_shareholder_rights",
+  "agent:commercial_contract_intelligence",
+  "agent:financial_fraud_commercial_risk",
+  "agent:bankruptcy_concurso_review",
+  // Laboral specialized investigator agents:
+  "agent:lft_compliance_review",
+  "agent:payroll_overtime_imss_audit",
+  "agent:wrongful_termination_analysis",
+  "agent:union_discrimination_review",
+  // Administrativo specialized investigator agents:
+  "agent:administrative_due_process_review",
+  "agent:authority_competence_notification_review",
+  "agent:administrative_nullity_analysis",
+  // Fiscal specialized investigator agents:
+  "agent:sat_audit_review",
+  "agent:cfdi_accounting_tax_validation",
+  "agent:prodecon_opportunity_detection",
+  // Electoral specialized investigator agents:
+  "agent:ine_documentation_candidate_eligibility",
+  "agent:campaign_finance_review",
+  "agent:vote_counting_chain_of_custody",
+  "agent:political_violence_gender_parity",
+  "agent:electoral_nullity_analysis",
+  // Ambiental specialized investigator agents:
+  "agent:mia_impact_assessment_review",
+  "agent:profepa_asea_compliance_review",
+  "agent:conagua_water_rights_review",
+  "agent:pollution_remediation_analysis",
+  "agent:protected_species_areas_review",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",

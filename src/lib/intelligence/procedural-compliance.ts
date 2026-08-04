@@ -619,6 +619,141 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       patterns: ["boleta de inscripcion", "folio real inscrito"],
     },
   ],
+  // 2026-08-04: new profile — previously agrario cases evaluated against
+  // the "civil" checklist above (demanda_requisitos under CNPCyF, etc.),
+  // which has no concept of the RAN, the ejido assembly, or a deslinde.
+  agrario: [
+    {
+      id: "demanda_agraria_requisitos",
+      label_es: "Demanda agraria con requisitos de forma",
+      label_en: "Agrarian complaint meets formal requirements",
+      authority: "Ley Agraria Art. 170",
+      requirement: "required",
+      patterns: ["demanda agraria", "tribunal unitario agrario", "juicio agrario"],
+    },
+    {
+      id: "certificado_ran",
+      label_es: "Certificado o constancia del Registro Agrario Nacional exhibido",
+      label_en: "Registro Agrario Nacional certificate or record attached",
+      authority: "Ley Agraria Art. 152; Reglamento Interior del RAN",
+      requirement: "required",
+      patterns: ["certificado parcelario", "certificado de derechos agrarios", "registro agrario nacional", " ran "],
+    },
+    {
+      id: "resolucion_asamblea_ejidal",
+      label_es: "Resolución de asamblea ejidal o de bienes comunales acreditada",
+      label_en: "Ejido or comunal-lands assembly resolution evidenced",
+      authority: "Ley Agraria Art. 23",
+      requirement: "required",
+      patterns: ["asamblea ejidal", "asamblea general de ejidatarios", "acta de asamblea"],
+    },
+    {
+      id: "emplazamiento_agrario",
+      label_es: "Emplazamiento al demandado y, en su caso, al núcleo agrario",
+      label_en: "Service of process on the defendant and, where relevant, the agrarian núcleo",
+      authority: "Ley Agraria Art. 173",
+      requirement: "required",
+      patterns: ["emplazamiento", "citatorio", "notificacion personal"],
+    },
+    {
+      id: "audiencia_ley_agraria",
+      label_es: "Audiencia de ley (contestación, pruebas y alegatos en una sola audiencia)",
+      label_en: "Statutory hearing (answer, evidence, and closing argument in one session)",
+      authority: "Ley Agraria Art. 185",
+      requirement: "required",
+      patterns: ["audiencia de ley", "desahogo de pruebas", "alegatos"],
+    },
+    {
+      id: "dictamen_deslinde",
+      label_es: "Dictamen de deslinde o levantamiento topográfico, cuando el litigio verse sobre límites",
+      label_en: "Boundary-survey (deslinde) opinion, when the dispute concerns limits",
+      authority: "Ley Agraria Art. 56; Reglamento Interior del RAN",
+      requirement: "recommended",
+      patterns: ["deslinde", "levantamiento topografico", "plano parcelario"],
+    },
+    {
+      id: "plazo_accion_agraria",
+      label_es: "Acción promovida dentro del plazo aplicable",
+      label_en: "Action filed within the applicable limitation period",
+      authority: "Ley Agraria (el plazo varía según la acción ejercida)",
+      requirement: "recommended",
+      patterns: ["prescripcion", "caducidad"],
+    },
+  ],
+  // 2026-08-04: new profile — previously electoral cases evaluated against
+  // the "administrativo" checklist (acto administrativo impugnado, etc.),
+  // which has no INE/OPLE, casilla, or campaign-finance concepts.
+  electoral: [
+    {
+      id: "medio_de_impugnacion_requisitos",
+      label_es: "Medio de impugnación con requisitos de forma",
+      label_en: "Electoral challenge meets formal requirements",
+      authority: "LGSMIME Art. 9",
+      requirement: "required",
+      patterns: ["juicio de inconformidad", "recurso de apelacion", "juicio para la proteccion"],
+    },
+    {
+      id: "acta_de_escrutinio_y_computo",
+      label_es: "Acta de escrutinio y cómputo de casilla exhibida",
+      label_en: "Polling-station tally sheet attached",
+      authority: "LGIPE",
+      requirement: "required",
+      patterns: ["acta de escrutinio y computo", "acta de la mesa directiva de casilla"],
+    },
+    {
+      id: "informe_de_gastos_de_campana",
+      label_es: "Informe de gastos de campaña presentado ante el INE",
+      label_en: "Campaign-expense report filed with the INE",
+      authority: "Reglamento de Fiscalización del INE",
+      requirement: "recommended",
+      patterns: ["informe de gastos de campana", "fiscalizacion"],
+    },
+    {
+      id: "plazo_de_impugnacion",
+      label_es: "Medio de impugnación presentado dentro del plazo de 4 días",
+      label_en: "Challenge filed within the 4-day term",
+      authority: "LGSMIME Art. 8",
+      requirement: "required",
+      patterns: ["dentro del plazo", "cuatro dias"],
+    },
+  ],
+  // 2026-08-04: new profile — previously ambiental cases evaluated against
+  // the "administrativo" checklist, which has no MIA, PROFEPA, or CONAGUA
+  // concepts on it.
+  ambiental: [
+    {
+      id: "mia_o_estudio_de_riesgo",
+      label_es: "Manifestación de impacto ambiental o estudio de riesgo presentado",
+      label_en: "Environmental impact assessment or risk study filed",
+      authority: "LGEEPA Art. 28-35",
+      requirement: "required",
+      patterns: ["manifestacion de impacto ambiental", "estudio de riesgo ambiental", " mia "],
+    },
+    {
+      id: "licencia_ambiental_vigente",
+      label_es: "Licencia ambiental única o autorización vigente",
+      label_en: "Current environmental license/authorization",
+      authority: "LGEEPA",
+      requirement: "required",
+      patterns: ["licencia ambiental unica", "autorizacion en materia de impacto ambiental"],
+    },
+    {
+      id: "acta_de_inspeccion_profepa",
+      label_es: "Acta de inspección o visita de PROFEPA/ASEA, si hubo procedimiento sancionador",
+      label_en: "PROFEPA/ASEA inspection record, if a sanctioning procedure was opened",
+      authority: "LGEEPA (procedimiento administrativo sancionador)",
+      requirement: "recommended",
+      patterns: ["acta de inspeccion", "visita de verificacion", "procedimiento administrativo profepa"],
+    },
+    {
+      id: "concesion_o_permiso_conagua",
+      label_es: "Título de concesión de agua o permiso de descarga (si aplica)",
+      label_en: "Water concession title or discharge permit (if applicable)",
+      authority: "Ley de Aguas Nacionales",
+      requirement: "recommended",
+      patterns: ["titulo de concesion", "permiso de descarga", "conagua"],
+    },
+  ],
 };
 
 function normalize(s: string): string {

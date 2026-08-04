@@ -433,6 +433,110 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["poder notarial", "poder general para actos de dominio"],
     },
   ],
+  // 2026-08-04: new profile — agrario previously used "civil"'s checklist
+  // (contrato base de la accion, poderes...), which has no RAN, ejido, or
+  // deslinde documents on it at all.
+  agrario: [
+    {
+      id: "certificado_ran",
+      label_es: "Certificado parcelario o de derechos agrarios (RAN)",
+      label_en: "RAN parcel / agrarian-rights certificate",
+      authority: "Registro Agrario Nacional",
+      patterns: ["certificado parcelario", "certificado de derechos agrarios", "registro agrario nacional"],
+    },
+    {
+      id: "resolucion_asamblea_ejidal",
+      label_es: "Acta o resolución de asamblea ejidal / de bienes comunales",
+      label_en: "Ejido or comunal-lands assembly minutes / resolution",
+      authority: "Ley Agraria Art. 23",
+      patterns: ["acta de asamblea", "asamblea ejidal", "asamblea general de ejidatarios"],
+    },
+    {
+      id: "plano_parcelario_deslinde",
+      label_es: "Plano parcelario o dictamen de deslinde",
+      label_en: "Parcel plan or boundary-survey opinion",
+      authority: "Registro Agrario Nacional",
+      patterns: ["plano parcelario", "deslinde", "levantamiento topografico"],
+    },
+    {
+      id: "constancia_posesion_agraria",
+      label_es: "Constancia de posesión emitida por el comisariado ejidal",
+      label_en: "Possession certificate issued by the comisariado ejidal",
+      authority: "Ley Agraria Art. 152",
+      patterns: ["constancia de posesion", "comisariado ejidal", "constancia posesoria"],
+    },
+    {
+      id: "credencial_ejidatario",
+      label_es: "Credencial o reconocimiento como ejidatario, comunero o posesionario",
+      label_en: "Credential or recognition as ejidatario, comunero, or posesionario",
+      authority: "Ley Agraria Art. 15-16",
+      patterns: ["credencial de ejidatario", "reconocimiento de comunero", "posesionario"],
+    },
+  ],
+  // 2026-08-04: new profile — electoral previously used "administrativo"'s
+  // checklist, which has no electoral-specific documents on it at all.
+  electoral: [
+    {
+      id: "acta_de_escrutinio_y_computo",
+      label_es: "Acta de escrutinio y cómputo de casilla",
+      label_en: "Polling-station tally sheet",
+      authority: "LGIPE",
+      patterns: ["acta de escrutinio y computo", "acta de la mesa directiva de casilla"],
+    },
+    {
+      id: "constancia_de_registro_candidatura",
+      label_es: "Constancia de registro de candidatura",
+      label_en: "Candidacy registration record",
+      authority: "LGIPE Art. 10",
+      patterns: ["constancia de registro", "registro de candidatura"],
+    },
+    {
+      id: "informe_de_gastos_de_campana",
+      label_es: "Informe de gastos de campaña",
+      label_en: "Campaign-expense report",
+      authority: "Reglamento de Fiscalización del INE",
+      patterns: ["informe de gastos de campana", "fiscalizacion de gastos"],
+    },
+    {
+      id: "cadena_de_custodia_paquete_electoral",
+      label_es: "Constancia de cadena de custodia del paquete electoral",
+      label_en: "Ballot-package chain-of-custody record",
+      authority: "LGIPE",
+      patterns: ["cadena de custodia", "paquete electoral"],
+    },
+  ],
+  // 2026-08-04: new profile — ambiental previously used "administrativo"'s
+  // checklist, which has no MIA/PROFEPA/CONAGUA documents on it.
+  ambiental: [
+    {
+      id: "mia_documento",
+      label_es: "Manifestación de impacto ambiental",
+      label_en: "Environmental impact assessment",
+      authority: "LGEEPA Art. 28-35",
+      patterns: ["manifestacion de impacto ambiental", " mia "],
+    },
+    {
+      id: "licencia_ambiental_unica_doc",
+      label_es: "Licencia ambiental única",
+      label_en: "Single environmental license",
+      authority: "LGEEPA",
+      patterns: ["licencia ambiental unica"],
+    },
+    {
+      id: "acta_de_inspeccion_doc",
+      label_es: "Acta de inspección o visita de verificación",
+      label_en: "Inspection or verification-visit record",
+      authority: "PROFEPA/ASEA",
+      patterns: ["acta de inspeccion", "visita de verificacion"],
+    },
+    {
+      id: "titulo_concesion_agua_doc",
+      label_es: "Título de concesión de agua",
+      label_en: "Water concession title",
+      authority: "Ley de Aguas Nacionales",
+      patterns: ["titulo de concesion", "concesion de agua"],
+    },
+  ],
 };
 
 export function requiredDocuments(materia: MxPipelineProfile): readonly RequiredDocument[] {

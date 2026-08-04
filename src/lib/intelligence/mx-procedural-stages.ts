@@ -581,6 +581,108 @@ const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
       patterns: ["entrega de posesion", "liberacion de fondos", "cierre de la operacion"],
     },
   ],
+  // 2026-08-04: new profile — the audiencia de ley concentrates
+  // contestación, ofrecimiento/desahogo de pruebas, and alegatos into a
+  // single hearing (Ley Agraria Art. 185), unlike civil's separated stages.
+  agrario: [
+    {
+      id: "demanda_agraria",
+      label_es: "Presentación de la demanda agraria",
+      label_en: "Agrarian complaint filed",
+      authority: "Ley Agraria Art. 170",
+      patterns: ["demanda agraria", "escrito de demanda"],
+    },
+    {
+      id: "emplazamiento_agrario",
+      label_es: "Emplazamiento o citación al demandado",
+      label_en: "Service of process / notice to the defendant",
+      authority: "Ley Agraria Art. 173",
+      patterns: ["emplazamiento", "citatorio", "notificacion personal"],
+    },
+    {
+      id: "audiencia_de_ley",
+      label_es: "Audiencia de ley (contestación, pruebas y alegatos)",
+      label_en: "Statutory hearing (answer, evidence, and closing argument)",
+      authority: "Ley Agraria Art. 185",
+      patterns: ["audiencia de ley", "desahogo de pruebas", "alegatos"],
+    },
+    {
+      id: "sentencia_agraria",
+      label_es: "Sentencia",
+      label_en: "Judgment",
+      authority: "Ley Agraria Art. 189",
+      patterns: ["sentencia", "resolutivos"],
+    },
+    {
+      id: "ejecucion_sentencia_agraria",
+      label_es: "Ejecución de sentencia",
+      label_en: "Judgment enforcement",
+      authority: "Ley Agraria Art. 192",
+      patterns: ["ejecucion de sentencia", "cumplimiento de sentencia"],
+    },
+  ],
+  // 2026-08-04: new profile.
+  electoral: [
+    {
+      id: "acto_o_resolucion_impugnada",
+      label_es: "Acto o resolución impugnada emitida",
+      label_en: "Challenged act or resolution issued",
+      authority: "LGSMIME Art. 6",
+      patterns: ["acuerdo impugnado", "resolucion impugnada"],
+    },
+    {
+      id: "presentacion_medio_de_impugnacion",
+      label_es: "Presentación del medio de impugnación",
+      label_en: "Electoral challenge filed",
+      authority: "LGSMIME Art. 9",
+      patterns: ["juicio de inconformidad", "recurso de apelacion", "juicio para la proteccion"],
+    },
+    {
+      id: "sustanciacion_electoral",
+      label_es: "Sustanciación (informe circunstanciado, pruebas)",
+      label_en: "Substantiation (informe circunstanciado, evidence)",
+      authority: "LGSMIME Art. 17-18",
+      patterns: ["informe circunstanciado", "tercero interesado"],
+    },
+    {
+      id: "sentencia_electoral",
+      label_es: "Sentencia del TEPJF u OPLE",
+      label_en: "TEPJF or OPLE judgment",
+      authority: "LGSMIME",
+      patterns: ["sentencia", "resuelve"],
+    },
+  ],
+  // 2026-08-04: new profile.
+  ambiental: [
+    {
+      id: "mia_presentada",
+      label_es: "Presentación de la MIA o estudio de riesgo",
+      label_en: "Environmental impact assessment / risk study filed",
+      authority: "LGEEPA Art. 28-35",
+      patterns: ["manifestacion de impacto ambiental", "estudio de riesgo ambiental"],
+    },
+    {
+      id: "visita_de_inspeccion",
+      label_es: "Visita de inspección PROFEPA/ASEA",
+      label_en: "PROFEPA/ASEA inspection visit",
+      authority: "LGEEPA (procedimiento administrativo sancionador)",
+      patterns: ["visita de verificacion", "acta de inspeccion"],
+    },
+    {
+      id: "medidas_de_seguridad_o_clausura",
+      label_es: "Medidas de seguridad o clausura impuestas",
+      label_en: "Safety measures or closure imposed",
+      authority: "LGEEPA",
+      patterns: ["medidas de seguridad", "clausura"],
+    },
+    {
+      id: "resolucion_administrativa_ambiental",
+      label_es: "Resolución del procedimiento administrativo sancionador",
+      label_en: "Sanctioning-procedure resolution",
+      authority: "LGEEPA",
+      patterns: ["resolucion administrativa", "resolutivo"],
+    },
+  ],
 };
 
 export function proceduralStageMap(materia: MxPipelineProfile): readonly ProceduralStageDef[] {

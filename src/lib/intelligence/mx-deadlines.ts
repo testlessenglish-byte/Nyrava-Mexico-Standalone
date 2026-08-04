@@ -405,6 +405,34 @@ const RULES: Record<MxPipelineProfile, readonly DeadlineRule[]> = {
   // statutory deadline rule here, it has become a dispute — i.e. civil, not
   // inmobiliario — same principle as the empty MX_MOTION_TYPES entry.
   inmobiliario: [],
+  // 2026-08-04: new profile (see execution/mx-pipeline.ts). Deliberately
+  // conservative rather than guessed: the Ley Agraria's internal day-counts
+  // (citación previa a la audiencia de ley, etc.) are not stated here
+  // because this module computes deadlines deterministically and asserts
+  // them as fact — a wrong day-count here is as much a hazard as a
+  // fabricated case citation elsewhere in this build-out, and unlike the
+  // civil/laboral/fiscal terms already in this file, the exact current
+  // figure needs verification against the Ley Agraria's current text before
+  // being encoded as a rule. Notably, juicio agrario is generally NOT
+  // subject to caducidad de la instancia by inactivity the way civil
+  // procedure is (the law's protective character toward campesinos/
+  // ejidatarios cuts the other way) — so no analog of civil's
+  // caducidad_instancia_civil rule belongs here either.
+  agrario: [],
+  // 2026-08-04: new profile. LGSMIME Art. 8's 4-día term for most medios de
+  // impugnación electoral is well known, but the exact term varies by
+  // vehicle (juicio de inconformidad, procedimiento especial sancionador,
+  // recurso de revisión) and some run in horas, not días — encoding one
+  // figure here risks asserting the wrong one for the specific medio
+  // actually in the corpus. Same conservative call as agrario's empty
+  // entry above: left for a follow-up pass with per-vehicle verification
+  // rather than guessed now.
+  electoral: [],
+  // 2026-08-04: new profile. Left empty for the same reason as agrario and
+  // electoral above — PROFEPA/ASEA sanctioning-procedure terms and the
+  // juicio de nulidad's 30-día term (LFPCA) are real but need per-act
+  // verification before being asserted as a fact-computing rule.
+  ambiental: [],
 };
 
 export function deadlineRules(materia: MxPipelineProfile): readonly DeadlineRule[] {

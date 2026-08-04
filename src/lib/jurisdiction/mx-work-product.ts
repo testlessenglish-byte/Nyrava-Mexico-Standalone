@@ -326,6 +326,82 @@ const BY_PROFILE: Record<MxPipelineProfile, MxWorkProductVehicle[]> = {
       when: "cuando falten constancias del expediente de cierre",
     },
   ],
+  agrario: [
+    {
+      id: "demanda_agraria",
+      es: "Demanda agraria",
+      en: "Agrarian complaint",
+      basis: "Ley Agraria Art. 170",
+      when: "al iniciar el juicio agrario",
+    },
+    {
+      id: "solicitud_certificado_ran",
+      es: "Solicitud de certificado o constancia al Registro Agrario Nacional",
+      en: "Request for a RAN certificate or record",
+      basis: "Reglamento Interior del Registro Agrario Nacional",
+      when: "cuando la titularidad parcelaria o de derechos agrarios no esté documentada en el expediente",
+    },
+    {
+      id: "escrito_impugnacion_asamblea",
+      es: "Escrito de impugnación de resolución de asamblea ejidal",
+      en: "Challenge to an ejido-assembly resolution",
+      basis: "Ley Agraria Art. 23-28",
+      when: "cuando la asamblea que resolvió el asunto presente un defecto de quórum, competencia o formalidad",
+    },
+    {
+      id: "demanda_de_restitucion_de_tierras",
+      es: "Demanda de restitución de tierras",
+      en: "Land-restitution complaint",
+      basis: "Ley Agraria Art. 18, 48-49",
+      when: "cuando exista despojo o privación ilegal de la posesión o titularidad de tierras",
+    },
+  ],
+  electoral: [
+    {
+      id: "juicio_de_inconformidad",
+      es: "Juicio de inconformidad",
+      en: "Electoral non-conformity complaint",
+      basis: "LGSMIME Art. 49-64",
+      when: "para impugnar resultados de cómputo o la validez de una elección",
+    },
+    {
+      id: "juicio_para_la_proteccion_de_derechos_politico_electorales",
+      es: "Juicio para la protección de los derechos político-electorales del ciudadano",
+      en: "Citizen political-electoral rights protection complaint",
+      basis: "LGSMIME Art. 79-85",
+      when: "cuando el afectado sea la persona ciudadana directamente en sus derechos político-electorales",
+    },
+    {
+      id: "queja_ante_el_ine",
+      es: "Queja ante el INE (procedimiento sancionador)",
+      en: "Complaint before the INE (sanctioning procedure)",
+      basis: "LGIPE",
+      when: "cuando exista una infracción a la normativa electoral por un sujeto obligado",
+    },
+  ],
+  ambiental: [
+    {
+      id: "denuncia_popular_ambiental",
+      es: "Denuncia popular ambiental",
+      en: "Environmental citizen complaint",
+      basis: "LGEEPA Art. 189",
+      when: "cuando cualquier habitante de la comunidad afectada denuncie un hecho, acto u omisión que produzca desequilibrio ecológico o daño ambiental",
+    },
+    {
+      id: "recurso_de_revision_ambiental",
+      es: "Recurso de revisión ambiental",
+      en: "Environmental administrative review",
+      basis: "LGEEPA",
+      when: "para impugnar un acto de PROFEPA/ASEA/CONAGUA ante la propia autoridad",
+    },
+    {
+      id: "demanda_juicio_de_nulidad_ambiental",
+      es: "Demanda de juicio de nulidad ambiental",
+      en: "Environmental nullity-action complaint",
+      basis: "Ley Federal de Procedimiento Contencioso Administrativo",
+      when: "para impugnar la resolución definitiva de PROFEPA/ASEA/CONAGUA ante el TFJA",
+    },
+  ],
 };
 
 export function mxWorkProductVehicles(profile: MxPipelineProfile): MxWorkProductVehicle[] {

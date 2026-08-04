@@ -42,7 +42,10 @@ export type MxPipelineProfile =
   | "fiscal"
   | "administrativo"
   | "apelacion"
-  | "inmobiliario";
+  | "inmobiliario"
+  | "agrario"
+  | "electoral"
+  | "ambiental";
 
 export const MX_JURISDICTION = "MX" as const;
 
@@ -61,14 +64,27 @@ const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
   mercantil: "mercantil",
   fiscal: "fiscal",
   administrativo: "administrativo",
-  // Materias con procedimiento contencioso administrativo/especial: se
-  // ejecutan con el perfil administrativo (juicio de nulidad, agravios).
-  electoral: "administrativo",
-  agrario: "civil",
-  // Ambiental: contentious-administrative track (PROFEPA sanction ->
-  // recurso de revisión -> juicio de nulidad ante el TFJA), same profile
-  // rationale as electoral above.
-  ambiental: "administrativo",
+  // 2026-08-04: previously routed through "administrativo" — a medio de
+  // impugnación electoral shares the written-record shape of a juicio de
+  // nulidad, but has its own governing law (LGSMIME, not LFPCA), its own
+  // authority (TEPJF, not TFJA), and doctrine (paridad de género, violencia
+  // política, fiscalización de campaña) with no administrativo analog.
+  electoral: "electoral",
+  // 2026-08-04: previously routed through "civil" — a Tribunal Unitario
+  // Agrario proceeding shares some litigation shape with a civil suit (actor/
+  // demandado, ofrecimiento de pruebas) but has its own governing law (Ley
+  // Agraria, not the Código Civil), its own registry of title (Registro
+  // Agrario Nacional, not the Registro Público de la Propiedad), and
+  // frequently an indigenous-community dimension (Convenio 169 OIT) that
+  // civil procedure has no concept of. Confirmed on Expediente Agrario
+  // 419/2026: the case got the exact same document checklist, procedural
+  // checklist, and finding taxonomy as an ordinary civil contract dispute.
+  agrario: "agrario",
+  // 2026-08-04: previously routed through "administrativo" — has real
+  // doctrine of its own (MIA, PROFEPA/ASEA/CONAGUA compliance, protected
+  // species/areas) but no document/procedural checklist to match. Own
+  // profile now, same rationale as electoral/agrario above.
+  ambiental: "ambiental",
   // Transactional, not adversarial — does not share civil's litigation
   // profile (that would pull in trial_prep/discovery/witness stages meant
   // for a lawsuit, not a closing). See EXCLUDED_STAGES below.
@@ -185,6 +201,25 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
     "strategy",
     "work_product",
   ],
+  // Juicio agrario ante Tribunal Unitario Agrario: se resuelve sobre el
+  // expediente y las pruebas documentales/periciales/testimoniales
+  // ordinarias del proceso — no hay control constitucional directo dentro
+  // del juicio (eso corresponde al amparo posterior contra la sentencia).
+  agrario: ["constitutional"],
+  // Medios de impugnación electoral (TEPJF/OPLE): se resuelven sobre el
+  // expediente y las constancias documentales (actas, paquetes
+  // electorales) — no hay desahogo de prueba testimonial en audiencia.
+  electoral: ["witness"],
+  // Procedimiento administrativo sancionador ambiental (PROFEPA/ASEA) o
+  // juicio de nulidad ante el TFJA: se resuelve sobre el expediente técnico
+  // y documental — no hay desahogo de prueba testimonial en audiencia.
+  // "constitutional" is deliberately NOT excluded here (unlike
+  // administrativo): the derecho a un medio ambiente sano (art. 4 CPEUM) is
+  // routinely the substantive basis of an ambiental claim, and
+  // MX_ENGINES.ambiental already allows constitutional_compliance to run —
+  // excluding the stage here would silently contradict that and make the
+  // engine dead for every ambiental case.
+  ambiental: ["witness"],
 };
 
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */
@@ -236,6 +271,20 @@ export const MX_PARTY_ROLES: Record<
   administrativo: { a: "particular", b: "autoridad", c: "tercero_interesado", neutral: "ambas" },
   apelacion: { a: "apelante", b: "apelado", neutral: "ambas" },
   inmobiliario: { a: "comprador", b: "vendedor", neutral: "ambas" },
+  // Ley Agraria art. 170 uses "actor"/"demandado"; a tercero interesado slot
+  // is needed because a restitución/deslinde case routinely involves a
+  // núcleo agrario (ejido/comunidad) as a party distinct from either the
+  // individual actor or demandado — e.g. an ejidatario suing a co-ejidatario
+  // over parcel boundaries, with the comisariado ejidal itself impleaded.
+  agrario: { a: "parte_actora", b: "parte_demandada", c: "nucleo_agrario", neutral: "ambas" },
+  // A medio de impugnación electoral routinely involves a tercero
+  // interesado — e.g. the candidate/party that benefited from the
+  // challenged act, distinct from the actor and the responsible authority.
+  electoral: { a: "actor", b: "autoridad_responsable", c: "tercero_interesado", neutral: "ambas" },
+  // LGEEPA's acción popular (art. 189) lets any affected community member
+  // denounce — a distinct role from the regulated particular being
+  // sanctioned by PROFEPA/ASEA/CONAGUA.
+  ambiental: { a: "particular", b: "autoridad", c: "comunidad_afectada", neutral: "ambas" },
 };
 
 /** JSON-schema-ready enum string, e.g. `"parte_actora"|"parte_demandada"|"ambas"`, for a given case type. */
