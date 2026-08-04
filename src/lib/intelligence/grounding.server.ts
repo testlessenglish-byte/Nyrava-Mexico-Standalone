@@ -14,6 +14,8 @@
 // option) with the explicit "Insufficient evidence to support this conclusion."
 // statement so the user sees the gap instead of an invented fact.
 
+import { locateQuoteInText, pageForOffset, citationHash, sha256Hex } from "./evidence-provenance.server";
+
 export type RawCitation = {
   doc_n?: number;
   page?: number;
@@ -27,6 +29,17 @@ export type VerifiedCitation = RawCitation & {
   verified: true;
   document_id: string | null;
   filename: string | null;
+  /** Character offsets into the source document's raw extracted text. Null when only a fuzzy/soft match was possible — see evidence-provenance.server.ts. */
+  start_offset: number | null;
+  end_offset: number | null;
+  /** 1-indexed page derived from start_offset; null alongside the offsets. */
+  page_located: number | null;
+  /** SHA-256 of the source document's full raw text, at citation time. */
+  document_hash: string | null;
+  /** Deterministic fingerprint of (document_id, quote, offsets) — see citationHash(). */
+  citation_hash: string;
+  /** True when the citation's claimed doc_n/document_id did NOT contain the quote, but a DIFFERENT document in the corpus did — the citation was re-attributed to the document that actually contains it. */
+  source_reattributed: boolean;
 };
 
 export type GroundingCorpus = {
@@ -38,7 +51,11 @@ export type GroundingCorpus = {
     document_id: string;
     filename: string;
     pages: string[];
+    /** SHA-256 of this document's full raw extracted text — see evidence-provenance.server.ts. */
+    document_hash: string;
   }>;
+  /** Page size buildGroundingCorpus paginated with — needed to convert a character offset into a page number. */
+  pageChars: number;
 };
 
 function norm(s: string): string {
@@ -63,7 +80,7 @@ export function buildGroundingCorpus(
   docs: Array<{ id: string; filename: string; extracted_text: string | null }>,
   pageChars = 3000,
 ): GroundingCorpus {
-  const out: GroundingCorpus = { text: "", docs: [] };
+  const out: GroundingCorpus = { text: "", docs: [], pageChars };
   const blocks: string[] = [];
   docs.forEach((d, i) => {
     const text = (d.extracted_text ?? "").replace(/\r\n/g, "\n");
@@ -71,7 +88,13 @@ export function buildGroundingCorpus(
     if (text) {
       for (let k = 0; k < text.length; k += pageChars) pages.push(text.slice(k, k + pageChars));
     }
-    out.docs.push({ doc_n: i + 1, document_id: d.id, filename: d.filename, pages });
+    out.docs.push({
+      doc_n: i + 1,
+      document_id: d.id,
+      filename: d.filename,
+      pages,
+      document_hash: sha256Hex(text),
+    });
     blocks.push(text);
   });
   out.text = norm(blocks.join("\n\n"));
@@ -131,6 +154,15 @@ export function verifyQuote(quote: string, corpus: GroundingCorpus): boolean {
   return verifyQuoteDetailed(quote, corpus).verified;
 }
 
+/**
+ * Reconstruct a document's exact raw (unnormalized) text from its paginated
+ * chunks. buildGroundingCorpus slices with no separator between pages, so
+ * joining with "" losslessly recovers the original extracted_text.
+ */
+function rawDocText(doc: GroundingCorpus["docs"][number]): string {
+  return doc.pages.join("");
+}
+
 export function verifyEvidenceRefs(
   refs: RawCitation[] | undefined,
   corpus: GroundingCorpus,
@@ -142,14 +174,49 @@ export function verifyEvidenceRefs(
     const quote = typeof r.quote === "string" ? r.quote.trim() : "";
     if (!quote) continue;
     if (!verifyQuote(quote, corpus)) continue;
+
     const docN = typeof r.doc_n === "number" ? r.doc_n : null;
-    const doc = docN ? corpus.docs.find((d) => d.doc_n === docN) : null;
+    const claimedDoc = docN ? corpus.docs.find((d) => d.doc_n === docN) : null;
+    const claimedId =
+      (r.document_id as string | undefined) ?? (r.doc_id as string | undefined) ?? claimedDoc?.document_id ?? null;
+
+    // Try to locate the quote in its claimed document first — this is the
+    // common, cheap case and avoids scanning the whole corpus when the LLM's
+    // attribution was correct (the usual outcome).
+    let locatedDoc = claimedDoc ?? null;
+    let loc = claimedDoc ? locateQuoteInText(quote, rawDocText(claimedDoc)) : null;
+    let sourceReattributed = false;
+
+    // Claimed document didn't actually contain it (wrong doc_n, or no doc_n
+    // supplied at all) — search every document in the corpus. If found
+    // elsewhere, the citation was mislabeled; correct it rather than keep
+    // the wrong attribution just because the LLM asserted it.
+    if (!loc) {
+      for (const d of corpus.docs) {
+        if (d === claimedDoc) continue;
+        const found = locateQuoteInText(quote, rawDocText(d));
+        if (found) {
+          locatedDoc = d;
+          loc = found;
+          sourceReattributed = claimedDoc != null || claimedId != null;
+          break;
+        }
+      }
+    }
+
+    const documentId = locatedDoc?.document_id ?? claimedId ?? null;
     verified.push({
       ...r,
       quote,
       verified: true,
-      document_id: (r.document_id as string | undefined) ?? (r.doc_id as string | undefined) ?? doc?.document_id ?? null,
-      filename: doc?.filename ?? null,
+      document_id: documentId,
+      filename: locatedDoc?.filename ?? claimedDoc?.filename ?? null,
+      start_offset: loc?.start ?? null,
+      end_offset: loc?.end ?? null,
+      page_located: loc ? pageForOffset(loc.start, corpus.pageChars) : null,
+      document_hash: locatedDoc?.document_hash ?? null,
+      citation_hash: citationHash({ documentId, quote, start: loc?.start ?? null, end: loc?.end ?? null }),
+      source_reattributed: sourceReattributed,
     });
   }
   return verified;
@@ -164,7 +231,19 @@ export type GroundedItem<T extends GroundableItem> = T & {
   evidence_refs: VerifiedCitation[];
   provenance: {
     verified_count: number;
-    sources: Array<{ document_id: string | null; filename: string | null; quote: string; page?: number; doc_n?: number }>;
+    sources: Array<{
+      document_id: string | null;
+      filename: string | null;
+      quote: string;
+      page?: number;
+      doc_n?: number;
+      start_offset: number | null;
+      end_offset: number | null;
+      page_located: number | null;
+      document_hash: string | null;
+      citation_hash: string;
+      source_reattributed: boolean;
+    }>;
     confidence_adjusted: number;
   };
 };
@@ -206,6 +285,12 @@ export function groundItems<T extends GroundableItem>(
           quote: v.quote ?? "",
           page: v.page,
           doc_n: v.doc_n,
+          start_offset: v.start_offset,
+          end_offset: v.end_offset,
+          page_located: v.page_located,
+          document_hash: v.document_hash,
+          citation_hash: v.citation_hash,
+          source_reattributed: v.source_reattributed,
         })),
         confidence_adjusted: Number(adjusted.toFixed(2)),
       },
