@@ -49,7 +49,18 @@ async function loadCorpus(db: Db, caseId: string) {
     .from("documents")
     .select("id,filename,extracted_text,status")
     .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    // Secondary sort on `id` so document numbering (doc_n = index+1, used
+    // as the citation reference every engine's prompt and grounding
+    // verification both depend on) is deterministic even when two
+    // documents share an identical created_at — plausible for bulk-
+    // uploaded/seeded corpora. Without a tiebreaker, Postgres does not
+    // guarantee the same row order across two separate queries, so this
+    // function's doc_n numbering (which the LLM is shown and cites) could
+    // silently drift from a different call site's independent re-query of
+    // the same documents (e.g. grounding.server.ts's own corpus build),
+    // misattributing a citation to the wrong document.
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   const extracted = (docs ?? []).filter((d) => d.status === "extracted");
   return extracted;
 }
