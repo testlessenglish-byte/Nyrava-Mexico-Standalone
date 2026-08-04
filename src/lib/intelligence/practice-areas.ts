@@ -168,6 +168,10 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:payroll_overtime_imss_audit",
   "agent:wrongful_termination_analysis",
   "agent:union_discrimination_review",
+  // Administrativo specialized investigator agents:
+  "agent:administrative_due_process_review",
+  "agent:authority_competence_notification_review",
+  "agent:administrative_nullity_analysis",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",

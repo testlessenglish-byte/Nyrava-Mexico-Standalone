@@ -196,7 +196,12 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "agent:wrongful_termination_analysis",
     "agent:union_discrimination_review",
   ],
-  administrativo: ["cross_examination"],
+  administrativo: [
+    "cross_examination",
+    "agent:administrative_due_process_review",
+    "agent:authority_competence_notification_review",
+    "agent:administrative_nullity_analysis",
+  ],
   fiscal: ["cross_examination"],
   amparo: [
     "chain_of_custody",
@@ -528,6 +533,9 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
   ],
   administrativo: [
     "acto_administrativo",
+    "administrative_due_process_review",
+    "administrative_nullity_analysis",
+    "authority_competence_notification_review",
     "caducidad_del_procedimiento",
     "civil_procedure_mx",
     "competencia_de_la_autoridad",

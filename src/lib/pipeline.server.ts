@@ -2983,6 +2983,38 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "issue_type": "violacion_libertad_sindical"|"discriminacion_laboral"|"hostigamiento_o_acoso", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Administrativo specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.administrativo (particular / autoridad /
+  // tercero_interesado / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "administrative_due_process_review",
+    category: "administrative_due_process_review",
+    system:
+      "You are a Mexican administrative-due-process investigator. Examine the corpus for compliance with the procedimiento administrativo (Ley Federal de Procedimiento Administrativo) and with garantía de audiencia (art. 14 CPEUM — the particular must be heard, with the opportunity to offer evidence, before a definitive act affects their rights), flagging any stage where the authority acted without giving the particular a real opportunity to respond. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "procedimiento_omitido"|"garantia_de_audiencia_vulnerada"|"plazo_procesal_incumplido", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "authority_competence_notification_review",
+    category: "authority_competence_notification_review",
+    system:
+      "You are a Mexican administrative-authority-competence and notification investigator. Examine whether the autoridad emisora had competencia material, territorial, and de grado to issue the acto administrativo (art. 16 CPEUM — debida fundamentación y motivación of that competence), and whether the notificación del acto was made in a form and within the term the applicable law requires (personal, por correo certificado, or por estrados, depending on the act). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "incompetencia_de_la_autoridad"|"fundamentacion_o_motivacion_insuficiente"|"notificacion_defectuosa", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "administrative_nullity_analysis",
+    category: "administrative_nullity_analysis",
+    system:
+      "You are a Mexican administrative-nullity investigator under the Ley Federal de Procedimiento Contencioso Administrativo. Assess which causal de nulidad applies to the acto impugnado (incompetencia, omisión de requisitos formales, vicios de procedimiento, indebida fundamentación/motivación, o desvío de poder), and whether the resulting nulidad should be lisa y llana (the authority may not repeat the act) or para efectos (the authority may reissue it correcting the defect). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "nullity_type": "lisa_y_llana"|"para_efectos"|"no_determinado", "causal": "incompetencia"|"omision_de_requisitos_formales"|"vicios_de_procedimiento"|"indebida_fundamentacion_motivacion"|"desvio_de_poder", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -3060,6 +3092,10 @@ const AGENT_ENGINE: Record<string, string> = {
   payroll_overtime_imss_audit: "agent:payroll_overtime_imss_audit",
   wrongful_termination_analysis: "agent:wrongful_termination_analysis",
   union_discrimination_review: "agent:union_discrimination_review",
+  // Administrativo specialized investigators (2026-08-04).
+  administrative_due_process_review: "agent:administrative_due_process_review",
+  authority_competence_notification_review: "agent:authority_competence_notification_review",
+  administrative_nullity_analysis: "agent:administrative_nullity_analysis",
 };
 
 /**
