@@ -148,6 +148,12 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:communal_land_indigenous_rights",
   "agent:boundary_possession_analysis",
   "agent:agrarian_jurisdiction_restitution",
+  // Civil specialized investigator agents:
+  "agent:contract_analysis_ambiguity",
+  "agent:liability_damages_assessment",
+  "agent:payment_insurance_analysis",
+  "agent:statute_of_limitations_analysis",
+  "agent:settlement_opportunity_analyzer",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",
