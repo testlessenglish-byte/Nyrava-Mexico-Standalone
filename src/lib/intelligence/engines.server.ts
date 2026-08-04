@@ -327,15 +327,40 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
   }));
   const { items: gated, audit } = applyEvidenceGate(gateInput, { mode, corpus: groundCorpus });
   // Map gated items back to the originals by description equality (order-preserving).
-  const keptTheories: typeof rawTheories = [];
-  let gi = 0;
-  for (const t of rawTheories) {
-    const g = gated[gi];
-    if (g && g.description === (t.narrative ?? "")) {
-      keptTheories.push(t);
-      gi += 1;
+  const keptPairs: Array<{ theory: (typeof rawTheories)[number]; gated: (typeof gated)[number] }> = [];
+  {
+    let gi = 0;
+    for (const t of rawTheories) {
+      const g = gated[gi];
+      if (g && g.description === (t.narrative ?? "")) {
+        keptPairs.push({ theory: t, gated: g });
+        gi += 1;
+      }
     }
   }
+
+  // FIX: case_theories has UNIQUE (case_id, theory_type) — at most one
+  // theory per Mexican procedural role. The model can (and does) return
+  // more than one theory for the same role — e.g. two "quejoso" theories
+  // in a multi-party amparo like this one (multiple named quejosos). The
+  // delete-then-insert below clears PRIOR rows fine, but two new rows in
+  // the SAME insert batch sharing a theory_type still collide with each
+  // other, which threw a duplicate-key error identically on every single
+  // retry (confirmed on a real case: 3 consecutive identical failures,
+  // theory permanently stuck). Keep only the highest-confidence theory per
+  // theory_type before persisting.
+  const byType = new Map<string, (typeof keptPairs)[number]>();
+  for (const pair of keptPairs) {
+    const type = String(pair.theory.theory_type ?? "");
+    const conf = typeof pair.theory.confidence === "number" ? pair.theory.confidence : 0;
+    const existing = byType.get(type);
+    const existingConf =
+      existing && typeof existing.theory.confidence === "number" ? existing.theory.confidence : -1;
+    if (!existing || conf > existingConf) byType.set(type, pair);
+  }
+  const dedupedPairs = [...byType.values()];
+  const keptTheories = dedupedPairs.map((p) => p.theory);
+  const gatedForKept = dedupedPairs.map((p) => p.gated);
 
   // 2026-07-30: these calls never checked Supabase's `error` return, so a
   // real write failure (RLS denial, constraint violation, bad column type,
@@ -363,8 +388,8 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
         confidence: typeof t.confidence === "number" ? t.confidence : 0.5,
         risk: t.risk ?? null,
         key_assumptions: (t.key_assumptions ?? []) as J,
-        finding_type: gated[idx]?.finding_type ?? "DIRECT_EVIDENCE",
-        citations: (gated[idx]?.citations ?? []) as J,
+        finding_type: gatedForKept[idx]?.finding_type ?? "DIRECT_EVIDENCE",
+        citations: (gatedForKept[idx]?.citations ?? []) as J,
       })) as any,
     );
     if (insRes.error) {
@@ -398,11 +423,11 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 20000)}`,
       affected_party: t.theory_type ?? null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ...({
-        finding_type: gated[idx]?.finding_type,
-        source_document_id: gated[idx]?.source_document_id,
-        source_doc_ids: gatedSourceDocIds(gated[idx]),
-        source_quote: gated[idx]?.source_quote,
-        source_page: gated[idx]?.source_page,
+        finding_type: gatedForKept[idx]?.finding_type,
+        source_document_id: gatedForKept[idx]?.source_document_id,
+        source_doc_ids: gatedSourceDocIds(gatedForKept[idx]),
+        source_quote: gatedForKept[idx]?.source_quote,
+        source_page: gatedForKept[idx]?.source_page,
       } as any),
       metadata: { theory: t as unknown as Record<string, unknown>, gate_audit: audit },
     })),

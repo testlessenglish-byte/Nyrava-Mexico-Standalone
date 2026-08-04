@@ -3974,7 +3974,15 @@ async function ensureRequiredEngines(args: {
     }
     const fn = runners[engine];
     if (!fn) {
-      failed.push({ engine, error: "no runner registered" });
+      // Expected for the optional-tier intelligence engines (perspectives,
+      // opportunity, strategy, theory, litigation_strategy_center,
+      // work_product, hallucination, multi_agent) — this backfill helper
+      // deliberately has no runner for them (see the comment above): they
+      // belong to the checkpoint/batch-aware main pipeline loop in
+      // pipeline-runner.server.ts, not this report-time patch-up. Their
+      // real state is whatever the ledger already says (queued/failed/
+      // etc.) — this is not a config gap, just "not this helper's job."
+      failed.push({ engine, error: "not backfillable here — owned by the main pipeline loop" });
       continue;
     }
     try {
