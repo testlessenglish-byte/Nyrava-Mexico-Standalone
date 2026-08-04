@@ -938,7 +938,7 @@ async function _runPipelineForCase(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: priorRuns, error: priorErr } = await (supabase as any)
       .from("pipeline_engine_runs")
-      .select("engine,status,started_at")
+      .select("engine,status,started_at,created_at,ended_at")
       .eq("case_id", caseId)
       .order("started_at", { ascending: true });
     if (priorErr) {
