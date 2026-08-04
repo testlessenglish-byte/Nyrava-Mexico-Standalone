@@ -91,6 +91,11 @@ function LegalKnowledgePage() {
             <CountTile label="Jurisprudencia" value={data.counts.jurisprudencia} icon={<ShieldCheck className="h-5 w-5" />} />
             <CountTile label="Tesis" value={data.counts.theses} icon={<BookOpen className="h-5 w-5" />} />
             <CountTile label="Reglamentos" value={data.counts.regulations} icon={<Database className="h-5 w-5" />} />
+            <CountTile
+              label="Relaciones (citas)"
+              value={data.counts.citations}
+              icon={<ExternalLink className="h-5 w-5" />}
+            />
           </div>
 
           {/* Verification breakdown */}
@@ -183,7 +188,8 @@ function LegalKnowledgePage() {
                         {"documentsFetched" in result ? (
                           <>
                             {result.status}: {result.documentsFetched} obtenidos · {result.documentsStored} guardados ·{" "}
-                            {result.documentsVersioned} nuevas versiones · {result.entitiesProjected} entidades
+                            {result.documentsVersioned} nuevas versiones · {result.entitiesProjected} entidades ·{" "}
+                            {result.citationsExtracted} citas ({result.citationsResolved} resueltas)
                             {result.errors.length > 0 && (
                               <div className="mt-1">{result.errors.slice(0, 3).join(" | ")}</div>
                             )}

@@ -37,6 +37,7 @@ export type NlknStats = {
     jurisprudencia: number;
     theses: number;
     regulations: number;
+    citations: number;
   };
   verification: {
     verified: number;
@@ -62,7 +63,7 @@ export const getNlknStats = createServerFn({ method: "POST" })
     const { supabase: db, userId } = context;
     await requireAdmin({ supabase: db, userId });
 
-    const [connectorsRes, runsRes, authRes, artRes, precRes, jurisRes, thesesRes, regRes] = await Promise.all([
+    const [connectorsRes, runsRes, authRes, artRes, precRes, jurisRes, thesesRes, regRes, citRes] = await Promise.all([
       db.from("legal_source_connectors").select("code,name,status,last_sync_at").order("code"),
       db.from("legal_ingest_runs").select("connector_code,started_at,ended_at,status,documents_fetched,documents_stored").order("started_at", { ascending: false }).limit(300),
       db.from("legal_authorities").select("verification_status"),
@@ -71,6 +72,7 @@ export const getNlknStats = createServerFn({ method: "POST" })
       db.from("legal_jurisprudencia").select("id", { count: "exact", head: true }),
       db.from("legal_theses").select("id", { count: "exact", head: true }),
       db.from("legal_regulations").select("id", { count: "exact", head: true }),
+      db.from("legal_citations").select("id", { count: "exact", head: true }),
     ]);
 
     const verification = { verified: 0, pending: 0, deprecated: 0, superseded: 0, failed_verification: 0 };
@@ -118,6 +120,7 @@ export const getNlknStats = createServerFn({ method: "POST" })
         jurisprudencia: jurisRes.count ?? 0,
         theses: thesesRes.count ?? 0,
         regulations: regRes.count ?? 0,
+        citations: citRes.count ?? 0,
       },
       verification,
       failedJobsLast7Days,
@@ -252,6 +255,8 @@ export type TestConnectorSyncResult = {
   documentsStored: number;
   documentsVersioned: number;
   entitiesProjected: number;
+  citationsExtracted: number;
+  citationsResolved: number;
   errors: string[];
   startedAt: string;
   endedAt: string;
@@ -303,6 +308,8 @@ export const testConnectorSync = createServerFn({ method: "POST" })
       documentsStored: result.documentsStored,
       documentsVersioned: result.documentsVersioned,
       entitiesProjected: result.entitiesProjected,
+      citationsExtracted: result.citationsExtracted,
+      citationsResolved: result.citationsResolved,
       errors: result.errors,
       startedAt: result.startedAt,
       endedAt: result.endedAt ?? new Date().toISOString(),
