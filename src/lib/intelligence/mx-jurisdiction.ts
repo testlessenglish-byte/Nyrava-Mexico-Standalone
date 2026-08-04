@@ -157,6 +157,12 @@ const MATERIA_LAW: Record<MxPipelineProfile, MateriaLaw> = {
     substantive: ["Ley Agraria", "CPEUM Art. 27"],
     procedural: ["Ley Agraria (Título Tercero — de la Justicia Agraria)", "Ley Orgánica de los Tribunales Agrarios"],
   },
+  electoral: {
+    fuero: "federal",
+    courts: ["Instituto Nacional Electoral (INE)", "OPLE de %STATE%", "Tribunal Electoral del Poder Judicial de la Federación (TEPJF)"],
+    substantive: ["LGIPE", "LGPP", "CPEUM Art. 35, 41"],
+    procedural: ["Ley General del Sistema de Medios de Impugnación en Materia Electoral (LGSMIME)"],
+  },
 };
 
 const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
@@ -172,6 +178,7 @@ const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
   apelacion: ["CPEUM Art. 14", "Art. 16", "Art. 17"],
   inmobiliario: ["CPEUM Art. 14", "Art. 16", "Art. 27"],
   agrario: ["CPEUM Art. 27", "Art. 2º (pueblos y comunidades indígenas)"],
+  electoral: ["CPEUM Art. 35", "Art. 41", "Art. 116 fracción IV"],
 };
 
 const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
@@ -187,6 +194,7 @@ const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
   apelacion: "apelación",
   inmobiliario: "inmobiliaria",
   agrario: "agraria",
+  electoral: "electoral",
 };
 
 function normalize(s: string): string {

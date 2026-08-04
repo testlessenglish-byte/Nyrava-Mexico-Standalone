@@ -3046,6 +3046,57 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "opportunity_type": "acuerdo_conclusivo_disponible"|"queja_prodecon"|"asesoria_prodecon", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "contribuyente"|"autoridad_fiscal"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Electoral specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.electoral (actor / autoridad_responsable /
+  // tercero_interesado / ambas). Electoral now has its own MxPipelineProfile
+  // instead of inheriting administrativo (see execution/mx-pipeline.ts).
+  // ---------------------------------------------------------------------
+  {
+    type: "ine_documentation_candidate_eligibility",
+    category: "ine_documentation_candidate_eligibility",
+    system:
+      "You are a Mexican electoral-registration investigator under the LGIPE. Examine the corpus for documentación ante el INE/OPLE (constancia de registro, credencial para votar, requisitos de elegibilidad del art. 10 LGIPE — edad, residencia, no tener impedimento legal) and whether a candidatura's registro was validly granted, denied, or challenged, including compliance with the 3de3 (declaraciones patrimonial, fiscal y de intereses) where applicable. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "elegibilidad_de_candidatura"|"registro_ine_opl"|"declaracion_3de3", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "campaign_finance_review",
+    category: "campaign_finance_review",
+    system:
+      "You are a Mexican campaign-finance investigator under the LGPP and the reglamento de fiscalización del INE. Examine the corpus for gastos de campaña reported against the tope de gastos authorized for the contest, undisclosed or improperly sourced financing (aportaciones prohibidas — de personas morales, de origen extranjero, anónimas más allá del límite), and any propaganda not properly accounted for in the informe de gastos. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "rebase_de_tope_de_gastos"|"aportacion_prohibida"|"propaganda_no_reportada", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "vote_counting_chain_of_custody",
+    category: "vote_counting_chain_of_custody",
+    system:
+      "You are a Mexican vote-counting and ballot-integrity investigator. Examine actas de escrutinio y cómputo, actas de la mesa directiva de casilla, and paquete electoral records in the corpus for arithmetic or procedural irregularities (votos que no coinciden con boletas entregadas, alteración de actas, dolo o error), and for gaps in the cadena de custodia of ballots/packages between the casilla and the cómputo distrital. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "error_aritmetico_en_acta"|"alteracion_de_acta"|"ruptura_cadena_de_custodia"|"paquete_electoral_irregular", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "political_violence_gender_parity",
+    category: "political_violence_gender_parity",
+    system:
+      "You are a Mexican investigator specializing in violencia política en razón de género and paridad de género in electoral contests, applying the Ley General de Acceso de las Mujeres a una Vida Libre de Violencia's electoral-violence provisions and the LGIPE's paridad requirements (candidaturas, planillas, integración de órganos). Examine the corpus for acts fitting the statutory definition of violencia política de género (limiting, restricting, or annulling a woman's political-electoral rights because of her gender) and for any paridad requirement that the record shows was not met. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "violencia_politica_de_genero"|"paridad_no_cumplida", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "electoral_nullity_analysis",
+    category: "electoral_nullity_analysis",
+    system:
+      "You are a Mexican electoral-nullity investigator under the LGSMIME. Assess whether the facts in the corpus support a causal de nulidad de la votación recibida en casilla (art. 75 — instalación irregular, recepción por persona no autorizada, ejercer violencia o presión, error en el cómputo con efecto en el resultado, dolo o error en la boleta, entre otras) or a nulidad de elección, and whether the irregularity is determinante para el resultado de la votación — the standard the doctrine requires before annulling. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "nullity_level": "votacion_en_casilla"|"eleccion", "determinante": boolean, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -3131,6 +3182,12 @@ const AGENT_ENGINE: Record<string, string> = {
   sat_audit_review: "agent:sat_audit_review",
   cfdi_accounting_tax_validation: "agent:cfdi_accounting_tax_validation",
   prodecon_opportunity_detection: "agent:prodecon_opportunity_detection",
+  // Electoral specialized investigators (2026-08-04).
+  ine_documentation_candidate_eligibility: "agent:ine_documentation_candidate_eligibility",
+  campaign_finance_review: "agent:campaign_finance_review",
+  vote_counting_chain_of_custody: "agent:vote_counting_chain_of_custody",
+  political_violence_gender_parity: "agent:political_violence_gender_parity",
+  electoral_nullity_analysis: "agent:electoral_nullity_analysis",
 };
 
 /**

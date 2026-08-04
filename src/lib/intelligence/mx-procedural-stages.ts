@@ -621,6 +621,37 @@ const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
       patterns: ["ejecucion de sentencia", "cumplimiento de sentencia"],
     },
   ],
+  // 2026-08-04: new profile.
+  electoral: [
+    {
+      id: "acto_o_resolucion_impugnada",
+      label_es: "Acto o resolución impugnada emitida",
+      label_en: "Challenged act or resolution issued",
+      authority: "LGSMIME Art. 6",
+      patterns: ["acuerdo impugnado", "resolucion impugnada"],
+    },
+    {
+      id: "presentacion_medio_de_impugnacion",
+      label_es: "Presentación del medio de impugnación",
+      label_en: "Electoral challenge filed",
+      authority: "LGSMIME Art. 9",
+      patterns: ["juicio de inconformidad", "recurso de apelacion", "juicio para la proteccion"],
+    },
+    {
+      id: "sustanciacion_electoral",
+      label_es: "Sustanciación (informe circunstanciado, pruebas)",
+      label_en: "Substantiation (informe circunstanciado, evidence)",
+      authority: "LGSMIME Art. 17-18",
+      patterns: ["informe circunstanciado", "tercero interesado"],
+    },
+    {
+      id: "sentencia_electoral",
+      label_es: "Sentencia del TEPJF u OPLE",
+      label_en: "TEPJF or OPLE judgment",
+      authority: "LGSMIME",
+      patterns: ["sentencia", "resuelve"],
+    },
+  ],
 };
 
 export function proceduralStageMap(materia: MxPipelineProfile): readonly ProceduralStageDef[] {

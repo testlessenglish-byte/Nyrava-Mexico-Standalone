@@ -356,6 +356,29 @@ const BY_PROFILE: Record<MxPipelineProfile, MxWorkProductVehicle[]> = {
       when: "cuando exista despojo o privación ilegal de la posesión o titularidad de tierras",
     },
   ],
+  electoral: [
+    {
+      id: "juicio_de_inconformidad",
+      es: "Juicio de inconformidad",
+      en: "Electoral non-conformity complaint",
+      basis: "LGSMIME Art. 49-64",
+      when: "para impugnar resultados de cómputo o la validez de una elección",
+    },
+    {
+      id: "juicio_para_la_proteccion_de_derechos_politico_electorales",
+      es: "Juicio para la protección de los derechos político-electorales del ciudadano",
+      en: "Citizen political-electoral rights protection complaint",
+      basis: "LGSMIME Art. 79-85",
+      when: "cuando el afectado sea la persona ciudadana directamente en sus derechos político-electorales",
+    },
+    {
+      id: "queja_ante_el_ine",
+      es: "Queja ante el INE (procedimiento sancionador)",
+      en: "Complaint before the INE (sanctioning procedure)",
+      basis: "LGIPE",
+      when: "cuando exista una infracción a la normativa electoral por un sujeto obligado",
+    },
+  ],
 };
 
 export function mxWorkProductVehicles(profile: MxPipelineProfile): MxWorkProductVehicle[] {

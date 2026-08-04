@@ -419,6 +419,15 @@ const RULES: Record<MxPipelineProfile, readonly DeadlineRule[]> = {
   // ejidatarios cuts the other way) — so no analog of civil's
   // caducidad_instancia_civil rule belongs here either.
   agrario: [],
+  // 2026-08-04: new profile. LGSMIME Art. 8's 4-día term for most medios de
+  // impugnación electoral is well known, but the exact term varies by
+  // vehicle (juicio de inconformidad, procedimiento especial sancionador,
+  // recurso de revisión) and some run in horas, not días — encoding one
+  // figure here risks asserting the wrong one for the specific medio
+  // actually in the corpus. Same conservative call as agrario's empty
+  // entry above: left for a follow-up pass with per-vehicle verification
+  // rather than guessed now.
+  electoral: [],
 };
 
 export function deadlineRules(materia: MxPipelineProfile): readonly DeadlineRule[] {

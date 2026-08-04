@@ -43,7 +43,8 @@ export type MxPipelineProfile =
   | "administrativo"
   | "apelacion"
   | "inmobiliario"
-  | "agrario";
+  | "agrario"
+  | "electoral";
 
 export const MX_JURISDICTION = "MX" as const;
 
@@ -62,9 +63,12 @@ const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
   mercantil: "mercantil",
   fiscal: "fiscal",
   administrativo: "administrativo",
-  // Materias con procedimiento contencioso administrativo/especial: se
-  // ejecutan con el perfil administrativo (juicio de nulidad, agravios).
-  electoral: "administrativo",
+  // 2026-08-04: previously routed through "administrativo" — a medio de
+  // impugnación electoral shares the written-record shape of a juicio de
+  // nulidad, but has its own governing law (LGSMIME, not LFPCA), its own
+  // authority (TEPJF, not TFJA), and doctrine (paridad de género, violencia
+  // política, fiscalización de campaña) with no administrativo analog.
+  electoral: "electoral",
   // 2026-08-04: previously routed through "civil" — a Tribunal Unitario
   // Agrario proceeding shares some litigation shape with a civil suit (actor/
   // demandado, ofrecimiento de pruebas) but has its own governing law (Ley
@@ -200,6 +204,10 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // ordinarias del proceso — no hay control constitucional directo dentro
   // del juicio (eso corresponde al amparo posterior contra la sentencia).
   agrario: ["constitutional"],
+  // Medios de impugnación electoral (TEPJF/OPLE): se resuelven sobre el
+  // expediente y las constancias documentales (actas, paquetes
+  // electorales) — no hay desahogo de prueba testimonial en audiencia.
+  electoral: ["witness"],
 };
 
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */
@@ -257,6 +265,10 @@ export const MX_PARTY_ROLES: Record<
   // individual actor or demandado — e.g. an ejidatario suing a co-ejidatario
   // over parcel boundaries, with the comisariado ejidal itself impleaded.
   agrario: { a: "parte_actora", b: "parte_demandada", c: "nucleo_agrario", neutral: "ambas" },
+  // A medio de impugnación electoral routinely involves a tercero
+  // interesado — e.g. the candidate/party that benefited from the
+  // challenged act, distinct from the actor and the responsible authority.
+  electoral: { a: "actor", b: "autoridad_responsable", c: "tercero_interesado", neutral: "ambas" },
 };
 
 /** JSON-schema-ready enum string, e.g. `"parte_actora"|"parte_demandada"|"ambas"`, for a given case type. */

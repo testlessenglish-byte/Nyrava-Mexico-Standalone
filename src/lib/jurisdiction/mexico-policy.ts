@@ -233,7 +233,17 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "agent:international_human_rights_analysis",
     "agent:constitutional_controversy_analysis",
   ],
-  electoral: ["chain_of_custody", "constitutional_compliance", "cross_examination", "procedural_violations"],
+  electoral: [
+    "chain_of_custody",
+    "constitutional_compliance",
+    "cross_examination",
+    "procedural_violations",
+    "agent:ine_documentation_candidate_eligibility",
+    "agent:campaign_finance_review",
+    "agent:vote_counting_chain_of_custody",
+    "agent:political_violence_gender_parity",
+    "agent:electoral_nullity_analysis",
+  ],
   agrario: [
     "cross_examination",
     "agent:ran_record_certificate_review",
@@ -675,11 +685,15 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "violacion_derechos_humanos",
   ],
   electoral: [
+    "campaign_finance_review",
     "civil_procedure_mx",
     "constitutional",
+    "electoral_nullity_analysis",
     "fiscalizacion_de_gastos_de_campana",
+    "ine_documentation_candidate_eligibility",
     "libertad_de_expresion_electoral",
     "nulidad_de_eleccion",
+    "political_violence_gender_parity",
     "nulidad_absoluta",
     "nulidad_relativa",
     "ofrecimiento_de_pruebas",
@@ -690,6 +704,7 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "recuento_de_votos",
     "registro_de_candidatura",
     "violencia_politica_en_razon_de_genero",
+    "vote_counting_chain_of_custody",
   ],
   // 2026-08-04: previously a copy of civil's contract/tort taxonomy — no
   // agrarian doctrine at all (no RAN, ejido, deslinde, or restitución

@@ -176,6 +176,12 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:sat_audit_review",
   "agent:cfdi_accounting_tax_validation",
   "agent:prodecon_opportunity_detection",
+  // Electoral specialized investigator agents:
+  "agent:ine_documentation_candidate_eligibility",
+  "agent:campaign_finance_review",
+  "agent:vote_counting_chain_of_custody",
+  "agent:political_violence_gender_parity",
+  "agent:electoral_nullity_analysis",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",

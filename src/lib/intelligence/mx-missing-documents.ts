@@ -473,6 +473,38 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["credencial de ejidatario", "reconocimiento de comunero", "posesionario"],
     },
   ],
+  // 2026-08-04: new profile — electoral previously used "administrativo"'s
+  // checklist, which has no electoral-specific documents on it at all.
+  electoral: [
+    {
+      id: "acta_de_escrutinio_y_computo",
+      label_es: "Acta de escrutinio y cómputo de casilla",
+      label_en: "Polling-station tally sheet",
+      authority: "LGIPE",
+      patterns: ["acta de escrutinio y computo", "acta de la mesa directiva de casilla"],
+    },
+    {
+      id: "constancia_de_registro_candidatura",
+      label_es: "Constancia de registro de candidatura",
+      label_en: "Candidacy registration record",
+      authority: "LGIPE Art. 10",
+      patterns: ["constancia de registro", "registro de candidatura"],
+    },
+    {
+      id: "informe_de_gastos_de_campana",
+      label_es: "Informe de gastos de campaña",
+      label_en: "Campaign-expense report",
+      authority: "Reglamento de Fiscalización del INE",
+      patterns: ["informe de gastos de campana", "fiscalizacion de gastos"],
+    },
+    {
+      id: "cadena_de_custodia_paquete_electoral",
+      label_es: "Constancia de cadena de custodia del paquete electoral",
+      label_en: "Ballot-package chain-of-custody record",
+      authority: "LGIPE",
+      patterns: ["cadena de custodia", "paquete electoral"],
+    },
+  ],
 };
 
 export function requiredDocuments(materia: MxPipelineProfile): readonly RequiredDocument[] {

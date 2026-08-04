@@ -680,6 +680,43 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       patterns: ["prescripcion", "caducidad"],
     },
   ],
+  // 2026-08-04: new profile — previously electoral cases evaluated against
+  // the "administrativo" checklist (acto administrativo impugnado, etc.),
+  // which has no INE/OPLE, casilla, or campaign-finance concepts.
+  electoral: [
+    {
+      id: "medio_de_impugnacion_requisitos",
+      label_es: "Medio de impugnación con requisitos de forma",
+      label_en: "Electoral challenge meets formal requirements",
+      authority: "LGSMIME Art. 9",
+      requirement: "required",
+      patterns: ["juicio de inconformidad", "recurso de apelacion", "juicio para la proteccion"],
+    },
+    {
+      id: "acta_de_escrutinio_y_computo",
+      label_es: "Acta de escrutinio y cómputo de casilla exhibida",
+      label_en: "Polling-station tally sheet attached",
+      authority: "LGIPE",
+      requirement: "required",
+      patterns: ["acta de escrutinio y computo", "acta de la mesa directiva de casilla"],
+    },
+    {
+      id: "informe_de_gastos_de_campana",
+      label_es: "Informe de gastos de campaña presentado ante el INE",
+      label_en: "Campaign-expense report filed with the INE",
+      authority: "Reglamento de Fiscalización del INE",
+      requirement: "recommended",
+      patterns: ["informe de gastos de campana", "fiscalizacion"],
+    },
+    {
+      id: "plazo_de_impugnacion",
+      label_es: "Medio de impugnación presentado dentro del plazo de 4 días",
+      label_en: "Challenge filed within the 4-day term",
+      authority: "LGSMIME Art. 8",
+      requirement: "required",
+      patterns: ["dentro del plazo", "cuatro dias"],
+    },
+  ],
 };
 
 function normalize(s: string): string {
