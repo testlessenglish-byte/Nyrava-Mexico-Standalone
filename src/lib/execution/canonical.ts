@@ -342,6 +342,19 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     // pipeline. Added so the UI and the real gate agree.
     dependsOn: ["scoring", "legal_qa", "analyzers", "agents", "jurisdiction_intel", "multi_agent"],
     requirement: "blocking",
+    // FIX (2026-08-04): this was the one stage with NO timeoutMs — every
+    // other stage got one in the 2026-08 timeout sweep, but report was left
+    // unbounded on the theory that its own internal chunk checkpointing
+    // (narrative/memo/intelligence, each cached to reports.report_chunk_cache
+    // as it completes — see _runReportInner in pipeline.server.ts) already
+    // handles resumption. That's true across ticks, but does nothing for a
+    // SINGLE chunk's AI call hanging past its own provider-level timeout
+    // (33s) and 8-provider failover chain without ever throwing — the exact
+    // "reports sticking in generation" symptom reported live. 600s gives
+    // generous headroom for legitimate multi-chunk work in one tick (this is
+    // the stage that makes the most sequential AI calls of any in the
+    // pipeline) while still being a real ceiling instead of none.
+    timeoutMs: 600_000,
   },
 ] as const;
 
