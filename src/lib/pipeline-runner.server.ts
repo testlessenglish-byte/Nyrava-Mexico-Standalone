@@ -1339,14 +1339,34 @@ async function _runPipelineForCase(
         // quota). Fail truthfully instead of re-queueing forever.
         const priorCheckpoints = await stageCheckpointCount(s.key);
         if (priorCheckpoints >= MAX_STAGE_CHECKPOINTS) {
+          // e.progress carries real diagnostic text on several stages
+          // (analyzers/agents/report embed the actual provider error, up to
+          // ~300 chars, when they checkpoint on a Groq cooldown/rate-limit —
+          // see pipeline.server.ts's CheckpointRequired throw sites) but
+          // this handler previously discarded it entirely in favor of a
+          // hardcoded "sin capacidad de IA / quota exhausted" guess — always
+          // the same text regardless of what actually happened. That guess
+          // can be wrong: a stage can also hit this loop-breaker on a
+          // structural failure (bad request shape, an auth/decryption bug
+          // on a specific key, a provider outage) that has nothing to do
+          // with quota, and the user has no way to tell the difference from
+          // this message alone. Surface the real cause when the thrown
+          // CheckpointRequired actually carries one; keep the quota guess
+          // only as a fallback for stages whose checkpoint (e.g.
+          // extraction's plain "N/M docs") carries no error text at all.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const lastProgress = typeof (e as any)?.progress === "string" ? ((e as any).progress as string) : null;
+          const causeText = lastProgress
+            ? `Última causa registrada: ${lastProgress}.`
+            : `Causa probable: sin capacidad de IA disponible (todas las llaves configuradas agotaron su cuota).`;
           const detail =
-            `${s.label}: la etapa no avanzó tras ${priorCheckpoints + 1} reintentos. ` +
-            `Causa probable: sin capacidad de IA disponible (todas las llaves configuradas ` +
-            `agotaron su cuota). Revise Admin → Llaves de IA y vuelva a ejecutar.`;
+            `${s.label}: la etapa no avanzó tras ${priorCheckpoints + 1} reintentos. ${causeText} ` +
+            `Revise Admin → Llaves de IA y vuelva a ejecutar.`;
           trace("stage.checkpoint_loop_aborted", {
             stage: s.key,
             checkpoints: priorCheckpoints + 1,
             error: detail,
+            last_checkpoint_progress: lastProgress,
           });
           try {
             await prog.emitEvent(supabase, caseId, s.key, detail, { level: "error" });
@@ -1356,7 +1376,9 @@ async function _runPipelineForCase(
           await updateCase(
             {
               status: "failed",
-              status_message: `Sin capacidad de IA — detenido en ${s.label}`,
+              status_message: lastProgress
+                ? `Detenido en ${s.label} — ${lastProgress.slice(0, 120)}`
+                : `Sin capacidad de IA — detenido en ${s.label}`,
               error: detail.slice(0, 2000),
               next_stage: resumeKey,
               queued_at: null,

@@ -5616,7 +5616,11 @@ ${corpus.slice(0, 14000)}`;
       if (isGroqCooldownOrRateLimit(msg)) {
         const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
         console.warn(`[report:chunk] Groq cooldown during ${name}; yielding for worker retry`);
-        throw new CheckpointRequired("report", `Groq cooldown during ${name} chunk`);
+        // Include the real provider error (matches the analyzers/agents
+        // CheckpointRequired throw sites) so the loop-breaker in
+        // pipeline-runner.server.ts can surface the actual cause instead of
+        // just "Groq cooldown" if this keeps recurring across ticks.
+        throw new CheckpointRequired("report", `Groq cooldown during ${name} chunk — ${msg.slice(0, 250)}`);
       }
       console.warn(`[report:chunk] ${name} failed — ${msg.slice(0, 200)}`);
       return null;
