@@ -342,6 +342,14 @@ function Workspace() {
   const reportBlocked = Boolean((report as any)?.quality_blocked);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportBlockReasons = (((report as any)?.quality_block_reasons as unknown[]) ?? []) as string[];
+  // Non-blocking readiness score from report-quality-gate.ts — computed and
+  // persisted for every report since it was built, but never actually shown
+  // to an attorney until now (see the pipeline.server.ts comment at its
+  // pipelineWarnings push site for why it's informational, not blocking).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const qualityGate = (report as any)?.full_report?.quality_gate as
+    | { score?: number; passed?: boolean; critical_issues?: string[] }
+    | undefined;
 
   const exportData: CaseExportData = buildExportData(data);
 
@@ -621,6 +629,31 @@ function Workspace() {
                   </ul>
                 )}
                 <p className="mt-1 opacity-80">{t("caseWorkspace.reportBlocked.json")}</p>
+              </div>
+            )}
+            {hasReport && qualityGate && typeof qualityGate.score === "number" && (
+              <div
+                className={`mt-3 rounded border px-3 py-2 text-xs ${
+                  qualityGate.passed
+                    ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-300"
+                    : "border-amber-500/40 bg-amber-500/5 text-amber-300"
+                }`}
+              >
+                <div className="font-semibold">
+                  {t("caseWorkspace.qualityGate.label")}: {qualityGate.score}/100
+                </div>
+                {!qualityGate.passed && (
+                  <>
+                    <p className="mt-1 opacity-80">{t("caseWorkspace.qualityGate.notPassed")}</p>
+                    {(qualityGate.critical_issues?.length ?? 0) > 0 && (
+                      <ul className="mt-1 list-disc pl-4">
+                        {qualityGate.critical_issues!.map((issue, i) => (
+                          <li key={i}>{issue}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
               </div>
             )}
             {!reportBlocked && !hasReport && (
