@@ -12,7 +12,8 @@
 // synthetic report shapes — no case-specific content, no fixture
 // hardcoding.
 import { describe, it, expect } from "vitest";
-import { sanitizeBlockedReport, isReportStale } from "@/lib/cases.functions";
+import { sanitizeBlockedReport, isReportStale, isReportStaleByDocumentHash } from "@/lib/cases.functions";
+import { sha256Hex } from "@/lib/intelligence/evidence-provenance.server";
 
 describe("sanitizeBlockedReport", () => {
   it("strips substantive content fields when quality_blocked is true", () => {
@@ -169,6 +170,78 @@ describe("isReportStale", () => {
     // Checking again with the identical inputs (simulating the next tick)
     // must be stable, not flip to true.
     expect(isReportStale(report, runs, BLOCKING2)).toBe(false);
+  });
+});
+
+describe("isReportStaleByDocumentHash", () => {
+  it("is not stale when every cited document's current hash matches what the report recorded", () => {
+    const text = "El arrendador entrega el inmueble al arrendatario.";
+    const report = {
+      citations: [
+        { document_id: "doc-1", document_hash: sha256Hex(text) },
+      ],
+    };
+    const documents = [{ id: "doc-1", extracted_text: text }];
+    expect(isReportStaleByDocumentHash(report, documents)).toBe(false);
+  });
+
+  it("is stale when a cited document's content changed after the report was generated", () => {
+    const originalText = "El arrendador entrega el inmueble al arrendatario.";
+    const editedText = "El arrendador entrega el inmueble remodelado al arrendatario.";
+    const report = {
+      citations: [{ document_id: "doc-1", document_hash: sha256Hex(originalText) }],
+    };
+    const documents = [{ id: "doc-1", extracted_text: editedText }];
+    expect(isReportStaleByDocumentHash(report, documents)).toBe(true);
+  });
+
+  it("is stale when a cited document was deleted/archived out from under the report", () => {
+    const report = {
+      citations: [{ document_id: "doc-1", document_hash: sha256Hex("some text") }],
+    };
+    expect(isReportStaleByDocumentHash(report, [])).toBe(true);
+  });
+
+  it("fails closed when no citation carries a stored document_hash (e.g. a pre-Phase-1 report)", () => {
+    const report = { citations: [{ document_id: "doc-1", quote: "no hash on this old citation" }] };
+    const documents = [{ id: "doc-1", extracted_text: "anything, does not matter" }];
+    expect(isReportStaleByDocumentHash(report, documents)).toBe(false);
+  });
+
+  it("fails closed on missing/malformed inputs", () => {
+    expect(isReportStaleByDocumentHash(null, [])).toBe(false);
+    expect(isReportStaleByDocumentHash({ citations: undefined }, [])).toBe(false);
+    expect(isReportStaleByDocumentHash({ citations: [] }, [])).toBe(false);
+    expect(isReportStaleByDocumentHash({ citations: "not-an-array" as unknown }, [])).toBe(false);
+  });
+
+  it("checks every distinct cited document, not just the first", () => {
+    const textA = "Contrato A sin cambios.";
+    const textB = "Contrato B original.";
+    const report = {
+      citations: [
+        { document_id: "doc-A", document_hash: sha256Hex(textA) },
+        { document_id: "doc-B", document_hash: sha256Hex(textB) },
+      ],
+    };
+    // doc-A unchanged, doc-B edited — must still detect staleness via doc-B.
+    const documents = [
+      { id: "doc-A", extracted_text: textA },
+      { id: "doc-B", extracted_text: "Contrato B editado." },
+    ];
+    expect(isReportStaleByDocumentHash(report, documents)).toBe(true);
+  });
+
+  it("only considers the first stored hash per document (stable, does not flip on duplicate citations)", () => {
+    const text = "Texto estable del documento.";
+    const report = {
+      citations: [
+        { document_id: "doc-1", document_hash: sha256Hex(text) },
+        { document_id: "doc-1", document_hash: sha256Hex(text) },
+      ],
+    };
+    const documents = [{ id: "doc-1", extracted_text: text }];
+    expect(isReportStaleByDocumentHash(report, documents)).toBe(false);
   });
 });
 

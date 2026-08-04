@@ -8,6 +8,7 @@ import { z } from "zod";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
 import { PROJECTION_LIKE, selectFindings, isCanonicalFinding, type SelectableFinding } from "@/lib/intelligence/finding-selection";
+import { sha256Hex } from "@/lib/intelligence/evidence-provenance.server";
 
 // Single source of truth for valid case_type values — derived from
 // PRACTICE_AREA_LABELS (practice-areas.ts) instead of hand-copied literal
@@ -3081,6 +3082,51 @@ export function isReportStale(
   }
   for (const t of latestByEngine.values()) {
     if (t > reportTime) return true;
+  }
+  return false;
+}
+
+/**
+ * Second, independent staleness signal alongside isReportStale() above:
+ * document content itself changed since the report cited it, whether or not
+ * that change happened to re-run the extraction engine (isReportStale only
+ * catches the latter, via extraction's blocking-tier timestamp).
+ *
+ * Phase 1 evidence-provenance (grounding.server.ts) stamps a document_hash
+ * (SHA-256 of extracted_text at citation time) onto every verified citation,
+ * which flows through into reports.citations. This recomputes each
+ * currently-referenced document's hash and compares it against what the
+ * report's own citations recorded — a mismatch means "if a document
+ * changes, invalidate findings" (the roadmap's own wording) has actually
+ * happened and this report's citations no longer describe the current
+ * evidence.
+ *
+ * Fails closed, same convention as isReportStale: a citation with no stored
+ * document_hash (e.g. a report generated before this check existed) is
+ * skipped, never treated as evidence of staleness by its mere absence.
+ */
+export function isReportStaleByDocumentHash(
+  report: { citations?: unknown } | null | undefined,
+  documents: Array<{ id: string; extracted_text: string | null }>,
+): boolean {
+  if (!report) return false;
+  const citations = Array.isArray(report.citations) ? (report.citations as Array<Record<string, unknown>>) : [];
+  if (citations.length === 0) return false;
+
+  const storedHashByDoc = new Map<string, string>();
+  for (const c of citations) {
+    const docId = typeof c.document_id === "string" ? c.document_id : null;
+    const hash = typeof c.document_hash === "string" ? c.document_hash : null;
+    if (docId && hash && !storedHashByDoc.has(docId)) storedHashByDoc.set(docId, hash);
+  }
+  if (storedHashByDoc.size === 0) return false;
+
+  const currentDocs = new Map(documents.map((d) => [d.id, d.extracted_text ?? ""]));
+  for (const [docId, storedHash] of storedHashByDoc) {
+    const currentText = currentDocs.get(docId);
+    // Document the citation depends on was deleted/archived out from under it.
+    if (currentText === undefined) return true;
+    if (sha256Hex(currentText) !== storedHash) return true;
   }
   return false;
 }

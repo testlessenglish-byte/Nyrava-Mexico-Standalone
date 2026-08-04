@@ -5,6 +5,7 @@ import {
   STAGE_BY_ENGINE,
   REPORT_BLOCKING_ENGINES,
   REPORT_ENRICHING_ENGINES,
+  OPTIONAL_ENGINES,
   computeProgress,
   computeStageViews,
   canGenerateReport,
@@ -76,6 +77,57 @@ describe("canonical execution architecture", () => {
   it("report gate passes when every blocking engine is completed or skipped", () => {
     const rows = REPORT_BLOCKING_ENGINES.map((e, i) => row(e, i === 0 ? "skipped" : "completed"));
     expect(canGenerateReport(rows).ok).toBe(true);
+  });
+
+  // Regression for the "perspectives, strategy" report-generation dead end:
+  // an optional-tier engine that never received ANY pipeline_engine_runs row
+  // (not even a failed/blocked one — e.g. the main pipeline loop finished or
+  // got stuck without ever queuing it) permanently blocked report generation,
+  // because canGenerateReport()'s optional-tier exemption only recognized
+  // status "failed"/"blocked", never "no row at all". Confirmed on a real
+  // case (robo calificado con violencia, Jalisco): perspectives and strategy
+  // both had zero terminal rows, and every "Generate Legal Report" attempt
+  // failed identically with no path to recovery — ensureRequiredEngines()
+  // structurally cannot run these two (they throw CheckpointRequired
+  // mid-run, which only the main pipeline loop's worker-tick model can
+  // catch and resume), so nothing was ever going to write a row for them.
+  // The fix (pipeline.server.ts's ensureRequiredEngines): when it hits an
+  // optional-tier engine it cannot backfill, it now writes an explicit
+  // "skipped" row via recordSkipped() instead of leaving the engine with no
+  // row at all. These tests prove *why* that's the right terminal state to
+  // pick — "skipped" is the one status canGenerateReport() already exempts
+  // unconditionally, for every engine, regardless of requirement tier.
+  it("report gate still blocks on an optional engine with NO row at all — proves the dead end this fix closes", () => {
+    expect(OPTIONAL_ENGINES.has("perspectives")).toBe(true);
+    expect(OPTIONAL_ENGINES.has("strategy")).toBe(true);
+    const rows = REPORT_BLOCKING_ENGINES.filter((e) => e !== "perspectives" && e !== "strategy").map((e) =>
+      row(e, "completed"),
+    );
+    const gate = canGenerateReport(rows);
+    expect(gate.ok).toBe(false);
+    expect(gate.missingBlocking).toEqual(expect.arrayContaining(["perspectives", "strategy"]));
+  });
+
+  it("report gate passes once the missing optional engines are recorded 'skipped' (what ensureRequiredEngines now does)", () => {
+    const rows = REPORT_BLOCKING_ENGINES.map((e) =>
+      e === "perspectives" || e === "strategy" ? row(e, "skipped") : row(e, "completed"),
+    );
+    expect(canGenerateReport(rows).ok).toBe(true);
+  });
+
+  it("an optional engine already 'failed' or 'blocked' was already exempted before this fix — unaffected", () => {
+    const rows = REPORT_BLOCKING_ENGINES.map((e) =>
+      e === "perspectives" ? row(e, "failed") : e === "strategy" ? row(e, "blocked") : row(e, "completed"),
+    );
+    expect(canGenerateReport(rows).ok).toBe(true);
+  });
+
+  it("a BLOCKING-tier engine with no row still blocks — this fix is scoped to optional engines only", () => {
+    expect(OPTIONAL_ENGINES.has("extraction")).toBe(false);
+    const rows = REPORT_BLOCKING_ENGINES.filter((e) => e !== "extraction").map((e) => row(e, "completed"));
+    const gate = canGenerateReport(rows);
+    expect(gate.ok).toBe(false);
+    expect(gate.missingBlocking).toContain("extraction");
   });
 
   it("deriveStageState respects upstream state before promoting to waiting", () => {

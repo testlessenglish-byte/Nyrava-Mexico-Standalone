@@ -974,7 +974,7 @@ async function _runPipelineForCase(
       try {
         const { data: reportRow } = await (supabase as any)
           .from("reports")
-          .select("updated_at,created_at")
+          .select("updated_at,created_at,citations")
           .eq("case_id", caseId)
           .maybeSingle();
         const blockingEngines = new Set(
@@ -982,16 +982,31 @@ async function _runPipelineForCase(
             (s) => s.engine,
           ),
         );
-        const { isReportStale } = await import("./cases.functions");
-        if (
-          isReportStale(
-            reportRow as { updated_at?: string | null; created_at?: string | null } | null,
-            (priorRuns ?? []) as Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
-            blockingEngines,
-          )
-        ) {
+        const { isReportStale, isReportStaleByDocumentHash } = await import("./cases.functions");
+        const timestampStale = isReportStale(
+          reportRow as { updated_at?: string | null; created_at?: string | null } | null,
+          (priorRuns ?? []) as Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
+          blockingEngines,
+        );
+        // Second, independent signal (Phase 1 evidence-provenance): a cited
+        // document's content itself changed, whether or not that change
+        // happened to re-run the extraction engine (the only thing
+        // timestampStale above can see). "If a document changes, invalidate
+        // findings" — this is what actually enforces that for the report.
+        let hashStale = false;
+        if (!timestampStale) {
+          const { data: docsForHashCheck } = await (supabase as any)
+            .from("documents")
+            .select("id,extracted_text")
+            .eq("case_id", caseId);
+          hashStale = isReportStaleByDocumentHash(
+            reportRow as { citations?: unknown } | null,
+            (docsForHashCheck ?? []) as Array<{ id: string; extracted_text: string | null }>,
+          );
+        }
+        if (timestampStale || hashStale) {
           latestStatusByEngine.delete("report_generator");
-          trace("report.stale_forcing_regeneration", {});
+          trace("report.stale_forcing_regeneration", { reason: timestampStale ? "engine_timestamp" : "document_hash" });
         }
       } catch (e) {
         console.warn("[pipeline] report staleness check failed (non-fatal)", e);

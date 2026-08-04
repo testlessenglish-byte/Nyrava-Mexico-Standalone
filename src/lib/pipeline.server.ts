@@ -4487,7 +4487,7 @@ async function ensureRequiredEngines(args: {
   apiKeys?: string[];
 }): Promise<{ ran: string[]; failed: Array<{ engine: string; error: string }> }> {
   const { db, caseId, userId, apiKey, apiKeys } = args;
-  const { REPORT_REQUIRED_ENGINES, missingRequiredEngines } = await import("@/lib/execution-state");
+  const { REPORT_REQUIRED_ENGINES, missingRequiredEngines, OPTIONAL_ENGINES } = await import("@/lib/execution-state");
   const { data: runs } = await db
     .from("pipeline_engine_runs")
     .select("id,engine,status,started_at,ended_at,created_at")
@@ -4646,11 +4646,50 @@ async function ensureRequiredEngines(args: {
       // Expected for the optional-tier intelligence engines (perspectives,
       // opportunity, strategy, theory, litigation_strategy_center,
       // work_product, hallucination, multi_agent) — this backfill helper
-      // deliberately has no runner for them (see the comment above): they
-      // belong to the checkpoint/batch-aware main pipeline loop in
-      // pipeline-runner.server.ts, not this report-time patch-up. Their
-      // real state is whatever the ledger already says (queued/failed/
-      // etc.) — this is not a config gap, just "not this helper's job."
+      // deliberately has no runner for them: their real implementations
+      // (runPerspectivesEngine, runStrategyEngine, etc.) throw
+      // CheckpointRequired mid-run when they hit a time/budget limit, which
+      // only the checkpoint/batch-aware main pipeline loop in
+      // pipeline-runner.server.ts knows how to catch, persist, and resume —
+      // calling them synchronously here would let that exception escape
+      // uncaught (rethrowIfCheckpoint below re-throws it) and abort report
+      // generation entirely instead of failing this one stage cleanly.
+      //
+      // But since 2026-07-31 REPORT_BLOCKING_ENGINES lists EVERY stage, not
+      // just requirement:"blocking" ones, and canGenerateReport()'s
+      // optional-tier exemption only accepts status "failed"/"blocked" (or
+      // unconditionally "skipped") — never "no row at all". A case whose
+      // main loop finished (or got stuck) without ever giving one of these
+      // engines a terminal row was left permanently unable to generate a
+      // report: this branch could not run it, and nothing else was writing
+      // any row for it either. Confirmed on a real case (robo calificado
+      // con violencia, Jalisco): perspectives and strategy both had no
+      // terminal `pipeline_engine_runs` row, and "Generate Legal Report"
+      // failed identically on every retry with no path to recovery.
+      //
+      // Record it explicitly "skipped" instead — the same terminal state
+      // already used a few lines up for case-type-gated engines, and the
+      // one status canGenerateReport() exempts unconditionally regardless
+      // of requirement tier. This is exactly what "optional: a failure
+      // here must not permanently block the report" already means for
+      // every other optional engine; it was only unreachable for these
+      // because nothing was writing a terminal row for them here. The gap
+      // is surfaced honestly rather than silently: pipelineWarnings (see
+      // caller) still records `${engine}_failed` for it below, so the
+      // report notes the analysis is missing instead of pretending it ran.
+      if (OPTIONAL_ENGINES.has(engine)) {
+        try {
+          const { recordSkipped } = await import("./intelligence/engine-audit.server");
+          await recordSkipped(db, {
+            caseId,
+            userId,
+            engine: engine as never,
+            reason: "not_backfillable_at_report_time",
+          });
+        } catch (e) {
+          console.warn(`[report] failed to record ${engine} as skipped during backfill`, e);
+        }
+      }
       failed.push({ engine, error: "not backfillable here — owned by the main pipeline loop" });
       continue;
     }
@@ -6351,6 +6390,8 @@ ${paginationTail}`;
         end_offset: null,
         page_located: null,
         document_hash: null,
+        chunk_index: null,
+        chunk_hash: null,
         citation_hash: null,
         source_reattributed: false,
         ...ref,

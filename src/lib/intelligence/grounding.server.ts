@@ -36,6 +36,10 @@ export type VerifiedCitation = RawCitation & {
   page_located: number | null;
   /** SHA-256 of the source document's full raw text, at citation time. */
   document_hash: string | null;
+  /** 0-indexed position into the source document's page/chunk array that start_offset falls in. Null alongside start_offset. */
+  chunk_index: number | null;
+  /** SHA-256 of just the chunk (page) the citation's start_offset falls in — finer-grained than document_hash: pinpoints which chunk of a multi-page document changed, not just that the document changed somewhere. */
+  chunk_hash: string | null;
   /** Deterministic fingerprint of (document_id, quote, offsets) — see citationHash(). */
   citation_hash: string;
   /** True when the citation's claimed doc_n/document_id did NOT contain the quote, but a DIFFERENT document in the corpus did — the citation was re-attributed to the document that actually contains it. */
@@ -53,6 +57,8 @@ export type GroundingCorpus = {
     pages: string[];
     /** SHA-256 of this document's full raw extracted text — see evidence-provenance.server.ts. */
     document_hash: string;
+    /** SHA-256 of each entry in `pages`, same index — the chunk-level hash a citation's chunk_hash resolves to. */
+    pageHashes: string[];
   }>;
   /** Page size buildGroundingCorpus paginated with — needed to convert a character offset into a page number. */
   pageChars: number;
@@ -94,6 +100,10 @@ export function buildGroundingCorpus(
       filename: d.filename,
       pages,
       document_hash: sha256Hex(text),
+      // Precomputed once here (not per-citation) since many citations from
+      // the same document land on the same page — hashing the whole
+      // document's pages up front is cheap and avoids redundant work later.
+      pageHashes: pages.map((p) => sha256Hex(p)),
     });
     blocks.push(text);
   });
@@ -205,6 +215,11 @@ export function verifyEvidenceRefs(
     }
 
     const documentId = locatedDoc?.document_id ?? claimedId ?? null;
+    // Never fabricate a chunk hash for a span that isn't actually located —
+    // same "never fabricate precision" rule start_offset/end_offset follow.
+    const chunkIndex = loc ? Math.floor(loc.start / corpus.pageChars) : null;
+    const chunkHash =
+      loc && locatedDoc && chunkIndex !== null ? (locatedDoc.pageHashes[chunkIndex] ?? null) : null;
     verified.push({
       ...r,
       quote,
@@ -215,6 +230,8 @@ export function verifyEvidenceRefs(
       end_offset: loc?.end ?? null,
       page_located: loc ? pageForOffset(loc.start, corpus.pageChars) : null,
       document_hash: locatedDoc?.document_hash ?? null,
+      chunk_index: chunkIndex,
+      chunk_hash: chunkHash,
       citation_hash: citationHash({ documentId, quote, start: loc?.start ?? null, end: loc?.end ?? null }),
       source_reattributed: sourceReattributed,
     });
@@ -241,6 +258,8 @@ export type GroundedItem<T extends GroundableItem> = T & {
       end_offset: number | null;
       page_located: number | null;
       document_hash: string | null;
+      chunk_index: number | null;
+      chunk_hash: string | null;
       citation_hash: string;
       source_reattributed: boolean;
     }>;
@@ -289,6 +308,8 @@ export function groundItems<T extends GroundableItem>(
           end_offset: v.end_offset,
           page_located: v.page_located,
           document_hash: v.document_hash,
+          chunk_index: v.chunk_index,
+          chunk_hash: v.chunk_hash,
           citation_hash: v.citation_hash,
           source_reattributed: v.source_reattributed,
         })),
