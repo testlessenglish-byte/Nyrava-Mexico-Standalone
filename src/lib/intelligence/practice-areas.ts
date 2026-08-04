@@ -158,6 +158,11 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:custody_best_interest_analysis",
   "agent:child_support_calculation",
   "agent:domestic_violence_assessment",
+  // Mercantil specialized investigator agents:
+  "agent:corporate_governance_shareholder_rights",
+  "agent:commercial_contract_intelligence",
+  "agent:financial_fraud_commercial_risk",
+  "agent:bankruptcy_concurso_review",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",

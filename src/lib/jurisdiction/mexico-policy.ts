@@ -178,7 +178,13 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "agent:statute_of_limitations_analysis",
     "agent:settlement_opportunity_analyzer",
   ],
-  mercantil: ["cross_examination"],
+  mercantil: [
+    "cross_examination",
+    "agent:corporate_governance_shareholder_rights",
+    "agent:commercial_contract_intelligence",
+    "agent:financial_fraud_commercial_risk",
+    "agent:bankruptcy_concurso_review",
+  ],
   familiar: [
     "agent:custody_best_interest_analysis",
     "agent:child_support_calculation",
@@ -322,6 +328,10 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
   // material surfaces gaps, the same way the original (mis-scoped) list
   // grew over time.
   mercantil: [
+    "bankruptcy_concurso_review",
+    "commercial_contract_intelligence",
+    "corporate_governance_shareholder_rights",
+    "financial_fraud_commercial_risk",
     "pagare",
     "letra_de_cambio",
     "cheque",

@@ -2903,6 +2903,46 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "violence_type": "fisica"|"psicologica"|"economica"|"patrimonial"|"sexual", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Mercantil specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.mercantil (parte_actora / parte_demandada / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "corporate_governance_shareholder_rights",
+    category: "corporate_governance_shareholder_rights",
+    system:
+      "You are a Mexican corporate-governance investigator under the Ley General de Sociedades Mercantiles (LGSM). Examine the corpus for asambleas (ordinarias/extraordinarias) and whether quórum, convocatoria, and competencia requirements were met (arts. 178-198); consejo de administración or administrador único conduct and any conflicto de interés or acto ultra vires; and shareholder/partner rights — derecho de voto, derecho de preferencia, derecho de separación, acción de responsabilidad contra administradores (arts. 161-163) — that the corpus shows were exercised, denied, or violated. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "quorum_o_convocatoria"|"competencia_del_organo"|"conflicto_de_interes"|"derecho_de_accionista_vulnerado"|"accion_de_responsabilidad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "commercial_contract_intelligence",
+    category: "commercial_contract_intelligence",
+    system:
+      "You are a Mexican commercial-contract investigator under the Código de Comercio and the Ley General de Títulos y Operaciones de Crédito. Examine every contrato mercantil and título de crédito (pagaré, letra de cambio, cheque) in the corpus for its formal requisites, the obligations and plazos each party assumed, and any incumplimiento, protesto, or defecto de forma that affects enforceability (acción cambiaria, arts. 150-169 LGTOC). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "instrument_type": "contrato_mercantil"|"pagare"|"letra_de_cambio"|"cheque", "issue_type": "requisito_formal_faltante"|"incumplimiento"|"protesto_defectuoso"|"defecto_de_forma", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "financial_fraud_commercial_risk",
+    category: "financial_fraud_commercial_risk",
+    system:
+      "You are a Mexican commercial financial-fraud and risk investigator. Examine financial statements, transfer records, and correspondence in the corpus for indicators of fraude (simulación de actos, operaciones con recursos de procedencia ilícita under the Ley Federal para la Prevención e Identificación de Operaciones con Recursos de Procedencia Ilícita), and assess overall commercial risk (concentración de deuda, garantías insuficientes, litigios pendientes que afecten la solvencia). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "simulacion_de_actos", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "bankruptcy_concurso_review",
+    category: "bankruptcy_concurso_review",
+    system:
+      "You are a Mexican concurso mercantil (bankruptcy) investigator under the Ley de Concursos Mercantiles. Examine the corpus for evidence supporting or opposing a declaración de concurso mercantil (incumplimiento generalizado de pagos, arts. 9-12), the stage reached (conciliación vs. quiebra), and the reconocimiento, graduación y prelación de créditos of any creditor whose claim is discussed. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "stage": "conciliacion"|"quiebra"|"no_determinado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -2970,6 +3010,11 @@ const AGENT_ENGINE: Record<string, string> = {
   custody_best_interest_analysis: "agent:custody_best_interest_analysis",
   child_support_calculation: "agent:child_support_calculation",
   domestic_violence_assessment: "agent:domestic_violence_assessment",
+  // Mercantil specialized investigators (2026-08-04).
+  corporate_governance_shareholder_rights: "agent:corporate_governance_shareholder_rights",
+  commercial_contract_intelligence: "agent:commercial_contract_intelligence",
+  financial_fraud_commercial_risk: "agent:financial_fraud_commercial_risk",
+  bankruptcy_concurso_review: "agent:bankruptcy_concurso_review",
 };
 
 /**
