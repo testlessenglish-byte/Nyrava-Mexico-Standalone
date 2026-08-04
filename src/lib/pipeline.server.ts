@@ -2232,10 +2232,64 @@ ${corpusText}`;
   };
 
   let stopAnalyzers = false;
+  // Bounded escape valve for the case the ordinary checkpoint below can't
+  // handle: if the very FIRST batch never completes, `successes` stays 0
+  // forever and the old condition (successes > 0) never yields — the only
+  // backstop was the blunt 240s stage-level timeout, which hard-fails the
+  // whole stage instead of giving a slow-but-working batch more ticks.
+  // Bounded via a pipeline_trace row count (not a schema column) so a
+  // genuinely broken config still fails cleanly after
+  // MAX_ZERO_PROGRESS_CHECKPOINTS attempts instead of yielding forever —
+  // and, as a side effect, this makes the exact scenario a first-class,
+  // queryable trace event going forward instead of something that can only
+  // be diagnosed after the fact from a summary of what happened.
+  const MAX_ZERO_PROGRESS_CHECKPOINTS = 3;
   while (queue.length && !stopAnalyzers) {
-    if (Date.now() - analyzerStartedAt > analyzerBudgetMs && successes > 0) {
-      console.warn(`[analyzers] checkpoint reached after ${successes} batches — yielding, ${queue.length} remaining`);
-      throw new _AnalyzerCheckpoint("analyzers", `${successes} batches done, ${queue.length} remaining`);
+    if (Date.now() - analyzerStartedAt > analyzerBudgetMs) {
+      if (successes > 0) {
+        console.warn(`[analyzers] checkpoint reached after ${successes} batches — yielding, ${queue.length} remaining`);
+        throw new _AnalyzerCheckpoint("analyzers", `${successes} batches done, ${queue.length} remaining`);
+      }
+      const { count: priorZeroProgress } = await db
+        .from("pipeline_trace")
+        .select("id", { count: "exact", head: true })
+        .eq("case_id", caseId)
+        .eq("step", "analyzers.zero_progress_checkpoint");
+      const attemptNumber = (priorZeroProgress ?? 0) + 1;
+      if (attemptNumber <= MAX_ZERO_PROGRESS_CHECKPOINTS) {
+        const { trace } = await import("./pipeline-trace.server");
+        await trace({
+          phase: "stage",
+          step: "analyzers.zero_progress_checkpoint",
+          status: "warn",
+          db,
+          caseId,
+          userId,
+          detail: {
+            elapsed_ms: Date.now() - analyzerStartedAt,
+            budget_ms: analyzerBudgetMs,
+            queue_remaining: queue.length,
+            attempt: attemptNumber,
+            max_attempts: MAX_ZERO_PROGRESS_CHECKPOINTS,
+          },
+        });
+        console.warn(
+          `[analyzers] zero-progress checkpoint ${attemptNumber}/${MAX_ZERO_PROGRESS_CHECKPOINTS} — first batch never completed within budget, yielding to next tick`,
+        );
+        throw new _AnalyzerCheckpoint(
+          "analyzers",
+          `0 batches done after ${attemptNumber} zero-progress checkpoint(s), ${queue.length} remaining`,
+        );
+      }
+      // Exhausted the zero-progress budget: this is a persistent failure
+      // (bad config, sustained provider outage), not a transient slow
+      // batch. Fail the stage cleanly so it lands in the existing
+      // stall-auto-retry / manual-resume path instead of yielding forever.
+      throw new Error(
+        `Analyzers made zero progress after ${MAX_ZERO_PROGRESS_CHECKPOINTS} consecutive checkpoint cycles ` +
+          `(${Math.round((Date.now() - analyzerStartedAt) / 1000)}s elapsed) — likely a persistent provider ` +
+          `or configuration issue, not a transient timeout.`,
+      );
     }
     const wave = queue.splice(0, ANALYZER_BATCH_CONCURRENCY);
     const startIdx = batchIdx;
