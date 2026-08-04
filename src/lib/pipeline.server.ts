@@ -2772,6 +2772,57 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "ground": "error_en_valoracion_de_prueba"|"violacion_al_debido_proceso"|"indebida_fundamentacion_motivacion"|"aplicacion_incorrecta_de_la_ley", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Agrario specialized investigators (2026-08-04). Party-role enum matches
+  // MX_PARTY_ROLES.agrario (parte_actora / parte_demandada / nucleo_agrario
+  // / ambas) — agrario now has its own MxPipelineProfile instead of
+  // inheriting civil's (see execution/mx-pipeline.ts).
+  // ---------------------------------------------------------------------
+  {
+    type: "ran_record_certificate_review",
+    category: "ran_record_certificate_review",
+    system:
+      "You are a Mexican agrarian-registry investigator. Examine the corpus for certificados parcelarios, certificados de derechos agrarios, or constancias emitidas por el Registro Agrario Nacional (RAN), and assess whether the titularidad they document is consistent with the parcel/right claimed in the matter, whether the certificate is current (no posterior cancelación or reasignación evidenced elsewhere in the corpus), and whether any gap or inconsistency exists between the RAN record and other title evidence in the file. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "record_type": "certificado_parcelario"|"certificado_derechos_agrarios"|"constancia_ran"|"otro", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "ejido_assembly_analysis",
+    category: "ejido_assembly_analysis",
+    system:
+      "You are a Mexican ejido-assembly (asamblea ejidal) validity investigator, applying Ley Agraria arts. 23-28. Examine any acta de asamblea in the corpus for: quórum de instalación (mayoría de ejidatarios en primera convocatoria, o al menos 20% en segunda), competencia de la asamblea sobre la materia resuelta (algunas decisiones — parcelamiento, delimitación de tierras de uso común, aportación a sociedades — requieren la asistencia calificada de dos terceras partes de los ejidatarios y presencia de fedatario público bajo el art. 24), y si la convocatoria y las formalidades de acta fueron cumplidas. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "quorum"|"competencia_de_la_asamblea"|"formalidad_de_convocatoria"|"fedatario_publico", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "communal_land_indigenous_rights",
+    category: "communal_land_indigenous_rights",
+    system:
+      "You are a Mexican communal-land and indigenous-community rights investigator. Examine the corpus for tierras de uso común (Ley Agraria arts. 73-75), bienes comunales, and — where the núcleo agrario is an indigenous or equiparable community — rights recognized under Convenio 169 de la OIT (consulta previa, libre e informada; territorio; autonomía en la gestión de sus recursos naturales). Identify whether any decision affecting communal or indigenous land was made without the consultation or consent the applicable framework requires. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "rights_category": "tierras_de_uso_comun"|"bienes_comunales"|"consulta_previa_indigena"|"autonomia_territorial", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "boundary_possession_analysis",
+    category: "boundary_possession_analysis",
+    system:
+      "You are a Mexican agrarian boundary-and-possession investigator. Examine the corpus for evidence of colindancias (boundaries), any deslinde or levantamiento topográfico performed, the historical chain of ownership/possession of the parcel, and who has actual, continuous possession versus who holds documentary title — these frequently diverge in agrarian disputes. Flag any discrepancy between the boundaries described in the RAN/plano parcelario and the boundaries asserted in the parties' pleadings. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "discrepancia_de_colindancias"|"posesion_sin_titulo"|"titulo_sin_posesion"|"antecedente_de_propiedad_dudoso", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "agrarian_jurisdiction_restitution",
+    category: "agrarian_jurisdiction_restitution",
+    system:
+      "You are a Mexican agrarian-tribunal jurisdiction and land-restitution investigator. Examine the corpus for whether the Tribunal Unitario Agrario properly has competencia (materia agraria, territorio del distrito) over the matter versus a claim that actually belongs to another jurisdiction (civil ordinaria, amparo agrario), and for the elements of an acción de restitución de tierras (Ley Agraria arts. 18, 48-49: despojo o privación ilegal de la posesión o titularidad, identidad de la superficie reclamada, y la cadena de actos que produjeron la pérdida de la tierra). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "competencia_del_tribunal"|"elementos_de_restitucion"|"identidad_de_superficie"|"cadena_de_despojo", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -2823,6 +2874,12 @@ const AGENT_ENGINE: Record<string, string> = {
   reasonable_doubt_defense_theory: "agent:reasonable_doubt_defense_theory",
   sentencing_analysis: "agent:sentencing_analysis",
   appeal_opportunity_detection: "agent:appeal_opportunity_detection",
+  // Agrario specialized investigators (2026-08-04).
+  ran_record_certificate_review: "agent:ran_record_certificate_review",
+  ejido_assembly_analysis: "agent:ejido_assembly_analysis",
+  communal_land_indigenous_rights: "agent:communal_land_indigenous_rights",
+  boundary_possession_analysis: "agent:boundary_possession_analysis",
+  agrarian_jurisdiction_restitution: "agent:agrarian_jurisdiction_restitution",
 };
 
 /**

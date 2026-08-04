@@ -148,6 +148,15 @@ const MATERIA_LAW: Record<MxPipelineProfile, MateriaLaw> = {
     substantive: ["Código Civil de %STATE%", "Ley del Notariado de %STATE%", "Código Fiscal de la Federación / leyes fiscales locales (ISAI)"],
     procedural: ["Reglamento del Registro Público de la Propiedad de %STATE%", "Ley del Notariado de %STATE%"],
   },
+  agrario: {
+    // Federal jurisdiction, but "%STATE%" still applies — a Tribunal
+    // Unitario Agrario sits in a specific distrito, and the RAN's local
+    // delegación is state-specific.
+    fuero: "federal",
+    courts: ["Tribunal Unitario Agrario", "Tribunal Superior Agrario", "Registro Agrario Nacional (RAN)"],
+    substantive: ["Ley Agraria", "CPEUM Art. 27"],
+    procedural: ["Ley Agraria (Título Tercero — de la Justicia Agraria)", "Ley Orgánica de los Tribunales Agrarios"],
+  },
 };
 
 const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
@@ -162,6 +171,7 @@ const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
   administrativo: ["CPEUM Art. 14", "Art. 16", "Art. 17"],
   apelacion: ["CPEUM Art. 14", "Art. 16", "Art. 17"],
   inmobiliario: ["CPEUM Art. 14", "Art. 16", "Art. 27"],
+  agrario: ["CPEUM Art. 27", "Art. 2º (pueblos y comunidades indígenas)"],
 };
 
 const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
@@ -176,6 +186,7 @@ const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
   administrativo: "administrativa",
   apelacion: "apelación",
   inmobiliario: "inmobiliaria",
+  agrario: "agraria",
 };
 
 function normalize(s: string): string {

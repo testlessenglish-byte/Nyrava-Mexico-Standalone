@@ -55,6 +55,7 @@ export const PARTY_ROLES_BY_PROFILE: Record<MxPipelineProfile, readonly string[]
   administrativo: ["particular", "autoridad administrativa", "parte actora", "parte demandada"],
   apelacion: ["apelante", "apelado", "recurrente", "autoridad de origen"],
   inmobiliario: ["comprador", "vendedor", "Notario Público", "acreedor hipotecario"],
+  agrario: ["parte actora", "parte demandada", "núcleo agrario", "ejidatario", "comunero", "comisariado ejidal"],
 };
 
 /** Materia-appropriate substitution for each US party-role label. */
@@ -137,6 +138,13 @@ const PARTY_ROLE_SUBSTITUTIONS: Record<MxPipelineProfile, Record<string, string>
     "district attorney": "vendedor",
     plaintiff: "comprador",
     defendant: "vendedor",
+  },
+  agrario: {
+    prosecution: "parte actora",
+    prosecutor: "parte actora",
+    "district attorney": "parte actora",
+    plaintiff: "parte actora",
+    defendant: "parte demandada",
   },
 };
 

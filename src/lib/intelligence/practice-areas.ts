@@ -142,6 +142,12 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:reasonable_doubt_defense_theory",
   "agent:sentencing_analysis",
   "agent:appeal_opportunity_detection",
+  // Agrario specialized investigator agents:
+  "agent:ran_record_certificate_review",
+  "agent:ejido_assembly_analysis",
+  "agent:communal_land_indigenous_rights",
+  "agent:boundary_possession_analysis",
+  "agent:agrarian_jurisdiction_restitution",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",

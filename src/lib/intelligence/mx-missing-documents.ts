@@ -433,6 +433,46 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["poder notarial", "poder general para actos de dominio"],
     },
   ],
+  // 2026-08-04: new profile — agrario previously used "civil"'s checklist
+  // (contrato base de la accion, poderes...), which has no RAN, ejido, or
+  // deslinde documents on it at all.
+  agrario: [
+    {
+      id: "certificado_ran",
+      label_es: "Certificado parcelario o de derechos agrarios (RAN)",
+      label_en: "RAN parcel / agrarian-rights certificate",
+      authority: "Registro Agrario Nacional",
+      patterns: ["certificado parcelario", "certificado de derechos agrarios", "registro agrario nacional"],
+    },
+    {
+      id: "resolucion_asamblea_ejidal",
+      label_es: "Acta o resolución de asamblea ejidal / de bienes comunales",
+      label_en: "Ejido or comunal-lands assembly minutes / resolution",
+      authority: "Ley Agraria Art. 23",
+      patterns: ["acta de asamblea", "asamblea ejidal", "asamblea general de ejidatarios"],
+    },
+    {
+      id: "plano_parcelario_deslinde",
+      label_es: "Plano parcelario o dictamen de deslinde",
+      label_en: "Parcel plan or boundary-survey opinion",
+      authority: "Registro Agrario Nacional",
+      patterns: ["plano parcelario", "deslinde", "levantamiento topografico"],
+    },
+    {
+      id: "constancia_posesion_agraria",
+      label_es: "Constancia de posesión emitida por el comisariado ejidal",
+      label_en: "Possession certificate issued by the comisariado ejidal",
+      authority: "Ley Agraria Art. 152",
+      patterns: ["constancia de posesion", "comisariado ejidal", "constancia posesoria"],
+    },
+    {
+      id: "credencial_ejidatario",
+      label_es: "Credencial o reconocimiento como ejidatario, comunero o posesionario",
+      label_en: "Credential or recognition as ejidatario, comunero, or posesionario",
+      authority: "Ley Agraria Art. 15-16",
+      patterns: ["credencial de ejidatario", "reconocimiento de comunero", "posesionario"],
+    },
+  ],
 };
 
 export function requiredDocuments(materia: MxPipelineProfile): readonly RequiredDocument[] {

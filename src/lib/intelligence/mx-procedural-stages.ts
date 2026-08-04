@@ -581,6 +581,46 @@ const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
       patterns: ["entrega de posesion", "liberacion de fondos", "cierre de la operacion"],
     },
   ],
+  // 2026-08-04: new profile — the audiencia de ley concentrates
+  // contestación, ofrecimiento/desahogo de pruebas, and alegatos into a
+  // single hearing (Ley Agraria Art. 185), unlike civil's separated stages.
+  agrario: [
+    {
+      id: "demanda_agraria",
+      label_es: "Presentación de la demanda agraria",
+      label_en: "Agrarian complaint filed",
+      authority: "Ley Agraria Art. 170",
+      patterns: ["demanda agraria", "escrito de demanda"],
+    },
+    {
+      id: "emplazamiento_agrario",
+      label_es: "Emplazamiento o citación al demandado",
+      label_en: "Service of process / notice to the defendant",
+      authority: "Ley Agraria Art. 173",
+      patterns: ["emplazamiento", "citatorio", "notificacion personal"],
+    },
+    {
+      id: "audiencia_de_ley",
+      label_es: "Audiencia de ley (contestación, pruebas y alegatos)",
+      label_en: "Statutory hearing (answer, evidence, and closing argument)",
+      authority: "Ley Agraria Art. 185",
+      patterns: ["audiencia de ley", "desahogo de pruebas", "alegatos"],
+    },
+    {
+      id: "sentencia_agraria",
+      label_es: "Sentencia",
+      label_en: "Judgment",
+      authority: "Ley Agraria Art. 189",
+      patterns: ["sentencia", "resolutivos"],
+    },
+    {
+      id: "ejecucion_sentencia_agraria",
+      label_es: "Ejecución de sentencia",
+      label_en: "Judgment enforcement",
+      authority: "Ley Agraria Art. 192",
+      patterns: ["ejecucion de sentencia", "cumplimiento de sentencia"],
+    },
+  ],
 };
 
 export function proceduralStageMap(materia: MxPipelineProfile): readonly ProceduralStageDef[] {

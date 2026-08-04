@@ -326,6 +326,36 @@ const BY_PROFILE: Record<MxPipelineProfile, MxWorkProductVehicle[]> = {
       when: "cuando falten constancias del expediente de cierre",
     },
   ],
+  agrario: [
+    {
+      id: "demanda_agraria",
+      es: "Demanda agraria",
+      en: "Agrarian complaint",
+      basis: "Ley Agraria Art. 170",
+      when: "al iniciar el juicio agrario",
+    },
+    {
+      id: "solicitud_certificado_ran",
+      es: "Solicitud de certificado o constancia al Registro Agrario Nacional",
+      en: "Request for a RAN certificate or record",
+      basis: "Reglamento Interior del Registro Agrario Nacional",
+      when: "cuando la titularidad parcelaria o de derechos agrarios no esté documentada en el expediente",
+    },
+    {
+      id: "escrito_impugnacion_asamblea",
+      es: "Escrito de impugnación de resolución de asamblea ejidal",
+      en: "Challenge to an ejido-assembly resolution",
+      basis: "Ley Agraria Art. 23-28",
+      when: "cuando la asamblea que resolvió el asunto presente un defecto de quórum, competencia o formalidad",
+    },
+    {
+      id: "demanda_de_restitucion_de_tierras",
+      es: "Demanda de restitución de tierras",
+      en: "Land-restitution complaint",
+      basis: "Ley Agraria Art. 18, 48-49",
+      when: "cuando exista despojo o privación ilegal de la posesión o titularidad de tierras",
+    },
+  ],
 };
 
 export function mxWorkProductVehicles(profile: MxPipelineProfile): MxWorkProductVehicle[] {

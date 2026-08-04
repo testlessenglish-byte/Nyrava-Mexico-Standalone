@@ -619,6 +619,67 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       patterns: ["boleta de inscripcion", "folio real inscrito"],
     },
   ],
+  // 2026-08-04: new profile — previously agrario cases evaluated against
+  // the "civil" checklist above (demanda_requisitos under CNPCyF, etc.),
+  // which has no concept of the RAN, the ejido assembly, or a deslinde.
+  agrario: [
+    {
+      id: "demanda_agraria_requisitos",
+      label_es: "Demanda agraria con requisitos de forma",
+      label_en: "Agrarian complaint meets formal requirements",
+      authority: "Ley Agraria Art. 170",
+      requirement: "required",
+      patterns: ["demanda agraria", "tribunal unitario agrario", "juicio agrario"],
+    },
+    {
+      id: "certificado_ran",
+      label_es: "Certificado o constancia del Registro Agrario Nacional exhibido",
+      label_en: "Registro Agrario Nacional certificate or record attached",
+      authority: "Ley Agraria Art. 152; Reglamento Interior del RAN",
+      requirement: "required",
+      patterns: ["certificado parcelario", "certificado de derechos agrarios", "registro agrario nacional", " ran "],
+    },
+    {
+      id: "resolucion_asamblea_ejidal",
+      label_es: "Resolución de asamblea ejidal o de bienes comunales acreditada",
+      label_en: "Ejido or comunal-lands assembly resolution evidenced",
+      authority: "Ley Agraria Art. 23",
+      requirement: "required",
+      patterns: ["asamblea ejidal", "asamblea general de ejidatarios", "acta de asamblea"],
+    },
+    {
+      id: "emplazamiento_agrario",
+      label_es: "Emplazamiento al demandado y, en su caso, al núcleo agrario",
+      label_en: "Service of process on the defendant and, where relevant, the agrarian núcleo",
+      authority: "Ley Agraria Art. 173",
+      requirement: "required",
+      patterns: ["emplazamiento", "citatorio", "notificacion personal"],
+    },
+    {
+      id: "audiencia_ley_agraria",
+      label_es: "Audiencia de ley (contestación, pruebas y alegatos en una sola audiencia)",
+      label_en: "Statutory hearing (answer, evidence, and closing argument in one session)",
+      authority: "Ley Agraria Art. 185",
+      requirement: "required",
+      patterns: ["audiencia de ley", "desahogo de pruebas", "alegatos"],
+    },
+    {
+      id: "dictamen_deslinde",
+      label_es: "Dictamen de deslinde o levantamiento topográfico, cuando el litigio verse sobre límites",
+      label_en: "Boundary-survey (deslinde) opinion, when the dispute concerns limits",
+      authority: "Ley Agraria Art. 56; Reglamento Interior del RAN",
+      requirement: "recommended",
+      patterns: ["deslinde", "levantamiento topografico", "plano parcelario"],
+    },
+    {
+      id: "plazo_accion_agraria",
+      label_es: "Acción promovida dentro del plazo aplicable",
+      label_en: "Action filed within the applicable limitation period",
+      authority: "Ley Agraria (el plazo varía según la acción ejercida)",
+      requirement: "recommended",
+      patterns: ["prescripcion", "caducidad"],
+    },
+  ],
 };
 
 function normalize(s: string): string {
