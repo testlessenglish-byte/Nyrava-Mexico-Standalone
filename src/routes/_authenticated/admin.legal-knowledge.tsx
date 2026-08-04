@@ -1,9 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getNlknStats, testConnectorSync, type TestConnectorSyncResult } from "@/lib/legal-knowledge-admin.functions";
-import { BookOpen, Database, ShieldCheck, ShieldAlert, RefreshCw, Clock, AlertTriangle, PlayCircle } from "lucide-react";
+import {
+  getNlknStats,
+  testConnectorSync,
+  listPendingAuthorities,
+  markAuthorityVerified,
+  type TestConnectorSyncResult,
+} from "@/lib/legal-knowledge-admin.functions";
+import { BookOpen, Database, ShieldCheck, ShieldAlert, RefreshCw, Clock, AlertTriangle, PlayCircle, Check, X, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/legal-knowledge")({
   head: () => ({ meta: [{ title: "Legal Knowledge Network — Nyrava" }] }),
@@ -106,6 +112,12 @@ function LegalKnowledgePage() {
               </div>
             )}
           </div>
+
+          {/* Pending-authority review — the missing verification workflow.
+              Only jurisprudencia/court_decision rows show up here: those
+              are the only kinds case-law grounding actually cites, and
+              nothing is citable until a human explicitly approves it here. */}
+          <PendingAuthoritiesReview />
 
           {/* Connectors */}
           <div className="rounded-xl border border-border bg-card p-5">
@@ -237,6 +249,133 @@ function LegalKnowledgePage() {
             )}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function PendingAuthoritiesReview() {
+  const queryClient = useQueryClient();
+  const [offset, setOffset] = useState(0);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const limit = 10;
+
+  const fetchPending = useServerFn(listPendingAuthorities);
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["nlkn-pending-authorities", offset],
+    queryFn: () => fetchPending({ data: { limit, offset } }),
+  });
+
+  const reviewFn = useServerFn(markAuthorityVerified);
+  const review = useMutation({
+    mutationFn: (vars: { authorityId: string; decision: "verified" | "failed_verification" }) =>
+      reviewFn({ data: vars }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nlkn-pending-authorities"] });
+      queryClient.invalidateQueries({ queryKey: ["nlkn-stats"] });
+    },
+  });
+
+  const total = data?.total ?? 0;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Revisión de autoridades pendientes {total > 0 ? `(${total})` : ""}
+        </h2>
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Ninguna jurisprudencia o resolución judicial se cita en un reporte hasta que se revisa y aprueba aquí — la
+        ingesta automática solo indica que el texto se descargó de la fuente, no que ya fue verificado.
+      </p>
+
+      {isLoading ? (
+        <div className="py-6 text-center text-xs text-muted-foreground">Cargando…</div>
+      ) : total === 0 ? (
+        <div className="rounded-lg border border-success/30 bg-success/5 px-3 py-4 text-center text-xs text-success">
+          No hay jurisprudencia ni resoluciones pendientes de revisión.
+        </div>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {data!.rows.map((a) => {
+              const isOpen = expanded === a.id;
+              const isReviewing = review.isPending && review.variables?.authorityId === a.id;
+              return (
+                <div key={a.id} className="rounded-lg border border-border bg-background/40 px-3 py-2 text-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <button
+                      className="flex-1 text-left"
+                      onClick={() => setExpanded(isOpen ? null : a.id)}
+                    >
+                      <div className="font-medium">{a.shortTitle ?? a.title}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {a.issuer ?? "Emisor desconocido"}
+                        {a.citation ? ` · ${a.citation}` : ""}
+                        {a.publishedAt ? ` · ${new Date(a.publishedAt).toLocaleDateString()}` : ""}
+                        {" · "}
+                        {a.kind}
+                      </div>
+                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {a.sourceUrl && (
+                        <a
+                          href={a.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                        >
+                          <ExternalLink className="h-3 w-3" /> Fuente
+                        </a>
+                      )}
+                      <button
+                        onClick={() => review.mutate({ authorityId: a.id, decision: "verified" })}
+                        disabled={isReviewing}
+                        className="flex items-center gap-1 rounded-md border border-success/40 px-2 py-1 text-xs font-medium text-success hover:bg-success/10 disabled:opacity-50"
+                      >
+                        <Check className="h-3.5 w-3.5" /> Verificar
+                      </button>
+                      <button
+                        onClick={() => review.mutate({ authorityId: a.id, decision: "failed_verification" })}
+                        disabled={isReviewing}
+                        className="flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                      >
+                        <X className="h-3.5 w-3.5" /> Rechazar
+                      </button>
+                    </div>
+                  </div>
+                  {isOpen && (
+                    <div className="mt-2 max-h-64 overflow-y-auto rounded border border-border bg-muted/30 p-2 text-xs leading-relaxed text-foreground/90">
+                      {a.bodyPreview || "Sin texto extraído."}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {offset + 1}–{Math.min(offset + limit, total)} de {total}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setOffset(Math.max(0, offset - limit))}
+                disabled={offset === 0 || isFetching}
+                className="rounded-md border border-border px-2 py-1 hover:bg-accent disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setOffset(offset + limit)}
+                disabled={offset + limit >= total || isFetching}
+                className="rounded-md border border-border px-2 py-1 hover:bg-accent disabled:opacity-40"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
