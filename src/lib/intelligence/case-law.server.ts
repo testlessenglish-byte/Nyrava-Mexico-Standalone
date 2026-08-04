@@ -88,11 +88,24 @@ export async function searchCaseLaw(
     // 'law', 'constitution' — not relevant to case-law grounding). The
     // original .eq("kind", "jurisprudence") matched zero rows against
     // real data. Querying both actually-populated kinds instead.
+    // FIX (2026-08-04): this query never filtered on verification_status,
+    // so it cited whatever the connectors scraped straight off DOF/SCJN/CJF
+    // with zero review — the column's own migration comment says "AI may
+    // only cite verified authorities by default," but nothing ever enforced
+    // that here. Confirmed live: 1000/1000 legal_authorities rows sit at
+    // the column's DEFAULT 'pending' because no verification workflow was
+    // ever built (see legal-knowledge-admin.functions.ts's new
+    // markAuthorityVerified for that missing piece). Until an authority has
+    // been explicitly reviewed and marked 'verified', it must not be cited
+    // in a report — an unreviewed government scrape is not the same thing
+    // as a verified legal citation, and the platform's own accuracy bar
+    // requires the latter.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (db as any)
       .from("legal_authorities")
       .select("title,short_title,citation,issuer,published_at,source_url,body,metadata")
       .in("kind", ["jurisprudencia", "court_decision"])
+      .eq("verification_status", "verified")
       .textSearch("body", query, { type: "websearch", config: "spanish" })
       .order("published_at", { ascending: false })
       .limit(max);
