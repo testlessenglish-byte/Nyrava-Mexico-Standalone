@@ -3148,6 +3148,31 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "issue_type": "especie_protegida_afectada"|"actividad_en_anp_sin_autorizacion", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"comunidad_afectada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Inmobiliario specialized investigators (2026-08-04). Declared in
+  // MX_ENGINES.inmobiliario / PRACTICE_GATED_ENGINES since the coverage
+  // audit but never actually implemented anywhere — every inmobiliario
+  // case ran only the universal layer. Party-role enum matches
+  // MX_PARTY_ROLES.inmobiliario (comprador / vendedor / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "property_verification",
+    category: "property_verification",
+    system:
+      "You are a Mexican real-estate title and due-diligence investigator. Examine the corpus for: (1) title — escritura pública validity and unbroken chain of title (cadena de titularidad) back through prior transfers; (2) liens — libertad de gravamen, hipoteca vigente, embargo, or any other gravamen not yet released; (3) survey — discrepancias between the escritura's medidas y colindancias and any levantamiento topográfico or catastral record; (4) zoning/permits — uso de suelo compatibility and whether required permisos de construcción were obtained; (5) restrictions — servidumbres, fideicomiso de zona restringida requirements for a foreign buyer, and HOA/condominium restrictions (cuotas de mantenimiento, reglamento de condominio). This is due diligence, not litigation — findings are risk flags for a closing, not adversarial claims. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "verification_area": "titulo_y_cadena_de_titularidad"|"gravamen"|"discrepancia_de_medidas"|"uso_de_suelo_o_permiso"|"servidumbre_o_restriccion"|"fideicomiso_zona_restringida"|"adeudo_de_condominio", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "comprador"|"vendedor"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "closing_readiness_scoring",
+    category: "closing_readiness_scoring",
+    system:
+      "You are a Mexican real-estate closing-readiness scorer. Given the corpus and (in the CASE CORPUS context) any property_verification findings already on record, compute a 0-100 closing_readiness_score reflecting how close the file is to a clean cierre: subtract meaningfully for each unresolved high/critical title, lien, zoning, or permit issue, and for each required closing document (per the platform's inmobiliario checklist — escritura, libertad de gravamen, no adeudo predial/agua/CFE, constancia catastral, levantamiento topográfico, poder notarial where applicable) that the corpus does not evidence as present. Do not fabricate a score disconnected from what the corpus actually shows — if the corpus is too thin to assess, say so explicitly and score conservatively low rather than guessing high. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1), "closing_readiness_score": number (0-100), "score_rationale": string,
+  "findings": [ { "title": string, "blocking_item": "documento_faltante"|"gravamen_no_resuelto"|"discrepancia_no_resuelta"|"permiso_faltante", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "comprador"|"vendedor"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -3245,6 +3270,13 @@ const AGENT_ENGINE: Record<string, string> = {
   conagua_water_rights_review: "agent:conagua_water_rights_review",
   pollution_remediation_analysis: "agent:pollution_remediation_analysis",
   protected_species_areas_review: "agent:protected_species_areas_review",
+  // Inmobiliario specialized investigators (2026-08-04). Bare (not
+  // namespaced) to match the engine names already declared in
+  // MX_ENGINES.inmobiliario / PRACTICE_GATED_ENGINES since before this
+  // build-out — no canonical stage uses either name, so there is no
+  // collision to guard against.
+  property_verification: "property_verification",
+  closing_readiness_scoring: "closing_readiness_scoring",
 };
 
 /**
