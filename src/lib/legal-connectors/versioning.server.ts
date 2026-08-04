@@ -11,6 +11,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { IngestedDocument } from "./types";
+import { deriveAuthorityLevel } from "./authority-level";
+import { sha256Hex } from "@/lib/intelligence/evidence-provenance.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -28,7 +30,7 @@ export async function upsertAuthorityWithVersioning(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existing } = await (db as any)
     .from("legal_authorities")
-    .select("id,body,metadata")
+    .select("id,body,metadata,authority_level")
     .eq("metadata->>external_id", doc.externalId)
     .eq("metadata->>connector_code", connectorCode)
     .maybeSingle();
@@ -51,6 +53,8 @@ export async function upsertAuthorityWithVersioning(
         source_url: doc.sourceUrl,
         body: doc.rawText,
         metadata,
+        authority_level: deriveAuthorityLevel(doc.kind, doc.jurisdiction),
+        content_hash: sha256Hex(doc.rawText),
       })
       .select("id")
       .single();
@@ -66,6 +70,9 @@ export async function upsertAuthorityWithVersioning(
       body: existing.body,
       metadata: existing.metadata,
       archived_at: new Date().toISOString(),
+      // Hash of the version being ARCHIVED (the outgoing text), not the
+      // incoming one — this row is the historical snapshot.
+      content_hash: sha256Hex(existing.body ?? ""),
     });
   }
 
@@ -82,6 +89,11 @@ export async function upsertAuthorityWithVersioning(
       body: doc.rawText,
       metadata,
       updated_at: new Date().toISOString(),
+      content_hash: sha256Hex(doc.rawText),
+      // Never overwrite a level that's already set — either this same
+      // function set it on a prior ingest, or a human reviewer corrected
+      // it; either way it's not this run's call to change.
+      authority_level: existing.authority_level ?? deriveAuthorityLevel(doc.kind, doc.jurisdiction),
     })
     .eq("id", existing.id);
   if (updateErr) throw new Error(`Update failed for ${doc.externalId}: ${updateErr.message}`);

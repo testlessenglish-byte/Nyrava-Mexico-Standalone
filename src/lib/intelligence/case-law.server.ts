@@ -103,10 +103,18 @@ export async function searchCaseLaw(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (db as any)
       .from("legal_authorities")
-      .select("title,short_title,citation,issuer,published_at,source_url,body,metadata")
+      .select("title,short_title,citation,issuer,published_at,source_url,body,metadata,authority_level")
       .in("kind", ["jurisprudencia", "court_decision"])
       .eq("verification_status", "verified")
       .textSearch("body", query, { type: "websearch", config: "spanish" })
+      // Trust-level first (SCJN binding jurisprudencia over a persuasive
+      // circuit-court ruling — see authority-level.ts), recency as the
+      // tiebreaker within the same tier. `nullsFirst: false` sends any
+      // still-unbackfilled row (authority_level null — pre-Phase-2 rows
+      // ingested before this column was populated) to the bottom rather
+      // than letting Postgres's default NULLS-LAST-on-DESC accidentally
+      // do the wrong thing on a re-order.
+      .order("authority_level", { ascending: false, nullsFirst: false })
       .order("published_at", { ascending: false })
       .limit(max);
 
