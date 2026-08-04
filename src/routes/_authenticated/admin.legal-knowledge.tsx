@@ -7,7 +7,10 @@ import {
   testConnectorSync,
   listPendingAuthorities,
   markAuthorityVerified,
+  searchVerifiedAuthorities,
+  markAuthoritySuperseded,
   type TestConnectorSyncResult,
+  type AuthoritySearchResult,
 } from "@/lib/legal-knowledge-admin.functions";
 import { BookOpen, Database, ShieldCheck, ShieldAlert, RefreshCw, Clock, AlertTriangle, PlayCircle, Check, X, ExternalLink } from "lucide-react";
 
@@ -123,6 +126,11 @@ function LegalKnowledgePage() {
               are the only kinds case-law grounding actually cites, and
               nothing is citable until a human explicitly approves it here. */}
           <PendingAuthoritiesReview />
+
+          {/* Authority supersession — deliberately human-reviewed, not
+              automated: see markAuthoritySuperseded's own doc comment for
+              why. The reviewer picks both authorities explicitly. */}
+          <SupersessionReview />
 
           {/* Connectors */}
           <div className="rounded-xl border border-border bg-card p-5">
@@ -383,6 +391,133 @@ function PendingAuthoritiesReview() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Simple two-picker search — search a verified authority, click a result
+ * to select it. No autocomplete/debounce library; matches the rest of this
+ * dashboard's plain, functional style.
+ */
+function AuthorityPicker({
+  label,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  selected: AuthoritySearchResult | null;
+  onSelect: (a: AuthoritySearchResult | null) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const searchFn = useServerFn(searchVerifiedAuthorities);
+  const search = useMutation({ mutationFn: (q: string) => searchFn({ data: { query: q } }) });
+
+  if (selected) {
+    return (
+      <div className="rounded-lg border border-border bg-background/40 px-3 py-2 text-sm">
+        <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="font-medium">{selected.shortTitle ?? selected.title}</div>
+            <div className="text-xs text-muted-foreground">{selected.citation ?? selected.kind}</div>
+          </div>
+          <button
+            onClick={() => onSelect(null)}
+            className="shrink-0 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+          >
+            Cambiar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-background/40 px-3 py-2 text-sm">
+      <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="flex gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && query.trim().length >= 3 && search.mutate(query.trim())}
+          placeholder="Buscar por título o registro (mín. 3 caracteres)…"
+          className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs"
+        />
+        <button
+          onClick={() => query.trim().length >= 3 && search.mutate(query.trim())}
+          disabled={query.trim().length < 3 || search.isPending}
+          className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:opacity-40"
+        >
+          Buscar
+        </button>
+      </div>
+      {search.data && (
+        <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+          {search.data.rows.length === 0 ? (
+            <div className="px-1 py-1 text-xs text-muted-foreground">Sin resultados.</div>
+          ) : (
+            search.data.rows.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => onSelect(a)}
+                className="block w-full rounded-md px-2 py-1 text-left text-xs hover:bg-accent"
+              >
+                <div className="font-medium">{a.shortTitle ?? a.title}</div>
+                <div className="text-muted-foreground">{a.citation ?? a.kind}</div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupersessionReview() {
+  const queryClient = useQueryClient();
+  const [outgoing, setOutgoing] = useState<AuthoritySearchResult | null>(null);
+  const [incoming, setIncoming] = useState<AuthoritySearchResult | null>(null);
+
+  const markFn = useServerFn(markAuthoritySuperseded);
+  const mark = useMutation({
+    mutationFn: () =>
+      markFn({ data: { authorityId: outgoing!.id, supersededByAuthorityId: incoming!.id } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nlkn-stats"] });
+      setOutgoing(null);
+      setIncoming(null);
+    },
+  });
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Marcar autoridad como superada
+      </h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Acción explícita, revisada por un humano — el sistema nunca detecta esto automáticamente. Selecciona la
+        autoridad que dejó de ser vigente y la que la reemplaza.
+      </p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <AuthorityPicker label="Autoridad superada" selected={outgoing} onSelect={setOutgoing} />
+        <AuthorityPicker label="Autoridad que la sustituye" selected={incoming} onSelect={setIncoming} />
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          onClick={() => mark.mutate()}
+          disabled={!outgoing || !incoming || mark.isPending}
+          className="rounded-md border border-warning/40 px-3 py-1.5 text-xs font-medium text-warning hover:bg-warning/10 disabled:opacity-40"
+        >
+          {mark.isPending ? "Guardando…" : "Confirmar supersesión"}
+        </button>
+        {mark.isError && (
+          <span className="text-xs text-destructive">
+            {mark.error instanceof Error ? mark.error.message : String(mark.error)}
+          </span>
+        )}
+        {mark.isSuccess && <span className="text-xs text-success">Guardado.</span>}
+      </div>
     </div>
   );
 }
