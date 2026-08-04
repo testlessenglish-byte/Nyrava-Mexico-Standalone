@@ -41,6 +41,7 @@ import {
   type MxTaskTemplate,
   type MexicanCaseType,
 } from "@/lib/jurisdiction/mexico";
+import { executionProfileFor, type ExecutionProfile } from "@/lib/jurisdiction/execution-profile";
 
 /** Canonical Mexican materia. Alias retained for existing call sites. */
 export type PracticeArea = MexicanCaseType;
@@ -124,8 +125,17 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:constitutional_compliance",
   "chain_of_custody",
   "procedural_violations",
-  "trial_prep",
   "cross_examination",
+  // Amparo / Constitucional specialized investigator agents:
+  "agent:standing_procedencia",
+  "agent:suspension_analysis",
+  "agent:conventionality_pro_persona",
+  "agent:constitutional_rights_mapping",
+  "agent:authority_notification_validation",
+  "agent:international_human_rights_analysis",
+  // Constitucional (controversia constitucional / acción de
+  // inconstitucionalidad) only:
+  "agent:constitutional_controversy_analysis",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",
@@ -502,6 +512,9 @@ export interface CaseTypeManifest {
   enabled_sections: string[];
   enabled_tabs: string[];
   allowed_motion_types: string[];
+  /** Governing-law framework for this materia — see execution-profile.ts.
+   *  Deliberately excludes case-law citations; see that module's header. */
+  execution_profile: ExecutionProfile;
   generated_at: string;
 }
 
@@ -536,6 +549,7 @@ export function buildCaseTypeManifest(area: AreaInput, activeDomains?: DomainSet
     enabled_sections: Array.from(getApplicableSections(base, domains)).sort(),
     enabled_tabs: Array.from(getApplicableTabs(base, domains)).sort(),
     allowed_motion_types: Array.from(getAllowedMotionTypes(base, domains)).sort(),
+    execution_profile: executionProfileFor(base),
     generated_at: new Date().toISOString(),
   };
 }

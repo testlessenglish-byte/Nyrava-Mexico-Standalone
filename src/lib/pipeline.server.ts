@@ -2654,6 +2654,80 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Amparo / Constitucional specialized investigators (2026-08-04).
+  // Gated via PRACTICE_GATED_ENGINES + MX_ENGINES.amparo/constitucional —
+  // see AGENT_ENGINE below and the isAnalyzerAllowed() filter at the top of
+  // this stage. Party-role enum matches MX_PARTY_ROLES.amparo (quejoso /
+  // autoridad_responsable / tercero_interesado / ambas), not the generic
+  // parte_actora/parte_demandada pair used by the four materia-agnostic
+  // agents above.
+  // ---------------------------------------------------------------------
+  {
+    type: "standing_procedencia",
+    category: "standing_procedencia",
+    system:
+      "You are a Mexican amparo/constitutional-standing investigator. Examine the record for interés jurídico (afectación a un derecho subjetivo del quejoso), interés legítimo (afectación a una situación jurídica derivada del ordenamiento, sin titularidad de un derecho subjetivo — art. 5, fr. I, Ley de Amparo), el principio de definitividad (agotamiento previo de los recursos ordinarios, salvo las excepciones reconocidas por la Ley de Amparo: actos que afecten a personas extrañas al juicio, actos prohibidos por el art. 22 constitucional, actos de ejecución de imposible reparación, o vulneración directa a derechos humanos que amerite suplencia de la queja) y el principio de subsidiariedad (el amparo no sustituye a los medios ordinarios de defensa). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "procedencia_issue": "interes_juridico"|"interes_legitimo"|"definitividad"|"subsidiariedad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "suspension_analysis",
+    category: "suspension_analysis",
+    system:
+      "You are a Mexican amparo/constitutional-suspension investigator. Examine whether la suspensión de oficio y de plano procede (art. 126 Ley de Amparo: actos que importen peligro de privación de la vida, ataques a la libertad personal fuera de procedimiento, incomunicación, deportación, expulsión, actos prohibidos por el art. 22 constitucional, sometimiento a jurisdicción militar) frente a la suspensión a petición de parte (arts. 128-131: apariencia del buen derecho, no afectación al interés social, no contravención de disposiciones de orden público), y evalúa el daño irreparable que la suspensión busca prevenir. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "suspension_type": "de_oficio_y_de_plano"|"a_peticion_de_parte"|"improcedente", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "conventionality_pro_persona",
+    category: "conventionality_pro_persona",
+    system:
+      "You are a Mexican control-de-convencionalidad and principio-pro-persona investigator, applying art. 1° constitucional (reforma de 2011) and the obligatory control difuso de convencionalidad every Mexican judge must exercise ex officio within their competence, confronting internal norms against the Constitution and the international human-rights treaties ratified by Mexico. Examine whether the acto reclamado or the challenged resolution applied the most favorable interpretation to the person (principio pro persona) when two or more interpretations were available, and whether control de convencionalidad was performed or omitted. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely. Do NOT invent a specific SCJN tesis registry number or Corte IDH paragraph citation — name only the doctrine, and flag that the exact citation needs human verification. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "constitutional_rights_mapping",
+    category: "constitutional_rights_mapping",
+    system:
+      "You are a Mexican fundamental-rights mapping investigator. Map which fundamental rights recognized in the CPEUM (Capítulo I, 'De los Derechos Humanos y sus Garantías') and in the international human-rights treaties ratified by Mexico are implicated by the acto reclamado or the controversy, identifying the specific constitutional article or international instrument for each right. Do NOT invent a specific tesis or jurisprudencia citation — identify only the right and its normative source (article or treaty), leaving the exact case-law citation to human research. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "right": string, "normative_source": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "authority_notification_validation",
+    category: "authority_notification_validation",
+    system:
+      "You are a Mexican responsible-authority and notification-validity investigator for amparo and constitutional proceedings. Examine whether the authority named as autoridad responsable had material, temporal, and territorial competence to have issued, ordered, or executed the acto reclamado, and whether notifications of the acto reclamado, the informe justificado, the suspensión, and the sentencia were made in accordance with the Ley de Amparo (arts. 26-33) within the corresponding deadlines. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "competencia_de_la_autoridad"|"notificacion_defectuosa"|"plazo_incumplido", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "international_human_rights_analysis",
+    category: "international_human_rights_analysis",
+    system:
+      "You are an international human-rights-law investigator for Mexican amparo and constitutional matters. Identify which international human-rights treaties ratified by Mexico (e.g. Convención Americana sobre Derechos Humanos, Pacto Internacional de Derechos Civiles y Políticos, Convenio 169 de la OIT sobre Pueblos Indígenas y Tribales, Convención sobre los Derechos del Niño, CEDAW, Convención Interamericana para Prevenir y Sancionar la Tortura — as relevant to the facts) apply, and which state obligations (respetar, proteger, garantizar) are at issue. Do NOT invent a specific Corte IDH judgment number, paragraph, or treaty-body opinion citation — identify only the instrument and the applicable obligation; the exact case-law citation requires human verification. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "treaty": string, "obligation": "respetar"|"proteger"|"garantizar", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    // Constitucional (controversia constitucional / acción de
+    // inconstitucionalidad) only — see MX_ENGINES.constitucional.
+    type: "constitutional_controversy_analysis",
+    category: "constitutional_controversy_analysis",
+    system:
+      "You are a specialized investigator for controversias constitucionales and acciones de inconstitucionalidad (art. 105 CPEUM and its ley reglamentaria). Examine the record to (a) identify any invasión de competencias between orders of government (federación, estados, municipios, alcaldías) or between poderes, (b) apply the test de proporcionalidad in its three prongs — idoneidad (the measure pursues a constitutionally valid end), necesidad (no less-restrictive alternative is equally suitable), and proporcionalidad en sentido estricto (benefits outweigh costs) — when the claim involves a restriction on a right or a competencia, and (c) apply the test de igualdad (categoría sospechosa, escrutinio aplicable, fin constitucionalmente imperioso) when an unjustified differential treatment is alleged. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "test": "invasion_de_competencias"|"idoneidad"|"necesidad"|"proporcionalidad_en_sentido_estricto"|"test_de_igualdad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
 ];
 
 // Map agent.type → engine key persisted in pipeline_engine_runs.
@@ -2678,6 +2752,16 @@ const AGENT_ENGINE: Record<string, string> = {
   // stay bare, there is no collision to fix.
   constitutional_compliance: "agent:constitutional_compliance",
   procedural_violations: "procedural_violations",
+  // Amparo / Constitucional specialized investigators (2026-08-04) — none of
+  // these collide with a canonical stage key, but namespaced anyway per the
+  // established convention for every agent added since the 2026-08-01 fix.
+  standing_procedencia: "agent:standing_procedencia",
+  suspension_analysis: "agent:suspension_analysis",
+  conventionality_pro_persona: "agent:conventionality_pro_persona",
+  constitutional_rights_mapping: "agent:constitutional_rights_mapping",
+  authority_notification_validation: "agent:authority_notification_validation",
+  international_human_rights_analysis: "agent:international_human_rights_analysis",
+  constitutional_controversy_analysis: "agent:constitutional_controversy_analysis",
 };
 
 /**
@@ -2698,11 +2782,14 @@ const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
  * How many investigator agents may execute simultaneously inside the "agents"
  * stage.
  *
- * The four agents (witness_credibility, chain_of_custody,
- * constitutional_compliance, procedural_violations) are genuinely independent:
- * each one's only input is the shared corpus plus its own system/user prompt.
- * None reads another's agent_findings, summary, or confidence, so ordering is
- * a scheduling choice, not a correctness constraint.
+ * Every entry in AGENTS (four materia-agnostic agents, plus the
+ * seven amparo/constitucional-gated specialists added 2026-08-04) is
+ * genuinely independent: each one's only input is the shared corpus plus its
+ * own system/user prompt. None reads another's agent_findings, summary, or
+ * confidence, so ordering is a scheduling choice, not a correctness
+ * constraint. A constitucional case now activates up to 11 agents instead of
+ * 4 — more checkpointed ticks to converge, not a correctness risk, since the
+ * per-tick budget and per-batch checkpoint are unchanged.
  *
  * 2026-07-30: raised 1 → 2. At 1, a 9-chunk corpus needed ~36 sequential Groq
  * calls; measured wall clock was ~15-20 min for ~5 min of actual AI time —
@@ -2803,7 +2890,19 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     // Practice-area context for every agent prompt so the LLM doesn't invent
     // off-domain findings (e.g. Miranda on a contract dispute).
     const { PRACTICE_AREA_LABELS, normalizePracticeArea } = await import("./intelligence/practice-areas");
-    const areaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(area)];
+    const normalizedArea = normalizePracticeArea(area);
+    const areaLabel = PRACTICE_AREA_LABELS[normalizedArea];
+    const { executionProfileFor } = await import("./jurisdiction/execution-profile");
+    const execProfile = executionProfileFor(normalizedArea);
+    const execProfilePreamble =
+      `GOVERNING FRAMEWORK for ${areaLabel}: ` +
+      `laws — ${execProfile.governingLaws.map((l) => l.code).join(", ")}. ` +
+      `constitutional articles — ${execProfile.constitutionalArticles.map((a) => a.article).join(", ")}. ` +
+      (execProfile.treaties.length > 0 ? `treaties — ${execProfile.treaties.map((t) => t.short).join(", ")}. ` : "") +
+      `Burden of proof: ${execProfile.burdenOfProof} ` +
+      `Standing: ${execProfile.standing} ` +
+      `${execProfile.precedentGuidance} Never invent a specific case-law citation (registry number, paragraph, docket) — ` +
+      `name only the doctrine or the deciding body, and flag that the exact citation needs human verification.`;
     const areaPreamble =
       `${mexicoLock(await getReportLocale(db, caseId))}\n` +
       `CASE TYPE: ${areaLabel} (${area}). ` +
@@ -2811,7 +2910,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       `Do NOT manufacture findings from other practice areas. ` +
       `Do NOT infer missing procedural facts (service of process, deadlines, custody chains) ` +
       `that are not affirmatively established by a verbatim quote in the corpus. ` +
-      `If the corpus does not establish a fact, omit the finding.`;
+      `If the corpus does not establish a fact, omit the finding.\n` +
+      execProfilePreamble;
 
     // Grounding corpus for agents that require verbatim citation (currently
     // only chain_of_custody — every other agent is untouched per directive).

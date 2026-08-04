@@ -153,31 +153,47 @@ export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
   inmobiliario: ["opportunities", "perspectives", "scorecard", "transaction_center"],
 };
 
+// NOTE (2026-08-04): `trial_prep` was removed entirely from CANONICAL_STAGES
+// on 2026-08-02 — it no longer exists as a runnable stage for any materia.
+// Every prior entry here listed it anyway; that stale reference is dropped
+// below (it never caused a functional bug, since a non-existent stage can
+// never be scheduled, but it was misleading policy data).
 export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
-  penal: ["chain_of_custody", "constitutional_compliance", "cross_examination", "procedural_violations", "trial_prep"],
-  civil: ["cross_examination", "trial_prep"],
-  mercantil: ["cross_examination", "trial_prep"],
+  penal: ["chain_of_custody", "constitutional_compliance", "cross_examination", "procedural_violations"],
+  civil: ["cross_examination"],
+  mercantil: ["cross_examination"],
   familiar: [],
-  laboral: ["trial_prep"],
-  administrativo: ["cross_examination", "trial_prep"],
-  fiscal: ["cross_examination", "trial_prep"],
-  amparo: ["chain_of_custody", "constitutional_compliance", "cross_examination", "procedural_violations", "trial_prep"],
+  laboral: [],
+  administrativo: ["cross_examination"],
+  fiscal: ["cross_examination"],
+  amparo: [
+    "chain_of_custody",
+    "constitutional_compliance",
+    "cross_examination",
+    "procedural_violations",
+    "agent:standing_procedencia",
+    "agent:suspension_analysis",
+    "agent:conventionality_pro_persona",
+    "agent:constitutional_rights_mapping",
+    "agent:authority_notification_validation",
+    "agent:international_human_rights_analysis",
+  ],
   constitucional: [
     "chain_of_custody",
     "constitutional_compliance",
     "cross_examination",
     "procedural_violations",
-    "trial_prep",
+    "agent:standing_procedencia",
+    "agent:suspension_analysis",
+    "agent:conventionality_pro_persona",
+    "agent:constitutional_rights_mapping",
+    "agent:authority_notification_validation",
+    "agent:international_human_rights_analysis",
+    "agent:constitutional_controversy_analysis",
   ],
-  electoral: [
-    "chain_of_custody",
-    "constitutional_compliance",
-    "cross_examination",
-    "procedural_violations",
-    "trial_prep",
-  ],
-  agrario: ["cross_examination", "trial_prep"],
-  ambiental: ["constitutional_compliance", "cross_examination", "trial_prep"],
+  electoral: ["chain_of_custody", "constitutional_compliance", "cross_examination", "procedural_violations"],
+  agrario: ["cross_examination"],
+  ambiental: ["constitutional_compliance", "cross_examination"],
   inmobiliario: ["property_verification", "closing_readiness_scoring"],
 };
 
@@ -510,10 +526,13 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
   ],
   amparo: [
     "acto_reclamado",
+    "authority_notification_validation",
     "autoridad_responsable",
     "conceptos_de_violacion",
     "constitutional",
+    "constitutional_rights_mapping",
     "control_de_convencionalidad",
+    "conventionality_pro_persona",
     "cumplimiento_de_sentencia_de_amparo",
     "debido_proceso",
     "derechos_fundamentales",
@@ -521,23 +540,39 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "improcedencia",
     "interes_juridico",
     "interes_legitimo",
+    "international_human_rights_analysis",
     "principio_pro_persona",
     "procedencia",
     "procedural",
+    "standing_procedencia",
     "suplencia_de_la_queja",
     "suspension",
+    "suspension_analysis",
     "suspension_de_plano",
     "tercero_interesado",
     "tortura",
     "uso_excesivo_de_la_fuerza",
     "violacion_derechos_humanos",
   ],
+  // 2026-08-04: previously a byte-for-byte copy of amparo's list. Left the
+  // shared amparo-style tokens (acto_reclamado, interes_juridico, etc. — a
+  // controversia constitucional / acción de inconstitucionalidad case can
+  // still legitimately raise them) but added the doctrine specific to
+  // constitutional-controversy adjudication that amparo doesn't have: which
+  // used to mean a genuine controversia constitucional case had nowhere to
+  // record an invasión de competencias or proportionality-test finding.
   constitucional: [
     "acto_reclamado",
+    "authority_notification_validation",
     "autoridad_responsable",
+    "bloque_de_constitucionalidad",
     "conceptos_de_violacion",
     "constitutional",
+    "constitutional_controversy_analysis",
+    "constitutional_rights_mapping",
     "control_de_convencionalidad",
+    "control_difuso",
+    "conventionality_pro_persona",
     "cumplimiento_de_sentencia_de_amparo",
     "debido_proceso",
     "derechos_fundamentales",
@@ -545,13 +580,20 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "improcedencia",
     "interes_juridico",
     "interes_legitimo",
+    "international_human_rights_analysis",
+    "invasion_de_competencias",
+    "principio_de_division_de_poderes",
     "principio_pro_persona",
     "procedencia",
     "procedural",
+    "standing_procedencia",
     "suplencia_de_la_queja",
     "suspension",
+    "suspension_analysis",
     "suspension_de_plano",
     "tercero_interesado",
+    "test_de_igualdad",
+    "test_de_proporcionalidad",
     "tortura",
     "uso_excesivo_de_la_fuerza",
     "violacion_derechos_humanos",
@@ -782,19 +824,25 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
     "recurso_de_revision",
     "suspension_de_plano",
   ],
+  // 2026-08-04: previously a byte-for-byte copy of amparo's motion list
+  // (demanda_de_amparo, incidente_de_suspensión...) — legally the wrong
+  // vehicle for a controversia constitucional / acción de
+  // inconstitucionalidad, which is a distinct action under art. 105 CPEUM
+  // with its own procedural instruments, not an amparo. A genuinely
+  // classified "constitucional" case could previously only draft amparo
+  // filings — the wrong procedural vía for that action entirely.
   constitucional: [
-    "alegatos",
-    "ampliacion_de_demanda_de_amparo",
-    "demanda_de_amparo",
-    "denuncia_de_repeticion_del_acto_reclamado",
-    "incidente_de_cumplimiento_sustituto",
-    "incidente_de_inejecucion_de_sentencia",
-    "incidente_de_suspension",
+    "alegatos_controversia_constitucional",
+    "ampliacion_de_demanda_controversia_constitucional",
+    "contestacion_de_demanda_controversia_constitucional",
+    "demanda_de_accion_de_inconstitucionalidad",
+    "demanda_de_controversia_constitucional",
+    "informe_de_ley_controversia_constitucional",
     "ofrecimiento_pruebas",
-    "recurso_de_queja",
-    "recurso_de_reclamacion",
-    "recurso_de_revision",
-    "suspension_de_plano",
+    "opinion_de_la_procuraduria_general",
+    "promocion_de_incidente_de_suspension_controversia",
+    "recurso_de_reclamacion_controversia",
+    "recurso_de_reclamacion_accion_inconstitucionalidad",
   ],
   electoral: [
     "alegatos",
