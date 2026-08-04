@@ -7552,6 +7552,31 @@ ${paginationTail}`;
         `evidence_map: ${evidenceMap.totals.missing_evidence}/${evidenceMap.totals.total} documents classified as missing_evidence (unreadable or empty).`,
       );
     }
+    // report-quality-gate.ts's scoreReportQuality() result (spread into
+    // full_report.quality_gate via `...parsed` above) was computed and
+    // persisted but never read anywhere else in the codebase — confirmed by
+    // grep, the only occurrence of "quality_gate" before this line was its
+    // own write site. Surface it as a warning, the same non-blocking
+    // pattern as citation_audit/report_quality/ocr_coverage/evidence_map
+    // just above. Deliberately NOT added to blockReasons: its own header
+    // comment says the 70-point threshold and dimension weights are
+    // hand-picked, not calibrated against real attorney outcomes yet — the
+    // same kind of premature-blocking risk that forced release-gate.ts's
+    // 2026-07-31 revert to warning-only after it wrongly blocked a correct
+    // report. Making the score visible now is the safe, valuable step;
+    // promoting it to blocking is a separate, later decision that needs
+    // real calibration data first.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const qualityGate = (reportRow.full_report as any)?.quality_gate as
+      | { score?: number; passed?: boolean; critical_issues?: string[] }
+      | undefined;
+    if (qualityGate && !qualityGate.passed) {
+      const issues = qualityGate.critical_issues ?? [];
+      pipelineWarnings.push(
+        `quality_gate: score ${qualityGate.score ?? "?"}/100, below the 70-point readiness threshold` +
+          (issues.length > 0 ? ` — ${issues.join("; ")}` : " — see full_report.quality_gate for detail"),
+      );
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow as any).quality_blocked = blockReasons.length > 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

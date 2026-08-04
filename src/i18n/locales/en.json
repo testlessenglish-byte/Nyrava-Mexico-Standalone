@@ -321,6 +321,8 @@
   "caseWorkspace.noReportHint": "Generate report to include full report sections. PDF/JSON work anytime.",
   "caseWorkspace.reportBlocked": "Report blocked: citation integrity failed",
   "caseWorkspace.reportBlocked.json": "JSON export remains available for audit.",
+  "caseWorkspace.qualityGate.label": "Report quality score",
+  "caseWorkspace.qualityGate.notPassed": "Below the readiness threshold — review before relying on this report as-is.",
   "caseWorkspace.talk.subtitle": "Ask questions. Get Nyrava Intelligence answers with evidence citations.",
   "caseWorkspace.talk.title": "Talk to this case",
   "caseWorkspace.timestamps": "Timestamps",
