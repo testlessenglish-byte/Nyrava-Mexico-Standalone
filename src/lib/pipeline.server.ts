@@ -2717,6 +2717,61 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "treaty": string, "obligation": "respetar"|"proteger"|"garantizar", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Penal specialized investigators (2026-08-04). Grouped: the four
+  // "forensic sub-type" agents in the original wishlist (DNA / ballistics /
+  // digital / cellular) are ONE agent here, not four — most penal
+  // expedientes have only one or two of those modalities present, and four
+  // near-identical narrow agents would sit empty on most cases. One rigorous
+  // evidence-reliability agent that names the modality per finding is more
+  // useful than four thin ones. Party-role enum matches MX_PARTY_ROLES.penal
+  // (ministerio_publico / defensa / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "search_warrant_arrest_legality",
+    category: "search_warrant_arrest_legality",
+    system:
+      "You are a Mexican search-and-arrest legality investigator under the CNPP and arts. 16 and 19 CPEUM. Examine whether any cateo (search warrant) was authorized by a juez de control with sufficient motivación (specific place, object of search, persons involved) and executed within its terms (arts. 282-291 CNPP), and whether any detención (arrest) was either backed by an orden de aprehensión issued on sufficient grounds, or — for flagrancia or caso urgente — met the constitutional standard for warrantless arrest (art. 16, párrafos quinto-séptimo CPEUM), including the mandatory 'puesta a disposición sin demora' before the Ministerio Público/juez. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "act_type": "cateo"|"detencion_con_orden"|"detencion_por_flagrancia"|"detencion_por_caso_urgente"|"puesta_a_disposicion", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "forensic_digital_evidence_analysis",
+    category: "forensic_digital_evidence_analysis",
+    system:
+      "You are a Mexican forensic and digital-evidence reliability investigator. Examine every dictamen pericial in the corpus — biológico/genético (ADN), balístico, informático/digital (telefonía celular, extracción de dispositivos), or de cualquier otra especialidad presente — for: (a) la calidad y certificación del perito, (b) la metodología empleada y si es una técnica científicamente aceptada, (c) la cadena de custodia de la muestra o dispositivo desde su recolección hasta el dictamen, y (d) si las conclusiones del perito están razonablemente sustentadas por los datos técnicos reportados, no solo afirmadas. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "evidence_type": "adn"|"balistica"|"informatico_forense"|"telefonia_celular"|"otro", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "reasonable_doubt_defense_theory",
+    category: "reasonable_doubt_defense_theory",
+    system:
+      "You are a Mexican criminal-defense investigator building a reasonable-doubt theory (duda razonable) protected by the presunción de inocencia (art. 20, apartado B, fracción I CPEUM). Examine the prosecution's theory of the case as reflected in the corpus for factual gaps, inconsistent or uncorroborated testimony, breaks in the cadena de custodia, alternative explanations for the evidence, and any element of the delito the Ministerio Público has not affirmatively established. This agent argues FOR the defense — do not soften or omit a genuine weakness in the prosecution's case out of caution. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "gap_type": "elemento_del_delito_no_acreditado"|"testimonio_no_corroborado"|"ruptura_cadena_custodia"|"explicacion_alternativa"|"inconsistencia_factica", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defensa", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "sentencing_analysis",
+    category: "sentencing_analysis",
+    system:
+      "You are a Mexican sentencing (individualización de la pena) investigator. Examine the corpus for factors relevant to sentencing under the applicable código penal: atenuantes (mitigating factors — primo delincuente, reparación del daño, colaboración, condiciones socioeconómicas y culturales) and agravantes (aggravating factors — reincidencia, ensañamiento, posición de autoridad o confianza abusada), and any basis for salidas alternas (suspensión condicional del proceso, acuerdo reparatorio) or procedimiento abreviado. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "factor_type": "atenuante"|"agravante"|"salida_alterna_disponible", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "appeal_opportunity_detection",
+    category: "appeal_opportunity_detection",
+    system:
+      "You are a Mexican criminal-appeal opportunity investigator. Examine the corpus for grounds to challenge a resolution via recurso de apelación (CNPP arts. 467-471) or, where the conviction is final, via amparo directo — errores en la valoración de la prueba, violación al debido proceso, indebida fundamentación o motivación de la sentencia, o aplicación incorrecta de la ley penal. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "ground": "error_en_valoracion_de_prueba"|"violacion_al_debido_proceso"|"indebida_fundamentacion_motivacion"|"aplicacion_incorrecta_de_la_ley", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -2762,6 +2817,12 @@ const AGENT_ENGINE: Record<string, string> = {
   authority_notification_validation: "agent:authority_notification_validation",
   international_human_rights_analysis: "agent:international_human_rights_analysis",
   constitutional_controversy_analysis: "agent:constitutional_controversy_analysis",
+  // Penal specialized investigators (2026-08-04).
+  search_warrant_arrest_legality: "agent:search_warrant_arrest_legality",
+  forensic_digital_evidence_analysis: "agent:forensic_digital_evidence_analysis",
+  reasonable_doubt_defense_theory: "agent:reasonable_doubt_defense_theory",
+  sentencing_analysis: "agent:sentencing_analysis",
+  appeal_opportunity_detection: "agent:appeal_opportunity_detection",
 };
 
 /**

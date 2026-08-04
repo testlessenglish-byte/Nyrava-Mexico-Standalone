@@ -136,6 +136,12 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   // Constitucional (controversia constitucional / acción de
   // inconstitucionalidad) only:
   "agent:constitutional_controversy_analysis",
+  // Penal specialized investigator agents:
+  "agent:search_warrant_arrest_legality",
+  "agent:forensic_digital_evidence_analysis",
+  "agent:reasonable_doubt_defense_theory",
+  "agent:sentencing_analysis",
+  "agent:appeal_opportunity_detection",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",

@@ -159,7 +159,17 @@ export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
 // below (it never caused a functional bug, since a non-existent stage can
 // never be scheduled, but it was misleading policy data).
 export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
-  penal: ["chain_of_custody", "constitutional_compliance", "cross_examination", "procedural_violations"],
+  penal: [
+    "chain_of_custody",
+    "constitutional_compliance",
+    "cross_examination",
+    "procedural_violations",
+    "agent:search_warrant_arrest_legality",
+    "agent:forensic_digital_evidence_analysis",
+    "agent:reasonable_doubt_defense_theory",
+    "agent:sentencing_analysis",
+    "agent:appeal_opportunity_detection",
+  ],
   civil: ["cross_examination"],
   mercantil: ["cross_examination"],
   familiar: [],
@@ -199,6 +209,7 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
 
 export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
   penal: [
+    "appeal_opportunity_detection",
     "cadena_de_custodia",
     "carpeta_de_investigacion",
     "datos_de_prueba",
@@ -207,13 +218,17 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "defraudacion_fiscal",
     "detencion_ilegal",
     "exclusion_de_prueba_ilicita",
+    "forensic_digital_evidence_analysis",
     "individualizacion_sancion",
     "medidas_cautelares",
     "presuncion_de_inocencia",
     "prision_preventiva_oficiosa",
     "procedural",
+    "reasonable_doubt_defense_theory",
     "reparacion_del_dano",
     "salidas_alternas",
+    "search_warrant_arrest_legality",
+    "sentencing_analysis",
     "teoria_del_caso",
     "vinculacion_a_proceso",
   ],
