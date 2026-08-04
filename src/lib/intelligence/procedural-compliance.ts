@@ -717,6 +717,43 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       patterns: ["dentro del plazo", "cuatro dias"],
     },
   ],
+  // 2026-08-04: new profile — previously ambiental cases evaluated against
+  // the "administrativo" checklist, which has no MIA, PROFEPA, or CONAGUA
+  // concepts on it.
+  ambiental: [
+    {
+      id: "mia_o_estudio_de_riesgo",
+      label_es: "Manifestación de impacto ambiental o estudio de riesgo presentado",
+      label_en: "Environmental impact assessment or risk study filed",
+      authority: "LGEEPA Art. 28-35",
+      requirement: "required",
+      patterns: ["manifestacion de impacto ambiental", "estudio de riesgo ambiental", " mia "],
+    },
+    {
+      id: "licencia_ambiental_vigente",
+      label_es: "Licencia ambiental única o autorización vigente",
+      label_en: "Current environmental license/authorization",
+      authority: "LGEEPA",
+      requirement: "required",
+      patterns: ["licencia ambiental unica", "autorizacion en materia de impacto ambiental"],
+    },
+    {
+      id: "acta_de_inspeccion_profepa",
+      label_es: "Acta de inspección o visita de PROFEPA/ASEA, si hubo procedimiento sancionador",
+      label_en: "PROFEPA/ASEA inspection record, if a sanctioning procedure was opened",
+      authority: "LGEEPA (procedimiento administrativo sancionador)",
+      requirement: "recommended",
+      patterns: ["acta de inspeccion", "visita de verificacion", "procedimiento administrativo profepa"],
+    },
+    {
+      id: "concesion_o_permiso_conagua",
+      label_es: "Título de concesión de agua o permiso de descarga (si aplica)",
+      label_en: "Water concession title or discharge permit (if applicable)",
+      authority: "Ley de Aguas Nacionales",
+      requirement: "recommended",
+      patterns: ["titulo de concesion", "permiso de descarga", "conagua"],
+    },
+  ],
 };
 
 function normalize(s: string): string {

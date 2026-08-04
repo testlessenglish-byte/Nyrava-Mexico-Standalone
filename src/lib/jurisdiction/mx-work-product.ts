@@ -379,6 +379,29 @@ const BY_PROFILE: Record<MxPipelineProfile, MxWorkProductVehicle[]> = {
       when: "cuando exista una infracción a la normativa electoral por un sujeto obligado",
     },
   ],
+  ambiental: [
+    {
+      id: "denuncia_popular_ambiental",
+      es: "Denuncia popular ambiental",
+      en: "Environmental citizen complaint",
+      basis: "LGEEPA Art. 189",
+      when: "cuando cualquier habitante de la comunidad afectada denuncie un hecho, acto u omisión que produzca desequilibrio ecológico o daño ambiental",
+    },
+    {
+      id: "recurso_de_revision_ambiental",
+      es: "Recurso de revisión ambiental",
+      en: "Environmental administrative review",
+      basis: "LGEEPA",
+      when: "para impugnar un acto de PROFEPA/ASEA/CONAGUA ante la propia autoridad",
+    },
+    {
+      id: "demanda_juicio_de_nulidad_ambiental",
+      es: "Demanda de juicio de nulidad ambiental",
+      en: "Environmental nullity-action complaint",
+      basis: "Ley Federal de Procedimiento Contencioso Administrativo",
+      when: "para impugnar la resolución definitiva de PROFEPA/ASEA/CONAGUA ante el TFJA",
+    },
+  ],
 };
 
 export function mxWorkProductVehicles(profile: MxPipelineProfile): MxWorkProductVehicle[] {

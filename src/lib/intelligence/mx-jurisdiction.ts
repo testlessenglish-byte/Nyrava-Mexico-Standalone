@@ -163,6 +163,12 @@ const MATERIA_LAW: Record<MxPipelineProfile, MateriaLaw> = {
     substantive: ["LGIPE", "LGPP", "CPEUM Art. 35, 41"],
     procedural: ["Ley General del Sistema de Medios de Impugnación en Materia Electoral (LGSMIME)"],
   },
+  ambiental: {
+    fuero: "mixto",
+    courts: ["PROFEPA", "ASEA", "CONAGUA", "Tribunal Federal de Justicia Administrativa (TFJA)"],
+    substantive: ["LGEEPA", "Ley General de Vida Silvestre", "Ley de Aguas Nacionales", "CPEUM Art. 4"],
+    procedural: ["LGEEPA (procedimiento administrativo sancionador)", "Ley Federal de Procedimiento Contencioso Administrativo"],
+  },
 };
 
 const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
@@ -179,6 +185,7 @@ const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
   inmobiliario: ["CPEUM Art. 14", "Art. 16", "Art. 27"],
   agrario: ["CPEUM Art. 27", "Art. 2º (pueblos y comunidades indígenas)"],
   electoral: ["CPEUM Art. 35", "Art. 41", "Art. 116 fracción IV"],
+  ambiental: ["CPEUM Art. 4 (derecho a un medio ambiente sano)"],
 };
 
 const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
@@ -195,6 +202,7 @@ const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
   inmobiliario: "inmobiliaria",
   agrario: "agraria",
   electoral: "electoral",
+  ambiental: "ambiental",
 };
 
 function normalize(s: string): string {

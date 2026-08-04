@@ -44,7 +44,8 @@ export type MxPipelineProfile =
   | "apelacion"
   | "inmobiliario"
   | "agrario"
-  | "electoral";
+  | "electoral"
+  | "ambiental";
 
 export const MX_JURISDICTION = "MX" as const;
 
@@ -79,10 +80,11 @@ const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
   // 419/2026: the case got the exact same document checklist, procedural
   // checklist, and finding taxonomy as an ordinary civil contract dispute.
   agrario: "agrario",
-  // Ambiental: contentious-administrative track (PROFEPA sanction ->
-  // recurso de revisión -> juicio de nulidad ante el TFJA), same profile
-  // rationale as electoral above.
-  ambiental: "administrativo",
+  // 2026-08-04: previously routed through "administrativo" — has real
+  // doctrine of its own (MIA, PROFEPA/ASEA/CONAGUA compliance, protected
+  // species/areas) but no document/procedural checklist to match. Own
+  // profile now, same rationale as electoral/agrario above.
+  ambiental: "ambiental",
   // Transactional, not adversarial — does not share civil's litigation
   // profile (that would pull in trial_prep/discovery/witness stages meant
   // for a lawsuit, not a closing). See EXCLUDED_STAGES below.
@@ -208,6 +210,16 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // expediente y las constancias documentales (actas, paquetes
   // electorales) — no hay desahogo de prueba testimonial en audiencia.
   electoral: ["witness"],
+  // Procedimiento administrativo sancionador ambiental (PROFEPA/ASEA) o
+  // juicio de nulidad ante el TFJA: se resuelve sobre el expediente técnico
+  // y documental — no hay desahogo de prueba testimonial en audiencia.
+  // "constitutional" is deliberately NOT excluded here (unlike
+  // administrativo): the derecho a un medio ambiente sano (art. 4 CPEUM) is
+  // routinely the substantive basis of an ambiental claim, and
+  // MX_ENGINES.ambiental already allows constitutional_compliance to run —
+  // excluding the stage here would silently contradict that and make the
+  // engine dead for every ambiental case.
+  ambiental: ["witness"],
 };
 
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */
@@ -269,6 +281,10 @@ export const MX_PARTY_ROLES: Record<
   // interesado — e.g. the candidate/party that benefited from the
   // challenged act, distinct from the actor and the responsible authority.
   electoral: { a: "actor", b: "autoridad_responsable", c: "tercero_interesado", neutral: "ambas" },
+  // LGEEPA's acción popular (art. 189) lets any affected community member
+  // denounce — a distinct role from the regulated particular being
+  // sanctioned by PROFEPA/ASEA/CONAGUA.
+  ambiental: { a: "particular", b: "autoridad", c: "comunidad_afectada", neutral: "ambas" },
 };
 
 /** JSON-schema-ready enum string, e.g. `"parte_actora"|"parte_demandada"|"ambas"`, for a given case type. */

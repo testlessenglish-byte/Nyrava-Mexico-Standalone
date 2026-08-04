@@ -57,6 +57,7 @@ export const PARTY_ROLES_BY_PROFILE: Record<MxPipelineProfile, readonly string[]
   inmobiliario: ["comprador", "vendedor", "Notario Público", "acreedor hipotecario"],
   agrario: ["parte actora", "parte demandada", "núcleo agrario", "ejidatario", "comunero", "comisariado ejidal"],
   electoral: ["actor", "autoridad responsable", "tercero interesado", "partido político", "candidato"],
+  ambiental: ["particular", "autoridad", "comunidad afectada", "PROFEPA", "ASEA", "CONAGUA"],
 };
 
 /** Materia-appropriate substitution for each US party-role label. */
@@ -153,6 +154,13 @@ const PARTY_ROLE_SUBSTITUTIONS: Record<MxPipelineProfile, Record<string, string>
     "district attorney": "autoridad responsable",
     plaintiff: "actor",
     defendant: "autoridad responsable",
+  },
+  ambiental: {
+    prosecution: "autoridad",
+    prosecutor: "autoridad",
+    "district attorney": "autoridad",
+    plaintiff: "comunidad afectada",
+    defendant: "particular",
   },
 };
 

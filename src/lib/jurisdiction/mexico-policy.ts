@@ -252,7 +252,15 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "agent:boundary_possession_analysis",
     "agent:agrarian_jurisdiction_restitution",
   ],
-  ambiental: ["constitutional_compliance", "cross_examination"],
+  ambiental: [
+    "constitutional_compliance",
+    "cross_examination",
+    "agent:mia_impact_assessment_review",
+    "agent:profepa_asea_compliance_review",
+    "agent:conagua_water_rights_review",
+    "agent:pollution_remediation_analysis",
+    "agent:protected_species_areas_review",
+  ],
   inmobiliario: ["property_verification", "closing_readiness_scoring"],
 };
 
@@ -735,9 +743,14 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
   ambiental: [
     "autorizacion_cambio_uso_suelo",
     "clausura_profepa",
+    "conagua_water_rights_review",
     "concesion_agua_conagua",
     "dano_ambiental",
     "denuncia_popular_ambiental",
+    "mia_impact_assessment_review",
+    "pollution_remediation_analysis",
+    "profepa_asea_compliance_review",
+    "protected_species_areas_review",
     "descarga_aguas_residuales",
     "emisiones_contaminantes",
     "estudio_riesgo_ambiental",

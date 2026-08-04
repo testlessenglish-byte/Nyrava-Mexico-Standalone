@@ -428,6 +428,11 @@ const RULES: Record<MxPipelineProfile, readonly DeadlineRule[]> = {
   // entry above: left for a follow-up pass with per-vehicle verification
   // rather than guessed now.
   electoral: [],
+  // 2026-08-04: new profile. Left empty for the same reason as agrario and
+  // electoral above — PROFEPA/ASEA sanctioning-procedure terms and the
+  // juicio de nulidad's 30-día term (LFPCA) are real but need per-act
+  // verification before being asserted as a fact-computing rule.
+  ambiental: [],
 };
 
 export function deadlineRules(materia: MxPipelineProfile): readonly DeadlineRule[] {

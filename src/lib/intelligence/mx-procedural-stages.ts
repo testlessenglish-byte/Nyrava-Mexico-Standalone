@@ -652,6 +652,37 @@ const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
       patterns: ["sentencia", "resuelve"],
     },
   ],
+  // 2026-08-04: new profile.
+  ambiental: [
+    {
+      id: "mia_presentada",
+      label_es: "Presentación de la MIA o estudio de riesgo",
+      label_en: "Environmental impact assessment / risk study filed",
+      authority: "LGEEPA Art. 28-35",
+      patterns: ["manifestacion de impacto ambiental", "estudio de riesgo ambiental"],
+    },
+    {
+      id: "visita_de_inspeccion",
+      label_es: "Visita de inspección PROFEPA/ASEA",
+      label_en: "PROFEPA/ASEA inspection visit",
+      authority: "LGEEPA (procedimiento administrativo sancionador)",
+      patterns: ["visita de verificacion", "acta de inspeccion"],
+    },
+    {
+      id: "medidas_de_seguridad_o_clausura",
+      label_es: "Medidas de seguridad o clausura impuestas",
+      label_en: "Safety measures or closure imposed",
+      authority: "LGEEPA",
+      patterns: ["medidas de seguridad", "clausura"],
+    },
+    {
+      id: "resolucion_administrativa_ambiental",
+      label_es: "Resolución del procedimiento administrativo sancionador",
+      label_en: "Sanctioning-procedure resolution",
+      authority: "LGEEPA",
+      patterns: ["resolucion administrativa", "resolutivo"],
+    },
+  ],
 };
 
 export function proceduralStageMap(materia: MxPipelineProfile): readonly ProceduralStageDef[] {

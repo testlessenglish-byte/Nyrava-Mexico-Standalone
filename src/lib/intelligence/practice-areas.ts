@@ -182,6 +182,12 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:vote_counting_chain_of_custody",
   "agent:political_violence_gender_parity",
   "agent:electoral_nullity_analysis",
+  // Ambiental specialized investigator agents:
+  "agent:mia_impact_assessment_review",
+  "agent:profepa_asea_compliance_review",
+  "agent:conagua_water_rights_review",
+  "agent:pollution_remediation_analysis",
+  "agent:protected_species_areas_review",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",

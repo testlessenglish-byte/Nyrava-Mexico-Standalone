@@ -505,6 +505,38 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["cadena de custodia", "paquete electoral"],
     },
   ],
+  // 2026-08-04: new profile — ambiental previously used "administrativo"'s
+  // checklist, which has no MIA/PROFEPA/CONAGUA documents on it.
+  ambiental: [
+    {
+      id: "mia_documento",
+      label_es: "Manifestación de impacto ambiental",
+      label_en: "Environmental impact assessment",
+      authority: "LGEEPA Art. 28-35",
+      patterns: ["manifestacion de impacto ambiental", " mia "],
+    },
+    {
+      id: "licencia_ambiental_unica_doc",
+      label_es: "Licencia ambiental única",
+      label_en: "Single environmental license",
+      authority: "LGEEPA",
+      patterns: ["licencia ambiental unica"],
+    },
+    {
+      id: "acta_de_inspeccion_doc",
+      label_es: "Acta de inspección o visita de verificación",
+      label_en: "Inspection or verification-visit record",
+      authority: "PROFEPA/ASEA",
+      patterns: ["acta de inspeccion", "visita de verificacion"],
+    },
+    {
+      id: "titulo_concesion_agua_doc",
+      label_es: "Título de concesión de agua",
+      label_en: "Water concession title",
+      authority: "Ley de Aguas Nacionales",
+      patterns: ["titulo de concesion", "concesion de agua"],
+    },
+  ],
 };
 
 export function requiredDocuments(materia: MxPipelineProfile): readonly RequiredDocument[] {
