@@ -2943,6 +2943,46 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "stage": "conciliacion"|"quiebra"|"no_determinado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Laboral specialized investigators (2026-08-04). Party-role enum matches
+  // MX_PARTY_ROLES.laboral (trabajador / patron / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "lft_compliance_review",
+    category: "lft_compliance_review",
+    system:
+      "You are a Mexican labor-law compliance investigator under the Ley Federal del Trabajo. Examine the corpus for compliance with jornada laboral (arts. 58-68, límites y horas extra), descansos y vacaciones (arts. 69-81), aguinaldo (art. 87), prima vacacional (art. 80), reparto de utilidades/PTU (arts. 117-131), and NOM-035 (riesgos psicosociales) where relevant, flagging any documented deviation from the statutory minimums. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "compliance_area": "jornada_laboral"|"descansos_y_vacaciones"|"aguinaldo"|"prima_vacacional"|"ptu"|"nom_035", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "payroll_overtime_imss_audit",
+    category: "payroll_overtime_imss_audit",
+    system:
+      "You are a Mexican payroll, overtime, and IMSS-compliance investigator. Examine recibos de nómina, registros de horas, and constancias del IMSS/INFONAVIT in the corpus for horas extra no pagadas (art. 66-68 LFT: doble hasta 9 horas semanales, triple después), discrepancies between salario registrado ante el IMSS and salario real (a common source of liability), and any gap in the patron's cuotas obrero-patronales. Do not invent a specific peso figure the corpus does not support. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "horas_extra_no_pagadas"|"discrepancia_salario_imss"|"cuotas_obrero_patronales_faltantes"|"recibo_no_documentado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "wrongful_termination_analysis",
+    category: "wrongful_termination_analysis",
+    system:
+      "You are a Mexican wrongful-termination (despido injustificado) investigator. Examine whether a rescisión de la relación laboral was properly grounded in one of the causales of art. 47 LFT, whether the aviso de rescisión was delivered as art. 47 requires (in writing, with the specific conduct and date, either to the worker or filed with the Junta/Tribunal within 5 days), and — per art. 784/804 LFT — whether the patrón discharged its burden to produce the personnel file. Also assess whether the worker's own conduct (art. 51 rescisión por causa imputable al patrón) supports a claim in the opposite direction. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "causal_no_acreditada"|"aviso_de_rescision_defectuoso"|"carga_probatoria_del_patron"|"rescision_por_causa_del_patron", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "union_discrimination_review",
+    category: "union_discrimination_review",
+    system:
+      "You are a Mexican union-rights and workplace-discrimination investigator. Examine the corpus for libertad sindical violations (art. 123 apartado A fracción XVI CPEUM, arts. 356-373 LFT — represalia por afiliación sindical, cláusula de exclusión indebida) and for discriminación laboral (art. 1 CPEUM, art. 3 LFT — trato diferenciado por origen étnico, género, edad, discapacidad, condición social, embarazo, orientación sexual, u otro motivo prohibido) and hostigamiento/acoso laboral (art. 3 Bis LFT). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "violacion_libertad_sindical"|"discriminacion_laboral"|"hostigamiento_o_acoso", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -3015,6 +3055,11 @@ const AGENT_ENGINE: Record<string, string> = {
   commercial_contract_intelligence: "agent:commercial_contract_intelligence",
   financial_fraud_commercial_risk: "agent:financial_fraud_commercial_risk",
   bankruptcy_concurso_review: "agent:bankruptcy_concurso_review",
+  // Laboral specialized investigators (2026-08-04).
+  lft_compliance_review: "agent:lft_compliance_review",
+  payroll_overtime_imss_audit: "agent:payroll_overtime_imss_audit",
+  wrongful_termination_analysis: "agent:wrongful_termination_analysis",
+  union_discrimination_review: "agent:union_discrimination_review",
 };
 
 /**

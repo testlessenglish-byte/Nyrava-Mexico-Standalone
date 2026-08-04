@@ -163,6 +163,11 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:commercial_contract_intelligence",
   "agent:financial_fraud_commercial_risk",
   "agent:bankruptcy_concurso_review",
+  // Laboral specialized investigator agents:
+  "agent:lft_compliance_review",
+  "agent:payroll_overtime_imss_audit",
+  "agent:wrongful_termination_analysis",
+  "agent:union_discrimination_review",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",
