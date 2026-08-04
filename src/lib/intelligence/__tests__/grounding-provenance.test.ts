@@ -83,6 +83,59 @@ describe("verifyEvidenceRefs — character-offset location", () => {
   });
 });
 
+describe("verifyEvidenceRefs — chunk-level hashing", () => {
+  it("attaches chunk_index 0 and a chunk_hash equal to the containing page's own hash for a single-page document", () => {
+    const [v] = verifyEvidenceRefs([{ doc_n: 1, quote: "El arrendador José Pérez entrega en arrendamiento" }], corpus);
+    expect(v.chunk_index).toBe(0);
+    expect(v.chunk_hash).toMatch(/^[0-9a-f]{64}$/);
+    // Whole doc-A text fits in one page at the default 3000-char pageChars,
+    // so the chunk hash for page 0 must equal the document hash itself.
+    expect(v.chunk_hash).toBe(v.document_hash);
+  });
+
+  it("hashes only the specific page a quote lands on, not the whole document, once a document spans multiple pages", () => {
+    const pageChars = 20;
+    const docText =
+      "PRIMERA PAGINA CORTA " + // page 0: chars 0-19 approx
+      "SEGUNDA PAGINA AQUI TIENE LA CLAUSULA IMPORTANTE DEL CONTRATO " + // page 1+
+      "TERCERA PAGINA FINAL DEL DOCUMENTO COMPLETO";
+    const multiPageCorpus = buildGroundingCorpus(
+      [{ id: "doc-multi", filename: "grande.pdf", extracted_text: docText }],
+      pageChars,
+    );
+    const doc = multiPageCorpus.docs[0];
+    expect(doc.pages.length).toBeGreaterThan(1);
+
+    // Pick a quote that is guaranteed to live entirely within a single page
+    // by locating it against the raw text first, then asserting the
+    // verified citation's chunk_hash matches ONLY that page — not a hash of
+    // doc.pages.join("") (the whole document).
+    const quote = "CLAUSULA IMPORTANTE";
+    const rawStart = docText.indexOf(quote);
+    expect(rawStart).toBeGreaterThan(-1);
+    const expectedChunkIndex = Math.floor(rawStart / pageChars);
+
+    const [v] = verifyEvidenceRefs([{ doc_n: 1, quote }], multiPageCorpus);
+    expect(v).toBeDefined();
+    expect(v.chunk_index).toBe(expectedChunkIndex);
+    expect(v.chunk_hash).toBe(doc.pageHashes[expectedChunkIndex]);
+    // And it must NOT equal the whole-document hash — proving this is a
+    // finer-grained signal than document_hash, not a duplicate of it.
+    expect(v.chunk_hash).not.toBe(v.document_hash);
+  });
+
+  it("leaves chunk_index/chunk_hash null (never fabricated) alongside null offsets for a soft/fuzzy-only match", () => {
+    const [v] = verifyEvidenceRefs(
+      [{ doc_n: 1, quote: "José Pérez arrendador el arrendamiento entrega" }],
+      corpus,
+    );
+    if (v && v.start_offset === null) {
+      expect(v.chunk_index).toBeNull();
+      expect(v.chunk_hash).toBeNull();
+    }
+  });
+});
+
 describe("groundItems — provenance flows through to the caller-facing shape", () => {
   it("carries offsets, hashes, and source_reattributed into provenance.sources", () => {
     const [item] = groundItems(

@@ -6351,6 +6351,8 @@ ${paginationTail}`;
         end_offset: null,
         page_located: null,
         document_hash: null,
+        chunk_index: null,
+        chunk_hash: null,
         citation_hash: null,
         source_reattributed: false,
         ...ref,
