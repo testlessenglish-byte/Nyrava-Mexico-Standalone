@@ -13,31 +13,63 @@ type Db = SupabaseClient<Database>;
 // A case that hasn't heartbeat in this long is considered stalled.
 const DEFAULT_STALL_MS = 4 * 60 * 1000;
 
+// A case may be auto-retried this many times before the watchdog stops
+// retrying and falls back to the old "mark failed, wait for a human to click
+// Resume" behavior. Bounded so a deterministically-hanging stage (a real bug,
+// not a transient timeout) doesn't retry forever and burn AI spend silently —
+// it surfaces as a normal stall requiring attention after this many tries,
+// same as before this change existed.
+const MAX_AUTO_STALL_RETRIES = 3;
+
 export async function sweepStalledCases(
   db: Db,
   opts?: { staleMs?: number; caseId?: string },
-): Promise<{ swept: number; ids: string[] }> {
+): Promise<{ swept: number; autoRetried: number; ids: string[] }> {
   const staleMs = opts?.staleMs ?? DEFAULT_STALL_MS;
   const cutoff = new Date(Date.now() - staleMs).toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q: any = (db as any)
     .from("cases")
-    .select("id,status,updated_at,worker_lease_until,queued_at")
+    .select("id,status,updated_at,worker_lease_until,queued_at,stall_auto_retry_count")
     .in("status", ["extracting", "analyzing", "agents_running", "intelligence_running", "scoring", "reporting", "queued"])
     .lt("updated_at", cutoff);
   if (opts?.caseId) q = q.eq("id", opts.caseId);
   const { data: rows } = await q;
-  const candidates = (rows ?? []) as Array<{ id: string; worker_lease_until: string | null }>;
+  const candidates = (rows ?? []) as Array<{
+    id: string;
+    worker_lease_until: string | null;
+    stall_auto_retry_count: number | null;
+  }>;
   const stalled = candidates.filter((c) => {
     // Respect an unexpired lease — an active worker is still allowed its
     // full lease window regardless of the coarser updated_at heuristic.
     if (!c.worker_lease_until) return true;
     return new Date(c.worker_lease_until).getTime() < Date.now();
   });
-  // Even when no case rows meet the stall cutoff, still sweep orphan
-  // engine-run rows below — a case may have completed while individual
-  // engine rows were left `running` by a killed worker.
-  const ids = stalled.map((c) => c.id);
+
+  // Split by remaining auto-retry budget: cases still under the cap get
+  // requeued automatically instead of dumped on the user to manually resume.
+  const retryable = stalled.filter((c) => (c.stall_auto_retry_count ?? 0) < MAX_AUTO_STALL_RETRIES);
+  const exhausted = stalled.filter((c) => (c.stall_auto_retry_count ?? 0) >= MAX_AUTO_STALL_RETRIES);
+
+  let autoRetried = 0;
+  const autoRetriedIds = new Set<string>();
+  for (const c of retryable) {
+    try {
+      const { autoRequeueStalledCase } = await import("./cases.functions");
+      const result = await autoRequeueStalledCase(db, c.id);
+      if (result.ok) {
+        autoRetried += 1;
+        autoRetriedIds.add(c.id);
+      }
+      console.info(`[stall-watchdog] auto-retried case ${c.id}${result.resumeKey ? ` at ${result.resumeKey}` : ""}`);
+    } catch (e) {
+      console.warn(`[stall-watchdog] auto-retry failed for case ${c.id}, falling back to manual-resume`, e);
+      exhausted.push(c);
+    }
+  }
+
+  const ids = exhausted.map((c) => c.id);
   if (ids.length) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (db as any)
@@ -88,10 +120,14 @@ export async function sweepStalledCases(
     console.warn("[stall-watchdog] ledger sweep failed", ledgerErr);
   } else if (ledgerCount && ledgerCount > 0) {
     console.info(`[stall-watchdog] force-failed ${ledgerCount} stale engine run(s)`);
+    // Exclude cases this same sweep just auto-retried above — otherwise this
+    // orphan-ledger cleanup (which runs unconditionally, independent of the
+    // case-level retry budget) would immediately re-fail a case in the same
+    // call that just successfully requeued it back to "queued".
     const ledgerCaseIds = [...new Set(
       ((ledgerRows as Array<{ case_id?: string | null }> | null) ?? [])
         .map((r) => r.case_id)
-        .filter((id): id is string => typeof id === "string" && id.length > 0),
+        .filter((id): id is string => typeof id === "string" && id.length > 0 && !autoRetriedIds.has(id)),
     )];
     if (ledgerCaseIds.length > 0) {
       // If a stale engine row timed out, the case itself must not remain
@@ -116,8 +152,8 @@ export async function sweepStalledCases(
     }
   }
 
-  if (ids.length) console.info(`[stall-watchdog] swept ${ids.length} stalled case(s)`);
-  return { swept: ids.length, ids };
+  if (ids.length) console.info(`[stall-watchdog] force-failed ${ids.length} stalled case(s) (retry budget exhausted)`);
+  return { swept: ids.length, autoRetried, ids };
 }
 
 

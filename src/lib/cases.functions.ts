@@ -1274,6 +1274,123 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
     return { ok: true, queued: true, startFrom: resumeKey };
   });
 
+// Bounded auto-retry after a stall, called ONLY by pipeline-stall.server.ts's
+// sweepStalledCases() for cases still under MAX_AUTO_STALL_RETRIES. Mirrors
+// resumeFullPipelineStep's ledger-derived resume computation above (blocking-
+// tier floor, score invalidation) but skips the auth/lease preamble — the
+// caller (the stall sweep) already owns the row and already confirmed the
+// lease is expired. No `context`/`userId` dependency so it works from both
+// the service-role cron path and the user-scoped client-mount sweep.
+export async function autoRequeueStalledCase(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  caseId: string,
+): Promise<{ ok: boolean; resumeKey?: string; alreadyComplete?: boolean }> {
+  const { PIPELINE_STAGE_TO_ENGINE } = await import("@/lib/execution/canonical");
+
+  const { data: caseRow } = await supabase
+    .from("cases")
+    .select("next_stage,stall_auto_retry_count")
+    .eq("id", caseId)
+    .maybeSingle();
+  const persistedNext = typeof caseRow?.next_stage === "string" ? caseRow.next_stage : null;
+  const nextRetryCount = (typeof caseRow?.stall_auto_retry_count === "number" ? caseRow.stall_auto_retry_count : 0) + 1;
+  const stageKeys = new Set<string>(PIPELINE_STAGES.map((s) => s.key));
+  const persistedCandidate =
+    persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext) ? persistedNext : undefined;
+
+  const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
+  const blockingStageKeys = new Set<string>(
+    CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.key),
+  );
+
+  const { data: rows } = await supabase
+    .from("pipeline_engine_runs")
+    .select("engine,status,ended_at,created_at")
+    .eq("case_id", caseId);
+
+  const latest = new Map<string, { status: string; created_at?: string | null; ended_at?: string | null }>();
+  for (const r of (rows ?? []) as Array<{
+    engine: string;
+    status: string;
+    created_at?: string | null;
+    ended_at?: string | null;
+  }>) {
+    const prev = latest.get(r.engine);
+    const pt = new Date(prev?.created_at ?? prev?.ended_at ?? 0).getTime();
+    const rt = new Date(r.created_at ?? r.ended_at ?? 0).getTime();
+    if (!prev || rt >= pt) latest.set(r.engine, r);
+  }
+  const completed = new Set<string>();
+  for (const [engine, row] of latest) {
+    if (row.status === "completed" || row.status === "completed_negative" || row.status === "skipped")
+      completed.add(engine);
+  }
+
+  let ledgerResumeKey: string | undefined;
+  let earliestIncompleteBlockingKey: string | undefined;
+  for (const s of PIPELINE_STAGES) {
+    const engine = PIPELINE_STAGE_TO_ENGINE[s.key];
+    const isIncomplete = !engine || !completed.has(engine);
+    if (isIncomplete && !ledgerResumeKey) ledgerResumeKey = s.key;
+    if (isIncomplete && blockingStageKeys.has(s.key) && !earliestIncompleteBlockingKey) {
+      earliestIncompleteBlockingKey = s.key;
+    }
+  }
+
+  let resumeKey: string | undefined;
+  if (
+    earliestIncompleteBlockingKey &&
+    (!persistedCandidate ||
+      PIPELINE_STAGES.findIndex((s) => s.key === persistedCandidate) >
+        PIPELINE_STAGES.findIndex((s) => s.key === earliestIncompleteBlockingKey))
+  ) {
+    resumeKey = earliestIncompleteBlockingKey;
+  } else if (persistedCandidate) {
+    resumeKey = persistedCandidate;
+  } else {
+    resumeKey = ledgerResumeKey;
+  }
+  if (!resumeKey) return { ok: true, alreadyComplete: true };
+
+  const resumeEngine = PIPELINE_STAGE_TO_ENGINE[resumeKey];
+  if (resumeEngine) {
+    await supabase
+      .from("pipeline_engine_runs")
+      .update({
+        status: "failed",
+        ended_at: new Date().toISOString(),
+        error: "Stale checkpoint cleared before auto-retry",
+      })
+      .eq("case_id", caseId)
+      .eq("engine", resumeEngine)
+      .in("status", ["queued", "running"]);
+  }
+
+  const scoringIdx = PIPELINE_STAGES.findIndex((s) => s.key === "scoring");
+  const resumeIdx = PIPELINE_STAGES.findIndex((s) => s.key === resumeKey);
+  const invalidatesScore = scoringIdx === -1 || resumeIdx === -1 || resumeIdx <= scoringIdx;
+
+  const queuedAt = new Date().toISOString();
+  await supabase
+    .from("cases")
+    .update({
+      status: "queued",
+      status_message: `Auto-retry after stall — resuming at ${resumeKey}`,
+      queued_at: queuedAt,
+      worker_lease_until: null,
+      next_stage: resumeKey,
+      cancel_requested: false,
+      stall_reason: null,
+      error: null,
+      stall_auto_retry_count: nextRetryCount,
+      ...(invalidatesScore ? { scored_at: null } : {}),
+    })
+    .eq("id", caseId);
+
+  return { ok: true, resumeKey };
+}
+
 export const clearPipelineStuckState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
