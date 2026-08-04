@@ -933,6 +933,7 @@ async function _runPipelineForCase(
   // on an earlier tick (no redundant re-evaluation, no re-billed AI calls).
   const latestStatusByEngine = new Map<string, string>();
   const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
+  const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
   if (!reset) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: priorRuns, error: priorErr } = await (supabase as any)
@@ -951,8 +952,52 @@ async function _runPipelineForCase(
     for (const row of (priorRuns ?? []) as Array<{ engine: string; status: string }>) {
       latestStatusByEngine.set(row.engine, row.status); // ascending order → last write wins
     }
+
+    // Staleness override. `report_generator`'s own ledger row can say
+    // "completed" from an earlier run, but `reports` is a singleton row
+    // that is never re-created per run — nothing invalidates it when a
+    // true blocking-tier stage (extraction/analyzers/agents/scoring/
+    // legal_qa/jurisdiction_intel) is re-run afterward. When that happens
+    // the stored report silently predates the data it's supposed to
+    // describe, and cases.functions.ts's getCase() detects exactly that
+    // (isReportStale) and nulls out every substantive field before serving
+    // it — but nothing was actually acting on that signal to regenerate
+    // the report. Confirmed on a real case: the report came back with
+    // full_report/executive_summary/facts/etc. all null and
+    // stale_reason:"A required pipeline stage completed more recently than
+    // this report was generated", while the case still read status
+    // "complete" and the export fell back to a thin 10-page assembly of
+    // raw findings. Treat "report" as NOT already done if it's stale, so
+    // this tick gets a real chance to regenerate it instead of skipping it
+    // as already-terminal.
+    if (DONE_STATUSES.has(latestStatusByEngine.get("report_generator") ?? "")) {
+      try {
+        const { data: reportRow } = await (supabase as any)
+          .from("reports")
+          .select("updated_at,created_at")
+          .eq("case_id", caseId)
+          .maybeSingle();
+        const blockingEngines = new Set(
+          CANONICAL_STAGES.filter((s) => s.requirement === "blocking" && s.engine !== "report_generator").map(
+            (s) => s.engine,
+          ),
+        );
+        const { isReportStale } = await import("./cases.functions");
+        if (
+          isReportStale(
+            reportRow as { updated_at?: string | null; created_at?: string | null } | null,
+            (priorRuns ?? []) as Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
+            blockingEngines,
+          )
+        ) {
+          latestStatusByEngine.delete("report_generator");
+          trace("report.stale_forcing_regeneration", {});
+        }
+      } catch (e) {
+        console.warn("[pipeline] report staleness check failed (non-fatal)", e);
+      }
+    }
   }
-  const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
   const alreadyDone = (k: PipelineStageKey) =>
     DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
 
