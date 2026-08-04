@@ -3015,6 +3015,37 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "nullity_type": "lisa_y_llana"|"para_efectos"|"no_determinado", "causal": "incompetencia"|"omision_de_requisitos_formales"|"vicios_de_procedimiento"|"indebida_fundamentacion_motivacion"|"desvio_de_poder", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // ---------------------------------------------------------------------
+  // Fiscal specialized investigators (2026-08-04). Party-role enum matches
+  // MX_PARTY_ROLES.fiscal (contribuyente / autoridad_fiscal / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "sat_audit_review",
+    category: "sat_audit_review",
+    system:
+      "You are a Mexican tax-audit (facultades de comprobación) investigator under the Código Fiscal de la Federación. Examine the corpus for the modality of audit exercised — visita domiciliaria (arts. 43-49 CFF), revisión de gabinete/escritorio (art. 48), or revisión electrónica (art. 53-B) — whether it was exercised within the plazo de caducidad (generally 5 años, art. 67 CFF, extendable), and whether the acta final / oficio de observaciones properly identified the irregularities before the resolución determinante issued. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "audit_type": "visita_domiciliaria"|"revision_de_gabinete"|"revision_electronica"|"no_determinado", "issue_type": "caducidad_de_facultades"|"irregularidad_no_notificada"|"acta_o_oficio_defectuoso", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "contribuyente"|"autoridad_fiscal"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "cfdi_accounting_tax_validation",
+    category: "cfdi_accounting_tax_validation",
+    system:
+      "You are a Mexican CFDI and tax-calculation validation investigator. Examine any comprobante fiscal digital por internet (CFDI) in the corpus for the formal requisites the CFF and the Resolución Miscelánea Fiscal require, cross-check reported deductions against supporting CFDIs, and assess whether the tax determination (ISR, IVA) reflected in the corpus follows the applicable rate/base rules, flagging any deducción improcedente or discrepancia fiscal (ingresos no declarados vs. depósitos bancarios, art. 91 LISR). Do not invent a specific peso figure the corpus does not support. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "cfdi_con_requisito_faltante"|"deduccion_improcedente"|"discrepancia_fiscal"|"calculo_de_impuesto_incorrecto", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "contribuyente"|"autoridad_fiscal"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "prodecon_opportunity_detection",
+    category: "prodecon_opportunity_detection",
+    system:
+      "You are a Mexican taxpayer-defense opportunity investigator (PRODECON). Examine the corpus for whether the matter qualifies for an acuerdo conclusivo (Procuraduría de la Defensa del Contribuyente, arts. 69-C to 69-H CFF — available while a revisión de gabinete, visita domiciliaria, or revisión electrónica is still open and before the resolución determinante), or for a queja/reclamación de derechos ante PRODECON where the SAT has committed a procedural excess. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "opportunity_type": "acuerdo_conclusivo_disponible"|"queja_prodecon"|"asesoria_prodecon", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "contribuyente"|"autoridad_fiscal"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
   {
     // Constitucional (controversia constitucional / acción de
     // inconstitucionalidad) only — see MX_ENGINES.constitucional.
@@ -3096,6 +3127,10 @@ const AGENT_ENGINE: Record<string, string> = {
   administrative_due_process_review: "agent:administrative_due_process_review",
   authority_competence_notification_review: "agent:authority_competence_notification_review",
   administrative_nullity_analysis: "agent:administrative_nullity_analysis",
+  // Fiscal specialized investigators (2026-08-04).
+  sat_audit_review: "agent:sat_audit_review",
+  cfdi_accounting_tax_validation: "agent:cfdi_accounting_tax_validation",
+  prodecon_opportunity_detection: "agent:prodecon_opportunity_detection",
 };
 
 /**
