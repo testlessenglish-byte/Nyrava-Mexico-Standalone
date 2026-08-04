@@ -39,6 +39,8 @@ export type IngestRunResult = {
   documentsStored: number;
   documentsVersioned: number;
   entitiesProjected: number;
+  citationsExtracted: number;
+  citationsResolved: number;
   errors: string[];
 };
 
@@ -75,6 +77,8 @@ export async function runConnectorIngest(
   let documentsStored = 0;
   let documentsVersioned = 0;
   let entitiesProjected = 0;
+  let citationsExtracted = 0;
+  let citationsResolved = 0;
   let rawDocs: IngestedDocument[] = [];
 
   try {
@@ -108,10 +112,17 @@ export async function runConnectorIngest(
 
       // Parse the stored authority into typed entities (tesis /
       // jurisprudencia / articles). Never fatal to the run.
-      const { projectDocument } = await import("./projection.server");
+      const { projectDocument, projectCitations } = await import("./projection.server");
       const projection = await projectDocument(db, connector, normalized, authorityId);
       entitiesProjected += projection.theses + projection.jurisprudencia + projection.articles;
       errors.push(...projection.errors);
+
+      // Extract and persist this document's outbound citation graph. Same
+      // never-fatal contract as entity projection above.
+      const citationResult = await projectCitations(db, connector, normalized, authorityId);
+      citationsExtracted += citationResult.extracted;
+      citationsResolved += citationResult.resolved;
+      errors.push(...citationResult.errors);
     } catch (e) {
       errors.push(`${raw.externalId}: ${String(e)}`);
     }
@@ -130,6 +141,8 @@ export async function runConnectorIngest(
       documentsStored,
       documentsVersioned,
       entitiesProjected,
+      citationsExtracted,
+      citationsResolved,
       errors,
     };
   }
