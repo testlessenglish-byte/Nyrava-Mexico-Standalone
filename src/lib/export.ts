@@ -800,79 +800,104 @@ class PdfBuilder {
     certification?: CertificationState;
   }) {
     const { pageW, pageH, margin } = this;
-    // Full-bleed navy background
+    // Full-bleed forest-green field with deeper bands at the head and foot
+    // so the composition has weight top and bottom instead of floating.
     this.doc.setFillColor(...PRIMARY);
     this.doc.rect(0, 0, pageW, pageH, "F");
-    // Deeper tint bands top and bottom for depth
-    this.doc.setFillColor(...NAVY_TINT);
-    this.doc.rect(0, 0, pageW, 6, "F");
-    this.doc.rect(0, pageH - 6, pageW, 6, "F");
-    // Gold hairlines framing the composition
-    this.doc.setDrawColor(...ACCENT);
-    this.doc.setLineWidth(0.8);
-    this.doc.line(margin, 92, pageW - margin, 92);
-    this.doc.line(margin, pageH - 150, pageW - margin, pageH - 150);
+    this.doc.setFillColor(...PRIMARY_DEEP);
+    this.doc.rect(0, 0, pageW, 170, "F");
+    this.doc.rect(0, pageH - 150, pageW, 150, "F");
+    // Inset hairline frame — replaces the two stray horizontal rules.
+    this.doc.setDrawColor(...ACCENT_SOFT);
+    this.doc.setLineWidth(0.55);
+    this.doc.rect(28, 28, pageW - 56, pageH - 56, "S");
 
-    // Wordmark at top-left
+    // Centered wordmark
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(14);
-    this.doc.setTextColor(255, 255, 255);
-    this.doc.text("NYRAVA", margin, 60);
-    this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(7.5);
-    this.doc.setTextColor(...BRAND_CYAN);
-    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", margin, 76);
+    this.doc.setFontSize(13);
+    this.doc.setTextColor(...ACCENT_SOFT);
+    this.doc.text("N Y R A V A", pageW / 2, 62, { align: "center" });
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(7.2);
+    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", pageW / 2, 76, { align: "center" });
 
     if (opts.engineVersion) {
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(8);
-      this.doc.setTextColor(...BRAND_CYAN);
-      this.doc.text(`ENGINE ${opts.engineVersion}`, pageW - margin, 60, { align: "right" });
+      this.doc.setFontSize(7.5);
+      this.doc.setTextColor(...ACCENT_SOFT);
+      this.doc.text(`ENGINE ${opts.engineVersion}`, pageW - margin, 62, { align: "right" });
     }
 
-    // Trust badge centered in upper third
-    this.trustBadge(pageW / 2, pageH * 0.3, 128);
+    // Crest — the visual anchor of the page, ring-free and aspect-correct.
+    this.trustBadge(pageW / 2, pageH * 0.32, 186);
 
     // Eyebrow label
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(9);
+    this.doc.setFontSize(8.4);
     this.doc.setTextColor(...ACCENT);
-    this.doc.text("C A S E   I N T E L L I G E N C E   R E P O R T", pageW / 2, pageH * 0.3 + 100, { align: "center" });
+    this.doc.text("C A S E   I N T E L L I G E N C E   R E P O R T", pageW / 2, pageH * 0.32 + 130, {
+      align: "center",
+    });
 
-    // Case title (serif via Times for editorial gravitas)
+    // Case title + party subtitle. Long matter names commonly carry the
+    // parties inline ("X vs. Y"); splitting them lets the cover read as
+    // *this specific case* without crowding the serif title.
+    const rawName = opts.caseName || "Untitled Case";
+    const partySplit = rawName.match(/^(.*?)\s+(?:vs?\.?|c\/|contra)\s+(.+)$/i);
+    const titleText = partySplit ? partySplit[1].trim() : rawName;
+    const subtitleText = partySplit ? `vs. ${partySplit[2].trim()}` : "";
+
     this.doc.setFont("times", "bold");
-    this.doc.setFontSize(30);
+    const titleWidth = pageW - margin * 2 - 40;
+    let titleSize = 30;
+    this.doc.setFontSize(titleSize);
+    let titleLines = this.doc.splitTextToSize(titleText, titleWidth) as string[];
+    if (titleLines.length > 1) {
+      titleSize = 25;
+      this.doc.setFontSize(titleSize);
+      titleLines = this.doc.splitTextToSize(titleText, titleWidth) as string[];
+    }
     this.doc.setTextColor(255, 255, 255);
-    const titleLines = this.doc.splitTextToSize(opts.caseName || "Untitled Case", pageW - margin * 2 - 40) as string[];
-    let ty = pageH * 0.52;
+    let ty = pageH * 0.53;
     for (const line of titleLines.slice(0, 3)) {
       this.doc.text(line, pageW / 2, ty, { align: "center" });
-      ty += 34;
+      ty += titleSize * 1.16;
     }
-    // Gold rule under title
+    if (subtitleText) {
+      this.doc.setFont("times", "italic");
+      this.doc.setFontSize(14);
+      this.doc.setTextColor(...ACCENT_SOFT);
+      const subLines = this.doc.splitTextToSize(subtitleText, titleWidth) as string[];
+      for (const line of subLines.slice(0, 2)) {
+        this.doc.text(line, pageW / 2, ty, { align: "center" });
+        ty += 18;
+      }
+    }
+    // Gold rule under the title block
     this.doc.setDrawColor(...ACCENT);
-    this.doc.setLineWidth(1.2);
-    this.doc.line(pageW / 2 - 42, ty + 2, pageW / 2 + 42, ty + 2);
-    ty += 24;
+    this.doc.setLineWidth(2.2);
+    this.doc.line(pageW / 2 - 21, ty + 4, pageW / 2 + 21, ty + 4);
+    ty += 26;
 
     if (opts.description) {
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(11);
-      this.doc.setTextColor(200, 210, 220);
-      const descLines = this.doc.splitTextToSize(opts.description, pageW - margin * 2 - 80) as string[];
+      this.doc.setFontSize(9.6);
+      this.doc.setTextColor(220, 220, 215);
+      const descLines = this.doc.splitTextToSize(opts.description, 410) as string[];
       for (const line of descLines.slice(0, 4)) {
         this.doc.text(line, pageW / 2, ty, { align: "center" });
-        ty += 15;
+        ty += 14;
       }
     }
 
-    // Attorney Work Product pill
-    const tagY = pageH - 178;
+    // Work-product pill — positioned from the ACTUAL end of the description
+    // block, never a fixed Y, so a long dek can't collide with it.
     const tagText = "ATTORNEY WORK PRODUCT  ·  PRIVILEGED & CONFIDENTIAL";
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(9);
+    this.doc.setFontSize(8.6);
     const tagW = this.doc.getTextWidth(tagText) + 26;
     const tagH = 22;
+    const tagY = Math.min(Math.max(ty + 34, pageH - 190), pageH - 168);
     const tagX = (pageW - tagW) / 2;
     this.doc.setDrawColor(...ACCENT);
     this.doc.setLineWidth(0.8);
@@ -880,26 +905,32 @@ class PdfBuilder {
     this.doc.setTextColor(...ACCENT);
     this.doc.text(tagText, pageW / 2, tagY, { align: "center" });
 
-    // Metadata columns
-    const footTop = pageH - 118;
+    // Metadata columns, separated by pale gold verticals
+    const footTop = pageH - 112;
     const col = (label: string, value: string, x: number, align: "left" | "center" | "right" = "left") => {
       this.doc.setFont("helvetica", "bold");
-      this.doc.setFontSize(7.5);
-      this.doc.setTextColor(...BRAND_CYAN);
+      this.doc.setFontSize(7.2);
+      this.doc.setTextColor(...ACCENT);
       this.doc.text(label.toUpperCase(), x, footTop, { align });
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(9.4);
       this.doc.setTextColor(255, 255, 255);
       this.doc.text(value, x, footTop + 14, { align });
     };
+    this.doc.setDrawColor(...ACCENT_SOFT);
+    this.doc.setLineWidth(0.4);
+    const sepTop = footTop - 9;
+    const sepBottom = footTop + 19;
+    this.doc.line(margin + (pageW / 2 - margin) * 0.52, sepTop, margin + (pageW / 2 - margin) * 0.52, sepBottom);
+    this.doc.line(pageW - margin - (pageW / 2 - margin) * 0.52, sepTop, pageW - margin - (pageW / 2 - margin) * 0.52, sepBottom);
     col("Generated", new Date().toLocaleString(), margin);
     if (opts.matterId) col("Matter ID", opts.matterId, pageW / 2, "center");
     col("Classification", "Confidential", pageW - margin, "right");
 
     // Bottom tagline
     this.doc.setFont("helvetica", "normal");
-    this.doc.setFontSize(8);
-    this.doc.setTextColor(...BRAND_CYAN);
+    this.doc.setFontSize(7.5);
+    this.doc.setTextColor(...ACCENT_SOFT);
     this.doc.text(
       CERTIFICATION_TAGLINE[opts.certification ?? "unverified"],
       pageW / 2,
