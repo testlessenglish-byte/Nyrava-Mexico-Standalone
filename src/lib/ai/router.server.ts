@@ -530,6 +530,28 @@ async function loadUserProviderKeyGroups(
   return groups;
 }
 
+/**
+ * Total distinct, working (provider, key) pairs this user has configured
+ * across every provider (user_ai_keys), NOT including explicit runtime
+ * keys a caller might separately hold — those are the caller's own to
+ * count. For a caller deciding whether firing two AI calls at once is safe
+ * (spreads across genuinely independent keys) or risky (both calls could
+ * land on the SAME single key and trip its per-minute rate limit) rather
+ * than a raw-key-material lookup, so it returns only a count, never the
+ * plaintext keys themselves. Fails closed: any lookup error returns 0,
+ * which callers should read as "assume the least capacity available,"
+ * i.e. don't parallelize — never treat a failed count as "plenty of keys."
+ */
+export async function countUserProviderKeys(userId: string | null | undefined): Promise<number> {
+  if (!userId) return 0;
+  try {
+    const groups = await loadUserProviderKeyGroups(userId);
+    return groups.reduce((sum, g) => sum + g.keys.length, 0);
+  } catch {
+    return 0;
+  }
+}
+
 async function _loadUserProviderKeyGroupsUncached(
   userId: string,
 ): Promise<Array<{ provider: ProviderType; keys: string[] }>> {
