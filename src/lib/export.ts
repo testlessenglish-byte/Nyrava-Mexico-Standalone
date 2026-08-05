@@ -435,8 +435,8 @@ const CARD_BORDER: [number, number, number] = [231, 227, 216]; // card border
 // a fixed domain-specific taxonomy would be wrong for most of them.
 const SEVERITY_TIERS: Array<{ key: string; label: string; color: [number, number, number] }> = [
   { key: "critical", label: "Critical Issues", color: DANGER },
-  { key: "high", label: "High-Priority Issues", color: [217, 119, 6] },
-  { key: "medium", label: "Moderate Issues", color: ACCENT },
+  { key: "high", label: "High-Priority Issues", color: HIGH },
+  { key: "medium", label: "Moderate Issues", color: MEDIUM },
   { key: "low_info", label: "Minor & Administrative Issues", color: SUCCESS },
 ];
 
@@ -492,7 +492,7 @@ const SHIELD_DARK: [number, number, number] = [21, 21, 15]; // warm near-black s
 // addPage() call), so content on those pages is laid out starting below
 // this reserved band, and header() paints into that same band as a
 // post-pass over every page — the same pattern footer() already uses.
-const CONTINUATION_HEADER_H = 46;
+const CONTINUATION_HEADER_H = 50;
 
 function asStr(v: unknown, fallback = ""): string {
   if (v === null || v === undefined) return fallback;
@@ -954,8 +954,8 @@ class PdfBuilder {
   severityColor(sev: string): [number, number, number] {
     const s = (sev || "").trim().toLowerCase();
     if (s === "critical") return DANGER;
-    if (s === "high") return [217, 119, 6]; // amber-600
-    if (s === "medium") return ACCENT;
+    if (s === "high") return HIGH;
+    if (s === "medium") return MEDIUM;
     if (s === "low" || s === "info") return SUCCESS;
     return MUTED;
   }
