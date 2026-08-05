@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
+import { CANONICAL_STAGES, ENGINE, type CanonicalStageKey } from "@/lib/execution/canonical";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
 import { PROJECTION_LIKE, selectFindings, isCanonicalFinding, type SelectableFinding } from "@/lib/intelligence/finding-selection";
@@ -447,8 +448,8 @@ export async function runTimelineAudit({
     .from("pipeline_engine_runs")
     .delete()
     .eq("case_id", caseId)
-    .eq("engine", "timeline");
-  await audit.runEngine(supabase, { caseId, userId, engine: "timeline" }, async () => ({
+    .eq("engine", ENGINE.timeline);
+  await audit.runEngine(supabase, { caseId, userId, engine: ENGINE.timeline }, async () => ({
     value: ct,
     stats: {
       generated: ct.totals.total,
@@ -548,7 +549,7 @@ export const runDiscoveryGapStep = createServerFn({ method: "POST" })
     const derived = await import("@/lib/intelligence/derived-engines.server");
     await audit.runEngine(
       supabase,
-      { caseId: data.caseId, userId, engine: "discovery_gaps" },
+      { caseId: data.caseId, userId, engine: ENGINE.discovery },
       async () => derived.deriveDiscoveryGaps(supabase, data.caseId),
     );
     return { ok: true, derived_from: "analyzers" };
@@ -563,7 +564,7 @@ export const runWitnessStep = createServerFn({ method: "POST" })
     const derived = await import("@/lib/intelligence/derived-engines.server");
     await audit.runEngine(
       supabase,
-      { caseId: data.caseId, userId, engine: "witness_intelligence" },
+      { caseId: data.caseId, userId, engine: ENGINE.witness },
       async () => derived.deriveWitnessIntel(supabase, data.caseId),
     );
     return { ok: true, derived_from: "agents.witness_credibility" };
@@ -637,7 +638,7 @@ export const runEvidenceIntelStep = createServerFn({ method: "POST" })
     const derived = await import("@/lib/intelligence/derived-engines.server");
     await audit.runEngine(
       supabase,
-      { caseId: data.caseId, userId, engine: "evidence_intelligence" },
+      { caseId: data.caseId, userId, engine: ENGINE.evidence_intel },
       async () => derived.deriveEvidenceIntel(supabase, data.caseId),
     );
     return { ok: true, derived_from: "analyzers" };
@@ -699,7 +700,7 @@ export const runContradictionStep = createServerFn({ method: "POST" })
     const derived = await import("@/lib/intelligence/derived-engines.server");
     await audit.runEngine(
       supabase,
-      { caseId: data.caseId, userId, engine: "contradictions" },
+      { caseId: data.caseId, userId, engine: ENGINE.contradictions },
       async () => derived.deriveContradictions(supabase, data.caseId),
     );
     return { ok: true, derived_from: "analyzers" };
@@ -711,32 +712,14 @@ export const runContradictionStep = createServerFn({ method: "POST" })
 // must complete before the next begins. On failure, the pipeline stops and
 // the failed stage is recorded so the user can retry from that point.
 // =========================================================================
-export const PIPELINE_STAGES = [
-  { key: "extraction", label: "Extraction" },
-  { key: "analyzers", label: "Analyzers" },
-  { key: "agents", label: "Agents" },
-  { key: "timeline", label: "Build Timeline" },
-  { key: "evidence_map", label: "Evidence Mapping" },
-  { key: "contradictions", label: "Contradiction Analysis" },
-  { key: "witness", label: "Witness Intelligence" },
-  { key: "evidence_intel", label: "Evidence Intelligence" },
-  { key: "jurisdiction_intel", label: "Jurisdiction Intelligence" },
-  { key: "procedural_compliance", label: "Procedural Compliance Analysis" },
-  { key: "constitutional", label: "Constitutional Analysis" },
-  { key: "discovery", label: "Discovery Gap Detection" },
-  { key: "perspectives", label: "Multi-Perspective Analysis" },
-  { key: "theories", label: "Theory Generation" },
-  { key: "opportunities", label: "Case Opportunities" },
-  { key: "strategy", label: "Strategy Synthesis" },
-  { key: "litigation_strategy_center", label: "Litigation Strategy Center" },
-  { key: "work_product", label: "Attorney Work Product" },
-  { key: "hallucination", label: "Hallucination Review" },
-  { key: "scoring", label: "Score Case" },
-  { key: "legal_qa", label: "Legal Quality Control" },
-  { key: "multi_agent", label: "Multi-Agent Review (13 Agents)" },
-  { key: "report", label: "Generate Report" },
-] as const;
-export type PipelineStageKey = (typeof PIPELINE_STAGES)[number]["key"];
+// ENGINE IDENTITY: this list is DERIVED from CANONICAL_STAGES — never
+// re-declared. A stage's key and its `pipeline_engine_runs.engine` id are
+// different identifiers (witness → witness_intelligence, report →
+// report_generator); use `ENGINE[key]` / `engineForStage(key)` to cross over.
+export const PIPELINE_STAGES: readonly { readonly key: CanonicalStageKey; readonly label: string }[] =
+  CANONICAL_STAGES.map((s) => ({ key: s.key, label: s.label }));
+export type PipelineStageKey = CanonicalStageKey;
+
 
 export const runFullPipelineStep = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

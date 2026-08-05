@@ -34,7 +34,7 @@ import {
 } from "@/lib/intelligence/canonical";
 import { useI18n } from "@/i18n";
 import { localizeActivityMessage } from "@/lib/activity-i18n";
-import { engineLabelKey, isStageRelevantForCaseType, stageKeyForEngine, statusLabelKey } from "@/lib/execution/mx-pipeline";
+import { engineLabelKey, isStageRelevantForCaseType, resolveStageKeyLoose, statusLabelKey } from "@/lib/execution/mx-pipeline";
 import { scoreBand } from "@/lib/score-bands";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { COMMAND_CENTER_ENGINES } from "@/lib/execution/canonical";
@@ -153,7 +153,7 @@ export function CommandCenterDashboard({
   // this materia (e.g. witness intelligence in an amparo).
   const caseType = (caseRow?.case_type as string | undefined) ?? null;
   const visibleNodes = NODES.filter((n) => {
-    const key = stageKeyForEngine(n.labelEngine);
+    const key = resolveStageKeyLoose(n.labelEngine);
     return !key || isStageRelevantForCaseType(caseType, key);
   });
   const bottomNode = visibleNodes.length > 6 ? visibleNodes[6] : null;

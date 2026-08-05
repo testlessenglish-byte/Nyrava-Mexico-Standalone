@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { ENGINE } from "@/lib/execution/canonical";
 import { AGENT_DEFINITIONS, type AgentResult, type AgentDefinition } from "./types";
 import { attachAgentStats, buildAgentStatistics } from "./statistics.server";
 import { isCheckpointError } from "@/lib/pipeline-checkpoint.server";
@@ -208,7 +209,7 @@ async function hasCompletedEngine(db: Db, caseId: string, engine: string): Promi
 }
 
 async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
-  const engineCompleted = await hasCompletedEngine(ctx.db, ctx.caseId, "extraction");
+  const engineCompleted = await hasCompletedEngine(ctx.db, ctx.caseId, ENGINE.extraction);
   const { count } = await ctx.db
     .from("document_pages")
     .select("id", { count: "exact", head: true })
@@ -231,7 +232,7 @@ async function agentOcr(ctx: RunCtx): Promise<AgentResult> {
 }
 
 async function agentEntities(ctx: RunCtx): Promise<AgentResult> {
-  const engineCompleted = await hasCompletedEngine(ctx.db, ctx.caseId, "analyzers");
+  const engineCompleted = await hasCompletedEngine(ctx.db, ctx.caseId, ENGINE.analyzers);
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
     .select("id", { count: "exact", head: true })
@@ -325,7 +326,7 @@ async function agentContradictions(ctx: RunCtx): Promise<AgentResult> {
 }
 
 async function agentLegal(ctx: RunCtx): Promise<AgentResult> {
-  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "agents");
+  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, ENGINE.agents);
   const { count } = await ctx.db
     .from("agent_findings")
     .select("id", { count: "exact", head: true })
@@ -343,7 +344,7 @@ async function agentLegal(ctx: RunCtx): Promise<AgentResult> {
 }
 
 async function agentRisk(ctx: RunCtx): Promise<AgentResult> {
-  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, "scoring");
+  const alreadyDone = await hasCompletedEngine(ctx.db, ctx.caseId, ENGINE.scoring);
   const { data: score } = await ctx.db.from("case_scores").select("*").eq("case_id", ctx.caseId).maybeSingle();
   const ok = alreadyDone && !!score;
   return {
@@ -380,7 +381,7 @@ async function agentReport(ctx: RunCtx): Promise<AgentResult> {
     .maybeSingle();
   // A report row only exists on a re-run (report_generator ran previously).
   // On a first run we verify the inputs the report will be assembled from.
-  const scoringDone = await hasCompletedEngine(ctx.db, ctx.caseId, "scoring");
+  const scoringDone = await hasCompletedEngine(ctx.db, ctx.caseId, ENGINE.scoring);
   const { count: findingsCount } = await ctx.db
     .from("case_findings")
     .select("id", { count: "exact", head: true })

@@ -4,6 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
+import { ENGINE, engineForStage } from "./execution/canonical";
 import {
   withTraceScope,
   currentTraceScope,
@@ -358,14 +359,13 @@ async function _runPipelineForCase(
     PipelineStageKey,
     {
       run: () => Promise<unknown>;
-      stage?: import("@/lib/intelligence/progress.server").StageKey;
       engine?: string;
     }
   > = {
-    extraction: { run: () => pipe.runExtraction(baseArgs), stage: "extraction" },
-    agents: { run: () => pipe.runAgents(baseArgs), stage: "agents" },
-    analyzers: { run: () => pipe.runAnalyzers(baseArgs), stage: "analyzers" },
-    scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
+    extraction: { run: () => pipe.runExtraction(baseArgs) },
+    agents: { run: () => pipe.runAgents(baseArgs) },
+    analyzers: { run: () => pipe.runAnalyzers(baseArgs) },
+    scoring: { run: () => pipe.runScoring(baseArgs), engine: ENGINE.scoring },
     // Inteligencia de Jurisdicción — deterministic resolution of país/estado/
     // fuero/materia and the codes that govern the matter.
     jurisdiction_intel: {
@@ -374,7 +374,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "jurisdiction_intel" },
+          { caseId, userId, engine: ENGINE.jurisdiction_intel },
           async () => {
             const { runJurisdictionIntelligence } =
               await import("@/lib/intelligence/jurisdiction-intel.server");
@@ -404,7 +404,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "procedural_compliance" },
+          { caseId, userId, engine: ENGINE.procedural_compliance },
           async () => {
             const { runProceduralCompliance } =
               await import("@/lib/intelligence/procedural-compliance.server");
@@ -437,7 +437,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "legal_qa" },
+          { caseId, userId, engine: ENGINE.legal_qa },
           async () => {
             const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
             // userId routes the translation remediation through the
@@ -464,13 +464,13 @@ async function _runPipelineForCase(
         ),
     },
 
-    report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
+    report: { run: () => pipe.runReport(baseArgs), engine: ENGINE.report },
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "evidence_map" },
+          { caseId, userId, engine: ENGINE.evidence_map },
           async () => {
             const m = await import("@/lib/intelligence/evidence-map.server");
             const em = await m.buildEvidenceMap(supabase, caseId);
@@ -488,7 +488,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "contradictions" },
+          { caseId, userId, engine: ENGINE.contradictions },
           async () => {
             const d = await import("@/lib/intelligence/derived-engines.server");
             const result = await d.deriveContradictions(supabase, caseId);
@@ -499,7 +499,6 @@ async function _runPipelineForCase(
             return result;
           },
         ),
-      stage: "contradictions",
     },
     // Task-9/10 stat plumbing: engines whose output is a mix of LLM + deterministic
     // templates now return real generated/accepted/rejected counts. Row counts come
@@ -511,7 +510,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "witness_intelligence" },
+          { caseId, userId, engine: ENGINE.witness },
           async () => {
             const d = await import("@/lib/intelligence/derived-engines.server");
             const result = await d.deriveWitnessIntel(supabase, caseId);
@@ -534,13 +533,12 @@ async function _runPipelineForCase(
             };
           },
         ),
-      stage: "witness_intel",
     },
     evidence_intel: {
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "evidence_intelligence" },
+          { caseId, userId, engine: ENGINE.evidence_intel },
           async () => {
             const d = await import("@/lib/intelligence/derived-engines.server");
             const result = await d.deriveEvidenceIntel(supabase, caseId);
@@ -562,7 +560,6 @@ async function _runPipelineForCase(
             };
           },
         ),
-      stage: "evidence_intel",
     },
     constitutional: {
       // PRACTICE-AREA GATE: this stage previously ran unconditionally for
@@ -594,7 +591,7 @@ async function _runPipelineForCase(
           await recordSkipped(supabase, {
             caseId,
             userId,
-            engine: "constitutional_compliance" as never,
+            engine: ENGINE.constitutional as never,
             reason: SKIP_REASON_NOT_APPLICABLE,
           });
           return { skipped: true, reason: SKIP_REASON_NOT_APPLICABLE };
@@ -602,7 +599,7 @@ async function _runPipelineForCase(
 
         return persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "constitutional_compliance" },
+          { caseId, userId, engine: ENGINE.constitutional },
           async () => ({
             value: { derived_from: "analyzers+agents" },
           }),
@@ -613,7 +610,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "discovery_gaps" },
+          { caseId, userId, engine: ENGINE.discovery },
           async () => {
             const d = await import("@/lib/intelligence/derived-engines.server");
             const result = await d.deriveDiscoveryGaps(supabase, caseId);
@@ -630,13 +627,12 @@ async function _runPipelineForCase(
             };
           },
         ),
-      stage: "discovery_gaps",
     },
     perspectives: {
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "perspectives" },
+          { caseId, userId, engine: ENGINE.perspectives },
           async () => {
             const value = await lit.runPerspectivesEngine(baseArgs);
             const { count } = await supabase
@@ -653,7 +649,7 @@ async function _runPipelineForCase(
     },
     theories: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "theory" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.theories }, async () => {
           const value = (await eng.runTheoryEngine(baseArgs)) as {
             theories?: unknown[];
             audit?: { rejected?: number };
@@ -675,13 +671,12 @@ async function _runPipelineForCase(
             },
           };
         }),
-      stage: "theories",
     },
     opportunities: {
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "opportunity" },
+          { caseId, userId, engine: ENGINE.opportunities },
           async () => {
             const value = (await eng.runOpportunityEngine(baseArgs)) as {
               opportunities?: unknown[];
@@ -717,7 +712,7 @@ async function _runPipelineForCase(
     },
     strategy: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "strategy" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.strategy }, async () => {
           const value = await lit.runStrategyEngine(baseArgs);
           const { count } = await supabase
             .from("case_strategy")
@@ -729,13 +724,12 @@ async function _runPipelineForCase(
             stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
           };
         }),
-      stage: "strategy",
     },
     litigation_strategy_center: {
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "litigation_strategy_center" },
+          { caseId, userId, engine: ENGINE.litigation_strategy_center },
           async () => {
             const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -755,7 +749,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "work_product" },
+          { caseId, userId, engine: ENGINE.work_product },
           async () => {
             const value = (await eng.runWorkProductEngine(baseArgs)) as {
               documents?: unknown[];
@@ -793,7 +787,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "hallucination" },
+          { caseId, userId, engine: ENGINE.hallucination },
           async () => ({
             value: await hal.runHallucinationReview({ db: supabase, caseId }),
           }),
@@ -801,7 +795,7 @@ async function _runPipelineForCase(
     },
     multi_agent: {
       run: async () =>
-        audit.runEngine(supabase, { caseId, userId, engine: "multi_agent" }, async () => {
+        audit.runEngine(supabase, { caseId, userId, engine: ENGINE.multi_agent }, async () => {
           const { runMultiAgentPipeline } = await import("@/lib/agents/orchestrator.server");
           const result = await runMultiAgentPipeline({
             db: supabase,
@@ -940,7 +934,6 @@ async function _runPipelineForCase(
   // re-executing stages that already reached a terminal success/skipped state
   // on an earlier tick (no redundant re-evaluation, no re-billed AI calls).
   const latestStatusByEngine = new Map<string, string>();
-  const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
   const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
   if (!reset) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -978,7 +971,7 @@ async function _runPipelineForCase(
     // raw findings. Treat "report" as NOT already done if it's stale, so
     // this tick gets a real chance to regenerate it instead of skipping it
     // as already-terminal.
-    if (DONE_STATUSES.has(latestStatusByEngine.get("report_generator") ?? "")) {
+    if (DONE_STATUSES.has(latestStatusByEngine.get(ENGINE.report) ?? "")) {
       try {
         const { data: reportRow } = await (supabase as any)
           .from("reports")
@@ -986,7 +979,7 @@ async function _runPipelineForCase(
           .eq("case_id", caseId)
           .maybeSingle();
         const blockingEngines = new Set(
-          CANONICAL_STAGES.filter((s) => s.requirement === "blocking" && s.engine !== "report_generator").map(
+          CANONICAL_STAGES.filter((s) => s.requirement === "blocking" && s.engine !== ENGINE.report).map(
             (s) => s.engine,
           ),
         );
@@ -1013,7 +1006,7 @@ async function _runPipelineForCase(
           );
         }
         if (timestampStale || hashStale) {
-          latestStatusByEngine.delete("report_generator");
+          latestStatusByEngine.delete(ENGINE.report);
           trace("report.stale_forcing_regeneration", { reason: timestampStale ? "engine_timestamp" : "document_hash" });
         }
       } catch (e) {
@@ -1209,8 +1202,7 @@ async function _runPipelineForCase(
         /* noop */
       }
       try {
-        const { CANONICAL_STAGES: stagesDef } = await import("@/lib/execution/canonical");
-        const engineFor = (k: string) => stagesDef.find((st) => st.key === k)?.engine ?? k;
+        const engineFor = engineForStage;
         const audit = await import("@/lib/intelligence/engine-audit.server");
         await audit.recordBlocked(supabase, {
           caseId,

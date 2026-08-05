@@ -432,7 +432,13 @@ const STAGE_KEY_ALIASES: Record<string, string> = {
   procedural: "procedural_compliance",
 };
 
-export function stageKeyForEngine(engineOrStage: string): string | null {
+/**
+ * LOOSE display-layer resolver: accepts a canonical engine id, a canonical
+ * stage key, OR a legacy/alias spelling and returns the canonical stage key
+ * (or null). Rendering only — execution code must use the strict
+ * `engineForStage` / `stageKeyForEngine` pair in `execution/canonical.ts`.
+ */
+export function resolveStageKeyLoose(engineOrStage: string): string | null {
   return STAGE_KEY_ALIASES[engineOrStage] ?? null;
 }
 
@@ -446,7 +452,7 @@ export function engineLabelKey(engineOrStage: string, caseType?: string | null):
   if (engineOrStage.startsWith("agent:")) {
     return `pipeline.agent.${engineOrStage.slice("agent:".length).replace(/_batch$/, "")}`;
   }
-  const key = stageKeyForEngine(engineOrStage);
+  const key = resolveStageKeyLoose(engineOrStage);
   return key ? stageLabelKey(key, caseType) : null;
 }
 
