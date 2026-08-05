@@ -660,6 +660,23 @@ class PdfBuilder {
     return lines.length * (size * 1.55) + gap;
   }
 
+  // Draws the crest image at its true aspect ratio, centered on (cx, cy),
+  // scaled to `drawH` points tall. No ring, no frame — the crest is a
+  // shield silhouette and reads as a mark on its own.
+  private drawCrest(cx: number, cy: number, drawH: number) {
+    if (!this.logoBase64) return false;
+    let aspect = 1;
+    try {
+      const img = this.doc.getImageProperties(this.logoBase64);
+      if (img?.width && img?.height) aspect = img.width / img.height;
+    } catch {
+      aspect = 1;
+    }
+    const drawW = drawH * aspect;
+    this.doc.addImage(this.logoBase64, "PNG", cx - drawW / 2, cy - drawH / 2, drawW, drawH);
+    return true;
+  }
+
   // Small header/footer logo. Draws the real crest image when loaded;
   // falls back to the vector rounded-square "N" mark if the fetch failed
   // (offline export, asset moved, etc.) so a logo hiccup never blocks the
@@ -668,13 +685,7 @@ class PdfBuilder {
     const size = r * 2;
     const x = cx - r;
     const y = cy - r;
-    if (this.logoBase64) {
-      this.doc.setDrawColor(...BRAND_CYAN);
-      this.doc.setLineWidth(0.75);
-      this.doc.circle(cx, cy, r * 1.08, "S");
-      this.doc.addImage(this.logoBase64, "PNG", x, y, size, size);
-      return;
-    }
+    if (this.drawCrest(cx, cy, size)) return;
     this.doc.setFillColor(...NAVY_TINT);
     this.doc.roundedRect(x, y, size, size, r * 0.3, r * 0.3, "F");
     this.doc.setDrawColor(...BRAND_CYAN);
