@@ -1324,7 +1324,9 @@ class PdfBuilder {
       this.doc.setFontSize(8.4);
       this.doc.setTextColor(...ACCENT);
       this.doc.text(spaced(rt(kicker).toUpperCase()), this.margin, this.y);
-      this.y += 15;
+      // Clear the serif title's ascender: the 20pt title baseline needs
+      // ~24pt below the kicker baseline or the two strings collide.
+      this.y += 26;
     }
     this.doc.setFont("times", "bold");
     this.doc.setFontSize(20);
@@ -1332,12 +1334,13 @@ class PdfBuilder {
     const lines = this.doc.splitTextToSize(title, this.pageW - this.margin * 2) as string[];
     for (const line of lines) {
       this.doc.text(line, this.margin, this.y);
-      this.y += 23;
+      this.y += 25;
     }
     this.doc.setDrawColor(...ACCENT);
     this.doc.setLineWidth(2.2);
-    this.doc.line(this.margin, this.y - 6, this.margin + 40, this.y - 6);
-    this.y += 18;
+    this.doc.line(this.margin, this.y - 4, this.margin + 40, this.y - 4);
+    this.y += 22;
+
     return this.y;
   }
 
