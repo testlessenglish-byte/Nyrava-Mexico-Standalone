@@ -1471,22 +1471,68 @@ class PdfBuilder {
   // Deliberately terse (title only, no description) since its job is a
   // 3-second scan, not the full write-up — that lives in Key Findings.
   findingChip(severity: string, title: string, confidence: number) {
-    this.ensureSpace(26);
+    const h = 26;
+    this.ensureSpace(h + 8);
     const color = this.severityColor(severity);
+    const yy = this.y - 12;
+    // Compact white card with a severity rule on the left edge — same
+    // visual language as the full finding cards further down the report.
+    this.doc.setFillColor(...CARD_BG);
+    this.doc.setDrawColor(...CARD_BORDER);
+    this.doc.setLineWidth(0.8);
+    this.doc.roundedRect(this.margin, yy, this.pageW - this.margin * 2, h, 5, 5, "FD");
     this.doc.setFillColor(...color);
-    this.doc.circle(this.margin + 4, this.y - 3, 2.6, "F");
-    this.doc.setFont("helvetica", "normal");
-    this.doc.setFontSize(10);
+    this.doc.rect(this.margin + 1, yy + 3, 3, h - 6, "F");
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(11);
     this.doc.setTextColor(...PRIMARY);
-    const maxW = this.pageW - this.margin * 2 - 130;
+    const maxW = this.pageW - this.margin * 2 - 150;
     const titleLine = (this.doc.splitTextToSize(title, maxW) as string[])[0] ?? "";
-    this.doc.text(titleLine, this.margin + 14, this.y);
-    this.pill(`${severity} · ${Math.round(confidence * 100)}%`, this.pageW - this.margin, this.y + 1, color, "right");
-    // Hairline separator between findings.
-    this.doc.setDrawColor(236, 239, 243);
-    this.doc.setLineWidth(0.4);
-    this.doc.line(this.margin, this.y + 8, this.pageW - this.margin, this.y + 8);
-    this.y += 22;
+    this.doc.text(titleLine, this.margin + 14, yy + 17);
+    this.pill(
+      `${severity} · ${Math.round(confidence * 100)}%`,
+      this.pageW - this.margin - 8,
+      yy + 20,
+      color,
+      "right",
+    );
+    this.y += h + 8;
+  }
+
+  /**
+   * Evidence blockquote: a lightly tinted block with a gold rule on its
+   * left edge, so a cited quote reads as evidence rather than as another
+   * sentence of body copy.
+   */
+  evidenceQuote(text: string, attribution = "") {
+    if (!text) return;
+    const innerW = this.pageW - this.margin * 2 - 24;
+    this.doc.setFont("helvetica", "italic");
+    this.doc.setFontSize(8.6);
+    const lines = this.doc.splitTextToSize(`"${text}"`, innerW) as string[];
+    const attrLines = attribution ? ([attribution] as string[]) : [];
+    const h = lines.length * 12 + attrLines.length * 11 + 14;
+    this.ensureSpace(h + 6);
+    const yy = this.y - 10;
+    this.doc.setFillColor(...QUOTE_BG);
+    this.doc.rect(this.margin, yy, this.pageW - this.margin * 2, h, "F");
+    this.doc.setFillColor(...ACCENT);
+    this.doc.rect(this.margin, yy, 2.4, h, "F");
+    this.doc.setFont("helvetica", "italic");
+    this.doc.setFontSize(8.6);
+    this.doc.setTextColor(...MUTED);
+    let ty = yy + 16;
+    for (const line of lines) {
+      this.doc.text(line, this.margin + 14, ty);
+      ty += 12;
+    }
+    for (const line of attrLines) {
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(7.5);
+      this.doc.text(line, this.margin + 14, ty);
+      ty += 11;
+    }
+    this.y = yy + h + 12;
   }
 
   table(
