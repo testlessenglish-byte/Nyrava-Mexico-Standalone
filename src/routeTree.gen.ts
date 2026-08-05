@@ -79,6 +79,9 @@ import { Route as AuthenticatedAdminDemoCasesRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin.billing'
 import { Route as AuthenticatedAdminBetaRouteImport } from './routes/_authenticated/admin.beta'
 import { Route as AuthenticatedAdminAiProvidersRouteImport } from './routes/_authenticated/admin.ai-providers'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
+import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
+import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicHooksStripeWebhookRouteImport } from './routes/api/public/hooks/stripe-webhook'
 import { Route as ApiPublicHooksPipelineWorkerRouteImport } from './routes/api/public/hooks/pipeline-worker'
 import { Route as ApiPublicHooksMercadopagoWebhookRouteImport } from './routes/api/public/hooks/mercadopago-webhook'
@@ -442,6 +445,22 @@ const AuthenticatedAdminAiProvidersRoute =
     path: '/ai-providers',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
+  id: '/lovable/email/auth/webhook',
+  path: '/lovable/email/auth/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
+  id: '/lovable/email/auth/preview',
+  path: '/lovable/email/auth/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksStripeWebhookRoute =
   ApiPublicHooksStripeWebhookRouteImport.update({
     id: '/api/public/hooks/stripe-webhook',
@@ -541,6 +560,9 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -615,6 +637,9 @@ export interface FileRoutesByTo {
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -692,6 +717,9 @@ export interface FileRoutesById {
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -769,6 +797,9 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/stripe-webhook'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
+    | '/lovable/email/transactional/preview'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -843,6 +874,9 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/stripe-webhook'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
+    | '/lovable/email/transactional/preview'
   id:
     | '__root__'
     | '/'
@@ -919,6 +953,9 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/stripe-webhook'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
+    | '/lovable/email/transactional/preview'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -959,6 +996,9 @@ export interface RootRouteChildren {
   ApiPublicHooksMercadopagoWebhookRoute: typeof ApiPublicHooksMercadopagoWebhookRoute
   ApiPublicHooksPipelineWorkerRoute: typeof ApiPublicHooksPipelineWorkerRoute
   ApiPublicHooksStripeWebhookRoute: typeof ApiPublicHooksStripeWebhookRoute
+  LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
+  LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
+  LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1453,6 +1493,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAiProvidersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/webhook': {
+      id: '/lovable/email/auth/webhook'
+      path: '/lovable/email/auth/webhook'
+      fullPath: '/lovable/email/auth/webhook'
+      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/preview': {
+      id: '/lovable/email/auth/preview'
+      path: '/lovable/email/auth/preview'
+      fullPath: '/lovable/email/auth/preview'
+      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/stripe-webhook': {
       id: '/api/public/hooks/stripe-webhook'
       path: '/api/public/hooks/stripe-webhook'
@@ -1631,17 +1692,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksMercadopagoWebhookRoute: ApiPublicHooksMercadopagoWebhookRoute,
   ApiPublicHooksPipelineWorkerRoute: ApiPublicHooksPipelineWorkerRoute,
   ApiPublicHooksStripeWebhookRoute: ApiPublicHooksStripeWebhookRoute,
+  LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
+  LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
+  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

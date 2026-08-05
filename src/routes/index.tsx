@@ -63,14 +63,18 @@ export const Route = createFileRoute("/")({
           "El sistema operativo de inteligencia jurídica más avanzado. Diseñado para abogados, investigadores y organizaciones que exigen precisión, rigor y resultados.",
       },
       { property: "og:title", content: "Nyrava México — Inteligencia Jurídica" },
-      { property: "og:description", content: "Inteligencia jurídica más allá del análisis humano." },
+      {
+        property: "og:description",
+        content: "Inteligencia jurídica más allá del análisis humano.",
+      },
     ],
     scripts: [
       { type: "application/ld+json", children: ORGANIZATION_JSON_LD },
       { type: "application/ld+json", children: WEBSITE_JSON_LD },
     ],
   }),
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
+    if (location.pathname.startsWith("/lovable/")) return;
     if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();
     if (data.session) throw redirect({ to: "/cases" });
@@ -150,7 +154,9 @@ function Landing() {
             </Link>
             <MobileNav
               items={NAV.map((n) =>
-                "to" in n ? { label: t(n.key).toUpperCase(), to: n.to } : { label: t(n.key).toUpperCase(), href: n.href },
+                "to" in n
+                  ? { label: t(n.key).toUpperCase(), to: n.to }
+                  : { label: t(n.key).toUpperCase(), href: n.href },
               )}
               triggerClassName="border-[oklch(0.40_0.05_155)] text-cream-foreground"
             >
@@ -166,181 +172,231 @@ function Landing() {
       </header>
 
       <main>
-      {/* Hero — deep justice-green, gold accents, marble-column mood */}
-      <section
-        className="relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg, #0A1D17 0%, #10231D 100%)" }}
-      >
-        {/* Architectural relief — real photographic asset, blended into the wall, not a foreground logo */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] md:block"
-          style={{
-            backgroundImage: "url('/brand/eagle-relief.png')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            opacity: 0.35,
-            filter: "grayscale(100%) contrast(1.1) brightness(0.95)",
-            maskImage:
-              "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
-            WebkitMaskImage:
-              "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
-          }}
-        />
-        <div className="relative mx-auto max-w-[100rem] px-6 py-14 lg:py-20">
-          <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
-            {/* Left: headline + CTAs */}
-            <div>
-              <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold tracking-[0.24em] text-amber">
-                <Scale className="h-3.5 w-3.5" /> {t("home.hero.tagline")}
-              </div>
-              <h1 className="font-serif text-[64px] font-semibold not-italic leading-[0.95] tracking-tight md:text-[74px]">
-                {t("home.hero.line1")}
-                <br />
-                <span style={{ color: "#D8B36A" }}>{t("home.hero.line2")}</span>
-              </h1>
-              <p className="mt-8 max-w-[560px] text-[24px] leading-relaxed" style={{ color: "rgba(255,255,255,0.88)" }}>
-                {t("home.hero.subtitle")}
-              </p>
-              <div className="mt-10 flex flex-wrap gap-3">
-                <Link
-                  to="/auth"
-                  className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border bg-secondary px-6 text-[11px] font-bold tracking-[0.14em] text-foreground transition hover:-translate-y-0.5"
-                  style={{ borderColor: "rgba(216,179,106,0.4)" }}
-                >
-                  {t("home.cta.launchCommand")} <ArrowRight className="h-4 w-4" />
-                </Link>
-                <a
-                  href="#product"
-                  className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border border-primary/50 px-6 text-[11px] font-bold tracking-[0.14em] text-primary transition hover:-translate-y-0.5 hover:bg-primary/10"
-                >
-                  {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            </div>
-
-            {/* Right: left-cards / trust badge / right-cards — symmetric grid, responsive built in */}
-            <HeroOSDashboard />
-          </div>
-        </div>
-      </section>
-
-      {/* Cream feature strip */}
-      <section className="border-y border-[oklch(0.70_0.06_85_/_0.4)] bg-cream text-cream-foreground">
-        <div className="mx-auto grid max-w-[100rem] grid-cols-2 gap-6 px-6 py-8 md:grid-cols-4">
-          {[
-            { icon: ShieldCheck, titleKey: "home.features.sources.title", subKey: "home.features.sources.subtitle" },
-            { icon: Landmark, titleKey: "home.features.laws.title", subKey: "home.features.laws.subtitle" },
-            { icon: Lock, titleKey: "home.features.security.title", subKey: "home.features.security.subtitle" },
-            { icon: Sparkles, titleKey: "home.features.forLawyers.title", subKey: "home.features.forLawyers.subtitle" },
-          ].map((it) => (
-            <div key={it.titleKey} className="flex items-start gap-3">
-              <it.icon className="mt-0.5 h-5 w-5 shrink-0 text-cream-foreground" strokeWidth={1.5} />
+        {/* Hero — deep justice-green, gold accents, marble-column mood */}
+        <section
+          className="relative overflow-hidden"
+          style={{ background: "linear-gradient(160deg, #0A1D17 0%, #10231D 100%)" }}
+        >
+          {/* Architectural relief — real photographic asset, blended into the wall, not a foreground logo */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] md:block"
+            style={{
+              backgroundImage: "url('/brand/eagle-relief.png')",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              opacity: 0.35,
+              filter: "grayscale(100%) contrast(1.1) brightness(0.95)",
+              maskImage: "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
+              WebkitMaskImage: "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
+            }}
+          />
+          <div className="relative mx-auto max-w-[100rem] px-6 py-14 lg:py-20">
+            <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+              {/* Left: headline + CTAs */}
               <div>
-                <div className="text-[11px] font-bold leading-tight tracking-[0.02em]">{t(it.titleKey)}</div>
-                <div className="mt-1 text-[11px] text-cream-foreground/70">{t(it.subKey)}</div>
+                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold tracking-[0.24em] text-amber">
+                  <Scale className="h-3.5 w-3.5" /> {t("home.hero.tagline")}
+                </div>
+                <h1 className="font-serif text-[64px] font-semibold not-italic leading-[0.95] tracking-tight md:text-[74px]">
+                  {t("home.hero.line1")}
+                  <br />
+                  <span style={{ color: "#D8B36A" }}>{t("home.hero.line2")}</span>
+                </h1>
+                <p
+                  className="mt-8 max-w-[560px] text-[24px] leading-relaxed"
+                  style={{ color: "rgba(255,255,255,0.88)" }}
+                >
+                  {t("home.hero.subtitle")}
+                </p>
+                <div className="mt-10 flex flex-wrap gap-3">
+                  <Link
+                    to="/auth"
+                    className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border bg-secondary px-6 text-[11px] font-bold tracking-[0.14em] text-foreground transition hover:-translate-y-0.5"
+                    style={{ borderColor: "rgba(216,179,106,0.4)" }}
+                  >
+                    {t("home.cta.launchCommand")} <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <a
+                    href="#product"
+                    className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border border-primary/50 px-6 text-[11px] font-bold tracking-[0.14em] text-primary transition hover:-translate-y-0.5 hover:bg-primary/10"
+                  >
+                    {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              {/* Right: left-cards / trust badge / right-cards — symmetric grid, responsive built in */}
+              <HeroOSDashboard />
+            </div>
+          </div>
+        </section>
+
+        {/* Cream feature strip */}
+        <section className="border-y border-[oklch(0.70_0.06_85_/_0.4)] bg-cream text-cream-foreground">
+          <div className="mx-auto grid max-w-[100rem] grid-cols-2 gap-6 px-6 py-8 md:grid-cols-4">
+            {[
+              {
+                icon: ShieldCheck,
+                titleKey: "home.features.sources.title",
+                subKey: "home.features.sources.subtitle",
+              },
+              {
+                icon: Landmark,
+                titleKey: "home.features.laws.title",
+                subKey: "home.features.laws.subtitle",
+              },
+              {
+                icon: Lock,
+                titleKey: "home.features.security.title",
+                subKey: "home.features.security.subtitle",
+              },
+              {
+                icon: Sparkles,
+                titleKey: "home.features.forLawyers.title",
+                subKey: "home.features.forLawyers.subtitle",
+              },
+            ].map((it) => (
+              <div key={it.titleKey} className="flex items-start gap-3">
+                <it.icon
+                  className="mt-0.5 h-5 w-5 shrink-0 text-cream-foreground"
+                  strokeWidth={1.5}
+                />
+                <div>
+                  <div className="text-[11px] font-bold leading-tight tracking-[0.02em]">
+                    {t(it.titleKey)}
+                  </div>
+                  <div className="mt-1 text-[11px] text-cream-foreground/70">{t(it.subKey)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Experience Nyrava — upload band */}
+        <section className="bg-[oklch(0.12_0.03_155)] text-foreground">
+          <div className="mx-auto grid max-w-[100rem] gap-8 px-6 py-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+            <div>
+              <div className="mb-3 text-[11px] font-semibold tracking-[0.24em] text-amber">
+                {t("home.upload.tag")}
+              </div>
+              <h2 className="max-w-md font-display text-2xl font-semibold leading-tight md:text-3xl">
+                {t("home.upload.title")}
+              </h2>
+              <div className="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-4 lg:grid-cols-2">
+                {[
+                  {
+                    icon: FileText,
+                    titleKey: "home.upload.step1.title",
+                    subKey: "home.upload.step1.subtitle",
+                  },
+                  {
+                    icon: Sparkles,
+                    titleKey: "home.upload.step2.title",
+                    subKey: "home.upload.step2.subtitle",
+                  },
+                  {
+                    icon: BookOpen,
+                    titleKey: "home.upload.step3.title",
+                    subKey: "home.upload.step3.subtitle",
+                  },
+                  {
+                    icon: FileText,
+                    titleKey: "home.upload.step4.title",
+                    subKey: "home.upload.step4.subtitle",
+                  },
+                ].map((it) => (
+                  <div key={it.titleKey} className="flex flex-col items-start gap-2">
+                    <it.icon className="h-6 w-6 text-primary" strokeWidth={1.5} />
+                    <div className="text-[12px] font-semibold leading-tight">{t(it.titleKey)}</div>
+                    <div className="text-[11px] text-muted-foreground">{t(it.subKey)}</div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </section>
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-primary/50 bg-card/40 px-6 py-16 text-center transition hover:border-primary hover:bg-card/60">
+              <UploadCloud className="h-10 w-10 text-primary" strokeWidth={1.25} />
+              <div className="text-sm font-bold tracking-[0.04em]">
+                {t("home.upload.dropzone.title")}
+              </div>
+              <div className="text-[12px] text-muted-foreground">
+                {t("home.upload.dropzone.subtitle")}
+              </div>
+              <div className="text-[10.5px] tracking-[0.08em] text-muted-foreground/70">
+                {t("home.upload.dropzone.formats")}
+              </div>
+              <input type="file" className="hidden" multiple />
+            </label>
+          </div>
+          <div className="border-t border-border/40">
+            <div className="mx-auto flex max-w-[100rem] flex-col gap-2 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:items-center md:justify-between">
+              <span className="flex items-center gap-2">
+                <Scale className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.criterion")}
+              </span>
+              <span className="flex items-center gap-2">
+                <Lock className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.dataLaw")}
+              </span>
+            </div>
+          </div>
+        </section>
 
-      {/* Experience Nyrava — upload band */}
-      <section className="bg-[oklch(0.12_0.03_155)] text-foreground">
-        <div className="mx-auto grid max-w-[100rem] gap-8 px-6 py-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
-          <div>
-            <div className="mb-3 text-[11px] font-semibold tracking-[0.24em] text-amber">{t("home.upload.tag")}</div>
-            <h2 className="max-w-md font-display text-2xl font-semibold leading-tight md:text-3xl">
-              {t("home.upload.title")}
-            </h2>
-            <div className="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-4 lg:grid-cols-2">
-              {[
-                { icon: FileText, titleKey: "home.upload.step1.title", subKey: "home.upload.step1.subtitle" },
-                { icon: Sparkles, titleKey: "home.upload.step2.title", subKey: "home.upload.step2.subtitle" },
-                { icon: BookOpen, titleKey: "home.upload.step3.title", subKey: "home.upload.step3.subtitle" },
-                { icon: FileText, titleKey: "home.upload.step4.title", subKey: "home.upload.step4.subtitle" },
-              ].map((it) => (
-                <div key={it.titleKey} className="flex flex-col items-start gap-2">
-                  <it.icon className="h-6 w-6 text-primary" strokeWidth={1.5} />
-                  <div className="text-[12px] font-semibold leading-tight">{t(it.titleKey)}</div>
-                  <div className="text-[11px] text-muted-foreground">{t(it.subKey)}</div>
-                </div>
+        {/* Experience Nyrava — live case demos */}
+        <section id="product" className="mx-auto max-w-[100rem] px-6 py-12 lg:py-16">
+          <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">
+            {t("home.demos.tag")}
+          </div>
+          <h2 className="mb-8 max-w-2xl font-display text-2xl font-semibold leading-tight md:text-3xl">
+            {t("home.demos.title")}
+          </h2>
+
+          {demosLoading && (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="panel h-40 animate-pulse" />
               ))}
             </div>
-          </div>
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-primary/50 bg-card/40 px-6 py-16 text-center transition hover:border-primary hover:bg-card/60">
-            <UploadCloud className="h-10 w-10 text-primary" strokeWidth={1.25} />
-            <div className="text-sm font-bold tracking-[0.04em]">{t("home.upload.dropzone.title")}</div>
-            <div className="text-[12px] text-muted-foreground">{t("home.upload.dropzone.subtitle")}</div>
-            <div className="text-[10.5px] tracking-[0.08em] text-muted-foreground/70">
-              {t("home.upload.dropzone.formats")}
-            </div>
-            <input type="file" className="hidden" multiple />
-          </label>
-        </div>
-        <div className="border-t border-border/40">
-          <div className="mx-auto flex max-w-[100rem] flex-col gap-2 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:items-center md:justify-between">
-            <span className="flex items-center gap-2">
-              <Scale className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.criterion")}
-            </span>
-            <span className="flex items-center gap-2">
-              <Lock className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.dataLaw")}
-            </span>
-          </div>
-        </div>
-      </section>
+          )}
 
-      {/* Experience Nyrava — live case demos */}
-      <section id="product" className="mx-auto max-w-[100rem] px-6 py-12 lg:py-16">
+          {!demosLoading && (!demoCases || demoCases.length === 0) && (
+            <div className="panel p-8 text-sm text-muted-foreground">{t("home.demos.empty")}</div>
+          )}
 
-        <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">{t("home.demos.tag")}</div>
-        <h2 className="mb-8 max-w-2xl font-display text-2xl font-semibold leading-tight md:text-3xl">
-          {t("home.demos.title")}
-        </h2>
-
-
-        {demosLoading && (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="panel h-40 animate-pulse" />
-            ))}
-          </div>
-        )}
-
-        {!demosLoading && (!demoCases || demoCases.length === 0) && (
-          <div className="panel p-8 text-sm text-muted-foreground">{t("home.demos.empty")}</div>
-        )}
-
-        {!demosLoading && demoCases && demoCases.length > 0 && (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {demoCases.map((c) => (
-              <Link
-                key={c.id}
-                to="/demo/$slug"
-                params={{ slug: c.slug }}
-                className="panel group flex flex-col gap-4 p-5 transition hover:-translate-y-0.5"
-              >
-                <div className="grid h-12 w-12 place-items-center rounded-md border border-border bg-card/60 p-1">
-                  <NyravaLogo size={32} />
-                </div>
-
-                <div>
-                  <div className="text-[10.5px] font-semibold tracking-[0.2em] text-amber">
-                    {c.case_type_label.toUpperCase()}
+          {!demosLoading && demoCases && demoCases.length > 0 && (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {demoCases.map((c) => (
+                <Link
+                  key={c.id}
+                  to="/demo/$slug"
+                  params={{ slug: c.slug }}
+                  className="panel group flex flex-col gap-4 p-5 transition hover:-translate-y-0.5"
+                >
+                  <div className="grid h-12 w-12 place-items-center rounded-md border border-border bg-card/60 p-1">
+                    <NyravaLogo size={32} />
                   </div>
-                  <h3 className="mt-1 font-display text-base font-semibold leading-tight">{c.name}</h3>
-                  {c.summary && <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{c.summary}</p>}
-                </div>
-                <span className="mt-auto inline-flex items-center gap-1 text-[10.5px] font-semibold tracking-[0.22em] text-primary transition group-hover:gap-2">
-                  {t("home.demos.run")} <ArrowRight className="h-3 w-3" />
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
 
-      <TrustStrip />
+                  <div>
+                    <div className="text-[10.5px] font-semibold tracking-[0.2em] text-amber">
+                      {c.case_type_label.toUpperCase()}
+                    </div>
+                    <h3 className="mt-1 font-display text-base font-semibold leading-tight">
+                      {c.name}
+                    </h3>
+                    {c.summary && (
+                      <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
+                        {c.summary}
+                      </p>
+                    )}
+                  </div>
+                  <span className="mt-auto inline-flex items-center gap-1 text-[10.5px] font-semibold tracking-[0.22em] text-primary transition group-hover:gap-2">
+                    {t("home.demos.run")} <ArrowRight className="h-3 w-3" />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <TrustStrip />
       </main>
       <SiteFooter />
     </div>

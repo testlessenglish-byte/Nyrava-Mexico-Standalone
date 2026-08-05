@@ -94,6 +94,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
+  beforeLoad: ({ location }) => {
+    // Internal Lovable routes must not go through app-level redirects
+    if (location.pathname.startsWith("/lovable/")) return;
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
