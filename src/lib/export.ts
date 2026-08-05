@@ -1116,25 +1116,45 @@ class PdfBuilder {
     this.y = this.margin + CONTINUATION_HEADER_H;
   }
 
+  /**
+   * Shared section opener used by every major section: letter-spaced gold
+   * kicker → serif title → short gold rule. Consistency here is what makes
+   * the report read as one document instead of many stitched sections.
+   * Returns the y position to continue drawing from.
+   */
+  sectionTitle(kicker: string, title: string): number {
+    if (kicker) {
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(8.4);
+      this.doc.setTextColor(...ACCENT);
+      this.doc.text(spaced(rt(kicker).toUpperCase()), this.margin, this.y);
+      this.y += 15;
+    }
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(20);
+    this.doc.setTextColor(...PRIMARY);
+    const lines = this.doc.splitTextToSize(title, this.pageW - this.margin * 2) as string[];
+    for (const line of lines) {
+      this.doc.text(line, this.margin, this.y);
+      this.y += 23;
+    }
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(2.2);
+    this.doc.line(this.margin, this.y - 6, this.margin + 40, this.y - 6);
+    this.y += 18;
+    return this.y;
+  }
+
   h1(label: string) {
     // Generous top spacing gives each section true separation and
-    // signals executive-briefing hierarchy. A slim gold rule underneath
-    // the heading replaces the old fat tab for a quieter, more premium
-    // look.
+    // signals executive-briefing hierarchy. Every h1 routes through the
+    // shared sectionTitle() treatment.
     if (this.firstSectionRendered) {
       this.y += 34;
     }
     this.firstSectionRendered = true;
     this.ensureSpace(120);
-    this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(19);
-    this.doc.setTextColor(...PRIMARY);
-    this.doc.text(label, this.margin, this.y);
-    this.y += 8;
-    this.doc.setDrawColor(...ACCENT);
-    this.doc.setLineWidth(1.2);
-    this.doc.line(this.margin, this.y, this.margin + 36, this.y);
-    this.y += 22;
+    this.sectionTitle("Nyrava Intelligence", label);
   }
 
   h2(label: string) {
