@@ -1312,6 +1312,14 @@ async function _runPipelineForCase(
         /* noop */
       }
       if (s.key === "report") {
+        // Report finished cleanly — reset the checkpoint backstop counter so a
+        // later regenerate starts with a fresh budget.
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from("cases").update({ report_checkpoint_count: 0 }).eq("id", caseId);
+        } catch {
+          /* best-effort */
+        }
         // Dashboard-only tally — the AI request allowance for the whole
         // pipeline run was already consumed once up front in
         // queueCaseForPipeline (see usage.server.ts).
@@ -1322,6 +1330,7 @@ async function _runPipelineForCase(
           /* best-effort */
         }
       }
+
       return { kind: "success" };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
