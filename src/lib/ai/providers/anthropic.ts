@@ -55,7 +55,7 @@ export function makeAnthropic(cfg: ProviderConfig): AIProvider {
         throw new Error(to.timedOut() ? `anthropic timed out after ${timeoutMs}ms` : (e instanceof Error ? e.message : String(e)));
       }
       to.cancel();
-      assertCheckpointBudget(`after anthropic fetch ${model}`);
+      // No post-fetch checkpoint assertion — see router.server.ts.
       const latencyMs = Date.now() - t0;
       const providerRequestId = res.headers.get("request-id") ?? res.headers.get("x-request-id") ?? undefined;
       if (!res.ok) {

@@ -181,7 +181,7 @@ export function makeGemini(cfg: ProviderConfig): AIProvider {
         throw new Error(message);
       }
       to.cancel();
-      assertCheckpointBudget(`after gemini fetch ${model}`);
+      // No post-fetch checkpoint assertion — see router.server.ts.
       const latencyMs = Date.now() - t0;
       const providerRequestId =
         res.headers.get("x-request-id") ??
