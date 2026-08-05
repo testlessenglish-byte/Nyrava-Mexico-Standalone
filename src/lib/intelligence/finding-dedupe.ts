@@ -49,7 +49,10 @@ function tokens(s: unknown): Set<string> {
   return new Set(
     normalizeText(s)
       .split(" ")
-      .filter((t) => t.length > 2 && !STOPWORDS.has(t)),
+      .filter((t) => t.length > 2 && !STOPWORDS.has(t))
+      // Light stem: Spanish inflections ("contractual"/"contrato",
+      // "vulneracion"/"vulnerar") differ only past the first few characters.
+      .map((t) => t.slice(0, 6)),
   );
 }
 
@@ -73,7 +76,7 @@ export type DedupeOptions = {
 };
 
 const DEFAULTS: Required<DedupeOptions> = {
-  titleThreshold: 0.62,
+  titleThreshold: 0.55,
   titleFallbackThreshold: 0.4,
   descriptionThreshold: 0.6,
 };
