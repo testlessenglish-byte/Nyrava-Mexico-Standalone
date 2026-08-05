@@ -3074,18 +3074,18 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
     if (!entries.length) continue;
     b.h2Tier(`${tier.label} (${entries.length})`, tier.color);
     for (const [pos, { f, i }] of entries.entries()) {
-      if (pos > 0) b.divider();
-      b.ensureSpace(60);
+      if (pos > 0) b.y += 10;
+      b.ensureSpace(70);
       const sevColor = b.severityColor(asStr(f.severity));
-      // Left accent stripe — same visual language as the h1 section marker —
-      // so severity reads at a glance without parsing "SEVERITY: critical".
-      b.doc.setFillColor(...sevColor);
-      b.doc.rect(b.margin, b.y - 12, 3, 16, "F");
-      b.doc.setFont("helvetica", "bold");
-      b.doc.setFontSize(12);
+      // Severity bar down the left edge of the finding block plus a serif
+      // headline: the finding reads as its own card rather than as one
+      // more paragraph in a wall of text.
+      const blockTop = b.y - 14;
+      b.doc.setFont("times", "bold");
+      b.doc.setFontSize(13);
       b.doc.setTextColor(...PRIMARY);
-      const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 90) as string[];
-      b.doc.text(titleLines[0] ?? "", b.margin + 10, b.y);
+      const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 100) as string[];
+      b.doc.text(titleLines[0] ?? "", b.margin + 14, b.y);
       const conf = Number(f.confidence ?? 0);
       b.pill(
         `${asStr(f.severity)} · ${confidenceLabel(conf)} ${rt("conf.")}`,
@@ -3094,11 +3094,13 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
         sevColor,
         "right",
       );
-      b.y += 16;
+      b.y += 17;
       for (const extra of titleLines.slice(1)) {
-        b.doc.text(extra, b.margin + 10, b.y);
-        b.y += 14;
+        b.doc.text(extra, b.margin + 14, b.y);
+        b.y += 15;
       }
+      b.doc.setFillColor(...sevColor);
+      b.doc.rect(b.margin, blockTop, 3, b.y - blockTop - 4, "F");
       // Claim classification — heuristic classification of the finding.
       // Findings with verbatim quotes default to FACT; speculative
       // descriptions degrade to ANALYSIS.
@@ -3111,34 +3113,33 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       const strength = evidenceStrengthLabel(conf, refCounts[i]);
       b.ensureSpace(28);
       b.doc.setFont("helvetica", "bold");
-      b.doc.setFontSize(9);
+      b.doc.setFontSize(7.4);
       b.doc.setTextColor(...MUTED);
-      b.doc.text(rt("CONFIDENCE"), b.margin, b.y);
-      b.doc.text(rt("EVIDENCE STRENGTH"), b.margin + 140, b.y);
-      b.doc.text(rt("SOURCES"), b.margin + 300, b.y);
-      b.y += 12;
-      b.doc.setFont("helvetica", "bold");
-      b.doc.setFontSize(10.5);
+      b.doc.text(spaced(rt("CONFIDENCE")), b.margin, b.y);
+      b.doc.text(spaced(rt("EVIDENCE STRENGTH")), b.margin + 150, b.y);
+      b.doc.text(spaced(rt("SOURCES")), b.margin + 330, b.y);
+      b.y += 13;
+      b.doc.setFont("times", "bold");
+      b.doc.setFontSize(12);
       b.doc.setTextColor(...PRIMARY);
       b.doc.text(confidenceLabel(conf), b.margin, b.y);
       b.doc.setTextColor(...strength.color);
-      b.doc.text(strength.label, b.margin + 140, b.y);
+      b.doc.text(strength.label, b.margin + 150, b.y);
       b.doc.setTextColor(...PRIMARY);
-      b.doc.text(String(refCounts[i] || 0), b.margin + 300, b.y);
-      b.y += 16;
+      b.doc.text(String(refCounts[i] || 0), b.margin + 330, b.y);
+      b.y += 18;
       if (f.legal_significance)
-        b.text(`${rt("Legal significance:")} ${asStr(f.legal_significance)}`, { size: 10, color: MUTED, gap: 2 });
-      b.text(asStr(f.description), { size: 10, gap: 4 });
+        b.text(`${rt("Legal significance:")} ${asStr(f.legal_significance)}`, { size: 9.5, color: MUTED, gap: 2 });
+      b.text(asStr(f.description), { size: 9.6, gap: 4 });
       const refs = asArr(f.evidence_refs);
       if (refs.length) {
-        b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
-        b.bullets(
-          refs.slice(0, 4).map((r) => {
-            const q = asStr(r.quote);
-            const lbl = asStr(r.filename) || resolveDocTitleByUuid(r.document_id ?? r.doc_id) || "";
-            return q ? (lbl ? `"${q.slice(0, 180)}"  — ${lbl}` : `"${q.slice(0, 180)}"`) : lbl;
-          }),
-        );
+        b.text(spaced(rt("EVIDENCE")), { size: 7.4, bold: true, color: MUTED, gap: 2 });
+        for (const r of refs.slice(0, 4)) {
+          const q = asStr(r.quote);
+          const lbl = asStr(r.filename) || resolveDocTitleByUuid(r.document_id ?? r.doc_id) || "";
+          if (q) b.evidenceQuote(q.slice(0, 220), lbl ? `— ${lbl}` : "");
+          else if (lbl) b.text(lbl, { size: 8.6, color: MUTED, gap: 2 });
+        }
       }
       // Cross-reference other findings that share this one's category
       // (e.g. several findings that all bear on identification, or all
