@@ -1,4 +1,11 @@
-import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -42,10 +49,18 @@ export const Route = createFileRoute("/_authenticated")({
   head: () => ({
     meta: [
       { title: "Workspace — Nyrava Intelligence OS" },
-      { name: "description", content: "Your Nyrava workspace: cases, evidence, motions, timelines, witnesses, and reports." },
+      {
+        name: "description",
+        content:
+          "Your Nyrava workspace: cases, evidence, motions, timelines, witnesses, and reports.",
+      },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Workspace — Nyrava Intelligence OS" },
-      { property: "og:description", content: "Your Nyrava workspace: cases, evidence, motions, timelines, witnesses, and reports." },
+      {
+        property: "og:description",
+        content:
+          "Your Nyrava workspace: cases, evidence, motions, timelines, witnesses, and reports.",
+      },
     ],
   }),
   beforeLoad: async ({ location }) => {
@@ -93,7 +108,6 @@ const MOBILE_TABS: Array<{
   { to: "/settings", labelKey: "nav.tab.settings", icon: Settings },
 ];
 
-
 function AppLayout() {
   const { t } = useI18n();
   // Navigation-independent pipeline driving: loops live in module state, so
@@ -123,7 +137,10 @@ function AppLayout() {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
     return (searchableCases ?? [])
-      .filter((c) => !c.archived_at && (c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)))
+      .filter(
+        (c) =>
+          !c.archived_at && (c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)),
+      )
       .slice(0, 8);
   }, [searchableCases, searchQuery]);
 
@@ -142,7 +159,11 @@ function AppLayout() {
         "";
       if (metaName) setFullName(metaName);
       if (user?.id) {
-        const { data: prof } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .maybeSingle();
         if (prof?.full_name) setFullName(prof.full_name);
       }
     });
@@ -188,7 +209,8 @@ function AppLayout() {
           ? t("shell.greeting.afternoon")
           : t("shell.greeting.evening");
 
-  const firstName = fullName.split(/\s+/)[0] || email.split("@")[0]?.split(".")[0] || t("shell.counsel");
+  const firstName =
+    fullName.split(/\s+/)[0] || email.split("@")[0]?.split(".")[0] || t("shell.counsel");
 
   const NavItem = ({
     to,
@@ -246,14 +268,22 @@ function AppLayout() {
             )}
           </Link>
           <LanguageSwitcher variant="header" />
-          <UserMenu initials={initials} displayName={displayName} email={email} isAdmin={!!adminInfo?.isAdmin} />
+          <UserMenu
+            initials={initials}
+            displayName={displayName}
+            email={email}
+            isAdmin={!!adminInfo?.isAdmin}
+          />
         </div>
       </header>
 
       {/* Mobile slide-out drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDrawerOpen(false)}
+          />
           <aside className="absolute left-0 top-0 flex h-full w-[82%] max-w-[320px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between border-b border-sidebar-border px-4 py-3">
               <NyravaLogo size={30} withWordmark />
@@ -309,7 +339,9 @@ function AppLayout() {
                 <NavItem to="/security-dashboard" labelKey="nav.security" icon={ShieldCheck} />
                 <NavItem to="/ai-keys" labelKey="nav.aiKeys" icon={Sparkles} />
                 <NavItem to="/health" labelKey="nav.health" icon={Activity} />
-                {adminInfo?.isAdmin && <NavItem to="/admin" labelKey="nav.adminPanel" icon={ShieldCheck} />}
+                {adminInfo?.isAdmin && (
+                  <NavItem to="/admin" labelKey="nav.adminPanel" icon={ShieldCheck} />
+                )}
                 <Link
                   to="/settings"
                   className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
@@ -389,7 +421,9 @@ function AppLayout() {
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-semibold text-sidebar-foreground">{firstName}</div>
+              <div className="truncate text-xs font-semibold text-sidebar-foreground">
+                {firstName}
+              </div>
               <div className="truncate text-[10px] text-sidebar-foreground/60">
                 {adminInfo?.isAdmin ? t("nav.role.admin") : t("nav.role.attorney")}
               </div>
@@ -413,12 +447,13 @@ function AppLayout() {
         <header className="sticky top-0 z-20 hidden items-center gap-4 border-b border-border bg-card/70 px-6 py-3 backdrop-blur md:flex">
           {pathname !== "/dashboard" && <BackButton />}
           <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-warning/15 text-warning">☀</div>
+            <div className="grid h-9 w-9 place-items-center rounded-full bg-warning/15 text-warning">
+              ☀
+            </div>
             <div>
               <div className="text-base font-semibold text-foreground">
                 {greeting ? `${greeting}, ${firstName}.` : `${firstName}.`}
               </div>
-
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3">
@@ -442,7 +477,9 @@ function AppLayout() {
               {searchOpen && searchQuery.trim() && (
                 <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-80 overflow-auto rounded-lg border border-border bg-popover shadow-lg">
                   {searchResults.length === 0 ? (
-                    <div className="px-3 py-3 text-xs text-muted-foreground">{t("shell.search.noMatches", { query: searchQuery })}</div>
+                    <div className="px-3 py-3 text-xs text-muted-foreground">
+                      {t("shell.search.noMatches", { query: searchQuery })}
+                    </div>
                   ) : (
                     searchResults.map((c) => (
                       <Link
@@ -456,7 +493,9 @@ function AppLayout() {
                         }}
                       >
                         <span className="font-medium text-foreground">{c.name}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">{t(`cases.status.${c.status}`)}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {t(`cases.status.${c.status}`)}
+                        </span>
                       </Link>
                     ))
                   )}
@@ -476,7 +515,12 @@ function AppLayout() {
               )}
             </Link>
             <LanguageSwitcher variant="header" />
-          <UserMenu initials={initials} displayName={displayName} email={email} isAdmin={!!adminInfo?.isAdmin} />
+            <UserMenu
+              initials={initials}
+              displayName={displayName}
+              email={email}
+              isAdmin={!!adminInfo?.isAdmin}
+            />
           </div>
         </header>
 
@@ -491,11 +535,17 @@ function AppLayout() {
             const label = t(labelKey);
             if (primary) {
               return (
-                <Link key={label} to={to} className="flex flex-col items-center justify-center gap-1">
+                <Link
+                  key={label}
+                  to={to}
+                  className="flex flex-col items-center justify-center gap-1"
+                >
                   <span className="grid h-12 w-12 -translate-y-3 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-[0_8px_24px_oklch(0.78_0.16_220/0.45)] ring-4 ring-sidebar">
                     <Icon className="h-5 w-5" />
                   </span>
-                  <span className="-translate-y-3 text-[10px] font-semibold text-primary">{label}</span>
+                  <span className="-translate-y-3 text-[10px] font-semibold text-primary">
+                    {label}
+                  </span>
                 </Link>
               );
             }

@@ -1,4 +1,4 @@
-import * as React from 'react'
+import * as React from "react";
 
 import {
   Body,
@@ -12,15 +12,15 @@ import {
   Preview,
   Section,
   Text,
-} from '@react-email/components'
-import * as styles from './shared-styles'
+} from "@react-email/components";
+import * as styles from "./shared-styles";
 
 interface EmailChangeEmailProps {
-  siteName: string
-  oldEmail: string
-  email: string
-  newEmail: string
-  confirmationUrl: string
+  siteName: string;
+  oldEmail: string;
+  email: string;
+  newEmail: string;
+  confirmationUrl: string;
 }
 
 export const EmailChangeEmail = ({
@@ -39,11 +39,11 @@ export const EmailChangeEmail = ({
           </Section>
           <Heading style={styles.h1}>Confirma tu nuevo correo</Heading>
           <Text style={styles.text}>
-            Solicitaste cambiar la dirección de correo de {styles.siteName} de{' '}
+            Solicitaste cambiar la dirección de correo de {styles.siteName} de{" "}
             <Link href={`mailto:${oldEmail}`} style={styles.link}>
               {oldEmail}
-            </Link>{' '}
-            a{' '}
+            </Link>{" "}
+            a{" "}
             <Link href={`mailto:${newEmail}`} style={styles.link}>
               {newEmail}
             </Link>
@@ -60,6 +60,6 @@ export const EmailChangeEmail = ({
       </Section>
     </Body>
   </Html>
-)
+);
 
-export default EmailChangeEmail
+export default EmailChangeEmail;

@@ -1,4 +1,4 @@
-import * as React from 'react'
+import * as React from "react";
 
 import {
   Body,
@@ -11,17 +11,15 @@ import {
   Preview,
   Section,
   Text,
-} from '@react-email/components'
-import * as styles from './shared-styles'
+} from "@react-email/components";
+import * as styles from "./shared-styles";
 
 interface RecoveryEmailProps {
-  siteName: string
-  confirmationUrl: string
+  siteName: string;
+  confirmationUrl: string;
 }
 
-export const RecoveryEmail = ({
-  confirmationUrl,
-}: RecoveryEmailProps) => (
+export const RecoveryEmail = ({ confirmationUrl }: RecoveryEmailProps) => (
   <Html lang="es" dir="ltr">
     <Head />
     <Preview>Restablece tu contraseña de {styles.siteName}</Preview>
@@ -33,7 +31,8 @@ export const RecoveryEmail = ({
           </Section>
           <Heading style={styles.h1}>Restablece tu contraseña</Heading>
           <Text style={styles.text}>
-            Recibimos una solicitud para restablecer tu contraseña de {styles.siteName}. Haz clic en el botón para elegir una nueva.
+            Recibimos una solicitud para restablecer tu contraseña de {styles.siteName}. Haz clic en
+            el botón para elegir una nueva.
           </Text>
           <Button style={styles.button} href={confirmationUrl}>
             Restablecer contraseña
@@ -45,6 +44,6 @@ export const RecoveryEmail = ({
       </Section>
     </Body>
   </Html>
-)
+);
 
-export default RecoveryEmail
+export default RecoveryEmail;

@@ -9,7 +9,11 @@ import path from "path";
 import { loadEnv } from "vite";
 
 // Load all env vars into process.env for server routes (LOVABLE_API_KEY, SUPABASE_SERVICE_ROLE_KEY, etc.)
-const serverEnv = loadEnv(process.env.NODE_ENV === "production" ? "production" : "development", process.cwd(), "");
+const serverEnv = loadEnv(
+  process.env.NODE_ENV === "production" ? "production" : "development",
+  process.cwd(),
+  "",
+);
 Object.assign(process.env, serverEnv);
 
 export default defineConfig({

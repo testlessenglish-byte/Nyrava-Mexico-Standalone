@@ -1,4 +1,4 @@
-import * as React from 'react'
+import * as React from "react";
 
 import {
   Body,
@@ -10,11 +10,11 @@ import {
   Preview,
   Section,
   Text,
-} from '@react-email/components'
-import * as styles from './shared-styles'
+} from "@react-email/components";
+import * as styles from "./shared-styles";
 
 interface ReauthenticationEmailProps {
-  token: string
+  token: string;
 }
 
 export const ReauthenticationEmail = ({ token }: ReauthenticationEmailProps) => (
@@ -37,6 +37,6 @@ export const ReauthenticationEmail = ({ token }: ReauthenticationEmailProps) => 
       </Section>
     </Body>
   </Html>
-)
+);
 
-export default ReauthenticationEmail
+export default ReauthenticationEmail;

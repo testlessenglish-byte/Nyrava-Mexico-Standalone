@@ -1,4 +1,4 @@
-import * as React from 'react'
+import * as React from "react";
 
 import {
   Body,
@@ -11,17 +11,15 @@ import {
   Preview,
   Section,
   Text,
-} from '@react-email/components'
-import * as styles from './shared-styles'
+} from "@react-email/components";
+import * as styles from "./shared-styles";
 
 interface MagicLinkEmailProps {
-  siteName: string
-  confirmationUrl: string
+  siteName: string;
+  confirmationUrl: string;
 }
 
-export const MagicLinkEmail = ({
-  confirmationUrl,
-}: MagicLinkEmailProps) => (
+export const MagicLinkEmail = ({ confirmationUrl }: MagicLinkEmailProps) => (
   <Html lang="es" dir="ltr">
     <Head />
     <Preview>Tu enlace de acceso a {styles.siteName}</Preview>
@@ -33,7 +31,8 @@ export const MagicLinkEmail = ({
           </Section>
           <Heading style={styles.h1}>Tu enlace de acceso</Heading>
           <Text style={styles.text}>
-            Haz clic en el botón para iniciar sesión en {styles.siteName}. Este enlace expira en pocos minutos.
+            Haz clic en el botón para iniciar sesión en {styles.siteName}. Este enlace expira en
+            pocos minutos.
           </Text>
           <Button style={styles.button} href={confirmationUrl}>
             Iniciar sesión
@@ -45,6 +44,6 @@ export const MagicLinkEmail = ({
       </Section>
     </Body>
   </Html>
-)
+);
 
-export default MagicLinkEmail
+export default MagicLinkEmail;
