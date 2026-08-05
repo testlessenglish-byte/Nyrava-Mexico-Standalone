@@ -228,11 +228,14 @@ export function consolidateFindings<T extends DedupableFinding>(
         description: d.description ? String(d.description) : undefined,
       }));
       master._merged_count = dupes.length;
-      const meta = (master.metadata && typeof master.metadata === "object"
-        ? { ...(master.metadata as Record<string, unknown>) }
-        : {}) as Record<string, unknown>;
+      const mutable = master as DedupableFinding;
+      const existingMeta = mutable.metadata;
+      const meta =
+        existingMeta && typeof existingMeta === "object"
+          ? { ...(existingMeta as Record<string, unknown>) }
+          : ({} as Record<string, unknown>);
       meta.merged_duplicates = master._merged;
-      master.metadata = meta;
+      mutable.metadata = meta;
     }
     out.push({ index: winner.index, row: master });
   }
