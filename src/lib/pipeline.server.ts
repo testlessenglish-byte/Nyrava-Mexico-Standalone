@@ -7767,8 +7767,33 @@ ${paginationTail}`;
     completed_at: new Date().toISOString(),
     error: null,
   });
+
+  // ---- Final release review — the last step of the pipeline -------------
+  // The completed report is now generated, saved and snapshotted. Only now
+  // may a release decision be made: the release-gate agents (report, QA,
+  // judge, hallucination) re-run against the saved report and write the
+  // case's final status exactly once. Report generation above deliberately
+  // never assigns "released"/"needs_revision" — generating a report and
+  // approving a report are two separate actions. Infrastructure failures
+  // here must not undo a successfully generated report, so this is
+  // non-fatal.
+  let releaseReview: { released: boolean; status: string } | null = null;
+  try {
+    const { runFinalReleaseReview } = await import("@/lib/agents/orchestrator.server");
+    const review = await runFinalReleaseReview({
+      db,
+      caseId,
+      userId,
+      apiKey,
+      apiKeys: apiKeys ?? [apiKey],
+    });
+    releaseReview = { released: review.released, status: review.status };
+  } catch (e) {
+    console.warn("[final-release] review failed after report generation", e);
+  }
+
   return {
-    value: undefined,
+    value: releaseReview ?? undefined,
     stats: {
       generated: contradictionsRaw.length + motionsRaw.length,
       accepted: factualContradictions.length + motionsFinal.length,
