@@ -5343,11 +5343,16 @@ ${corpus.slice(0, s(160000))}`;
     buildCaseTypeStandardsBlock(caseType);
 
   // --- CHUNKED GENERATION (Fix 1) ---
-  // Split into 3 focused parallel chunks (narrative prose, legal memo,
-  // structured intelligence) instead of one monolithic 16k-token call.
-  // Each chunk gets its full token budget → no truncation, deeper analysis,
-  // rate-limit friendly on the free tier (calls rotate across `apiKeys`
-  // inside callGroq).
+  // Split into 3 focused chunks (narrative prose, legal memo, structured
+  // intelligence) instead of one monolithic 16k-token call. Each chunk gets
+  // its full token budget → no truncation, deeper analysis, rate-limit
+  // friendly on the free tier (calls rotate across `apiKeys` inside
+  // callGroq). STALE NOTE (was "3 focused parallel chunks" here): they run
+  // sequentially now, not in parallel — see STAGE 1/STAGE 2 below for why
+  // (three mutually-blind parallel calls independently re-deriving the same
+  // executive summary/risk narrative/recommendations was the actual cause
+  // of report repetition, not a finding-dedup problem) and for the
+  // provider-burst rationale for keeping memo+intelligence sequential too.
   // 2026-07-27 — report input budget cut roughly in half again (corpus
   // 55k→22k chars, findings 18k→9k, engine block 12k→7k, etc.). Two hard
   // limits force this, and both were being violated:
@@ -5769,7 +5774,13 @@ ${buildUserContent(0.17).split("PAGINATION RULES:")[1] ? "PAGINATION RULES:" + b
     };
 
     // Dedicated legal_memorandum salvage prompt — same corpus, structured
-    // object shape, no prose fields. Runs in parallel with the prose groups.
+    // object shape, no prose fields. STALE NOTE (was "Runs in parallel with
+    // the prose groups" here): the loop below is sequential (a for-loop
+    // manually building PromiseSettledResult-shaped entries, not an actual
+    // Promise.allSettled) — likely deliberate, same provider-burst rationale
+    // as the main narrative/memo/intelligence path, since this only fires
+    // when narrative has already failed and providers may already be
+    // struggling. Not changed here; comment corrected to match reality.
     const buildMemoPrompt = () => {
       const rest = buildUserContent(0.17);
       const paginationTail = rest.split("PAGINATION RULES:")[1]
