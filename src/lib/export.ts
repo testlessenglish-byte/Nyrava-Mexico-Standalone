@@ -1660,45 +1660,38 @@ class PdfBuilder {
     for (let i = 2; i <= pageCount; i++) {
       this.doc.setPage(i);
 
-      // White band across the reserved top area (defensive — guards
-      // against any stray content drawn too high) plus the logo mark,
-      // wordmark, case name / page count, and a two-tone divider that
-      // echoes the cover banner's navy + accent treatment.
-      this.doc.setFillColor(255, 255, 255);
+      // Warm sheet band across the reserved top area (defensive — guards
+      // against any stray content drawn too high) plus a slim single-row
+      // masthead: crest, wordmark, matter label, one hairline.
+      this.doc.setFillColor(...PAGE_BG);
       this.doc.rect(0, 0, this.pageW, h, "F");
 
-      // Trust-badge shield (matches the site favicon / app icon) instead
-      // of the old plain navy square, so every interior page carries the
-      // same brand mark as the cover and the browser tab.
       const markSize = 18;
       const markX = this.margin;
-      const markY = 9;
+      const markY = 12;
       this.trustBadge(markX + markSize / 2, markY + markSize / 2, markSize);
 
-      const textX = markX + markSize + 8;
+      const textX = markX + markSize + 10;
       this.doc.setFont("helvetica", "bold");
-      this.doc.setFontSize(10);
-      this.doc.setTextColor(...PRIMARY);
-      this.doc.text("NYRAVA", textX, markY + 7.5);
+      this.doc.setFontSize(9.5);
+      this.doc.setTextColor(...INK);
+      this.doc.text("NYRAVA", textX, markY + 8);
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(6);
-      this.doc.setTextColor(...BRAND_CYAN);
-      this.doc.text("LEGAL INTELLIGENCE OS", textX, markY + 15);
+      this.doc.setFontSize(7.3);
+      this.doc.setTextColor(...MUTED);
+      this.doc.text("LEGAL INTELLIGENCE OS", textX, markY + 17);
 
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(8.5);
+      this.doc.setFontSize(7.6);
       this.doc.setTextColor(...MUTED);
       const rightLabel = `${this.caseName}   ·   ${i} / ${pageCount}`;
       const fitted =
-        (this.doc.splitTextToSize(rightLabel, this.pageW - this.margin * 2 - 110) as string[])[0] ?? rightLabel;
-      this.doc.text(fitted, this.pageW - this.margin, markY + 11, { align: "right" });
+        (this.doc.splitTextToSize(rightLabel, this.pageW - this.margin * 2 - 130) as string[])[0] ?? rightLabel;
+      this.doc.text(fitted, this.pageW - this.margin, markY + 13, { align: "right" });
 
-      this.doc.setDrawColor(...ACCENT);
-      this.doc.setLineWidth(1.5);
-      this.doc.line(this.margin, h - 1, this.pageW - this.margin, h - 1);
-      this.doc.setDrawColor(...CARD_BORDER);
-      this.doc.setLineWidth(0.5);
-      this.doc.line(this.margin, h + 2, this.pageW - this.margin, h + 2);
+      this.doc.setDrawColor(...LINE);
+      this.doc.setLineWidth(0.6);
+      this.doc.line(this.margin, h - 6, this.pageW - this.margin, h - 6);
     }
   }
 
