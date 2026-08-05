@@ -612,6 +612,7 @@ async function agentHallucination(ctx: RunCtx): Promise<AgentResult> {
 export async function runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
   runId: string;
   released: boolean;
+  releaseDeferred?: boolean;
   results: Array<AgentResult & { agent: AgentDefinition }>;
 }> {
   const { withAIUser } = await import("@/lib/ai/user-scope.server");
@@ -621,6 +622,7 @@ export async function runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
 async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
   runId: string;
   released: boolean;
+  releaseDeferred?: boolean;
   results: Array<AgentResult & { agent: AgentDefinition }>;
 }> {
   const runId = crypto.randomUUID();
