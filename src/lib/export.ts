@@ -1904,7 +1904,7 @@ function renderCover(
   }
   if (r.intelligence_version) cards.push({ label: "Engine Version", value: asStr(r.intelligence_version) });
 
-  b.statCards(cards, 5);
+  b.statCards(cards, 4);
 
   // Cover metadata now lives on page 1; caller pageBreaks into the TOC.
   return false;
