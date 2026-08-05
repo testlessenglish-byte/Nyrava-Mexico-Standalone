@@ -3055,7 +3055,7 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       const strength = evidenceStrengthLabel(conf, refCounts[i]);
       return [
         i + 1,
-        asStr(f.severity).toUpperCase(),
+        rt(asStr(f.severity).toUpperCase()),
         asStr(f.title).slice(0, 70),
         asStr(f.category),
         confidenceLabel(conf),
