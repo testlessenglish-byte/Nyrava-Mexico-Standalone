@@ -91,6 +91,7 @@ import { getApplicableSections, normalizePracticeArea } from "@/lib/intelligence
 // so the PDF/DOCX export and the live report can never disagree about
 // what a card says or which cards exist for a given case.
 import { buildLitigationImpactDashboard, type ImpactCard } from "@/lib/intelligence/litigation-impact";
+import { MX_PARTY_ROLES, resolveMxProfile, mxRoleLabel } from "@/lib/execution/mx-pipeline";
 
 // Report Engine v1.0 — frozen release identifier surfaced on every PDF footer.
 // The structure, section order, and scoring formulas are locked; only bug
@@ -3486,7 +3487,7 @@ function renderTheories(b: PdfBuilder, data: CaseExportData) {
   if (!ts.length) return;
   b.h1("Análisis de Teoría del Caso");
   for (const t of ts) {
-    b.h3(`${asStr(t.theory_type).toUpperCase()} theory`);
+    b.h3(`${mxRoleLabel(asStr(t.theory_type))} Theory`);
     b.label("Confianza", Number(t.confidence ?? 0).toFixed(2));
     if (t.risk) b.label("Riesgo", asStr(t.risk));
     b.text(asStr(t.narrative), { size: 10.5, gap: 4 });
@@ -4333,9 +4334,25 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       renderDocx: (d) => {
         const out: Paragraph[] = [];
         const r = asObj(d.report);
+        // FIX: previously hardcoded "Teoría de la Defensa" / "Teoría del
+        // Ministerio Público / Actor" for every materia — a reasonable
+        // generic label for penal/civil but wrong terminology for laboral
+        // (trabajador/patrón), amparo (quejoso/autoridad responsable),
+        // fiscal (contribuyente/autoridad fiscal), administrativo
+        // (particular/autoridad), etc. Same MX_PARTY_ROLES vocabulary the
+        // in-app Report tab and runTheoryEngine/runOpportunityEngine
+        // already use, so the exported DOCX matches what's on screen.
+        const ct = asStr(asObj(asObj(d.report).full_report).case_type) || "general_civil";
+        const roles = MX_PARTY_ROLES[resolveMxProfile(ct)];
+        const titleFor = (key: "defense_theory_report" | "prosecution_theory_report") =>
+          ct === "penal"
+            ? key === "defense_theory_report"
+              ? "Teoría de la Defensa"
+              : "Teoría del Ministerio Público"
+            : `Teoría de la ${mxRoleLabel(key === "defense_theory_report" ? roles.b : roles.a)}`;
         for (const [t, key] of [
-          ["Teoría de la Defensa", "defense_theory_report"],
-          ["Teoría del Ministerio Público / Actor", "prosecution_theory_report"],
+          [titleFor("defense_theory_report"), "defense_theory_report"],
+          [titleFor("prosecution_theory_report"), "prosecution_theory_report"],
           ["Teorías Alternativas", "alternative_theory_report"],
         ] as const) {
           out.push(...proseDocxParas(t, processProseCitations(asStr(r[key]))));

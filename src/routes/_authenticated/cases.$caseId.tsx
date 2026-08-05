@@ -55,6 +55,7 @@ import { MultiAgentPanel } from "@/components/MultiAgentPanel";
 import { ParityBadge } from "@/components/ParityBadge";
 import { ClaimBadge } from "@/components/ClaimBadge";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
+import { MX_PARTY_ROLES, resolveMxProfile, mxRoleLabel } from "@/lib/execution/mx-pipeline";
 import {
   getCanonicalCounts,
   getContradictions,
@@ -3213,14 +3214,41 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
         const LEAD_KEYS = ["executive_summary", "attorney_summary"];
         const fullR = (r.full_report ?? {}) as Record<string, unknown>;
         const ct = typeof fullR.case_type === "string" ? fullR.case_type : "general_civil";
-        const isCrim = ct === "penal" || ct === "criminal" || ct === "civil_rights";
+        // FIX: this previously checked `ct === "penal" || ct === "criminal" ||
+        // ct === "civil_rights"` — "criminal" and "civil_rights" are stale
+        // pre-Mexico-rewrite slugs that don't exist in MX_CASE_TYPES, so the
+        // check matched ONLY "penal" in practice. That silently hid the
+        // Constitutional Issues section for amparo and constitucional cases
+        // even though pipeline.server.ts's isCriminalOrCivilRights (the
+        // server-side gate that actually decides whether to generate this
+        // content) already correctly includes penal, amparo, AND
+        // constitucional — so the AI was generating real constitutional
+        // analysis for those two materias and the UI was throwing it away.
+        // Mirrors isCriminalOrCivilRights exactly.
+        const constitutionalRelevant = ct === "penal" || ct === "amparo" || ct === "constitucional";
+        const profile = resolveMxProfile(ct);
+        const roles = MX_PARTY_ROLES[profile];
         const renderSection = (key: string, title: string) => {
           const body = rStr(r[key]);
           if (!body) return null;
-          // Hide constitutional analysis on civil matters; relabel
-          // "Prosecution Theory" → "Plaintiff Theory" on civil matters.
-          if (key === "constitutional_issues" && !isCrim) return null;
-          const renderedTitle = key === "prosecution_theory_report" && !isCrim ? "Plaintiff Theory" : title;
+          if (key === "constitutional_issues" && !constitutionalRelevant) return null;
+          // Relabel the theory sections with this materia's real Mexican
+          // party roles instead of the old binary "Prosecution/Defense" vs.
+          // flat "Plaintiff/Defense" fallback, which mislabeled every
+          // non-penal materia (laboral, familiar, administrativo, fiscal,
+          // amparo, etc.) as a generic civil "Plaintiff" even though each
+          // has its own real procedural role vocabulary (trabajador/patrón,
+          // quejoso/autoridad_responsable, contribuyente/autoridad_fiscal...).
+          // Penal keeps its existing "Prosecution Theory"/"Defense Theory"
+          // titles unchanged — those are already correct.
+          const renderedTitle =
+            ct === "penal"
+              ? title
+              : key === "prosecution_theory_report"
+                ? `${mxRoleLabel(roles.a)} Theory`
+                : key === "defense_theory_report"
+                  ? `${mxRoleLabel(roles.b)} Theory`
+                  : title;
           return (
             <div key={key} className="rounded-lg border border-border bg-card p-5">
               <h3 className="text-lg font-semibold">{renderedTitle}</h3>
