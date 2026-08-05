@@ -15,7 +15,7 @@ import autoTable from "jspdf-autotable";
 let logoBase64Cache: Promise<string | null> | null = null;
 function getLogoBase64(): Promise<string | null> {
   if (!logoBase64Cache) {
-    logoBase64Cache = fetch("/brand/nyrava-eagle-badge.png")
+    logoBase64Cache = fetch("/brand/nyrava-crest.png")
       .then((res) => {
         if (!res.ok) throw new Error(`logo fetch failed: ${res.status}`);
         return res.blob();
@@ -404,13 +404,26 @@ export function downloadJson(data: CaseExportData, name: string) {
 // ===== PDF builder helpers ============================================
 type Pdf = jsPDF & { lastAutoTable?: { finalY: number } };
 
-const PRIMARY: [number, number, number] = [14, 36, 29]; // brand deep forest green (#0E241D), was slate-900 navy
-const ACCENT: [number, number, number] = [216, 179, 106]; // brand gold (#D8B36A), exact match to the site's --primary
-const MUTED: [number, number, number] = [100, 116, 139]; // slate-500
-const SUCCESS: [number, number, number] = [21, 128, 61]; // green-700
-const DANGER: [number, number, number] = [185, 28, 28]; // red-700
-const CARD_BG: [number, number, number] = [248, 250, 252]; // slate-50 — stat card fill
-const CARD_BORDER: [number, number, number] = [226, 232, 240]; // slate-200 — stat card border
+// ---- Design tokens (report redesign) ---------------------------------
+// Warm, print-oriented palette: forest green + desaturated gold on a warm
+// off-white sheet. Deliberately not pure white / cool slate — the warm
+// paper tone is what makes the export read as a designed legal document
+// rather than a browser printout.
+const PAGE_BG: [number, number, number] = [250, 248, 244]; // warm off-white sheet
+const PRIMARY: [number, number, number] = [14, 36, 29]; // deep forest green
+const PRIMARY_DEEP: [number, number, number] = [9, 24, 19]; // depth bands on the cover
+const ACCENT: [number, number, number] = [198, 158, 90]; // gold
+const ACCENT_SOFT: [number, number, number] = [231, 214, 175]; // pale gold, for dark backgrounds
+const INK: [number, number, number] = [26, 31, 29]; // warm near-black body text
+const MUTED: [number, number, number] = [100, 108, 104]; // secondary text
+const LINE: [number, number, number] = [223, 219, 208]; // hairlines on light bg
+const SUCCESS: [number, number, number] = [39, 98, 66];
+const DANGER: [number, number, number] = [155, 42, 42];
+const HIGH: [number, number, number] = [176, 108, 34];
+const MEDIUM: [number, number, number] = [150, 128, 34];
+const QUOTE_BG: [number, number, number] = [246, 244, 237]; // evidence blockquote fill
+const CARD_BG: [number, number, number] = [255, 255, 255]; // card fill pops on PAGE_BG
+const CARD_BORDER: [number, number, number] = [231, 227, 216]; // card border
 
 // Generic (non-case-type-specific) severity-tier grouping used to give
 // Key Findings a visual hierarchy — critical items read as clearly more
@@ -422,8 +435,8 @@ const CARD_BORDER: [number, number, number] = [226, 232, 240]; // slate-200 — 
 // a fixed domain-specific taxonomy would be wrong for most of them.
 const SEVERITY_TIERS: Array<{ key: string; label: string; color: [number, number, number] }> = [
   { key: "critical", label: "Critical Issues", color: DANGER },
-  { key: "high", label: "High-Priority Issues", color: [217, 119, 6] },
-  { key: "medium", label: "Moderate Issues", color: ACCENT },
+  { key: "high", label: "High-Priority Issues", color: HIGH },
+  { key: "medium", label: "Moderate Issues", color: MEDIUM },
   { key: "low_info", label: "Minor & Administrative Issues", color: SUCCESS },
 ];
 
@@ -479,8 +492,14 @@ const SHIELD_DARK: [number, number, number] = [21, 21, 15]; // warm near-black s
 // addPage() call), so content on those pages is laid out starting below
 // this reserved band, and header() paints into that same band as a
 // post-pass over every page — the same pattern footer() already uses.
-const CONTINUATION_HEADER_H = 46;
+const CONTINUATION_HEADER_H = 50;
 
+// jsPDF has no letter-spacing control; inserting thin gaps between
+// characters is the only way to get the tracked small-caps look used for
+// kickers and eyebrow labels.
+function spaced(v: string): string {
+  return v.split("").join(" ");
+}
 function asStr(v: unknown, fallback = ""): string {
   if (v === null || v === undefined) return fallback;
   if (typeof v === "string") return v;
@@ -593,6 +612,19 @@ class PdfBuilder {
       const safe = typeof text === "string" ? prep(text) : text;
       return (origSplit as unknown as (...a: unknown[]) => unknown)(safe, ...rest);
     };
+    // Every page (including pages jspdf-autotable creates on its own mid-
+    // table) gets the warm PAGE_BG sheet painted before any content lands
+    // on it. Wrapping addPage is the only hook that catches all of them —
+    // a post-pass would paint over the content instead of behind it.
+    const origAddPage = this.doc.addPage.bind(this.doc);
+    (this.doc as unknown as { addPage: (...a: unknown[]) => unknown }).addPage = (...args: unknown[]) => {
+      const res = (origAddPage as unknown as (...a: unknown[]) => unknown)(...args);
+      const fill = this.doc.getFillColor?.();
+      this.doc.setFillColor(...PAGE_BG);
+      this.doc.rect(0, 0, this.pageW, this.pageH, "F");
+      if (fill) this.doc.setFillColor(fill);
+      return res;
+    };
   }
 
   /** Loads the real crest image once, before any drawing happens. Must be
@@ -634,6 +666,23 @@ class PdfBuilder {
     return lines.length * (size * 1.55) + gap;
   }
 
+  // Draws the crest image at its true aspect ratio, centered on (cx, cy),
+  // scaled to `drawH` points tall. No ring, no frame — the crest is a
+  // shield silhouette and reads as a mark on its own.
+  private drawCrest(cx: number, cy: number, drawH: number) {
+    if (!this.logoBase64) return false;
+    let aspect = 1;
+    try {
+      const img = this.doc.getImageProperties(this.logoBase64);
+      if (img?.width && img?.height) aspect = img.width / img.height;
+    } catch {
+      aspect = 1;
+    }
+    const drawW = drawH * aspect;
+    this.doc.addImage(this.logoBase64, "PNG", cx - drawW / 2, cy - drawH / 2, drawW, drawH);
+    return true;
+  }
+
   // Small header/footer logo. Draws the real crest image when loaded;
   // falls back to the vector rounded-square "N" mark if the fetch failed
   // (offline export, asset moved, etc.) so a logo hiccup never blocks the
@@ -642,13 +691,7 @@ class PdfBuilder {
     const size = r * 2;
     const x = cx - r;
     const y = cy - r;
-    if (this.logoBase64) {
-      this.doc.setDrawColor(...BRAND_CYAN);
-      this.doc.setLineWidth(0.75);
-      this.doc.circle(cx, cy, r * 1.08, "S");
-      this.doc.addImage(this.logoBase64, "PNG", x, y, size, size);
-      return;
-    }
+    if (this.drawCrest(cx, cy, size)) return;
     this.doc.setFillColor(...NAVY_TINT);
     this.doc.roundedRect(x, y, size, size, r * 0.3, r * 0.3, "F");
     this.doc.setDrawColor(...BRAND_CYAN);
@@ -718,14 +761,7 @@ class PdfBuilder {
     const x0 = cx - w / 2;
     const y0 = cy - h / 2;
 
-    if (this.logoBase64) {
-      const size = h * 0.92;
-      this.doc.setDrawColor(...SILVER);
-      this.doc.setLineWidth(Math.max(0.75, h * 0.02));
-      this.doc.circle(cx, cy, size / 2 + size * 0.04, "S");
-      this.doc.addImage(this.logoBase64, "PNG", cx - size / 2, cy - size / 2, size, size);
-      return;
-    }
+    if (this.drawCrest(cx, cy, h)) return;
 
     this.doc.setFillColor(...SHIELD_DARK);
     this.doc.setDrawColor(...SILVER);
@@ -770,79 +806,104 @@ class PdfBuilder {
     certification?: CertificationState;
   }) {
     const { pageW, pageH, margin } = this;
-    // Full-bleed navy background
+    // Full-bleed forest-green field with deeper bands at the head and foot
+    // so the composition has weight top and bottom instead of floating.
     this.doc.setFillColor(...PRIMARY);
     this.doc.rect(0, 0, pageW, pageH, "F");
-    // Deeper tint bands top and bottom for depth
-    this.doc.setFillColor(...NAVY_TINT);
-    this.doc.rect(0, 0, pageW, 6, "F");
-    this.doc.rect(0, pageH - 6, pageW, 6, "F");
-    // Gold hairlines framing the composition
-    this.doc.setDrawColor(...ACCENT);
-    this.doc.setLineWidth(0.8);
-    this.doc.line(margin, 92, pageW - margin, 92);
-    this.doc.line(margin, pageH - 150, pageW - margin, pageH - 150);
+    this.doc.setFillColor(...PRIMARY_DEEP);
+    this.doc.rect(0, 0, pageW, 170, "F");
+    this.doc.rect(0, pageH - 150, pageW, 150, "F");
+    // Inset hairline frame — replaces the two stray horizontal rules.
+    this.doc.setDrawColor(...ACCENT_SOFT);
+    this.doc.setLineWidth(0.55);
+    this.doc.rect(28, 28, pageW - 56, pageH - 56, "S");
 
-    // Wordmark at top-left
+    // Centered wordmark
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(14);
-    this.doc.setTextColor(255, 255, 255);
-    this.doc.text("NYRAVA", margin, 60);
-    this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(7.5);
-    this.doc.setTextColor(...BRAND_CYAN);
-    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", margin, 76);
+    this.doc.setFontSize(13);
+    this.doc.setTextColor(...ACCENT_SOFT);
+    this.doc.text("N Y R A V A", pageW / 2, 62, { align: "center" });
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(7.2);
+    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", pageW / 2, 76, { align: "center" });
 
     if (opts.engineVersion) {
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(8);
-      this.doc.setTextColor(...BRAND_CYAN);
-      this.doc.text(`ENGINE ${opts.engineVersion}`, pageW - margin, 60, { align: "right" });
+      this.doc.setFontSize(7.5);
+      this.doc.setTextColor(...ACCENT_SOFT);
+      this.doc.text(`ENGINE ${opts.engineVersion}`, pageW - margin, 62, { align: "right" });
     }
 
-    // Trust badge centered in upper third
-    this.trustBadge(pageW / 2, pageH * 0.3, 128);
+    // Crest — the visual anchor of the page, ring-free and aspect-correct.
+    this.trustBadge(pageW / 2, pageH * 0.32, 186);
 
     // Eyebrow label
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(9);
+    this.doc.setFontSize(8.4);
     this.doc.setTextColor(...ACCENT);
-    this.doc.text("C A S E   I N T E L L I G E N C E   R E P O R T", pageW / 2, pageH * 0.3 + 100, { align: "center" });
+    this.doc.text("C A S E   I N T E L L I G E N C E   R E P O R T", pageW / 2, pageH * 0.32 + 130, {
+      align: "center",
+    });
 
-    // Case title (serif via Times for editorial gravitas)
+    // Case title + party subtitle. Long matter names commonly carry the
+    // parties inline ("X vs. Y"); splitting them lets the cover read as
+    // *this specific case* without crowding the serif title.
+    const rawName = opts.caseName || "Untitled Case";
+    const partySplit = rawName.match(/^(.*?)\s+(?:vs?\.?|c\/|contra)\s+(.+)$/i);
+    const titleText = partySplit ? partySplit[1].trim() : rawName;
+    const subtitleText = partySplit ? `vs. ${partySplit[2].trim()}` : "";
+
     this.doc.setFont("times", "bold");
-    this.doc.setFontSize(30);
+    const titleWidth = pageW - margin * 2 - 40;
+    let titleSize = 30;
+    this.doc.setFontSize(titleSize);
+    let titleLines = this.doc.splitTextToSize(titleText, titleWidth) as string[];
+    if (titleLines.length > 1) {
+      titleSize = 25;
+      this.doc.setFontSize(titleSize);
+      titleLines = this.doc.splitTextToSize(titleText, titleWidth) as string[];
+    }
     this.doc.setTextColor(255, 255, 255);
-    const titleLines = this.doc.splitTextToSize(opts.caseName || "Untitled Case", pageW - margin * 2 - 40) as string[];
-    let ty = pageH * 0.52;
+    let ty = pageH * 0.53;
     for (const line of titleLines.slice(0, 3)) {
       this.doc.text(line, pageW / 2, ty, { align: "center" });
-      ty += 34;
+      ty += titleSize * 1.16;
     }
-    // Gold rule under title
+    if (subtitleText) {
+      this.doc.setFont("times", "italic");
+      this.doc.setFontSize(14);
+      this.doc.setTextColor(...ACCENT_SOFT);
+      const subLines = this.doc.splitTextToSize(subtitleText, titleWidth) as string[];
+      for (const line of subLines.slice(0, 2)) {
+        this.doc.text(line, pageW / 2, ty, { align: "center" });
+        ty += 18;
+      }
+    }
+    // Gold rule under the title block
     this.doc.setDrawColor(...ACCENT);
-    this.doc.setLineWidth(1.2);
-    this.doc.line(pageW / 2 - 42, ty + 2, pageW / 2 + 42, ty + 2);
-    ty += 24;
+    this.doc.setLineWidth(2.2);
+    this.doc.line(pageW / 2 - 21, ty + 4, pageW / 2 + 21, ty + 4);
+    ty += 26;
 
     if (opts.description) {
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(11);
-      this.doc.setTextColor(200, 210, 220);
-      const descLines = this.doc.splitTextToSize(opts.description, pageW - margin * 2 - 80) as string[];
+      this.doc.setFontSize(9.6);
+      this.doc.setTextColor(220, 220, 215);
+      const descLines = this.doc.splitTextToSize(opts.description, 410) as string[];
       for (const line of descLines.slice(0, 4)) {
         this.doc.text(line, pageW / 2, ty, { align: "center" });
-        ty += 15;
+        ty += 14;
       }
     }
 
-    // Attorney Work Product pill
-    const tagY = pageH - 178;
+    // Work-product pill — positioned from the ACTUAL end of the description
+    // block, never a fixed Y, so a long dek can't collide with it.
     const tagText = "ATTORNEY WORK PRODUCT  ·  PRIVILEGED & CONFIDENTIAL";
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(9);
+    this.doc.setFontSize(8.6);
     const tagW = this.doc.getTextWidth(tagText) + 26;
     const tagH = 22;
+    const tagY = Math.min(Math.max(ty + 34, pageH - 190), pageH - 168);
     const tagX = (pageW - tagW) / 2;
     this.doc.setDrawColor(...ACCENT);
     this.doc.setLineWidth(0.8);
@@ -850,26 +911,32 @@ class PdfBuilder {
     this.doc.setTextColor(...ACCENT);
     this.doc.text(tagText, pageW / 2, tagY, { align: "center" });
 
-    // Metadata columns
-    const footTop = pageH - 118;
+    // Metadata columns, separated by pale gold verticals
+    const footTop = pageH - 112;
     const col = (label: string, value: string, x: number, align: "left" | "center" | "right" = "left") => {
       this.doc.setFont("helvetica", "bold");
-      this.doc.setFontSize(7.5);
-      this.doc.setTextColor(...BRAND_CYAN);
+      this.doc.setFontSize(7.2);
+      this.doc.setTextColor(...ACCENT);
       this.doc.text(label.toUpperCase(), x, footTop, { align });
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(9.4);
       this.doc.setTextColor(255, 255, 255);
       this.doc.text(value, x, footTop + 14, { align });
     };
+    this.doc.setDrawColor(...ACCENT_SOFT);
+    this.doc.setLineWidth(0.4);
+    const sepTop = footTop - 9;
+    const sepBottom = footTop + 19;
+    this.doc.line(margin + (pageW / 2 - margin) * 0.52, sepTop, margin + (pageW / 2 - margin) * 0.52, sepBottom);
+    this.doc.line(pageW - margin - (pageW / 2 - margin) * 0.52, sepTop, pageW - margin - (pageW / 2 - margin) * 0.52, sepBottom);
     col("Generated", new Date().toLocaleString(), margin);
     if (opts.matterId) col("Matter ID", opts.matterId, pageW / 2, "center");
     col("Classification", "Confidential", pageW - margin, "right");
 
     // Bottom tagline
     this.doc.setFont("helvetica", "normal");
-    this.doc.setFontSize(8);
-    this.doc.setTextColor(...BRAND_CYAN);
+    this.doc.setFontSize(7.5);
+    this.doc.setTextColor(...ACCENT_SOFT);
     this.doc.text(
       CERTIFICATION_TAGLINE[opts.certification ?? "unverified"],
       pageW / 2,
@@ -883,8 +950,8 @@ class PdfBuilder {
   statCards(items: Array<{ label: string; value: string; color?: [number, number, number] }>, cols = 3) {
     const gap = 14;
     const w = (this.pageW - this.margin * 2 - gap * (cols - 1)) / cols;
-    const h = 46;
-    const padX = 12;
+    const h = 58;
+    const padX = 18; // clears the accent bar on the left edge
     const rows = Math.ceil(items.length / cols);
     for (let row = 0; row < rows; row++) {
       this.ensureSpace(h);
@@ -896,28 +963,28 @@ class PdfBuilder {
         const item = items[i];
         const cardLabel = rt(item.label);
         const cardValue = rt(item.value);
-        // Compact card: whisper-light border, no fill, small color dot
-        // in the corner. Value font auto-shrinks so long labels like
-        // "Below Average - 50/100" always fit within the card width.
-        this.doc.setDrawColor(230, 233, 238);
-        this.doc.setLineWidth(0.5);
-        this.doc.roundedRect(x, yy, w, h, 4, 4, "S");
+        // White card on the warm sheet, with a full-height accent rule
+        // down the left edge instead of a corner dot.
+        this.doc.setFillColor(...CARD_BG);
+        this.doc.setDrawColor(...CARD_BORDER);
+        this.doc.setLineWidth(0.8);
+        this.doc.roundedRect(x, yy, w, h, 6, 6, "FD");
         this.doc.setFillColor(...(item.color ?? ACCENT));
-        this.doc.circle(x + w - 9, yy + 9, 2.4, "F");
-        // Label — clip to leave clear room for the dot.
+        this.doc.rect(x + 1, yy + 4, 3, h - 8, "F");
+        // Label
         this.doc.setFont("helvetica", "bold");
         this.doc.setFontSize(7);
         this.doc.setTextColor(...MUTED);
-        const labelMaxW = w - padX * 2 - 10;
+        const labelMaxW = w - padX - 12;
         const labelLine = (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[])[0] ?? "";
-        this.doc.text(labelLine, x + padX, yy + 16);
-        // Value — shrink font-size until it fits the card width.
-        const valueMaxW = w - padX * 2;
-        this.doc.setFont("helvetica", "bold");
+        this.doc.text(labelLine, x + padX, yy + 17);
+        // Value — serif, the single biggest lever on this component.
+        const valueMaxW = w - padX - 12;
+        this.doc.setFont("times", "bold");
         this.doc.setTextColor(...PRIMARY);
-        let vSize = 14;
+        let vSize = 20;
         this.doc.setFontSize(vSize);
-        while (vSize > 8 && this.doc.getTextWidth(cardValue) > valueMaxW) {
+        while (vSize > 10 && this.doc.getTextWidth(cardValue) > valueMaxW) {
           vSize -= 0.5;
           this.doc.setFontSize(vSize);
         }
@@ -928,7 +995,7 @@ class PdfBuilder {
           }
           valueText += "…";
         }
-        this.doc.text(valueText, x + padX, yy + 36);
+        this.doc.text(valueText, x + padX, yy + 42);
       }
       this.y += h + gap;
     }
@@ -941,8 +1008,8 @@ class PdfBuilder {
   severityColor(sev: string): [number, number, number] {
     const s = (sev || "").trim().toLowerCase();
     if (s === "critical") return DANGER;
-    if (s === "high") return [217, 119, 6]; // amber-600
-    if (s === "medium") return ACCENT;
+    if (s === "high") return HIGH;
+    if (s === "medium") return MEDIUM;
     if (s === "low" || s === "info") return SUCCESS;
     return MUTED;
   }
@@ -1032,7 +1099,7 @@ class PdfBuilder {
     const lineH = size * 1.55;
     this.doc.setFont("helvetica", opts.bold ? "bold" : "normal");
     this.doc.setFontSize(size);
-    this.doc.setTextColor(...(opts.color ?? PRIMARY));
+    this.doc.setTextColor(...(opts.color ?? INK));
     const paragraphs = value.split(/\n\s*\n/);
     for (let p = 0; p < paragraphs.length; p++) {
       const para = paragraphs[p];
@@ -1055,25 +1122,45 @@ class PdfBuilder {
     this.y = this.margin + CONTINUATION_HEADER_H;
   }
 
+  /**
+   * Shared section opener used by every major section: letter-spaced gold
+   * kicker → serif title → short gold rule. Consistency here is what makes
+   * the report read as one document instead of many stitched sections.
+   * Returns the y position to continue drawing from.
+   */
+  sectionTitle(kicker: string, title: string): number {
+    if (kicker) {
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(8.4);
+      this.doc.setTextColor(...ACCENT);
+      this.doc.text(spaced(rt(kicker).toUpperCase()), this.margin, this.y);
+      this.y += 15;
+    }
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(20);
+    this.doc.setTextColor(...PRIMARY);
+    const lines = this.doc.splitTextToSize(title, this.pageW - this.margin * 2) as string[];
+    for (const line of lines) {
+      this.doc.text(line, this.margin, this.y);
+      this.y += 23;
+    }
+    this.doc.setDrawColor(...ACCENT);
+    this.doc.setLineWidth(2.2);
+    this.doc.line(this.margin, this.y - 6, this.margin + 40, this.y - 6);
+    this.y += 18;
+    return this.y;
+  }
+
   h1(label: string) {
     // Generous top spacing gives each section true separation and
-    // signals executive-briefing hierarchy. A slim gold rule underneath
-    // the heading replaces the old fat tab for a quieter, more premium
-    // look.
+    // signals executive-briefing hierarchy. Every h1 routes through the
+    // shared sectionTitle() treatment.
     if (this.firstSectionRendered) {
       this.y += 34;
     }
     this.firstSectionRendered = true;
     this.ensureSpace(120);
-    this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(19);
-    this.doc.setTextColor(...PRIMARY);
-    this.doc.text(label, this.margin, this.y);
-    this.y += 8;
-    this.doc.setDrawColor(...ACCENT);
-    this.doc.setLineWidth(1.2);
-    this.doc.line(this.margin, this.y, this.margin + 36, this.y);
-    this.y += 22;
+    this.sectionTitle("Nyrava Intelligence", label);
   }
 
   h2(label: string) {
@@ -1384,22 +1471,68 @@ class PdfBuilder {
   // Deliberately terse (title only, no description) since its job is a
   // 3-second scan, not the full write-up — that lives in Key Findings.
   findingChip(severity: string, title: string, confidence: number) {
-    this.ensureSpace(26);
+    const h = 26;
+    this.ensureSpace(h + 8);
     const color = this.severityColor(severity);
+    const yy = this.y - 12;
+    // Compact white card with a severity rule on the left edge — same
+    // visual language as the full finding cards further down the report.
+    this.doc.setFillColor(...CARD_BG);
+    this.doc.setDrawColor(...CARD_BORDER);
+    this.doc.setLineWidth(0.8);
+    this.doc.roundedRect(this.margin, yy, this.pageW - this.margin * 2, h, 5, 5, "FD");
     this.doc.setFillColor(...color);
-    this.doc.circle(this.margin + 4, this.y - 3, 2.6, "F");
-    this.doc.setFont("helvetica", "normal");
-    this.doc.setFontSize(10);
+    this.doc.rect(this.margin + 1, yy + 3, 3, h - 6, "F");
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(11);
     this.doc.setTextColor(...PRIMARY);
-    const maxW = this.pageW - this.margin * 2 - 130;
+    const maxW = this.pageW - this.margin * 2 - 150;
     const titleLine = (this.doc.splitTextToSize(title, maxW) as string[])[0] ?? "";
-    this.doc.text(titleLine, this.margin + 14, this.y);
-    this.pill(`${severity} · ${Math.round(confidence * 100)}%`, this.pageW - this.margin, this.y + 1, color, "right");
-    // Hairline separator between findings.
-    this.doc.setDrawColor(236, 239, 243);
-    this.doc.setLineWidth(0.4);
-    this.doc.line(this.margin, this.y + 8, this.pageW - this.margin, this.y + 8);
-    this.y += 22;
+    this.doc.text(titleLine, this.margin + 14, yy + 17);
+    this.pill(
+      `${severity} · ${Math.round(confidence * 100)}%`,
+      this.pageW - this.margin - 8,
+      yy + 20,
+      color,
+      "right",
+    );
+    this.y += h + 8;
+  }
+
+  /**
+   * Evidence blockquote: a lightly tinted block with a gold rule on its
+   * left edge, so a cited quote reads as evidence rather than as another
+   * sentence of body copy.
+   */
+  evidenceQuote(text: string, attribution = "") {
+    if (!text) return;
+    const innerW = this.pageW - this.margin * 2 - 24;
+    this.doc.setFont("helvetica", "italic");
+    this.doc.setFontSize(8.6);
+    const lines = this.doc.splitTextToSize(`"${text}"`, innerW) as string[];
+    const attrLines = attribution ? ([attribution] as string[]) : [];
+    const h = lines.length * 12 + attrLines.length * 11 + 14;
+    this.ensureSpace(h + 6);
+    const yy = this.y - 10;
+    this.doc.setFillColor(...QUOTE_BG);
+    this.doc.rect(this.margin, yy, this.pageW - this.margin * 2, h, "F");
+    this.doc.setFillColor(...ACCENT);
+    this.doc.rect(this.margin, yy, 2.4, h, "F");
+    this.doc.setFont("helvetica", "italic");
+    this.doc.setFontSize(8.6);
+    this.doc.setTextColor(...MUTED);
+    let ty = yy + 16;
+    for (const line of lines) {
+      this.doc.text(line, this.margin + 14, ty);
+      ty += 12;
+    }
+    for (const line of attrLines) {
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(7.5);
+      this.doc.text(line, this.margin + 14, ty);
+      ty += 11;
+    }
+    this.y = yy + h + 12;
   }
 
   table(
@@ -1436,23 +1569,25 @@ class PdfBuilder {
         bottom: this.margin + 26,
       },
       styles: {
-        fontSize: 9,
-        cellPadding: { top: 7, right: 7, bottom: 7, left: 7 },
-        textColor: [...PRIMARY] as [number, number, number],
+        fontSize: 8.7,
+        cellPadding: { top: 7.5, right: 8, bottom: 7.5, left: 8 },
+        textColor: [...INK] as [number, number, number],
         overflow: "linebreak",
-        lineColor: [...CARD_BORDER] as [number, number, number],
+        lineColor: [...LINE] as [number, number, number],
         lineWidth: 0.5,
+        fillColor: [...CARD_BG] as [number, number, number],
       },
       headStyles: {
         fillColor: [...PRIMARY] as [number, number, number],
         textColor: [255, 255, 255],
         fontStyle: "bold",
-        fontSize: 9,
-        cellPadding: { top: 8, right: 7, bottom: 8, left: 7 },
+        fontSize: 8.5,
+        cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
+        lineWidth: 0,
       },
-      // Slightly more visible zebra striping than the previous near-white
-      // tint, for easier row tracking across wide tables.
-      alternateRowStyles: { fillColor: [241, 245, 249] as [number, number, number] },
+      // Very subtle warm zebra tint — enough to track a row across a wide
+      // table, quiet enough not to read as a dashboard grid.
+      alternateRowStyles: { fillColor: [252, 250, 246] as [number, number, number] },
       columnStyles: opts.columnStyles,
       theme: "grid",
       // Color-code Severity and Score columns wherever a table has them,
@@ -1464,9 +1599,14 @@ class PdfBuilder {
       didParseCell: (d: any) => {
         if (d.section === "head") {
           d.cell.text = d.cell.text.map((t: string) => t.toUpperCase());
+          d.cell.styles.lineWidth = 0;
           return;
         }
         if (d.section !== "body") return;
+        // No vertical grid lines anywhere; a single hairline rule under
+        // each row is the only structure the body needs.
+        d.cell.styles.lineWidth = { top: 0, right: 0, bottom: 0.5, left: 0 };
+
         if (sevColIdx >= 0 && d.column.index === sevColIdx) {
           d.cell.styles.textColor = this.severityColor(String(d.cell.raw ?? ""));
           d.cell.styles.fontStyle = "bold";
@@ -1520,45 +1660,38 @@ class PdfBuilder {
     for (let i = 2; i <= pageCount; i++) {
       this.doc.setPage(i);
 
-      // White band across the reserved top area (defensive — guards
-      // against any stray content drawn too high) plus the logo mark,
-      // wordmark, case name / page count, and a two-tone divider that
-      // echoes the cover banner's navy + accent treatment.
-      this.doc.setFillColor(255, 255, 255);
+      // Warm sheet band across the reserved top area (defensive — guards
+      // against any stray content drawn too high) plus a slim single-row
+      // masthead: crest, wordmark, matter label, one hairline.
+      this.doc.setFillColor(...PAGE_BG);
       this.doc.rect(0, 0, this.pageW, h, "F");
 
-      // Trust-badge shield (matches the site favicon / app icon) instead
-      // of the old plain navy square, so every interior page carries the
-      // same brand mark as the cover and the browser tab.
       const markSize = 18;
       const markX = this.margin;
-      const markY = 9;
+      const markY = 12;
       this.trustBadge(markX + markSize / 2, markY + markSize / 2, markSize);
 
-      const textX = markX + markSize + 8;
+      const textX = markX + markSize + 10;
       this.doc.setFont("helvetica", "bold");
-      this.doc.setFontSize(10);
-      this.doc.setTextColor(...PRIMARY);
-      this.doc.text("NYRAVA", textX, markY + 7.5);
+      this.doc.setFontSize(9.5);
+      this.doc.setTextColor(...INK);
+      this.doc.text("NYRAVA", textX, markY + 8);
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(6);
-      this.doc.setTextColor(...BRAND_CYAN);
-      this.doc.text("LEGAL INTELLIGENCE OS", textX, markY + 15);
+      this.doc.setFontSize(7.3);
+      this.doc.setTextColor(...MUTED);
+      this.doc.text("LEGAL INTELLIGENCE OS", textX, markY + 17);
 
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(8.5);
+      this.doc.setFontSize(7.6);
       this.doc.setTextColor(...MUTED);
       const rightLabel = `${this.caseName}   ·   ${i} / ${pageCount}`;
       const fitted =
-        (this.doc.splitTextToSize(rightLabel, this.pageW - this.margin * 2 - 110) as string[])[0] ?? rightLabel;
-      this.doc.text(fitted, this.pageW - this.margin, markY + 11, { align: "right" });
+        (this.doc.splitTextToSize(rightLabel, this.pageW - this.margin * 2 - 130) as string[])[0] ?? rightLabel;
+      this.doc.text(fitted, this.pageW - this.margin, markY + 13, { align: "right" });
 
-      this.doc.setDrawColor(...ACCENT);
-      this.doc.setLineWidth(1.5);
-      this.doc.line(this.margin, h - 1, this.pageW - this.margin, h - 1);
-      this.doc.setDrawColor(...CARD_BORDER);
-      this.doc.setLineWidth(0.5);
-      this.doc.line(this.margin, h + 2, this.pageW - this.margin, h + 2);
+      this.doc.setDrawColor(...LINE);
+      this.doc.setLineWidth(0.6);
+      this.doc.line(this.margin, h - 6, this.pageW - this.margin, h - 6);
     }
   }
 
@@ -1571,8 +1704,14 @@ class PdfBuilder {
       // carries a brand rule at the top of every interior page, so the old
       // duplicate top strip that used to live here has been removed —
       // this loop now only draws the bottom footer text.
+      // Hairline above the footer row, matching the header treatment.
+      if (i > 1) {
+        this.doc.setDrawColor(...LINE);
+        this.doc.setLineWidth(0.6);
+        this.doc.line(this.margin, this.pageH - 42, this.pageW - this.margin, this.pageH - 42);
+      }
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(8);
+      this.doc.setFontSize(7.7);
       this.doc.setTextColor(...MUTED);
       // Bound-checked the same way header()'s right-hand label already is:
       // a long case name must never be allowed to grow into the reserved
@@ -2935,18 +3074,18 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
     if (!entries.length) continue;
     b.h2Tier(`${tier.label} (${entries.length})`, tier.color);
     for (const [pos, { f, i }] of entries.entries()) {
-      if (pos > 0) b.divider();
-      b.ensureSpace(60);
+      if (pos > 0) b.y += 10;
+      b.ensureSpace(70);
       const sevColor = b.severityColor(asStr(f.severity));
-      // Left accent stripe — same visual language as the h1 section marker —
-      // so severity reads at a glance without parsing "SEVERITY: critical".
-      b.doc.setFillColor(...sevColor);
-      b.doc.rect(b.margin, b.y - 12, 3, 16, "F");
-      b.doc.setFont("helvetica", "bold");
-      b.doc.setFontSize(12);
+      // Severity bar down the left edge of the finding block plus a serif
+      // headline: the finding reads as its own card rather than as one
+      // more paragraph in a wall of text.
+      const blockTop = b.y - 14;
+      b.doc.setFont("times", "bold");
+      b.doc.setFontSize(13);
       b.doc.setTextColor(...PRIMARY);
-      const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 90) as string[];
-      b.doc.text(titleLines[0] ?? "", b.margin + 10, b.y);
+      const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 100) as string[];
+      b.doc.text(titleLines[0] ?? "", b.margin + 14, b.y);
       const conf = Number(f.confidence ?? 0);
       b.pill(
         `${asStr(f.severity)} · ${confidenceLabel(conf)} ${rt("conf.")}`,
@@ -2955,11 +3094,13 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
         sevColor,
         "right",
       );
-      b.y += 16;
+      b.y += 17;
       for (const extra of titleLines.slice(1)) {
-        b.doc.text(extra, b.margin + 10, b.y);
-        b.y += 14;
+        b.doc.text(extra, b.margin + 14, b.y);
+        b.y += 15;
       }
+      b.doc.setFillColor(...sevColor);
+      b.doc.rect(b.margin, blockTop, 3, b.y - blockTop - 4, "F");
       // Claim classification — heuristic classification of the finding.
       // Findings with verbatim quotes default to FACT; speculative
       // descriptions degrade to ANALYSIS.
@@ -2972,34 +3113,33 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       const strength = evidenceStrengthLabel(conf, refCounts[i]);
       b.ensureSpace(28);
       b.doc.setFont("helvetica", "bold");
-      b.doc.setFontSize(9);
+      b.doc.setFontSize(7.4);
       b.doc.setTextColor(...MUTED);
-      b.doc.text(rt("CONFIDENCE"), b.margin, b.y);
-      b.doc.text(rt("EVIDENCE STRENGTH"), b.margin + 140, b.y);
-      b.doc.text(rt("SOURCES"), b.margin + 300, b.y);
-      b.y += 12;
-      b.doc.setFont("helvetica", "bold");
-      b.doc.setFontSize(10.5);
+      b.doc.text(spaced(rt("CONFIDENCE")), b.margin, b.y);
+      b.doc.text(spaced(rt("EVIDENCE STRENGTH")), b.margin + 150, b.y);
+      b.doc.text(spaced(rt("SOURCES")), b.margin + 330, b.y);
+      b.y += 13;
+      b.doc.setFont("times", "bold");
+      b.doc.setFontSize(12);
       b.doc.setTextColor(...PRIMARY);
       b.doc.text(confidenceLabel(conf), b.margin, b.y);
       b.doc.setTextColor(...strength.color);
-      b.doc.text(strength.label, b.margin + 140, b.y);
+      b.doc.text(strength.label, b.margin + 150, b.y);
       b.doc.setTextColor(...PRIMARY);
-      b.doc.text(String(refCounts[i] || 0), b.margin + 300, b.y);
-      b.y += 16;
+      b.doc.text(String(refCounts[i] || 0), b.margin + 330, b.y);
+      b.y += 18;
       if (f.legal_significance)
-        b.text(`${rt("Legal significance:")} ${asStr(f.legal_significance)}`, { size: 10, color: MUTED, gap: 2 });
-      b.text(asStr(f.description), { size: 10, gap: 4 });
+        b.text(`${rt("Legal significance:")} ${asStr(f.legal_significance)}`, { size: 9.5, color: MUTED, gap: 2 });
+      b.text(asStr(f.description), { size: 9.6, gap: 4 });
       const refs = asArr(f.evidence_refs);
       if (refs.length) {
-        b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
-        b.bullets(
-          refs.slice(0, 4).map((r) => {
-            const q = asStr(r.quote);
-            const lbl = asStr(r.filename) || resolveDocTitleByUuid(r.document_id ?? r.doc_id) || "";
-            return q ? (lbl ? `"${q.slice(0, 180)}"  — ${lbl}` : `"${q.slice(0, 180)}"`) : lbl;
-          }),
-        );
+        b.text(spaced(rt("EVIDENCE")), { size: 7.4, bold: true, color: MUTED, gap: 2 });
+        for (const r of refs.slice(0, 4)) {
+          const q = asStr(r.quote);
+          const lbl = asStr(r.filename) || resolveDocTitleByUuid(r.document_id ?? r.doc_id) || "";
+          if (q) b.evidenceQuote(q.slice(0, 220), lbl ? `— ${lbl}` : "");
+          else if (lbl) b.text(lbl, { size: 8.6, color: MUTED, gap: 2 });
+        }
       }
       // Cross-reference other findings that share this one's category
       // (e.g. several findings that all bear on identification, or all
