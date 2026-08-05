@@ -26,7 +26,7 @@ const handler = createAuthEmailHandler({
   emails: {
     signup: {
       subject: 'Confirma tu correo · Nyrava Intelligence México',
-      render: (data: AuthEmailData) =>
+      render: (data: AuthEmailHookData) =>
         React.createElement(SignupEmail, {
           siteName: SITE_NAME,
           siteUrl: SITE_URL,
@@ -36,7 +36,7 @@ const handler = createAuthEmailHandler({
     },
     invite: {
       subject: 'Tienes una invitación · Nyrava Intelligence México',
-      render: (data: AuthEmailData) =>
+      render: (data: AuthEmailHookData) =>
         React.createElement(InviteEmail, {
           siteName: SITE_NAME,
           siteUrl: SITE_URL,
@@ -45,7 +45,7 @@ const handler = createAuthEmailHandler({
     },
     magiclink: {
       subject: 'Tu enlace de acceso · Nyrava Intelligence México',
-      render: (data: AuthEmailData) =>
+      render: (data: AuthEmailHookData) =>
         React.createElement(MagicLinkEmail, {
           siteName: SITE_NAME,
           confirmationUrl: data.url,
@@ -53,7 +53,7 @@ const handler = createAuthEmailHandler({
     },
     recovery: {
       subject: 'Restablece tu contraseña · Nyrava Intelligence México',
-      render: (data: AuthEmailData) =>
+      render: (data: AuthEmailHookData) =>
         React.createElement(RecoveryEmail, {
           siteName: SITE_NAME,
           confirmationUrl: data.url,
@@ -61,7 +61,7 @@ const handler = createAuthEmailHandler({
     },
     email_change: {
       subject: 'Confirma tu nuevo correo · Nyrava Intelligence México',
-      render: (data: AuthEmailData) =>
+      render: (data: AuthEmailHookData) =>
         React.createElement(EmailChangeEmail, {
           siteName: SITE_NAME,
           oldEmail: data.old_email ?? '',
@@ -72,7 +72,7 @@ const handler = createAuthEmailHandler({
     },
     reauthentication: {
       subject: 'Tu código de verificación · Nyrava Intelligence México',
-      render: (data: AuthEmailData) =>
+      render: (data: AuthEmailHookData) =>
         React.createElement(ReauthenticationEmail, { token: data.token ?? '' }),
     },
   },
