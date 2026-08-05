@@ -626,6 +626,9 @@ class PdfBuilder {
   // section title or needs a lightweight continuation label instead
   // (Addendum 3, Bug 9 — no interior page without section identity).
   private sectionStarts = new Map<number, { title: string; y: number }>();
+  // Title of the section currently being rendered, used to label pages a
+  // section spills onto.
+  private currentSection = "";
 
   constructor(caseName: string, matterId?: string) {
     this.matterId = matterId || caseName;
@@ -1306,9 +1309,14 @@ class PdfBuilder {
     // Record which page this section opens on so header() can emit a
     // continuation label on the pages it spills onto.
     const _pg = this.doc.getCurrentPageInfo().pageNumber;
-    const _g = globalThis as unknown as Record<string, unknown>;
-    if (!Array.isArray(_g.__sec)) _g.__sec = [];
-    (_g.__sec as unknown[]).push([_pg, this.y, title]);
+    // A section can open midway down a page: everything above it is the
+    // previous section spilling over, and that top-of-page content still
+    // needs identification. Stamp the continuation label now, while we're
+    // on the right page (header() only sees pages with no section start).
+    if (_pg > 1 && this.currentSection && this.y > this.margin + CONTINUATION_HEADER_H + 14) {
+      this.continuationLabel(this.currentSection, 50);
+    }
+    this.currentSection = rt(title);
     this.sectionStarts.set(_pg, { title: rt(title), y: this.y });
     if (kicker) {
       this.doc.setFont("helvetica", "bold");
@@ -1909,12 +1917,8 @@ class PdfBuilder {
       // ever starts with bare body text.
       const startsHere = this.sectionStarts.get(i);
       if (startsHere) {
-        // A section can open midway down a page — everything above it is
-        // the previous section spilling over, so that top-of-page content
-        // still needs its own identification.
-        if (lastSection && startsHere.y > this.margin + h + 14) {
-          this.continuationLabel(lastSection, bandH + 14);
-        }
+        // Mid-page section starts already stamped their own continuation
+        // label inline (see sectionTitle) — nothing more to draw here.
         lastSection = startsHere.title;
       } else if (lastSection) {
         this.continuationLabel(lastSection, bandH + 14);
