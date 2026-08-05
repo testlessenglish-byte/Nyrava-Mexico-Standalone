@@ -65,7 +65,11 @@ const ES: Record<string, string> = {
   Moderate: "Moderada",
   CONFIDENCE: "CONFIANZA",
   "EVIDENCE STRENGTH": "FUERZA PROBATORIA",
+  EVIDENCE: "EVIDENCIA",
+  REASON: "MOTIVO",
+  INFO: "INFORMATIVA",
   SOURCES: "FUENTES",
+
   "ATTORNEY WORK PRODUCT  \u00b7  PRIVILEGED & CONFIDENTIAL":
     "PRODUCTO DE TRABAJO DEL ABOGADO  \u00b7  PRIVILEGIADO Y CONFIDENCIAL",
   "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations.":

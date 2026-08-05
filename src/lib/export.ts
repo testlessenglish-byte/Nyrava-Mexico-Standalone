@@ -562,7 +562,46 @@ const CERTIFICATION_TAGLINE: Record<CertificationState, string> = {
   unverified: "Draft — citation verification not passed. Attorney review required before reliance.",
 };
 
+// Per-section eyebrow printed above each section title. Replaces the old
+// hardcoded "NYRAVA INTELLIGENCE" kicker, which repeated the brand name on
+// every single section and told the reader nothing. Any label not listed
+// here falls back to the section title itself.
+const SECTION_KICKERS: Record<string, string> = {
+  Índice: "Contenido",
+  Hechos: "Relato Fáctico",
+  "Panorama General del Expediente": "Panorama del Expediente",
+  "Inteligencia Jurisdiccional": "Jurisdicción",
+  "Promociones Recomendadas": "Promociones",
+  "Centro de Acción del Abogado": "Acción",
+  "Panel de Impacto Litigioso": "Impacto",
+  "Resumen Cronológico": "Cronología",
+  "Análisis de Vacíos Probatorios": "Vacíos Probatorios",
+  "Análisis de Riesgo": "Riesgo",
+  Recomendaciones: "Recomendaciones",
+  Contrainterrogatorio: "Interrogatorio",
+  "Tablero de Puntuación del Caso": "Puntuación",
+  "Mapa de Evidencia": "Evidencia",
+  "Análisis de Contradicciones": "Contradicciones",
+  "Análisis Multi-Perspectiva": "Multi-Agente",
+  "Inteligencia Probatoria": "Evidencia",
+  "Síntesis Estratégica": "Estrategia",
+  "Producto de Trabajo del Abogado": "Producto de Trabajo",
+  "Análisis Constitucional": "Constitucional",
+  "Cuestiones Jurídicas y Jurisprudencia": "Cuestiones Jurídicas",
+  "Inteligencia de Testigos": "Testigos",
+  "Análisis de Teoría del Caso": "Teoría del Caso",
+  "Centro de Estrategia Litigiosa": "Estrategia",
+  "Oportunidades Estratégicas": "Oportunidades",
+  "Cobertura Probatoria": "Cobertura",
+  "Estadísticas de Agentes": "Agentes",
+  "Registro de Auditoría": "Auditoría",
+  "Anexo: Citas de Fuentes": "Anexo",
+  "Fuentes de Evidencia": "Fuentes",
+  "Centro de Acción — Recomendaciones Prioritarias": "Acción",
+};
+
 class PdfBuilder {
+
   doc: Pdf;
   // 0.75 inch margins (54pt) per professional memorandum standard.
   margin = 54;
@@ -948,15 +987,19 @@ class PdfBuilder {
   // Grid of compact stat cards (replaces the old plain label/value rows on
   // the cover). `cols` per row; each card gets a bold value + small caption.
   statCards(items: Array<{ label: string; value: string; color?: [number, number, number] }>, cols = 3) {
+    // Hard cap at four columns: past that, a Letter-width card is narrower
+    // than the Spanish labels it has to carry ("Documentos Analizados",
+    // "Recomendaciones") and both label and value start truncating.
+    const nCols = Math.max(1, Math.min(4, cols));
     const gap = 14;
-    const w = (this.pageW - this.margin * 2 - gap * (cols - 1)) / cols;
-    const h = 58;
+    const w = (this.pageW - this.margin * 2 - gap * (nCols - 1)) / nCols;
+    const h = 66;
     const padX = 18; // clears the accent bar on the left edge
-    const rows = Math.ceil(items.length / cols);
+    const rows = Math.ceil(items.length / nCols);
     for (let row = 0; row < rows; row++) {
       this.ensureSpace(h);
-      for (let col = 0; col < cols; col++) {
-        const i = row * cols + col;
+      for (let col = 0; col < nCols; col++) {
+        const i = row * nCols + col;
         if (i >= items.length) break;
         const x = this.margin + col * (w + gap);
         const yy = this.y;
@@ -964,27 +1007,34 @@ class PdfBuilder {
         const cardLabel = rt(item.label);
         const cardValue = rt(item.value);
         // White card on the warm sheet, with a full-height accent rule
-        // down the left edge instead of a corner dot.
+        // down the left edge instead of a corner dot. The rule is always
+        // ACCENT gold — severity coloring belongs to findings, not to
+        // neutral corpus counters, and a red bar here read as an alarm.
         this.doc.setFillColor(...CARD_BG);
         this.doc.setDrawColor(...CARD_BORDER);
         this.doc.setLineWidth(0.8);
         this.doc.roundedRect(x, yy, w, h, 6, 6, "FD");
-        this.doc.setFillColor(...(item.color ?? ACCENT));
+        this.doc.setFillColor(...ACCENT);
         this.doc.rect(x + 1, yy + 4, 3, h - 8, "F");
-        // Label
+        // Label — wraps to at most two lines instead of being clipped.
         this.doc.setFont("helvetica", "bold");
         this.doc.setFontSize(7);
         this.doc.setTextColor(...MUTED);
         const labelMaxW = w - padX - 12;
-        const labelLine = (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[])[0] ?? "";
-        this.doc.text(labelLine, x + padX, yy + 17);
-        // Value — serif, the single biggest lever on this component.
+        const labelLines = (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[]).slice(0, 2);
+        let ly = yy + 16;
+        for (const line of labelLines) {
+          this.doc.text(line, x + padX, ly);
+          ly += 9;
+        }
+        // Value — serif, the single biggest lever on this component. Its
+        // color still tracks the caller's semantic hint.
         const valueMaxW = w - padX - 12;
         this.doc.setFont("times", "bold");
-        this.doc.setTextColor(...PRIMARY);
-        let vSize = 20;
+        this.doc.setTextColor(...(item.color ?? PRIMARY));
+        let vSize = 19;
         this.doc.setFontSize(vSize);
-        while (vSize > 10 && this.doc.getTextWidth(cardValue) > valueMaxW) {
+        while (vSize > 9 && this.doc.getTextWidth(cardValue) > valueMaxW) {
           vSize -= 0.5;
           this.doc.setFontSize(vSize);
         }
@@ -995,9 +1045,108 @@ class PdfBuilder {
           }
           valueText += "…";
         }
-        this.doc.text(valueText, x + padX, yy + 42);
+        this.doc.text(valueText, x + padX, yy + h - 16);
       }
       this.y += h + gap;
+    }
+  }
+
+  // Chronological fact card used by the Hechos section: date chip, serif
+  // headline, body copy — same card language as findings, so the factual
+  // record no longer reads as an unstyled wall of paragraphs.
+  factCard(dateLabel: string, title: string, body: string) {
+    const innerW = this.pageW - this.margin * 2 - 28;
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(11.5);
+    const titleLines = this.doc.splitTextToSize(title, innerW) as string[];
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(9.6);
+    const bodyLines = body ? (this.doc.splitTextToSize(body, innerW) as string[]) : [];
+    const h = (dateLabel ? 16 : 0) + titleLines.length * 14 + bodyLines.length * 12 + 20;
+    this.ensureSpace(h + 10);
+    const yy = this.y - 10;
+    this.doc.setFillColor(...CARD_BG);
+    this.doc.setDrawColor(...CARD_BORDER);
+    this.doc.setLineWidth(0.8);
+    this.doc.roundedRect(this.margin, yy, this.pageW - this.margin * 2, h, 5, 5, "FD");
+    this.doc.setFillColor(...ACCENT);
+    this.doc.rect(this.margin + 1, yy + 4, 3, h - 8, "F");
+    let ty = yy + 16;
+    if (dateLabel) {
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(7.4);
+      this.doc.setTextColor(...ACCENT);
+      this.doc.text(spaced(dateLabel.toUpperCase()), this.margin + 16, ty);
+      ty += 15;
+    }
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(11.5);
+    this.doc.setTextColor(...PRIMARY);
+    for (const line of titleLines) {
+      this.doc.text(line, this.margin + 16, ty);
+      ty += 14;
+    }
+    if (bodyLines.length) {
+      ty += 2;
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(9.6);
+      this.doc.setTextColor(...INK);
+      for (const line of bodyLines) {
+        this.doc.text(line, this.margin + 16, ty);
+        ty += 12;
+      }
+    }
+    this.y = yy + h + 12;
+  }
+
+  // Renders the constrained markdown the work-product models emit
+  // (#/##/### headings, **bold**, - bullets) as real typography. Without
+  // this the report printed literal "##" and "**" characters.
+  markdownBody(md: string) {
+    const stripInline = (s: string) => s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/`(.+?)`/g, "$1");
+    for (const raw of (md ?? "").replace(/\r\n/g, "\n").split("\n")) {
+      const line = raw.trim();
+      if (!line) {
+        this.y += 4;
+        continue;
+      }
+      if (/^(\*{3,}|-{3,}|_{3,})$/.test(line)) {
+        this.ensureSpace(14);
+        this.doc.setDrawColor(...CARD_BORDER);
+        this.doc.setLineWidth(0.6);
+        this.doc.line(this.margin, this.y, this.pageW - this.margin, this.y);
+        this.y += 12;
+        continue;
+      }
+      const h = line.match(/^(#{1,4})\s+(.*)$/);
+      if (h) {
+        const level = h[1].length;
+        const txt = stripInline(h[2]);
+        this.y += level === 1 ? 10 : 8;
+        this.text(level >= 3 ? txt : txt.toUpperCase(), {
+          size: level === 1 ? 12 : level === 2 ? 10.5 : 10,
+          bold: true,
+          color: PRIMARY,
+          gap: 6,
+        });
+        continue;
+      }
+      const bullet = line.match(/^[-*•]\s+(.*)$/);
+      if (bullet) {
+        this.bullets([stripInline(bullet[1])]);
+        continue;
+      }
+      const numbered = line.match(/^(\d+)[.)]\s+(.*)$/);
+      if (numbered) {
+        this.text(`${numbered[1]}.  ${stripInline(numbered[2])}`, { size: 10, gap: 4 });
+        continue;
+      }
+      const bold = line.match(/^\*\*(.+)\*\*:?$/);
+      if (bold) {
+        this.text(stripInline(bold[1]), { size: 10, bold: true, color: PRIMARY, gap: 4 });
+        continue;
+      }
+      this.text(stripInline(line), { size: 10, gap: 6 });
     }
   }
 
@@ -1005,19 +1154,34 @@ class PdfBuilder {
   // report: red=critical, amber=high, gold=medium, green=low/info,
   // slate=unknown. Reused by badges, table cells, and score bars so
   // severity always reads the same color no matter which widget shows it.
+  // Accepts both the engine's English enum and its rendered Spanish
+  // label, since tables now print translated severities.
   severityColor(sev: string): [number, number, number] {
-    const s = (sev || "").trim().toLowerCase();
-    if (s === "critical") return DANGER;
-    if (s === "high") return HIGH;
-    if (s === "medium") return MEDIUM;
-    if (s === "low" || s === "info") return SUCCESS;
+    const s = (sev || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (s === "critical" || s === "critica") return DANGER;
+    if (s === "high" || s === "alta") return HIGH;
+    if (s === "medium" || s === "media") return MEDIUM;
+    if (s === "low" || s === "info" || s === "baja") return SUCCESS;
     return MUTED;
+  }
+  // Width a pill() call would occupy, without drawing it — lets callers
+  // reserve the right-hand gutter before laying out a heading beside it.
+  measurePill(text: string): number {
+    if (!text) return 0;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(7.5);
+    return this.doc.getTextWidth(text.toUpperCase()) + 12;
   }
 
   // Small filled pill. `align: "right"` anchors the box's right edge to x
   // (used to hang a severity/confidence pill off the right margin next to
   // a heading). Returns the pill width in case the caller wants to lay
   // out something else beside it.
+
   pill(text: string, x: number, y: number, color: [number, number, number], align: "left" | "right" = "left"): number {
     if (!text) return 0;
     const label = text.toUpperCase();
@@ -1151,17 +1315,20 @@ class PdfBuilder {
     return this.y;
   }
 
-  h1(label: string) {
+  h1(label: string, kicker?: string) {
     // Generous top spacing gives each section true separation and
     // signals executive-briefing hierarchy. Every h1 routes through the
-    // shared sectionTitle() treatment.
+    // shared sectionTitle() treatment. The kicker describes THIS section
+    // (per-section eyebrow) rather than repeating the brand name on every
+    // page, which read as a template artifact.
     if (this.firstSectionRendered) {
       this.y += 34;
     }
     this.firstSectionRendered = true;
     this.ensureSpace(120);
-    this.sectionTitle("Nyrava Intelligence", label);
+    this.sectionTitle(kicker ?? SECTION_KICKERS[label] ?? label, label);
   }
+
 
   h2(label: string) {
     // Quiet subsection header: uppercase small-caps label with a hairline
@@ -1474,6 +1641,7 @@ class PdfBuilder {
     const h = 26;
     this.ensureSpace(h + 8);
     const color = this.severityColor(severity);
+    const sevLabel = rt(severity.toUpperCase());
     const yy = this.y - 12;
     // Compact white card with a severity rule on the left edge — same
     // visual language as the full finding cards further down the report.
@@ -1490,7 +1658,7 @@ class PdfBuilder {
     const titleLine = (this.doc.splitTextToSize(title, maxW) as string[])[0] ?? "";
     this.doc.text(titleLine, this.margin + 14, yy + 17);
     this.pill(
-      `${severity} · ${Math.round(confidence * 100)}%`,
+      `${sevLabel} · ${Math.round(confidence * 100)}%`,
       this.pageW - this.margin - 8,
       yy + 20,
       color,
@@ -1544,6 +1712,10 @@ class PdfBuilder {
       columnStyles?: Record<number, any>;
       emphasizeColIdx?: number; // rendered bold (e.g. a "Document" column)
       mutedColIdx?: number; // rendered muted/italic (e.g. a "Quote" column)
+      // Editorial variant: no dark header band, just a hairline rule under
+      // small-caps labels. Used by the index/contents table, where a heavy
+      // green header row fought with the redesigned section titles.
+      plainHead?: boolean;
     } = {},
   ) {
     if (body.length === 0) return;
@@ -1577,14 +1749,24 @@ class PdfBuilder {
         lineWidth: 0.5,
         fillColor: [...CARD_BG] as [number, number, number],
       },
-      headStyles: {
-        fillColor: [...PRIMARY] as [number, number, number],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        fontSize: 8.5,
-        cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
-        lineWidth: 0,
-      },
+      headStyles: opts.plainHead
+        ? {
+            fillColor: [...PAGE_BG] as [number, number, number],
+            textColor: [...MUTED] as [number, number, number],
+            fontStyle: "bold",
+            fontSize: 7.8,
+            cellPadding: { top: 4, right: 8, bottom: 6, left: 8 },
+            lineColor: [...ACCENT] as [number, number, number],
+            lineWidth: { top: 0, right: 0, bottom: 1, left: 0 },
+          }
+        : {
+            fillColor: [...PRIMARY] as [number, number, number],
+            textColor: [255, 255, 255],
+            fontStyle: "bold",
+            fontSize: 8.5,
+            cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
+            lineWidth: 0,
+          },
       // Very subtle warm zebra tint — enough to track a row across a wide
       // table, quiet enough not to read as a dashboard grid.
       alternateRowStyles: { fillColor: [252, 250, 246] as [number, number, number] },
@@ -1599,7 +1781,7 @@ class PdfBuilder {
       didParseCell: (d: any) => {
         if (d.section === "head") {
           d.cell.text = d.cell.text.map((t: string) => t.toUpperCase());
-          d.cell.styles.lineWidth = 0;
+          if (!opts.plainHead) d.cell.styles.lineWidth = 0;
           return;
         }
         if (d.section !== "body") return;
@@ -1904,7 +2086,7 @@ function renderCover(
   }
   if (r.intelligence_version) cards.push({ label: "Engine Version", value: asStr(r.intelligence_version) });
 
-  b.statCards(cards, 5);
+  b.statCards(cards, 4);
 
   // Cover metadata now lives on page 1; caller pageBreaks into the TOC.
   return false;
@@ -2349,7 +2531,7 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
       b.doc.setFont("helvetica", "bold");
       b.doc.setFontSize(9);
       b.doc.setTextColor(...PRIMARY);
-      b.doc.text("REASON", padX, b.y);
+      b.doc.text(rt("REASON"), padX, b.y);
       b.y += 12;
       const reasonLines = b.doc.splitTextToSize(reason, cardW - 32) as string[];
       b.doc.setFont("helvetica", "normal");
@@ -2366,7 +2548,7 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
       b.doc.setFont("helvetica", "bold");
       b.doc.setFontSize(9);
       b.doc.setTextColor(...PRIMARY);
-      b.doc.text("PRIMARY EVIDENCE", padX, b.y);
+      b.doc.text(rt("PRIMARY EVIDENCE"), padX, b.y);
       b.y += 12;
       b.doc.setFont("helvetica", "normal");
       b.doc.setFontSize(9);
@@ -2696,7 +2878,7 @@ function extractDate(s: string): { iso: string; display: string } | null {
 
 function renderFacts(b: PdfBuilder, data: CaseExportData) {
   const facts = reportText(data, "facts");
-  b.h1("Hechos");
+  b.h1("Hechos", "Relato Fáctico");
 
   // Always lead with the LLM-authored facts narrative when present.
   if (facts && facts.trim().length > 0) {
@@ -2729,22 +2911,21 @@ function renderFacts(b: PdfBuilder, data: CaseExportData) {
       { size: 10, color: MUTED, gap: 8 },
     );
     for (const ev of dated) {
-      b.text(`${ev.display} — ${ev.title}`, { size: 10.5, bold: true, color: ACCENT, gap: 2 });
-      if (ev.desc) b.text(ev.desc, { size: 10.5, gap: 6 });
+      b.factCard(ev.display, ev.title, ev.desc);
     }
   }
 
   if (undated.length && !facts) {
     b.h2("Hechos Adicionales Verificados (Sin Fecha)");
     b.text(
-      "The following verified facts could not be placed on the timeline because no date was associated with the source citation. They are nevertheless part of the established record and should be considered alongside the chronological narrative above.",
+      "Los siguientes hechos verificados no pudieron ubicarse en la línea de tiempo porque la cita de origen no tiene una fecha asociada. Forman parte del registro acreditado y deben considerarse junto con la narrativa cronológica anterior.",
       { size: 10, color: MUTED, gap: 6 },
     );
     for (const u of undated.slice(0, 20)) {
-      b.text(`• ${u.title}`, { size: 10.5, bold: true, gap: 2 });
-      if (u.desc) b.text(u.desc, { size: 10.5, gap: 4 });
+      b.factCard("", u.title, u.desc);
     }
   }
+
 
   if (!facts && !dated.length && !undated.length) {
     b.text(
@@ -3055,7 +3236,7 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       const strength = evidenceStrengthLabel(conf, refCounts[i]);
       return [
         i + 1,
-        asStr(f.severity).toUpperCase(),
+        rt(asStr(f.severity).toUpperCase()),
         asStr(f.title).slice(0, 70),
         asStr(f.category),
         confidenceLabel(conf),
@@ -3081,24 +3262,37 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       // headline: the finding reads as its own card rather than as one
       // more paragraph in a wall of text.
       const blockTop = b.y - 14;
+      const conf = Number(f.confidence ?? 0);
+      const pillText = `${rt(asStr(f.severity).toUpperCase())} · ${confidenceLabel(conf)} ${rt("conf.")}`;
       b.doc.setFont("times", "bold");
       b.doc.setFontSize(13);
       b.doc.setTextColor(...PRIMARY);
-      const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 100) as string[];
-      b.doc.text(titleLines[0] ?? "", b.margin + 14, b.y);
-      const conf = Number(f.confidence ?? 0);
-      b.pill(
-        `${asStr(f.severity)} · ${confidenceLabel(conf)} ${rt("conf.")}`,
-        b.pageW - b.margin,
-        b.y + 1,
-        sevColor,
-        "right",
-      );
-      b.y += 17;
-      for (const extra of titleLines.slice(1)) {
-        b.doc.text(extra, b.margin + 14, b.y);
-        b.y += 15;
+      // Measure the title BEFORE deciding the layout. A title that fits on
+      // one line shares that line with the severity pill; anything longer
+      // gets the pill on its own row and then runs full card width, so a
+      // wrapped second line can never land underneath the pill.
+      const fullTitle = `#${i + 1}  ${asStr(f.title)}`;
+      const pillW = b.measurePill(pillText);
+      const inlineW = b.pageW - b.margin * 2 - 14 - pillW - 16;
+      const oneLine = (b.doc.splitTextToSize(fullTitle, inlineW) as string[]).length === 1;
+      if (oneLine) {
+        b.doc.text(fullTitle, b.margin + 14, b.y);
+        b.pill(pillText, b.pageW - b.margin, b.y + 1, sevColor, "right");
+        b.y += 17;
+      } else {
+        b.pill(pillText, b.pageW - b.margin, b.y + 1, sevColor, "right");
+        b.y += 18;
+        b.doc.setFont("times", "bold");
+        b.doc.setFontSize(13);
+        b.doc.setTextColor(...PRIMARY);
+        const wrapped = b.doc.splitTextToSize(fullTitle, b.pageW - b.margin * 2 - 20) as string[];
+        for (const line of wrapped) {
+          b.doc.text(line, b.margin + 14, b.y);
+          b.y += 16;
+        }
+        b.y += 2;
       }
+
       b.doc.setFillColor(...sevColor);
       b.doc.rect(b.margin, blockTop, 3, b.y - blockTop - 4, "F");
       // Claim classification — heuristic classification of the finding.
@@ -3443,7 +3637,7 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
         b.doc.text(meta.toUpperCase(), b.margin + 14, cardY + 34);
       }
       b.y = cardY + 42 + 12;
-      b.text(body, { size: 10, gap: 6 });
+      b.markdownBody(body);
     });
   }
   if (skipped.length) {
@@ -4822,11 +5016,13 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   }
 
   // ===== Table of Contents — derived from the same queue =====
-  b.h1("Índice");
+  b.h1("Índice", "Contenido");
   b.table(
     [["#", "Sección"]],
     queue.map((s, i) => [String(i + 1), s.title]),
+    { plainHead: true },
   );
+
 
   // Render body in exact same order as TOC.
   for (const s of queue) {
