@@ -944,8 +944,8 @@ class PdfBuilder {
   statCards(items: Array<{ label: string; value: string; color?: [number, number, number] }>, cols = 3) {
     const gap = 14;
     const w = (this.pageW - this.margin * 2 - gap * (cols - 1)) / cols;
-    const h = 46;
-    const padX = 12;
+    const h = 58;
+    const padX = 18; // clears the accent bar on the left edge
     const rows = Math.ceil(items.length / cols);
     for (let row = 0; row < rows; row++) {
       this.ensureSpace(h);
@@ -957,28 +957,28 @@ class PdfBuilder {
         const item = items[i];
         const cardLabel = rt(item.label);
         const cardValue = rt(item.value);
-        // Compact card: whisper-light border, no fill, small color dot
-        // in the corner. Value font auto-shrinks so long labels like
-        // "Below Average - 50/100" always fit within the card width.
-        this.doc.setDrawColor(230, 233, 238);
-        this.doc.setLineWidth(0.5);
-        this.doc.roundedRect(x, yy, w, h, 4, 4, "S");
+        // White card on the warm sheet, with a full-height accent rule
+        // down the left edge instead of a corner dot.
+        this.doc.setFillColor(...CARD_BG);
+        this.doc.setDrawColor(...CARD_BORDER);
+        this.doc.setLineWidth(0.8);
+        this.doc.roundedRect(x, yy, w, h, 6, 6, "FD");
         this.doc.setFillColor(...(item.color ?? ACCENT));
-        this.doc.circle(x + w - 9, yy + 9, 2.4, "F");
-        // Label — clip to leave clear room for the dot.
+        this.doc.rect(x + 1, yy + 4, 3, h - 8, "F");
+        // Label
         this.doc.setFont("helvetica", "bold");
         this.doc.setFontSize(7);
         this.doc.setTextColor(...MUTED);
-        const labelMaxW = w - padX * 2 - 10;
+        const labelMaxW = w - padX - 12;
         const labelLine = (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[])[0] ?? "";
-        this.doc.text(labelLine, x + padX, yy + 16);
-        // Value — shrink font-size until it fits the card width.
-        const valueMaxW = w - padX * 2;
-        this.doc.setFont("helvetica", "bold");
+        this.doc.text(labelLine, x + padX, yy + 17);
+        // Value — serif, the single biggest lever on this component.
+        const valueMaxW = w - padX - 12;
+        this.doc.setFont("times", "bold");
         this.doc.setTextColor(...PRIMARY);
-        let vSize = 14;
+        let vSize = 20;
         this.doc.setFontSize(vSize);
-        while (vSize > 8 && this.doc.getTextWidth(cardValue) > valueMaxW) {
+        while (vSize > 10 && this.doc.getTextWidth(cardValue) > valueMaxW) {
           vSize -= 0.5;
           this.doc.setFontSize(vSize);
         }
@@ -989,7 +989,7 @@ class PdfBuilder {
           }
           valueText += "…";
         }
-        this.doc.text(valueText, x + padX, yy + 36);
+        this.doc.text(valueText, x + padX, yy + 42);
       }
       this.y += h + gap;
     }
