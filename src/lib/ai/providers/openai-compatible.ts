@@ -90,7 +90,8 @@ export function makeOpenAICompatible(cfg: ProviderConfig, opts: OAICompatOpts): 
       throw new Error(message);
     }
     to.cancel();
-    assertCheckpointBudget(`after ${cfg.type} fetch ${model}`);
+    // No post-fetch checkpoint assertion: a completed response must never be
+    // discarded because the tick budget expired mid-call — see router.server.ts.
     const latencyMs = Date.now() - t0;
     // Capture provider-reported request id when present. OpenAI returns
     // `x-request-id`; OpenRouter returns `x-request-id`; Groq returns

@@ -1312,6 +1312,14 @@ async function _runPipelineForCase(
         /* noop */
       }
       if (s.key === "report") {
+        // Report finished cleanly — reset the checkpoint backstop counter so a
+        // later regenerate starts with a fresh budget.
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from("cases").update({ report_checkpoint_count: 0 }).eq("id", caseId);
+        } catch {
+          /* best-effort */
+        }
         // Dashboard-only tally — the AI request allowance for the whole
         // pipeline run was already consumed once up front in
         // queueCaseForPipeline (see usage.server.ts).
@@ -1322,6 +1330,7 @@ async function _runPipelineForCase(
           /* best-effort */
         }
       }
+
       return { kind: "success" };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1395,6 +1404,28 @@ async function _runPipelineForCase(
         } catch (rqErr) {
           console.warn(`[pipeline] re-queue after checkpoint failed`, rqErr);
         }
+        if (s.key === "report") {
+          // Backstop counter (MAX_REPORT_CHECKPOINTS). runReport() reads this
+          // to decide whether to stop retrying raw LLM calls and finalize with
+          // whatever chunks are cached. This runner — not pipeline.server.ts's
+          // stage loop — is the live execution path, so without this increment
+          // the counter stayed at 0 forever and the salvage path never fired.
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: cur } = await (supabase as any)
+              .from("cases")
+              .select("report_checkpoint_count")
+              .eq("id", caseId)
+              .maybeSingle();
+            const next = ((cur as { report_checkpoint_count?: number } | null)?.report_checkpoint_count ?? 0) + 1;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase as any).from("cases").update({ report_checkpoint_count: next }).eq("id", caseId);
+            trace("report.checkpoint_count", { count: next });
+          } catch (cntErr) {
+            console.warn("[pipeline] failed to increment report_checkpoint_count", cntErr);
+          }
+        }
+
         trace("stage.checkpoint", { stage: s.key, runtime_ms: Date.now() - stageStart });
         try {
           await prog.emitEvent(
