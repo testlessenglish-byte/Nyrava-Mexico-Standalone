@@ -2349,7 +2349,7 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
       b.doc.setFont("helvetica", "bold");
       b.doc.setFontSize(9);
       b.doc.setTextColor(...PRIMARY);
-      b.doc.text("REASON", padX, b.y);
+      b.doc.text(rt("REASON"), padX, b.y);
       b.y += 12;
       const reasonLines = b.doc.splitTextToSize(reason, cardW - 32) as string[];
       b.doc.setFont("helvetica", "normal");
@@ -2366,7 +2366,7 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
       b.doc.setFont("helvetica", "bold");
       b.doc.setFontSize(9);
       b.doc.setTextColor(...PRIMARY);
-      b.doc.text("PRIMARY EVIDENCE", padX, b.y);
+      b.doc.text(rt("PRIMARY EVIDENCE"), padX, b.y);
       b.y += 12;
       b.doc.setFont("helvetica", "normal");
       b.doc.setFontSize(9);
