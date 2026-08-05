@@ -1704,8 +1704,14 @@ class PdfBuilder {
       // carries a brand rule at the top of every interior page, so the old
       // duplicate top strip that used to live here has been removed —
       // this loop now only draws the bottom footer text.
+      // Hairline above the footer row, matching the header treatment.
+      if (i > 1) {
+        this.doc.setDrawColor(...LINE);
+        this.doc.setLineWidth(0.6);
+        this.doc.line(this.margin, this.pageH - 42, this.pageW - this.margin, this.pageH - 42);
+      }
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(8);
+      this.doc.setFontSize(7.7);
       this.doc.setTextColor(...MUTED);
       // Bound-checked the same way header()'s right-hand label already is:
       // a long case name must never be allowed to grow into the reserved
