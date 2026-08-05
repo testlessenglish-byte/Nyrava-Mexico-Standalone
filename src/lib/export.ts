@@ -2696,7 +2696,7 @@ function extractDate(s: string): { iso: string; display: string } | null {
 
 function renderFacts(b: PdfBuilder, data: CaseExportData) {
   const facts = reportText(data, "facts");
-  b.h1("Hechos");
+  b.h1("Hechos", "Relato Fáctico");
 
   // Always lead with the LLM-authored facts narrative when present.
   if (facts && facts.trim().length > 0) {
