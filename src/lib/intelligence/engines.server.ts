@@ -457,9 +457,25 @@ export async function runOpportunityEngine(args: {
     await import("./evidence-gate.server");
   const { buildGroundingCorpus } = await import("./grounding.server");
   const { resolveCaseType } = await import("../pipeline.server");
+  const { mxPartyRoleEnum, MX_PARTY_ROLES, requireMxProfile, mxRoleLabel } = await import("../execution/mx-pipeline");
   const caseType = await resolveCaseType(db, caseId, ctx.corpus.slice(0, 4000));
   const mode = await getAnalysisMode(db, caseId);
   const civil = isCivilCaseType(caseType);
+  // Root fix, same bug and same fix as runTheoryEngine above (see its
+  // comment for the full history — confirmed live: San Baltazar Spirits vs.
+  // IMPI, tercero interesado Palenque Xquenda rendered as a "PLAINTIFF
+  // opportunity" purely because this engine only ever offered the model a
+  // hardcoded English plaintiff/defense binary with no materia awareness
+  // and no third-party slot). Every non-penal-litigation materia
+  // (administrativo, amparo, laboral, fiscal, familiar, agrario, electoral,
+  // ambiental, inmobiliario) was getting the same wrong vocabulary baked
+  // into `side`/`affected_party` on every opportunity finding it produced —
+  // 9 of the platform's 13 materias, confirmed via audit of every
+  // materia's engine-list and profile mapping.
+  const profile = requireMxProfile(caseType);
+  const roles = MX_PARTY_ROLES[profile];
+  const validSides = new Set([roles.a, roles.b, roles.c, roles.neutral].filter(Boolean) as string[]);
+  const allowedSides = mxPartyRoleEnum(caseType);
 
   const { data: docsForGround } = await db
     .from("documents")
@@ -501,11 +517,13 @@ export async function runOpportunityEngine(args: {
 Identify opportunities ONLY in these categories: ${allowedCategories}.
 Each opportunity MUST include a "citations" array with at least one structured citation copied from the corpus. Do not use alternate keys like support/evidence without citations.
 
+"side" MUST be the REAL Mexican procedural role of the specific named party this opportunity favors, as identified from the corpus below — NOT a generic guess. If the corpus identifies a tercero interesado (a party who is neither the promovente/particular nor the responding authority — e.g. the original administrative complainant or beneficiary of a challenged act in an IMPI/TFJA nulidad, or the beneficiary of a challenged act in an amparo), an opportunity favoring that party's position MUST use the tercero_interesado role, never the promovente/particular role.
+
 Return STRICT JSON:
 {
   "opportunities": [
     {
-      "side": "${civil ? "plaintiff" : "defense"}",
+      "side": ${allowedSides},
       "opportunity_type": string (from allowed categories),
       "title": string,
       "description": string,
@@ -556,8 +574,11 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
     `[engine:opportunity] case=${caseId} llm_raw=${rawOpps.length} llm_text_chars=${r.text?.length ?? 0} llm_preview=${JSON.stringify((r.text ?? "").slice(0, 240))}`,
   );
 
-  // 1) Drop opportunities that conflict with the locked case type.
-  const typeFiltered = filterByCaseType(rawOpps, caseType);
+  // 1) Drop opportunities that conflict with the locked case type, and any
+  // side the model invented outside this materia's real role set (same
+  // check runTheoryEngine already applies to theory_type, for the same
+  // reason: an off-vocabulary role is worse than dropping the item).
+  const typeFiltered = filterByCaseType(rawOpps, caseType).filter((o) => validSides.has(String(o.side ?? "")));
 
   // 2) Evidence-gate every opportunity. Strict mode requires verbatim corpus support.
   const gateInput = typeFiltered.map((o) => ({
@@ -606,7 +627,11 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       ...kept.map((o, idx) => ({
         case_id: caseId,
         user_id: userId,
-        side: o.side ?? (civil ? "plaintiff" : "defense"),
+        // typeFiltered already rejected any o.side outside validSides above,
+        // so this fallback should never actually trigger — kept only as a
+        // defensive default, using the materia's own primary role instead
+        // of the old hardcoded English plaintiff/defense binary.
+        side: o.side ?? roles.a,
         opportunity_type: o.opportunity_type ?? "general",
         title: o.title ?? "Opportunity",
         description: o.description ?? "",
@@ -622,7 +647,11 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       ...rejectedForReview.map(({ original: o, rej }) => ({
         case_id: caseId,
         user_id: userId,
-        side: o.side ?? (civil ? "plaintiff" : "defense"),
+        // typeFiltered already rejected any o.side outside validSides above,
+        // so this fallback should never actually trigger — kept only as a
+        // defensive default, using the materia's own primary role instead
+        // of the old hardcoded English plaintiff/defense binary.
+        side: o.side ?? roles.a,
         opportunity_type: `requires_attorney_review:${o.opportunity_type ?? "general"}`,
         title: `Potential Opportunity (Requires Attorney Review): ${o.title ?? "Opportunity"}`,
         description: `${o.description ?? "The AI identified a possible opportunity, but evidence verification did not fully pass."}\n\nVerification issue: ${rej.detail}`,
@@ -650,9 +679,12 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
       description: o.description ?? "",
       severity: o.severity,
       confidence: typeof o.confidence === "number" ? o.confidence : 0.6,
-      legal_significance: `${civil ? "Plaintiff/defense" : "Defense"} opportunity (${o.opportunity_type})`,
+      legal_significance: `${mxRoleLabel(o.side)} opportunity (${o.opportunity_type})`,
       potential_impact: o.counter_response ? `Opposing response: ${o.counter_response}` : null,
-      affected_party: (civil ? "plaintiff" : "defense") as "defense" | "plaintiff",
+      // o.side IS the real, materia-aware Mexican procedural role
+      // (mxPartyRoleEnum) as of this fix — persist it directly, same as
+      // runTheoryEngine's affected_party: t.theory_type ?? null.
+      affected_party: o.side ?? null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ...({
         finding_type: gated[idx]?.finding_type,
