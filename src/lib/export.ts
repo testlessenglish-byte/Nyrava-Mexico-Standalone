@@ -948,15 +948,19 @@ class PdfBuilder {
   // Grid of compact stat cards (replaces the old plain label/value rows on
   // the cover). `cols` per row; each card gets a bold value + small caption.
   statCards(items: Array<{ label: string; value: string; color?: [number, number, number] }>, cols = 3) {
+    // Hard cap at four columns: past that, a Letter-width card is narrower
+    // than the Spanish labels it has to carry ("Documentos Analizados",
+    // "Recomendaciones") and both label and value start truncating.
+    const nCols = Math.max(1, Math.min(4, cols));
     const gap = 14;
-    const w = (this.pageW - this.margin * 2 - gap * (cols - 1)) / cols;
-    const h = 58;
+    const w = (this.pageW - this.margin * 2 - gap * (nCols - 1)) / nCols;
+    const h = 66;
     const padX = 18; // clears the accent bar on the left edge
-    const rows = Math.ceil(items.length / cols);
+    const rows = Math.ceil(items.length / nCols);
     for (let row = 0; row < rows; row++) {
       this.ensureSpace(h);
-      for (let col = 0; col < cols; col++) {
-        const i = row * cols + col;
+      for (let col = 0; col < nCols; col++) {
+        const i = row * nCols + col;
         if (i >= items.length) break;
         const x = this.margin + col * (w + gap);
         const yy = this.y;
@@ -964,27 +968,34 @@ class PdfBuilder {
         const cardLabel = rt(item.label);
         const cardValue = rt(item.value);
         // White card on the warm sheet, with a full-height accent rule
-        // down the left edge instead of a corner dot.
+        // down the left edge instead of a corner dot. The rule is always
+        // ACCENT gold — severity coloring belongs to findings, not to
+        // neutral corpus counters, and a red bar here read as an alarm.
         this.doc.setFillColor(...CARD_BG);
         this.doc.setDrawColor(...CARD_BORDER);
         this.doc.setLineWidth(0.8);
         this.doc.roundedRect(x, yy, w, h, 6, 6, "FD");
-        this.doc.setFillColor(...(item.color ?? ACCENT));
+        this.doc.setFillColor(...ACCENT);
         this.doc.rect(x + 1, yy + 4, 3, h - 8, "F");
-        // Label
+        // Label — wraps to at most two lines instead of being clipped.
         this.doc.setFont("helvetica", "bold");
         this.doc.setFontSize(7);
         this.doc.setTextColor(...MUTED);
         const labelMaxW = w - padX - 12;
-        const labelLine = (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[])[0] ?? "";
-        this.doc.text(labelLine, x + padX, yy + 17);
-        // Value — serif, the single biggest lever on this component.
+        const labelLines = (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[]).slice(0, 2);
+        let ly = yy + 16;
+        for (const line of labelLines) {
+          this.doc.text(line, x + padX, ly);
+          ly += 9;
+        }
+        // Value — serif, the single biggest lever on this component. Its
+        // color still tracks the caller's semantic hint.
         const valueMaxW = w - padX - 12;
         this.doc.setFont("times", "bold");
-        this.doc.setTextColor(...PRIMARY);
-        let vSize = 20;
+        this.doc.setTextColor(...(item.color ?? PRIMARY));
+        let vSize = 19;
         this.doc.setFontSize(vSize);
-        while (vSize > 10 && this.doc.getTextWidth(cardValue) > valueMaxW) {
+        while (vSize > 9 && this.doc.getTextWidth(cardValue) > valueMaxW) {
           vSize -= 0.5;
           this.doc.setFontSize(vSize);
         }
@@ -995,9 +1006,108 @@ class PdfBuilder {
           }
           valueText += "…";
         }
-        this.doc.text(valueText, x + padX, yy + 42);
+        this.doc.text(valueText, x + padX, yy + h - 16);
       }
       this.y += h + gap;
+    }
+  }
+
+  // Chronological fact card used by the Hechos section: date chip, serif
+  // headline, body copy — same card language as findings, so the factual
+  // record no longer reads as an unstyled wall of paragraphs.
+  factCard(dateLabel: string, title: string, body: string) {
+    const innerW = this.pageW - this.margin * 2 - 28;
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(11.5);
+    const titleLines = this.doc.splitTextToSize(title, innerW) as string[];
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setFontSize(9.6);
+    const bodyLines = body ? (this.doc.splitTextToSize(body, innerW) as string[]) : [];
+    const h = (dateLabel ? 16 : 0) + titleLines.length * 14 + bodyLines.length * 12 + 20;
+    this.ensureSpace(h + 10);
+    const yy = this.y - 10;
+    this.doc.setFillColor(...CARD_BG);
+    this.doc.setDrawColor(...CARD_BORDER);
+    this.doc.setLineWidth(0.8);
+    this.doc.roundedRect(this.margin, yy, this.pageW - this.margin * 2, h, 5, 5, "FD");
+    this.doc.setFillColor(...ACCENT);
+    this.doc.rect(this.margin + 1, yy + 4, 3, h - 8, "F");
+    let ty = yy + 16;
+    if (dateLabel) {
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(7.4);
+      this.doc.setTextColor(...ACCENT);
+      this.doc.text(spaced(dateLabel.toUpperCase()), this.margin + 16, ty);
+      ty += 15;
+    }
+    this.doc.setFont("times", "bold");
+    this.doc.setFontSize(11.5);
+    this.doc.setTextColor(...PRIMARY);
+    for (const line of titleLines) {
+      this.doc.text(line, this.margin + 16, ty);
+      ty += 14;
+    }
+    if (bodyLines.length) {
+      ty += 2;
+      this.doc.setFont("helvetica", "normal");
+      this.doc.setFontSize(9.6);
+      this.doc.setTextColor(...INK);
+      for (const line of bodyLines) {
+        this.doc.text(line, this.margin + 16, ty);
+        ty += 12;
+      }
+    }
+    this.y = yy + h + 12;
+  }
+
+  // Renders the constrained markdown the work-product models emit
+  // (#/##/### headings, **bold**, - bullets) as real typography. Without
+  // this the report printed literal "##" and "**" characters.
+  markdownBody(md: string) {
+    const stripInline = (s: string) => s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/`(.+?)`/g, "$1");
+    for (const raw of (md ?? "").replace(/\r\n/g, "\n").split("\n")) {
+      const line = raw.trim();
+      if (!line) {
+        this.y += 4;
+        continue;
+      }
+      if (/^(\*{3,}|-{3,}|_{3,})$/.test(line)) {
+        this.ensureSpace(14);
+        this.doc.setDrawColor(...CARD_BORDER);
+        this.doc.setLineWidth(0.6);
+        this.doc.line(this.margin, this.y, this.pageW - this.margin, this.y);
+        this.y += 12;
+        continue;
+      }
+      const h = line.match(/^(#{1,4})\s+(.*)$/);
+      if (h) {
+        const level = h[1].length;
+        const txt = stripInline(h[2]);
+        this.y += level === 1 ? 10 : 8;
+        this.text(level >= 3 ? txt : txt.toUpperCase(), {
+          size: level === 1 ? 12 : level === 2 ? 10.5 : 10,
+          bold: true,
+          color: PRIMARY,
+          gap: 6,
+        });
+        continue;
+      }
+      const bullet = line.match(/^[-*•]\s+(.*)$/);
+      if (bullet) {
+        this.bullets([stripInline(bullet[1])]);
+        continue;
+      }
+      const numbered = line.match(/^(\d+)[.)]\s+(.*)$/);
+      if (numbered) {
+        this.text(`${numbered[1]}.  ${stripInline(numbered[2])}`, { size: 10, gap: 4 });
+        continue;
+      }
+      const bold = line.match(/^\*\*(.+)\*\*:?$/);
+      if (bold) {
+        this.text(stripInline(bold[1]), { size: 10, bold: true, color: PRIMARY, gap: 4 });
+        continue;
+      }
+      this.text(stripInline(line), { size: 10, gap: 6 });
     }
   }
 
@@ -1005,14 +1115,21 @@ class PdfBuilder {
   // report: red=critical, amber=high, gold=medium, green=low/info,
   // slate=unknown. Reused by badges, table cells, and score bars so
   // severity always reads the same color no matter which widget shows it.
+  // Accepts both the engine's English enum and its rendered Spanish
+  // label, since tables now print translated severities.
   severityColor(sev: string): [number, number, number] {
-    const s = (sev || "").trim().toLowerCase();
-    if (s === "critical") return DANGER;
-    if (s === "high") return HIGH;
-    if (s === "medium") return MEDIUM;
-    if (s === "low" || s === "info") return SUCCESS;
+    const s = (sev || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (s === "critical" || s === "critica") return DANGER;
+    if (s === "high" || s === "alta") return HIGH;
+    if (s === "medium" || s === "media") return MEDIUM;
+    if (s === "low" || s === "info" || s === "baja") return SUCCESS;
     return MUTED;
   }
+
 
   // Small filled pill. `align: "right"` anchors the box's right edge to x
   // (used to hang a severity/confidence pill off the right margin next to
