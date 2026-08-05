@@ -13,6 +13,9 @@ const SENDER_DOMAIN = "notify.mexico.nyrava.com"
 // FROM_DOMAIN is the domain shown in the From: header (e.g., "example.com").
 // Can be the root domain when display_from_root is enabled — this is cosmetic only.
 const FROM_DOMAIN = "mexico.nyrava.com"
+// Replies to app emails land in the monitored business inbox (forwarded to the
+// team's real mailbox). Callers can override per-send via options.replyTo.
+const DEFAULT_REPLY_TO = "support@mexico.nyrava.com"
 
 export type SendTemplateEmailResult =
   | { sent: true }
