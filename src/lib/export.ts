@@ -1276,17 +1276,20 @@ class PdfBuilder {
     return this.y;
   }
 
-  h1(label: string) {
+  h1(label: string, kicker?: string) {
     // Generous top spacing gives each section true separation and
     // signals executive-briefing hierarchy. Every h1 routes through the
-    // shared sectionTitle() treatment.
+    // shared sectionTitle() treatment. The kicker describes THIS section
+    // (per-section eyebrow) rather than repeating the brand name on every
+    // page, which read as a template artifact.
     if (this.firstSectionRendered) {
       this.y += 34;
     }
     this.firstSectionRendered = true;
     this.ensureSpace(120);
-    this.sectionTitle("Nyrava Intelligence", label);
+    this.sectionTitle(kicker ?? SECTION_KICKERS[label] ?? label, label);
   }
+
 
   h2(label: string) {
     // Quiet subsection header: uppercase small-caps label with a hairline
