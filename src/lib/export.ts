@@ -863,8 +863,9 @@ class PdfBuilder {
     this.doc.setFillColor(...PRIMARY);
     this.doc.rect(0, 0, pageW, pageH, "F");
     this.doc.setFillColor(...PRIMARY_DEEP);
-    this.doc.rect(0, 0, pageW, 170, "F");
-    this.doc.rect(0, pageH - 150, pageW, 150, "F");
+    this.doc.rect(0, 0, pageW, 85, "F");
+    this.doc.rect(0, pageH - 75, pageW, 75, "F");
+
     // Inset hairline frame — replaces the two stray horizontal rules.
     this.doc.setDrawColor(...ACCENT_SOFT);
     this.doc.setLineWidth(0.55);
