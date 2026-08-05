@@ -875,26 +875,26 @@ class PdfBuilder {
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(13);
     this.doc.setTextColor(...ACCENT_SOFT);
-    this.doc.text("N Y R A V A", pageW / 2, 62, { align: "center" });
+    this.doc.text("N Y R A V A", pageW / 2, 44, { align: "center" });
     this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(7.2);
-    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", pageW / 2, 76, { align: "center" });
+    this.doc.text("L E G A L   I N T E L L I G E N C E   O S", pageW / 2, 58, { align: "center" });
 
     if (opts.engineVersion) {
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(7.5);
       this.doc.setTextColor(...ACCENT_SOFT);
-      this.doc.text(`ENGINE ${opts.engineVersion}`, pageW - margin, 62, { align: "right" });
+      this.doc.text(`ENGINE ${opts.engineVersion}`, pageW - margin, 44, { align: "right" });
     }
 
     // Crest — the visual anchor of the page, ring-free and aspect-correct.
-    this.trustBadge(pageW / 2, pageH * 0.32, 186);
+    this.trustBadge(pageW / 2, pageH * 0.34, 186);
 
     // Eyebrow label
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(8.4);
     this.doc.setTextColor(...ACCENT);
-    this.doc.text("C A S E   I N T E L L I G E N C E   R E P O R T", pageW / 2, pageH * 0.32 + 130, {
+    this.doc.text("C A S E   I N T E L L I G E N C E   R E P O R T", pageW / 2, pageH * 0.34 + 136, {
       align: "center",
     });
 
@@ -917,7 +917,7 @@ class PdfBuilder {
       titleLines = this.doc.splitTextToSize(titleText, titleWidth) as string[];
     }
     this.doc.setTextColor(255, 255, 255);
-    let ty = pageH * 0.53;
+    let ty = pageH * 0.56;
     for (const line of titleLines.slice(0, 3)) {
       this.doc.text(line, pageW / 2, ty, { align: "center" });
       ty += titleSize * 1.16;
