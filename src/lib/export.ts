@@ -4822,11 +4822,13 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   }
 
   // ===== Table of Contents — derived from the same queue =====
-  b.h1("Índice");
+  b.h1("Índice", "Contenido");
   b.table(
     [["#", "Sección"]],
     queue.map((s, i) => [String(i + 1), s.title]),
+    { plainHead: true },
   );
+
 
   // Render body in exact same order as TOC.
   for (const s of queue) {
