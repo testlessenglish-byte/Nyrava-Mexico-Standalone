@@ -1641,6 +1641,7 @@ class PdfBuilder {
     const h = 26;
     this.ensureSpace(h + 8);
     const color = this.severityColor(severity);
+    const sevLabel = rt(severity.toUpperCase());
     const yy = this.y - 12;
     // Compact white card with a severity rule on the left edge — same
     // visual language as the full finding cards further down the report.
@@ -1657,7 +1658,7 @@ class PdfBuilder {
     const titleLine = (this.doc.splitTextToSize(title, maxW) as string[])[0] ?? "";
     this.doc.text(titleLine, this.margin + 14, yy + 17);
     this.pill(
-      `${severity} · ${Math.round(confidence * 100)}%`,
+      `${sevLabel} · ${Math.round(confidence * 100)}%`,
       this.pageW - this.margin - 8,
       yy + 20,
       color,
@@ -1711,6 +1712,10 @@ class PdfBuilder {
       columnStyles?: Record<number, any>;
       emphasizeColIdx?: number; // rendered bold (e.g. a "Document" column)
       mutedColIdx?: number; // rendered muted/italic (e.g. a "Quote" column)
+      // Editorial variant: no dark header band, just a hairline rule under
+      // small-caps labels. Used by the index/contents table, where a heavy
+      // green header row fought with the redesigned section titles.
+      plainHead?: boolean;
     } = {},
   ) {
     if (body.length === 0) return;
@@ -1744,14 +1749,24 @@ class PdfBuilder {
         lineWidth: 0.5,
         fillColor: [...CARD_BG] as [number, number, number],
       },
-      headStyles: {
-        fillColor: [...PRIMARY] as [number, number, number],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        fontSize: 8.5,
-        cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
-        lineWidth: 0,
-      },
+      headStyles: opts.plainHead
+        ? {
+            fillColor: [...PAGE_BG] as [number, number, number],
+            textColor: [...MUTED] as [number, number, number],
+            fontStyle: "bold",
+            fontSize: 7.8,
+            cellPadding: { top: 4, right: 8, bottom: 6, left: 8 },
+            lineColor: [...ACCENT] as [number, number, number],
+            lineWidth: { top: 0, right: 0, bottom: 1, left: 0 },
+          }
+        : {
+            fillColor: [...PRIMARY] as [number, number, number],
+            textColor: [255, 255, 255],
+            fontStyle: "bold",
+            fontSize: 8.5,
+            cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
+            lineWidth: 0,
+          },
       // Very subtle warm zebra tint — enough to track a row across a wide
       // table, quiet enough not to read as a dashboard grid.
       alternateRowStyles: { fillColor: [252, 250, 246] as [number, number, number] },
@@ -1766,7 +1781,7 @@ class PdfBuilder {
       didParseCell: (d: any) => {
         if (d.section === "head") {
           d.cell.text = d.cell.text.map((t: string) => t.toUpperCase());
-          d.cell.styles.lineWidth = 0;
+          if (!opts.plainHead) d.cell.styles.lineWidth = 0;
           return;
         }
         if (d.section !== "body") return;
