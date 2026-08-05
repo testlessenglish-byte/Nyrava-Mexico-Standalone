@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { createAuthEmailHandler } from '@lovable.dev/email-js'
+import { createAuthEmailHandler, type AuthEmailHookData } from '@lovable.dev/email-js'
 import { createFileRoute } from '@tanstack/react-router'
 import { SignupEmail } from '@/lib/email-templates/signup'
 import { InviteEmail } from '@/lib/email-templates/invite'
@@ -15,14 +15,6 @@ const SENDER_DOMAIN = "notify.mexico.nyrava.com"
 const ROOT_DOMAIN = "mexico.nyrava.com"
 const FROM_DOMAIN = "mexico.nyrava.com"
 const SITE_URL = `https://${ROOT_DOMAIN}`
-
-interface AuthEmailData {
-  email: string
-  url: string
-  old_email?: string
-  new_email?: string
-  token?: string
-}
 
 // The SDK handler owns verification, dispatch, and retry semantics; this file
 // owns only the email decisions: subjects, templates, and per-type props.
