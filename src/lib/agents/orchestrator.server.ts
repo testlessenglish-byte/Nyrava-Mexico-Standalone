@@ -80,7 +80,16 @@ export interface OrchestratorArgs {
   caseId: string;
   apiKey: string;
   apiKeys: string[];
+  /**
+   * When true this run is a PRE-report review pass: it executes every agent
+   * and computes a preliminary verdict, but it must NOT write the case's
+   * final release status. The release decision is made only by
+   * `runFinalReleaseReview()` once the completed report has been generated
+   * and saved. See docs: release decision is always the last pipeline step.
+   */
+  deferRelease?: boolean;
 }
+
 
 type AnalysisMode = "strict" | "balanced" | "exploratory";
 type RunCtx = OrchestratorArgs & { runId: string; analysisMode: AnalysisMode };
