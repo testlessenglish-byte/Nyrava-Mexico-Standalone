@@ -51,7 +51,7 @@ import {
   ShadingType,
   PageBreak,
 } from "docx";
-import { rt, setReportTemplateLocale, resolveReportLocale } from "./report-i18n";
+import { rt, setReportTemplateLocale, resolveReportLocale, getReportTemplateLocale } from "./report-i18n";
 import { MX_DOMAINS } from "./intelligence/mx-coverage";
 
 /**
@@ -609,6 +609,10 @@ class PdfBuilder {
   pageH: number;
   y: number;
   caseName: string;
+  // Short matter/docket identifier shown right-aligned in the running
+  // header band. Deliberately NOT the full case title — long Amparo
+  // names clip at the page edge (Addendum 3, Bug 8).
+  matterId: string;
   // The real crest image, loaded once via loadLogo() before any drawing
   // happens. Null until loaded, and stays null if the fetch failed —
   // logoMark()/trustBadge() fall back to the vector shield mark in that
@@ -617,8 +621,14 @@ class PdfBuilder {
   // Track whether we've rendered ANY body content yet. Only the cover
   // page forces a hard break; after that, sections flow naturally.
   private firstSectionRendered = false;
+  // page number -> section title that STARTS on that page. Used by
+  // header() to decide, per page, whether the page already carries a full
+  // section title or needs a lightweight continuation label instead
+  // (Addendum 3, Bug 9 — no interior page without section identity).
+  private sectionStarts = new Map<number, { title: string; y: number }>();
 
-  constructor(caseName: string) {
+  constructor(caseName: string, matterId?: string) {
+    this.matterId = matterId || caseName;
     this.doc = new jsPDF({ unit: "pt", format: "letter" }) as Pdf;
     this.pageW = this.doc.internal.pageSize.getWidth();
     this.pageH = this.doc.internal.pageSize.getHeight();
@@ -1293,6 +1303,13 @@ class PdfBuilder {
    * Returns the y position to continue drawing from.
    */
   sectionTitle(kicker: string, title: string): number {
+    // Record which page this section opens on so header() can emit a
+    // continuation label on the pages it spills onto.
+    const _pg = this.doc.getCurrentPageInfo().pageNumber;
+    const _g = globalThis as unknown as Record<string, unknown>;
+    if (!Array.isArray(_g.__sec)) _g.__sec = [];
+    (_g.__sec as unknown[]).push([_pg, this.y, title]);
+    this.sectionStarts.set(_pg, { title: rt(title), y: this.y });
     if (kicker) {
       this.doc.setFont("helvetica", "bold");
       this.doc.setFontSize(8.4);
@@ -1839,43 +1856,86 @@ class PdfBuilder {
   header() {
     const pageCount = this.doc.getNumberOfPages();
     const h = CONTINUATION_HEADER_H;
+    const bandH = 36; // running header band — deliberately short so it never competes with the cover
+    let lastSection = "";
     for (let i = 2; i <= pageCount; i++) {
       this.doc.setPage(i);
 
-      // Warm sheet band across the reserved top area (defensive — guards
-      // against any stray content drawn too high) plus a slim single-row
-      // masthead: crest, wordmark, matter label, one hairline.
+      // Warm sheet across the reserved top area (defensive — guards
+      // against any stray content drawn too high), then a solid PRIMARY
+      // brand band. All text inside the band is white or ACCENT_SOFT:
+      // MUTED/INK were tuned for the warm page and vanish on green.
       this.doc.setFillColor(...PAGE_BG);
       this.doc.rect(0, 0, this.pageW, h, "F");
+      this.doc.setFillColor(...PRIMARY);
+      this.doc.rect(0, 0, this.pageW, bandH, "F");
 
-      const markSize = 18;
+      const markSize = 17;
       const markX = this.margin;
-      const markY = 12;
-      this.trustBadge(markX + markSize / 2, markY + markSize / 2, markSize);
+      const markCy = bandH / 2;
+      if (!this.drawCrest(markX + markSize / 2, markCy, markSize)) {
+        this.doc.setFont("helvetica", "bold");
+        this.doc.setFontSize(11);
+        this.doc.setTextColor(...ACCENT_SOFT);
+        this.doc.text("N", markX + markSize / 2, markCy + 4, { align: "center" });
+      }
 
-      const textX = markX + markSize + 10;
+      const textX = markX + markSize + 9;
       this.doc.setFont("helvetica", "bold");
-      this.doc.setFontSize(9.5);
-      this.doc.setTextColor(...INK);
-      this.doc.text("NYRAVA", textX, markY + 8);
+      this.doc.setFontSize(9);
+      this.doc.setTextColor(255, 255, 255);
+      this.doc.text("NYRAVA", textX, markCy - 1);
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(7.3);
-      this.doc.setTextColor(...MUTED);
-      this.doc.text("LEGAL INTELLIGENCE OS", textX, markY + 17);
+      this.doc.setFontSize(6.5);
+      this.doc.setTextColor(...ACCENT_SOFT);
+      this.doc.text("LEGAL INTELLIGENCE OS", textX, markCy + 8);
 
+      // Right side: short matter/docket ID only + page stamp. Never the
+      // full case title — it clips at the page edge on long matter names.
       this.doc.setFont("helvetica", "normal");
-      this.doc.setFontSize(7.6);
-      this.doc.setTextColor(...MUTED);
-      const rightLabel = `${this.caseName}   ·   ${i} / ${pageCount}`;
-      const fitted =
-        (this.doc.splitTextToSize(rightLabel, this.pageW - this.margin * 2 - 130) as string[])[0] ?? rightLabel;
-      this.doc.text(fitted, this.pageW - this.margin, markY + 13, { align: "right" });
+      this.doc.setFontSize(7.5);
+      this.doc.setTextColor(...ACCENT_SOFT);
+      const rightLabel = `${this.matterId}   ·   ${i} / ${pageCount}`;
+      const rightMaxW = this.pageW - this.margin * 2 - (textX - this.margin) - 150;
+      const fitted = (this.doc.splitTextToSize(rightLabel, Math.max(80, rightMaxW)) as string[])[0] ?? rightLabel;
+      this.doc.text(fitted, this.pageW - this.margin, markCy + 3, { align: "right" });
 
       this.doc.setDrawColor(...LINE);
       this.doc.setLineWidth(0.6);
       this.doc.line(this.margin, h - 6, this.pageW - this.margin, h - 6);
+
+      // Section identity: full title pages own their heading; every other
+      // page gets a lightweight continuation label so no interior page
+      // ever starts with bare body text.
+      const startsHere = this.sectionStarts.get(i);
+      if (startsHere) {
+        // A section can open midway down a page — everything above it is
+        // the previous section spilling over, so that top-of-page content
+        // still needs its own identification.
+        if (lastSection && startsHere.y > this.margin + h + 14) {
+          this.continuationLabel(lastSection, bandH + 14);
+        }
+        lastSection = startsHere.title;
+      } else if (lastSection) {
+        this.continuationLabel(lastSection, bandH + 14);
+      }
     }
   }
+
+  /** Lightweight "Section (continuación)" marker for pages a section
+   * spills onto. Intentionally separate from sectionTitle() — small,
+   * italic, muted; it identifies, it does not re-announce. */
+  continuationLabel(sectionName: string, y: number) {
+    this.doc.setFont("helvetica", "italic");
+    this.doc.setFontSize(7.5);
+    this.doc.setTextColor(...MUTED);
+    const suffix = getReportTemplateLocale() === "en" ? "(continued)" : "(continuación)";
+    const label = `${sectionName} ${suffix}`;
+    const fitted = (this.doc.splitTextToSize(label, this.pageW - this.margin * 2) as string[])[0] ?? label;
+    this.doc.text(fitted, this.margin, y);
+  }
+
+
 
   footer(meta: { parity: string; ess: string; generatedAt: string } | null) {
     const pageCount = this.doc.getNumberOfPages();
@@ -4934,6 +4994,17 @@ function validateParity(opts: {
   }
 }
 
+// Short matter/docket identifier for the running header band. Prefers a
+// real docket number when the matter carries one; otherwise falls back to
+// the short case id. Never the full case title — it clips at the page edge.
+function deriveMatterId(data: CaseExportData): string {
+  const c = asObj(data.case);
+  const docket = asStr(c.docket_number) || asStr(c.case_number) || asStr(c.matter_id);
+  if (docket.trim()) return docket.trim();
+  const id = asStr(c.id).slice(0, 8).toUpperCase();
+  return id || "NYRAVA";
+}
+
 export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
   // Explicit, redundant release-gate check at the actual point of export —
   // do not rely solely on the upstream content-stripping in
@@ -4960,7 +5031,7 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   initCitationContext(data, opts?.citationMode ?? "attorney");
   primeCitationFootnotes(data);
 
-  const b = new PdfBuilder(name);
+  const b = new PdfBuilder(name, deriveMatterId(data));
   await b.loadLogo();
   const reportRow = (data.report ?? {}) as Record<string, unknown>;
 
