@@ -4394,54 +4394,17 @@ async function buildPaginatedCorpus(db: Db, caseId: string) {
   return { corpus: blocks.join("\n"), docIndex };
 }
 
-// Cluster near-duplicate findings so the report sees one consolidated row per issue.
+// Cluster near-duplicate findings so the report sees one consolidated row per
+// issue. Implementation lives in the pure module
+// src/lib/intelligence/finding-dedupe.ts (semantic near-duplicate clustering
+// that unions evidence, citations, source docs and supporting engines into the
+// surviving finding — nothing is discarded).
 function dedupeFindings<T extends Record<string, unknown>>(
   rows: T[],
 ): Array<T & { _alias_ids?: string[]; _alias_titles?: string[] }> {
-  const norm = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language findings cluster correctly
-      .replace(/[^a-z0-9 ]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .split(" ")
-      .slice(0, 6)
-      .join(" ");
-  const groups = new Map<string, Array<T>>();
-  for (const f of rows) {
-    const cat = String((f as Record<string, unknown>).category ?? "misc").toLowerCase();
-    const title = String((f as Record<string, unknown>).title ?? "");
-    const key = `${cat}::${norm(title)}`;
-    const arr = groups.get(key) ?? [];
-    arr.push(f);
-    groups.set(key, arr);
-  }
-  const out: Array<T & { _alias_ids?: string[]; _alias_titles?: string[] }> = [];
-  const sevRank = { critical: 0, high: 1, medium: 2, low: 3, info: 4 } as Record<string, number>;
-  for (const arr of groups.values()) {
-    arr.sort(
-      (a, b) =>
-        (sevRank[String((a as Record<string, unknown>).severity ?? "info")] ?? 9) -
-        (sevRank[String((b as Record<string, unknown>).severity ?? "info")] ?? 9),
-    );
-    const master = arr[0] as T & { _alias_ids?: string[]; _alias_titles?: string[] };
-    if (arr.length > 1) {
-      master._alias_ids = arr.slice(1).map((a) => String((a as Record<string, unknown>).id ?? ""));
-      master._alias_titles = arr.slice(1).map((a) => String((a as Record<string, unknown>).title ?? ""));
-      const mEv = (master as Record<string, unknown>).evidence_refs;
-      const refs: unknown[] = Array.isArray(mEv) ? [...(mEv as unknown[])] : [];
-      for (const a of arr.slice(1)) {
-        const ev = (a as Record<string, unknown>).evidence_refs;
-        if (Array.isArray(ev)) refs.push(...(ev as unknown[]));
-      }
-      if (refs.length) (master as Record<string, unknown>).evidence_refs = refs;
-    }
-    out.push(master);
-  }
-  return out;
+  return consolidateFindings(rows ?? []);
 }
+
 
 /**
  * Materia detection for cases whose `case_type` is not stamped yet. Delegates
