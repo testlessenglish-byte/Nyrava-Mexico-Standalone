@@ -15,7 +15,7 @@ import autoTable from "jspdf-autotable";
 let logoBase64Cache: Promise<string | null> | null = null;
 function getLogoBase64(): Promise<string | null> {
   if (!logoBase64Cache) {
-    logoBase64Cache = fetch("/brand/nyrava-eagle-badge.png")
+    logoBase64Cache = fetch("/brand/nyrava-crest.png")
       .then((res) => {
         if (!res.ok) throw new Error(`logo fetch failed: ${res.status}`);
         return res.blob();
@@ -404,13 +404,26 @@ export function downloadJson(data: CaseExportData, name: string) {
 // ===== PDF builder helpers ============================================
 type Pdf = jsPDF & { lastAutoTable?: { finalY: number } };
 
-const PRIMARY: [number, number, number] = [14, 36, 29]; // brand deep forest green (#0E241D), was slate-900 navy
-const ACCENT: [number, number, number] = [216, 179, 106]; // brand gold (#D8B36A), exact match to the site's --primary
-const MUTED: [number, number, number] = [100, 116, 139]; // slate-500
-const SUCCESS: [number, number, number] = [21, 128, 61]; // green-700
-const DANGER: [number, number, number] = [185, 28, 28]; // red-700
-const CARD_BG: [number, number, number] = [248, 250, 252]; // slate-50 — stat card fill
-const CARD_BORDER: [number, number, number] = [226, 232, 240]; // slate-200 — stat card border
+// ---- Design tokens (report redesign) ---------------------------------
+// Warm, print-oriented palette: forest green + desaturated gold on a warm
+// off-white sheet. Deliberately not pure white / cool slate — the warm
+// paper tone is what makes the export read as a designed legal document
+// rather than a browser printout.
+const PAGE_BG: [number, number, number] = [250, 248, 244]; // warm off-white sheet
+const PRIMARY: [number, number, number] = [14, 36, 29]; // deep forest green
+const PRIMARY_DEEP: [number, number, number] = [9, 24, 19]; // depth bands on the cover
+const ACCENT: [number, number, number] = [198, 158, 90]; // gold
+const ACCENT_SOFT: [number, number, number] = [231, 214, 175]; // pale gold, for dark backgrounds
+const INK: [number, number, number] = [26, 31, 29]; // warm near-black body text
+const MUTED: [number, number, number] = [100, 108, 104]; // secondary text
+const LINE: [number, number, number] = [223, 219, 208]; // hairlines on light bg
+const SUCCESS: [number, number, number] = [39, 98, 66];
+const DANGER: [number, number, number] = [155, 42, 42];
+const HIGH: [number, number, number] = [176, 108, 34];
+const MEDIUM: [number, number, number] = [150, 128, 34];
+const QUOTE_BG: [number, number, number] = [246, 244, 237]; // evidence blockquote fill
+const CARD_BG: [number, number, number] = [255, 255, 255]; // card fill pops on PAGE_BG
+const CARD_BORDER: [number, number, number] = [231, 227, 216]; // card border
 
 // Generic (non-case-type-specific) severity-tier grouping used to give
 // Key Findings a visual hierarchy — critical items read as clearly more
