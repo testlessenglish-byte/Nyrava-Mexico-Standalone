@@ -7777,7 +7777,6 @@ ${paginationTail}`;
   // approving a report are two separate actions. Infrastructure failures
   // here must not undo a successfully generated report, so this is
   // non-fatal.
-  let releaseReview: { released: boolean; status: string } | null = null;
   try {
     const { runFinalReleaseReview } = await import("@/lib/agents/orchestrator.server");
     const review = await runFinalReleaseReview({
@@ -7787,13 +7786,13 @@ ${paginationTail}`;
       apiKey,
       apiKeys: apiKeys ?? [apiKey],
     });
-    releaseReview = { released: review.released, status: review.status };
+    console.info(`[final-release] case ${caseId} → ${review.status} (released=${review.released})`);
   } catch (e) {
     console.warn("[final-release] review failed after report generation", e);
   }
 
   return {
-    value: releaseReview ?? undefined,
+    value: undefined,
     stats: {
       generated: contradictionsRaw.length + motionsRaw.length,
       accepted: factualContradictions.length + motionsFinal.length,
