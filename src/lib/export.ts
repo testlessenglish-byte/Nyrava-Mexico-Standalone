@@ -2729,22 +2729,21 @@ function renderFacts(b: PdfBuilder, data: CaseExportData) {
       { size: 10, color: MUTED, gap: 8 },
     );
     for (const ev of dated) {
-      b.text(`${ev.display} — ${ev.title}`, { size: 10.5, bold: true, color: ACCENT, gap: 2 });
-      if (ev.desc) b.text(ev.desc, { size: 10.5, gap: 6 });
+      b.factCard(ev.display, ev.title, ev.desc);
     }
   }
 
   if (undated.length && !facts) {
     b.h2("Hechos Adicionales Verificados (Sin Fecha)");
     b.text(
-      "The following verified facts could not be placed on the timeline because no date was associated with the source citation. They are nevertheless part of the established record and should be considered alongside the chronological narrative above.",
+      "Los siguientes hechos verificados no pudieron ubicarse en la línea de tiempo porque la cita de origen no tiene una fecha asociada. Forman parte del registro acreditado y deben considerarse junto con la narrativa cronológica anterior.",
       { size: 10, color: MUTED, gap: 6 },
     );
     for (const u of undated.slice(0, 20)) {
-      b.text(`• ${u.title}`, { size: 10.5, bold: true, gap: 2 });
-      if (u.desc) b.text(u.desc, { size: 10.5, gap: 4 });
+      b.factCard("", u.title, u.desc);
     }
   }
+
 
   if (!facts && !dated.length && !undated.length) {
     b.text(
