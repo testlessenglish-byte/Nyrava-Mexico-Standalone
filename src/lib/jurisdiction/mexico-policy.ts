@@ -186,6 +186,17 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "agent:bankruptcy_concurso_review",
   ],
   familiar: [
+    // FIX: familiar was the only litigated (non-purely-documentary) materia
+    // in this entire table missing cross_examination — confirmed by
+    // comparing against every other entry, including laboral (a similarly
+    // "mostly written" materia), which already has it. Familiar audiencias
+    // (custodia, alimentos, violencia familiar) routinely involve live
+    // witness testimony — family members, peritos en psicología/trabajo
+    // social — and the materia's own EXCLUDED_STAGES (mx-pipeline.ts) does
+    // NOT exclude the witness stage, confirming testimony is already
+    // considered relevant here. Without this engine, no cross-examination
+    // prep was ever generated for a materia where it's routinely needed.
+    "cross_examination",
     "agent:custody_best_interest_analysis",
     "agent:child_support_calculation",
     "agent:domestic_violence_assessment",

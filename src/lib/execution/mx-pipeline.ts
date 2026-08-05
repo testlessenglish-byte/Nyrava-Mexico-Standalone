@@ -157,7 +157,18 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   civil: ["constitutional"],
   familiar: ["constitutional"],
   mercantil: ["constitutional"],
-  fiscal: ["constitutional"],
+  // FIX: fiscal was grouped with the ordinary-audiencia materias above
+  // (constitutional-only exclusion), but it is procedurally fiscal's own
+  // twin to administrativo, not to laboral/civil: facultades de
+  // comprobación, resolución determinante, recurso de revocación, juicio
+  // de nulidad ante el TFJA — resolved on the written expediente fiscal
+  // (papeles de trabajo, CFDI, contabilidad electrónica, dictamen fiscal;
+  // see EVIDENCE.fiscal.medios in mexico.ts, which has no "testimonial"
+  // entry, same as administrativo's). oral:false for fiscal in mexico.ts,
+  // identically to administrativo. Confirmed via audit: administrativo
+  // already excludes "witness" for exactly this reason; fiscal was
+  // missing the same exclusion despite sharing the same procedural shape.
+  fiscal: ["constitutional", "witness"],
   // Juicio contencioso administrativo (TFJA, LFPCA): resolved on the written
   // expediente — demanda, contestación, pruebas documentales, alegatos,
   // sentencia. No live witness examination in the adversarial-trial sense
@@ -176,22 +187,42 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   // Cierre inmobiliario: transaccional, no contencioso. Sin partes
   // adversas, sin audiencia, sin juicio — se excluyen todas las etapas de
   // litigio. `strategy` and `work_product` are ALSO excluded here, not just
-  // the obviously-litigation ones above: both engines (engines.server.ts)
-  // hardcode a binary criminal/civil-litigation branch — theory_type
-  // "plaintiff"|"defense"|"prosecution"|"alternative", document_type
-  // "motion_for_summary_judgment"|"discovery_request"|"cross_exam_plan"|
-  // "trial_outline"|"settlement_demand"|"mediation_brief" — with no
-  // materia-aware branch and no fallback for a non-adversarial transaction.
-  // Running them for inmobiliario would ask the AI to draft a motion for a
-  // home closing rather than producing anything usable. This is pre-existing
-  // staleness in those two engines (same category as the ~50 files flagged
-  // in MIGRATION_NOTES.md as still containing U.S. litigation logic), not
-  // something newly introduced — excluding the stage is the honest fix
-  // until those engines get a real transactional-document branch (see the
-  // integration plan's §3.8 "document drafting" — scoped, not yet built).
+  // the obviously-litigation ones above.
+  //
+  // `strategy`: engines.server.ts's runStrategyEngine still hardcodes a
+  // binary criminal/civil-litigation branch with no materia-aware fallback
+  // for a non-adversarial transaction — running it for inmobiliario would
+  // ask the AI to draft litigation strategy for a home closing. This is
+  // pre-existing staleness (same category as the ~50 files flagged in
+  // MIGRATION_NOTES.md as still containing U.S. litigation logic) —
+  // excluding the stage is the honest fix until it gets a real
+  // transactional-document branch.
+  //
+  // `work_product`: STALE NOTE — this used to say the same thing as
+  // `strategy` above ("no materia-aware branch"), but that's no longer
+  // accurate: mx-work-product.ts was built with a real inmobiliario branch
+  // (memorandum_de_cierre, carta_de_requerimiento_documental) the same day
+  // this exclusion was written, in a separate commit. The exclusion is
+  // still kept for now, but for a DIFFERENT, narrower reason: the
+  // UNIVERSAL vehicles every profile shares (plan_de_interrogatorio,
+  // preparacion_de_testigos) are litigation/testimony-flavored and don't
+  // fit a non-adversarial closing — each does carry a `when` condition
+  // ("cuando existan testigos o peritos identificados") that SHOULD
+  // naturally suppress them for a witness-less inmobiliario case, but
+  // whether runWorkProductEngine's actual prompt reliably enforces that
+  // condition (vs. just listing all vehicles and trusting the model to
+  // self-select) hasn't been verified. Re-enabling this stage for
+  // inmobiliario is a real, live option now — it needs that verification
+  // first, not a blanket re-enable based on the branch existing.
+  //
   // `report`/`scoring`/`legal_qa`/`contradictions`/`perspectives`/
   // `opportunities` were checked too and degrade gracefully (empty filters,
   // not hard failures) rather than producing wrong output, so they stay on.
+  // (`opportunities` specifically needed its own fix to make this claim
+  // true — see engines.server.ts's runOpportunityEngine, which used to
+  // hardcode English plaintiff/defense for every non-penal materia
+  // including this one, until it was fixed to use MX_PARTY_ROLES like
+  // runTheoryEngine already did.)
   inmobiliario: [
     "constitutional",
     "witness",
