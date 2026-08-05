@@ -449,7 +449,7 @@ export async function runTimelineAudit({
     .delete()
     .eq("case_id", caseId)
     .eq("engine", ENGINE.timeline);
-  await audit.runEngine(supabase, { caseId, userId, engine: "timeline" }, async () => ({
+  await audit.runEngine(supabase, { caseId, userId, engine: ENGINE.timeline }, async () => ({
     value: ct,
     stats: {
       generated: ct.totals.total,
