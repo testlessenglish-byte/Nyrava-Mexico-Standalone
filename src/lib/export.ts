@@ -1523,23 +1523,25 @@ class PdfBuilder {
         bottom: this.margin + 26,
       },
       styles: {
-        fontSize: 9,
-        cellPadding: { top: 7, right: 7, bottom: 7, left: 7 },
-        textColor: [...PRIMARY] as [number, number, number],
+        fontSize: 8.7,
+        cellPadding: { top: 7.5, right: 8, bottom: 7.5, left: 8 },
+        textColor: [...INK] as [number, number, number],
         overflow: "linebreak",
-        lineColor: [...CARD_BORDER] as [number, number, number],
+        lineColor: [...LINE] as [number, number, number],
         lineWidth: 0.5,
+        fillColor: [...CARD_BG] as [number, number, number],
       },
       headStyles: {
         fillColor: [...PRIMARY] as [number, number, number],
         textColor: [255, 255, 255],
         fontStyle: "bold",
-        fontSize: 9,
-        cellPadding: { top: 8, right: 7, bottom: 8, left: 7 },
+        fontSize: 8.5,
+        cellPadding: { top: 8, right: 8, bottom: 8, left: 8 },
+        lineWidth: 0,
       },
-      // Slightly more visible zebra striping than the previous near-white
-      // tint, for easier row tracking across wide tables.
-      alternateRowStyles: { fillColor: [241, 245, 249] as [number, number, number] },
+      // Very subtle warm zebra tint — enough to track a row across a wide
+      // table, quiet enough not to read as a dashboard grid.
+      alternateRowStyles: { fillColor: [252, 250, 246] as [number, number, number] },
       columnStyles: opts.columnStyles,
       theme: "grid",
       // Color-code Severity and Score columns wherever a table has them,
@@ -1551,9 +1553,14 @@ class PdfBuilder {
       didParseCell: (d: any) => {
         if (d.section === "head") {
           d.cell.text = d.cell.text.map((t: string) => t.toUpperCase());
+          d.cell.styles.lineWidth = 0;
           return;
         }
         if (d.section !== "body") return;
+        // No vertical grid lines anywhere; a single hairline rule under
+        // each row is the only structure the body needs.
+        d.cell.styles.lineWidth = { top: 0, right: 0, bottom: 0.5, left: 0 };
+
         if (sevColIdx >= 0 && d.column.index === sevColIdx) {
           d.cell.styles.textColor = this.severityColor(String(d.cell.raw ?? ""));
           d.cell.styles.fontStyle = "bold";
