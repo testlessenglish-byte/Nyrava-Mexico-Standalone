@@ -501,6 +501,22 @@ const _userProviderGroupsCache = new Map<
 >();
 const USER_PROVIDER_GROUPS_CACHE_TTL_MS = 20_000;
 
+// Same one-warning-per-process dedup pattern as providers/factory.ts's
+// warnOnce, scoped per (user, provider) instead of per provider row id.
+const _warnedUndecryptableUserKeys = new Set<string>();
+function warnUndecryptableUserKey(userId: string, provider: ProviderType, err: unknown): void {
+  const dedupKey = `${userId}:${provider}`;
+  if (_warnedUndecryptableUserKeys.has(dedupKey)) return;
+  _warnedUndecryptableUserKeys.add(dedupKey);
+  console.warn(
+    `[ai.user_key] user ${userId}'s stored ${provider} key failed to decrypt and was silently dropped ` +
+      `from routing (${err instanceof Error ? err.message : String(err)}). Common cause: ` +
+      `AI_PROVIDER_ENCRYPTION_KEY was rotated/changed since the key was saved, or the stored value is ` +
+      `corrupted. The key still shows as "configured" in Admin → AI Keys — it will need to be deleted ` +
+      `and re-added to be usable again.`,
+  );
+}
+
 async function loadUserProviderKeyGroups(
   userId: string,
 ): Promise<Array<{ provider: ProviderType; keys: string[] }>> {
@@ -530,7 +546,7 @@ async function _loadUserProviderKeyGroupsUncached(
 
   const order: ProviderType[] = [];
   const byProvider = new Map<ProviderType, string[]>();
-  for (const row of data as Array<{ provider: string; encrypted_key: string }>) {
+  for (const row of data as Array<{ provider: string; encrypted_key: string; created_at?: string }>) {
     const provider = row.provider as ProviderType;
     if (!byProvider.has(provider)) {
       byProvider.set(provider, []);
@@ -539,8 +555,22 @@ async function _loadUserProviderKeyGroupsUncached(
     try {
       const plain = decryptKey(row.encrypted_key);
       if (plain) byProvider.get(provider)!.push(plain);
-    } catch {
-      /* skip undecryptable */
+    } catch (err) {
+      // FIX: this previously discarded a decrypt failure with zero trace —
+      // identical to the exact bug already found and fixed in
+      // providers/factory.ts's decryptApiKey (2026-07-30) for the
+      // ai_providers table, but that fix never touched this parallel path
+      // for user_ai_keys. A key that fails to decrypt here (AI_PROVIDER_
+      // ENCRYPTION_KEY rotated since it was saved, a corrupted stored
+      // value) is silently dropped from the routing chain — the admin UI
+      // still shows it as "configured," the pipeline just never tries it.
+      // That is indistinguishable from the outside from "the router is out
+      // of capacity" even when the user has several genuinely working keys
+      // configured, which is exactly the failure this warning exists to
+      // catch. Logged once per (user, provider) per process, not per call —
+      // a full pipeline run calls this dozens of times and every failure
+      // would repeat identically.
+      warnUndecryptableUserKey(userId, provider, err);
     }
   }
   const groups = order
