@@ -767,6 +767,21 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
     console.warn("[multi-agent] failed to restamp report agent statistics", e);
   }
 
+  // Release decision. When `deferRelease` is set this run happened BEFORE
+  // the final report was generated, so its verdict is preliminary only: it
+  // must never write the case's release status. `runFinalReleaseReview()`
+  // re-runs QA/Judge/Hallucination against the completed, saved report and
+  // is the single writer of the final status.
+  if (args.deferRelease) {
+    trace("case.status.write_skipped", {
+      source: "multi_agent.preliminary",
+      preliminary_released: released,
+      gates: { qa: qaOk, judge: judgeOk, hallucination: halOk },
+    });
+    trace("multi_agent.complete", { released, deferred: true, agents_executed: results.length });
+    return { runId, released, results, releaseDeferred: true };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: beforeStatus } = await (args.db as any)
     .from("cases")
@@ -794,8 +809,115 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
   });
   trace("multi_agent.complete", { released, agents_executed: results.length });
 
-  return { runId, released, results };
+  return { runId, released, results, releaseDeferred: false };
 }
+
+// ---------------------------------------------------------------------------
+// Final release review — the LAST step of the pipeline.
+//
+// Runs only after report generation has produced and saved a completed
+// report. It re-executes the release-gate agents (report, qa, judge,
+// hallucination) against that completed report, then writes the case's final
+// status exactly once. Report generation itself never assigns the final
+// status: generating a report and approving a report are separate actions.
+// ---------------------------------------------------------------------------
+export type FinalReleaseReview = {
+  reviewed: boolean;
+  released: boolean;
+  status: "released" | "needs_revision" | "failed";
+  gates: { report: boolean; qa: boolean; judge: boolean; hallucination: boolean };
+  errors: string[];
+};
+
+export async function runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalReleaseReview> {
+  const { withAIUser } = await import("@/lib/ai/user-scope.server");
+  return withAIUser(args.userId, () => _runFinalReleaseReview(args));
+}
+
+async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalReleaseReview> {
+  const runId = crypto.randomUUID();
+  const { getAnalysisMode } = await import("@/lib/intelligence/evidence-gate.server");
+  const analysisMode = (await getAnalysisMode(args.db, args.caseId)) as AnalysisMode;
+  const ctx: RunCtx = { ...args, runId, analysisMode };
+
+  // The completed report MUST exist before any release decision is made.
+  const { data: reportRow } = await args.db
+    .from("reports")
+    .select("case_id")
+    .eq("case_id", args.caseId)
+    .maybeSingle();
+  if (!reportRow) {
+    // No report to review → nothing can be released, and nothing is blocked
+    // either: the case simply hasn't produced a report yet.
+    console.warn(`[final-release] case ${args.caseId} has no saved report — release review skipped`);
+    return {
+      reviewed: false,
+      released: false,
+      status: "failed",
+      gates: { report: false, qa: false, judge: false, hallucination: false },
+      errors: ["No completed report to review."],
+    };
+  }
+
+  const gateRunners: Array<[string, (c: RunCtx) => Promise<AgentResult>]> = [
+    ["report", agentReport],
+    ["qa", agentQA],
+    ["judge", agentJudge],
+    ["hallucination", agentHallucination],
+  ];
+
+  const outcomes: Record<string, boolean> = {};
+  const errors: string[] = [];
+  for (const [key, fn] of gateRunners) {
+    const def = AGENT_DEFINITIONS.find((d) => d.key === key)!;
+    const startedAt = Date.now();
+    const raw = await safeRun(() => fn(ctx), def);
+    const withStats = await attachAgentStats(args.db, args.caseId, def, raw, startedAt);
+    await recordAgent(args.db, ctx, def, startedAt, withStats);
+    outcomes[key] = withStats.status === "success";
+    if (withStats.status !== "success") errors.push(...(withStats.errors ?? []));
+  }
+
+  const released = Boolean(outcomes.report && outcomes.qa && outcomes.judge && outcomes.hallucination);
+  const status: FinalReleaseReview["status"] = released ? "released" : "needs_revision";
+
+  // Single, final status write.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (args.db as any)
+    .from("cases")
+    .update({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      status: status as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      status_message: (released
+        ? "Final review passed — report released."
+        : "Final review requires revision — see QA/Judge/Hallucination logs.") as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any)
+    .eq("id", args.caseId);
+  console.info(
+    `[final-release] ${JSON.stringify({
+      run_id: runId,
+      case_id: args.caseId,
+      status,
+      gates: outcomes,
+    })}`,
+  );
+
+  return {
+    reviewed: true,
+    released,
+    status,
+    gates: {
+      report: Boolean(outcomes.report),
+      qa: Boolean(outcomes.qa),
+      judge: Boolean(outcomes.judge),
+      hallucination: Boolean(outcomes.hallucination),
+    },
+    errors,
+  };
+}
+
 
 // Test-only visibility. agentOcr/agentEntities are otherwise module-private;
 // exported under this name so regression tests can exercise the real
