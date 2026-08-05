@@ -18,7 +18,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "nyravamexico"
+const SITE_NAME = "Nyrava Intelligence México"
 const ROOT_DOMAIN = "mexico.nyrava.com"
 
 // Sample data for preview mode ONLY (not used in actual email sending).

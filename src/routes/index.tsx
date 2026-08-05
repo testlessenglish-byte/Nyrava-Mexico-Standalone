@@ -70,7 +70,8 @@ export const Route = createFileRoute("/")({
       { type: "application/ld+json", children: WEBSITE_JSON_LD },
     ],
   }),
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
+    if (location.pathname.startsWith("/lovable/")) return;
     if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();
     if (data.session) throw redirect({ to: "/cases" });

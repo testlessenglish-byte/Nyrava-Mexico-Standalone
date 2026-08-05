@@ -48,7 +48,8 @@ export const Route = createFileRoute("/_authenticated")({
       { property: "og:description", content: "Your Nyrava workspace: cases, evidence, motions, timelines, witnesses, and reports." },
     ],
   }),
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
+    if (location.pathname.startsWith("/lovable/")) return;
     if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/auth" });
