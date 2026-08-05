@@ -809,6 +809,9 @@ async function _runPipelineForCase(
             caseId,
             apiKey,
             apiKeys: keys,
+            // Preliminary pass only. The release decision is made after the
+            // completed report exists, by runFinalReleaseReview().
+            deferRelease: true,
           });
           const successful = result.results.filter((r) => r.status === "success").length;
           return {
@@ -819,7 +822,12 @@ async function _runPipelineForCase(
               rejected: result.results.length - successful,
               rows_written: result.results.length,
               db_write_confirmed: true,
-              meta: { run_id: result.runId, released: result.released },
+              meta: {
+                run_id: result.runId,
+                released: null,
+                preliminary_released: result.released,
+                release_deferred: true,
+              },
               // BUG FIX: runMultiAgentPipeline() never throws when its own
               // internal QA/Judge/Hallucination release gate fails — it
               // returns a normal value with released:false. runEngine() only
