@@ -3443,7 +3443,7 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
         b.doc.text(meta.toUpperCase(), b.margin + 14, cardY + 34);
       }
       b.y = cardY + 42 + 12;
-      b.text(body, { size: 10, gap: 6 });
+      b.markdownBody(body);
     });
   }
   if (skipped.length) {
