@@ -755,14 +755,7 @@ class PdfBuilder {
     const x0 = cx - w / 2;
     const y0 = cy - h / 2;
 
-    if (this.logoBase64) {
-      const size = h * 0.92;
-      this.doc.setDrawColor(...SILVER);
-      this.doc.setLineWidth(Math.max(0.75, h * 0.02));
-      this.doc.circle(cx, cy, size / 2 + size * 0.04, "S");
-      this.doc.addImage(this.logoBase64, "PNG", cx - size / 2, cy - size / 2, size, size);
-      return;
-    }
+    if (this.drawCrest(cx, cy, h)) return;
 
     this.doc.setFillColor(...SHIELD_DARK);
     this.doc.setDrawColor(...SILVER);
