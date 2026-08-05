@@ -4851,44 +4851,14 @@ async function _runReportInner(args: {
       );
     }
 
-    // ---- Explicit multi-agent release-gate guard -----------------------
-    // multi_agent is requirement:"optional" in CANONICAL_STAGES and is
-    // deliberately excluded from the blocking-engine check above — a single
-    // flaky agent inside the 13-agent review must not permanently block
-    // report generation. But that is a different situation from the
-    // multi_agent stage running to completion and its own orchestrator
-    // (runMultiAgentPipeline in orchestrator.server.ts) explicitly
-    // evaluating QA/Judge/Hallucination and returning released:false. The
-    // orchestrator's own header comment states the intended contract
-    // plainly: "the final report is only marked released if QA, Judge, and
-    // Hallucination all PASS." That contract was never actually wired into
-    // report generation — this closes that gap without touching the
-    // optional-tier dependency graph used elsewhere.
-    //
-    // Only the LATEST multi_agent ledger row is consulted, and only an
-    // explicit `released: false` in its stored meta blocks generation — a
-    // case where multi_agent simply hasn't run yet, or ran into an
-    // unrelated execution error, is not treated as a release-gate failure
-    // here (that is exactly the "flaky agent review" case the optional tier
-    // exists to tolerate).
-    {
-      const { data: multiAgentRuns } = await db
-        .from("pipeline_engine_runs")
-        .select("meta,status,created_at")
-        .eq("case_id", caseId)
-        .eq("engine", "multi_agent")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const latestMultiAgent = (multiAgentRuns ?? [])[0] as
-        | { meta?: Record<string, unknown> | null; status?: string | null }
-        | undefined;
-      const releasedFlag = latestMultiAgent?.meta?.["released"];
-      if (releasedFlag === false) {
-        throw new Error(
-          "Report generation blocked — Multi-Agent Review's release gate failed (QA/Judge/Hallucination did not all pass). Retry from Legal Analyzers/Entity Extraction once the underlying issue is resolved.",
-        );
-      }
-    }
+    // ---- Release gate deliberately NOT evaluated here -----------------
+    // A release decision must never be made before the completed report
+    // exists. The pre-report multi_agent pass is preliminary only
+    // (deferRelease: true) and its verdict must not block generation —
+    // otherwise a report can be blocked simply because it has not yet been
+    // generated. The authoritative release decision runs after this report
+    // is assembled and saved: see runFinalReleaseReview() invoked at the end
+    // of this function.
   }
 
   const [
