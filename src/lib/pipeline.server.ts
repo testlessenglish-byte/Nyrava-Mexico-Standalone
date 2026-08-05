@@ -5347,12 +5347,14 @@ ${corpus.slice(0, s(160000))}`;
   // intelligence) instead of one monolithic 16k-token call. Each chunk gets
   // its full token budget → no truncation, deeper analysis, rate-limit
   // friendly on the free tier (calls rotate across `apiKeys` inside
-  // callGroq). STALE NOTE (was "3 focused parallel chunks" here): they run
-  // sequentially now, not in parallel — see STAGE 1/STAGE 2 below for why
-  // (three mutually-blind parallel calls independently re-deriving the same
-  // executive summary/risk narrative/recommendations was the actual cause
-  // of report repetition, not a finding-dedup problem) and for the
-  // provider-burst rationale for keeping memo+intelligence sequential too.
+  // callGroq). Narrative always runs alone first — memo/intelligence
+  // reference its output, and three mutually-blind parallel calls
+  // independently re-deriving the same executive summary/risk narrative/
+  // recommendations was the actual prior cause of report repetition, not a
+  // finding-dedup problem. Memo and intelligence themselves ARE independent
+  // of each other, though, and now run concurrently when this user has
+  // enough distinct provider keys to do so safely — see STAGE 2 below for
+  // the full reasoning and the sequential fallback for fewer-key users.
   // 2026-07-27 — report input budget cut roughly in half again (corpus
   // 55k→22k chars, findings 18k→9k, engine block 12k→7k, etc.). Two hard
   // limits force this, and both were being violated:
@@ -5662,15 +5664,47 @@ ${corpus.slice(0, 14000)}`;
     4000,
   );
 
-  // --- STAGE 2: memo + intelligence run sequentially, referencing narrative.
-  // These are LLM-heavy report chunks. Keeping them sequential prevents a
-  // single report from bursting multiple provider requests into a fresh/free
-  // Gemini key at the same instant.
+  // --- STAGE 2: memo + intelligence, referencing narrative. -----------
+  // These two are independent of EACH OTHER — both only need narrative's
+  // output (canonicalContextBlock below), not one another's — so they're
+  // safe to run concurrently. The historical reason they were forced
+  // sequential wasn't that dependency, it was avoiding two simultaneous
+  // requests landing on the SAME single provider key and bursting its
+  // per-minute rate limit (a real, previously-observed failure on a fresh/
+  // free Gemini key). That risk is specific to having too FEW keys, not to
+  // these two calls being independent — so run them concurrently only when
+  // this user actually has enough distinct provider keys to spread the two
+  // calls across, and keep the safe sequential fallback otherwise.
   const canonicalContext = buildCanonicalReportContext(chunkParsedByName.narrative ?? null);
   const canonicalContextBlock = serializeCanonicalContextForPrompt(canonicalContext);
 
-  await runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock);
-  await runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock);
+  const MIN_KEYS_FOR_CHUNK_PARALLELISM = 2;
+  const { countUserProviderKeys } = await import("./ai/router.server");
+  const availableProviderKeys = await countUserProviderKeys(userId);
+  const canParallelizeChunks = availableProviderKeys >= MIN_KEYS_FOR_CHUNK_PARALLELISM;
+
+  if (canParallelizeChunks) {
+    // Promise.allSettled, not Promise.all: runChunk only ever re-throws for
+    // a checkpoint/cancel signal (everything else is caught internally and
+    // recorded on chunkStatus[name].error) — but Promise.all rejects the
+    // instant the FIRST of the two throws, leaving the other call running
+    // unawaited in the background. That dangling call would still
+    // eventually write to chunkParsedByName/persist its cache (harmless,
+    // even useful for the next tick), but if IT also throws, it becomes an
+    // unhandled promise rejection with nothing to catch it. allSettled
+    // always waits for both to finish first, so re-throwing below never
+    // leaves anything dangling.
+    const settled = await Promise.allSettled([
+      runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock),
+      runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock),
+    ]);
+    for (const outcome of settled) {
+      if (outcome.status === "rejected") throw outcome.reason;
+    }
+  } else {
+    await runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock);
+    await runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock);
+  }
 
   // `r` drives downstream logic (parsed, fallback banner). Anchor on narrative
   // since prose is the visible surface; memo/intelligence merge in below.
