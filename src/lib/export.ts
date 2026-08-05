@@ -1129,12 +1129,20 @@ class PdfBuilder {
     if (s === "low" || s === "info" || s === "baja") return SUCCESS;
     return MUTED;
   }
-
+  // Width a pill() call would occupy, without drawing it — lets callers
+  // reserve the right-hand gutter before laying out a heading beside it.
+  measurePill(text: string): number {
+    if (!text) return 0;
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(7.5);
+    return this.doc.getTextWidth(text.toUpperCase()) + 12;
+  }
 
   // Small filled pill. `align: "right"` anchors the box's right edge to x
   // (used to hang a severity/confidence pill off the right margin next to
   // a heading). Returns the pill width in case the caller wants to lay
   // out something else beside it.
+
   pill(text: string, x: number, y: number, color: [number, number, number], align: "left" | "right" = "left"): number {
     if (!text) return 0;
     const label = text.toUpperCase();
