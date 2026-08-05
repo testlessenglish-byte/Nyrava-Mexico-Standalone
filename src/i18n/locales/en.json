@@ -1035,6 +1035,7 @@
   "pipeline.col.tokens": "Tokens",
   "pipeline.detail.error": "Error",
   "pipeline.detail.model": "Model",
+  "pipeline.usage.calls": "calls",
   "pipeline.event.blocked": "blocked",
   "pipeline.event.blockedUpstream": "Blocked: upstream stage failed — {stage}",
   "pipeline.event.checkpointed": "checkpointed",

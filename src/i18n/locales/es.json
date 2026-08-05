@@ -1035,6 +1035,7 @@
   "pipeline.col.tokens": "Tokens",
   "pipeline.detail.error": "Error",
   "pipeline.detail.model": "Modelo",
+  "pipeline.usage.calls": "llamadas",
   "pipeline.event.blocked": "bloqueado",
   "pipeline.event.blockedUpstream": "Bloqueado: falló una etapa previa — {stage}",
   "pipeline.event.checkpointed": "en punto de control",

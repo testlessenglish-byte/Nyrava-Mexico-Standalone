@@ -259,6 +259,29 @@ export function LivePipelinePanel({
     );
   }, [runs]);
 
+  // Per-provider usage summary for THIS case — answers "how much API was
+  // used and to which provider" directly in the ledger the attorney is
+  // already looking at, instead of only in the separate admin-wide,
+  // 24h-windowed /admin/ai-providers health panel. Deliberately sums over
+  // the FULL `runs` array (every attempt, including retries this engine's
+  // "latest" row superseded), not `latestRuns` — a retried/failed call
+  // still consumed real tokens and cost, and "how much API was used" means
+  // everything actually spent, not just the surviving final attempt.
+  const providerUsage = useMemo(() => {
+    const byProvider = new Map<string, { calls: number; tokens: number; cost: number }>();
+    for (const r of runs) {
+      if (!r.provider) continue;
+      const g = byProvider.get(r.provider) ?? { calls: 0, tokens: 0, cost: 0 };
+      g.calls += 1;
+      g.tokens += (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
+      g.cost += r.cost_usd ?? 0;
+      byProvider.set(r.provider, g);
+    }
+    return Array.from(byProvider.entries())
+      .map(([provider, v]) => ({ provider, ...v }))
+      .sort((a, b) => b.calls - a.calls);
+  }, [runs]);
+
   const close = () => {
     userClosedRef.current = true;
     setOpen(false);
@@ -315,6 +338,25 @@ export function LivePipelinePanel({
             <X className="h-4 w-4" />
           </button>
         </header>
+
+        {/* Per-provider usage summary for this case */}
+        {providerUsage.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
+            {providerUsage.map((p) => (
+              <span
+                key={p.provider}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
+                title={`${p.provider}: ${p.calls} ${t("pipeline.usage.calls")}, ${p.tokens.toLocaleString()} ${t("pipeline.col.tokens").toLowerCase()}${p.cost > 0 ? `, $${p.cost.toFixed(4)}` : ""}`}
+              >
+                <span className="font-medium capitalize">{p.provider}</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {p.calls}× · {p.tokens.toLocaleString()}
+                  {p.cost > 0 ? ` · $${p.cost.toFixed(4)}` : ""}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Ledger table */}
         <div className="border-b border-border">
