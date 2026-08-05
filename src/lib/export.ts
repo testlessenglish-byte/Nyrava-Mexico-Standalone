@@ -562,7 +562,46 @@ const CERTIFICATION_TAGLINE: Record<CertificationState, string> = {
   unverified: "Draft — citation verification not passed. Attorney review required before reliance.",
 };
 
+// Per-section eyebrow printed above each section title. Replaces the old
+// hardcoded "NYRAVA INTELLIGENCE" kicker, which repeated the brand name on
+// every single section and told the reader nothing. Any label not listed
+// here falls back to the section title itself.
+const SECTION_KICKERS: Record<string, string> = {
+  Índice: "Contenido",
+  Hechos: "Relato Fáctico",
+  "Panorama General del Expediente": "Panorama del Expediente",
+  "Inteligencia Jurisdiccional": "Jurisdicción",
+  "Promociones Recomendadas": "Promociones",
+  "Centro de Acción del Abogado": "Acción",
+  "Panel de Impacto Litigioso": "Impacto",
+  "Resumen Cronológico": "Cronología",
+  "Análisis de Vacíos Probatorios": "Vacíos Probatorios",
+  "Análisis de Riesgo": "Riesgo",
+  Recomendaciones: "Recomendaciones",
+  Contrainterrogatorio: "Interrogatorio",
+  "Tablero de Puntuación del Caso": "Puntuación",
+  "Mapa de Evidencia": "Evidencia",
+  "Análisis de Contradicciones": "Contradicciones",
+  "Análisis Multi-Perspectiva": "Multi-Agente",
+  "Inteligencia Probatoria": "Evidencia",
+  "Síntesis Estratégica": "Estrategia",
+  "Producto de Trabajo del Abogado": "Producto de Trabajo",
+  "Análisis Constitucional": "Constitucional",
+  "Cuestiones Jurídicas y Jurisprudencia": "Cuestiones Jurídicas",
+  "Inteligencia de Testigos": "Testigos",
+  "Análisis de Teoría del Caso": "Teoría del Caso",
+  "Centro de Estrategia Litigiosa": "Estrategia",
+  "Oportunidades Estratégicas": "Oportunidades",
+  "Cobertura Probatoria": "Cobertura",
+  "Estadísticas de Agentes": "Agentes",
+  "Registro de Auditoría": "Auditoría",
+  "Anexo: Citas de Fuentes": "Anexo",
+  "Fuentes de Evidencia": "Fuentes",
+  "Centro de Acción — Recomendaciones Prioritarias": "Acción",
+};
+
 class PdfBuilder {
+
   doc: Pdf;
   // 0.75 inch margins (54pt) per professional memorandum standard.
   margin = 54;
