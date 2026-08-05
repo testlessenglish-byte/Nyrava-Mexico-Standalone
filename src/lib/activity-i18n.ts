@@ -10,7 +10,7 @@
  * Anything we can't confidently parse is returned untouched, so a new
  * server-side message never renders as a broken key.
  */
-import { engineLabelKey, stageKeyForEngine, stageLabelKey } from "@/lib/execution/mx-pipeline";
+import { engineLabelKey, resolveStageKeyLoose, stageLabelKey } from "@/lib/execution/mx-pipeline";
 
 type T = (key: string, params?: Record<string, string | number>) => string;
 
@@ -109,7 +109,7 @@ function resolveStageLabel(
   const stageKey =
     NAME_TO_STAGE[cleaned.toLowerCase()] ??
     NAME_TO_STAGE[rawName.trim().toLowerCase()] ??
-    (stage ? stageKeyForEngine(stage) : null);
+    (stage ? resolveStageKeyLoose(stage) : null);
   if (!stageKey) return null;
   return t(stageLabelKey(stageKey, caseType));
 }

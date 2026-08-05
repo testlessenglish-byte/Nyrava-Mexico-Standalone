@@ -8,6 +8,7 @@ import { normalizeMexicanCaseType } from "@/lib/jurisdiction/mexico";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { PIPELINE_STAGES, runTimelineAudit, type PipelineStageKey } from "./cases.functions";
+import { ENGINE, engineForStage } from "./execution/canonical";
 import { callGroq, parseJsonLoose, type GroqContent } from "./groq.server";
 import type { ProviderType } from "./ai/providers/types";
 
@@ -375,20 +376,19 @@ async function _runPipelineForCase(
     PipelineStageKey,
     {
       run: () => Promise<unknown>;
-      stage?: import("@/lib/intelligence/progress.server").StageKey;
       engine?: string;
     }
   > = {
-    extraction: { run: () => pipe.runExtraction(baseArgs), stage: "extraction" },
-    agents: { run: () => pipe.runAgents(baseArgs), stage: "agents" },
-    analyzers: { run: () => pipe.runAnalyzers(baseArgs), stage: "analyzers" },
-    scoring: { run: () => pipe.runScoring(baseArgs), stage: "scoring", engine: "scoring" },
+    extraction: { run: () => pipe.runExtraction(baseArgs) },
+    agents: { run: () => pipe.runAgents(baseArgs) },
+    analyzers: { run: () => pipe.runAnalyzers(baseArgs) },
+    scoring: { run: () => pipe.runScoring(baseArgs), engine: ENGINE.scoring },
     jurisdiction_intel: {
       run: () =>
         withStageTimeout(
           "jurisdiction_intel",
           () =>
-            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
+            persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.jurisdiction_intel }, async () => {
               const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
               const value = await runJurisdictionIntelligence({ db: supabase, caseId });
               return {
@@ -402,7 +402,7 @@ async function _runPipelineForCase(
 
     procedural_compliance: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "procedural_compliance" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.procedural_compliance }, async () => {
           const { runProceduralCompliance } = await import("@/lib/intelligence/procedural-compliance.server");
           const value = await runProceduralCompliance({ db: supabase, caseId, userId });
           return {
@@ -421,7 +421,7 @@ async function _runPipelineForCase(
         withStageTimeout(
           "legal_qa",
           () =>
-            persist.runCatalogedEngine(supabase, { caseId, userId, engine: "legal_qa" }, async () => {
+            persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.legal_qa }, async () => {
               const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
               const value = await runLegalQaGate({ db: supabase, caseId, userId });
               return {
@@ -438,11 +438,11 @@ async function _runPipelineForCase(
         ),
     },
 
-    report: { run: () => pipe.runReport(baseArgs), stage: "report", engine: "report_generator" },
+    report: { run: () => pipe.runReport(baseArgs), engine: ENGINE.report },
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "evidence_map" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.evidence_map }, async () => {
           const m = await import("@/lib/intelligence/evidence-map.server");
           const em = await m.buildEvidenceMap(supabase, caseId);
           return {
@@ -456,13 +456,12 @@ async function _runPipelineForCase(
     },
     contradictions: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "contradictions" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.contradictions }, async () => {
           const d = await import("@/lib/intelligence/derived-engines.server");
           const result = await d.deriveContradictions(supabase, caseId);
           await updateCase({ contradiction_at: new Date().toISOString() }, "pipeline.contradictions");
           return result;
         }),
-      stage: "contradictions",
     },
     // Task-9/10 stat plumbing: engines whose output is a mix of LLM + deterministic
     // templates now return real generated/accepted/rejected counts. Row counts come
@@ -472,7 +471,7 @@ async function _runPipelineForCase(
     // that produced legitimate deterministic output.
     witness: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "witness_intelligence" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.witness }, async () => {
           const value = (await eng.runWitnessEngine(baseArgs)) as {
             witnesses?: unknown[];
             audit?: { input?: number; accepted?: number };
@@ -495,11 +494,10 @@ async function _runPipelineForCase(
             },
           };
         }),
-      stage: "witness_intel",
     },
     evidence_intel: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "evidence_intelligence" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.evidence_intel }, async () => {
           const value = (await lit.runEvidenceIntelEngine(baseArgs)) as {
             classifications?: number;
             promoted_findings?: number;
@@ -528,7 +526,6 @@ async function _runPipelineForCase(
             },
           };
         }),
-      stage: "evidence_intel",
     },
     constitutional: {
       // PRACTICE-AREA GATE: this stage previously ran unconditionally for
@@ -555,7 +552,7 @@ async function _runPipelineForCase(
           await recordSkipped(supabase, {
             caseId,
             userId,
-            engine: "constitutional_compliance" as never,
+            engine: ENGINE.constitutional as never,
             reason: SKIP_REASON_NOT_APPLICABLE,
           });
           return { skipped: true, reason: SKIP_REASON_NOT_APPLICABLE };
@@ -563,7 +560,7 @@ async function _runPipelineForCase(
 
         return persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: "constitutional_compliance" },
+          { caseId, userId, engine: ENGINE.constitutional },
           async () => ({
             value: { derived_from: "analyzers+agents" },
           }),
@@ -572,7 +569,7 @@ async function _runPipelineForCase(
     },
     discovery: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "discovery_gaps" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.discovery }, async () => {
           const value = (await eng.runDiscoveryGapEngine(baseArgs)) as {
             findings_gate?: unknown;
             findings_gate_mode?: unknown;
@@ -602,11 +599,10 @@ async function _runPipelineForCase(
             },
           };
         }),
-      stage: "discovery_gaps",
     },
     perspectives: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "perspectives" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.perspectives }, async () => {
           const value = await lit.runPerspectivesEngine(baseArgs);
           const { count } = await supabase
             .from("case_perspectives")
@@ -621,7 +617,7 @@ async function _runPipelineForCase(
     },
     theories: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "theory" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.theories }, async () => {
           const value = (await eng.runTheoryEngine(baseArgs)) as {
             theories?: unknown[];
             audit?: { rejected?: number };
@@ -643,11 +639,10 @@ async function _runPipelineForCase(
             },
           };
         }),
-      stage: "theories",
     },
     opportunities: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "opportunity" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.opportunities }, async () => {
           const value = (await eng.runOpportunityEngine(baseArgs)) as {
             opportunities?: unknown[];
             potential_opportunities?: unknown[];
@@ -681,7 +676,7 @@ async function _runPipelineForCase(
     },
     strategy: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "strategy" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.strategy }, async () => {
           const value = await lit.runStrategyEngine(baseArgs);
           const { count } = await supabase
             .from("case_strategy")
@@ -693,7 +688,6 @@ async function _runPipelineForCase(
             stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
           };
         }),
-      stage: "strategy",
     },
     // PIPELINE_STAGES (cases.functions.ts) lists 21 stages, but this object
     // only ever implemented 20 of them — litigation_strategy_center had no
@@ -704,7 +698,7 @@ async function _runPipelineForCase(
     // already present in pipeline-runner.server.ts.
     litigation_strategy_center: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "litigation_strategy_center" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.litigation_strategy_center }, async () => {
           const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { count } = await (supabase as any)
@@ -720,7 +714,7 @@ async function _runPipelineForCase(
     },
     work_product: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "work_product" }, async () => {
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.work_product }, async () => {
           const value = (await eng.runWorkProductEngine(baseArgs)) as {
             documents?: unknown[];
             failed?: number;
@@ -754,13 +748,13 @@ async function _runPipelineForCase(
     },
     hallucination: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: "hallucination" }, async () => ({
+        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.hallucination }, async () => ({
           value: await hal.runHallucinationReview({ db: supabase, caseId }),
         })),
     },
     multi_agent: {
       run: async () =>
-        audit.runEngine(supabase, { caseId, userId, engine: "multi_agent" }, async () => {
+        audit.runEngine(supabase, { caseId, userId, engine: ENGINE.multi_agent }, async () => {
           const { runMultiAgentPipeline } = await import("@/lib/agents/orchestrator.server");
           const result = await runMultiAgentPipeline({
             db: supabase,
@@ -829,7 +823,6 @@ async function _runPipelineForCase(
   // Scoped to only the engines in `stages` so a resume tick never erases
   // history for stages it isn't going to re-run.
   {
-    const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
     const engines = Array.from(new Set(stages.map((s) => engineForStage(s.key))));
     if (engines.length > 0) {
       const { error: staleClearErr } = await supabase
@@ -864,7 +857,6 @@ async function _runPipelineForCase(
   // persisted ledger for exactly the stages this tick will NOT re-attempt.
   const resumeIdx = startFrom ? PIPELINE_STAGES.findIndex((s) => s.key === startFrom) : 0;
   if (resumeIdx > 0) {
-    const engineForStage = (k: string) => CANONICAL_STAGES.find((c) => c.key === k)?.engine ?? k;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: priorRuns, error: priorErr } = await (supabase as any)
       .from("pipeline_engine_runs")
@@ -922,8 +914,7 @@ async function _runPipelineForCase(
         /* noop */
       }
       try {
-        const { CANONICAL_STAGES: stagesDef } = await import("@/lib/execution/canonical");
-        const engineFor = (k: string) => stagesDef.find((st) => st.key === k)?.engine ?? k;
+        const engineFor = engineForStage;
         const audit = await import("@/lib/intelligence/engine-audit.server");
         await audit.recordBlocked(supabase, {
           caseId,
@@ -1358,7 +1349,7 @@ export async function runExtraction(args: {
   // Fresh pipeline pass — clear prior engine audit so the dashboard reflects
   // this run only.
   await clearEngineRuns(db, caseId);
-  return runEngine(db, { caseId, userId, engine: "extraction" }, async () => {
+  return runEngine(db, { caseId, userId, engine: ENGINE.extraction }, async () => {
     return _runExtractionInner({ db, caseId, userId, apiKey, apiKeys });
   });
 }
@@ -1995,7 +1986,7 @@ export async function runAnalyzers(args: {
     "evidence_intelligence",
     "analyzers",
   ]);
-  return runEngine(db, { caseId, userId, engine: "analyzers" }, async () => _runAnalyzersInner(args));
+  return runEngine(db, { caseId, userId, engine: ENGINE.analyzers }, async () => _runAnalyzersInner(args));
 }
 
 async function _runAnalyzersInner(args: {
@@ -3411,7 +3402,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).in("engine", engineWipeList);
   }
 
-  return runEngine(db, { caseId, userId, engine: "agents" }, async () => {
+  return runEngine(db, { caseId, userId, engine: ENGINE.agents }, async () => {
     const { corpus, chunks } = await buildCorpus(db, caseId);
     if (!corpus) throw new Error("No extracted documents. Run Extraction first.");
 
@@ -4066,7 +4057,7 @@ export async function runScoring(args: { db: Db; caseId: string; userId: string;
     progress: 30,
   });
   await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).eq("engine", "scoring");
-  return runEngine(db, { caseId, userId, engine: "scoring" }, async () => _runScoringInner(args));
+  return runEngine(db, { caseId, userId, engine: ENGINE.scoring }, async () => _runScoringInner(args));
 }
 
 async function _runScoringInner(args: { db: Db; caseId: string; userId: string; apiKey: string; apiKeys?: string[] }) {
@@ -4480,32 +4471,32 @@ async function ensureRequiredEngines(args: {
     analyzers: () => runAnalyzers(baseArgs),
     agents: () => runAgents(baseArgs),
     timeline: () =>
-      runEngine(db, { caseId, userId, engine: "timeline" }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.timeline }, async () => {
         const { buildCanonicalTimeline } = await import("./intelligence/canonical-timeline.server");
         const ct = await buildCanonicalTimeline(db, caseId);
         return { value: ct, stats: { generated: ct.totals.total, accepted: ct.totals.dated } };
       }),
 
     evidence_intelligence: () =>
-      runEngine(db, { caseId, userId, engine: "evidence_intelligence" }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.evidence_intel }, async () => {
         const result = await derived.deriveEvidenceIntel(db, caseId);
         await setCase(db, caseId, { evidence_intel_at: new Date().toISOString() });
         return result;
       }),
     contradictions: () =>
-      runEngine(db, { caseId, userId, engine: "contradictions" }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.contradictions }, async () => {
         const result = await derived.deriveContradictions(db, caseId);
         await setCase(db, caseId, { contradiction_at: new Date().toISOString() });
         return result;
       }),
     discovery_gaps: () =>
-      runEngine(db, { caseId, userId, engine: "discovery_gaps" }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.discovery }, async () => {
         const result = await derived.deriveDiscoveryGaps(db, caseId);
         await setCase(db, caseId, { discovery_at: new Date().toISOString() });
         return result;
       }),
     witness_intelligence: () =>
-      runEngine(db, { caseId, userId, engine: "witness_intelligence" }, async () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.witness }, async () =>
         derived.deriveWitnessIntel(db, caseId),
       ),
     // Both of these are requirement:"blocking" canonical stages, so the
@@ -4514,7 +4505,7 @@ async function ensureRequiredEngines(args: {
     // (or lost their rows) failed backfill with "no runner registered" and
     // then hard-failed with "core engines failed to complete".
     jurisdiction_intel: () =>
-      runEngine(db, { caseId, userId, engine: "jurisdiction_intel" }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.jurisdiction_intel }, async () => {
         const { runJurisdictionIntelligence } = await import(
           "./intelligence/jurisdiction-intel.server"
         );
@@ -4522,7 +4513,7 @@ async function ensureRequiredEngines(args: {
         return { value, stats: { generated: 1, accepted: 1 } };
       }),
     procedural_compliance: () =>
-      runEngine(db, { caseId, userId, engine: "procedural_compliance" }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.procedural_compliance }, async () => {
         const { runProceduralCompliance } = await import(
           "./intelligence/procedural-compliance.server"
         );
@@ -4533,11 +4524,11 @@ async function ensureRequiredEngines(args: {
         };
       }),
     constitutional_compliance: () =>
-      runEngine(db, { caseId, userId, engine: "constitutional_compliance" }, async () => ({
+      runEngine(db, { caseId, userId, engine: ENGINE.constitutional }, async () => ({
         value: { derived_from: "analyzers+agents" },
       })),
     evidence_map: () =>
-      runEngine(db, { caseId, userId, engine: "evidence_map" }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.evidence_map }, async () => {
         const m = await import("./intelligence/evidence-map.server");
         const em = await m.buildEvidenceMap(db, caseId);
         return {
@@ -4798,7 +4789,7 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
     .delete()
     .eq("case_id", caseId)
     .in("engine", ["report_generator", "motion", "ess_validator", "claim_validator", "report_validator"]);
-  return runEngine(db, { caseId, userId, engine: "report_generator" }, async () =>
+  return runEngine(db, { caseId, userId, engine: ENGINE.report }, async () =>
     _runReportInner({ ...args, pipelineWarnings, forceFinalize }),
   );
 }

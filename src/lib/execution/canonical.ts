@@ -88,7 +88,7 @@ export type StageDef = {
 // -----------------------------------------------------------------------------
 // THE canonical stage list. Order == execution order == UI display order.
 // -----------------------------------------------------------------------------
-export const CANONICAL_STAGES: readonly StageDef[] = [
+export const CANONICAL_STAGES = [
   {
     key: "extraction",
     label: "Extraction",
@@ -356,8 +356,9 @@ export const CANONICAL_STAGES: readonly StageDef[] = [
     // pipeline) while still being a real ceiling instead of none.
     timeoutMs: 600_000,
   },
-] as const;
+] as const satisfies readonly StageDef[];
 
+export type CanonicalStageKey = (typeof CANONICAL_STAGES)[number]["key"];
 
 // Derived indexes — DO NOT rebuild these elsewhere.
 export const STAGE_BY_KEY: ReadonlyMap<string, StageDef> = new Map(CANONICAL_STAGES.map((s) => [s.key, s]));
@@ -367,6 +368,47 @@ export const ENGINE_ORDER: readonly string[] = CANONICAL_STAGES.map((s) => s.eng
 export const PIPELINE_STAGE_TO_ENGINE: Readonly<Record<string, string>> = Object.freeze(
   Object.fromEntries(CANONICAL_STAGES.map((s) => [s.key, s.engine])),
 );
+
+// -----------------------------------------------------------------------------
+// ENGINE IDENTITY — the ONLY sanctioned way to translate between a stage key
+// and the engine id written to / read from `pipeline_engine_runs`.
+//
+// Rule: a stage is identified by its `key`; an execution-ledger row is
+// identified by its `engine`. They are NOT interchangeable
+// (witness → witness_intelligence, report → report_generator, …). No module
+// may rebuild this mapping, hardcode an engine literal, or use a stage key
+// where an engine id is expected. Regression-tested in
+// `__tests__/engine-identity.test.ts`.
+// -----------------------------------------------------------------------------
+
+/** Canonical engine id alias table, keyed by stage key. `ENGINE.witness === "witness_intelligence"`. */
+export const ENGINE = PIPELINE_STAGE_TO_ENGINE;
+
+/** Every canonical engine id. Membership test for ledger writes/reads. */
+export const CANONICAL_ENGINES: ReadonlySet<string> = new Set(ENGINE_ORDER);
+
+/** True when `engine` is a canonical pipeline-stage engine id. */
+export function isCanonicalEngine(engine: string): boolean {
+  return CANONICAL_ENGINES.has(engine);
+}
+
+/** stage key → engine id. Unknown keys pass through unchanged (sub-engines). */
+export function engineForStage(stageKey: string): string {
+  return STAGE_BY_KEY.get(stageKey)?.engine ?? stageKey;
+}
+
+/** engine id → stage key. Unknown engines pass through unchanged. */
+export function stageKeyForEngine(engine: string): string {
+  return STAGE_BY_ENGINE.get(engine)?.key ?? engine;
+}
+
+/** Strict stage key → engine id. Throws on an unknown stage key. */
+export function requireEngineForStage(stageKey: string): string {
+  const stage = STAGE_BY_KEY.get(stageKey);
+  if (!stage) throw new Error(`Unknown canonical stage key: ${stageKey}`);
+  return stage.engine;
+}
+
 
 // NOTE: the report stage itself is deliberately excluded here. `report_generator`
 // is the consumer of this gate, not a precondition for itself — including it
@@ -414,7 +456,10 @@ export const COMMAND_CENTER_ENGINES: readonly string[] = REPORT_REQUIRED_ENGINES
 /** Legacy timestamp column → engine map used ONLY by the backfill migration. */
 export const ENGINE_TIMESTAMP_FALLBACK: Readonly<Record<string, string>> = Object.freeze(
   Object.fromEntries(
-    CANONICAL_STAGES.filter((s) => s.timestampColumn).map((s) => [s.engine, s.timestampColumn as string]),
+    (CANONICAL_STAGES as readonly StageDef[])
+      .filter((s) => s.timestampColumn)
+      .map((s) => [s.engine, s.timestampColumn as string]),
+
   ),
 );
 
