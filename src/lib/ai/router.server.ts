@@ -1083,7 +1083,14 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
               aiCallTimeoutForCheckpoint(`AI call attempt ${attempt + 1}`),
           };
           r = await provider.chat(providerOpts);
-          assertCheckpointBudget(`after AI call attempt ${attempt + 1}`);
+          // NOTE: deliberately NO checkpoint assertion here. A response that
+          // already came back is completed work — throwing it away because
+          // the tick budget expired during the call means the caller never
+          // gets to persist it (e.g. reports.report_chunk_cache), so the next
+          // tick redoes the identical call and the stage checkpoints forever
+          // with zero forward progress. The stage-level hard deadline still
+          // yields; it just does so AFTER the result had a chance to be saved.
+
           lastErr = undefined;
           break;
         } catch (err) {
