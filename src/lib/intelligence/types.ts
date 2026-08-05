@@ -100,7 +100,14 @@ export type ExplainableScore = {
 };
 
 export type Theory = {
-  theory_type: "prosecution" | "defense" | "alternative" | "unknown";
+  // Real Mexican procedural role (mxPartyRoleEnum in execution/mx-pipeline.ts)
+  // as of engines.server.ts's runTheoryEngine fix — e.g. "quejoso",
+  // "tercero_interesado", "actor", "demandado" — not the old hardcoded
+  // prosecution/defense/alternative binary this type still named. Left as
+  // `string` rather than a union since the valid set is materia-dependent
+  // (13 different role vocabularies); runtime validation happens against
+  // MX_PARTY_ROLES[profile], not the type system.
+  theory_type: string;
   narrative: string;
   supporting_evidence: string[];
   contradicting_evidence: string[];
@@ -111,7 +118,11 @@ export type Theory = {
 };
 
 export type Opportunity = {
-  side: "defense" | "prosecution";
+  // Real Mexican procedural role (mxPartyRoleEnum), same fix and same
+  // rationale as Theory.theory_type above — this field was English
+  // plaintiff/defense-only regardless of materia until runOpportunityEngine
+  // was fixed to use MX_PARTY_ROLES like the theory engine already did.
+  side: string;
   opportunity_type: string;
   title: string;
   description: string;

@@ -98,3 +98,45 @@ describe("theory validTheoryTypes construction (mirrors engines.server.ts::runTh
     expect(validTheoryTypesFor("civil").size).toBe(3);
   });
 });
+
+describe("opportunity validSides construction (mirrors engines.server.ts::runOpportunityEngine)", () => {
+  // Same bug, same fix, one engine over: runOpportunityEngine offered the
+  // model a hardcoded English "plaintiff"/"defense" enum for `side` with no
+  // materia awareness and no third-party slot, for every one of the 9
+  // non-penal-litigation materias (administrativo, amparo, laboral, fiscal,
+  // familiar, agrario, electoral, ambiental, inmobiliario) — confirmed via
+  // audit of every materia's engine list. Fixed to use the exact same
+  // MX_PARTY_ROLES construction runTheoryEngine already used correctly.
+  function validSidesFor(materia: keyof typeof MX_PARTY_ROLES): Set<string> {
+    const roles = MX_PARTY_ROLES[materia];
+    return new Set([roles.a, roles.b, roles.c, roles.neutral].filter(Boolean) as string[]);
+  }
+
+  it("an opportunity favoring the tercero interesado is a legal, distinct side for administrativo", () => {
+    const valid = validSidesFor("administrativo");
+    expect(valid.has("tercero_interesado")).toBe(true);
+    expect(valid.has("particular")).toBe(true);
+  });
+
+  it("the old hardcoded plaintiff/defense values are no longer considered valid for any materia", () => {
+    for (const materia of ["civil", "familiar", "mercantil", "laboral", "administrativo", "amparo", "agrario"] as const) {
+      const valid = validSidesFor(materia);
+      expect(valid.has("plaintiff")).toBe(false);
+      expect(valid.has("defense")).toBe(false);
+      expect(valid.has("prosecution")).toBe(false);
+    }
+  });
+
+  it("penal's real side vocabulary is Mexican procedural roles, not English plaintiff/defense", () => {
+    const valid = validSidesFor("penal");
+    expect(valid.has("ministerio_publico")).toBe(true);
+    expect(valid.has("defensa")).toBe(true);
+    expect(valid.has("plaintiff")).toBe(false);
+  });
+
+  it("has exactly 4 valid sides for administrativo/amparo (a, b, c, neutral) and 3 for materias without a third role — same shape as theory's role set, since both engines share one role vocabulary per materia", () => {
+    expect(validSidesFor("administrativo").size).toBe(4);
+    expect(validSidesFor("amparo").size).toBe(4);
+    expect(validSidesFor("civil").size).toBe(3);
+  });
+});
