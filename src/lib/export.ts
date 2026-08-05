@@ -494,6 +494,12 @@ const SHIELD_DARK: [number, number, number] = [21, 21, 15]; // warm near-black s
 // post-pass over every page — the same pattern footer() already uses.
 const CONTINUATION_HEADER_H = 50;
 
+// jsPDF has no letter-spacing control; inserting thin gaps between
+// characters is the only way to get the tracked small-caps look used for
+// kickers and eyebrow labels.
+function spaced(v: string): string {
+  return v.split("").join(" ");
+}
 function asStr(v: unknown, fallback = ""): string {
   if (v === null || v === undefined) return fallback;
   if (typeof v === "string") return v;
@@ -1093,7 +1099,7 @@ class PdfBuilder {
     const lineH = size * 1.55;
     this.doc.setFont("helvetica", opts.bold ? "bold" : "normal");
     this.doc.setFontSize(size);
-    this.doc.setTextColor(...(opts.color ?? PRIMARY));
+    this.doc.setTextColor(...(opts.color ?? INK));
     const paragraphs = value.split(/\n\s*\n/);
     for (let p = 0; p < paragraphs.length; p++) {
       const para = paragraphs[p];
