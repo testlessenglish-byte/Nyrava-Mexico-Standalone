@@ -3081,24 +3081,37 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       // headline: the finding reads as its own card rather than as one
       // more paragraph in a wall of text.
       const blockTop = b.y - 14;
+      const conf = Number(f.confidence ?? 0);
+      const pillText = `${rt(asStr(f.severity).toUpperCase())} · ${confidenceLabel(conf)} ${rt("conf.")}`;
       b.doc.setFont("times", "bold");
       b.doc.setFontSize(13);
       b.doc.setTextColor(...PRIMARY);
-      const titleLines = b.doc.splitTextToSize(`#${i + 1}  ${asStr(f.title)}`, b.pageW - b.margin * 2 - 100) as string[];
-      b.doc.text(titleLines[0] ?? "", b.margin + 14, b.y);
-      const conf = Number(f.confidence ?? 0);
-      b.pill(
-        `${asStr(f.severity)} · ${confidenceLabel(conf)} ${rt("conf.")}`,
-        b.pageW - b.margin,
-        b.y + 1,
-        sevColor,
-        "right",
-      );
-      b.y += 17;
-      for (const extra of titleLines.slice(1)) {
-        b.doc.text(extra, b.margin + 14, b.y);
-        b.y += 15;
+      // Measure the title BEFORE deciding the layout. A title that fits on
+      // one line shares that line with the severity pill; anything longer
+      // gets the pill on its own row and then runs full card width, so a
+      // wrapped second line can never land underneath the pill.
+      const fullTitle = `#${i + 1}  ${asStr(f.title)}`;
+      const pillW = b.measurePill(pillText);
+      const inlineW = b.pageW - b.margin * 2 - 14 - pillW - 16;
+      const oneLine = (b.doc.splitTextToSize(fullTitle, inlineW) as string[]).length === 1;
+      if (oneLine) {
+        b.doc.text(fullTitle, b.margin + 14, b.y);
+        b.pill(pillText, b.pageW - b.margin, b.y + 1, sevColor, "right");
+        b.y += 17;
+      } else {
+        b.pill(pillText, b.pageW - b.margin, b.y + 1, sevColor, "right");
+        b.y += 18;
+        b.doc.setFont("times", "bold");
+        b.doc.setFontSize(13);
+        b.doc.setTextColor(...PRIMARY);
+        const wrapped = b.doc.splitTextToSize(fullTitle, b.pageW - b.margin * 2 - 20) as string[];
+        for (const line of wrapped) {
+          b.doc.text(line, b.margin + 14, b.y);
+          b.y += 16;
+        }
+        b.y += 2;
       }
+
       b.doc.setFillColor(...sevColor);
       b.doc.rect(b.margin, blockTop, 3, b.y - blockTop - 4, "F");
       // Claim classification — heuristic classification of the finding.
