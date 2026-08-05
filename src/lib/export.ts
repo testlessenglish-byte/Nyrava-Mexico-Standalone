@@ -606,6 +606,19 @@ class PdfBuilder {
       const safe = typeof text === "string" ? prep(text) : text;
       return (origSplit as unknown as (...a: unknown[]) => unknown)(safe, ...rest);
     };
+    // Every page (including pages jspdf-autotable creates on its own mid-
+    // table) gets the warm PAGE_BG sheet painted before any content lands
+    // on it. Wrapping addPage is the only hook that catches all of them —
+    // a post-pass would paint over the content instead of behind it.
+    const origAddPage = this.doc.addPage.bind(this.doc);
+    (this.doc as unknown as { addPage: (...a: unknown[]) => unknown }).addPage = (...args: unknown[]) => {
+      const res = (origAddPage as unknown as (...a: unknown[]) => unknown)(...args);
+      const fill = this.doc.getFillColor?.();
+      this.doc.setFillColor(...PAGE_BG);
+      this.doc.rect(0, 0, this.pageW, this.pageH, "F");
+      if (fill) this.doc.setFillColor(fill);
+      return res;
+    };
   }
 
   /** Loads the real crest image once, before any drawing happens. Must be
