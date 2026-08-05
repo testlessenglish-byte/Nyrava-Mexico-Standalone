@@ -941,8 +941,16 @@ function CaseSettingsCard({
           ...(patch as any),
         },
       }),
-    onSuccess: () => {
-      toast.success("Case settings updated. Re-run engines to apply.");
+    onSuccess: (result) => {
+      // A case_type (materia) change now clears every derived analysis —
+      // findings/report/agents from the OLD materia are no longer valid, not
+      // just stale — so this needs a distinctly stronger message than the
+      // generic "re-run to apply" mode-change wording.
+      if (result?.caseTypeChanged) {
+        toast.success("Case type updated — prior analysis was cleared. Re-run engines to generate a fresh report.");
+      } else {
+        toast.success("Case settings updated. Re-run engines to apply.");
+      }
       invalidate();
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to update settings"),

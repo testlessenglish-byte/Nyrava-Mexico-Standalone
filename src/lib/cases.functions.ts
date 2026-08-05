@@ -2654,8 +2654,8 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     if (data.jurisdiction !== undefined) patch.jurisdiction = data.jurisdiction;
     if (Object.keys(patch).length === 0) return { ok: true };
 
-    // Read the current mode first so we can tell whether this save actually
-    // changes the analysis mode. Mode decides which engines are ALLOWED to
+    // Read the current mode/case_type first so we can tell whether this save
+    // actually changes either one. Mode decides which engines are ALLOWED to
     // write (see intelligence/case-state.server.ts): engines outside the
     // active mode raise StageSkippedError and get recorded as `skipped`.
     // Resume/rerun treats `skipped` as "already done", so without the
@@ -2665,11 +2665,39 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: before } = await (supabase as any)
       .from("cases")
-      .select("analysis_mode")
+      .select("analysis_mode,case_type")
       .eq("id", data.caseId)
       .maybeSingle();
     const previousMode = (before?.analysis_mode as string | null) ?? null;
+    const previousCaseType = (before?.case_type as string | null) ?? null;
     const modeChanged = data.analysis_mode !== undefined && data.analysis_mode !== previousMode;
+    // FIX: case_type had no invalidation at all — confirmed live: correcting
+    // a misclassified materia (e.g. "constitucional" -> "amparo", the exact
+    // Amparo Indirecto 412/2026 scenario mx-case-classifier.ts's own
+    // regression test is modeled on) updated the field but left every
+    // downstream artifact generated under the WRONG materia in place:
+    // findings, the report's recommendations (e.g. "file a controversia
+    // constitucional"), which specialized agents ran (materia-gated per
+    // practice-areas.ts), and the procedural-compliance checklist
+    // (case-type-standards.ts is keyed by case_type) all stayed stale and
+    // resume/rerun treated them as "already done." A materia change
+    // invalidates a strictly larger surface than a mode change — it's not
+    // just which engines may WRITE, it's which engines are even ALLOWED to
+    // RUN, plus every materia-specific prompt/checklist/agent-set — so this
+    // reuses clearCaseDerivedData/CASE_RESET_FIELDS, the same "full rerun"
+    // reset already used by queueCaseForPipeline's reset branch, rather than
+    // inventing a second, narrower invalidation list that could miss
+    // something. Documents/extracted text are preserved either way — only
+    // derived analysis is cleared.
+    const caseTypeChanged = data.case_type !== undefined && data.case_type !== previousCaseType;
+
+    if (caseTypeChanged) {
+      await clearCaseDerivedData(supabase, data.caseId);
+      Object.assign(patch, CASE_RESET_FIELDS);
+      // clearCaseDerivedData/CASE_RESET_FIELDS don't touch case_type/
+      // analysis_mode/jurisdiction — patch's own values for those (set
+      // above) are untouched by this merge.
+    }
 
     if (modeChanged) {
       // Interpretive stages must be re-evaluated under the new mode's rules.
@@ -2703,7 +2731,7 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
         .in("status", ["skipped", "failed", "blocked", "queued", "running"]);
     }
 
-    return { ok: true, modeChanged };
+    return { ok: true, modeChanged, caseTypeChanged };
   });
 
 export const archiveCase = createServerFn({ method: "POST" })
