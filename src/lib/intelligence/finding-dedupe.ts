@@ -78,12 +78,18 @@ export type DedupeOptions = {
   titleFallbackThreshold?: number;
   /** Description similarity required for the fallback path. */
   descriptionThreshold?: number;
+  /** Title similarity required to merge ACROSS two different categories. */
+  crossCategoryTitleThreshold?: number;
+  /** Description agreement accepted as corroboration for a cross-category merge. */
+  crossCategoryDescriptionThreshold?: number;
 };
 
 const DEFAULTS: Required<DedupeOptions> = {
   titleThreshold: 0.55,
   titleFallbackThreshold: 0.4,
   descriptionThreshold: 0.6,
+  crossCategoryTitleThreshold: 0.8,
+  crossCategoryDescriptionThreshold: 0.5,
 };
 
 type Prepared = {
@@ -93,6 +99,7 @@ type Prepared = {
   titleTokens: Set<string>;
   descTokens: Set<string>;
   titleKey: string;
+  evidence: Set<string>;
 };
 
 function categoryOf(f: DedupableFinding): string {
@@ -102,6 +109,24 @@ function categoryOf(f: DedupableFinding): string {
 function textOf(f: DedupableFinding, key: string): string {
   const v = f[key];
   return typeof v === "string" ? v : "";
+}
+
+/** Union of the concrete evidence anchors a finding rests on. */
+const EVIDENCE_KEYS = ["evidence_refs", "source_doc_ids", "document_ids", "citations"] as const;
+
+function evidenceOf(f: DedupableFinding): Set<string> {
+  const out = new Set<string>();
+  for (const key of EVIDENCE_KEYS) {
+    const v = f[key];
+    if (!Array.isArray(v)) continue;
+    for (const item of v) {
+      const sig = normalizeText(
+        typeof item === "object" && item !== null ? JSON.stringify(item) : String(item),
+      );
+      if (sig) out.add(sig);
+    }
+  }
+  return out;
 }
 
 function prepare(row: DedupableFinding, index: number): Prepared {
@@ -114,11 +139,32 @@ function prepare(row: DedupableFinding, index: number): Prepared {
     titleTokens: tokens(title),
     descTokens: tokens(desc),
     titleKey: normalizeText(title).split(" ").slice(0, 6).join(" "),
+    evidence: evidenceOf(row),
   };
 }
 
+function sharesEvidence(a: Prepared, b: Prepared): boolean {
+  if (a.evidence.size === 0 || b.evidence.size === 0) return false;
+  for (const e of a.evidence) if (b.evidence.has(e)) return true;
+  return false;
+}
+
 export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptions>): boolean {
-  if (a.category !== b.category) return false;
+  if (a.category !== b.category) {
+    // CROSS-ENGINE DUPLICATION. Two engines/perspectives routinely emit the
+    // same canonical issue under their own category label ("Deterioro
+    // cognitivo del testador" from both the capacity and the undue-influence
+    // perspective). Merging these requires a near-identical title AND
+    // independent corroboration, so unrelated findings that merely share a
+    // headline (e.g. "Notificación fuera de plazo" as a procedural issue vs.
+    // an evidentiary one) still stay separate.
+    const ts = jaccard(a.titleTokens, b.titleTokens);
+    const sameHeadline = (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= opts.crossCategoryTitleThreshold;
+    if (!sameHeadline) return false;
+    if (sharesEvidence(a, b)) return true;
+    if (a.descTokens.size === 0 || b.descTokens.size === 0) return false;
+    return jaccard(a.descTokens, b.descTokens) >= opts.crossCategoryDescriptionThreshold;
+  }
   // Preserves the original behavior: identical leading-6-word titles cluster.
   if (a.titleKey && a.titleKey === b.titleKey) return true;
   const ts = jaccard(a.titleTokens, b.titleTokens);
@@ -128,6 +174,7 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
   }
   return false;
 }
+
 
 function strength(f: DedupableFinding): [number, number, number] {
   const sev = SEV_RANK[String(f.severity ?? "info").toLowerCase()] ?? 9;
