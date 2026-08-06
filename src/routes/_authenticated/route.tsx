@@ -39,6 +39,9 @@ import { NyravaLogo } from "@/components/NyravaLogo";
 import { TrustStrip } from "@/components/TrustStrip";
 import { useAlerts } from "@/hooks/useAlerts";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { FeedbackButton } from "@/components/FeedbackButton";
+import { getProfileSetupStatus } from "@/lib/account.functions";
+
 import { BackButton } from "@/components/BackButton";
 import { UserMenu } from "@/components/UserMenu";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -177,6 +180,21 @@ function AppLayout() {
     queryKey: ["isAdmin"],
     queryFn: () => fetchIsAdmin(),
   });
+
+  // Beta testers get the full product but must register a real professional
+  // profile first. Everyone else is untouched by this gate.
+  const fetchProfileStatus = useServerFn(getProfileSetupStatus);
+  const { data: profileStatus } = useQuery({
+    queryKey: ["profile-setup-status"],
+    queryFn: () => fetchProfileStatus(),
+    staleTime: 60000,
+  });
+  useEffect(() => {
+    if (!profileStatus?.isBetaTester || profileStatus.complete) return;
+    if (pathname === "/profile-setup" || pathname === "/onboarding") return;
+    nav({ to: "/profile-setup", replace: true });
+  }, [profileStatus, pathname, nav]);
+
 
   // Real unread count, shared with the /alerts page — see src/hooks/useAlerts.ts.
   const { unreadCount } = useAlerts();
@@ -564,6 +582,8 @@ function AppLayout() {
         </nav>
       </div>
       <ScrollToTop />
+      <FeedbackButton />
+
     </div>
   );
 }

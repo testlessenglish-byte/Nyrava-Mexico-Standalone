@@ -52,6 +52,7 @@ import { Route as AuthenticatedStrategyRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSecurityDashboardRouteImport } from './routes/_authenticated/security-dashboard'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedProfileSetupRouteImport } from './routes/_authenticated/profile-setup'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/new'
 import { Route as AuthenticatedMotionRouteImport } from './routes/_authenticated/motion'
@@ -75,6 +76,7 @@ import { Route as AuthenticatedAdminResetRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminPipelineLedgerRouteImport } from './routes/_authenticated/admin.pipeline-ledger'
 import { Route as AuthenticatedAdminLegalKnowledgeRouteImport } from './routes/_authenticated/admin.legal-knowledge'
 import { Route as AuthenticatedAdminLegalCoverageRouteImport } from './routes/_authenticated/admin.legal-coverage'
+import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin.feedback'
 import { Route as AuthenticatedAdminDemoCasesRouteImport } from './routes/_authenticated/admin.demo-cases'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin.billing'
 import { Route as AuthenticatedAdminBetaRouteImport } from './routes/_authenticated/admin.beta'
@@ -302,6 +304,12 @@ const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProfileSetupRoute =
+  AuthenticatedProfileSetupRouteImport.update({
+    id: '/profile-setup',
+    path: '/profile-setup',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -422,6 +430,12 @@ const AuthenticatedAdminLegalCoverageRoute =
     path: '/legal-coverage',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminFeedbackRoute =
+  AuthenticatedAdminFeedbackRouteImport.update({
+    id: '/feedback',
+    path: '/feedback',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminDemoCasesRoute =
   AuthenticatedAdminDemoCasesRouteImport.update({
     id: '/demo-cases',
@@ -527,6 +541,7 @@ export interface FileRoutesByFullPath {
   '/motion': typeof AuthenticatedMotionRoute
   '/new': typeof AuthenticatedNewRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/profile-setup': typeof AuthenticatedProfileSetupRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -545,6 +560,7 @@ export interface FileRoutesByFullPath {
   '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
@@ -604,6 +620,7 @@ export interface FileRoutesByTo {
   '/motion': typeof AuthenticatedMotionRoute
   '/new': typeof AuthenticatedNewRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/profile-setup': typeof AuthenticatedProfileSetupRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -622,6 +639,7 @@ export interface FileRoutesByTo {
   '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
@@ -684,6 +702,7 @@ export interface FileRoutesById {
   '/_authenticated/motion': typeof AuthenticatedMotionRoute
   '/_authenticated/new': typeof AuthenticatedNewRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/profile-setup': typeof AuthenticatedProfileSetupRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -702,6 +721,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/_authenticated/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/_authenticated/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
@@ -764,6 +784,7 @@ export interface FileRouteTypes {
     | '/motion'
     | '/new'
     | '/onboarding'
+    | '/profile-setup'
     | '/reports'
     | '/security-dashboard'
     | '/settings'
@@ -782,6 +803,7 @@ export interface FileRouteTypes {
     | '/admin/beta'
     | '/admin/billing'
     | '/admin/demo-cases'
+    | '/admin/feedback'
     | '/admin/legal-coverage'
     | '/admin/legal-knowledge'
     | '/admin/pipeline-ledger'
@@ -841,6 +863,7 @@ export interface FileRouteTypes {
     | '/motion'
     | '/new'
     | '/onboarding'
+    | '/profile-setup'
     | '/reports'
     | '/security-dashboard'
     | '/settings'
@@ -859,6 +882,7 @@ export interface FileRouteTypes {
     | '/admin/beta'
     | '/admin/billing'
     | '/admin/demo-cases'
+    | '/admin/feedback'
     | '/admin/legal-coverage'
     | '/admin/legal-knowledge'
     | '/admin/pipeline-ledger'
@@ -920,6 +944,7 @@ export interface FileRouteTypes {
     | '/_authenticated/motion'
     | '/_authenticated/new'
     | '/_authenticated/onboarding'
+    | '/_authenticated/profile-setup'
     | '/_authenticated/reports'
     | '/_authenticated/security-dashboard'
     | '/_authenticated/settings'
@@ -938,6 +963,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/beta'
     | '/_authenticated/admin/billing'
     | '/_authenticated/admin/demo-cases'
+    | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/legal-coverage'
     | '/_authenticated/admin/legal-knowledge'
     | '/_authenticated/admin/pipeline-ledger'
@@ -1304,6 +1330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReportsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/profile-setup': {
+      id: '/_authenticated/profile-setup'
+      path: '/profile-setup'
+      fullPath: '/profile-setup'
+      preLoaderRoute: typeof AuthenticatedProfileSetupRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
       path: '/onboarding'
@@ -1465,6 +1498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminLegalCoverageRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/feedback': {
+      id: '/_authenticated/admin/feedback'
+      path: '/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/demo-cases': {
       id: '/_authenticated/admin/demo-cases'
       path: '/demo-cases'
@@ -1550,6 +1590,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBetaRoute: typeof AuthenticatedAdminBetaRoute
   AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminDemoCasesRoute: typeof AuthenticatedAdminDemoCasesRoute
+  AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedAdminLegalCoverageRoute: typeof AuthenticatedAdminLegalCoverageRoute
   AuthenticatedAdminLegalKnowledgeRoute: typeof AuthenticatedAdminLegalKnowledgeRoute
   AuthenticatedAdminPipelineLedgerRoute: typeof AuthenticatedAdminPipelineLedgerRoute
@@ -1564,6 +1605,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBetaRoute: AuthenticatedAdminBetaRoute,
   AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminDemoCasesRoute: AuthenticatedAdminDemoCasesRoute,
+  AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
   AuthenticatedAdminLegalCoverageRoute: AuthenticatedAdminLegalCoverageRoute,
   AuthenticatedAdminLegalKnowledgeRoute: AuthenticatedAdminLegalKnowledgeRoute,
   AuthenticatedAdminPipelineLedgerRoute: AuthenticatedAdminPipelineLedgerRoute,
@@ -1602,6 +1644,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMotionRoute: typeof AuthenticatedMotionRoute
   AuthenticatedNewRoute: typeof AuthenticatedNewRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedProfileSetupRoute: typeof AuthenticatedProfileSetupRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSecurityDashboardRoute: typeof AuthenticatedSecurityDashboardRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -1625,6 +1668,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMotionRoute: AuthenticatedMotionRoute,
   AuthenticatedNewRoute: AuthenticatedNewRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedProfileSetupRoute: AuthenticatedProfileSetupRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSecurityDashboardRoute: AuthenticatedSecurityDashboardRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
@@ -1699,13 +1743,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

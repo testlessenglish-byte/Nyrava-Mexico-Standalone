@@ -37,6 +37,8 @@ import {
   FlaskConical,
   Trash2,
   UserPlus,
+  Inbox,
+
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -150,6 +152,13 @@ function AdminDashboard() {
           >
             <UserPlus className="h-3.5 w-3.5" /> Beta Testers →
           </Link>
+          <Link
+            to="/admin/feedback"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"
+          >
+            <Inbox className="h-3.5 w-3.5" /> Feedback →
+          </Link>
+
           <Link
             to="/admin/demo-cases"
             className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted sm:text-sm"

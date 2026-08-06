@@ -5225,6 +5225,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_feedback: {
+        Row: {
+          admin_note: string | null
+          case_id: string | null
+          category: string
+          created_at: string
+          email: string | null
+          id: string
+          message: string
+          page_path: string | null
+          severity: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          case_id?: string | null
+          category?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          message: string
+          page_path?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          case_id?: string | null
+          category?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string
+          page_path?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_groq_keys: {
         Row: {
           created_at: string
@@ -5348,6 +5393,7 @@ export type Database = {
           ai_max_response_chars: number
           ai_response_style: string
           avatar_url: string | null
+          cedula_profesional: string | null
           created_at: string
           display_name: string | null
           firm_id: string | null
@@ -5358,6 +5404,9 @@ export type Database = {
           notify_pipeline_complete: boolean
           notify_pipeline_failed: boolean
           phone: string | null
+          practice_focus: string | null
+          profile_completed_at: string | null
+          state_practice: string | null
           title: string | null
           updated_at: string
           user_id: string
@@ -5369,12 +5418,14 @@ export type Database = {
           voice_muted: boolean
           voice_pitch: string
           voice_speed: number
+          years_experience: string | null
         }
         Insert: {
           ai_default_mode?: string
           ai_max_response_chars?: number
           ai_response_style?: string
           avatar_url?: string | null
+          cedula_profesional?: string | null
           created_at?: string
           display_name?: string | null
           firm_id?: string | null
@@ -5385,6 +5436,9 @@ export type Database = {
           notify_pipeline_complete?: boolean
           notify_pipeline_failed?: boolean
           phone?: string | null
+          practice_focus?: string | null
+          profile_completed_at?: string | null
+          state_practice?: string | null
           title?: string | null
           updated_at?: string
           user_id: string
@@ -5396,12 +5450,14 @@ export type Database = {
           voice_muted?: boolean
           voice_pitch?: string
           voice_speed?: number
+          years_experience?: string | null
         }
         Update: {
           ai_default_mode?: string
           ai_max_response_chars?: number
           ai_response_style?: string
           avatar_url?: string | null
+          cedula_profesional?: string | null
           created_at?: string
           display_name?: string | null
           firm_id?: string | null
@@ -5412,6 +5468,9 @@ export type Database = {
           notify_pipeline_complete?: boolean
           notify_pipeline_failed?: boolean
           phone?: string | null
+          practice_focus?: string | null
+          profile_completed_at?: string | null
+          state_practice?: string | null
           title?: string | null
           updated_at?: string
           user_id?: string
@@ -5423,6 +5482,7 @@ export type Database = {
           voice_muted?: boolean
           voice_pitch?: string
           voice_speed?: number
+          years_experience?: string | null
         }
         Relationships: [
           {
