@@ -3355,15 +3355,26 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
     }),
   );
 
-  // Detailed cards, grouped under a colored severity-tier header so a
-  // critical issue visually outranks a minor discrepancy, rather than a
-  // flat list where every finding looks equally important. Tiers with
-  // nothing in them are simply skipped.
-  for (const tier of SEVERITY_TIERS) {
-    const entries = top.map((f, i) => ({ f, i })).filter(({ f }) => severityTierKey(asStr(f.severity)) === tier.key);
+  // Detailed cards, organised the way an attorney evaluates a case file —
+  // critical issues, procedural risk, contradictions, evidentiary gaps —
+  // rather than as one continuous list. Within each group findings stay
+  // ordered by severity, and each card keeps its severity colour bar.
+  const wpCtx = workProductContext(data);
+  const resolved = top.map((f) => findingWithResolvedRefs(f));
+  const workProducts = resolved.map((f) => buildFindingWorkProduct(f, wpCtx));
+  const groupsPresent = new Map<AttorneyGroupKey, Array<{ f: Record<string, unknown>; i: number }>>();
+  top.forEach((f, i) => {
+    const key = workProducts[i].group;
+    if (!groupsPresent.has(key)) groupsPresent.set(key, []);
+    groupsPresent.get(key)!.push({ f, i });
+  });
+  for (const group of ATTORNEY_GROUPS) {
+    const entries = groupsPresent.get(group.key) ?? [];
     if (!entries.length) continue;
-    b.h2Tier(`${tier.label} (${entries.length})`, tier.color);
+    const tierColor = b.severityColor(asStr(entries[0].f.severity));
+    b.h2Tier(`${group.label} (${entries.length})`, tierColor);
     for (const [pos, { f, i }] of entries.entries()) {
+
       if (pos > 0) b.y += 10;
       b.ensureSpace(70);
       const sevColor = b.severityColor(asStr(f.severity));
