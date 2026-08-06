@@ -46,6 +46,14 @@ function NotFoundInner() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <I18nProvider>
+      <ErrorInner error={error} reset={reset} />
+    </I18nProvider>
+  );
+}
+
+function ErrorInner({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   const { t } = useI18n();
