@@ -265,6 +265,25 @@ async function _runPipelineForCase(
       .eq("id", caseId);
   }
 
+  // Execution identity. A run that starts at the beginning (a reset rerun, or
+  // the first run after a case/benchmark was seeded) is a NEW execution and
+  // gets a brand-new execution_id, which the report it produces carries. A
+  // checkpoint resume (startFrom set, no reset) continues the SAME execution
+  // and must keep the existing id. This is what makes it visible at a glance
+  // whether a report reflects the latest run or an earlier one.
+  const isFreshExecution = !!reset || !startFrom;
+  if (isFreshExecution) {
+    const executionId = crypto.randomUUID();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("cases")
+      .update({ execution_id: executionId, execution_started_at: new Date().toISOString() })
+      .eq("id", caseId);
+    trace("execution.started", { execution_id: executionId, reset: !!reset });
+  }
+
+
+
   // 2026-07 audit: the previous bypass here (apiKey/apiKeys hardcoded empty)
   // was left over from a period when the platform's Groq key was dead. Groq
   // is confirmed healthy again (Admin → AI Providers), so resolve the user's
