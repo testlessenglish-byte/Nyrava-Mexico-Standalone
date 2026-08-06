@@ -27,6 +27,12 @@ describe("extractFacts", () => {
   it("reads Mexican date order as day-first", () => {
     expect(extractFacts(["03/04/2026"]).find((f) => f.kind === "date")?.key).toBe("2026-04-03");
   });
+
+  it("parses Mexican thousands separators correctly", () => {
+    expect(extractFacts(["$10,000 MXN"]).find((f) => f.kind === "amount")?.numeric).toBe(10000);
+    expect(extractFacts(["$1.234,56"]).find((f) => f.kind === "amount")?.numeric).toBe(1234.56);
+    expect(extractFacts(["$1,234,567.89"]).find((f) => f.kind === "amount")?.numeric).toBe(1234567.89);
+  });
 });
 
 describe("synthesizeEvidence", () => {
@@ -83,10 +89,10 @@ describe("synthesizeEvidence", () => {
 
   it("flags an obligation with no evidence of fulfilment", () => {
     const s = synthesizeEvidence([
-      { name: "Convenio.pdf", weight: w(3, "Documento Privado"), quotes: ["el deudor se obliga a pagar $10,000 MXN"] },
+      { name: "Convenio.pdf", weight: w(3, "Documento Privado"), quotes: ["el deudor se obliga a pagar $10,000.00 MXN"] },
       { name: "Demanda.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["el deudor se obliga a pagar $10,000 MXN"] },
     ])!;
-    expect(s.lines.join(" ")).toContain("no acredita el cumplimiento");
+    expect(s.lines.join(" ")).toContain("Ninguno de los documentos citados acredita el cumplimiento");
   });
 
   it("never claims corroboration when the quotes yield no comparable facts", () => {

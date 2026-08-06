@@ -135,8 +135,10 @@ function parseAmount(s: string): number | null {
   const lastComma = cleaned.lastIndexOf(",");
   const lastDot = cleaned.lastIndexOf(".");
   let normalized = cleaned;
-  if (lastComma > lastDot) {
-    // European style 1.234,56
+  const decimalsAfterComma = lastComma >= 0 ? cleaned.length - lastComma - 1 : -1;
+  if (lastComma > lastDot && decimalsAfterComma === 2) {
+    // European style 1.234,56 — a comma is only a decimal separator when it is
+    // followed by exactly two digits; "10,000" is ten thousand, not ten.
     normalized = cleaned.replace(/\./g, "").replace(",", ".");
   } else {
     normalized = cleaned.replace(/,/g, "");
