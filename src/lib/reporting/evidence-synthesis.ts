@@ -337,8 +337,17 @@ function actLines(docs: ResolvedDoc[], lexicon: ActLexicon): string[] {
 
 export function synthesizeEvidence(
   docsIn: SynthesisDoc[],
-  opts: { graph?: DocumentGraph; findingTitle?: string; caseType?: string | null } = {},
+  opts: {
+    graph?: DocumentGraph;
+    findingTitle?: string;
+    caseType?: string | null;
+    /** Optional jurisdiction signals; absent → universal fallback. */
+    jurisdiction?: JurisdictionSignals;
+    /** Reference date used only for temporal validity of authority. */
+    referenceDate?: string | Date | null;
+  } = {},
 ): EvidenceSynthesis | null {
+
   if (!docsIn.length) return null;
   const lexicon = resolveActLexicon(opts.caseType);
   const docs = resolveDocs(docsIn, opts.caseType);
