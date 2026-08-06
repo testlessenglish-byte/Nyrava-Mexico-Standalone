@@ -131,3 +131,73 @@ describe("finding dedupe — duplicate consolidation", () => {
     expect(jaccard(new Set(["a"]), new Set(["b"]))).toBe(0);
   });
 });
+
+describe("finding dedupe — cross-engine (cross-category) duplication", () => {
+  it("merges the same canonical issue emitted by two engines under different categories", () => {
+    const out = consolidateFindings([
+      f({
+        id: "e1",
+        category: "custody_best_interest_analysis",
+        title: "Deterioro cognitivo del testador",
+        description: "La valoración neuropsicológica documenta deterioro cognitivo moderado a severo.",
+        severity: "high",
+        evidence_refs: ["doc-neuropsicologia"],
+        citations: ["CCF art. 1306"],
+      }),
+      f({
+        id: "e2",
+        category: "domestic_violence_assessment",
+        title: "Deterioro cognitivo del testador",
+        description: "El dictamen psiquiátrico confirma deterioro cognitivo moderado a severo del testador.",
+        severity: "critical",
+        evidence_refs: ["doc-psiquiatria"],
+        citations: ["CCF art. 1313"],
+      }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("e2"); // strongest survives
+    expect(out[0]._alias_categories).toEqual(["custody_best_interest_analysis"]);
+    expect(out[0].evidence_refs).toEqual(
+      expect.arrayContaining(["doc-neuropsicologia", "doc-psiquiatria"]),
+    );
+    expect(out[0].citations).toEqual(expect.arrayContaining(["CCF art. 1306", "CCF art. 1313"]));
+    const meta = out[0].metadata as Record<string, unknown>;
+    expect(meta.merged_categories).toEqual(
+      expect.arrayContaining(["domestic_violence_assessment", "custody_best_interest_analysis"]),
+    );
+  });
+
+  it("merges across categories when evidence is shared even if wording differs slightly", () => {
+    const out = consolidateFindings([
+      f({
+        id: "a",
+        category: "capacidad_testamentaria",
+        title: "Deterioro cognitivo moderado a severo del testador",
+        evidence_refs: ["doc-7"],
+      }),
+      f({
+        id: "b",
+        category: "influencia_indebida",
+        title: "Deterioro cognitivo severo a moderado del testador",
+        evidence_refs: ["doc-7"],
+      }),
+    ]);
+    expect(out).toHaveLength(1);
+  });
+
+  it("still refuses to merge across categories without corroboration", () => {
+    const out = consolidateFindings([
+      f({ id: "a", category: "procesal", title: "Notificación fuera de plazo" }),
+      f({ id: "b", category: "evidencia", title: "Notificación fuera de plazo" }),
+    ]);
+    expect(out.map((r) => r.id)).toEqual(["a", "b"]);
+  });
+
+  it("does not merge different issues that merely share one evidence document", () => {
+    const out = consolidateFindings([
+      f({ id: "a", category: "capacidad_testamentaria", title: "Deterioro cognitivo del testador", evidence_refs: ["doc-1"] }),
+      f({ id: "b", category: "formalidades", title: "Ausencia de firma de dos testigos instrumentales", evidence_refs: ["doc-1"] }),
+    ]);
+    expect(out.map((r) => r.id)).toEqual(["a", "b"]);
+  });
+});
