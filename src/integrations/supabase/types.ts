@@ -1989,6 +1989,8 @@ export type Database = {
           discovery_at: string | null
           error: string | null
           evidence_intel_at: string | null
+          execution_id: string | null
+          execution_started_at: string | null
           extracted_at: string | null
           extraction_report: Json | null
           firm_id: string | null
@@ -2044,6 +2046,8 @@ export type Database = {
           discovery_at?: string | null
           error?: string | null
           evidence_intel_at?: string | null
+          execution_id?: string | null
+          execution_started_at?: string | null
           extracted_at?: string | null
           extraction_report?: Json | null
           firm_id?: string | null
@@ -2099,6 +2103,8 @@ export type Database = {
           discovery_at?: string | null
           error?: string | null
           evidence_intel_at?: string | null
+          execution_id?: string | null
+          execution_started_at?: string | null
           extracted_at?: string | null
           extraction_report?: Json | null
           firm_id?: string | null
@@ -4840,6 +4846,7 @@ export type Database = {
           engines_summary: Json | null
           evidence_index: Json
           evidence_summary: string | null
+          execution_id: string | null
           executive_summary: string | null
           facts: string | null
           findings_count: number | null
@@ -4893,6 +4900,7 @@ export type Database = {
           engines_summary?: Json | null
           evidence_index?: Json
           evidence_summary?: string | null
+          execution_id?: string | null
           executive_summary?: string | null
           facts?: string | null
           findings_count?: number | null
@@ -4946,6 +4954,7 @@ export type Database = {
           engines_summary?: Json | null
           evidence_index?: Json
           evidence_summary?: string | null
+          execution_id?: string | null
           executive_summary?: string | null
           facts?: string | null
           findings_count?: number | null

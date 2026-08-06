@@ -143,7 +143,18 @@ function ReportsPage() {
                         {t("reports.generatedAt", {
                           date: new Date(report.updated_at ?? report.created_at).toLocaleString(locale),
                         })}
+                        {(report as { execution_id?: string | null }).execution_id ? (
+                          <>
+                            {" · "}
+                            <span className="font-mono">
+                              {t("reports.executionId", {
+                                id: String((report as { execution_id?: string | null }).execution_id).slice(0, 8),
+                              })}
+                            </span>
+                          </>
+                        ) : null}
                       </p>
+
                     </div>
                     <Link
                       to="/cases/$caseId"

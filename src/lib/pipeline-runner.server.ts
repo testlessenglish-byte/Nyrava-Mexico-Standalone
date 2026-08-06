@@ -246,70 +246,43 @@ async function _runPipelineForCase(
         error: cooldownErr instanceof Error ? cooldownErr.message : String(cooldownErr),
       });
     }
-    const derivedTables = [
-      "analyses",
-      "agent_findings",
-      "case_findings",
-      "case_scores",
-      "case_opportunities",
-      "case_perspectives",
-      "case_strategy",
-      "case_theories",
-      "case_trial_prep",
-      "case_witnesses",
-      "case_work_product",
-      "evidence_classifications",
-      "reports",
-      "pipeline_engine_runs",
-      "pipeline_events",
-      "agent_logs",
-    ];
-    for (const t of derivedTables) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from(t).delete().eq("case_id", caseId);
-    }
-    await updateCase(
-      {
-        extracted_at: null,
-        analysis_at: null,
-        agents_at: null,
-        scored_at: null,
-        report_at: null,
-        theories_at: null,
-        opportunities_at: null,
-        trial_prep_at: null,
-        witnesses_at: null,
-        perspectives_at: null,
-        evidence_intel_at: null,
-        strategy_at: null,
-        contradiction_at: null,
-        discovery_at: null,
-        hallucination_at: null,
-        work_product_at: null,
-        hallucination_report: null,
-        // attack_surface is `jsonb NOT NULL DEFAULT '{}'::jsonb` — writing
-        // `null` here violates that constraint and throws, which aborts
-        // this ENTIRE update (Postgres rejects the whole statement, not
-        // just this column), so none of the other reset fields below ever
-        // get written either. That's the real reason Rerun could look like
-        // it "does nothing": the reset silently failed here every time,
-        // leaving the case at status=queued with stale pipeline_engine_runs
-        // rows and no error surfaced anywhere but the browser console.
-        attack_surface: {},
-        error: null,
-        status_message: null,
-        progress: 0,
-        cancel_requested: false,
-        report_checkpoint_count: 0,
-      },
-      "pipeline.reset",
-    );
+    // Single source of truth: pipeline-reset.ts. This block used to carry its
+    // OWN hardcoded table list, which had drifted and no longer included
+    // canonical_analysis, report_versions, case_strategy_center,
+    // case_timeline_events, case_motion_drafts, case_domain_activations,
+    // case_chat_messages or image_intelligence — so a "full rerun" (including
+    // the rerun that follows a benchmark reseed) left the PREVIOUS execution's
+    // canonical analysis and report versions in place, and the app could keep
+    // serving that older report. Never re-inline the list here.
+    const { clearCaseDerivedData, CASE_RESET_FIELDS } = await import("@/lib/pipeline-reset");
+    await clearCaseDerivedData(supabase, caseId);
+    await updateCase({ ...CASE_RESET_FIELDS }, "pipeline.reset");
+
   } else {
     await supabase
       .from("cases")
       .update({ cancel_requested: false } as any)
       .eq("id", caseId);
   }
+
+  // Execution identity. A run that starts at the beginning (a reset rerun, or
+  // the first run after a case/benchmark was seeded) is a NEW execution and
+  // gets a brand-new execution_id, which the report it produces carries. A
+  // checkpoint resume (startFrom set, no reset) continues the SAME execution
+  // and must keep the existing id. This is what makes it visible at a glance
+  // whether a report reflects the latest run or an earlier one.
+  const isFreshExecution = !!reset || !startFrom;
+  if (isFreshExecution) {
+    const executionId = crypto.randomUUID();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("cases")
+      .update({ execution_id: executionId, execution_started_at: new Date().toISOString() })
+      .eq("id", caseId);
+    trace("execution.started", { execution_id: executionId, reset: !!reset });
+  }
+
+
 
   // 2026-07 audit: the previous bypass here (apiKey/apiKeys hardcoded empty)
   // was left over from a period when the platform's Groq key was dead. Groq

@@ -7716,7 +7716,44 @@ ${paginationTail}`;
     }
   }
 
+  // Execution identity + stale-row eviction.
+  // `reports` is keyed by case_id, so an upsert would otherwise MERGE this
+  // run's columns into the row written by the previous execution — leaving
+  // whichever columns this run didn't write (and the old report id) intact.
+  // When the persisted row belongs to a different execution, delete it first
+  // so the new report is a clean insert with its own id.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: caseRow } = await (db as any)
+      .from("cases")
+      .select("execution_id")
+      .eq("id", caseId)
+      .maybeSingle();
+    const executionId = (caseRow as { execution_id?: string | null } | null)?.execution_id ?? null;
+    if (executionId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: prior } = await (db as any)
+        .from("reports")
+        .select("id,execution_id")
+        .eq("case_id", caseId)
+        .maybeSingle();
+      const priorExec = (prior as { execution_id?: string | null } | null)?.execution_id ?? null;
+      if (prior && priorExec !== executionId) {
+        await db.from("report_versions").delete().eq("case_id", caseId);
+        await db.from("reports").delete().eq("case_id", caseId);
+      }
+      reportRow.execution_id = executionId;
+    }
+  } catch (execErr) {
+    console.warn(
+      `[pipeline.report] execution stamping skipped for case ${caseId}: ${
+        execErr instanceof Error ? execErr.message : String(execErr)
+      }`,
+    );
+  }
+
   assertDbOk((await db.from("reports").upsert(reportRow, { onConflict: "case_id" })).error, "Failed to save report");
+
 
   // Immutable version snapshot — directive Phase 1.1.
   // Read back the persisted row so the snapshot reflects exactly what was
