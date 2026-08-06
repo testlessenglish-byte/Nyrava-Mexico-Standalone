@@ -69,28 +69,54 @@ const UNIVERSAL_ACTS: ActRule[] = [
   {
     act: "notificacion_realizada",
     label: "notificación practicada",
+    aliases: ["notificación", "aviso", "emplazamiento"],
     re: /(se notific|notificacion personal|cedula de notificacion|emplazamiento|acuse de recibo|se corri[oó] traslado|notificado en)/,
+    authorities: [
+      { authority_id: "cpeum", relevance_weight: 0.95 },
+      { authority_id: "cnpcf", relevance_weight: 0.8 },
+      { authority_id: "codigo_procedimientos_civiles_estatal", relevance_weight: 0.7 },
+    ],
+    validity: { from: "1917-05-01", until: null },
   },
   {
     act: "autoridad_notificada",
     label: "conocimiento de la autoridad",
+    aliases: ["vista a la autoridad", "oficio"],
     re: /(se dio vista a|oficio dirigido a|se hizo del conocimiento de la autoridad|se inform[oó] a la autoridad|presentado ante la autoridad|acuse de presentacion)/,
+    authorities: [
+      { authority_id: "cpeum", relevance_weight: 0.9 },
+      { authority_id: "lfpa", relevance_weight: 0.6 },
+    ],
+    validity: { from: "1917-05-01", until: null },
   },
   {
     act: "plazo_procesal",
     label: "plazo o término procesal",
+    aliases: ["término", "vencimiento", "caducidad"],
     re: /(plazo de \d|termino de \d|dentro de los \d{1,3} dias|vence el|caducidad|prescripcion|preclusion|surte efectos)/,
+    authorities: [
+      { authority_id: "cpeum", relevance_weight: 0.9 },
+      { authority_id: "jurisprudencia_scjn", relevance_weight: 0.6 },
+    ],
+    validity: { from: "1917-05-01", until: null },
   },
   {
     act: "promocion_presentada",
     label: "promoción presentada",
+    aliases: ["escrito inicial", "demanda", "denuncia"],
     re: /(escrito inicial|se present[oó] (?:la )?(?:demanda|denuncia|promocion|solicitud|recurso)|demanda presentada|por presentado)/,
+    authorities: [{ authority_id: "cpeum", relevance_weight: 0.95 }],
+    validity: { from: "1917-05-01", until: null },
   },
   {
     act: "acuerdo_dictado",
     label: "acuerdo o proveído dictado",
+    aliases: ["auto", "proveído", "acuerdo"],
     re: /(auto de radicacion|se admite a tramite|acuerdo de fecha|proveido|se dicta auto|auto admisorio)/,
+    authorities: [{ authority_id: "cpeum", relevance_weight: 0.9 }],
+    validity: { from: "1917-05-01", until: null },
   },
+
   {
     act: "audiencia_celebrada",
     label: "audiencia celebrada",
