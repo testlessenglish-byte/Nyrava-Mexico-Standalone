@@ -171,8 +171,15 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
     if (!sameHeadline) return false;
     if (sharesEvidence(a, b)) return true;
     if (a.descTokens.size === 0 || b.descTokens.size === 0) return false;
-    return jaccard(a.descTokens, b.descTokens) >= opts.crossCategoryDescriptionThreshold;
+    // A byte-identical title is itself strong evidence of one canonical issue,
+    // so the description only has to agree on the subject, not the wording.
+    const descBar =
+      a.fullTitle !== "" && a.fullTitle === b.fullTitle
+        ? opts.crossCategoryExactTitleDescriptionThreshold
+        : opts.crossCategoryDescriptionThreshold;
+    return jaccard(a.descTokens, b.descTokens) >= descBar;
   }
+
   // Preserves the original behavior: identical leading-6-word titles cluster.
   if (a.titleKey && a.titleKey === b.titleKey) return true;
   const ts = jaccard(a.titleTokens, b.titleTokens);
