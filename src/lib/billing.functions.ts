@@ -301,15 +301,20 @@ export const adminAddBetaTester = createServerFn({ method: "POST" })
     const ctx = context as { supabase: Db; userId: string };
     await requireAdmin(ctx);
     const email = data.email.trim();
+    const admin = getAdminClient();
+    // EXECUTE on the admin_* SECURITY DEFINER helpers is revoked from
+    // `authenticated` (hardening migration 20260725135541), so these RPCs
+    // must run on the service-role client. The caller is already proven to
+    // be an admin by requireAdmin() above.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: targetId, error: lookupErr } = await (ctx.supabase as any).rpc(
+    const { data: targetId, error: lookupErr } = await (admin as any).rpc(
       "admin_get_user_id_by_email",
       {
         _email: email,
       },
     );
     if (lookupErr) throw new Error(lookupErr.message);
-    const admin = getAdminClient();
+
 
     if (!targetId) {
       // No account yet — queue a pre-signup invite instead of failing.
