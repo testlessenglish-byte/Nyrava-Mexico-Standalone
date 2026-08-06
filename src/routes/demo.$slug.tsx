@@ -22,7 +22,9 @@ export const Route = createFileRoute("/demo/$slug")({
         { property: "og:url", content: url },
         { name: "twitter:url", content: url },
       ],
+      links: [{ rel: "canonical", href: url }],
     };
+
   },
   component: DemoCasePage,
 });
