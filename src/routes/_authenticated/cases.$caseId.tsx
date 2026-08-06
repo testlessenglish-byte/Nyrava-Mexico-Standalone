@@ -1486,6 +1486,21 @@ type Doc = {
   entities: unknown;
 };
 
+// Lazily loads a single document's OCR text only when its card is expanded.
+function DocumentTextSection({ documentId }: { documentId: string }) {
+  const fetchText = useServerFn(getDocumentText);
+  const { data, isLoading } = useQuery({
+    queryKey: ["document-text", documentId],
+    queryFn: () => fetchText({ data: { documentId } }),
+    staleTime: 5 * 60_000,
+  });
+  return (
+    <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded bg-secondary/40 p-3 text-foreground/90">
+      {isLoading ? "…" : (data?.text ?? "—")}
+    </pre>
+  );
+}
+
 function IntelTab({ docs, caseId, invalidate }: { docs: Doc[]; caseId: string; invalidate: () => Promise<void> }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
