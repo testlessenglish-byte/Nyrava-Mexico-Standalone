@@ -10,6 +10,7 @@ import { CaseCalendarPanel } from "@/components/casework/CaseCalendarPanel";
 import { CaseCommunicationsPanel } from "@/components/casework/CaseCommunicationsPanel";
 import {
   getCase,
+  getDocumentText,
   askCaseAi,
   getCaseChat,
   clearCaseChat,
