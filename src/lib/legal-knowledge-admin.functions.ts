@@ -57,6 +57,28 @@ async function requireAdmin(ctx: { supabase: any; userId: string }) {
   if (error || !isAdmin) throw new Error("Forbidden — admin required.");
 }
 
+// Structured/machine-readable access methods — no OCR, no HTML scraping, no
+// PDF text extraction. A connector using one of these gets its published
+// text directly from the issuing authority's own API/feed, which is the
+// only category low-risk enough for bulk auto-verification. official_pdf
+// and html_scrape stay on manual review — those are exactly the shapes
+// where a bad OCR/parse can silently corrupt what a citation actually says.
+const STRUCTURED_ACCESS_METHODS = new Set([
+  "official_api",
+  "official_json_endpoint",
+  "official_xml_feed",
+  "official_rss",
+  "official_csv_download",
+  "official_zip_download",
+]);
+
+async function getTrustedConnectorCodes(): Promise<Set<string>> {
+  const { IMPLEMENTED_CONNECTORS } = await import("./legal-connectors/types");
+  return new Set(
+    IMPLEMENTED_CONNECTORS.filter((c) => STRUCTURED_ACCESS_METHODS.has(c.accessMethod)).map((c) => c.code),
+  );
+}
+
 export const getNlknStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<NlknStats> => {
@@ -246,6 +268,120 @@ export const markAuthorityVerified = createServerFn({ method: "POST" })
       `[legal-knowledge] authority ${data.authorityId} marked ${data.decision} by admin ${userId}`,
     );
     return { ok: true };
+  });
+
+export type PendingSourceBreakdown = {
+  connectorCode: string;
+  connectorName: string;
+  count: number;
+  /** true = structured/machine-readable source, eligible for bulk-verify. */
+  trusted: boolean;
+};
+
+/**
+ * Groups the pending-review backlog by ingesting connector so the admin can
+ * see, at a glance, which sources make up the backlog and which of those are
+ * safe to bulk-approve (see STRUCTURED_ACCESS_METHODS above) versus which
+ * still need the item-by-item human review this whole gate exists for.
+ */
+export const getPendingAuthoritiesBySource = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ rows: PendingSourceBreakdown[] }> => {
+    const { supabase: db, userId } = context;
+    await requireAdmin({ supabase: db, userId });
+
+    const trusted = await getTrustedConnectorCodes();
+    const [{ data: rows, error }, { data: connectors }] = await Promise.all([
+      db
+        .from("legal_authorities")
+        .select("metadata")
+        .eq("verification_status", "pending")
+        .in("kind", ["jurisprudencia", "court_decision"])
+        .limit(5000),
+      db.from("legal_source_connectors").select("code,name"),
+    ]);
+    if (error) throw new Error(error.message);
+
+    const nameByCode = new Map(((connectors ?? []) as { code: string; name: string }[]).map((c) => [c.code, c.name]));
+    const counts = new Map<string, number>();
+    for (const row of (rows ?? []) as { metadata: Record<string, unknown> | null }[]) {
+      const code = typeof row.metadata?.connector_code === "string" ? (row.metadata.connector_code as string) : "unknown";
+      counts.set(code, (counts.get(code) ?? 0) + 1);
+    }
+
+    return {
+      rows: [...counts.entries()]
+        .map(([connectorCode, count]) => ({
+          connectorCode,
+          connectorName: nameByCode.get(connectorCode) ?? connectorCode,
+          count,
+          trusted: trusted.has(connectorCode),
+        }))
+        .sort((a, b) => b.count - a.count),
+    };
+  });
+
+export type BulkVerifyResult = { verified: number; skippedIncomplete: number };
+
+/**
+ * Bulk-approves every pending jurisprudencia/court_decision row from ONE
+ * connector, but only when that connector is on the structured/trusted list
+ * (official API/JSON/XML/RSS/CSV/ZIP feed — no OCR, no HTML scraping, no PDF
+ * text extraction). Still refuses to blanket-verify a row that's missing
+ * the fields an actual citation needs (title/citation/body) even from a
+ * trusted source — a structured feed can still return an incomplete record,
+ * and those stay pending for a human to look at rather than being silently
+ * rubber-stamped. This does not touch untrusted-source rows at all; those
+ * remain exactly as manual as markAuthorityVerified above.
+ */
+export const bulkVerifyTrustedSource = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => {
+    const o = d as { connectorCode?: string };
+    if (typeof o.connectorCode !== "string" || o.connectorCode.length === 0) {
+      throw new Error("connectorCode required");
+    }
+    return { connectorCode: o.connectorCode };
+  })
+  .handler(async ({ data, context }): Promise<BulkVerifyResult> => {
+    const { supabase: db, userId } = context;
+    await requireAdmin({ supabase: db, userId });
+
+    const trusted = await getTrustedConnectorCodes();
+    if (!trusted.has(data.connectorCode)) {
+      throw new Error(
+        `"${data.connectorCode}" is not a structured/trusted source (official API, JSON, XML, RSS, CSV, or ZIP feed) — bulk-verify only applies to sources that never need OCR or HTML scraping. Review its items manually below.`,
+      );
+    }
+
+    const { data: rows, error } = await db
+      .from("legal_authorities")
+      .select("id,title,citation,body")
+      .eq("verification_status", "pending")
+      .in("kind", ["jurisprudencia", "court_decision"])
+      .eq("metadata->>connector_code", data.connectorCode)
+      .limit(2000);
+    if (error) throw new Error(error.message);
+
+    const candidates = (rows ?? []) as { id: string; title: string | null; citation: string | null; body: string | null }[];
+    const complete = candidates.filter(
+      (r) => (r.title ?? "").trim().length > 0 && (r.citation ?? "").trim().length > 0 && (r.body ?? "").trim().length > 50,
+    );
+    const skippedIncomplete = candidates.length - complete.length;
+    if (complete.length === 0) return { verified: 0, skippedIncomplete };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: updateErr } = await supabaseAdmin
+      .from("legal_authorities")
+      .update({ verification_status: "verified" } as never)
+      .in("id", complete.map((r) => r.id));
+    if (updateErr) throw new Error(updateErr.message);
+
+    console.info(
+      `[legal-knowledge] bulk-verified ${complete.length} authorities from trusted source ${data.connectorCode} ` +
+        `by admin ${userId} (${skippedIncomplete} incomplete rows left pending)`,
+    );
+    return { verified: complete.length, skippedIncomplete };
   });
 
 /**
