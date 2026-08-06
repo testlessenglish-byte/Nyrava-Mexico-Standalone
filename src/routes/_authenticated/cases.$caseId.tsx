@@ -1620,9 +1620,7 @@ function IntelTab({ docs, caseId, invalidate }: { docs: Doc[]; caseId: string; i
                   <Pre v={d.entities} />
                 </Section>
                 <Section title="Extracted text">
-                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded bg-secondary/40 p-3 text-foreground/90">
-                    {d.extracted_text ?? "—"}
-                  </pre>
+                  <DocumentTextSection documentId={d.id} />
                 </Section>
               </div>
             )}
