@@ -1513,3 +1513,35 @@ export const SUPPORTED_MATERIAS: string[] = Object.keys(MATERIA_LAYERS);
 
 /** Canonical materias, re-exported so parity tests can assert full coverage. */
 export const CANONICAL_MATERIAS: readonly MexicanCaseType[] = MX_CASE_TYPES;
+
+// ---------------------------------------------------------------------------
+// Authority layer (data only)
+//
+// Acts declare their authoritative context inline via `authorities`. Nothing
+// here is state-duplicated: state-level instruments are generic entries in
+// src/lib/legal/authority-registry.ts and are bound to a concrete entidad
+// federativa by the jurisdiction resolver.
+// ---------------------------------------------------------------------------
+
+const ACT_RULE_INDEX: Record<ActKey, ActRule> = (() => {
+  const out: Record<string, ActRule> = {};
+  for (const layers of [[UNIVERSAL_LEXICON], ...Object.values(MATERIA_LAYERS)]) {
+    for (const l of layers) for (const a of l.acts) out[a.act] ??= a;
+  }
+  return out;
+})();
+
+/** Authority references declared for an act (empty when none are declared). */
+export function actAuthorityRefs(act: ActKey): readonly ActAuthorityRef[] {
+  return ACT_RULE_INDEX[act]?.authorities ?? [];
+}
+
+/** Declared validity window of an act, when the registry states one. */
+export function actValidity(act: ActKey): ActValidity | undefined {
+  return ACT_RULE_INDEX[act]?.validity;
+}
+
+/** Attorney-facing aliases declared for an act. */
+export function actAliases(act: ActKey): readonly string[] {
+  return ACT_RULE_INDEX[act]?.aliases ?? [];
+}
