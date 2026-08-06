@@ -1652,7 +1652,12 @@ async function _runPipelineForCase(
   try {
     const { runCanonicalGate } = await import("@/lib/canonical/gate.server");
     const reportMode = hasFailures ? "LIMITED" : "FULL";
-    const gate = await runCanonicalGate(supabase, caseId, reportMode);
+    // canonical_analysis is written by the platform, not the end user: its RLS
+    // only allows service-role writes. Using the user-scoped client here made
+    // every finalize fail with "new row violates row-level security policy",
+    // which left the Report/Findings tabs reading a stale or missing row.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const gate = await runCanonicalGate(supabaseAdmin as unknown as typeof supabase, caseId, reportMode);
     trace("pipeline.canonical", {
       ok: gate.ok,
       status: gate.status,
