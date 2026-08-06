@@ -20,6 +20,16 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import {
+  buildDocumentGraph,
+  synthesizeEvidence,
+  type DocumentGraph,
+  type EvidenceSynthesis,
+} from "./evidence-synthesis";
+
+export { buildDocumentGraph };
+export type { DocumentGraph };
+
 export type EvidenceWeight = {
   /** 1–5 — evidentiary reliability under Mexican practice, not AI confidence. */
   stars: number;
@@ -32,13 +42,19 @@ export type EvidenceWeight = {
 export type FindingSourceDoc = {
   name: string;
   weight: EvidenceWeight;
+  /** Verbatim excerpts cited from this document, used for fact comparison. */
+  quotes: string[];
 };
 
 export type FindingWorkProduct = {
   /** Importancia Estratégica — 2–4 paragraphs. */
   importance: string[];
-  /** Síntesis Probatoria. */
-  synthesis: { docs: FindingSourceDoc[]; narrative: string } | null;
+  /** Síntesis Probatoria — deterministic cross-document comparison. */
+  synthesis:
+    | { docs: FindingSourceDoc[]; narrative: string; lines: string[]; grounded: boolean }
+    | null;
+  /** Full structured synthesis (agreements / conflicts) for callers that need it. */
+  synthesisDetail: EvidenceSynthesis | null;
   /** Evidencia Pendiente o No Localizada. */
   pending: string[];
   /** Próximas Acciones Recomendadas — 3–7 items. */
@@ -174,18 +190,25 @@ export type WorkProductContext = {
   caseType?: string | null;
   /** Corpus-level missing documents already detected upstream. */
   missingDocuments?: string[];
+  /** Cross-finding document index (buildDocumentGraph), for shared-source statements. */
+  graph?: DocumentGraph;
 };
 
 type AnyFinding = Record<string, any>;
 
-function findingSourceLabels(f: AnyFinding): string[] {
+/** Cited documents with the verbatim quotes attributed to each one. */
+function findingSourceDocs(f: AnyFinding): Array<{ name: string; quotes: string[] }> {
   const refs = Array.isArray(f.evidence_refs) ? f.evidence_refs : [];
-  const out: string[] = [];
+  const byName = new Map<string, string[]>();
   for (const r of refs) {
     const label = String(r?.filename ?? r?.label ?? r?.document_title ?? "").trim();
-    if (label) out.push(label);
+    if (!label) continue;
+    const quote = String(r?.quote ?? r?.excerpt ?? r?.snippet ?? r?.text ?? "").trim();
+    const arr = byName.get(label) ?? [];
+    if (quote && !arr.includes(quote)) arr.push(quote);
+    byName.set(label, arr);
   }
-  return Array.from(new Set(out));
+  return [...byName.entries()].map(([name, quotes]) => ({ name, quotes }));
 }
 
 function findingText(f: AnyFinding): string {
@@ -395,33 +418,41 @@ function buildImportance(
   return paras.slice(0, 4);
 }
 
-function buildSynthesis(f: AnyFinding, docs: FindingSourceDoc[]): FindingWorkProduct["synthesis"] {
-  if (!docs.length) return null;
-  const isContradiction =
-    CONTRADICTION_RE.test(norm(f.category ?? "")) || CONTRADICTION_RE.test(findingText(f));
-  const narrative =
-    docs.length === 1
-      ? `El hallazgo descansa en una sola fuente documental (${docs[0].weight.label} ${docs[0].weight.glyphs}). ` +
-        "No se localizó dentro del corpus otro documento independiente que lo corrobore."
-      : isContradiction
-        ? `Los ${docs.length} documentos citados no son consistentes entre sí respecto del mismo punto: la divergencia ` +
-          "entre ellos es precisamente lo que sustenta el hallazgo, por lo que debe resolverse cuál prevalece conforme a su valor probatorio."
-        : `El hallazgo está sustentado por ${docs.length} documentos independientes que coinciden en el punto analizado; ` +
-          "la coincidencia entre fuentes de distinta naturaleza documental refuerza la conclusión sin depender de una sola constancia.";
-  return { docs, narrative };
+function buildSynthesis(
+  f: AnyFinding,
+  docs: FindingSourceDoc[],
+  ctx: WorkProductContext,
+): { synthesis: FindingWorkProduct["synthesis"]; detail: EvidenceSynthesis | null } {
+  if (!docs.length) return { synthesis: null, detail: null };
+  const detail = synthesizeEvidence(docs, {
+    graph: ctx.graph,
+    findingTitle: String(f.title ?? "").trim(),
+  });
+  if (!detail) return { synthesis: null, detail: null };
+  return {
+    synthesis: {
+      docs,
+      narrative: detail.narrative,
+      lines: detail.lines,
+      grounded: detail.grounded,
+    },
+    detail,
+  };
 }
 
 export function buildFindingWorkProduct(
   f: AnyFinding,
   ctx: WorkProductContext,
 ): FindingWorkProduct {
-  const docs = findingSourceLabels(f)
-    .map((name) => ({ name, weight: classifyEvidenceWeight(name) }))
+  const docs: FindingSourceDoc[] = findingSourceDocs(f)
+    .map((d) => ({ ...d, weight: classifyEvidenceWeight(d.name) }))
     .sort((a, b) => b.weight.stars - a.weight.stars);
   const pending = buildPending(f, ctx);
+  const { synthesis, detail } = buildSynthesis(f, docs, ctx);
   return {
     importance: buildImportance(f, docs, ctx),
-    synthesis: buildSynthesis(f, docs),
+    synthesis,
+    synthesisDetail: detail,
     pending,
     actions: buildActions(f, docs, pending),
     group: groupForFinding(f),
