@@ -66,6 +66,26 @@ export type FactConflict = {
   tie: boolean;
 };
 
+/**
+ * Authority-aware context attached to a synthesis. Purely descriptive: it
+ * records which normative frame was considered and whether its temporal
+ * validity could be checked. It never alters the synthesis reasoning.
+ */
+export type SynthesisLegalContext = {
+  jurisdiction: LegalContext;
+  authorities_considered: Array<{
+    id: string;
+    label: string;
+    jurisdiction: string;
+    authority_weight: number;
+  }>;
+  validity_checked: boolean;
+  /** Authorities excluded for not being in force on the reference date. */
+  authorities_excluded: string[];
+  /** Non-fatal notes when authority metadata is incomplete. */
+  uncertainty: string[];
+};
+
 export type EvidenceSynthesis = {
   docs: ResolvedDoc[];
   agreements: FactAgreement[];
@@ -76,7 +96,10 @@ export type EvidenceSynthesis = {
   narrative: string;
   /** True when the cited quotes produced at least one comparable fact. */
   grounded: boolean;
+  /** Optional authority/jurisdiction/time-validity metadata. */
+  legal_context?: SynthesisLegalContext;
 };
+
 
 /** Cross-finding index: which findings rest on each source document. */
 export type DocumentGraph = Map<string, { name: string; findings: string[] }>;
