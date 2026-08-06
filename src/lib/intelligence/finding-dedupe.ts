@@ -231,9 +231,11 @@ function unionArrays(master: DedupableFinding, others: DedupableFinding[]): void
 export type DedupedFinding = DedupableFinding & {
   _alias_ids?: string[];
   _alias_titles?: string[];
-  _merged?: Array<{ id?: string; title?: string; description?: string }>;
+  _alias_categories?: string[];
+  _merged?: Array<{ id?: string; title?: string; description?: string; category?: string }>;
   _merged_count?: number;
 };
+
 
 /**
  * Collapse near-duplicate findings into one consolidated row per legal issue.
