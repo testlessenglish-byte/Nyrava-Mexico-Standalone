@@ -17,13 +17,20 @@
 // =============================================================================
 
 import {
+  resolveLegalContext,
+  type JurisdictionSignals,
+  type LegalContext,
+} from "@/lib/legal/jurisdiction-resolver";
+import { getApplicableAuthority } from "@/lib/legal/legal-validity";
+import {
   extractFacts,
   FACT_KIND_LABEL,
   normalizeText,
   type ExtractedFact,
   type FactKind,
 } from "./evidence-facts";
-import { actLabel, resolveActLexicon, type ActKey, type ActLexicon } from "./legal-acts";
+import { actAuthorityRefs, actLabel, resolveActLexicon, type ActKey, type ActLexicon } from "./legal-acts";
+
 
 type Weight = { stars: number; glyphs: string; label: string };
 
@@ -59,6 +66,26 @@ export type FactConflict = {
   tie: boolean;
 };
 
+/**
+ * Authority-aware context attached to a synthesis. Purely descriptive: it
+ * records which normative frame was considered and whether its temporal
+ * validity could be checked. It never alters the synthesis reasoning.
+ */
+export type SynthesisLegalContext = {
+  jurisdiction: LegalContext;
+  authorities_considered: Array<{
+    id: string;
+    label: string;
+    jurisdiction: string;
+    authority_weight: number;
+  }>;
+  validity_checked: boolean;
+  /** Authorities excluded for not being in force on the reference date. */
+  authorities_excluded: string[];
+  /** Non-fatal notes when authority metadata is incomplete. */
+  uncertainty: string[];
+};
+
 export type EvidenceSynthesis = {
   docs: ResolvedDoc[];
   agreements: FactAgreement[];
@@ -69,7 +96,10 @@ export type EvidenceSynthesis = {
   narrative: string;
   /** True when the cited quotes produced at least one comparable fact. */
   grounded: boolean;
+  /** Optional authority/jurisdiction/time-validity metadata. */
+  legal_context?: SynthesisLegalContext;
 };
+
 
 /** Cross-finding index: which findings rest on each source document. */
 export type DocumentGraph = Map<string, { name: string; findings: string[] }>;
@@ -307,8 +337,17 @@ function actLines(docs: ResolvedDoc[], lexicon: ActLexicon): string[] {
 
 export function synthesizeEvidence(
   docsIn: SynthesisDoc[],
-  opts: { graph?: DocumentGraph; findingTitle?: string; caseType?: string | null } = {},
+  opts: {
+    graph?: DocumentGraph;
+    findingTitle?: string;
+    caseType?: string | null;
+    /** Optional jurisdiction signals; absent → universal fallback. */
+    jurisdiction?: JurisdictionSignals;
+    /** Reference date used only for temporal validity of authority. */
+    referenceDate?: string | Date | null;
+  } = {},
 ): EvidenceSynthesis | null {
+
   if (!docsIn.length) return null;
   const lexicon = resolveActLexicon(opts.caseType);
   const docs = resolveDocs(docsIn, opts.caseType);
@@ -401,5 +440,45 @@ export function synthesizeEvidence(
       "por lo que no puede afirmarse que se corroboren ni que se contradigan con base en el texto extraído.";
   }
 
-  return { docs, agreements, conflicts, lines, narrative, grounded };
+  // ---- Authority layer: descriptive metadata only. It never participates in
+  // the conflict, duplicate, weighting, sequence or dependency algorithms.
+  const legal_context = buildLegalContext(docs, opts);
+
+  return { docs, agreements, conflicts, lines, narrative, grounded, legal_context };
 }
+
+function buildLegalContext(
+  docs: ResolvedDoc[],
+  opts: {
+    caseType?: string | null;
+    jurisdiction?: JurisdictionSignals;
+    referenceDate?: string | Date | null;
+  },
+): SynthesisLegalContext {
+  const jurisdiction = resolveLegalContext({
+    ...(opts.jurisdiction ?? {}),
+    materia: opts.jurisdiction?.materia ?? opts.caseType ?? null,
+  });
+
+  const actIds = new Set<string>();
+  for (const d of docs) {
+    for (const f of d.facts) {
+      if (f.kind === "act" && f.act) for (const r of actAuthorityRefs(f.act)) actIds.add(r.authority_id);
+    }
+  }
+
+  const applicable = getApplicableAuthority([...actIds], jurisdiction, opts.referenceDate ?? null);
+  return {
+    jurisdiction,
+    authorities_considered: applicable.authorities.map((a) => ({
+      id: a.id,
+      label: a.label,
+      jurisdiction: a.jurisdiction,
+      authority_weight: a.authority_weight,
+    })),
+    validity_checked: applicable.validity_checked,
+    authorities_excluded: applicable.excluded.map((e) => e.authority_id),
+    uncertainty: applicable.uncertainty,
+  };
+}
+

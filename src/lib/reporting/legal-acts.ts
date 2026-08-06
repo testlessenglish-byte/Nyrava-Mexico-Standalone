@@ -23,11 +23,29 @@ import { MX_CASE_TYPES, type MexicanCaseType } from "@/lib/jurisdiction/mexico-t
 
 export type ActKey = string;
 
+/**
+ * Reference from a legal act to a normative instrument declared in
+ * src/lib/legal/authority-registry.ts. Data only — carries no conclusion.
+ */
+export type ActAuthorityRef = {
+  authority_id: string;
+  /** How central the instrument is to the act (0–1). Ranking hint only. */
+  relevance_weight: number;
+};
+
+/** Period during which the act, as declared, is recognised. */
+export type ActValidity = { from: string; until?: string | null };
+
 export type ActRule = {
   act: ActKey;
   /** Attorney-facing Spanish label of the legal fact / procedural event. */
   label: string;
   re: RegExp;
+  /** Alternative attorney-facing names for the same act. */
+  aliases?: readonly string[];
+  /** Authoritative context for the act (never state-duplicated). */
+  authorities?: readonly ActAuthorityRef[];
+  validity?: ActValidity;
 };
 
 /** Antecedent → consequent pair: two documents evidencing different links. */
@@ -42,6 +60,7 @@ export type ActLexicon = {
   gaps: ActGap[];
 };
 
+
 // ---------------------------------------------------------------------------
 // Universal layer — present in every Mexican matter
 // ---------------------------------------------------------------------------
@@ -50,28 +69,54 @@ const UNIVERSAL_ACTS: ActRule[] = [
   {
     act: "notificacion_realizada",
     label: "notificación practicada",
+    aliases: ["notificación", "aviso", "emplazamiento"],
     re: /(se notific|notificacion personal|cedula de notificacion|emplazamiento|acuse de recibo|se corri[oó] traslado|notificado en)/,
+    authorities: [
+      { authority_id: "cpeum", relevance_weight: 0.95 },
+      { authority_id: "cnpcf", relevance_weight: 0.8 },
+      { authority_id: "codigo_procedimientos_civiles_estatal", relevance_weight: 0.7 },
+    ],
+    validity: { from: "1917-05-01", until: null },
   },
   {
     act: "autoridad_notificada",
     label: "conocimiento de la autoridad",
+    aliases: ["vista a la autoridad", "oficio"],
     re: /(se dio vista a|oficio dirigido a|se hizo del conocimiento de la autoridad|se inform[oó] a la autoridad|presentado ante la autoridad|acuse de presentacion)/,
+    authorities: [
+      { authority_id: "cpeum", relevance_weight: 0.9 },
+      { authority_id: "lfpa", relevance_weight: 0.6 },
+    ],
+    validity: { from: "1917-05-01", until: null },
   },
   {
     act: "plazo_procesal",
     label: "plazo o término procesal",
+    aliases: ["término", "vencimiento", "caducidad"],
     re: /(plazo de \d|termino de \d|dentro de los \d{1,3} dias|vence el|caducidad|prescripcion|preclusion|surte efectos)/,
+    authorities: [
+      { authority_id: "cpeum", relevance_weight: 0.9 },
+      { authority_id: "jurisprudencia_scjn", relevance_weight: 0.6 },
+    ],
+    validity: { from: "1917-05-01", until: null },
   },
   {
     act: "promocion_presentada",
     label: "promoción presentada",
+    aliases: ["escrito inicial", "demanda", "denuncia"],
     re: /(escrito inicial|se present[oó] (?:la )?(?:demanda|denuncia|promocion|solicitud|recurso)|demanda presentada|por presentado)/,
+    authorities: [{ authority_id: "cpeum", relevance_weight: 0.95 }],
+    validity: { from: "1917-05-01", until: null },
   },
   {
     act: "acuerdo_dictado",
     label: "acuerdo o proveído dictado",
+    aliases: ["auto", "proveído", "acuerdo"],
     re: /(auto de radicacion|se admite a tramite|acuerdo de fecha|proveido|se dicta auto|auto admisorio)/,
+    authorities: [{ authority_id: "cpeum", relevance_weight: 0.9 }],
+    validity: { from: "1917-05-01", until: null },
   },
+
   {
     act: "audiencia_celebrada",
     label: "audiencia celebrada",
@@ -1468,3 +1513,35 @@ export const SUPPORTED_MATERIAS: string[] = Object.keys(MATERIA_LAYERS);
 
 /** Canonical materias, re-exported so parity tests can assert full coverage. */
 export const CANONICAL_MATERIAS: readonly MexicanCaseType[] = MX_CASE_TYPES;
+
+// ---------------------------------------------------------------------------
+// Authority layer (data only)
+//
+// Acts declare their authoritative context inline via `authorities`. Nothing
+// here is state-duplicated: state-level instruments are generic entries in
+// src/lib/legal/authority-registry.ts and are bound to a concrete entidad
+// federativa by the jurisdiction resolver.
+// ---------------------------------------------------------------------------
+
+const ACT_RULE_INDEX: Record<ActKey, ActRule> = (() => {
+  const out: Record<string, ActRule> = {};
+  for (const layers of [[UNIVERSAL_LEXICON], ...Object.values(MATERIA_LAYERS)]) {
+    for (const l of layers) for (const a of l.acts) out[a.act] ??= a;
+  }
+  return out;
+})();
+
+/** Authority references declared for an act (empty when none are declared). */
+export function actAuthorityRefs(act: ActKey): readonly ActAuthorityRef[] {
+  return ACT_RULE_INDEX[act]?.authorities ?? [];
+}
+
+/** Declared validity window of an act, when the registry states one. */
+export function actValidity(act: ActKey): ActValidity | undefined {
+  return ACT_RULE_INDEX[act]?.validity;
+}
+
+/** Attorney-facing aliases declared for an act. */
+export function actAliases(act: ActKey): readonly string[] {
+  return ACT_RULE_INDEX[act]?.aliases ?? [];
+}
