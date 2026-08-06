@@ -76,6 +76,7 @@ import { Route as AuthenticatedAdminResetRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminPipelineLedgerRouteImport } from './routes/_authenticated/admin.pipeline-ledger'
 import { Route as AuthenticatedAdminLegalKnowledgeRouteImport } from './routes/_authenticated/admin.legal-knowledge'
 import { Route as AuthenticatedAdminLegalCoverageRouteImport } from './routes/_authenticated/admin.legal-coverage'
+import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin.feedback'
 import { Route as AuthenticatedAdminDemoCasesRouteImport } from './routes/_authenticated/admin.demo-cases'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin.billing'
 import { Route as AuthenticatedAdminBetaRouteImport } from './routes/_authenticated/admin.beta'
@@ -429,6 +430,12 @@ const AuthenticatedAdminLegalCoverageRoute =
     path: '/legal-coverage',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminFeedbackRoute =
+  AuthenticatedAdminFeedbackRouteImport.update({
+    id: '/feedback',
+    path: '/feedback',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminDemoCasesRoute =
   AuthenticatedAdminDemoCasesRouteImport.update({
     id: '/demo-cases',
@@ -553,6 +560,7 @@ export interface FileRoutesByFullPath {
   '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
@@ -631,6 +639,7 @@ export interface FileRoutesByTo {
   '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
@@ -712,6 +721,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/demo-cases': typeof AuthenticatedAdminDemoCasesRoute
+  '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/admin/legal-coverage': typeof AuthenticatedAdminLegalCoverageRoute
   '/_authenticated/admin/legal-knowledge': typeof AuthenticatedAdminLegalKnowledgeRoute
   '/_authenticated/admin/pipeline-ledger': typeof AuthenticatedAdminPipelineLedgerRoute
@@ -793,6 +803,7 @@ export interface FileRouteTypes {
     | '/admin/beta'
     | '/admin/billing'
     | '/admin/demo-cases'
+    | '/admin/feedback'
     | '/admin/legal-coverage'
     | '/admin/legal-knowledge'
     | '/admin/pipeline-ledger'
@@ -871,6 +882,7 @@ export interface FileRouteTypes {
     | '/admin/beta'
     | '/admin/billing'
     | '/admin/demo-cases'
+    | '/admin/feedback'
     | '/admin/legal-coverage'
     | '/admin/legal-knowledge'
     | '/admin/pipeline-ledger'
@@ -951,6 +963,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/beta'
     | '/_authenticated/admin/billing'
     | '/_authenticated/admin/demo-cases'
+    | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/legal-coverage'
     | '/_authenticated/admin/legal-knowledge'
     | '/_authenticated/admin/pipeline-ledger'
@@ -1485,6 +1498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminLegalCoverageRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/feedback': {
+      id: '/_authenticated/admin/feedback'
+      path: '/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/demo-cases': {
       id: '/_authenticated/admin/demo-cases'
       path: '/demo-cases'
@@ -1570,6 +1590,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBetaRoute: typeof AuthenticatedAdminBetaRoute
   AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminDemoCasesRoute: typeof AuthenticatedAdminDemoCasesRoute
+  AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedAdminLegalCoverageRoute: typeof AuthenticatedAdminLegalCoverageRoute
   AuthenticatedAdminLegalKnowledgeRoute: typeof AuthenticatedAdminLegalKnowledgeRoute
   AuthenticatedAdminPipelineLedgerRoute: typeof AuthenticatedAdminPipelineLedgerRoute
@@ -1584,6 +1605,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBetaRoute: AuthenticatedAdminBetaRoute,
   AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminDemoCasesRoute: AuthenticatedAdminDemoCasesRoute,
+  AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
   AuthenticatedAdminLegalCoverageRoute: AuthenticatedAdminLegalCoverageRoute,
   AuthenticatedAdminLegalKnowledgeRoute: AuthenticatedAdminLegalKnowledgeRoute,
   AuthenticatedAdminPipelineLedgerRoute: AuthenticatedAdminPipelineLedgerRoute,
