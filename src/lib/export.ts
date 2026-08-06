@@ -51,7 +51,12 @@ import {
   ShadingType,
   PageBreak,
 } from "docx";
-import { rt, setReportTemplateLocale, resolveReportLocale, getReportTemplateLocale } from "./report-i18n";
+import {
+  rt,
+  setReportTemplateLocale,
+  resolveReportLocale,
+  getReportTemplateLocale,
+} from "./report-i18n";
 import { MX_DOMAINS } from "./intelligence/mx-coverage";
 import {
   ATTORNEY_GROUPS,
@@ -99,7 +104,10 @@ import { getApplicableSections, normalizePracticeArea } from "@/lib/intelligence
 // (src/components/LitigationImpactDashboard.tsx) — single source of truth
 // so the PDF/DOCX export and the live report can never disagree about
 // what a card says or which cards exist for a given case.
-import { buildLitigationImpactDashboard, type ImpactCard } from "@/lib/intelligence/litigation-impact";
+import {
+  buildLitigationImpactDashboard,
+  type ImpactCard,
+} from "@/lib/intelligence/litigation-impact";
 import { MX_PARTY_ROLES, resolveMxProfile, mxRoleLabel } from "@/lib/execution/mx-pipeline";
 
 // Report Engine v1.0 — frozen release identifier surfaced on every PDF footer.
@@ -117,8 +125,9 @@ const BRAND_CYAN: [number, number, number] = [216, 179, 106];
 // Product". When false (default), the report renders as a neutral analytical
 // document with no privileged-work-product framing.
 const LEGAL_MODE: boolean =
-  ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_LEGAL_MODE ?? "false").toLowerCase() ===
-  "true";
+  (
+    (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_LEGAL_MODE ?? "false"
+  ).toLowerCase() === "true";
 
 // PDF-safe text scrubber. jsPDF's bundled Helvetica is a WinAnsi (Latin-1)
 // font; characters like Σ, ×, ≥, → render as garbage glyphs (e.g. "£("). We
@@ -488,7 +497,9 @@ function evidenceStrengthLabel(
 function findingSourceCount(refs: Array<Record<string, unknown>>): number {
   if (!refs.length) return 0;
   const ids = new Set(
-    refs.map((r) => asStr(r.document_id ?? r.doc_id ?? r.filename ?? r.doc_n) || Math.random().toString()),
+    refs.map(
+      (r) => asStr(r.document_id ?? r.doc_id ?? r.filename ?? r.doc_n) || Math.random().toString(),
+    ),
   );
   return ids.size;
 }
@@ -599,7 +610,8 @@ export function deriveCertificationState(data: CaseExportData): CertificationSta
 }
 
 const CERTIFICATION_TAGLINE: Record<CertificationState, string> = {
-  verified: "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.",
+  verified:
+    "Evidence-grounded. Citation-audited. Built for sensitive legal intelligence workflows.",
   unverified: "Draft — citation verification not passed. Attorney review required before reliance.",
 };
 
@@ -642,7 +654,6 @@ const SECTION_KICKERS: Record<string, string> = {
 };
 
 class PdfBuilder {
-
   doc: Pdf;
   // 0.75 inch margins (54pt) per professional memorandum standard.
   margin = 54;
@@ -686,7 +697,10 @@ class PdfBuilder {
     // stamps render in the report's language instead of hardcoded English.
     const prep = (s: string) => pdfSafe(rt(s));
     const origText = this.doc.text.bind(this.doc);
-    (this.doc as unknown as { text: (...a: unknown[]) => unknown }).text = (text: unknown, ...rest: unknown[]) => {
+    (this.doc as unknown as { text: (...a: unknown[]) => unknown }).text = (
+      text: unknown,
+      ...rest: unknown[]
+    ) => {
       const safe =
         typeof text === "string"
           ? prep(text)
@@ -710,7 +724,9 @@ class PdfBuilder {
     // on it. Wrapping addPage is the only hook that catches all of them —
     // a post-pass would paint over the content instead of behind it.
     const origAddPage = this.doc.addPage.bind(this.doc);
-    (this.doc as unknown as { addPage: (...a: unknown[]) => unknown }).addPage = (...args: unknown[]) => {
+    (this.doc as unknown as { addPage: (...a: unknown[]) => unknown }).addPage = (
+      ...args: unknown[]
+    ) => {
       const res = (origAddPage as unknown as (...a: unknown[]) => unknown)(...args);
       const fill = this.doc.getFillColor?.();
       this.doc.setFillColor(...PAGE_BG);
@@ -823,16 +839,40 @@ class PdfBuilder {
     const quadTo = (qvx: number, qvy: number, evx: number, evy: number) => {
       const q: [number, number] = [toX(qvx), toY(qvy)];
       const e: [number, number] = [toX(evx), toY(evy)];
-      const c1: [number, number] = [cur[0] + (2 / 3) * (q[0] - cur[0]), cur[1] + (2 / 3) * (q[1] - cur[1])];
+      const c1: [number, number] = [
+        cur[0] + (2 / 3) * (q[0] - cur[0]),
+        cur[1] + (2 / 3) * (q[1] - cur[1]),
+      ];
       const c2: [number, number] = [e[0] + (2 / 3) * (q[0] - e[0]), e[1] + (2 / 3) * (q[1] - e[1])];
-      segs.push([c1[0] - cur[0], c1[1] - cur[1], c2[0] - cur[0], c2[1] - cur[1], e[0] - cur[0], e[1] - cur[1]]);
+      segs.push([
+        c1[0] - cur[0],
+        c1[1] - cur[1],
+        c2[0] - cur[0],
+        c2[1] - cur[1],
+        e[0] - cur[0],
+        e[1] - cur[1],
+      ]);
       cur = e;
     };
-    const curveTo = (c1vx: number, c1vy: number, c2vx: number, c2vy: number, evx: number, evy: number) => {
+    const curveTo = (
+      c1vx: number,
+      c1vy: number,
+      c2vx: number,
+      c2vy: number,
+      evx: number,
+      evy: number,
+    ) => {
       const c1: [number, number] = [toX(c1vx), toY(c1vy)];
       const c2: [number, number] = [toX(c2vx), toY(c2vy)];
       const e: [number, number] = [toX(evx), toY(evy)];
-      segs.push([c1[0] - cur[0], c1[1] - cur[1], c2[0] - cur[0], c2[1] - cur[1], e[0] - cur[0], e[1] - cur[1]]);
+      segs.push([
+        c1[0] - cur[0],
+        c1[1] - cur[1],
+        c2[0] - cur[0],
+        c2[1] - cur[1],
+        e[0] - cur[0],
+        e[1] - cur[1],
+      ]);
       cur = e;
     };
 
@@ -935,9 +975,14 @@ class PdfBuilder {
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(8.4);
     this.doc.setTextColor(...ACCENT);
-    this.doc.text("C A S E   I N T E L L I G E N C E   R E P O R T", pageW / 2, pageH * 0.34 + 136, {
-      align: "center",
-    });
+    this.doc.text(
+      "C A S E   I N T E L L I G E N C E   R E P O R T",
+      pageW / 2,
+      pageH * 0.34 + 136,
+      {
+        align: "center",
+      },
+    );
 
     // Case title + party subtitle. Long matter names commonly carry the
     // parties inline ("X vs. Y"); splitting them lets the cover read as
@@ -1007,7 +1052,12 @@ class PdfBuilder {
 
     // Metadata columns, separated by pale gold verticals
     const footTop = pageH - 112;
-    const col = (label: string, value: string, x: number, align: "left" | "center" | "right" = "left") => {
+    const col = (
+      label: string,
+      value: string,
+      x: number,
+      align: "left" | "center" | "right" = "left",
+    ) => {
       this.doc.setFont("helvetica", "bold");
       this.doc.setFontSize(7.2);
       this.doc.setTextColor(...ACCENT);
@@ -1021,8 +1071,18 @@ class PdfBuilder {
     this.doc.setLineWidth(0.4);
     const sepTop = footTop - 9;
     const sepBottom = footTop + 19;
-    this.doc.line(margin + (pageW / 2 - margin) * 0.52, sepTop, margin + (pageW / 2 - margin) * 0.52, sepBottom);
-    this.doc.line(pageW - margin - (pageW / 2 - margin) * 0.52, sepTop, pageW - margin - (pageW / 2 - margin) * 0.52, sepBottom);
+    this.doc.line(
+      margin + (pageW / 2 - margin) * 0.52,
+      sepTop,
+      margin + (pageW / 2 - margin) * 0.52,
+      sepBottom,
+    );
+    this.doc.line(
+      pageW - margin - (pageW / 2 - margin) * 0.52,
+      sepTop,
+      pageW - margin - (pageW / 2 - margin) * 0.52,
+      sepBottom,
+    );
     col("Generated", new Date().toLocaleString(), margin);
     if (opts.matterId) col("Matter ID", opts.matterId, pageW / 2, "center");
     col("Classification", "Confidential", pageW - margin, "right");
@@ -1041,7 +1101,10 @@ class PdfBuilder {
 
   // Grid of compact stat cards (replaces the old plain label/value rows on
   // the cover). `cols` per row; each card gets a bold value + small caption.
-  statCards(items: Array<{ label: string; value: string; color?: [number, number, number] }>, cols = 3) {
+  statCards(
+    items: Array<{ label: string; value: string; color?: [number, number, number] }>,
+    cols = 3,
+  ) {
     // Hard cap at four columns: past that, a Letter-width card is narrower
     // than the Spanish labels it has to carry ("Documentos Analizados",
     // "Recomendaciones") and both label and value start truncating.
@@ -1076,7 +1139,9 @@ class PdfBuilder {
         this.doc.setFontSize(7);
         this.doc.setTextColor(...MUTED);
         const labelMaxW = w - padX - 12;
-        const labelLines = (this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[]).slice(0, 2);
+        const labelLines = (
+          this.doc.splitTextToSize(cardLabel.toUpperCase(), labelMaxW) as string[]
+        ).slice(0, 2);
         let ly = yy + 16;
         for (const line of labelLines) {
           this.doc.text(line, x + padX, ly);
@@ -1237,7 +1302,13 @@ class PdfBuilder {
   // a heading). Returns the pill width in case the caller wants to lay
   // out something else beside it.
 
-  pill(text: string, x: number, y: number, color: [number, number, number], align: "left" | "right" = "left"): number {
+  pill(
+    text: string,
+    x: number,
+    y: number,
+    color: [number, number, number],
+    align: "left" | "right" = "left",
+  ): number {
     if (!text) return 0;
     const label = text.toUpperCase();
     this.doc.setFont("helvetica", "bold");
@@ -1310,7 +1381,10 @@ class PdfBuilder {
     this.y += 16;
   }
 
-  text(value: string, opts: { size?: number; bold?: boolean; color?: [number, number, number]; gap?: number } = {}) {
+  text(
+    value: string,
+    opts: { size?: number; bold?: boolean; color?: [number, number, number]; gap?: number } = {},
+  ) {
     const size = opts.size ?? 10.5;
     // Generous leading (~1.55) so body copy reads like an editorial
     // briefing rather than a data table. Paragraph gaps are proportional
@@ -1399,7 +1473,6 @@ class PdfBuilder {
     this.sectionTitle(kicker ?? SECTION_KICKERS[label] ?? label, label);
   }
 
-
   h2(label: string) {
     // Quiet subsection header: uppercase small-caps label with a hairline
     // rule beneath it, no filled tinted bar. Reads as editorial, not as
@@ -1449,7 +1522,9 @@ class PdfBuilder {
   // gauges on the cover page, but rendered here as a slim card strip
   // (label + numeric value + mini bar) so the reader isn't hit with a
   // second big-graphic repeat of the same figures one page later.
-  compactScoreStrip(items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>) {
+  compactScoreStrip(
+    items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>,
+  ) {
     if (!items.length) return;
     const h = 38;
     this.ensureSpace(h + 18);
@@ -1526,7 +1601,15 @@ class PdfBuilder {
   // Headline meter — large number, small caption, thin progress bar.
   // Refined for premium feel: hairline border only, generous internal
   // whitespace, minimal bar height. The score is the focal point.
-  meter(x: number, y: number, w: number, label: string, value: number, max: number, color: [number, number, number]) {
+  meter(
+    x: number,
+    y: number,
+    w: number,
+    label: string,
+    value: number,
+    max: number,
+    color: [number, number, number],
+  ) {
     const h = 60;
     this.doc.setDrawColor(230, 233, 238);
     this.doc.setLineWidth(0.5);
@@ -1567,7 +1650,9 @@ class PdfBuilder {
   // boxes for Case Strength / Risk Score — these are the two most
   // important numbers in the report and merit real graphical treatment
   // rather than a bare label/value line.
-  meterPair(items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>) {
+  meterPair(
+    items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>,
+  ) {
     if (!items.length) return;
     const h = 60;
     this.ensureSpace(h + 20);
@@ -1649,7 +1734,10 @@ class PdfBuilder {
 
   // Row of side-by-side radial gauges — the circular counterpart to
   // meterPair(), used on the new Executive Intelligence Dashboard page.
-  gaugeRow(items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>, radius = 28) {
+  gaugeRow(
+    items: Array<{ label: string; value: number; max?: number; color: [number, number, number] }>,
+    radius = 28,
+  ) {
     if (!items.length) return;
     const rowH = radius * 2 + 36;
     this.ensureSpace(rowH + 12);
@@ -1890,7 +1978,10 @@ class PdfBuilder {
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(10.5);
       this.doc.setTextColor(...PRIMARY);
-      const lines = this.doc.splitTextToSize(`•  ${it}`, this.pageW - this.margin * 2 - 12) as string[];
+      const lines = this.doc.splitTextToSize(
+        `•  ${it}`,
+        this.pageW - this.margin * 2 - 12,
+      ) as string[];
       for (const line of lines) {
         this.ensureSpace(14);
         this.doc.text(line, this.margin + 6, this.y);
@@ -1950,7 +2041,9 @@ class PdfBuilder {
       this.doc.setTextColor(...ACCENT_SOFT);
       const rightLabel = `${this.matterId}   ·   ${i} / ${pageCount}`;
       const rightMaxW = this.pageW - this.margin * 2 - (textX - this.margin) - 150;
-      const fitted = (this.doc.splitTextToSize(rightLabel, Math.max(80, rightMaxW)) as string[])[0] ?? rightLabel;
+      const fitted =
+        (this.doc.splitTextToSize(rightLabel, Math.max(80, rightMaxW)) as string[])[0] ??
+        rightLabel;
       this.doc.text(fitted, this.pageW - this.margin, markCy + 3, { align: "right" });
 
       this.doc.setDrawColor(...LINE);
@@ -1980,11 +2073,10 @@ class PdfBuilder {
     this.doc.setTextColor(...MUTED);
     const suffix = getReportTemplateLocale() === "en" ? "(continued)" : "(continuación)";
     const label = `${sectionName} ${suffix}`;
-    const fitted = (this.doc.splitTextToSize(label, this.pageW - this.margin * 2) as string[])[0] ?? label;
+    const fitted =
+      (this.doc.splitTextToSize(label, this.pageW - this.margin * 2) as string[])[0] ?? label;
     this.doc.text(fitted, this.margin, y);
   }
-
-
 
   footer(meta: { parity: string; ess: string; generatedAt: string } | null) {
     const pageCount = this.doc.getNumberOfPages();
@@ -2009,11 +2101,16 @@ class PdfBuilder {
       // "Page i / N" zone on the right.
       const brandLine = `Nyrava Legal Intelligence  ·  nyrava.com  ·  ${this.caseName}`;
       const brandMaxW = this.pageW - this.margin * 2 - pageLabelW;
-      const brandFitted = (this.doc.splitTextToSize(brandLine, brandMaxW) as string[])[0] ?? brandLine;
+      const brandFitted =
+        (this.doc.splitTextToSize(brandLine, brandMaxW) as string[])[0] ?? brandLine;
       this.doc.text(brandFitted, this.margin, this.pageH - 30);
-      this.doc.text(`Page ${i} / ${pageCount}`, this.pageW - this.margin, this.pageH - 30, { align: "right" });
+      this.doc.text(`Page ${i} / ${pageCount}`, this.pageW - this.margin, this.pageH - 30, {
+        align: "right",
+      });
       if (LEGAL_MODE)
-        this.doc.text("Confidential Attorney Work Product", this.pageW / 2, this.pageH - 30, { align: "center" });
+        this.doc.text("Confidential Attorney Work Product", this.pageW / 2, this.pageH - 30, {
+          align: "center",
+        });
       if (meta && _citationMode === "audit") {
         this.doc.setFontSize(7);
         const stamp = `parity ${meta.parity}  ·  ESS ${meta.ess}  ·  ${meta.generatedAt}  ·  NYRAVA v${NYRAVA_REPORT_VERSION}`;
@@ -2060,7 +2157,9 @@ class PdfBuilder {
     this.doc.setFontSize(8.5);
     this.doc.setTextColor(...MUTED);
     const generatedLabel = new Date(meta.generatedAt).toLocaleString();
-    this.doc.text(`Generado ${generatedLabel}  ·  Motor v${NYRAVA_REPORT_VERSION}`, cx, yy, { align: "center" });
+    this.doc.text(`Generado ${generatedLabel}  ·  Motor v${NYRAVA_REPORT_VERSION}`, cx, yy, {
+      align: "center",
+    });
     yy += 34;
     // Standing disclaimer, boxed for visual weight commensurate with what
     // it's saying — this should not read as fine print.
@@ -2129,7 +2228,8 @@ function renderCover(
 
   // === Executive Intelligence Dashboard ===
   const scores = getScores(getReportRow(data));
-  const hasScores = mode !== "LIMITED" && typeof scores.strength === "number" && typeof scores.risk === "number";
+  const hasScores =
+    mode !== "LIMITED" && typeof scores.strength === "number" && typeof scores.risk === "number";
 
   if (hasScores) {
     const strength = scores.strength as number;
@@ -2146,10 +2246,15 @@ function renderCover(
     // below never fired. Same class of bug found and fixed elsewhere
     // this session (practice-areas.ts's UNIVERSAL_FINDING_MODULES,
     // export.ts's own isCriminal check a few hundred lines down).
-    const isCriminal = caseType === "penal" || caseType === "criminal" || caseType === "civil_rights";
+    const isCriminal =
+      caseType === "penal" || caseType === "criminal" || caseType === "civil_rights";
 
     const riskLevel = risk >= 60 ? "Riesgo Alto" : risk >= 35 ? "Riesgo Moderado" : "Riesgo Bajo";
-    const advantage = isCriminal ? (strength < 50 ? "Ventaja de la Defensa" : "Ventaja del Ministerio Público") : "";
+    const advantage = isCriminal
+      ? strength < 50
+        ? "Ventaja de la Defensa"
+        : "Ventaja del Ministerio Público"
+      : "";
     const headline = advantage ? `${riskLevel} — ${advantage}` : riskLevel;
     const strengthCaption = isCriminal
       ? `Fortaleza del caso ${strength} / 100 (caso del Ministerio Público; un valor menor favorece a la defensa)  ·  Puntuación de riesgo ${risk} / 100`
@@ -2169,7 +2274,8 @@ function renderCover(
       .sort((fa, fb) => (order[asStr(fa.severity)] ?? 9) - (order[asStr(fb.severity)] ?? 9))
       .slice(0, 5);
     b.h2(rt("Top Findings"));
-    for (const f of top) b.findingChip(asStr(f.severity), asStr(f.title), Number(f.confidence ?? 0));
+    for (const f of top)
+      b.findingChip(asStr(f.severity), asStr(f.title), Number(f.confidence ?? 0));
     b.y += 14;
   }
 
@@ -2184,16 +2290,22 @@ function renderCover(
   cards.push({ label: "Findings", value: String(counters.rendered) });
   const constitutionalCount = asArr(r.constitutional_issues_struct).length;
   if (constitutionalCount > 0)
-    cards.push({ label: "Constitutional Issues", value: String(constitutionalCount), color: DANGER });
+    cards.push({
+      label: "Constitutional Issues",
+      value: String(constitutionalCount),
+      color: DANGER,
+    });
   const missingCount = asArr(r.missing_evidence_struct).length;
-  if (missingCount > 0) cards.push({ label: "Missing Evidence", value: String(missingCount), color: ACCENT });
+  if (missingCount > 0)
+    cards.push({ label: "Missing Evidence", value: String(missingCount), color: ACCENT });
   if (agentSummary.loaded > 0) {
     cards.push({
       label: "Agents Producing Output",
       value: `${agentSummary.producingOutput} / ${agentSummary.loaded}`,
     });
   }
-  if (r.intelligence_version) cards.push({ label: "Engine Version", value: asStr(r.intelligence_version) });
+  if (r.intelligence_version)
+    cards.push({ label: "Engine Version", value: asStr(r.intelligence_version) });
 
   b.statCards(cards, 4);
 
@@ -2263,15 +2375,23 @@ function jurisdictionIntelRows(data: CaseExportData): Array<[string, string]> {
   const procedure = asStr(jp.fuero) || notDetermined();
   const courts = asArr(jp.courts as unknown as Array<Record<string, unknown>>);
   const court =
-    (Array.isArray(jp.courts) && (jp.courts as unknown[]).length > 0 ? String((jp.courts as unknown[])[0]) : "") ||
-    notDetermined();
-  const substantive = Array.isArray(jp.substantive_codes) ? (jp.substantive_codes as unknown[]) : [];
+    (Array.isArray(jp.courts) && (jp.courts as unknown[]).length > 0
+      ? String((jp.courts as unknown[])[0])
+      : "") || notDetermined();
+  const substantive = Array.isArray(jp.substantive_codes)
+    ? (jp.substantive_codes as unknown[])
+    : [];
   const procedural = Array.isArray(jp.procedural_codes) ? (jp.procedural_codes as unknown[]) : [];
-  const applicableLaw = [...substantive, ...procedural].map(String).filter(Boolean).join("; ") || notDetermined();
-  const constitutional = Array.isArray(jp.constitutional_basis) ? (jp.constitutional_basis as unknown[]) : [];
+  const applicableLaw =
+    [...substantive, ...procedural].map(String).filter(Boolean).join("; ") || notDetermined();
+  const constitutional = Array.isArray(jp.constitutional_basis)
+    ? (jp.constitutional_basis as unknown[])
+    : [];
   const jurisprudence = constitutional.map(String).filter(Boolean).join("; ") || notDetermined();
   const currentStage =
-    asStr(current.label_es) || asStr(stageMap.next && asObj(stageMap.next).label_es) || notDetermined();
+    asStr(current.label_es) ||
+    asStr(stageMap.next && asObj(stageMap.next).label_es) ||
+    notDetermined();
   void courts;
 
   return [
@@ -2294,10 +2414,17 @@ function renderJurisdictionIntelligence(b: PdfBuilder, data: CaseExportData) {
 function jurisdictionIntelDocxParas(data: CaseExportData): Paragraph[] {
   const rows = jurisdictionIntelRows(data);
   const out: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Jurisdiction Intelligence")] }),
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun("Jurisdiction Intelligence")],
+    }),
   ];
   for (const [label, value] of rows) {
-    out.push(new Paragraph({ children: [new TextRun({ text: `${label}: `, bold: true }), new TextRun(value)] }));
+    out.push(
+      new Paragraph({
+        children: [new TextRun({ text: `${label}: `, bold: true }), new TextRun(value)],
+      }),
+    );
   }
   return out;
 }
@@ -2306,17 +2433,45 @@ function jurisdictionIntelDocxParas(data: CaseExportData): Paragraph[] {
 // analysis. Strengths, weaknesses, critical and missing evidence,
 // procedural concerns and the suggested review order, all derived from
 // verified findings and the real document inventory.
-function snapshotBlocks(data: CaseExportData): Array<{ title: string; items: string[]; empty: string }> {
+function snapshotBlocks(
+  data: CaseExportData,
+): Array<{ title: string; items: string[]; empty: string }> {
   const wpCtx = workProductContext(data);
   const wpFindings = (data.findings ?? []).map((f) => findingWithResolvedRefs(f));
   const s = buildCaseSnapshot(wpFindings, wpCtx);
   return [
-    { title: "Fortalezas del Expediente", items: s.strengths, empty: "No se identificaron hallazgos sustentados por dos o más documentos de alto valor probatorio." },
-    { title: "Debilidades del Expediente", items: s.weaknesses, empty: "No se identificaron hallazgos con soporte documental limitado." },
-    { title: "Evidencia Crítica", items: s.criticalEvidence, empty: "El corpus no contiene documentos públicos, resoluciones, documentos certificados ni dictámenes periciales." },
-    { title: "Evidencia Faltante", items: s.missingEvidence, empty: "No se detectó documentación faltante con base en el inventario actual." },
-    { title: "Aspectos Procesales a Vigilar", items: s.proceduralConcerns, empty: "No se identificaron hallazgos de naturaleza procesal." },
-    { title: "Orden de Revisión Prioritaria", items: s.priorityReview, empty: "No hay hallazgos priorizados." },
+    {
+      title: "Fortalezas del Expediente",
+      items: s.strengths,
+      empty:
+        "No se identificaron hallazgos sustentados por dos o más documentos de alto valor probatorio.",
+    },
+    {
+      title: "Debilidades del Expediente",
+      items: s.weaknesses,
+      empty: "No se identificaron hallazgos con soporte documental limitado.",
+    },
+    {
+      title: "Evidencia Crítica",
+      items: s.criticalEvidence,
+      empty:
+        "El corpus no contiene documentos públicos, resoluciones, documentos certificados ni dictámenes periciales.",
+    },
+    {
+      title: "Evidencia Faltante",
+      items: s.missingEvidence,
+      empty: "No se detectó documentación faltante con base en el inventario actual.",
+    },
+    {
+      title: "Aspectos Procesales a Vigilar",
+      items: s.proceduralConcerns,
+      empty: "No se identificaron hallazgos de naturaleza procesal.",
+    },
+    {
+      title: "Orden de Revisión Prioritaria",
+      items: s.priorityReview,
+      empty: "No hay hallazgos priorizados.",
+    },
   ];
 }
 
@@ -2336,12 +2491,18 @@ function renderCaseSnapshot(b: PdfBuilder, data: CaseExportData) {
 
 function caseSnapshotDocxParas(data: CaseExportData): Paragraph[] {
   const out: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Instantánea del Expediente")] }),
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun("Instantánea del Expediente")],
+    }),
   ];
   for (const block of snapshotBlocks(data)) {
-    out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(block.title)] }));
+    out.push(
+      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(block.title)] }),
+    );
     if (block.items.length) {
-      for (const item of block.items) out.push(new Paragraph({ children: [new TextRun(`• ${item}`)] }));
+      for (const item of block.items)
+        out.push(new Paragraph({ children: [new TextRun(`• ${item}`)] }));
     } else {
       out.push(new Paragraph({ children: [new TextRun(block.empty)] }));
     }
@@ -2350,7 +2511,6 @@ function caseSnapshotDocxParas(data: CaseExportData): Paragraph[] {
 }
 
 function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) {
-
   const r = asObj(data.report);
   const execLocale = resolveReportLocale(data.report, data.case);
   b.h1(execLocale === "en" ? "Executive Summary" : "Resumen Ejecutivo");
@@ -2387,7 +2547,9 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     const conf = asStr(objective.confidence);
     if (conf) {
       b.text(
-        execLocale === "en" ? `Confidence in this answer: ${conf}.` : `Confianza en esta respuesta: ${conf}.`,
+        execLocale === "en"
+          ? `Confidence in this answer: ${conf}.`
+          : `Confianza en esta respuesta: ${conf}.`,
         { size: 10, color: MUTED, gap: 6 },
       );
     }
@@ -2397,19 +2559,23 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
       for (const raw of dps.slice(0, 8)) {
         const dp = asObj(raw) as Record<string, unknown>;
         b.text(`• ${asStr(dp.issue)}`, { size: 11, gap: 2 });
-        b.text(
-          `${execLocale === "en" ? "Why it matters" : "Por qué importa"}: ${asStr(dp.why)}`,
-          { size: 10, color: MUTED, gap: 2 },
-        );
+        b.text(`${execLocale === "en" ? "Why it matters" : "Por qué importa"}: ${asStr(dp.why)}`, {
+          size: 10,
+          color: MUTED,
+          gap: 2,
+        });
         b.text(`${execLocale === "en" ? "Impact" : "Impacto"}: ${asStr(dp.impact)}`, {
           size: 10,
           color: MUTED,
           gap: 2,
         });
-        b.text(`${execLocale === "en" ? "Next action" : "Siguiente acción"}: ${asStr(dp.next_action)}`, {
-          size: 10,
-          gap: 6,
-        });
+        b.text(
+          `${execLocale === "en" ? "Next action" : "Siguiente acción"}: ${asStr(dp.next_action)}`,
+          {
+            size: 10,
+            gap: 6,
+          },
+        );
       }
     }
   }
@@ -2436,8 +2602,6 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     }
   }
 
-
-
   // Read scores through canonical.ts, not the raw row. getScores() also
   // honors ESS suppression, which r.case_strength_score alone does not.
   // Uses gaugeRow — the SAME circular gauge widget the cover page uses for
@@ -2449,9 +2613,17 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
   const scores = getScores(getReportRow(data));
   const gauges: Array<{ label: string; value: number; color: [number, number, number] }> = [];
   if (typeof scores.strength === "number")
-    gauges.push({ label: rt("Case Strength"), value: scores.strength, color: b.scoreColor(scores.strength) });
+    gauges.push({
+      label: rt("Case Strength"),
+      value: scores.strength,
+      color: b.scoreColor(scores.strength),
+    });
   if (typeof scores.risk === "number")
-    gauges.push({ label: rt("Risk Score"), value: scores.risk, color: b.scoreColor(scores.risk, true) });
+    gauges.push({
+      label: rt("Risk Score"),
+      value: scores.risk,
+      color: b.scoreColor(scores.risk, true),
+    });
   // Compact horizontal strip — the cover page already renders these same
   // numbers as prominent radial gauges. Repeating a second large radial
   // widget one page later was pure visual repetition; the compact strip
@@ -2512,7 +2684,10 @@ function eligibleWorkProduct(data: CaseExportData): Array<Record<string, unknown
 // into "Additional" so the summary dashboard always adds up to the total
 // count of recommended motions, regardless of how finely the model graded
 // priority.
-function motionPriorityBucket(m: Record<string, unknown>): { label: string; color: [number, number, number] } {
+function motionPriorityBucket(m: Record<string, unknown>): {
+  label: string;
+  color: [number, number, number];
+} {
   const p = Number(m.priority);
   if (p === 1) return { label: "CRITICAL", color: DANGER };
   if (p === 2) return { label: "HIGH", color: ACCENT };
@@ -2524,7 +2699,10 @@ function motionPriorityBucket(m: Record<string, unknown>): { label: string; colo
 // not a numeric probability. Map it to a representative percentage so it
 // can drive a real progress bar — the number is illustrative of the bucket,
 // never presented as a precise model-computed probability.
-function likelihoodPercent(m: Record<string, unknown>): { pct: number; bucket: "high" | "medium" | "low" } {
+function likelihoodPercent(m: Record<string, unknown>): {
+  pct: number;
+  bucket: "high" | "medium" | "low";
+} {
   const raw = (asStr(m.likelihood_of_success) || asStr(m.likely_outcome)).toLowerCase();
   if (raw.includes("high")) return { pct: 85, bucket: "high" };
   if (raw.includes("low")) return { pct: 35, bucket: "low" };
@@ -2545,7 +2723,8 @@ function motionIntelligenceStatus(
   });
   if (matched) return { label: "Ready in Motion Intelligence", color: SUCCESS };
   if (asStr(m.draft_outline).trim().length > 40) return { label: "Draft Available", color: ACCENT };
-  if (asArr(m.elements).length || asStr(m.legal_rationale)) return { label: "Requires Attorney Review", color: MUTED };
+  if (asArr(m.elements).length || asStr(m.legal_rationale))
+    return { label: "Requires Attorney Review", color: MUTED };
   return { label: "Not Yet Generated", color: MUTED };
 }
 
@@ -2560,7 +2739,9 @@ function motionEvidenceBullets(m: Record<string, unknown>): string[] {
       .map((c) => {
         const quote = asStr(c.quote).trim();
         const label = citeLabel(c.doc_n, c.page);
-        return quote ? `"${quote.slice(0, 140)}${quote.length > 140 ? "…" : ""}" — ${label}` : label;
+        return quote
+          ? `"${quote.slice(0, 140)}${quote.length > 140 ? "…" : ""}" — ${label}`
+          : label;
       })
       .filter(Boolean);
   }
@@ -2653,7 +2834,10 @@ function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
     // page boundary partway through a motion.
     b.doc.setFont("helvetica", "bold");
     b.doc.setFontSize(13);
-    const titleLines = b.doc.splitTextToSize(asStr(m.motion), b.pageW - b.margin * 2 - 100) as string[];
+    const titleLines = b.doc.splitTextToSize(
+      asStr(m.motion),
+      b.pageW - b.margin * 2 - 100,
+    ) as string[];
     let cardH = 20 + titleLines.length * 15 + 30; // title + likelihood bar
     if (reason) cardH += b.measureTextHeight(reason, 9.5, 8) + 14;
     if (evidence.length) cardH += 14 + evidence.length * 12 + 10;
@@ -2799,11 +2983,14 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
   if (!hasAnyContent) return;
 
   b.h1("Centro de Acción del Abogado");
-  b.text("Próximas acciones inmediatas y prioridades estratégicas, antes del análisis detallado que las sustenta.", {
-    size: 10,
-    color: MUTED,
-    gap: 10,
-  });
+  b.text(
+    "Próximas acciones inmediatas y prioridades estratégicas, antes del análisis detallado que las sustenta.",
+    {
+      size: 10,
+      color: MUTED,
+      gap: 10,
+    },
+  );
 
   if (useCanonical) {
     // Single merged list, already deduplicated and priority-sorted — this
@@ -2821,7 +3008,8 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
       b.doc.setFontSize(10.5);
       const titleLines = b.doc.splitTextToSize(title, b.pageW - b.margin * 2 - 90) as string[];
       const showReason = reason && reason !== title;
-      const itemHeight = 15 * titleLines.length + (showReason ? b.measureTextHeight(reason, 9, 6) : 0) + 6;
+      const itemHeight =
+        15 * titleLines.length + (showReason ? b.measureTextHeight(reason, 9, 6) : 0) + 6;
       b.ensureSpace(itemHeight);
       b.doc.setDrawColor(...ACCENT);
       b.doc.setLineWidth(1.2);
@@ -2854,9 +3042,13 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
         // checkbox/owner badge/action text/why caption move together.
         b.doc.setFont("helvetica", "bold");
         b.doc.setFontSize(10.5);
-        const actionPreview = b.doc.splitTextToSize(asStr(n.action), b.pageW - b.margin * 2 - 110) as string[];
+        const actionPreview = b.doc.splitTextToSize(
+          asStr(n.action),
+          b.pageW - b.margin * 2 - 110,
+        ) as string[];
         const whyPreview = asStr(n.why);
-        const itemHeight = 15 * actionPreview.length + (whyPreview ? b.measureTextHeight(whyPreview, 9, 6) : 0) + 6;
+        const itemHeight =
+          15 * actionPreview.length + (whyPreview ? b.measureTextHeight(whyPreview, 9, 6) : 0) + 6;
         b.ensureSpace(itemHeight);
         // Open checkbox glyph — literal enough to read as "to-do" without
         // relying on an emoji glyph the PDF font can't render.
@@ -2866,7 +3058,10 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
         b.doc.setFont("helvetica", "bold");
         b.doc.setFontSize(10.5);
         b.doc.setTextColor(...PRIMARY);
-        const actionLines = b.doc.splitTextToSize(asStr(n.action), b.pageW - b.margin * 2 - 110) as string[];
+        const actionLines = b.doc.splitTextToSize(
+          asStr(n.action),
+          b.pageW - b.margin * 2 - 110,
+        ) as string[];
         b.doc.text(actionLines[0] ?? "", b.margin + 16, b.y);
         if (n.owner) b.pill(asStr(n.owner), b.pageW - b.margin, b.y + 1, MUTED, "right");
         b.y += 15;
@@ -2900,17 +3095,24 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
 
   if (generatedWP.length) {
     b.h2("Producto de Trabajo Generado");
-    b.text("Listo para revisión del abogado — los borradores completos aparecen más adelante en este reporte.", {
-      size: 9,
-      color: MUTED,
-      gap: 6,
-    });
+    b.text(
+      "Listo para revisión del abogado — los borradores completos aparecen más adelante en este reporte.",
+      {
+        size: 9,
+        color: MUTED,
+        gap: 6,
+      },
+    );
     for (const w of generatedWP) {
       b.ensureSpace(18);
       b.doc.setFont("helvetica", "normal");
       b.doc.setFontSize(10);
       b.doc.setTextColor(...PRIMARY);
-      b.doc.text(asStr(w.title, asStr(w.document_type, "Work product")).slice(0, 70), b.margin, b.y);
+      b.doc.text(
+        asStr(w.title, asStr(w.document_type, "Work product")).slice(0, 70),
+        b.margin,
+        b.y,
+      );
       b.pill("Ready", b.pageW - b.margin, b.y + 1, SUCCESS, "right");
       b.y += 18;
     }
@@ -2926,7 +3128,14 @@ function renderActionCenter(b: PdfBuilder, data: CaseExportData) {
 // twice would reintroduce the exact redundancy renderScorecard's own
 // comments describe removing once already (bare numbers vs. bars).
 function impactTierColor(b: PdfBuilder, tier: ImpactCard["tier"]): [number, number, number] {
-  const word = tier === "critical" ? "critical" : tier === "high" ? "high" : tier === "moderate" ? "medium" : "low";
+  const word =
+    tier === "critical"
+      ? "critical"
+      : tier === "high"
+        ? "high"
+        : tier === "moderate"
+          ? "medium"
+          : "low";
   return b.severityColor(word);
 }
 
@@ -2961,17 +3170,25 @@ function impactDashboardDocxParas(data: CaseExportData): Paragraph[] {
   if (dashboard.suppressed || dashboard.cards.length === 0) return [];
 
   const out: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Litigation Impact Dashboard")] }),
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun("Litigation Impact Dashboard")],
+    }),
   ];
   for (const c of dashboard.cards) {
     out.push(
       new Paragraph({
-        children: [new TextRun({ text: `${c.title}: `, bold: true }), new TextRun(`${c.badge} (${c.value})`)],
+        children: [
+          new TextRun({ text: `${c.title}: `, bold: true }),
+          new TextRun(`${c.badge} (${c.value})`),
+        ],
       }),
     );
     if (c.detail) out.push(new Paragraph({ children: [new TextRun(c.detail)] }));
   }
-  out.push(new Paragraph({ children: [new TextRun({ italics: true, text: IMPACT_DASHBOARD_NOTE })] }));
+  out.push(
+    new Paragraph({ children: [new TextRun({ italics: true, text: IMPACT_DASHBOARD_NOTE })] }),
+  );
   return out;
 }
 
@@ -3001,7 +3218,10 @@ function fallbackOverview(data: CaseExportData): string {
 }
 
 function renderCaseOverview(b: PdfBuilder, data: CaseExportData) {
-  const overview = reportText(data, "case_overview") || reportText(data, "attorney_summary") || fallbackOverview(data);
+  const overview =
+    reportText(data, "case_overview") ||
+    reportText(data, "attorney_summary") ||
+    fallbackOverview(data);
   b.h1("Panorama General del Expediente");
   b.text(overview, { size: 11, gap: 8 });
 }
@@ -3103,7 +3323,6 @@ function renderFacts(b: PdfBuilder, data: CaseExportData) {
     }
   }
 
-
   if (!facts && !dated.length && !undated.length) {
     b.text(
       "No se extrajeron hechos verificados del corpus disponible. Esto normalmente indica que los documentos fuente carecían de declaraciones citables y ancladas a un documento, necesarias para construir un registro fáctico fundado en evidencia. Para habilitar una narrativa de hechos, adjunte fuentes primarias con afirmaciones fácticas concretas — escritos, correspondencia contemporánea, contratos, transcripciones, declaraciones o informes firmados — para que la capa de extracción pueda anclar cada hecho a una cita textual y a la página correspondiente.",
@@ -3115,17 +3334,26 @@ function renderFacts(b: PdfBuilder, data: CaseExportData) {
 function renderTimelineSummary(b: PdfBuilder, data: CaseExportData) {
   const timeline = reportText(data, "timeline_summary");
   const timelineFindings = (data.findings ?? [])
-    .filter((f) => /timeline|date|deadline|filing|service|procedural/i.test(`${asStr(f.category)} ${asStr(f.title)}`))
+    .filter((f) =>
+      /timeline|date|deadline|filing|service|procedural/i.test(
+        `${asStr(f.category)} ${asStr(f.title)}`,
+      ),
+    )
     .slice(0, 10)
     .map((f) => `${asStr(f.title)} — ${asStr(f.description).slice(0, 220)}`);
   b.h1("Resumen Cronológico");
   if (timeline) b.text(timeline, { size: 10.5, gap: 8 });
   else if (timelineFindings.length) b.bullets(timelineFindings);
-  else b.text("No se extrajeron eventos cronológicos fechados del acervo disponible.", { size: 10, color: MUTED });
+  else
+    b.text("No se extrajeron eventos cronológicos fechados del acervo disponible.", {
+      size: 10,
+      color: MUTED,
+    });
 }
 
 function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
-  const discovery = reportText(data, "discovery_analysis") || reportText(data, "missing_evidence_report");
+  const discovery =
+    reportText(data, "discovery_analysis") || reportText(data, "missing_evidence_report");
   const r = asObj(data.report);
   const missing = asArr(r.missing_evidence_struct);
   // FIX (2026-07-29): this heading rendered literally as "Discovery
@@ -3164,7 +3392,11 @@ function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {
     // repeat here creates visual repetition; the strip preserves the
     // number and its color coding without another full-height widget.
     b.compactScoreStrip([
-      { label: rt("Risk Score"), value: Number(r.risk_score), color: b.scoreColor(Number(r.risk_score), true) },
+      {
+        label: rt("Risk Score"),
+        value: Number(r.risk_score),
+        color: b.scoreColor(Number(r.risk_score), true),
+      },
     ]);
   }
   if (risk) b.text(risk, { size: 10.5, gap: 8 });
@@ -3194,7 +3426,10 @@ function renderRecommendationsNarrative(b: PdfBuilder, data: CaseExportData) {
     // available it replaces all three rather than sitting alongside them.
     const order = ["critical", "high", "medium", "low"];
     const grouped = order
-      .map((p) => ({ p, items: canonicalRecs.filter((c) => asStr(c.priority, "medium").toLowerCase() === p) }))
+      .map((p) => ({
+        p,
+        items: canonicalRecs.filter((c) => asStr(c.priority, "medium").toLowerCase() === p),
+      }))
       .filter((g) => g.items.length > 0);
     for (const g of grouped) {
       b.h2(`${g.p.charAt(0).toUpperCase()}${g.p.slice(1)} priority`);
@@ -3220,14 +3455,22 @@ function renderRecommendationsNarrative(b: PdfBuilder, data: CaseExportData) {
     b.bullets(
       strategy
         .slice(0, 12)
-        .map((s) => `${asStr(s.priority).toUpperCase()} · ${asStr(s.title)} — ${asStr(s.rationale).slice(0, 180)}`),
+        .map(
+          (s) =>
+            `${asStr(s.priority).toUpperCase()} · ${asStr(s.title)} — ${asStr(s.rationale).slice(0, 180)}`,
+        ),
     );
   }
   if (next.length) {
     b.h2("Próximas Acciones");
     b.table(
       [["#", "Acción", "Responsable", "Motivo"]],
-      next.map((n) => [asStr(n.order, "•"), asStr(n.action).slice(0, 90), asStr(n.owner), asStr(n.why).slice(0, 90)]),
+      next.map((n) => [
+        asStr(n.order, "•"),
+        asStr(n.action).slice(0, 90),
+        asStr(n.owner),
+        asStr(n.why).slice(0, 90),
+      ]),
     );
   }
   if (!recommendations && !strategy.length && !next.length) {
@@ -3263,11 +3506,14 @@ function renderCrossExamination(b: PdfBuilder, data: CaseExportData) {
         b.text(`Impeachment with: ${asStr(line.impeachment_with)}`, { size: 9, color: DANGER });
       const citation = asObj(line.citation);
       if (Object.keys(citation).length) {
-        b.text(`Citation: "${asStr(citation.quote).slice(0, 180)}" — ${citeLabel(citation.doc_n, citation.page)}`, {
-          size: 9,
-          color: MUTED,
-          gap: 4,
-        });
+        b.text(
+          `Citation: "${asStr(citation.quote).slice(0, 180)}" — ${citeLabel(citation.doc_n, citation.page)}`,
+          {
+            size: 9,
+            color: MUTED,
+            gap: 4,
+          },
+        );
       }
     }
   }
@@ -3280,12 +3526,17 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
   const dimensions = asObj(det.dimensions);
   const report = asObj(data.report);
   const fullReport = asObj(report.full_report);
-  const caseType = asStr(fullReport.case_type) || asStr(asObj(breakdowns).case_type) || "general_civil";
+  const caseType =
+    asStr(fullReport.case_type) || asStr(asObj(breakdowns).case_type) || "general_civil";
   const isCriminal = caseType === "penal" || caseType === "criminal" || caseType === "civil_rights";
 
   if (Object.keys(dimensions).length === 0 && !Object.keys(score).length) return;
   b.h1("Tablero de Puntuación del Caso");
-  b.text(asStr(score.methodology, "Puntuación determinista basada en reglas."), { size: 10, color: MUTED, gap: 4 });
+  b.text(asStr(score.methodology, "Puntuación determinista basada en reglas."), {
+    size: 10,
+    color: MUTED,
+    gap: 4,
+  });
   b.text(`Tipo de caso: ${caseType.replace(/_/g, " ")}`, { size: 9, color: MUTED, gap: 10 });
   const rows: (string | number)[][] = [];
   for (const [, val] of Object.entries(dimensions)) {
@@ -3324,7 +3575,10 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
           ["Fortaleza de la evidencia", score.evidence_strength],
           ["Confiabilidad de testigos", score.witness_reliability],
           ["Integridad cronológica", score.timeline_integrity],
-          ["Confiabilidad documental", (score as Record<string, unknown>).documentation_reliability],
+          [
+            "Confiabilidad documental",
+            (score as Record<string, unknown>).documentation_reliability,
+          ],
           ["Cumplimiento probatorio", (score as Record<string, unknown>).discovery_compliance],
           ["Integridad de la investigación", score.investigation_completeness],
           ["Riesgo litigioso", (score as Record<string, unknown>).litigation_risk],
@@ -3367,7 +3621,12 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
         b.bullets(neg);
       }
       if (pos.length) {
-        b.text("Primary contributors — strengthens", { size: 8, bold: true, color: SUCCESS, gap: 2 });
+        b.text("Primary contributors — strengthens", {
+          size: 8,
+          bold: true,
+          color: SUCCESS,
+          gap: 2,
+        });
         b.bullets(pos);
       }
       // Consistent breathing room between dimensions so the section
@@ -3390,7 +3649,9 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
     { size: 9.5, color: MUTED, gap: 8 },
   );
   const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 } as Record<string, number>;
-  const top = [...findings].sort((a, b) => (order[asStr(a.severity)] ?? 9) - (order[asStr(b.severity)] ?? 9));
+  const top = [...findings].sort(
+    (a, b) => (order[asStr(a.severity)] ?? 9) - (order[asStr(b.severity)] ?? 9),
+  );
 
   // Precompute per-finding source counts and a category -> finding-number
   // index for cross-referencing, over the FULL sorted list (not just the
@@ -3430,7 +3691,10 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
   const wpCtx = workProductContext(data);
   const resolved = top.map((f) => findingWithResolvedRefs(f));
   const workProducts = resolved.map((f) => buildFindingWorkProduct(f, wpCtx));
-  const groupsPresent = new Map<AttorneyGroupKey, Array<{ f: Record<string, unknown>; i: number }>>();
+  const groupsPresent = new Map<
+    AttorneyGroupKey,
+    Array<{ f: Record<string, unknown>; i: number }>
+  >();
   top.forEach((f, i) => {
     const key = workProducts[i].group;
     if (!groupsPresent.has(key)) groupsPresent.set(key, []);
@@ -3442,7 +3706,6 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
     const tierColor = b.severityColor(asStr(entries[0].f.severity));
     b.h2Tier(`${group.label} (${entries.length})`, tierColor);
     for (const [pos, { f, i }] of entries.entries()) {
-
       if (pos > 0) b.y += 10;
       b.ensureSpace(70);
       const sevColor = b.severityColor(asStr(f.severity));
@@ -3487,7 +3750,12 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       // Findings with verbatim quotes default to FACT; speculative
       // descriptions degrade to ANALYSIS.
       const fclass = classifyFindingForPdf(asStr(f.description), asArr(f.evidence_refs).length > 0);
-      b.text(`[${fclass}]`, { size: 8, bold: true, color: fclass === "FACT" ? SUCCESS : ACCENT, gap: 4 });
+      b.text(`[${fclass}]`, {
+        size: 8,
+        bold: true,
+        color: fclass === "FACT" ? SUCCESS : ACCENT,
+        gap: 4,
+      });
       if (f.affected_party) b.label(rt("Party"), asStr(f.affected_party));
       // Confidence / evidence strength / source count — lets an attorney
       // triage at a glance how much weight a finding can bear, rather
@@ -3511,7 +3779,11 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       b.doc.text(String(refCounts[i] || 0), b.margin + 330, b.y);
       b.y += 18;
       if (f.legal_significance)
-        b.text(`${rt("Legal significance:")} ${asStr(f.legal_significance)}`, { size: 9.5, color: MUTED, gap: 2 });
+        b.text(`${rt("Legal significance:")} ${asStr(f.legal_significance)}`, {
+          size: 9.5,
+          color: MUTED,
+          gap: 2,
+        });
       b.text(asStr(f.description), { size: 9.6, gap: 4 });
       const refs = asArr(f.evidence_refs);
       if (refs.length) {
@@ -3552,14 +3824,23 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
         b.text(wp.synthesis.narrative, { size: 9.4, gap: 4 });
       }
       if (wp.pending.length) {
-        b.text(spaced("EVIDENCIA PENDIENTE O NO LOCALIZADA"), { size: 7.4, bold: true, color: MUTED, gap: 3 });
+        b.text(spaced("EVIDENCIA PENDIENTE O NO LOCALIZADA"), {
+          size: 7.4,
+          bold: true,
+          color: MUTED,
+          gap: 3,
+        });
         b.bullets(wp.pending);
       }
       if (wp.actions.length) {
-        b.text(spaced("PRÓXIMAS ACCIONES RECOMENDADAS"), { size: 7.4, bold: true, color: ACCENT, gap: 3 });
+        b.text(spaced("PRÓXIMAS ACCIONES RECOMENDADAS"), {
+          size: 7.4,
+          bold: true,
+          color: ACCENT,
+          gap: 3,
+        });
         b.bullets(wp.actions);
       }
-
     }
   }
 }
@@ -3636,7 +3917,9 @@ function renderContradictions(b: PdfBuilder, data: CaseExportData) {
     const docB = asObj(c.document_b);
     if (Object.keys(docA).length || Object.keys(docB).length) {
       b.text("Document A:", { size: 9, bold: true, color: ACCENT });
-      b.text(`"${asStr(docA.quote).slice(0, 220)}"  — ${citeLabel(docA.doc_n, docA.page)}`, { size: 10 });
+      b.text(`"${asStr(docA.quote).slice(0, 220)}"  — ${citeLabel(docA.doc_n, docA.page)}`, {
+        size: 10,
+      });
       b.text("Document B:", { size: 9, bold: true, color: ACCENT });
       b.text(`"${asStr(docB.quote).slice(0, 220)}"  — ${citeLabel(docB.doc_n, docB.page)}`, {
         size: 10,
@@ -3644,18 +3927,25 @@ function renderContradictions(b: PdfBuilder, data: CaseExportData) {
       });
     }
     if (c.nature) b.text(`Nature: ${asStr(c.nature)}`, { size: 10 });
-    if (c.credibility_impact) b.text(`Credibility impact: ${asStr(c.credibility_impact)}`, { size: 10 });
-    if (c.trial_significance) b.text(`Trial significance: ${asStr(c.trial_significance)}`, { size: 10 });
-    if (c.impeachment_value) b.text(`Impeachment value: ${asStr(c.impeachment_value)}`, { size: 10 });
-    if (c.strategic_implications) b.text(`Strategic implications: ${asStr(c.strategic_implications)}`, { size: 10 });
+    if (c.credibility_impact)
+      b.text(`Credibility impact: ${asStr(c.credibility_impact)}`, { size: 10 });
+    if (c.trial_significance)
+      b.text(`Trial significance: ${asStr(c.trial_significance)}`, { size: 10 });
+    if (c.impeachment_value)
+      b.text(`Impeachment value: ${asStr(c.impeachment_value)}`, { size: 10 });
+    if (c.strategic_implications)
+      b.text(`Strategic implications: ${asStr(c.strategic_implications)}`, { size: 10 });
     if (c.legal_impact) b.text(`Legal impact: ${asStr(c.legal_impact)}`, { size: 10 });
     if (c.description) b.text(asStr(c.description), { size: 10, gap: 4 });
     const cites = asArr(c.citations);
     if (cites.length) {
       b.text("Evidencia adicional:", { size: 9, bold: true, color: MUTED });
-      b.bullets(cites.map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`));
+      b.bullets(
+        cites.map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`),
+      );
     }
-    if (c.recommended_use) b.text(`Use: ${asStr(c.recommended_use)}`, { size: 10, color: MUTED, gap: 6 });
+    if (c.recommended_use)
+      b.text(`Use: ${asStr(c.recommended_use)}`, { size: 10, color: MUTED, gap: 6 });
   }
 }
 
@@ -3756,12 +4046,15 @@ function renderStrategySynthesis(b: PdfBuilder, data: CaseExportData) {
     b.h3(asStr(s.title, asStr(s.perspective, "Strategy")));
     if (s.perspective) b.label("Perspectiva", asStr(s.perspective));
     if (s.summary) b.text(asStr(s.summary), { size: 10, gap: 4 });
-    const motions = Array.isArray(s.motion_rankings) ? (s.motion_rankings as Array<Record<string, unknown>>) : [];
+    const motions = Array.isArray(s.motion_rankings)
+      ? (s.motion_rankings as Array<Record<string, unknown>>)
+      : [];
     if (motions.length) {
       b.text("Motion rankings:", { size: 9, bold: true, color: ACCENT });
       b.bullets(
         motions.map(
-          (m) => `${asStr(m.priority).toUpperCase()} · ${asStr(m.motion)} — ${asStr(m.rationale).slice(0, 160)}`,
+          (m) =>
+            `${asStr(m.priority).toUpperCase()} · ${asStr(m.motion)} — ${asStr(m.rationale).slice(0, 160)}`,
         ),
       );
     }
@@ -3777,7 +4070,9 @@ function renderStrategySynthesis(b: PdfBuilder, data: CaseExportData) {
         ),
       );
     }
-    const na = Array.isArray(s.next_actions) ? (s.next_actions as Array<Record<string, unknown>>) : [];
+    const na = Array.isArray(s.next_actions)
+      ? (s.next_actions as Array<Record<string, unknown>>)
+      : [];
     if (na.length) {
       b.text("Next actions:", { size: 9, bold: true, color: PRIMARY });
       b.bullets(na.map((n) => `${asStr(n.action)} — ${asStr(n.owner)}`));
@@ -3791,7 +4086,9 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
   // Mirror the gate applied in writer.server.ts: when motions are suppressed,
   // Attorney Work Product must not include drafted motions, trial outlines,
   // cross-exam plans, or settlement demands — only the factual case_summary.
-  const rows = motionsSuppressed ? allRows.filter((w) => asStr(w.document_type) === "case_summary") : allRows;
+  const rows = motionsSuppressed
+    ? allRows.filter((w) => asStr(w.document_type) === "case_summary")
+    : allRows;
   const bodyOf = (w: Record<string, unknown>) => asStr(w.body_markdown) || asStr(w.content);
   const generated = rows.filter((w) => bodyOf(w).trim().length > 40);
   const skipped = rows.filter((w) => bodyOf(w).trim().length <= 40);
@@ -3854,7 +4151,10 @@ function renderWorkProduct(b: PdfBuilder, data: CaseExportData) {
     b.h2("Omitido");
     for (const w of skipped) {
       const title = asStr(w.title, asStr(w.document_type, "Work product"));
-      const reason = asStr(w.error_message) || asStr(w.skipped_reason) || "No generado por evidencia insuficiente.";
+      const reason =
+        asStr(w.error_message) ||
+        asStr(w.skipped_reason) ||
+        "No generado por evidencia insuficiente.";
       b.text(`• ${title} — ${reason}`, { size: 10, color: MUTED });
     }
   }
@@ -3901,7 +4201,9 @@ function renderConstitutional(b: PdfBuilder, data: CaseExportData) {
     const cites = asArr(c.citations);
     if (cites.length) {
       b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
-      b.bullets(cites.map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`));
+      b.bullets(
+        cites.map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`),
+      );
     }
   }
 }
@@ -3951,12 +4253,16 @@ function renderLegalIssues(b: PdfBuilder, data: CaseExportData) {
         withQuotes.slice(0, 3).map((g) => {
           const doc = asStr(g.document);
           const title = doc ? humanizeDocTitle(doc) : "";
-          return title ? `"${asStr(g.quote).slice(0, 160)}"  — ${title}` : `"${asStr(g.quote).slice(0, 160)}"`;
+          return title
+            ? `"${asStr(g.quote).slice(0, 160)}"  — ${title}`
+            : `"${asStr(g.quote).slice(0, 160)}"`;
         }),
       );
     }
 
-    const docs = [...new Set(group.map((g) => asStr(g.document)).filter(Boolean))].map((f) => humanizeDocTitle(f));
+    const docs = [...new Set(group.map((g) => asStr(g.document)).filter(Boolean))].map((f) =>
+      humanizeDocTitle(f),
+    );
     if (docs.length > 1) {
       const shown = docs.slice(0, 12).join(", ");
       const more = docs.length > 12 ? `, +${docs.length - 12} ${rt("more")}` : "";
@@ -3967,7 +4273,9 @@ function renderLegalIssues(b: PdfBuilder, data: CaseExportData) {
     const seen = new Set<string>();
     const caseLines: string[] = [];
     for (const c of allCases) {
-      const meta = [asStr(c.citation), asStr(c.court), asStr(c.date_filed)].filter(Boolean).join(" · ");
+      const meta = [asStr(c.citation), asStr(c.court), asStr(c.date_filed)]
+        .filter(Boolean)
+        .join(" · ");
       const line = meta ? `${asStr(c.case_name)} — ${meta}` : asStr(c.case_name);
       if (!line.trim() || seen.has(line)) continue;
       seen.add(line);
@@ -4036,7 +4344,9 @@ function renderTheories(b: PdfBuilder, data: CaseExportData) {
     if (t.risk) b.label("Riesgo", asStr(t.risk));
     b.text(asStr(t.narrative), { size: 10.5, gap: 4 });
     const sup = Array.isArray(t.supporting_evidence) ? (t.supporting_evidence as string[]) : [];
-    const con = Array.isArray(t.contradicting_evidence) ? (t.contradicting_evidence as string[]) : [];
+    const con = Array.isArray(t.contradicting_evidence)
+      ? (t.contradicting_evidence as string[])
+      : [];
     const mis = Array.isArray(t.missing_evidence) ? (t.missing_evidence as string[]) : [];
     if (sup.length) {
       b.text("Evidencia de apoyo:", { size: 9, bold: true, color: SUCCESS });
@@ -4077,8 +4387,11 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
     b.h3("Primary Trial Theme");
     b.text(asStr(theme.theme), { size: 11, bold: true, color: PRIMARY, gap: 4 });
     if (theme.why) b.text(asStr(theme.why), { size: 10, gap: 4 });
-    if (theme.persuasion_likelihood) b.label("Probabilidad de Persuasión", asStr(theme.persuasion_likelihood));
-    const supEv = Array.isArray(theme.supporting_evidence) ? (theme.supporting_evidence as string[]) : [];
+    if (theme.persuasion_likelihood)
+      b.label("Probabilidad de Persuasión", asStr(theme.persuasion_likelihood));
+    const supEv = Array.isArray(theme.supporting_evidence)
+      ? (theme.supporting_evidence as string[])
+      : [];
     if (supEv.length) {
       b.text("Evidencia de apoyo:", { size: 9, bold: true, color: MUTED });
       b.bullets(supEv);
@@ -4125,7 +4438,9 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
       b.text("Why:", { size: 9, bold: true, color: MUTED });
       b.bullets(reasons);
     }
-    const approach = Array.isArray(witness.recommended_approach) ? (witness.recommended_approach as string[]) : [];
+    const approach = Array.isArray(witness.recommended_approach)
+      ? (witness.recommended_approach as string[])
+      : [];
     if (approach.length) {
       b.text("Recommended approach:", { size: 9, bold: true, color: MUTED });
       b.bullets(approach);
@@ -4155,7 +4470,9 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
     if (defense.primary_defense) {
       b.h3("Defensa Principal");
       b.text(asStr(defense.primary_defense), { size: 10.5, bold: true, gap: 4 });
-      const supArgs = Array.isArray(defense.supporting_arguments) ? (defense.supporting_arguments as string[]) : [];
+      const supArgs = Array.isArray(defense.supporting_arguments)
+        ? (defense.supporting_arguments as string[])
+        : [];
       if (supArgs.length) {
         b.text("Argumentos de apoyo:", { size: 9, bold: true, color: MUTED });
         b.bullets(supArgs);
@@ -4201,7 +4518,12 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
   // ---- If I Were Lead Trial Counsel ----
   if (leadCounsel) {
     b.h2("Si Yo Fuera el Abogado Principal del Caso");
-    b.text("[ANÁLISIS ESTRATÉGICO — NO CONSTITUYE ASESORÍA LEGAL]", { size: 8, bold: true, color: ACCENT, gap: 4 });
+    b.text("[ANÁLISIS ESTRATÉGICO — NO CONSTITUYE ASESORÍA LEGAL]", {
+      size: 8,
+      bold: true,
+      color: ACCENT,
+      gap: 4,
+    });
     b.text(leadCounsel, { size: 10.5, gap: 4 });
   }
 }
@@ -4237,12 +4559,20 @@ function renderStrategy(b: PdfBuilder, data: CaseExportData) {
       b.label("Probabilidad de Éxito", asStr(m.likelihood_of_success));
       b.label("Prioridad", asStr(m.priority));
       b.text(`Basis: ${asStr(m.basis)}`, { size: 10, gap: 2 });
-      if (m.supporting_facts) b.text(`Supporting facts: ${asStr(m.supporting_facts)}`, { size: 10, gap: 2 });
-      if (m.legal_rationale) b.text(`Legal rationale: ${asStr(m.legal_rationale)}`, { size: 10, gap: 2 });
+      if (m.supporting_facts)
+        b.text(`Supporting facts: ${asStr(m.supporting_facts)}`, { size: 10, gap: 2 });
+      if (m.legal_rationale)
+        b.text(`Legal rationale: ${asStr(m.legal_rationale)}`, { size: 10, gap: 2 });
       if (m.anticipated_opposing_response)
-        b.text(`Anticipated opposing response: ${asStr(m.anticipated_opposing_response)}`, { size: 10, gap: 2 });
+        b.text(`Anticipated opposing response: ${asStr(m.anticipated_opposing_response)}`, {
+          size: 10,
+          gap: 2,
+        });
       if (m.likely_outcome)
-        b.text(`Probability estimate: ${asStr(m.likely_outcome)} (low/medium/high confidence)`, { size: 10, gap: 2 });
+        b.text(`Probability estimate: ${asStr(m.likely_outcome)} (low/medium/high confidence)`, {
+          size: 10,
+          gap: 2,
+        });
       const elements = Array.isArray(m.elements) ? (m.elements as string[]) : [];
       if (elements.length) {
         b.text("Elements:", { size: 9, bold: true, color: MUTED });
@@ -4252,7 +4582,9 @@ function renderStrategy(b: PdfBuilder, data: CaseExportData) {
       if (mcites.length) {
         b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
         b.bullets(
-          mcites.slice(0, 4).map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`),
+          mcites
+            .slice(0, 4)
+            .map((cc) => `"${asStr(cc.quote).slice(0, 180)}"  — ${citeLabel(cc.doc_n, cc.page)}`),
         );
       }
       if (m.draft_outline) {
@@ -4279,7 +4611,12 @@ function renderStrategy(b: PdfBuilder, data: CaseExportData) {
     b.h2("Próximas Acciones Recomendadas");
     b.table(
       [["#", "Acción", "Responsable", "Motivo"]],
-      next.map((n) => [asStr(n.order, "•"), asStr(n.action).slice(0, 90), asStr(n.owner), asStr(n.why).slice(0, 90)]),
+      next.map((n) => [
+        asStr(n.order, "•"),
+        asStr(n.action).slice(0, 90),
+        asStr(n.owner),
+        asStr(n.why).slice(0, 90),
+      ]),
     );
   }
 }
@@ -4290,7 +4627,11 @@ function renderCoverage(b: PdfBuilder, data: CaseExportData) {
   const coverage = asObj(full.coverage_report);
   if (!coverage || Object.keys(coverage).length === 0) return;
   b.h1("Cobertura Probatoria");
-  b.text("Transparencia de ingesta: ¿qué tan completo es este análisis?", { size: 10, color: MUTED, gap: 8 });
+  b.text("Transparencia de ingesta: ¿qué tan completo es este análisis?", {
+    size: 10,
+    color: MUTED,
+    gap: 8,
+  });
   b.table(
     [["Métrica", "Valor"]],
     [
@@ -4337,9 +4678,9 @@ function renderAgentStatistics(b: PdfBuilder, data: CaseExportData) {
 
   const invariantErrors = validateAgentSummary(summary);
   if (invariantErrors.length) {
-    const isDev = ((import.meta as unknown as { env?: Record<string, string> }).env?.DEV ?? "") as unknown;
+    const isDev = ((import.meta as unknown as { env?: Record<string, string> }).env?.DEV ??
+      "") as unknown;
     if (isDev) {
-      // eslint-disable-next-line no-console
       console.warn("Agent summary invariant violation:", invariantErrors.join("; "));
     }
   }
@@ -4429,12 +4770,20 @@ function renderAudit(b: PdfBuilder, data: CaseExportData) {
   if (Object.keys(manifest).length) {
     b.h2("Manifiesto de Ejecución");
     b.label("Tipo de Caso", asStr(manifest.case_type_label, asStr(manifest.case_type, "—")));
-    const active = Array.isArray(manifest.active_domains) ? (manifest.active_domains as string[]) : [];
+    const active = Array.isArray(manifest.active_domains)
+      ? (manifest.active_domains as string[])
+      : [];
     if (active.length) b.label("Dominios Activos", active.map(humanizeEngine).join(", "));
 
-    const enabled = Array.isArray(manifest.enabled_engines) ? (manifest.enabled_engines as string[]) : [];
-    const skipped = Array.isArray(manifest.skipped_engines) ? (manifest.skipped_engines as string[]) : [];
-    const cross = Array.isArray(manifest.cross_domain_engines) ? (manifest.cross_domain_engines as string[]) : [];
+    const enabled = Array.isArray(manifest.enabled_engines)
+      ? (manifest.enabled_engines as string[])
+      : [];
+    const skipped = Array.isArray(manifest.skipped_engines)
+      ? (manifest.skipped_engines as string[])
+      : [];
+    const cross = Array.isArray(manifest.cross_domain_engines)
+      ? (manifest.cross_domain_engines as string[])
+      : [];
 
     if (enabled.length) {
       b.h3("Enabled");
@@ -4468,11 +4817,16 @@ function renderAppendix(b: PdfBuilder, data: CaseExportData) {
   const cites = asArr(r.citations);
   if (!cites.length) return;
   b.h1("Anexo: Citas de Fuentes");
-  b.text(rt("Every citation below is verbatim from the case corpus. Use these to verify any claim in the report."), {
-    size: 10,
-    color: MUTED,
-    gap: 8,
-  });
+  b.text(
+    rt(
+      "Every citation below is verbatim from the case corpus. Use these to verify any claim in the report.",
+    ),
+    {
+      size: 10,
+      color: MUTED,
+      gap: 8,
+    },
+  );
   b.table(
     [["#", "Tema", "Documento", "Página", "Cita"]],
     cites.map((c, i) => [
@@ -4499,11 +4853,14 @@ function renderAppendix(b: PdfBuilder, data: CaseExportData) {
 function renderEvidenceSources(b: PdfBuilder) {
   if (!_footnotes.length) return;
   b.h1("Fuentes de Evidencia");
-  b.text("Referencias numeradas del cuerpo del reporte, resueltas a su documento y página de origen.", {
-    size: 10,
-    color: MUTED,
-    gap: 8,
-  });
+  b.text(
+    "Referencias numeradas del cuerpo del reporte, resueltas a su documento y página de origen.",
+    {
+      size: 10,
+      color: MUTED,
+      gap: 8,
+    },
+  );
   b.table(
     [["#", "Fuente"]],
     _footnotes.map((f) => [`[${f.n}]`, f.label]),
@@ -4530,14 +4887,16 @@ function suppressedDocxParas(title: string): Paragraph[] {
   return [
     new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] }),
     new Paragraph({
-      children: [new TextRun({ text: "Suprimido por evidencia verificada insuficiente.", italics: true })],
+      children: [
+        new TextRun({ text: "Suprimido por evidencia verificada insuficiente.", italics: true }),
+      ],
     }),
   ];
 }
 
 function recommendedMotionsDocxParas(data: CaseExportData): Paragraph[] {
   const r = asObj(data.report);
-  if (Boolean(r.motions_suppressed)) return [];
+  if (r.motions_suppressed) return [];
   const motions = asArr(r.motion_opportunities);
   if (!motions.length) return [];
   const generatedWP = eligibleWorkProduct(data);
@@ -4548,7 +4907,10 @@ function recommendedMotionsDocxParas(data: CaseExportData): Paragraph[] {
   const ranked = [...motions].sort((ma, mb) => rank(ma) - rank(mb));
 
   const out: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Recommended Motions")] }),
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun("Recommended Motions")],
+    }),
     new Paragraph({
       children: [
         new TextRun({
@@ -4577,25 +4939,40 @@ function recommendedMotionsDocxParas(data: CaseExportData): Paragraph[] {
       new Paragraph({ children: [new TextRun(`Likelihood of Success: ~${pct}%`)] }),
     );
     if (reason)
-      out.push(new Paragraph({ children: [new TextRun({ text: "Reason: ", bold: true }), new TextRun(reason)] }));
+      out.push(
+        new Paragraph({
+          children: [new TextRun({ text: "Reason: ", bold: true }), new TextRun(reason)],
+        }),
+      );
     if (evidence.length) {
-      out.push(new Paragraph({ children: [new TextRun({ text: "Primary Evidence:", bold: true })] }));
+      out.push(
+        new Paragraph({ children: [new TextRun({ text: "Primary Evidence:", bold: true })] }),
+      );
       for (const ev of evidence) out.push(new Paragraph({ children: [new TextRun(`•  ${ev}`)] }));
     }
     if (legalBasis.length)
       out.push(
         new Paragraph({
-          children: [new TextRun({ text: "Legal Basis: ", bold: true }), new TextRun(legalBasis.join("  •  "))],
+          children: [
+            new TextRun({ text: "Legal Basis: ", bold: true }),
+            new TextRun(legalBasis.join("  •  ")),
+          ],
         }),
       );
-    out.push(new Paragraph({ children: [new TextRun({ text: "Status: ", bold: true }), new TextRun(status.label)] }));
+    out.push(
+      new Paragraph({
+        children: [new TextRun({ text: "Status: ", bold: true }), new TextRun(status.label)],
+      }),
+    );
   }
   return out;
 }
 
 function proseDocxParas(title: string, body: string): Paragraph[] {
   if (!body || !body.trim()) return [];
-  const out: Paragraph[] = [new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] })];
+  const out: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] }),
+  ];
   for (const para of body.split(/\n\n+/)) {
     out.push(new Paragraph({ children: [new TextRun(para.replace(/\n/g, " "))] }));
   }
@@ -4638,7 +5015,9 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       renderDocx: (d) =>
         proseDocxParas(
           "Executive Summary",
-          processProseCitations(asStr(asObj(d.report).executive_summary) || asStr(asObj(d.report).attorney_summary)),
+          processProseCitations(
+            asStr(asObj(d.report).executive_summary) || asStr(asObj(d.report).attorney_summary),
+          ),
         ),
     },
     {
@@ -4659,7 +5038,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: true,
       available: (d) => {
         const rr = asObj(d.report);
-        if (Boolean(rr.motions_suppressed)) return false;
+        if (rr.motions_suppressed) return false;
         return asArr(rr.motion_opportunities).length > 0;
       },
       renderPdf: (b, d) => renderRecommendedMotions(b, d),
@@ -4675,10 +5054,16 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       available: (d) => {
         const rr = asObj(d.report);
         const suppressed = Boolean(rr.motions_suppressed);
-        const wp = (d.work_product ?? []).filter((w) => !suppressed || asStr(w.document_type) === "case_summary");
-        const generated = wp.filter((w) => (asStr(w.body_markdown) || asStr(w.content)).trim().length > 40);
+        const wp = (d.work_product ?? []).filter(
+          (w) => !suppressed || asStr(w.document_type) === "case_summary",
+        );
+        const generated = wp.filter(
+          (w) => (asStr(w.body_markdown) || asStr(w.content)).trim().length > 40,
+        );
         return (
-          asArr(rr.next_actions).length > 0 || asArr(rr.strategy_recommendations).length > 0 || generated.length > 0
+          asArr(rr.next_actions).length > 0 ||
+          asArr(rr.strategy_recommendations).length > 0 ||
+          generated.length > 0
         );
       },
       renderPdf: (b, d) => renderActionCenter(b, d),
@@ -4707,7 +5092,10 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       available: () => true, // always renders (fallbackOverview)
       renderPdf: (b, d) => renderCaseOverview(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Panorama General del Expediente", reportText(d, "case_overview") || fallbackOverview(d)),
+        proseDocxParas(
+          "Panorama General del Expediente",
+          reportText(d, "case_overview") || fallbackOverview(d),
+        ),
     },
     {
       id: "facts",
@@ -4736,16 +5124,23 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       },
       renderPdf: (b, d) => renderScorecard(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Razonamiento de la Puntuación", processProseCitations(asStr(asObj(d.report).score_breakdown))),
+        proseDocxParas(
+          "Razonamiento de la Puntuación",
+          processProseCitations(asStr(asObj(d.report).score_breakdown)),
+        ),
     },
     {
       id: "risk",
       title: "Análisis de Riesgo",
       gatedInLimited: true,
-      available: (d) => !!reportText(d, "risk_analysis").trim() || typeof asObj(d.report).risk_score === "number",
+      available: (d) =>
+        !!reportText(d, "risk_analysis").trim() || typeof asObj(d.report).risk_score === "number",
       renderPdf: (b, d) => renderRiskAnalysis(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Análisis de Riesgo", processProseCitations(asStr(asObj(d.report).risk_analysis))),
+        proseDocxParas(
+          "Análisis de Riesgo",
+          processProseCitations(asStr(asObj(d.report).risk_analysis)),
+        ),
     },
     {
       id: "coverage",
@@ -4754,7 +5149,8 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       // Parse rate, OCR coverage, ingestion stats — pipeline QA information,
       // not attorney narrative. Same reasoning as Audit Trail above.
       available: (d) =>
-        _citationMode === "audit" && Object.keys(asObj(asObj(asObj(d.report).full_report).coverage_report)).length > 0,
+        _citationMode === "audit" &&
+        Object.keys(asObj(asObj(asObj(d.report).full_report).coverage_report)).length > 0,
       renderPdf: (b, d) => renderCoverage(b, d),
       renderDocx: () => [],
     },
@@ -4766,7 +5162,8 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       // suppressed/promoted — pipeline internals, not attorney narrative.
       // Same reasoning as Audit Trail above.
       available: (d) =>
-        _citationMode === "audit" && (getAgentRows(d).length > 0 || getAgentSummary(getReportRow(d)).loaded > 0),
+        _citationMode === "audit" &&
+        (getAgentRows(d).length > 0 || getAgentSummary(getReportRow(d)).loaded > 0),
       renderPdf: (b, d) => renderAgentStatistics(b, d),
       renderDocx: (d) => (_citationMode === "audit" ? agentStatisticsDocxParas(d) : []),
     },
@@ -4785,7 +5182,8 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       // Per-document role/support/undermine classification reads as an
       // internal QA artifact rather than attorney narrative — audit-mode
       // only, same reasoning as the parity/ESS footer stamp above.
-      available: (d) => _citationMode === "audit" && asArr(asObj(d.report).evidence_index).length > 0,
+      available: (d) =>
+        _citationMode === "audit" && asArr(asObj(d.report).evidence_index).length > 0,
       renderPdf: (b, d) => renderEvidenceMap(b, d),
       renderDocx: () => [],
     },
@@ -4794,7 +5192,8 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       title: "Análisis de Vacíos Probatorios",
       gatedInLimited: false,
       available: (d) =>
-        !!reportText(d, "discovery_analysis").trim() || asArr(asObj(d.report).missing_evidence_struct).length > 0,
+        !!reportText(d, "discovery_analysis").trim() ||
+        asArr(asObj(d.report).missing_evidence_struct).length > 0,
       renderPdf: (b, d) => renderDiscoveryAnalysis(b, d),
       renderDocx: (d) =>
         proseDocxParas(
@@ -4860,7 +5259,10 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       available: (d) => (d.witnesses ?? []).length > 0,
       renderPdf: (b, d) => renderWitnesses(b, d),
       renderDocx: (d) =>
-        proseDocxParas("Análisis de Testigos", processProseCitations(asStr(asObj(d.report).witness_analysis))),
+        proseDocxParas(
+          "Análisis de Testigos",
+          processProseCitations(asStr(asObj(d.report).witness_analysis)),
+        ),
     },
     {
       id: "cross_exam",
@@ -4966,7 +5368,8 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       // internal QA information, not attorney work product — an attorney
       // already knows what they uploaded. Audit-mode only, same reasoning
       // as Evidence Map and the footer parity/ESS stamp.
-      available: (d) => _citationMode === "audit" && (d.documents.length > 0 || d.agents.length > 0),
+      available: (d) =>
+        _citationMode === "audit" && (d.documents.length > 0 || d.agents.length > 0),
       renderPdf: (b, d) => renderAudit(b, d),
       renderDocx: () => [],
     },
@@ -4982,7 +5385,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       renderDocx: () => proseDocxParas("Metodología NYRAVA", METHODOLOGY_STATEMENT),
     },
     {
-
       id: "appendix",
       title: "Anexo: Citas de Fuentes",
       gatedInLimited: false,
@@ -5014,8 +5416,13 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       renderDocx: () =>
         _footnotes.length
           ? [
-              new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Evidence Sources")] }),
-              ..._footnotes.map((f) => new Paragraph({ children: [new TextRun(`[${f.n}] ${f.label}`)] })),
+              new Paragraph({
+                heading: HeadingLevel.HEADING_1,
+                children: [new TextRun("Evidence Sources")],
+              }),
+              ..._footnotes.map(
+                (f) => new Paragraph({ children: [new TextRun(`[${f.n}] ${f.label}`)] }),
+              ),
             ]
           : [],
     },
@@ -5023,7 +5430,9 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
   return sections;
 }
 
-function priorityActionRows(data: CaseExportData): Array<[string, string, string, string, string, string]> {
+function priorityActionRows(
+  data: CaseExportData,
+): Array<[string, string, string, string, string, string]> {
   const r = asObj(data.report);
   const full = asObj(r.full_report);
   const c = asObj(data.case);
@@ -5033,21 +5442,25 @@ function priorityActionRows(data: CaseExportData): Array<[string, string, string
 
   const findAuthority = (title: string): string => {
     const hit = deadlines.find(
-      (d) => asStr(d.label_es).length > 0 && title.toLowerCase().includes(asStr(d.label_es).toLowerCase()),
+      (d) =>
+        asStr(d.label_es).length > 0 &&
+        title.toLowerCase().includes(asStr(d.label_es).toLowerCase()),
     );
     return hit ? asStr(hit.authority) : notDetermined();
   };
 
   const canonicalRecs = asArr(full.canonical_recommendations);
-  const rows: Array<[string, string, string, string, string, string]> = canonicalRecs.map((rec, i) => {
-    const priority = asStr(rec.priority, "medium");
-    const title = asStr(rec.title) || notDetermined();
-    const reason = asStr(rec.reason) || notDetermined();
-    const authority = findAuthority(title);
-    const urgency = priority === "critical" || priority === "high" ? rt("High") : rt("Medium");
-    const impact = asStr(rec.expectedImpact) || notDetermined();
-    return [String(i + 1), rt(priority), title, reason, authority, `${urgency} — ${impact}`];
-  });
+  const rows: Array<[string, string, string, string, string, string]> = canonicalRecs.map(
+    (rec, i) => {
+      const priority = asStr(rec.priority, "medium");
+      const title = asStr(rec.title) || notDetermined();
+      const reason = asStr(rec.reason) || notDetermined();
+      const authority = findAuthority(title);
+      const urgency = priority === "critical" || priority === "high" ? rt("High") : rt("Medium");
+      const impact = asStr(rec.expectedImpact) || notDetermined();
+      return [String(i + 1), rt(priority), title, reason, authority, `${urgency} — ${impact}`];
+    },
+  );
   return rows;
 }
 
@@ -5066,7 +5479,14 @@ function renderPriorityActionCenter(b: PdfBuilder, data: CaseExportData) {
         rt("Expected impact"),
       ],
     ],
-    rows.map((row) => [row[1], row[2], row[3], row[4], row[5].split(" — ")[0], row[5].split(" — ")[1] ?? row[5]]),
+    rows.map((row) => [
+      row[1],
+      row[2],
+      row[3],
+      row[4],
+      row[5].split(" — ")[0],
+      row[5].split(" — ")[1] ?? row[5],
+    ]),
   );
 }
 
@@ -5082,7 +5502,11 @@ function priorityActionCenterDocxParas(data: CaseExportData): Paragraph[] {
   for (const row of rows) {
     out.push(
       new Paragraph({
-        children: [new TextRun({ text: `${row[1]} — `, bold: true }), new TextRun(row[2]), new TextRun(` (${row[3]})`)],
+        children: [
+          new TextRun({ text: `${row[1]} — `, bold: true }),
+          new TextRun(row[2]),
+          new TextRun(` (${row[3]})`),
+        ],
       }),
     );
   }
@@ -5139,18 +5563,25 @@ function validateParity(opts: {
   if (opts.mode !== "FULL" && opts.mode !== "LIMITED") errors.push("invalid report mode");
   // Counter monotonicity.
   if (opts.counters.rendered > opts.counters.verified) errors.push("rendered > verified findings");
-  if (opts.counters.verified > opts.counters.generated) errors.push("verified > generated findings");
+  if (opts.counters.verified > opts.counters.generated)
+    errors.push("verified > generated findings");
   // The cover-page "rendered" count must equal the length of the findings
   // array actually rendered in the Key Findings section. This is the
   // invariant that would have caught the cover-page-vs-table mismatch
   // (e.g. "6 rendered findings" on the cover, 3 rows in the table).
-  if (typeof opts.renderedFindingsLength === "number" && opts.counters.rendered !== opts.renderedFindingsLength) {
+  if (
+    typeof opts.renderedFindingsLength === "number" &&
+    opts.counters.rendered !== opts.renderedFindingsLength
+  ) {
     errors.push(
       `rendered findings counter (${opts.counters.rendered}) does not match findings actually rendered (${opts.renderedFindingsLength})`,
     );
   }
   // TOC ↔ rendered must match exactly.
-  if (opts.tocIds.length !== opts.renderedIds.length || opts.tocIds.some((id, i) => id !== opts.renderedIds[i])) {
+  if (
+    opts.tocIds.length !== opts.renderedIds.length ||
+    opts.tocIds.some((id, i) => id !== opts.renderedIds[i])
+  ) {
     errors.push("TOC and rendered section list disagree");
   }
   // DOCX section order must be a subset-in-order of the TOC.
@@ -5176,7 +5607,11 @@ function deriveMatterId(data: CaseExportData): string {
   return id || "NYRAVA";
 }
 
-export async function downloadPdf(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
+export async function downloadPdf(
+  data: CaseExportData,
+  name: string,
+  opts?: { citationMode?: CitationMode },
+) {
   // Explicit, redundant release-gate check at the actual point of export —
   // do not rely solely on the upstream content-stripping in
   // cases.functions.ts::getCase() (sanitizeBlockedReport). That fix removes
@@ -5186,7 +5621,9 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   // security" applies here too: this is backend/client-shared code, but
   // the check belongs at the point of action, not just upstream.
   if (asObj(data.report).quality_blocked === true) {
-    throw new Error("REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.");
+    throw new Error(
+      "REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.",
+    );
   }
   // Attorney mode (default): inline "[DOC N p.M]" citations become numbered
   // footnotes resolved to real document titles, collected in an Evidence
@@ -5235,7 +5672,8 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   const engines = getEnginesSummary(reportRow);
   const generatedAt = new Date().toISOString();
   let parityShort = 0;
-  for (let i = 0; i < parity.length; i++) parityShort = ((parityShort << 5) - parityShort + parity.charCodeAt(i)) | 0;
+  for (let i = 0; i < parity.length; i++)
+    parityShort = ((parityShort << 5) - parityShort + parity.charCodeAt(i)) | 0;
   const parityTag = (parityShort >>> 0).toString(16).padStart(8, "0").slice(0, 8);
 
   // Build one section plan and one render queue used by both the TOC and
@@ -5264,7 +5702,6 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
     queue.map((s, i) => [String(i + 1), s.title]),
     { plainHead: true },
   );
-
 
   // Render body in exact same order as TOC.
   for (const s of queue) {
@@ -5295,7 +5732,8 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
   b.closingPage({ generatedAt });
 
   // Footer reflects the SINGLE report state.
-  const footerEss = mode === "LIMITED" ? `${ess.level} · ${mode} · scores suppressed` : `${ess.level} · ${mode}`;
+  const footerEss =
+    mode === "LIMITED" ? `${ess.level} · ${mode} · scores suppressed` : `${ess.level} · ${mode}`;
   b.save(`${slug(name)}.pdf`, {
     parity: parityTag,
     ess: footerEss,
@@ -5304,11 +5742,17 @@ export async function downloadPdf(data: CaseExportData, name: string, opts?: { c
 }
 
 // DOCX uses the SAME section plan, in the SAME order, gated by the SAME mode.
-export async function downloadDocx(data: CaseExportData, name: string, opts?: { citationMode?: CitationMode }) {
+export async function downloadDocx(
+  data: CaseExportData,
+  name: string,
+  opts?: { citationMode?: CitationMode },
+) {
   // Same explicit, redundant release-gate check as downloadPdf — see the
   // comment there for why this isn't relying solely on the upstream fix.
   if (asObj(data.report).quality_blocked === true) {
-    throw new Error("REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.");
+    throw new Error(
+      "REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.",
+    );
   }
   // Same single-language rule as downloadPdf.
   setReportTemplateLocale(resolveReportLocale(data.report, data.case));
@@ -5357,7 +5801,9 @@ export async function downloadDocx(data: CaseExportData, name: string, opts?: { 
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { before: 360, after: 120 },
-      children: [new TextRun({ text: "CASE INTELLIGENCE REPORT", bold: true, size: 16, color: GOLD })],
+      children: [
+        new TextRun({ text: "CASE INTELLIGENCE REPORT", bold: true, size: 16, color: GOLD }),
+      ],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -5412,7 +5858,9 @@ export async function downloadDocx(data: CaseExportData, name: string, opts?: { 
         new TextRun({
           text: [
             `${rt("Generated")} ${new Date().toLocaleString()}`,
-            asStr(reportRow.intelligence_version) ? `${rt("Engine")} ${asStr(reportRow.intelligence_version)}` : null,
+            asStr(reportRow.intelligence_version)
+              ? `${rt("Engine")} ${asStr(reportRow.intelligence_version)}`
+              : null,
             `${rt("Status")}: ${rt(mode === "LIMITED" ? "Limited Analysis" : "Complete")}`,
           ]
             .filter(Boolean)

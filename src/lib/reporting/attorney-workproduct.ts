@@ -98,13 +98,19 @@ const WEIGHT_RULES: Array<{ re: RegExp; w: EvidenceWeight }> = [
     re: /(escritura publica|registro publico|acta constitutiva|documento publico|oficio|constancia oficial|acta de audiencia|acta circunstanciada|caratula|expediente administrativo)/,
     w: weight(5, "Documento Público"),
   },
-  { re: /(copia certificada|certificad|notarial|fe publica|apostilla)/, w: weight(4, "Documento Certificado") },
+  {
+    re: /(copia certificada|certificad|notarial|fe publica|apostilla)/,
+    w: weight(4, "Documento Certificado"),
+  },
   { re: /(dictamen|pericial|peritaje|avaluo)/, w: weight(4, "Dictamen Pericial") },
   {
     re: /(cfdi|factura|estado de cuenta|contabilidad|nomina|recibo|poliza contable|balance|estados financieros)/,
     w: weight(3, "Registro Contable"),
   },
-  { re: /(contrato|convenio|pagare|titulo de credito|adenda|clausulado)/, w: weight(3, "Documento Privado") },
+  {
+    re: /(contrato|convenio|pagare|titulo de credito|adenda|clausulado)/,
+    w: weight(3, "Documento Privado"),
+  },
   {
     re: /(correo|email|e-mail|whatsapp|mensaje|chat|captura de pantalla|sms)/,
     w: weight(2, "Comunicación Electrónica"),
@@ -184,7 +190,9 @@ function findingSourceLabels(f: AnyFinding): string[] {
 
 function findingText(f: AnyFinding): string {
   return norm(
-    [f.title, f.description, f.legal_significance, f.potential_impact, f.category].filter(Boolean).join(" \n "),
+    [f.title, f.description, f.legal_significance, f.potential_impact, f.category]
+      .filter(Boolean)
+      .join(" \n "),
   );
 }
 
@@ -193,7 +201,8 @@ function findingText(f: AnyFinding): string {
 const PROCEDURAL_RE =
   /(procesal|procedimiento|notificacion|emplazamiento|plazo|termino|caducidad|prescripcion|competencia|nulidad|formalidad|cumplimiento_procesal|requisito)/;
 const CONTRADICTION_RE = /(contradiccion|contradictor|inconsistencia|discrepancia|divergencia)/;
-const GAP_RE = /(vacio|faltante|missing|discovery_gap|no localizad|ausencia|omision|no se exhib|no consta)/;
+const GAP_RE =
+  /(vacio|faltante|missing|discovery_gap|no localizad|ausencia|omision|no se exhib|no consta)/;
 const FAVORABLE_RE = /(corrobora|acredita|respalda|sustenta|favorable|exculpator)/;
 
 export function groupForFinding(f: AnyFinding): AttorneyGroupKey {
@@ -257,7 +266,9 @@ function buildPending(f: AnyFinding, ctx: WorkProductContext): string[] {
     if (rule.mention.test(text) && !rule.corpus.test(corpus)) out.push(rule.text);
   }
   for (const m of ctx.missingDocuments ?? []) {
-    const key = norm(m).split(/\s+/).filter((w) => w.length > 5)[0];
+    const key = norm(m)
+      .split(/\s+/)
+      .filter((w) => w.length > 5)[0];
     if (key && text.includes(key)) out.push(`No obra en el expediente: ${m}.`);
   }
   return Array.from(new Set(out)).slice(0, 5);
@@ -278,33 +289,54 @@ function buildActions(f: AnyFinding, docs: FindingSourceDoc[], pending: string[]
         "Confirmar la autenticidad del soporte documental (ratificación, certificación notarial o cotejo con el original).",
       );
   } else {
-    actions.push("Identificar y adjuntar al expediente el documento fuente que sustenta este hallazgo.");
+    actions.push(
+      "Identificar y adjuntar al expediente el documento fuente que sustenta este hallazgo.",
+    );
   }
   if (CONTRADICTION_RE.test(cat) || CONTRADICTION_RE.test(text))
-    actions.push("Comparar de manera directa los documentos contradictorios y documentar cuál tiene mayor valor probatorio.");
+    actions.push(
+      "Comparar de manera directa los documentos contradictorios y documentar cuál tiene mayor valor probatorio.",
+    );
   if (/(cadena|custodia|traslado|resguardo)/.test(text))
-    actions.push("Revisar la cadena documental completa, desde el origen del documento hasta su incorporación al expediente.");
+    actions.push(
+      "Revisar la cadena documental completa, desde el origen del documento hasta su incorporación al expediente.",
+    );
   if (/(cfdi|factura|contabilidad|nomina|pago)/.test(text))
-    actions.push("Revisar los CFDI y registros contables relacionados con las cantidades referidas.");
+    actions.push(
+      "Revisar los CFDI y registros contables relacionados con las cantidades referidas.",
+    );
   if (/(notificacion|emplazamiento|acuse)/.test(text))
     actions.push("Confirmar los acuses de notificación y su constancia en autos.");
   if (/(plazo|termino|fecha|caducidad|prescripcion)/.test(text))
-    actions.push("Confirmar las fechas procesales aplicables contra las constancias del expediente.");
+    actions.push(
+      "Confirmar las fechas procesales aplicables contra las constancias del expediente.",
+    );
   if (/(autoridad|administrativ|sat|imss|infonavit|impi|inm|profeco|comar)/.test(text))
     actions.push("Solicitar el expediente administrativo completo a la autoridad correspondiente.");
-  if (pending.length) actions.push("Solicitar o localizar la documentación pendiente identificada para este hallazgo.");
+  if (pending.length)
+    actions.push(
+      "Solicitar o localizar la documentación pendiente identificada para este hallazgo.",
+    );
   if (docs.length <= 1)
-    actions.push("Localizar evidencia adicional e independiente que corrobore el hallazgo dentro del expediente.");
+    actions.push(
+      "Localizar evidencia adicional e independiente que corrobore el hallazgo dentro del expediente.",
+    );
 
   const unique = Array.from(new Set(actions));
   if (unique.length < 3)
-    unique.push("Cotejar el hallazgo con el resto de las constancias del expediente antes de utilizarlo.");
+    unique.push(
+      "Cotejar el hallazgo con el resto de las constancias del expediente antes de utilizarlo.",
+    );
   if (unique.length < 3)
     unique.push("Someter el hallazgo a revisión del abogado responsable del asunto.");
   return unique.slice(0, 7);
 }
 
-function buildImportance(f: AnyFinding, docs: FindingSourceDoc[], ctx: WorkProductContext): string[] {
+function buildImportance(
+  f: AnyFinding,
+  docs: FindingSourceDoc[],
+  ctx: WorkProductContext,
+): string[] {
   const paras: string[] = [];
   const materia = materiaLabel(ctx.caseType);
   const sev = SEVERITY_ES[norm(f.severity ?? "")] ?? "media";
@@ -350,7 +382,8 @@ function buildImportance(f: AnyFinding, docs: FindingSourceDoc[], ctx: WorkProdu
     paras.push(String(f.potential_impact));
   }
 
-  const needsReview = conf < 0.75 || docs.length <= 1 || String(f.verification_status ?? "") === "disputed";
+  const needsReview =
+    conf < 0.75 || docs.length <= 1 || String(f.verification_status ?? "") === "disputed";
   paras.push(
     needsReview
       ? "Se requiere revisión profesional antes de apoyarse en este hallazgo: el sustento documental es limitado o su " +
@@ -364,7 +397,8 @@ function buildImportance(f: AnyFinding, docs: FindingSourceDoc[], ctx: WorkProdu
 
 function buildSynthesis(f: AnyFinding, docs: FindingSourceDoc[]): FindingWorkProduct["synthesis"] {
   if (!docs.length) return null;
-  const isContradiction = CONTRADICTION_RE.test(norm(f.category ?? "")) || CONTRADICTION_RE.test(findingText(f));
+  const isContradiction =
+    CONTRADICTION_RE.test(norm(f.category ?? "")) || CONTRADICTION_RE.test(findingText(f));
   const narrative =
     docs.length === 1
       ? `El hallazgo descansa en una sola fuente documental (${docs[0].weight.label} ${docs[0].weight.glyphs}). ` +
@@ -377,7 +411,10 @@ function buildSynthesis(f: AnyFinding, docs: FindingSourceDoc[]): FindingWorkPro
   return { docs, narrative };
 }
 
-export function buildFindingWorkProduct(f: AnyFinding, ctx: WorkProductContext): FindingWorkProduct {
+export function buildFindingWorkProduct(
+  f: AnyFinding,
+  ctx: WorkProductContext,
+): FindingWorkProduct {
   const docs = findingSourceLabels(f)
     .map((name) => ({ name, weight: classifyEvidenceWeight(name) }))
     .sort((a, b) => b.weight.stars - a.weight.stars);
@@ -410,9 +447,15 @@ export function buildCaseSnapshot(findings: AnyFinding[], ctx: WorkProductContex
   const enriched = findings.map((f) => ({ f, wp: buildFindingWorkProduct(f, ctx) }));
 
   const strengths = enriched
-    .filter(({ wp }) => (wp.synthesis?.docs.length ?? 0) >= 2 && (wp.synthesis?.docs[0].weight.stars ?? 0) >= 4)
+    .filter(
+      ({ wp }) =>
+        (wp.synthesis?.docs.length ?? 0) >= 2 && (wp.synthesis?.docs[0].weight.stars ?? 0) >= 4,
+    )
     .slice(0, 5)
-    .map(({ f, wp }) => `${title(f)} — sustentado por ${wp.synthesis!.docs.length} documentos (${wp.synthesis!.docs[0].weight.label}).`);
+    .map(
+      ({ f, wp }) =>
+        `${title(f)} — sustentado por ${wp.synthesis!.docs.length} documentos (${wp.synthesis!.docs[0].weight.label}).`,
+    );
 
   const weaknesses = enriched
     .filter(({ f, wp }) => (wp.synthesis?.docs.length ?? 0) <= 1 || Number(f.confidence ?? 0) < 0.6)
@@ -442,11 +485,21 @@ export function buildCaseSnapshot(findings: AnyFinding[], ctx: WorkProductContex
 
   const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
   const priorityReview = [...enriched]
-    .sort((a, b) => (sevOrder[norm(a.f.severity ?? "")] ?? 9) - (sevOrder[norm(b.f.severity ?? "")] ?? 9))
+    .sort(
+      (a, b) =>
+        (sevOrder[norm(a.f.severity ?? "")] ?? 9) - (sevOrder[norm(b.f.severity ?? "")] ?? 9),
+    )
     .slice(0, 5)
     .map(({ f }) => `${title(f)} (gravedad ${SEVERITY_ES[norm(f.severity ?? "")] ?? "media"}).`);
 
-  return { strengths, weaknesses, criticalEvidence, missingEvidence, proceduralConcerns, priorityReview };
+  return {
+    strengths,
+    weaknesses,
+    criticalEvidence,
+    missingEvidence,
+    proceduralConcerns,
+    priorityReview,
+  };
 }
 
 export type SnapshotQuestion = { question: string; answer: string; bullets?: string[] };

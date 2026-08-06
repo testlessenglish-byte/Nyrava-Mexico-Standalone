@@ -34,7 +34,9 @@ const finding = {
 describe("attorney work product", () => {
   it("classifies Mexican evidentiary weight tiers", () => {
     expect(classifyEvidenceWeight("Sentencia definitiva").stars).toBe(5);
-    expect(classifyEvidenceWeight("Dictamen pericial en grafoscopía").label).toBe("Dictamen Pericial");
+    expect(classifyEvidenceWeight("Dictamen pericial en grafoscopía").label).toBe(
+      "Dictamen Pericial",
+    );
     expect(classifyEvidenceWeight("WhatsApp supervisor").stars).toBe(2);
     expect(classifyEvidenceWeight("Testimonial de compañeros").stars).toBe(1);
   });
@@ -50,7 +52,10 @@ describe("attorney work product", () => {
   });
 
   it("flags single-source findings for professional review", () => {
-    const wp = buildFindingWorkProduct({ ...finding, evidence_refs: [finding.evidence_refs[0]] }, ctx);
+    const wp = buildFindingWorkProduct(
+      { ...finding, evidence_refs: [finding.evidence_refs[0]] },
+      ctx,
+    );
     expect(wp.importance.join(" ")).toContain("revisión profesional");
     expect(wp.actions.join(" ")).toContain("corrobore");
   });
