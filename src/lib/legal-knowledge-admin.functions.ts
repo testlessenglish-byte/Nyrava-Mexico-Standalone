@@ -57,26 +57,14 @@ async function requireAdmin(ctx: { supabase: any; userId: string }) {
   if (error || !isAdmin) throw new Error("Forbidden — admin required.");
 }
 
-// Structured/machine-readable access methods — no OCR, no HTML scraping, no
-// PDF text extraction. A connector using one of these gets its published
-// text directly from the issuing authority's own API/feed, which is the
-// only category low-risk enough for bulk auto-verification. official_pdf
-// and html_scrape stay on manual review — those are exactly the shapes
-// where a bad OCR/parse can silently corrupt what a citation actually says.
-const STRUCTURED_ACCESS_METHODS = new Set([
-  "official_api",
-  "official_json_endpoint",
-  "official_xml_feed",
-  "official_rss",
-  "official_csv_download",
-  "official_zip_download",
-]);
-
+// Trust classification (isStructuredAccessMethod) lives in
+// legal-connectors/types.ts — the SAME check the ingest pipeline now uses to
+// auto-verify a new authority the moment it's stored (versioning.server.ts),
+// so this admin backlog tool and live ingestion can never disagree about
+// which sources are low-risk enough to skip human review.
 async function getTrustedConnectorCodes(): Promise<Set<string>> {
-  const { IMPLEMENTED_CONNECTORS } = await import("./legal-connectors/types");
-  return new Set(
-    IMPLEMENTED_CONNECTORS.filter((c) => STRUCTURED_ACCESS_METHODS.has(c.accessMethod)).map((c) => c.code),
-  );
+  const { IMPLEMENTED_CONNECTORS, isStructuredAccessMethod } = await import("./legal-connectors/types");
+  return new Set(IMPLEMENTED_CONNECTORS.filter((c) => isStructuredAccessMethod(c.accessMethod)).map((c) => c.code));
 }
 
 export const getNlknStats = createServerFn({ method: "POST" })

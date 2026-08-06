@@ -10,11 +10,28 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import type { IngestedDocument } from "./types";
+import type { IngestedDocument, LegalSourceConnector } from "./types";
+import { isStructuredAccessMethod } from "./types";
 import { deriveAuthorityLevel } from "./authority-level";
 import { sha256Hex } from "@/lib/intelligence/evidence-provenance.server";
 
 type Db = SupabaseClient<Database>;
+
+/**
+ * A row is auto-verifiable on ingest only when BOTH hold: the connector
+ * delivers structured text with no OCR/scrape step (isStructuredAccessMethod),
+ * AND the document itself actually has the fields a citation needs. A
+ * structured API can still return a thin/incomplete record — that still
+ * goes to human review regardless of source trust.
+ */
+function isAutoVerifiable(connector: LegalSourceConnector, doc: IngestedDocument): boolean {
+  return (
+    isStructuredAccessMethod(connector.accessMethod) &&
+    !!doc.title?.trim() &&
+    !!doc.citation?.trim() &&
+    (doc.rawText ?? "").trim().length > 50
+  );
+}
 
 /**
  * Upsert an ingested document into legal_authorities. If a row with this
@@ -24,9 +41,10 @@ type Db = SupabaseClient<Database>;
  */
 export async function upsertAuthorityWithVersioning(
   db: Db,
-  connectorCode: string,
+  connector: LegalSourceConnector,
   doc: IngestedDocument,
 ): Promise<{ authorityId: string; versioned: boolean }> {
+  const connectorCode = connector.code;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existing } = await (db as any)
     .from("legal_authorities")
@@ -55,6 +73,10 @@ export async function upsertAuthorityWithVersioning(
         metadata,
         authority_level: deriveAuthorityLevel(doc.kind, doc.jurisdiction),
         content_hash: sha256Hex(doc.rawText),
+        // Auto-verify only a structured-source, structurally-complete record
+        // — see isAutoVerifiable above. Everything else keeps the column's
+        // 'pending' default and waits for the human review gate.
+        verification_status: isAutoVerifiable(connector, doc) ? "verified" : "pending",
       })
       .select("id")
       .single();

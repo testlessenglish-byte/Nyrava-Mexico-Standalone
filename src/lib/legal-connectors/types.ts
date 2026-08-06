@@ -27,6 +27,29 @@ export type AccessMethod =
   | "official_pdf"
   | "html_scrape"; // last resort only — see connector priority rule below
 
+/**
+ * Structured/machine-readable access methods — text comes straight from the
+ * issuing authority's own API/feed, with no OCR and no HTML-scrape step that
+ * could silently corrupt what a citation actually says. This is the single
+ * source of truth for which connectors are low-risk enough to skip human
+ * verification: used both by the ingest pipeline (auto-verifies a new
+ * authority the moment it's stored) and by the admin "bulk-verify by trusted
+ * source" action for the historical backlog. official_pdf and html_scrape
+ * are deliberately excluded — those keep the human review gate.
+ */
+export const STRUCTURED_ACCESS_METHODS: ReadonlySet<AccessMethod> = new Set([
+  "official_api",
+  "official_json_endpoint",
+  "official_xml_feed",
+  "official_rss",
+  "official_csv_download",
+  "official_zip_download",
+]);
+
+export function isStructuredAccessMethod(method: AccessMethod): boolean {
+  return STRUCTURED_ACCESS_METHODS.has(method);
+}
+
 /** Auth is optional and pluggable. Public sources (the default assumption
  *  for official Mexican legal publications) simply omit this entirely. */
 export type ConnectorAuth =

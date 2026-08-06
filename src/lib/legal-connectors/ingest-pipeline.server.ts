@@ -103,7 +103,7 @@ export async function runConnectorIngest(
         continue;
       }
       const { authorityId, versioned } = await withRetry(
-        () => upsertAuthorityWithVersioning(db, connector.code, normalized),
+        () => upsertAuthorityWithVersioning(db, connector, normalized),
         `${connector.code}.store(${normalized.externalId})`,
         1, // a write failure is almost always permanent (RLS/constraint) — don't burn 21s per doc
       );
