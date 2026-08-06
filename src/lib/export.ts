@@ -4971,6 +4971,18 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       renderDocx: () => [],
     },
     {
+      id: "methodology",
+      title: "Metodología NYRAVA",
+      gatedInLimited: false,
+      available: () => true,
+      renderPdf: (b) => {
+        b.h1("Metodología NYRAVA");
+        b.text(METHODOLOGY_STATEMENT, { size: 10, gap: 8 });
+      },
+      renderDocx: () => proseDocxParas("Metodología NYRAVA", METHODOLOGY_STATEMENT),
+    },
+    {
+
       id: "appendix",
       title: "Anexo: Citas de Fuentes",
       gatedInLimited: false,
