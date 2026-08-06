@@ -3470,6 +3470,28 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
           { size: 9, color: MUTED, gap: 2 },
         );
       }
+
+      // --- Attorney work product for this finding ---------------------
+      // Why it matters, how the record corroborates it, what is missing,
+      // and what to do next. All deterministic, evidence-only.
+      const wp = workProducts[i];
+      b.y += 4;
+      b.text(spaced("IMPORTANCIA ESTRATÉGICA"), { size: 7.4, bold: true, color: ACCENT, gap: 3 });
+      for (const para of wp.importance) b.text(para, { size: 9.4, gap: 4 });
+      if (wp.synthesis) {
+        b.text(spaced("SÍNTESIS PROBATORIA"), { size: 7.4, bold: true, color: ACCENT, gap: 3 });
+        b.bullets(wp.synthesis.docs.map((d) => `${d.weight.glyphs} ${d.weight.label} — ${d.name}`));
+        b.text(wp.synthesis.narrative, { size: 9.4, gap: 4 });
+      }
+      if (wp.pending.length) {
+        b.text(spaced("EVIDENCIA PENDIENTE O NO LOCALIZADA"), { size: 7.4, bold: true, color: MUTED, gap: 3 });
+        b.bullets(wp.pending);
+      }
+      if (wp.actions.length) {
+        b.text(spaced("PRÓXIMAS ACCIONES RECOMENDADAS"), { size: 7.4, bold: true, color: ACCENT, gap: 3 });
+        b.bullets(wp.actions);
+      }
+
     }
   }
 }
