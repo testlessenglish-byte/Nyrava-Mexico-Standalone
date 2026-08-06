@@ -525,7 +525,7 @@ function workProductContext(data: CaseExportData): WorkProductContext {
     // Cross-finding document index: lets the synthesis state which other
     // findings depend on the same source document.
     graph: buildDocumentGraph(
-      asArr(r.findings).map((f) => findingWithResolvedRefs(f as Record<string, unknown>)),
+      (data.findings ?? []).map((f) => findingWithResolvedRefs(f)),
     ),
   };
 }
