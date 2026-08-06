@@ -16,6 +16,7 @@ import { buildSupportingAuthority } from "@/lib/intelligence/authority";
 import { SupportingAuthorityCard } from "@/components/SupportingAuthorityCard";
 import { CaseDetailPanel, type CaseDetailContext } from "@/components/CaseDetailPanel";
 import { useI18n } from "@/i18n";
+import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
 
 export const Route = createFileRoute("/_authenticated/motion")({
   head: () => ({
@@ -60,6 +61,20 @@ function MotionPage() {
   const detFallback = isDeterministicFallback(report);
   const opps = selectMotionOpportunities(data);
 
+  // Screen-reading translation only — never applied to the formal Report.
+  const sourceLocale = (data?.case as { report_language?: string | null } | undefined)?.report_language === "en"
+    ? "en"
+    : "es";
+  const { texts: translatedFlat } = useTranslatedTexts(
+    opps.flatMap((o) => [o.title, o.description]),
+    sourceLocale,
+  );
+  const translatedOpps = opps.map((o, i) => ({
+    ...o,
+    title: translatedFlat[i * 2] || o.title,
+    description: translatedFlat[i * 2 + 1] || o.description,
+  }));
+
   const copy = (text: string) => {
     navigator.clipboard.writeText(text).then(
       () => toast.success(t("motion.toast.copied")),
@@ -90,7 +105,7 @@ function MotionPage() {
               <>
                 {detFallback ? <SuppressedNotice title={t("motion.limited")} /> : null}
                 <div className="grid gap-3">
-                  {opps.map((o) => (
+                  {translatedOpps.map((o) => (
                     <OpportunityCard
                       key={o.id}
                       o={o}

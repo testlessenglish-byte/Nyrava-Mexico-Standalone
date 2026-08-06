@@ -9,6 +9,7 @@ import { ModuleHeader } from "@/components/modules/SuppressedNotice";
 import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
 import { computeModuleStates, selectTimelineEvents } from "@/lib/modules/applicability";
 import { useI18n } from "@/i18n";
+import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
 
 export const Route = createFileRoute("/_authenticated/timeline")({
   head: () => ({ meta: [{ title: "Constructor de Línea de Tiempo — Nyrava" }] }),
@@ -29,11 +30,24 @@ function TimelinePage() {
     enabled: !!caseId,
   });
 
-  const events = useMemo<Event[]>(() => (data ? selectTimelineEvents(data) : []), [data]);
+  const rawEvents = useMemo<Event[]>(() => (data ? selectTimelineEvents(data) : []), [data]);
   const state = useMemo(
     () => (data ? computeModuleStates(data).find((m) => m.key === "timeline")! : null),
     [data],
   );
+
+  // Screen-reading translation only — never applied to the formal Report.
+  const sourceLocale =
+    (data?.case as { report_language?: string | null } | undefined)?.report_language === "en" ? "en" : "es";
+  const { texts: translatedFlat } = useTranslatedTexts(
+    rawEvents.flatMap((e) => [e.title, e.description ?? ""]),
+    sourceLocale,
+  );
+  const events: Event[] = rawEvents.map((e, i) => ({
+    ...e,
+    title: translatedFlat[i * 2] || e.title,
+    description: e.description ? translatedFlat[i * 2 + 1] || e.description : e.description,
+  }));
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(events, null, 2)], { type: "application/json" });
