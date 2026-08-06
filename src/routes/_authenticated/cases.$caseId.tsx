@@ -145,6 +145,8 @@ import {
   Mail,
 } from "lucide-react";
 import { TransactionCenterPanel } from "@/components/TransactionCenterPanel";
+import { ModuleStatusStrip } from "@/components/modules/ModuleStatus";
+import { computeModuleStates } from "@/lib/modules/applicability";
 
 export const Route = createFileRoute("/_authenticated/cases/$caseId")({
   head: () => ({ meta: [{ title: "Case workspace — Nyrava" }] }),
@@ -741,6 +743,9 @@ function Workspace() {
           <div className="mt-6">
             {tab === "dashboard" && (
               <>
+                <div className="mb-6">
+                  <ModuleStatusStrip states={computeModuleStates(data)} />
+                </div>
                 <CommandCenterDashboard
                   caseId={c.id}
                   caseName={c.name}
