@@ -103,8 +103,10 @@ type Prepared = {
   titleTokens: Set<string>;
   descTokens: Set<string>;
   titleKey: string;
+  fullTitle: string;
   evidence: Set<string>;
 };
+
 
 function categoryOf(f: DedupableFinding): string {
   return normalizeText(f.category ?? f.finding_type ?? "misc") || "misc";
