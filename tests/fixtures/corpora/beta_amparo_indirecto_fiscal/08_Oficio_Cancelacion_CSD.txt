@@ -1,0 +1,27 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+SERVICIO DE ADMINISTRACIÓN TRIBUTARIA
+ADMINISTRACIÓN DESCONCENTRADA DE SERVICIOS AL CONTRIBUYENTE DE JALISCO "3"
+OFICIO: 500-05-2026-16883
+ASUNTO: Cancelación de certificado de sello digital.
+Zapopan, Jalisco, a 26 de febrero de 2026.
+
+Con fundamento en el artículo 17-H, fracción X, en relación con el 69-B del Código Fiscal de la
+Federación, se deja sin efectos el certificado de sello digital número 00001000000710225431 de
+CONSTRUCTORA ALPERIA DEL BAJÍO, S.A. DE C.V.
+
+EFECTOS INMEDIATOS
+1. La contribuyente queda imposibilitada para emitir comprobantes fiscales digitales por internet.
+2. Se suspende la posibilidad de timbrar CFDI de nómina, lo que impide el cumplimiento de las
+   obligaciones de retención y entero previstas en el artículo 99 de la LISR.
+3. Los procedimientos de contratación pública en los que participa la contribuyente quedan
+   sujetos a lo previsto en el artículo 32-D del CFF.
+
+PROCEDIMIENTO DE ACLARACIÓN
+La contribuyente podrá presentar la solicitud de aclaración prevista en el artículo 17-H, penúltimo
+párrafo, del CFF a través del buzón tributario.
+
+CONSTANCIA DE INTENTO DE ACLARACIÓN (defensa)
+El 27 de febrero de 2026 se presentó la solicitud de aclaración con folio ACL-2026-556201. El 2 de
+marzo de 2026 el sistema devolvió la leyenda "no procede el trámite mientras subsista la
+publicación del artículo 69-B", sin resolución fundada y motivada.

@@ -1,0 +1,34 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+SERVICIO DE ADMINISTRACIÓN TRIBUTARIA
+ADMINISTRACIÓN DESCONCENTRADA DE RECAUDACIÓN DE JALISCO "3"
+OFICIO: 500-05-2026-16021
+ASUNTO: Se ordena aseguramiento precautorio de depósitos bancarios.
+Zapopan, Jalisco, a 24 de febrero de 2026.
+
+COMISIÓN NACIONAL BANCARIA Y DE VALORES
+P R E S E N T E
+
+Con fundamento en los artículos 40, fracción III, y 40-A del Código Fiscal de la Federación, se
+solicita ordenar a las instituciones del sistema financiero la inmovilización de los depósitos
+bancarios, seguros o cualquier otro depósito a nombre de CONSTRUCTORA ALPERIA DEL BAJÍO, S.A. DE
+C.V., RFC CAB210415K73, hasta por la cantidad de $18,442,915.00.
+
+MOTIVACIÓN INVOCADA
+Se estima que existe riesgo inminente de que la contribuyente realice maniobras tendientes a
+evadir el cumplimiento de sus obligaciones fiscales, en razón de: (i) su inclusión en el listado
+definitivo del artículo 69-B del CFF publicado el 20 de febrero de 2026; y (ii) el volumen de
+recursos manejados en sus cuentas durante los últimos doce meses.
+
+CUENTAS IDENTIFICADAS
+Banco Peninsular Regional, S.A.: 0114-7729-31 (cuenta de cheques en moneda nacional) y
+0114-7729-49 (cuenta concentradora de nómina).
+
+NOTA DE LA DEFENSA
+El oficio no precisa cuál es la conducta concreta atribuida a la contribuyente que revele riesgo
+inminente de evasión, ni razona por qué la medida se extiende a la cuenta concentradora de
+nómina 0114-7729-49, de la que se pagan los salarios de 11 trabajadores y las cuotas obrero
+patronales. Tampoco consta que se hubiese agotado el orden de prelación del artículo 40-A,
+fracción II, del CFF, ni que exista crédito fiscal exigible al momento de la orden: el crédito
+6-JAL-2026-002317 se determinó hasta el 3 de marzo de 2026, es decir, SIETE DÍAS DESPUÉS del
+aseguramiento.

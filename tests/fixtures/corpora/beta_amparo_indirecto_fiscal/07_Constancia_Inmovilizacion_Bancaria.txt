@@ -1,0 +1,30 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+BANCO PENINSULAR REGIONAL, S.A., INSTITUCIÓN DE BANCA MÚLTIPLE
+DIRECCIÓN JURÍDICA — ÁREA DE REQUERIMIENTOS DE AUTORIDAD
+CONSTANCIA DE INMOVILIZACIÓN
+Folio: BPR-INM-2026-04471
+Guadalajara, Jalisco, a 25 de febrero de 2026, 08:41 horas.
+
+En cumplimiento del requerimiento CNBV/214-2/2026/9081 de 24 de febrero de 2026, esta institución
+hace constar que a las 08:41 horas del día de la fecha se aplicó bloqueo total de disposición
+sobre las siguientes cuentas:
+
+CUENTA 0114-7729-31 — Titular: Constructora Alperia del Bajío, S.A. de C.V.
+Saldo al momento del bloqueo: $2,317,884.62 M.N.
+Estado: inmovilizada en su totalidad, sin límite hasta el monto requerido.
+
+CUENTA 0114-7729-49 — Titular: Constructora Alperia del Bajío, S.A. de C.V. (concentradora de nómina)
+Saldo al momento del bloqueo: $486,220.10 M.N.
+Estado: inmovilizada en su totalidad.
+
+OPERACIONES RECHAZADAS DESDE EL BLOQUEO (al 4 de marzo de 2026)
+- 25/02/2026: dispersión de nómina por $312,540.00 — RECHAZADA (saldo bloqueado).
+- 26/02/2026: pago de cuotas IMSS por $141,208.00 — RECHAZADA.
+- 27/02/2026: transferencia SPEI a Maquinaria Norte Occidente por $684,000.00 — RECHAZADA.
+- 02/03/2026: domiciliación de póliza de fianza 4471-2026 por $58,700.00 — RECHAZADA.
+- 03/03/2026: pago de impuestos estatales sobre nóminas por $39,415.00 — RECHAZADA.
+
+Se hace constar que el bloqueo comprende la totalidad de los saldos y no únicamente el monto
+señalado en el requerimiento, por así permitirlo la configuración operativa del sistema
+institucional para aseguramientos totales.

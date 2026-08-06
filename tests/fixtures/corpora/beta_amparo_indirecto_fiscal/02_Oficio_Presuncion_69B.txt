@@ -1,0 +1,44 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+SERVICIO DE ADMINISTRACIÓN TRIBUTARIA
+ADMINISTRACIÓN DESCONCENTRADA DE AUDITORÍA FISCAL DE JALISCO "3"
+OFICIO: 500-05-2026-01188
+ASUNTO: Se notifica presunción de inexistencia de operaciones (art. 69-B, primer párrafo, CFF).
+Zapopan, Jalisco, a 12 de enero de 2026.
+
+CONSTRUCTORA ALPERIA DEL BAJÍO, S.A. DE C.V.
+RFC: CAB210415K73
+P R E S E N T E
+
+Con fundamento en los artículos 16 y 31 fracción IV de la Constitución Política de los Estados
+Unidos Mexicanos; 69-B del Código Fiscal de la Federación; 42 fracción II del mismo ordenamiento,
+esta autoridad hace de su conocimiento que, del análisis de la información contenida en las bases
+institucionales, se detectó que el contribuyente emitió comprobantes fiscales digitales por
+internet (CFDI) sin contar con los activos, personal, infraestructura o capacidad material,
+directa o indirecta, para prestar los servicios amparados en ellos.
+
+I. ELEMENTOS EN QUE SE SUSTENTA LA PRESUNCIÓN
+1. Del periodo comprendido entre enero de 2023 y septiembre de 2025 se emitieron 1,438 CFDI por
+   un monto total de $412,338,502.00, principalmente por conceptos de "servicios de supervisión
+   de obra", "renta de maquinaria pesada" y "movimiento de tierras".
+2. En las declaraciones informativas correspondientes se reportó un promedio de 11 trabajadores
+   registrados ante el IMSS, cifra que esta autoridad considera insuficiente respecto del volumen
+   facturado.
+3. En las visitas de verificación de 4 y 5 de diciembre de 2025 al domicilio fiscal, el personal
+   actuante asentó que no se localizó maquinaria pesada en el inmueble.
+4. Seis de los principales receptores de CFDI se encuentran en el listado del artículo 69-B.
+
+II. PLAZO PARA DESVIRTUAR
+Con fundamento en el segundo párrafo del artículo 69-B del CFF, se otorga a la contribuyente el
+plazo de QUINCE DÍAS hábiles, contados a partir de la última de las notificaciones, para
+manifestar lo que a su derecho convenga y aportar la documentación e información que considere
+pertinente para desvirtuar los hechos que llevaron a esta autoridad a notificarle.
+
+III. APERCIBIMIENTO
+De no desvirtuarse la presunción, se publicará el listado definitivo en el Diario Oficial de la
+Federación y en el portal del SAT, con los efectos previstos en el cuarto y quinto párrafos del
+propio artículo 69-B.
+
+ATENTAMENTE
+Lic. Norma Guadalupe Íñiguez Palomar
+Administradora Desconcentrada de Auditoría Fiscal de Jalisco "3"

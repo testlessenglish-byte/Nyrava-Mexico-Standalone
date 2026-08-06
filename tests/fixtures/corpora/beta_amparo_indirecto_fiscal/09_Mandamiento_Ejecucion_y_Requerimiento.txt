@@ -1,0 +1,30 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+SERVICIO DE ADMINISTRACIÓN TRIBUTARIA
+ADMINISTRACIÓN DESCONCENTRADA DE RECAUDACIÓN DE JALISCO "3"
+MANDAMIENTO DE EJECUCIÓN Y REQUERIMIENTO DE PAGO
+Crédito fiscal: 6-JAL-2026-002317
+Zapopan, Jalisco, a 3 de marzo de 2026.
+
+IMPORTE DEL CRÉDITO
+Contribución omitida (ISR e IVA, ejercicios 2023 a 2025): $11,884,203.00
+Actualización: $1,842,660.00
+Recargos: $2,109,441.00
+Multa (art. 76 CFF, 55%): $2,606,611.00
+TOTAL: $18,442,915.00
+
+DILIGENCIA
+Siendo las 10:22 horas del 3 de marzo de 2026, el ejecutor Lic. Ismael Preciado Gaytán se
+constituyó en Av. Vallarta 6503, int. 402, Zapopan, Jalisco, y requirió de pago al Ing. Ramiro
+Escalante Villalpando, quien manifestó no poder realizar pago alguno por encontrarse
+inmovilizadas la totalidad de sus cuentas desde el 25 de febrero de 2026.
+
+Ante la negativa de pago se procedió al embargo de cuentas por cobrar hasta por la cantidad
+requerida, notificándose a nueve clientes de la contribuyente para que se abstengan de pagar a
+ésta y enteren los importes a la autoridad ejecutora.
+
+NOTA DE LA DEFENSA
+El crédito se determinó con base exclusivamente en la publicación del listado definitivo, sin
+que se hubiese instaurado facultad de comprobación autónoma (visita domiciliaria o revisión de
+gabinete) que permitiera a la contribuyente ofrecer pruebas en un procedimiento contradictorio.
+La secuencia es relevante: aseguramiento (24-25 de febrero) ANTES del crédito (3 de marzo).

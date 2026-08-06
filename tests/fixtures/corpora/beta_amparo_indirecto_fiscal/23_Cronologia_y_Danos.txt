@@ -1,0 +1,37 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+CRONOLOGÍA CONSOLIDADA Y CUANTIFICACIÓN DE DAÑOS — CONSTRUCTORA ALPERIA DEL BAJÍO, S.A. DE C.V.
+Documento de trabajo del despacho — 20 de julio de 2026.
+
+LÍNEA DE TIEMPO
+12/01/2026 — Notificación de presunción (69-B, primer párrafo).
+26/01/2026 — Escrito con 91 anexos de materialidad.
+11/02/2026 — Oficio definitivo confirma la presunción (sin análisis individualizado).
+20/02/2026 — Publicación en el DOF.
+24/02/2026 — Orden de aseguramiento precautorio (sin crédito exigible).
+25/02/2026 — Inmovilización total de dos cuentas, incluida la de nómina.
+26/02/2026 — Cancelación del certificado de sello digital.
+27/02/2026 — Solicitud de aclaración del CSD (ACL-2026-556201).
+02/03/2026 — Sistema rechaza el trámite de aclaración sin resolución fundada.
+03/03/2026 — Determinación del crédito 6-JAL-2026-002317 y embargo de cuentas por cobrar.
+05/03/2026 — Demanda de amparo.
+09/03/2026 — Admisión y suspensión provisional parcial.
+19/03/2026 — Suspensión definitiva: liberación de la cuenta de nómina.
+02/04/2026 — Informe justificado (anexo 214 acredita el establecimiento negado).
+15/04/2026 — Ampliación de demanda por embargo de cuentas por cobrar.
+09/06/2026 — Audiencia constitucional.
+26/06/2026 — Sentencia protectora parcial.
+08/07/2026 — Revisión de la autoridad; 16/07/2026 revisión adhesiva.
+
+DAÑOS DOCUMENTADOS
+1. Contrato MT-OP-2025-118 (Municipio de Tlajomulco) rescindido: $18,900,000.00.
+2. Contrato GIS-2025-44 (Grupo Inmobiliario Serranía) rescindido: $8,500,000.00.
+3. Recargos y actualizaciones por impago de cuotas IMSS de febrero 2026: $22,140.00.
+4. Penalización por incumplimiento de pago a Maquinaria Norte Occidente: $68,400.00.
+5. Tres licitaciones públicas suspendidas por aplicación del artículo 32-D del CFF.
+
+RIESGOS ABIERTOS
+- Que el Tribunal Colegiado limite los efectos a la mera reposición del procedimiento, dejando
+  vigentes las medidas cautelares.
+- Que la autoridad emita nuevo oficio definitivo con la misma conclusión, ahora "motivado".
+- Prescripción de acciones de responsabilidad patrimonial del Estado (dos años).

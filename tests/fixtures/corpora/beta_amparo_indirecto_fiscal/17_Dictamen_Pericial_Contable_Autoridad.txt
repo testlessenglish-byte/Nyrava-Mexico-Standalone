@@ -1,0 +1,28 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+DICTAMEN PERICIAL EN MATERIA CONTABLE — PERITO DE LA AUTORIDAD RESPONSABLE
+Perito: C.P. Julio Márquez Elizondo, adscrito a la Administración Desconcentrada de Auditoría
+Fiscal de Jalisco "3". Presentado el 29 de mayo de 2026.
+
+OBJETO
+Verificar la capacidad material de la contribuyente para prestar los servicios facturados.
+
+RESULTADOS
+1. Se confirma la existencia de movimientos bancarios asociados a los CFDI. El perito precisa, sin
+   embargo, que el flujo de recursos no acredita por sí solo la prestación material del servicio.
+2. Respecto del personal: se coincide en que existen 148 CFDI de nómina de terceros, aunque el
+   perito considera que dicho personal pudo ser asignado a obras distintas de las facturadas.
+3. Respecto de la maquinaria: el perito reconoce la existencia de los 19 contratos y no formula
+   objeción sobre traslapes de fechas.
+4. El perito no examinó el establecimiento de carretera a Chapala km 18.5 por no formar parte de
+   su encomienda.
+
+CONCLUSIÓN
+La documentación revisada resulta insuficiente para acreditar de manera plena la materialidad de
+las operaciones, si bien no se detectaron inconsistencias aritméticas ni registros duplicados.
+
+OBSERVACIÓN DE LA DEFENSA
+El dictamen de la autoridad coincide con el de la quejosa en tres hechos objetivos: existencia de
+flujo bancario, existencia de nómina de terceros y ausencia de traslapes de maquinaria. La
+discrepancia es de valoración jurídica, no de hechos contables. La ausencia de examen del patio
+de maniobras refuerza el primer concepto de violación.
