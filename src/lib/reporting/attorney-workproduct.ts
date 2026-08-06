@@ -434,6 +434,7 @@ function buildSynthesis(
 ): { synthesis: FindingWorkProduct["synthesis"]; detail: EvidenceSynthesis | null } {
   if (!docs.length) return { synthesis: null, detail: null };
   const detail = synthesizeEvidence(docs, {
+    caseType: ctx.caseType ?? null,
     graph: ctx.graph,
     findingTitle: String(f.title ?? "").trim(),
   });

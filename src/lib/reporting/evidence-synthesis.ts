@@ -17,16 +17,13 @@
 // =============================================================================
 
 import {
-  ACT_EXPECTED_FOLLOWUP,
-  ACT_LABELS,
-  ACT_SEQUENCE,
   extractFacts,
   FACT_KIND_LABEL,
   normalizeText,
-  type ActKey,
   type ExtractedFact,
   type FactKind,
 } from "./evidence-facts";
+import { actLabel, resolveActLexicon, type ActKey, type ActLexicon } from "./legal-acts";
 
 type Weight = { stars: number; glyphs: string; label: string };
 
@@ -143,10 +140,10 @@ export function buildDocumentGraph(
 
 // -------------------------------------------------------------- resolution
 
-function resolveDocs(docs: SynthesisDoc[]): ResolvedDoc[] {
+function resolveDocs(docs: SynthesisDoc[], caseType?: string | null): ResolvedDoc[] {
   const resolved: ResolvedDoc[] = docs.map((d) => ({
     ...d,
-    facts: extractFacts(d.quotes),
+    facts: extractFacts(d.quotes, caseType),
     stem: stemOf(d.name),
     family: d.weight.label,
   }));
@@ -260,7 +257,7 @@ function compareFacts(docs: ResolvedDoc[]): {
 
 // --------------------------------------------------------- act relationships
 
-function actLines(docs: ResolvedDoc[]): string[] {
+function actLines(docs: ResolvedDoc[], lexicon: ActLexicon): string[] {
   const lines: string[] = [];
   const actDocs = new Map<ActKey, string[]>();
   for (const d of docs) {
@@ -274,7 +271,7 @@ function actLines(docs: ResolvedDoc[]): string[] {
   if (!actDocs.size) return lines;
 
   // Complementarity: antecedent act in one document, consequent in another.
-  for (const seq of ACT_SEQUENCE) {
+  for (const seq of lexicon.sequences) {
     const from = actDocs.get(seq.from);
     const to = actDocs.get(seq.to);
     if (!from?.length || !to?.length) continue;
@@ -282,8 +279,8 @@ function actLines(docs: ResolvedDoc[]): string[] {
     if (!differentDocs) continue;
     lines.push(
       `Documentos complementarios: ${fmtList(from)} acredita${from.length > 1 ? "n" : ""} ` +
-        `${ACT_LABELS[seq.from]} y ${fmtList(to)} acredita${to.length > 1 ? "n" : ""} ` +
-        `${ACT_LABELS[seq.to]}; se documenta ${seq.relation}, por lo que no son duplicados sino ` +
+        `${actLabel(seq.from)} y ${fmtList(to)} acredita${to.length > 1 ? "n" : ""} ` +
+        `${actLabel(seq.to)}; se documenta ${seq.relation}, por lo que no son duplicados sino ` +
         "eslabones distintos de la misma secuencia.",
     );
   }
@@ -292,17 +289,15 @@ function actLines(docs: ResolvedDoc[]): string[] {
   for (const [act, names] of actDocs) {
     if (names.length < 2) continue;
     lines.push(
-      `El hecho jurídico «${ACT_LABELS[act]}» aparece acreditado en ${names.length} documentos citados: ${fmtList(names)}.`,
+      `El hecho jurídico «${actLabel(act)}» aparece acreditado en ${names.length} documentos citados: ${fmtList(names)}.`,
     );
   }
 
   // Antecedent act with no consequent act anywhere in the cited corpus.
-  for (const [act, cfg] of Object.entries(ACT_EXPECTED_FOLLOWUP) as Array<
-    [ActKey, { needs: ActKey[]; gap: string }]
-  >) {
-    if (!actDocs.has(act)) continue;
-    if (cfg.needs.some((n) => actDocs.has(n))) continue;
-    lines.push(cfg.gap);
+  for (const gap of lexicon.gaps) {
+    if (!actDocs.has(gap.act)) continue;
+    if (gap.needs.some((n) => actDocs.has(n))) continue;
+    lines.push(gap.gap);
   }
 
   return lines.slice(0, 6);
@@ -312,10 +307,11 @@ function actLines(docs: ResolvedDoc[]): string[] {
 
 export function synthesizeEvidence(
   docsIn: SynthesisDoc[],
-  opts: { graph?: DocumentGraph; findingTitle?: string } = {},
+  opts: { graph?: DocumentGraph; findingTitle?: string; caseType?: string | null } = {},
 ): EvidenceSynthesis | null {
   if (!docsIn.length) return null;
-  const docs = resolveDocs(docsIn);
+  const lexicon = resolveActLexicon(opts.caseType);
+  const docs = resolveDocs(docsIn, opts.caseType);
   const { agreements, conflicts } = compareFacts(docs);
   const lines: string[] = [];
 
@@ -354,7 +350,7 @@ export function synthesizeEvidence(
   }
 
   // ---- 3. Legal-act relationships (complementarity and sequence gaps).
-  lines.push(...actLines(docs));
+  lines.push(...actLines(docs, lexicon));
 
   // ---- 4. Duplicate copies never increase evidentiary strength.
   const dupes = docs.filter((d) => d.duplicateOf);

@@ -13,7 +13,7 @@ describe("extractFacts", () => {
   it("extracts dates, amounts, identifiers, parties and legal acts", () => {
     const facts = extractFacts([
       "El C. Juan Pérez López se obliga a pagar la cantidad de $350,000.00 MXN el 3 de marzo de 2026, según CFDI No. A-1456.",
-    ]);
+    ], "civil");
     const kinds = facts.map((f) => f.kind);
     expect(kinds).toContain("date");
     expect(kinds).toContain("amount");
@@ -83,7 +83,7 @@ describe("synthesizeEvidence", () => {
     const s = synthesizeEvidence([
       { name: "Contrato.pdf", weight: w(3, "Documento Privado"), quotes: ["se obliga a pagar la renta mensual"] },
       { name: "Recibo de pago.pdf", weight: w(3, "Registro Contable"), quotes: ["comprobante de pago recibido de conformidad"] },
-    ])!;
+    ], { caseType: "civil" })!;
     expect(s.lines.join(" ")).toContain("Documentos complementarios");
   });
 
@@ -91,7 +91,7 @@ describe("synthesizeEvidence", () => {
     const s = synthesizeEvidence([
       { name: "Convenio.pdf", weight: w(3, "Documento Privado"), quotes: ["el deudor se obliga a pagar $10,000.00 MXN"] },
       { name: "Demanda.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["el deudor se obliga a pagar $10,000 MXN"] },
-    ])!;
+    ], { caseType: "civil" })!;
     expect(s.lines.join(" ")).toContain("Ninguno de los documentos citados acredita el cumplimiento");
   });
 
