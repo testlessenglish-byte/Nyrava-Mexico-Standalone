@@ -3417,27 +3417,47 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
 
     const { data: caseRow } = await db
       .from("cases")
-      .select("case_type" as any)
+      .select("case_type,name,description" as any)
       .eq("id", caseId)
       .maybeSingle();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const area = String((caseRow as any)?.case_type ?? "general_civil");
     const activeDomains = await getActiveDomains(db, caseId);
 
+    // MATTER-SUBTYPE LOCK: a materia can bundle divergent legal domains
+    // (familiar = family disputes + sucesiones). Narrow the materia-level
+    // engine policy so, e.g., custody/alimentos/violencia agents never run on
+    // a juicio sucesorio and can never attach their categories to its
+    // findings. Never widens the policy.
+    const { detectMatterSubtype, isEngineAllowedForSubtype, SKIP_REASON_SUBTYPE_NOT_APPLICABLE } =
+      await import("./jurisdiction/matter-subtype");
+    const subtypeSignalText = [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      String((caseRow as any)?.name ?? ""),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      String((caseRow as any)?.description ?? ""),
+      corpus.slice(0, 20_000),
+    ].join("\n");
+    const matterSubtype = detectMatterSubtype(area, subtypeSignalText);
+
     const activeAgents: typeof AGENTS = [];
     for (const agent of AGENTS) {
       const engine = AGENT_ENGINE[agent.type] ?? agent.type;
-      if (isAnalyzerAllowed(area, engine, activeDomains)) {
+      const subtypeBlocked = !isEngineAllowedForSubtype(matterSubtype, engine);
+      if (!subtypeBlocked && isAnalyzerAllowed(area, engine, activeDomains)) {
         activeAgents.push(agent);
       } else {
         await recordSkipped(db, {
           caseId,
           userId,
           engine: engine as never,
-          reason: SKIP_REASON_NOT_APPLICABLE,
+          reason: subtypeBlocked
+            ? `${SKIP_REASON_SUBTYPE_NOT_APPLICABLE}:${matterSubtype?.key ?? "unknown"}`
+            : SKIP_REASON_NOT_APPLICABLE,
         });
       }
     }
+
 
     // Reset prior agent rows only for agents we're about to actually run.
     // Rows for agents that already completed on a prior tick are preserved
