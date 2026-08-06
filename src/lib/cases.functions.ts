@@ -3230,7 +3230,14 @@ export const getCase = createServerFn({ method: "POST" })
         // PERF: only the most recent slice is ever rendered; unbounded log
         // history was a large part of this payload.
         .limit(200),
+      supabase
+        .from("case_timeline_events")
+        .select("id,event_date,description,source_document_id,source_page,canonical_id")
+        .eq("case_id", data.caseId)
+        .is("superseded_by", null)
+        .order("event_date", { ascending: true, nullsFirst: false }),
     ]);
+
     // Phase 4: current canonical version, so the report header can say a
     // newer analysis exists instead of silently re-rendering.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
