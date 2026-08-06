@@ -20,6 +20,10 @@
 // same facts, in the same order, with the same wording downstream.
 // =============================================================================
 
+import { resolveActLexicon, type ActKey, type ActLexicon } from "./legal-acts";
+
+export type { ActKey };
+
 export type FactKind = "date" | "amount" | "party" | "identifier" | "location" | "act";
 
 export type ExtractedFact = {
@@ -322,91 +326,21 @@ function extractLocations(raw: string): ExtractedFact[] {
 }
 
 // ------------------------------------------------------------- legal acts
+//
+// The act vocabulary is NOT declared here: it lives in the universal
+// legal-act registry (./legal-acts) and is resolved per detected materia.
+// The extraction methodology is identical for every matter type.
 
-export type ActKey =
-  | "obligacion_creada"
-  | "obligacion_cumplida"
-  | "pago_reconocido"
-  | "contrato_celebrado"
-  | "notificacion_realizada"
-  | "autoridad_notificada"
-  | "posesion_entregada"
-  | "dictamen_rendido"
-  | "plazo_procesal"
-  | "registro_inscrito"
-  | "incumplimiento_alegado";
-
-export const ACT_LABELS: Record<ActKey, string> = {
-  obligacion_creada: "creación de una obligación",
-  obligacion_cumplida: "cumplimiento de la obligación",
-  pago_reconocido: "reconocimiento de pago",
-  contrato_celebrado: "celebración del contrato",
-  notificacion_realizada: "notificación practicada",
-  autoridad_notificada: "conocimiento de la autoridad",
-  posesion_entregada: "entrega de la posesión",
-  dictamen_rendido: "dictamen pericial rendido",
-  plazo_procesal: "plazo o término procesal",
-  registro_inscrito: "inscripción registral",
-  incumplimiento_alegado: "incumplimiento señalado",
-};
-
-const ACT_RULES: Array<{ act: ActKey; re: RegExp }> = [
-  {
-    act: "obligacion_creada",
-    re: /(se obliga|se obligan|obligacion de pago|se compromete a|se comprometen a|debera pagar|deberan pagar|contrae la obligacion|queda obligad)/,
-  },
-  {
-    act: "obligacion_cumplida",
-    re: /(dio cumplimiento|se dio cumplimiento|cumpli[oó] con|liquid[oó] el adeudo|saldo cubierto|finiquit|pago total|carta finiquito|no existe adeudo)/,
-  },
-  {
-    act: "pago_reconocido",
-    re: /(recib[ií] de conformidad|acuse de pago|pago recibido|comprobante de pago|transferencia (?:por|de)|dep[oó]sito por|abono por|se pag[oó])/,
-  },
-  {
-    act: "contrato_celebrado",
-    re: /(celebran el (?:presente )?contrato|contrato celebrado|suscriben el|firmado el|de com[uú]n acuerdo celebran|convenio celebrado)/,
-  },
-  {
-    act: "notificacion_realizada",
-    re: /(se notific|notificacion personal|cedula de notificacion|emplazamiento|acuse de recibo|se corri[oó] traslado)/,
-  },
-  {
-    act: "autoridad_notificada",
-    re: /(se dio vista a|oficio dirigido a|se hizo del conocimiento de la autoridad|se inform[oó] a la autoridad|presentado ante la autoridad)/,
-  },
-  {
-    act: "posesion_entregada",
-    re: /(entrega de la posesion|posesion material|acta de entrega|se entrega el inmueble|entrega recepcion)/,
-  },
-  {
-    act: "dictamen_rendido",
-    re: /(dictamen pericial|perito design|rindi[oó] dictamen|opinion tecnica|peritaje)/,
-  },
-  {
-    act: "plazo_procesal",
-    re: /(plazo de \d|termino de \d|dentro de los \d{1,3} dias|vence el|caducidad|prescripcion|preclusion)/,
-  },
-  {
-    act: "registro_inscrito",
-    re: /(inscripcion en el registro|folio real|inscrito bajo|registro publico de la propiedad|quedo inscrit)/,
-  },
-  {
-    act: "incumplimiento_alegado",
-    re: /(incumpli|no pag[oó]|adeudo pendiente|saldo insoluto|mora|falta de pago|omiti[oó] entregar)/,
-  },
-];
-
-function extractActs(raw: string): ExtractedFact[] {
+function extractActs(raw: string, lexicon: ActLexicon): ExtractedFact[] {
   const hay = normalizeText(raw);
   const out: ExtractedFact[] = [];
-  for (const rule of ACT_RULES) {
+  for (const rule of lexicon.acts) {
     const m = rule.re.exec(hay);
     if (m) {
       out.push({
         kind: "act",
         key: `act:${rule.act}`,
-        display: ACT_LABELS[rule.act],
+        display: rule.label,
         raw: m[0],
         act: rule.act,
       });
@@ -418,16 +352,17 @@ function extractActs(raw: string): ExtractedFact[] {
 // -------------------------------------------------------------- public API
 
 /** Extract every comparable fact from a set of verbatim quotes. */
-export function extractFacts(quotes: string[]): ExtractedFact[] {
+export function extractFacts(quotes: string[], caseType?: string | null): ExtractedFact[] {
   const raw = quotes.filter(Boolean).join("\n");
   if (!raw.trim()) return [];
+  const lexicon = resolveActLexicon(caseType);
   const facts = [
     ...extractDates(raw),
     ...extractAmounts(raw),
     ...extractIdentifiers(raw),
     ...extractParties(raw),
     ...extractLocations(raw),
-    ...extractActs(raw),
+    ...extractActs(raw, lexicon),
   ];
   const seen = new Set<string>();
   return facts.filter((f) => {
@@ -445,58 +380,4 @@ export const FACT_KIND_LABEL: Record<FactKind, string> = {
   identifier: "identificador",
   location: "lugar",
   act: "hecho jurídico",
-};
-
-/**
- * Complementarity pairs: when one document evidences the antecedent act and
- * another evidences the consequent act, the documents complement each other
- * rather than duplicate one another.
- */
-export const ACT_SEQUENCE: Array<{ from: ActKey; to: ActKey; relation: string }> = [
-  {
-    from: "obligacion_creada",
-    to: "obligacion_cumplida",
-    relation: "la creación de la obligación y su cumplimiento",
-  },
-  {
-    from: "obligacion_creada",
-    to: "pago_reconocido",
-    relation: "la creación de la obligación y el pago reconocido",
-  },
-  {
-    from: "contrato_celebrado",
-    to: "registro_inscrito",
-    relation: "la celebración del contrato y su inscripción registral",
-  },
-  {
-    from: "contrato_celebrado",
-    to: "posesion_entregada",
-    relation: "la celebración del contrato y la entrega de la posesión",
-  },
-  {
-    from: "notificacion_realizada",
-    to: "plazo_procesal",
-    relation: "la notificación practicada y el cómputo del plazo procesal",
-  },
-  {
-    from: "obligacion_creada",
-    to: "incumplimiento_alegado",
-    relation: "la obligación pactada y el incumplimiento señalado",
-  },
-];
-
-/** Acts whose absence in the cited corpus is worth stating explicitly. */
-export const ACT_EXPECTED_FOLLOWUP: Partial<Record<ActKey, { needs: ActKey[]; gap: string }>> = {
-  obligacion_creada: {
-    needs: ["obligacion_cumplida", "pago_reconocido"],
-    gap: "Ninguno de los documentos citados acredita el cumplimiento de la obligación referida.",
-  },
-  notificacion_realizada: {
-    needs: ["autoridad_notificada", "plazo_procesal"],
-    gap: "Ninguno de los documentos citados acredita la constancia de plazo derivada de la notificación.",
-  },
-  contrato_celebrado: {
-    needs: ["registro_inscrito", "posesion_entregada", "pago_reconocido"],
-    gap: "Ninguno de los documentos citados acredita actos de ejecución posteriores a la celebración del contrato.",
-  },
 };
