@@ -32,7 +32,14 @@ export const CASE_DERIVED_TABLES = [
   "reports",
   "pipeline_engine_runs",
   "pipeline_events",
+  // Verification / provenance artifacts of the previous execution. Left
+  // behind these made a fresh run look like it had inherited the earlier
+  // run's cross-agent audit trail and finding history.
+  "cross_agent_audit",
+  "finding_version_snapshots",
+  "pipeline_trace",
 ] as const;
+
 
 // Every stage timestamp / cached artifact column on `cases` that must go back
 // to its "never ran" value so no stage is treated as already complete.
