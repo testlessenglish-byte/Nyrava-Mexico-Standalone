@@ -79,6 +79,112 @@ export const updateProfile = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ----- Beta / professional profile intake ---------------------------------
+// Beta testers get full product access (no subscription, no free-case cap)
+// but no admin powers. The trade is that they complete a real professional
+// profile first, so every session is attributable to a named practitioner.
+
+export type ProfileSetupStatus = {
+  isBetaTester: boolean;
+  complete: boolean;
+  values: {
+    full_name: string;
+    phone: string;
+    firm_name: string;
+    title: string;
+    cedula_profesional: string;
+    state_practice: string;
+    practice_focus: string;
+    years_experience: string;
+  };
+};
+
+const REQUIRED_PROFILE_FIELDS = [
+  "full_name",
+  "firm_name",
+  "title",
+  "state_practice",
+  "practice_focus",
+] as const;
+
+export const getProfileSetupStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = context as any;
+    const supabase = ctx.supabase;
+    const userId = ctx.userId as string;
+
+    const [{ data: profile }, { data: settings }, { data: sub }] = await Promise.all([
+      supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+      supabase.from("user_settings").select("*").eq("user_id", userId).maybeSingle(),
+      supabase.from("subscriptions").select("is_beta_tester").eq("user_id", userId).maybeSingle(),
+    ]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = (settings ?? {}) as any;
+    const values = {
+      full_name: (profile?.full_name as string | null) ?? "",
+      phone: s.phone ?? "",
+      firm_name: s.firm_name ?? "",
+      title: s.title ?? "",
+      cedula_profesional: s.cedula_profesional ?? "",
+      state_practice: s.state_practice ?? "",
+      practice_focus: s.practice_focus ?? "",
+      years_experience: s.years_experience ?? "",
+    };
+    const complete =
+      Boolean(s.profile_completed_at) &&
+      REQUIRED_PROFILE_FIELDS.every((k) => String(values[k] ?? "").trim().length > 0);
+
+    return {
+      isBetaTester: Boolean(sub?.is_beta_tester),
+      complete,
+      values,
+    } as ProfileSetupStatus;
+  });
+
+const ProfileSetupSchema = z.object({
+  full_name: z.string().trim().min(2).max(120),
+  firm_name: z.string().trim().min(2).max(160),
+  title: z.string().trim().min(2).max(120),
+  state_practice: z.string().trim().min(2).max(80),
+  practice_focus: z.string().trim().min(2).max(200),
+  cedula_profesional: z.string().trim().max(40).optional(),
+  phone: z.string().trim().max(40).optional(),
+  years_experience: z.string().trim().max(40).optional(),
+});
+
+export const completeProfileSetup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => ProfileSetupSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = context as any;
+    const supabase = ctx.supabase;
+    const userId = ctx.userId as string;
+
+    const { error: profErr } = await supabase
+      .from("profiles")
+      .upsert({ id: userId, full_name: data.full_name });
+    if (profErr) throw new Error(profErr.message);
+
+    const { error } = await supabase.from("user_settings").upsert({
+      user_id: userId,
+      phone: data.phone || null,
+      firm_name: data.firm_name,
+      title: data.title,
+      cedula_profesional: data.cedula_profesional || null,
+      state_practice: data.state_practice,
+      practice_focus: data.practice_focus,
+      years_experience: data.years_experience || null,
+      profile_completed_at: new Date().toISOString(),
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+
 const VoiceSchema = z.object({
   voice_id: z.string().min(1).max(64).optional(),
   voice_speed: z.number().min(0.5).max(1.5).optional(),
