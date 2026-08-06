@@ -56,7 +56,7 @@ import { MultiAgentPanel } from "@/components/MultiAgentPanel";
 import { ParityBadge } from "@/components/ParityBadge";
 import { ClaimBadge } from "@/components/ClaimBadge";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
-import { MX_PARTY_ROLES, resolveMxProfile, mxRoleLabel } from "@/lib/execution/mx-pipeline";
+import { MX_PARTY_ROLES, mxProfileOrNull, mxRoleLabel } from "@/lib/execution/mx-pipeline";
 import {
   getCanonicalCounts,
   getContradictions,
@@ -3246,8 +3246,14 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
         // analysis for those two materias and the UI was throwing it away.
         // Mirrors isCriminalOrCivilRights exactly.
         const constitutionalRelevant = ct === "penal" || ct === "amparo" || ct === "constitucional";
-        const profile = resolveMxProfile(ct);
-        const roles = MX_PARTY_ROLES[profile];
+        // Tolerant lookup: `ct` falls back to the literal "general_civil"
+        // above when full_report.case_type is missing (e.g. legacy reports
+        // generated before that field was stamped), which is not a real
+        // materia — resolveMxProfile/requireMxProfile would throw on it and
+        // take down the whole Report tab (blank page). mxProfileOrNull
+        // degrades to the generic title instead.
+        const profile = mxProfileOrNull(ct);
+        const roles = profile ? MX_PARTY_ROLES[profile] : null;
         const renderSection = (key: string, title: string) => {
           const body = rStr(r[key]);
           if (!body) return null;
@@ -3262,7 +3268,7 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
           // Penal keeps its existing "Prosecution Theory"/"Defense Theory"
           // titles unchanged — those are already correct.
           const renderedTitle =
-            ct === "penal"
+            ct === "penal" || !roles
               ? title
               : key === "prosecution_theory_report"
                 ? `${mxRoleLabel(roles.a)} Theory`

@@ -109,7 +109,7 @@ import {
   buildLitigationImpactDashboard,
   type ImpactCard,
 } from "@/lib/intelligence/litigation-impact";
-import { MX_PARTY_ROLES, resolveMxProfile, mxRoleLabel } from "@/lib/execution/mx-pipeline";
+import { MX_PARTY_ROLES, mxProfileOrNull, mxRoleLabel } from "@/lib/execution/mx-pipeline";
 
 // Report Engine v1.0 — frozen release identifier surfaced on every PDF footer.
 // The structure, section order, and scoring formulas are locked; only bug
@@ -5306,9 +5306,14 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         // in-app Report tab and runTheoryEngine/runOpportunityEngine
         // already use, so the exported DOCX matches what's on screen.
         const ct = asStr(asObj(asObj(d.report).full_report).case_type) || "general_civil";
-        const roles = MX_PARTY_ROLES[resolveMxProfile(ct)];
+        // "general_civil" (and any other unrecognized materia) is not a real
+        // MX_PARTY_ROLES key — resolveMxProfile/requireMxProfile would throw
+        // and abort the whole DOCX export. mxProfileOrNull degrades to the
+        // generic title instead when the materia can't be resolved.
+        const profile = mxProfileOrNull(ct);
+        const roles = profile ? MX_PARTY_ROLES[profile] : null;
         const titleFor = (key: "defense_theory_report" | "prosecution_theory_report") =>
-          ct === "penal"
+          ct === "penal" || !roles
             ? key === "defense_theory_report"
               ? "Teoría de la Defensa"
               : "Teoría del Ministerio Público"
