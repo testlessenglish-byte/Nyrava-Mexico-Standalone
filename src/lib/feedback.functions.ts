@@ -21,9 +21,20 @@ function getAdminClient(): Db {
 
 async function requireAdmin(ctx: { supabase: Db; userId: string }) {
   const { data: isAdmin, error } = await ctx.supabase.rpc("is_admin_tier", { _user_id: ctx.userId });
-  if (error) throw new Error(error.message);
-  if (!isAdmin) throw new Error("Forbidden — admin required.");
+  if (!error && isAdmin) return;
+  // Fallback: user_roles is the source of truth. The RPC path can return
+  // false in production when grants/PostgREST role drift, which would lock a
+  // real admin out of their own inbox.
+  const { data: roleRows, error: roleErr } = await getAdminClient()
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", ctx.userId);
+  if (roleErr) throw new Error(roleErr.message);
+  const roles = (roleRows ?? []).map((r) => String((r as { role: string }).role));
+  if (roles.some((r) => ["admin", "super_admin", "platform_admin", "firm_admin"].includes(r))) return;
+  throw new Error("Forbidden — admin required.");
 }
+
 
 export const FEEDBACK_CATEGORIES = [
   "bug",
