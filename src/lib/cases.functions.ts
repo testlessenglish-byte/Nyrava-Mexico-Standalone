@@ -3166,6 +3166,7 @@ export const getCase = createServerFn({ method: "POST" })
       strategyCenter,
       pipelineRuns,
       agentLogs,
+      timelineEvents,
     ] = await Promise.all([
       supabase.from("cases").select("*").eq("id", data.caseId).maybeSingle(),
       supabase
@@ -3324,6 +3325,10 @@ export const getCase = createServerFn({ method: "POST" })
       strategy_center: (strategyCenter as any)?.data ?? null,
       pipeline_runs: pipelineRuns.data ?? [],
       agent_logs: agentLogs.data ?? [],
+      // Canonical chronology. The Timeline module reads this table directly —
+      // the report JSON fallback is often empty for cases whose timeline was
+      // built by the canonical timeline stage.
+      timeline_events: timelineEvents.data ?? [],
     };
   });
 
