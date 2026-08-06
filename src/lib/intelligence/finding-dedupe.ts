@@ -11,14 +11,19 @@
 //      supporting engine and tag from a merged duplicate is unioned into the
 //      surviving finding. The duplicates' full titles/descriptions are kept in
 //      `_merged` / metadata so no legal analysis disappears.
-//   2. Only true duplicates merge. Two findings must share a category AND be
+//   2. Only true duplicates merge. Within one category two findings must be
 //      lexically near-identical (token Jaccard over title, corroborated by the
-//      description) before they collapse.
+//      description). ACROSS categories — the cross-engine case, where two
+//      engines emit the same canonical issue under their own category label —
+//      the bar is deliberately much higher AND requires independent
+//      corroboration (shared evidence/source docs, or strongly agreeing
+//      descriptions). Merged rows carry the UNION of the categories.
 //   3. Materia-agnostic. No practice-area vocabulary is hard-coded here, so it
 //      behaves identically for penal, laboral, amparo, civil, etc.
 //   4. Order-stable: the surviving row keeps the input order of its cluster's
 //      strongest member, so report layout is unchanged apart from the removal
 //      of duplicated rows.
+
 
 const SEV_RANK: Record<string, number> = {
   critical: 0,
