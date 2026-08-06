@@ -11,14 +11,19 @@
 //      supporting engine and tag from a merged duplicate is unioned into the
 //      surviving finding. The duplicates' full titles/descriptions are kept in
 //      `_merged` / metadata so no legal analysis disappears.
-//   2. Only true duplicates merge. Two findings must share a category AND be
+//   2. Only true duplicates merge. Within one category two findings must be
 //      lexically near-identical (token Jaccard over title, corroborated by the
-//      description) before they collapse.
+//      description). ACROSS categories — the cross-engine case, where two
+//      engines emit the same canonical issue under their own category label —
+//      the bar is deliberately much higher AND requires independent
+//      corroboration (shared evidence/source docs, or strongly agreeing
+//      descriptions). Merged rows carry the UNION of the categories.
 //   3. Materia-agnostic. No practice-area vocabulary is hard-coded here, so it
 //      behaves identically for penal, laboral, amparo, civil, etc.
 //   4. Order-stable: the surviving row keeps the input order of its cluster's
 //      strongest member, so report layout is unchanged apart from the removal
 //      of duplicated rows.
+
 
 const SEV_RANK: Record<string, number> = {
   critical: 0,
@@ -73,13 +78,23 @@ export type DedupeOptions = {
   titleFallbackThreshold?: number;
   /** Description similarity required for the fallback path. */
   descriptionThreshold?: number;
+  /** Title similarity required to merge ACROSS two different categories. */
+  crossCategoryTitleThreshold?: number;
+  /** Description agreement accepted as corroboration for a cross-category merge. */
+  crossCategoryDescriptionThreshold?: number;
+  /** Weaker description bar accepted when the two titles are byte-identical. */
+  crossCategoryExactTitleDescriptionThreshold?: number;
 };
 
 const DEFAULTS: Required<DedupeOptions> = {
   titleThreshold: 0.55,
   titleFallbackThreshold: 0.4,
   descriptionThreshold: 0.6,
+  crossCategoryTitleThreshold: 0.8,
+  crossCategoryDescriptionThreshold: 0.5,
+  crossCategoryExactTitleDescriptionThreshold: 0.3,
 };
+
 
 type Prepared = {
   row: DedupableFinding;
@@ -88,7 +103,10 @@ type Prepared = {
   titleTokens: Set<string>;
   descTokens: Set<string>;
   titleKey: string;
+  fullTitle: string;
+  evidence: Set<string>;
 };
+
 
 function categoryOf(f: DedupableFinding): string {
   return normalizeText(f.category ?? f.finding_type ?? "misc") || "misc";
@@ -97,6 +115,24 @@ function categoryOf(f: DedupableFinding): string {
 function textOf(f: DedupableFinding, key: string): string {
   const v = f[key];
   return typeof v === "string" ? v : "";
+}
+
+/** Union of the concrete evidence anchors a finding rests on. */
+const EVIDENCE_KEYS = ["evidence_refs", "source_doc_ids", "document_ids", "citations"] as const;
+
+function evidenceOf(f: DedupableFinding): Set<string> {
+  const out = new Set<string>();
+  for (const key of EVIDENCE_KEYS) {
+    const v = f[key];
+    if (!Array.isArray(v)) continue;
+    for (const item of v) {
+      const sig = normalizeText(
+        typeof item === "object" && item !== null ? JSON.stringify(item) : String(item),
+      );
+      if (sig) out.add(sig);
+    }
+  }
+  return out;
 }
 
 function prepare(row: DedupableFinding, index: number): Prepared {
@@ -109,11 +145,41 @@ function prepare(row: DedupableFinding, index: number): Prepared {
     titleTokens: tokens(title),
     descTokens: tokens(desc),
     titleKey: normalizeText(title).split(" ").slice(0, 6).join(" "),
+    fullTitle: normalizeText(title),
+    evidence: evidenceOf(row),
+
   };
 }
 
+function sharesEvidence(a: Prepared, b: Prepared): boolean {
+  if (a.evidence.size === 0 || b.evidence.size === 0) return false;
+  for (const e of a.evidence) if (b.evidence.has(e)) return true;
+  return false;
+}
+
 export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptions>): boolean {
-  if (a.category !== b.category) return false;
+  if (a.category !== b.category) {
+    // CROSS-ENGINE DUPLICATION. Two engines/perspectives routinely emit the
+    // same canonical issue under their own category label ("Deterioro
+    // cognitivo del testador" from both the capacity and the undue-influence
+    // perspective). Merging these requires a near-identical title AND
+    // independent corroboration, so unrelated findings that merely share a
+    // headline (e.g. "Notificación fuera de plazo" as a procedural issue vs.
+    // an evidentiary one) still stay separate.
+    const ts = jaccard(a.titleTokens, b.titleTokens);
+    const sameHeadline = (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= opts.crossCategoryTitleThreshold;
+    if (!sameHeadline) return false;
+    if (sharesEvidence(a, b)) return true;
+    if (a.descTokens.size === 0 || b.descTokens.size === 0) return false;
+    // A byte-identical title is itself strong evidence of one canonical issue,
+    // so the description only has to agree on the subject, not the wording.
+    const descBar =
+      a.fullTitle !== "" && a.fullTitle === b.fullTitle
+        ? opts.crossCategoryExactTitleDescriptionThreshold
+        : opts.crossCategoryDescriptionThreshold;
+    return jaccard(a.descTokens, b.descTokens) >= descBar;
+  }
+
   // Preserves the original behavior: identical leading-6-word titles cluster.
   if (a.titleKey && a.titleKey === b.titleKey) return true;
   const ts = jaccard(a.titleTokens, b.titleTokens);
@@ -123,6 +189,7 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
   }
   return false;
 }
+
 
 function strength(f: DedupableFinding): [number, number, number] {
   const sev = SEV_RANK[String(f.severity ?? "info").toLowerCase()] ?? 9;
@@ -179,9 +246,11 @@ function unionArrays(master: DedupableFinding, others: DedupableFinding[]): void
 export type DedupedFinding = DedupableFinding & {
   _alias_ids?: string[];
   _alias_titles?: string[];
-  _merged?: Array<{ id?: string; title?: string; description?: string }>;
+  _alias_categories?: string[];
+  _merged?: Array<{ id?: string; title?: string; description?: string; category?: string }>;
   _merged_count?: number;
 };
+
 
 /**
  * Collapse near-duplicate findings into one consolidated row per legal issue.
@@ -222,10 +291,24 @@ export function consolidateFindings<T extends DedupableFinding>(
       unionArrays(master, dupes);
       master._alias_ids = dupes.map((d) => String(d.id ?? "")).filter(Boolean);
       master._alias_titles = dupes.map((d) => String(d.title ?? "")).filter(Boolean);
+      // Category UNION: when the same canonical issue was emitted by engines
+      // under different category labels, the survivor must carry every label
+      // so no legal perspective is silently dropped from the report.
+      const winnerCategory = String(winner.row.category ?? winner.row.finding_type ?? "");
+      const aliasCategories: string[] = [];
+      for (const d of dupes) {
+        const c = String(d.category ?? d.finding_type ?? "");
+        if (!c) continue;
+        if (normalizeText(c) === normalizeText(winnerCategory)) continue;
+        if (aliasCategories.some((x) => normalizeText(x) === normalizeText(c))) continue;
+        aliasCategories.push(c);
+      }
+      if (aliasCategories.length > 0) master._alias_categories = aliasCategories;
       master._merged = dupes.map((d) => ({
         id: d.id ? String(d.id) : undefined,
         title: d.title ? String(d.title) : undefined,
         description: d.description ? String(d.description) : undefined,
+        category: d.category ? String(d.category) : undefined,
       }));
       master._merged_count = dupes.length;
       const mutable = master as DedupableFinding;
@@ -235,9 +318,13 @@ export function consolidateFindings<T extends DedupableFinding>(
           ? { ...(existingMeta as Record<string, unknown>) }
           : ({} as Record<string, unknown>);
       meta.merged_duplicates = master._merged;
+      if (aliasCategories.length > 0) {
+        meta.merged_categories = [winnerCategory, ...aliasCategories].filter(Boolean);
+      }
       mutable.metadata = meta;
     }
     out.push({ index: winner.index, row: master });
+
   }
 
   return out.sort((a, b) => a.index - b.index).map((o) => o.row);
