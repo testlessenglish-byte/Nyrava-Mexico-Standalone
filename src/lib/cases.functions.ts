@@ -3809,6 +3809,20 @@ export const deleteCaseDocument = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// -------- Document extracted text (lazy — kept out of getCase for payload size) --------
+export const getDocumentText = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ documentId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = await getAuthedContext(context, "DocumentText");
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id,extracted_text")
+      .eq("id", data.documentId)
+      .maybeSingle();
+    return { text: (doc?.extracted_text ?? null) as string | null };
+  });
+
 // -------- Document extraction controls (retry / rollback) --------
 export const retryDocumentExtraction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
