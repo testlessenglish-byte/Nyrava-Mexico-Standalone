@@ -2369,6 +2369,26 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
   const exec = processProseCitations(asStr(r.executive_summary) || asStr(r.attorney_summary));
   if (exec) b.text(exec, { size: 11, gap: 8 });
 
+  // Five questions an attorney must be able to answer within sixty seconds
+  // of opening the file. Derived deterministically from the verified
+  // findings and the actual document inventory.
+  {
+    const wpCtx = workProductContext(data);
+    const wpFindings = (data.findings ?? []).map((f) => findingWithResolvedRefs(f));
+    const snapshot = buildCaseSnapshot(wpFindings, wpCtx);
+    const questions = buildExecutiveQuestions(wpFindings, wpCtx, snapshot);
+    b.h2("Lectura Rápida del Expediente");
+    for (const q of questions) {
+      b.text(q.question, { size: 10, bold: true, gap: 2 });
+      b.text(q.answer, { size: 9.6, color: MUTED, gap: q.bullets?.length ? 2 : 6 });
+      if (q.bullets?.length) {
+        b.bullets(q.bullets);
+        b.y += 4;
+      }
+    }
+  }
+
+
 
   // Read scores through canonical.ts, not the raw row. getScores() also
   // honors ESS suppression, which r.case_strength_score alone does not.
