@@ -1,0 +1,83 @@
+{
+  "title": "Amparo Indirecto 512/2026-IV — Constructora Alperia del Bajío vs. SAT (listado 69-B y aseguramiento de cuentas)",
+  "description": "Juicio de amparo indirecto promovido por una constructora incluida en el listado definitivo del artículo 69-B del Código Fiscal de la Federación. Se reclaman el oficio definitivo 500-05-2026-14477, su publicación en el DOF, el aseguramiento precautorio e inmovilización total de dos cuentas bancarias —incluida la concentradora de nómina— ordenado antes de que existiera crédito fiscal exigible, la cancelación del certificado de sello digital y el mandamiento de ejecución con embargo de cuentas por cobrar. El expediente contiene el procedimiento administrativo completo, informes previos y justificados de cinco autoridades, dos dictámenes periciales contables contradictorios, la suspensión definitiva, la sentencia protectora parcial y los recursos de revisión principal y adhesiva.",
+  "caseType": "fiscal",
+  "practiceArea": "Juicio de Amparo",
+  "subPracticeArea": "Amparo indirecto en materia fiscal — artículo 69-B CFF y medidas cautelares",
+  "internalMatterNumber": "NYR-MX-2026-0141",
+  "courtCaseNumber": "Amparo Indirecto 512/2026-IV",
+  "relatedFileNumbers": [
+    "Expediente auxiliar JF-JAL-AI-2026-01187",
+    "Expediente administrativo ADAF-JAL3-69B-2026-014",
+    "Crédito fiscal 6-JAL-2026-002317",
+    "Amparo en Revisión 214/2026 (Tribunal Colegiado del Tercer Circuito)"
+  ],
+  "jurisdiction": "Federal",
+  "fuero": "federal",
+  "state": "Jalisco",
+  "municipality": "Zapopan",
+  "judicialDistrict": "Tercer Circuito, residencia Zapopan",
+  "courtName": "Juzgado Tercero de Distrito en Materia Administrativa y de Trabajo en el Estado de Jalisco",
+  "courtType": "Juzgado de Distrito (Poder Judicial de la Federación)",
+  "competentAuthority": "Consejo de la Judicatura Federal — Tercer Circuito",
+  "assignedJudge": "Lic. Verónica Alejandra Sandoval Bermea, Jueza Tercera de Distrito",
+  "courtClerk": "Lic. Emiliano Zaragoza Peña, Secretario de Juzgado",
+  "filingDate": "2026-03-05",
+  "proceduralStage": "Sentencia protectora parcial dictada; revisión principal y adhesiva en trámite ante Tribunal Colegiado",
+  "nextHearingDate": null,
+  "parties": [
+    {
+      "role": "Quejosa",
+      "name": "Constructora Alperia del Bajío, S.A. de C.V.",
+      "detail": "Por conducto de su administrador único Ing. Ramiro Escalante Villalpando; RFC CAB210415K73"
+    },
+    {
+      "role": "Autoridad responsable ordenadora",
+      "name": "Administración Central de Fiscalización Estratégica del SAT",
+      "detail": "Lic. Fabián Antonio Cervera Loredo"
+    },
+    {
+      "role": "Autoridad responsable ordenadora",
+      "name": "Administración Desconcentrada de Auditoría Fiscal de Jalisco 3",
+      "detail": "Lic. Norma Guadalupe Íñiguez Palomar"
+    },
+    {
+      "role": "Autoridad responsable ejecutora",
+      "name": "Comisión Nacional Bancaria y de Valores"
+    },
+    {
+      "role": "Autoridad responsable ejecutora",
+      "name": "Banco Peninsular Regional, S.A."
+    },
+    {
+      "role": "Autoridad responsable ejecutora",
+      "name": "Administración Desconcentrada de Recaudación de Jalisco 3"
+    },
+    {
+      "role": "Ministerio Público de la Federación",
+      "name": "Lic. Sergio Iván Padilla Quiñones"
+    }
+  ],
+  "attorneysOfRecord": [
+    "Lic. Daniela Suriel Ocampo Berlanga, cédula profesional 9932114",
+    "Lic. Alfonso Isaí Rentería Mora, cédula profesional 8471209"
+  ],
+  "opposingCounsel": [
+    "Lic. Karina Estrada Nájar (delegada del SAT)",
+    "Lic. Bruno Sáenz Villaseñor (delegado de la CNBV)"
+  ],
+  "caseStatus": "En revisión",
+  "priority": "critica",
+  "riskLevel": "alto",
+  "estimatedValueMxn": 18442915,
+  "legalAuthorities": [
+    "CPEUM, arts. 1º, 5º, 14, 16, 17 y 31 fracc. IV",
+    "Código Fiscal de la Federación, arts. 17-H, 40, 40-A, 42, 69-B, 76 y 125",
+    "Ley de Amparo, arts. 5, 61, 77, 107, 111, 124, 128, 129, 138 y 217",
+    "Ley del Impuesto sobre la Renta, art. 99",
+    "Jurisprudencia 2a./J. 78/2019 (10a.) — análisis individualizado de pruebas en el 69-B",
+    "Jurisprudencia 2a./J. 22/2020 (10a.) — aseguramiento precautorio y orden de prelación",
+    "Jurisprudencia 2a./J. 14/2016 (10a.) — optatividad del recurso de revocación"
+  ],
+  "fictional": true
+}

@@ -1,0 +1,54 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+PODER JUDICIAL DE LA FEDERACIÓN
+JUZGADO TERCERO DE DISTRITO EN MATERIA ADMINISTRATIVA Y DE TRABAJO EN EL ESTADO DE JALISCO
+RESIDENCIA: ZAPOPAN, JALISCO
+
+CARÁTULA DEL EXPEDIENTE
+JUICIO DE AMPARO INDIRECTO: 512/2026-IV
+EXPEDIENTE AUXILIAR: JF-JAL-AI-2026-01187
+
+QUEJOSA:
+Constructora Alperia del Bajío, S.A. de C.V., por conducto de su administrador único
+Ing. Ramiro Escalante Villalpando.
+Domicilio fiscal: Av. Vallarta 6503, int. 402, Col. Ciudad Granja, Zapopan, Jalisco, C.P. 45010.
+RFC (ficticio): CAB210415K73.
+
+AUTORIZADOS EN TÉRMINOS DEL ART. 12 DE LA LEY DE AMPARO:
+Lic. Daniela Suriel Ocampo Berlanga (cédula 9932114) y Lic. Alfonso Isaí Rentería Mora
+(cédula 8471209). Domicilio para oír notificaciones: Av. Américas 1600, piso 9, Col. Country
+Club, Guadalajara, Jalisco.
+
+AUTORIDADES RESPONSABLES:
+1. Administrador Desconcentrado de Auditoría Fiscal de Jalisco "3" del SAT (ordenadora) —
+   Lic. Norma Guadalupe Íñiguez Palomar.
+2. Administrador Central de Fiscalización Estratégica del SAT (ordenadora, oficio 500-05-2026-14477).
+3. Comisión Nacional Bancaria y de Valores, Vicepresidencia de Supervisión de Procesos Preventivos
+   (ejecutora del aseguramiento de cuentas).
+4. Banco Peninsular Regional, S.A., Institución de Banca Múltiple (ejecutora material).
+5. Titular de la Administración Desconcentrada de Recaudación de Jalisco "3" (ejecutora).
+
+TERCERO INTERESADO:
+No existe tercero interesado señalado por la quejosa; el Juzgado tuvo por tal, para efectos del
+art. 5º fracc. III inciso b) de la Ley de Amparo, a la Secretaría de Hacienda y Crédito Público.
+
+MINISTERIO PÚBLICO DE LA FEDERACIÓN:
+Lic. Sergio Iván Padilla Quiñones, agente adscrito al Juzgado Tercero de Distrito.
+
+ACTOS RECLAMADOS (en síntesis):
+a) El oficio 500-05-2026-14477 de 11 de febrero de 2026 por el que se incluyó a la quejosa en el
+   listado definitivo del artículo 69-B, cuarto párrafo, del Código Fiscal de la Federación
+   (presunción de operaciones inexistentes).
+b) La publicación en el Diario Oficial de la Federación de 20 de febrero de 2026 y en el portal
+   del SAT del listado definitivo que incluye a la quejosa.
+c) El aseguramiento precautorio e inmovilización de las cuentas 0114-7729-31 y 0114-7729-49 de
+   la quejosa, ordenado el 24 de febrero de 2026 y ejecutado el 25 de febrero de 2026.
+d) La cancelación del certificado de sello digital (CSD) número 00001000000710225431.
+e) Como acto de aplicación destacado, el requerimiento de pago y embargo de 3 de marzo de 2026
+   derivado del crédito fiscal 6-JAL-2026-002317 por $18,442,915.00 (dieciocho millones
+   cuatrocientos cuarenta y dos mil novecientos quince pesos 00/100 M.N.).
+
+FECHA DE PRESENTACIÓN DE LA DEMANDA: 5 de marzo de 2026 (Oficialía de Partes Común, folio 3311/2026).
+FECHA DE ADMISIÓN: 9 de marzo de 2026.
+ETAPA PROCESAL ACTUAL: Sentencia dictada el 26 de junio de 2026; recurso de revisión admitido
+ante el Tribunal Colegiado en Materia Administrativa del Tercer Circuito (A.R. 214/2026).

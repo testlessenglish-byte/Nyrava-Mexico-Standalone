@@ -181,8 +181,37 @@ export const completeProfileSetup = createServerFn({ method: "POST" })
       profile_completed_at: new Date().toISOString(),
     });
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    // Every account lands in the workspace with two ready-to-run amparo
+    // matters (~24 documents each) so a tester can execute the full pipeline
+    // immediately, without uploading anything and without adding an API key —
+    // beta accounts run on platform intelligence keys. Never blocks the save.
+    let starterCases: string[] = [];
+    try {
+      const { ensureStarterCasesForUser } = await import("@/lib/seed-corpus.server");
+      const res = await ensureStarterCasesForUser(userId);
+      starterCases = res.created;
+    } catch (e) {
+      console.error("[profile-setup] starter case seeding failed", e);
+    }
+
+    return { ok: true, starterCases };
   });
+
+/**
+ * Idempotent top-up of the two starter amparo matters. Called from the
+ * workspace for accounts that signed up before seeding existed, or whose
+ * seeding failed during profile setup.
+ */
+export const ensureStarterCases = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userId = (context as any).userId as string;
+    const { ensureStarterCasesForUser } = await import("@/lib/seed-corpus.server");
+    return await ensureStarterCasesForUser(userId);
+  });
+
 
 
 const VoiceSchema = z.object({

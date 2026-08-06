@@ -1,0 +1,32 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+DICTAMEN PERICIAL EN MATERIA CONTABLE — PERITO DE LA QUEJOSA
+Perito: Lic. Ma. Fernanda Rueda Cárdenas, contadora pública certificada, registro CPC-JAL-4419.
+Presentado el 22 de mayo de 2026 — Amparo indirecto 512/2026-IV.
+
+OBJETO DEL DICTAMEN
+Determinar si existe trazabilidad documental y financiera entre los CFDI emitidos por la quejosa
+entre enero de 2023 y septiembre de 2025 y la prestación efectiva de los servicios amparados.
+
+METODOLOGÍA
+Se revisaron 1,438 CFDI, 1,438 registros de póliza contable, 3,204 movimientos bancarios, 74
+contratos de obra, 148 CFDI de nómina de terceros y 19 contratos de arrendamiento de maquinaria.
+Se aplicó una prueba de conciliación uno a uno entre comprobante, póliza, movimiento bancario y
+entregable de obra.
+
+RESULTADOS
+1. El 96.4% de los CFDI (1,386 de 1,438) tiene correspondencia exacta con una transferencia SPEI
+   identificada por clave de rastreo, con diferencia de fecha no mayor a 45 días naturales.
+2. El 91.2% de los CFDI está asociado a una bitácora de obra con firma de residente y fecha.
+3. Los 19 contratos de arrendamiento cubren 27 unidades de maquinaria; el cruce de fechas de
+   entrega-recepción no muestra traslape físicamente imposible en ninguno de los frentes de obra.
+4. La nómina de terceros suma 148 personas con retenciones enteradas al SAT, lo que explica la
+   diferencia con los 11 trabajadores inscritos en el IMSS.
+5. Se identificaron 52 CFDI (3.6%) sin conciliación bancaria concluyente, correspondientes a
+   operaciones compensadas contra anticipos; respecto de éstos el perito no puede emitir opinión
+   afirmativa.
+
+CONCLUSIÓN
+Existe trazabilidad contable y financiera suficiente respecto del 96.4% del monto facturado. La
+conclusión de la autoridad sobre inexistencia total de operaciones no encuentra respaldo en los
+registros contables y bancarios examinados.

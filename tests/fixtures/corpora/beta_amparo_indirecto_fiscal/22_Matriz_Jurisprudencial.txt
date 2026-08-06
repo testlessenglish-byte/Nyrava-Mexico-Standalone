@@ -1,0 +1,33 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+MATRIZ JURISPRUDENCIAL Y NORMATIVA APLICABLE — AMPARO INDIRECTO 512/2026-IV
+(Referencias fictícias-verosímiles para prueba de sistema; verificar antes de citar en tribunal.)
+
+NORMATIVA
+- CPEUM, arts. 1º, 5º, 14, 16, 17 y 31 fracc. IV.
+- Código Fiscal de la Federación, arts. 17-H fracc. X, 40, 40-A, 42, 69-B, 76 y 125.
+- Ley de Amparo, arts. 5, 12, 61 fracc. XII, XX y XXIII, 77, 107 fracc. I, 111, 124, 128, 129,
+  138, 139 y 217.
+- Ley Federal de Procedimiento Contencioso Administrativo, art. 2.
+- Ley del Impuesto sobre la Renta, art. 99 (obligaciones de retención y timbrado de nómina).
+
+CRITERIOS RELEVANTES
+1. 2a./J. 133/2015 (10a.) — Artículo 69-B del CFF: constitucionalidad del procedimiento. Invocada
+   por la autoridad; no resuelve la exigencia de exhaustividad en la valoración probatoria.
+2. 2a./J. 78/2019 (10a.) — Presunción de inexistencia: exige análisis individualizado de las
+   pruebas ofrecidas por el contribuyente. Eje del primer concepto de violación.
+3. 2a./J. 22/2020 (10a.) — Aseguramiento precautorio: requiere motivación específica del riesgo y
+   respeto al orden de prelación del artículo 40-A. Eje del tercer concepto.
+4. 2a./J. 14/2016 (10a.) — Optatividad del recurso de revocación (art. 125 CFF).
+5. 1a./J. 2/2012 (9a.) — Test de proporcionalidad de medidas restrictivas de derechos.
+6. 2a. XLVI/2019 (10a.) — Improcedencia de extender la presunción a la emisora por la situación
+   fiscal de sus receptores.
+7. P./J. 21/2014 (10a.) — Parámetro de control de regularidad constitucional.
+
+MAPA CONCEPTO DE VIOLACIÓN → CRITERIO
+Primero (exhaustividad) → 2a./J. 78/2019, 2a. XLVI/2019.
+Segundo (audiencia / verificación incompleta) → arts. 14 y 16 CPEUM; art. 42 CFF.
+Tercero (aseguramiento) → 2a./J. 22/2020; art. 40-A CFF.
+Cuarto (CSD desproporcionado) → 1a./J. 2/2012; art. 17-H CFF.
+Quinto (crédito sin facultades) → arts. 14 y 16 CPEUM; art. 42 CFF.
+Séptimo (aclaración denegada) → art. 17 CPEUM.

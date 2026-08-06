@@ -1,0 +1,84 @@
+{
+  "title": "Amparo Directo 233/2026 — Villarreal Cantú vs. laudo del Tribunal Laboral Federal (renuncia apócrifa)",
+  "description": "Juicio de amparo directo promovido por una trabajadora contra el laudo de 14 de mayo de 2026 dictado en el expediente laboral 1147/2024, que la absolvió de la reinstalación y de los salarios caídos al dar valor a una carta de renuncia cuya firma el perito tercero en discordia calificó como imitación por calco. El expediente contiene la demanda laboral, la contestación con ofrecimiento de trabajo posteriormente retirado, tres dictámenes de grafoscopía, testimoniales contradictorias, la inspección con documentación no exhibida, el certificado del IMSS con clave de baja incompatible con una renuncia, el laudo reclamado, el informe justificado que admite la omisión de valoración, los alegatos del tercero interesado, el pedimento del Ministerio Público y el proyecto de ponencia.",
+  "caseType": "laboral",
+  "practiceArea": "Juicio de Amparo",
+  "subPracticeArea": "Amparo directo en materia laboral — violación a las leyes del procedimiento y valoración probatoria",
+  "internalMatterNumber": "NYR-MX-2026-0152",
+  "courtCaseNumber": "Amparo Directo 233/2026",
+  "relatedFileNumbers": [
+    "Expediente laboral 1147/2024 (Tribunal Laboral Federal de Asuntos Individuales, Monterrey)",
+    "Certificado IMSS CDM-2025-778104",
+    "Reporte de no conformidad NC-2023-0417"
+  ],
+  "jurisdiction": "Federal",
+  "fuero": "federal",
+  "state": "Nuevo León",
+  "municipality": "Monterrey",
+  "judicialDistrict": "Cuarto Circuito, residencia Monterrey",
+  "courtName": "Primer Tribunal Colegiado en Materia de Trabajo del Cuarto Circuito",
+  "courtType": "Tribunal Colegiado de Circuito (Poder Judicial de la Federación)",
+  "competentAuthority": "Consejo de la Judicatura Federal — Cuarto Circuito",
+  "assignedJudge": "Magistrado Ricardo Emiliano Bustos Lozano (ponente)",
+  "courtClerk": "Lic. Andrea Nohemí Cisneros Palacios, Secretaria de Tribunal",
+  "filingDate": "2026-06-10",
+  "proceduralStage": "Admitido y turnado a ponencia; proyecto circulado, pendiente de sesión",
+  "nextHearingDate": null,
+  "parties": [
+    {
+      "role": "Quejosa",
+      "name": "Adriana Selene Villarreal Cantú",
+      "detail": "Trabajadora, por propio derecho; ex Supervisora de Control de Calidad"
+    },
+    {
+      "role": "Autoridad responsable",
+      "name": "Tribunal Laboral Federal de Asuntos Individuales en Monterrey, Nuevo León",
+      "detail": "Lic. Guadalupe Adriana Zúñiga Mejía"
+    },
+    {
+      "role": "Tercero interesado",
+      "name": "Manufacturas Termoplásticas del Norte, S.A. de C.V.",
+      "detail": "Carretera Miguel Alemán km 21.5, Apodaca, N.L."
+    },
+    {
+      "role": "Testigo",
+      "name": "Norma Leticia Rangel Ibáñez",
+      "detail": "Inspectora de Calidad en activo"
+    },
+    {
+      "role": "Testigo",
+      "name": "Jonathan Sifuentes Mercado",
+      "detail": "Ex guardia de seguridad de la caseta de acceso"
+    },
+    {
+      "role": "Perito tercero en discordia",
+      "name": "Lic. Hugo Salcedo Berrones",
+      "detail": "Grafoscopía; designado por el Tribunal Laboral"
+    },
+    {
+      "role": "Ministerio Público de la Federación",
+      "name": "Agente adscrito al Primer Tribunal Colegiado en Materia de Trabajo del Cuarto Circuito"
+    }
+  ],
+  "attorneysOfRecord": [
+    "Lic. Mariana Ivonne Escobedo Treviño, cédula profesional 9145880",
+    "Lic. Jorge Alonso Cavazos Ledezma, cédula profesional 7788410"
+  ],
+  "opposingCounsel": [
+    "Lic. Roxana Ivette Garza Peña, apoderada legal del tercero interesado"
+  ],
+  "caseStatus": "En trámite",
+  "priority": "alta",
+  "riskLevel": "medio",
+  "estimatedValueMxn": 1002152,
+  "legalAuthorities": [
+    "CPEUM, arts. 1º, 14, 16, 17 y 123 apartado A",
+    "Ley Federal del Trabajo, arts. 47, 48, 84, 162, 504, 516, 784, 804, 828, 841 y 842",
+    "Ley de Amparo, arts. 17, 170, 171, 174, 175, 182 y 217",
+    "Ley del Seguro Social, arts. 41 y 42",
+    "Jurisprudencia 2a./J. 118/2019 (10a.) — valoración en conciencia y deber de razonar",
+    "Jurisprudencia 2a./J. 40/2018 (10a.) — perito tercero en discordia",
+    "Jurisprudencia 2a./J. 19/2017 (10a.) — retiro del ofrecimiento de trabajo y carga probatoria"
+  ],
+  "fictional": true
+}

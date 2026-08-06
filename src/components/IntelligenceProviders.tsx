@@ -345,6 +345,13 @@ export function IntelligenceProviders() {
         </Button>
       </div>
 
+      {/* Keys are optional: the platform supplies intelligence capacity. */}
+      <div className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-4 text-sm text-foreground/90">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+        <p>{t("providers.optional")}</p>
+      </div>
+
+
       {/* SECTION 1 — Intelligence Status */}
       <section className="rounded-2xl border border-border bg-card p-6">
         <div className="flex flex-col justify-between gap-6 md:flex-row">

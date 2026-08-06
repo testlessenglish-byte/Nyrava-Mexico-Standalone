@@ -1,0 +1,35 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+MATRIZ JURISPRUDENCIAL Y NORMATIVA — AMPARO DIRECTO 233/2026
+(Referencias ficticias-verosímiles para prueba de sistema; verificar antes de citar en tribunal.)
+
+NORMATIVA
+- CPEUM, arts. 1º, 14, 16, 17 y 123 apartado A, fracciones XXII y XXVII.
+- Ley Federal del Trabajo, arts. 47, 48, 84, 162, 473, 504 fracc. V, 516, 784, 804, 828, 841, 842,
+  899-C y 899-D.
+- Ley de Amparo, arts. 5, 17, 34, 170 fracc. I, 171, 174, 175, 182 (amparo adhesivo) y 217.
+- Ley del Seguro Social, arts. 41 y 42 (riesgo de trabajo).
+
+CRITERIOS RELEVANTES
+1. 2a./J. 118/2019 (10a.) — Valoración en conciencia: no exime de exponer los razonamientos que
+   sustentan la eficacia probatoria concedida o negada. Eje del primer concepto.
+2. 2a./J. 40/2018 (10a.) — Perito tercero en discordia: obligación del juzgador de examinarlo
+   cuando reconoce contradicción entre los dictámenes de las partes.
+3. 2a./J. 19/2017 (10a.) — Retiro del ofrecimiento de trabajo y permanencia de la carga probatoria
+   en el patrón. Eje del segundo concepto.
+4. 2a./J. 63/2015 (10a.) — Documental pública frente a documental privada: exigencia de
+   confrontación expresa.
+5. 1a./J. 22/2016 (10a.) — Obligación de juzgar con perspectiva de género. Concepto octavo.
+6. 2a./J. 88/2014 (10a.) — Integración salarial: prestaciones periódicas y ordinarias (art. 84 LFT).
+7. 2a./J. 5/2019 (10a.) — Consecuencias de la no exhibición de documentos que el patrón está
+   obligado a conservar (art. 804 LFT).
+
+MAPA CONCEPTO → CRITERIO
+Primero → 2a./J. 118/2019; 2a./J. 40/2018.
+Segundo → 2a./J. 19/2017.
+Tercero → art. 841 LFT; principio de igualdad procesal.
+Cuarto → 2a./J. 5/2019; art. 828 LFT.
+Quinto → 2a./J. 63/2015.
+Sexto → 2a./J. 88/2014; art. 84 LFT.
+Séptimo → art. 504 fracc. V LFT; arts. 41 y 42 LSS.
+Octavo → 1a./J. 22/2016.
