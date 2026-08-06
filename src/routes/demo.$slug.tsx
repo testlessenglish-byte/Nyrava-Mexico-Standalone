@@ -9,7 +9,7 @@ import { getPublishedDemoCase, DEMO_DOC_TYPE_LABELS, type DemoDocType } from "@/
 
 export const Route = createFileRoute("/demo/$slug")({
   head: ({ params }) => {
-    const url = `https://nyrava.com/demo/${params.slug}`;
+    const url = `https://mexico.nyrava.com/demo/${params.slug}`;
     const title = `Demo — ${params.slug} — Nyrava`;
     const desc = "Explore a full Nyrava case analysis: evidence, timeline, witnesses, motions, and the final report.";
     return {

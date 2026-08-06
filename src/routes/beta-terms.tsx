@@ -6,8 +6,8 @@ export const Route = createFileRoute("/beta-terms")({
     meta: [
       { title: "Beta Program Terms — Nyrava" },
       { name: "description", content: "Terms governing participation in the Nyrava beta program." },
-      { property: "og:url", content: "https://nyrava.com/beta-terms" },
-      { name: "twitter:url", content: "https://nyrava.com/beta-terms" },
+      { property: "og:url", content: "https://mexico.nyrava.com/beta-terms" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/beta-terms" },
       { property: "og:title", content: "Beta Program Terms — Nyrava" },
       { property: "og:description", content: "Rules and expectations for beta participants." },
       { property: "og:type", content: "article" },

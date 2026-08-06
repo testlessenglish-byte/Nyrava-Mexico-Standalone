@@ -6,8 +6,8 @@ export const Route = createFileRoute("/dpa")({
     meta: [
       { title: "Data Processing Agreement — Nyrava" },
       { name: "description", content: "Standard data processing terms for Nyrava customers." },
-      { property: "og:url", content: "https://nyrava.com/dpa" },
-      { name: "twitter:url", content: "https://nyrava.com/dpa" },
+      { property: "og:url", content: "https://mexico.nyrava.com/dpa" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/dpa" },
       { property: "og:title", content: "Data Processing Agreement — Nyrava" },
       { property: "og:description", content: "Contractual terms for processing customer data on Nyrava." },
       { property: "og:type", content: "article" },

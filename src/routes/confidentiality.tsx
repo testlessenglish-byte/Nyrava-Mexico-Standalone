@@ -3,7 +3,7 @@ import { LegalPage, Section } from "@/components/LegalPage";
 
 export const Route = createFileRoute("/confidentiality")({
   head: () => {
-    const url = "https://nyrava.com/confidentiality";
+    const url = "https://mexico.nyrava.com/confidentiality";
     const desc =
       "What Nyrava personnel can and cannot access. An honest, technically-grounded statement of our attorney confidentiality posture.";
     return {

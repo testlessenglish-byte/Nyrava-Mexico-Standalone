@@ -6,8 +6,8 @@ export const Route = createFileRoute("/about")({
     meta: [
       { title: "About Nyrava — Legal Intelligence OS" },
       { name: "description", content: "The mission, vision, and reason Nyrava Intelligence OS exists." },
-      { property: "og:url", content: "https://nyrava.com/about" },
-      { name: "twitter:url", content: "https://nyrava.com/about" },
+      { property: "og:url", content: "https://mexico.nyrava.com/about" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/about" },
       { property: "og:title", content: "About Nyrava — Legal Intelligence OS" },
       { property: "og:description", content: "Why Nyrava exists and who it's built for." },
       { property: "og:type", content: "article" },

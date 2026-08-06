@@ -6,8 +6,8 @@ export const Route = createFileRoute("/responsible-ai")({
     meta: [
       { title: "Responsible AI Policy — Nyrava" },
       { name: "description", content: "How Nyrava builds and deploys AI-assisted analysis responsibly for legal professionals." },
-      { property: "og:url", content: "https://nyrava.com/responsible-ai" },
-      { name: "twitter:url", content: "https://nyrava.com/responsible-ai" },
+      { property: "og:url", content: "https://mexico.nyrava.com/responsible-ai" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/responsible-ai" },
       { property: "og:title", content: "Responsible AI Policy — Nyrava" },
       { property: "og:description", content: "Principles governing our use of AI in legal intelligence." },
       { property: "og:type", content: "article" },

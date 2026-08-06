@@ -6,8 +6,8 @@ export const Route = createFileRoute("/dmca")({
     meta: [
       { title: "DMCA Policy — Nyrava" },
       { name: "description", content: "How to submit and counter a copyright takedown notice for Nyrava." },
-      { property: "og:url", content: "https://nyrava.com/dmca" },
-      { name: "twitter:url", content: "https://nyrava.com/dmca" },
+      { property: "og:url", content: "https://mexico.nyrava.com/dmca" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/dmca" },
       { property: "og:title", content: "DMCA Policy — Nyrava" },
       { property: "og:description", content: "Notice-and-takedown procedure under the DMCA." },
       { property: "og:type", content: "article" },
