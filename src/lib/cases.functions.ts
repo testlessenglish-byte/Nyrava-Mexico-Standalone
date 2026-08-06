@@ -3171,7 +3171,11 @@ export const getCase = createServerFn({ method: "POST" })
       supabase
         .from("documents")
         .select(
-          "id,filename,status,mime_type,size_bytes,error,extracted_text,metadata,entities,created_at,archived_at",
+          // PERF: `extracted_text` is intentionally excluded — full OCR text for
+          // 20+ documents made this response tens of MB, which is what made the
+          // case workspace slow and occasionally fail to load. The Documents tab
+          // fetches text on demand via getDocumentText().
+          "id,filename,status,mime_type,size_bytes,error,metadata,entities,created_at,archived_at",
         )
         .eq("case_id", data.caseId)
         .order("created_at"),
@@ -3221,7 +3225,10 @@ export const getCase = createServerFn({ method: "POST" })
         .from("agent_logs")
         .select("*")
         .eq("case_id", data.caseId)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        // PERF: only the most recent slice is ever rendered; unbounded log
+        // history was a large part of this payload.
+        .limit(200),
     ]);
     // Phase 4: current canonical version, so the report header can say a
     // newer analysis exists instead of silently re-rendering.
@@ -3800,6 +3807,20 @@ export const deleteCaseDocument = createServerFn({ method: "POST" })
     }
     await supabase.from("documents").delete().eq("id", data.documentId);
     return { ok: true };
+  });
+
+// -------- Document extracted text (lazy — kept out of getCase for payload size) --------
+export const getDocumentText = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ documentId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = await getAuthedContext(context, "DocumentText");
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id,extracted_text")
+      .eq("id", data.documentId)
+      .maybeSingle();
+    return { text: (doc?.extracted_text ?? null) as string | null };
   });
 
 // -------- Document extraction controls (retry / rollback) --------
