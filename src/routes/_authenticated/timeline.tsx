@@ -5,7 +5,9 @@ import { useMemo, useState } from "react";
 import { Clock, Download } from "lucide-react";
 import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
-import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
+import { ModuleHeader } from "@/components/modules/SuppressedNotice";
+import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
+import { computeModuleStates, selectTimelineEvents } from "@/lib/modules/applicability";
 import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/timeline")({
@@ -13,32 +15,7 @@ export const Route = createFileRoute("/_authenticated/timeline")({
   component: TimelinePage,
 });
 
-type Event = { date: string | null; title: string; description?: string; source?: string };
-
-function extractEvents(data: any, fallbackTitle: string): Event[] {
-  const out: Event[] = [];
-  const fr = (data?.report?.full_report ?? {}) as any;
-  const sources = [fr.timeline, fr.events, fr.case_timeline].filter(Array.isArray);
-  for (const arr of sources) {
-    for (const ev of arr) {
-      if (!ev) continue;
-      out.push({
-        date: ev.date ?? ev.when ?? ev.event_date ?? null,
-        title: ev.title ?? ev.event ?? ev.name ?? fallbackTitle,
-        description: ev.description ?? ev.detail ?? ev.summary,
-        source: ev.source ?? ev.citation,
-      });
-    }
-  }
-  // Fallback: derive from findings with metadata dates
-  for (const f of data?.findings ?? []) {
-    const d = f?.metadata?.event_date ?? f?.metadata?.date;
-    if (d) {
-      out.push({ date: d, title: f.title, description: f.description, source: f.source_quote });
-    }
-  }
-  return out.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
-}
+type Event = { date: string | null; title: string; description?: string | null; source?: string | null };
 
 function TimelinePage() {
   const { t } = useI18n();
@@ -52,7 +29,11 @@ function TimelinePage() {
     enabled: !!caseId,
   });
 
-  const events = useMemo(() => (data ? extractEvents(data, t("mod.timeline.event")) : []), [data, t]);
+  const events = useMemo<Event[]>(() => (data ? selectTimelineEvents(data) : []), [data]);
+  const state = useMemo(
+    () => (data ? computeModuleStates(data).find((m) => m.key === "timeline")! : null),
+    [data],
+  );
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(events, null, 2)], { type: "application/json" });
@@ -77,8 +58,8 @@ function TimelinePage() {
           {caseId ? (
             caseLoading ? (
               <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.timeline.loading")}</div>
-            ) : events.length === 0 ? (
-              <ModuleEmpty title={t("mod.timeline.empty.title")} hint={t("mod.timeline.empty.hint")} />
+            ) : events.length === 0 && state ? (
+              <ModuleStateNotice state={state} />
             ) : (
               <>
                 <div className="flex justify-end">

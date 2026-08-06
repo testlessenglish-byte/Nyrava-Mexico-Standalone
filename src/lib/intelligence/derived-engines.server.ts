@@ -36,7 +36,11 @@ export const DERIVED_ENGINE_SOURCES = {
   contradictions: { modulePrefix: "analyzer:contradiction" },
   discoveryGaps: { modulePrefix: "analyzer:missing" },
   evidenceIntel: { modulePrefix: "analyzer:procedural" },
-  witnessIntel: { categoryKey: "witness" },
+  // Witness findings come from the Agents stage. Historically only
+  // `category_key='witness'` was matched, but the agent writes rows with a
+  // NULL category_key and `source_module='agent:witness_credibility'`, so the
+  // witness engine reported 0 on cases that had hundreds of witness findings.
+  witnessIntel: { categoryKey: "witness", modulePrefix: "agent:witness_credibility" },
 } as const;
 
 async function countFindings(
@@ -45,8 +49,15 @@ async function countFindings(
   opts: { modulePrefix?: string; categoryKey?: string },
 ): Promise<number> {
   let q = db.from("case_findings").select("id", { count: "exact", head: true }).eq("case_id", caseId);
-  if (opts.modulePrefix) q = q.like("source_module", `${opts.modulePrefix}%`);
-  if (opts.categoryKey) q = q.eq("category_key", opts.categoryKey);
+  // When both are supplied they are alternatives (OR), not a conjunction: a
+  // finding qualifies if the producing module matches OR it was categorized.
+  if (opts.modulePrefix && opts.categoryKey) {
+    q = q.or(`source_module.like.${opts.modulePrefix}%,category_key.eq.${opts.categoryKey}`);
+  } else if (opts.modulePrefix) {
+    q = q.like("source_module", `${opts.modulePrefix}%`);
+  } else if (opts.categoryKey) {
+    q = q.eq("category_key", opts.categoryKey);
+  }
   const { count, error } = await q;
   // A query failure ("0 findings because the DB errored") must not look
   // identical to "0 findings because the case genuinely has none" — these

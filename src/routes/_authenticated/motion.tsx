@@ -6,7 +6,9 @@ import { Gavel, Copy, FileText, FileDown, Printer, Pencil, Loader2, RotateCw } f
 import { toast } from "sonner";
 import { getCase, draftMotion, getMotionDrafts } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
-import { ModuleHeader, ModuleEmpty, SuppressedNotice } from "@/components/modules/SuppressedNotice";
+import { ModuleHeader, SuppressedNotice } from "@/components/modules/SuppressedNotice";
+import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
+import { computeModuleStates } from "@/lib/modules/applicability";
 import { isDeterministicFallback } from "@/lib/intelligence/canonical";
 import { MotionPreview, downloadMotionPdf, printMotion } from "@/lib/motion-markdown";
 import { MotionEditor } from "@/components/MotionEditor";
@@ -87,7 +89,7 @@ function MotionPage() {
             ) : motionsSuppressed ? (
               <SuppressedNotice title={t("motion.suppressed.title")} detail={t("motion.suppressed.detail")} />
             ) : opps.length === 0 ? (
-              <ModuleEmpty title={t("motion.empty.title")} hint={t("motion.empty.hint")} />
+              <ModuleStateNotice state={computeModuleStates(data).find((m) => m.key === "motion")!} />
             ) : (
               <>
                 {detFallback ? <SuppressedNotice title={t("motion.limited")} /> : null}
