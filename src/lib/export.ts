@@ -492,6 +492,38 @@ function findingSourceCount(refs: Array<Record<string, unknown>>): number {
   );
   return ids.size;
 }
+
+// --- Attorney work-product layer (México) --------------------------------
+// Deterministic enrichment of the findings the pipeline already verified:
+// strategic importance, cross-document synthesis, missing evidence, and
+// practical next steps. No model calls; every sentence derives from data
+// already present in the report payload.
+function workProductContext(data: CaseExportData): WorkProductContext {
+  const r = asObj(data.report);
+  const documentLabels = (data.documents ?? [])
+    .map((d) => asStr(d.filename) || asStr(d.title) || asStr(d.name))
+    .filter(Boolean);
+  const missingDocuments = asArr(r.missing_evidence_struct)
+    .map((m) => asStr(m.item))
+    .filter(Boolean);
+  return {
+    documentLabels,
+    caseType: (data.case as { case_type?: string } | null)?.case_type ?? null,
+    missingDocuments,
+  };
+}
+
+// Findings carry evidence refs that may only hold a document UUID; resolve
+// each to its human document label so the evidentiary-weight classifier
+// has something real to classify.
+function findingWithResolvedRefs(f: Record<string, unknown>): Record<string, unknown> {
+  const refs = asArr(f.evidence_refs).map((r) => ({
+    ...r,
+    filename: asStr(r.filename) || resolveDocTitleByUuid(r.document_id ?? r.doc_id) || "",
+  }));
+  return { ...f, evidence_refs: refs };
+}
+
 const NAVY_TINT: [number, number, number] = [16, 35, 29]; // brand deep green (#10231D), was slate-800
 const SILVER: [number, number, number] = [243, 227, 184]; // warm gold-cream ring (#F3E3B8), matches the shield icon's edge highlight
 const SHIELD_DARK: [number, number, number] = [21, 21, 15]; // warm near-black shield plate (#15150F), matches the app's hub badge
