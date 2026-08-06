@@ -23,11 +23,29 @@ import { MX_CASE_TYPES, type MexicanCaseType } from "@/lib/jurisdiction/mexico-t
 
 export type ActKey = string;
 
+/**
+ * Reference from a legal act to a normative instrument declared in
+ * src/lib/legal/authority-registry.ts. Data only — carries no conclusion.
+ */
+export type ActAuthorityRef = {
+  authority_id: string;
+  /** How central the instrument is to the act (0–1). Ranking hint only. */
+  relevance_weight: number;
+};
+
+/** Period during which the act, as declared, is recognised. */
+export type ActValidity = { from: string; until?: string | null };
+
 export type ActRule = {
   act: ActKey;
   /** Attorney-facing Spanish label of the legal fact / procedural event. */
   label: string;
   re: RegExp;
+  /** Alternative attorney-facing names for the same act. */
+  aliases?: readonly string[];
+  /** Authoritative context for the act (never state-duplicated). */
+  authorities?: readonly ActAuthorityRef[];
+  validity?: ActValidity;
 };
 
 /** Antecedent → consequent pair: two documents evidencing different links. */
@@ -41,6 +59,7 @@ export type ActLexicon = {
   sequences: ActSequence[];
   gaps: ActGap[];
 };
+
 
 // ---------------------------------------------------------------------------
 // Universal layer — present in every Mexican matter
