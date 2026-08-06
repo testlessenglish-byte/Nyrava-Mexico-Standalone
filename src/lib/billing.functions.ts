@@ -324,50 +324,19 @@ export const adminAddBetaTester = createServerFn({ method: "POST" })
     const ctx = context as { supabase: Db; userId: string };
     await requireAdmin(ctx);
     const email = data.email.trim();
-    const admin = getAdminClient();
-    // EXECUTE on the admin_* SECURITY DEFINER helpers is revoked from
-    // `authenticated` (hardening migration 20260725135541), so these RPCs
-    // must run on the service-role client. The caller is already proven to
-    // be an admin by requireAdmin() above.
+    // Perform authorization and the grant atomically in the database using
+    // auth.uid(). This prevents client-supplied actor IDs and avoids relying
+    // on service-role environment availability for an authenticated admin
+    // action.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: targetId, error: lookupErr } = await (admin as any).rpc(
-      "admin_get_user_id_by_email",
-      {
-        _email: email,
-      },
-    );
-    if (lookupErr) throw new Error(lookupErr.message);
-
-
-    if (!targetId) {
-      // No account yet — queue a pre-signup invite instead of failing.
-      const { error } = await admin.from("beta_invites").upsert(
-        {
-          email: email.toLowerCase(),
-          note: data.note?.trim() || null,
-          invited_by: ctx.userId,
-          invited_at: new Date().toISOString(),
-          redeemed_at: null,
-          redeemed_user_id: null,
-        },
-        { onConflict: "email" },
-      );
-      if (error) throw new Error(error.message);
-      return { ok: true, userId: null, pending: true as const };
-    }
-
-    const { error } = await admin.from("subscriptions").upsert(
-      {
-        user_id: targetId as string,
-        is_beta_tester: true,
-        beta_note: data.note?.trim() || null,
-        beta_granted_by: ctx.userId,
-        beta_granted_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
-    );
+    const { data: result, error } = await (ctx.supabase as any).rpc("admin_grant_beta_access", {
+      _email: email,
+      _note: data.note?.trim() || null,
+    });
     if (error) throw new Error(error.message);
-    return { ok: true, userId: targetId as string, pending: false as const };
+    const grant = result as { ok: boolean; userId: string | null; pending: boolean } | null;
+    if (!grant?.ok) throw new Error("Beta access could not be granted.");
+    return grant;
   });
 
 /** Pending (unredeemed) pre-signup beta invites, for the admin Beta
