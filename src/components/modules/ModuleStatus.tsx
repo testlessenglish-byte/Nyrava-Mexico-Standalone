@@ -78,7 +78,9 @@ export function ModuleStateNotice({ state }: { state: ModuleState }) {
   return (
     <div className={`rounded-xl border p-8 text-center ${tone}`}>
       <SIcon className={`mx-auto h-6 w-6 ${STATUS_CLASS[state.status]}`} />
-      <p className="mt-2 text-sm font-medium">{t(`mod.state.${state.key}.headline.${state.status}`)}</p>
+      <p className="mt-2 text-sm font-medium">
+        {t(`mod.strip.${state.key}`)} — {t(`mod.state.headline.${state.status}`)}
+      </p>
       <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">{t(state.reasonKey)}</p>
     </div>
   );
