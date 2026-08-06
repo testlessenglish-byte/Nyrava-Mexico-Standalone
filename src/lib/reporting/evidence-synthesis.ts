@@ -440,5 +440,45 @@ export function synthesizeEvidence(
       "por lo que no puede afirmarse que se corroboren ni que se contradigan con base en el texto extraído.";
   }
 
-  return { docs, agreements, conflicts, lines, narrative, grounded };
+  // ---- Authority layer: descriptive metadata only. It never participates in
+  // the conflict, duplicate, weighting, sequence or dependency algorithms.
+  const legal_context = buildLegalContext(docs, opts);
+
+  return { docs, agreements, conflicts, lines, narrative, grounded, legal_context };
 }
+
+function buildLegalContext(
+  docs: ResolvedDoc[],
+  opts: {
+    caseType?: string | null;
+    jurisdiction?: JurisdictionSignals;
+    referenceDate?: string | Date | null;
+  },
+): SynthesisLegalContext {
+  const jurisdiction = resolveLegalContext({
+    ...(opts.jurisdiction ?? {}),
+    materia: opts.jurisdiction?.materia ?? opts.caseType ?? null,
+  });
+
+  const actIds = new Set<string>();
+  for (const d of docs) {
+    for (const f of d.facts) {
+      if (f.kind === "act" && f.act) for (const r of actAuthorityRefs(f.act)) actIds.add(r.authority_id);
+    }
+  }
+
+  const applicable = getApplicableAuthority([...actIds], jurisdiction, opts.referenceDate ?? null);
+  return {
+    jurisdiction,
+    authorities_considered: applicable.authorities.map((a) => ({
+      id: a.id,
+      label: a.label,
+      jurisdiction: a.jurisdiction,
+      authority_weight: a.authority_weight,
+    })),
+    validity_checked: applicable.validity_checked,
+    authorities_excluded: applicable.excluded.map((e) => e.authority_id),
+    uncertainty: applicable.uncertainty,
+  };
+}
+
