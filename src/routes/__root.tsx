@@ -14,7 +14,17 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { I18nProvider, useI18n } from "@/i18n";
 import { Toaster } from "@/components/ui/sonner";
 
+// Root-level boundaries render OUTSIDE RootComponent, so they must provide
+// their own I18n context — otherwise useI18n throws and masks the real error.
 function NotFoundComponent() {
+  return (
+    <I18nProvider>
+      <NotFoundInner />
+    </I18nProvider>
+  );
+}
+
+function NotFoundInner() {
   const { t } = useI18n();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -36,6 +46,14 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <I18nProvider>
+      <ErrorInner error={error} reset={reset} />
+    </I18nProvider>
+  );
+}
+
+function ErrorInner({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   const { t } = useI18n();
