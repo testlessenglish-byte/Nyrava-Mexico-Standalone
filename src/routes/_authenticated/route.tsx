@@ -49,6 +49,7 @@ import { useI18n } from "@/i18n";
 import { useGlobalPipelineDriver } from "@/hooks/useGlobalPipelineDriver";
 
 export const Route = createFileRoute("/_authenticated")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Workspace — Nyrava Intelligence OS" },
@@ -68,9 +69,9 @@ export const Route = createFileRoute("/_authenticated")({
   }),
   beforeLoad: async ({ location }) => {
     if (location.pathname.startsWith("/lovable/")) return;
-    if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/auth" });
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) throw redirect({ to: "/auth" });
+    return { user: data.user };
   },
   component: AppLayout,
 });
@@ -153,8 +154,8 @@ function AppLayout() {
   }, [pathname]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      const user = data.user;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
       setEmail(user?.email ?? "");
       const metaName =
         (user?.user_metadata?.full_name as string | undefined) ||
@@ -170,8 +171,8 @@ function AppLayout() {
         if (prof?.full_name) setFullName(prof.full_name);
       }
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) nav({ to: "/auth" });
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") nav({ to: "/auth", replace: true });
     });
     return () => sub.subscription.unsubscribe();
   }, [nav]);
@@ -179,6 +180,7 @@ function AppLayout() {
   const { data: adminInfo } = useQuery({
     queryKey: ["isAdmin"],
     queryFn: () => fetchIsAdmin(),
+    staleTime: 5 * 60 * 1000,
   });
 
   // Beta testers get the full product but must register a real professional

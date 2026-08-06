@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { NyravaLogo } from "@/components/NyravaLogo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
+  const router = useRouter();
   const { t } = useI18n();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -32,10 +33,19 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard", replace: true });
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        void router.invalidate().then(() => navigate({ to: "/dashboard", replace: true }));
+      }
     });
-  }, [navigate]);
+  }, [navigate, router]);
+
+  async function enterWorkspace() {
+    const { data, error: userError } = await supabase.auth.getUser();
+    if (userError || !data.user) throw userError ?? new Error(t("common.error.auth"));
+    await router.invalidate();
+    await navigate({ to: "/dashboard", replace: true });
+  }
 
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -49,11 +59,16 @@ function AuthPage() {
           options: { emailRedirectTo: window.location.origin, data: { full_name: fullName } },
         });
         if (error) throw error;
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          setError("Revisa tu correo para confirmar tu cuenta antes de iniciar sesión.");
+          return;
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      navigate({ to: "/dashboard", replace: true });
+      await enterWorkspace();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.error.auth"));
     } finally {
@@ -71,7 +86,12 @@ function AuthPage() {
       return;
     }
     if (result.redirected) return;
-    navigate({ to: "/dashboard", replace: true });
+    try {
+      await enterWorkspace();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("common.error.auth"));
+      setLoading(false);
+    }
   }
 
   return (
