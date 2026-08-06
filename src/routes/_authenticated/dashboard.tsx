@@ -52,9 +52,31 @@ function DashboardPage() {
   });
 
   const cases = useMemo(() => (data ?? []).filter((c) => !c.archived_at), [data]);
+
+  // Accounts created before starter seeding existed (or whose seeding failed
+  // during profile setup) get their two amparo test matters here. The server
+  // call is idempotent — it skips any corpus already present.
+  const qc = useQueryClient();
+  const seedStarters = useServerFn(ensureStarterCases);
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || isLoading || (data ?? []).length > 0) return;
+    seededRef.current = true;
+    void seedStarters({ data: undefined } as never)
+      .then((r) => {
+        if (r && Array.isArray(r.created) && r.created.length > 0) {
+          void qc.invalidateQueries({ queryKey: ["cases"] });
+        }
+      })
+      .catch(() => {
+        /* seeding is best-effort; never surface it on the dashboard */
+      });
+  }, [isLoading, data, seedStarters, qc]);
+
   const featured = cases.find((c) => c.status === "complete") ?? cases[0];
   const activeCount = cases.filter((c) => RUNNING.has(c.status)).length;
   const { isAdmin } = useRoles();
+
   const completeCount = cases.filter((c) => c.status === "complete").length;
   const highPriorityCount = useMemo(
     () => cases.reduce((sum, c) => sum + ((c as { high_priority_findings?: number }).high_priority_findings ?? 0), 0),
