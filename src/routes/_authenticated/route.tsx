@@ -564,6 +564,8 @@ function AppLayout() {
         </nav>
       </div>
       <ScrollToTop />
+      <FeedbackButton />
+
     </div>
   );
 }
