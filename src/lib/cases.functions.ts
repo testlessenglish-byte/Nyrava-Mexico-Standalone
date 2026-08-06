@@ -3171,7 +3171,11 @@ export const getCase = createServerFn({ method: "POST" })
       supabase
         .from("documents")
         .select(
-          "id,filename,status,mime_type,size_bytes,error,extracted_text,metadata,entities,created_at,archived_at",
+          // PERF: `extracted_text` is intentionally excluded — full OCR text for
+          // 20+ documents made this response tens of MB, which is what made the
+          // case workspace slow and occasionally fail to load. The Documents tab
+          // fetches text on demand via getDocumentText().
+          "id,filename,status,mime_type,size_bytes,error,metadata,entities,created_at,archived_at",
         )
         .eq("case_id", data.caseId)
         .order("created_at"),
