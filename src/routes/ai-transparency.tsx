@@ -11,6 +11,7 @@ export const Route = createFileRoute("/ai-transparency")({
       { property: "og:url", content: "https://mexico.nyrava.com/ai-transparency" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/ai-transparency" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/ai-transparency" }],
   }),
   component: AITransparencyPage,
 });

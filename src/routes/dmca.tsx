@@ -12,6 +12,7 @@ export const Route = createFileRoute("/dmca")({
       { property: "og:description", content: "Notice-and-takedown procedure under the DMCA." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/dmca" }],
   }),
   component: () => (
     <DocsLayout

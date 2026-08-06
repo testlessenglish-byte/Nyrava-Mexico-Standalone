@@ -12,6 +12,7 @@ export const Route = createFileRoute("/dpa")({
       { property: "og:description", content: "Contractual terms for processing customer data on Nyrava." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/dpa" }],
   }),
   component: () => (
     <DocsLayout

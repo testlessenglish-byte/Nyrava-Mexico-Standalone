@@ -12,6 +12,7 @@ export const Route = createFileRoute("/copyright")({
       { property: "og:description", content: "Ownership, licenses, and third-party rights." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/copyright" }],
   }),
   component: () => (
     <DocsLayout

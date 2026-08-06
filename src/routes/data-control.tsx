@@ -11,6 +11,7 @@ export const Route = createFileRoute("/data-control")({
       { property: "og:url", content: "https://mexico.nyrava.com/data-control" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/data-control" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/data-control" }],
   }),
   component: DataControlPage,
 });

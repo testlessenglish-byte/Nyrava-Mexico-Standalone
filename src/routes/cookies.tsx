@@ -11,6 +11,7 @@ export const Route = createFileRoute("/cookies")({
       { property: "og:url", content: "https://mexico.nyrava.com/cookies" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/cookies" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/cookies" }],
   }),
   component: CookiesPage,
 });

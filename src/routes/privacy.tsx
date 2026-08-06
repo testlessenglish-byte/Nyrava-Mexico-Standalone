@@ -12,6 +12,7 @@ export const Route = createFileRoute("/privacy")({
       { name: "twitter:url", content: "https://mexico.nyrava.com/privacy" },
       { name: "robots", content: "index,follow" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/privacy" }],
   }),
   component: PrivacyPage,
 });

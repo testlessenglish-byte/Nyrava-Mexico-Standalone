@@ -12,6 +12,7 @@ export const Route = createFileRoute("/roadmap")({
       { property: "og:description", content: "Public roadmap for the Nyrava Intelligence OS." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/roadmap" }],
   }),
   component: () => (
     <DocsLayout

@@ -11,6 +11,7 @@ export const Route = createFileRoute("/how-it-works")({
       { property: "og:url", content: "https://mexico.nyrava.com/how-it-works" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/how-it-works" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/how-it-works" }],
   }),
   component: HowItWorksPage,
 });

@@ -12,6 +12,7 @@ export const Route = createFileRoute("/acceptable-use")({
       { property: "og:description", content: "Prohibited uses and account conduct rules." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/acceptable-use" }],
   }),
   component: () => (
     <DocsLayout

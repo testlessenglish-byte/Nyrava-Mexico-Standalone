@@ -12,6 +12,7 @@ export const Route = createFileRoute("/accessibility")({
       { property: "og:description", content: "WCAG-aligned accessibility goals and feedback channel." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/accessibility" }],
   }),
   component: () => (
     <DocsLayout

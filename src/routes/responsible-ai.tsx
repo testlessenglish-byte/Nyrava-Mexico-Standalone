@@ -13,6 +13,7 @@ export const Route = createFileRoute("/responsible-ai")({
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/responsible-ai" }],
   }),
   component: () => (
     <DocsLayout

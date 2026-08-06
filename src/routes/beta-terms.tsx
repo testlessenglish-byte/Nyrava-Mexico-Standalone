@@ -12,6 +12,7 @@ export const Route = createFileRoute("/beta-terms")({
       { property: "og:description", content: "Rules and expectations for beta participants." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/beta-terms" }],
   }),
   component: () => (
     <DocsLayout

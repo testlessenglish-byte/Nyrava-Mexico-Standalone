@@ -11,6 +11,7 @@ export const Route = createFileRoute("/terms")({
       { property: "og:url", content: "https://mexico.nyrava.com/terms" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/terms" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/terms" }],
   }),
   component: TermsPage,
 });
