@@ -1607,6 +1607,7 @@
   "reports.findingsSummary.totalGenerated": "Total generated",
   "reports.findingsSummary.verifiedAndDisplayed": "Verified & displayed",
   "reports.generatedAt": "Generated {date}",
+  "reports.executionId": "Execution {id}",
   "reports.legalIssues.col.caseLaw": "Jurisprudencia",
   "reports.legalIssues.col.indicator": "Indicator",
   "reports.legalIssues.col.issue": "Legal issue",
