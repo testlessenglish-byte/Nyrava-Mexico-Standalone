@@ -57,7 +57,12 @@ export function selectTimelineEvents(data: Any): Array<{
   };
 
   for (const ev of (data?.timeline_events ?? []) as Any[]) {
-    push(ev.event_date ?? ev.date_raw ?? null, ev.event ?? ev.title ?? "", ev.description ?? null, ev.source_label ?? null);
+    push(
+      ev.event_date ?? ev.date_raw ?? null,
+      ev.event ?? ev.title ?? ev.description ?? "",
+      ev.event || ev.title ? (ev.description ?? null) : null,
+      ev.source_label ?? null,
+    );
   }
 
   const fr = (data?.report?.full_report ?? {}) as Any;
