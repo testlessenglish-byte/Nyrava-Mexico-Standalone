@@ -276,10 +276,24 @@ export function consolidateFindings<T extends DedupableFinding>(
       unionArrays(master, dupes);
       master._alias_ids = dupes.map((d) => String(d.id ?? "")).filter(Boolean);
       master._alias_titles = dupes.map((d) => String(d.title ?? "")).filter(Boolean);
+      // Category UNION: when the same canonical issue was emitted by engines
+      // under different category labels, the survivor must carry every label
+      // so no legal perspective is silently dropped from the report.
+      const winnerCategory = String(winner.row.category ?? winner.row.finding_type ?? "");
+      const aliasCategories: string[] = [];
+      for (const d of dupes) {
+        const c = String(d.category ?? d.finding_type ?? "");
+        if (!c) continue;
+        if (normalizeText(c) === normalizeText(winnerCategory)) continue;
+        if (aliasCategories.some((x) => normalizeText(x) === normalizeText(c))) continue;
+        aliasCategories.push(c);
+      }
+      if (aliasCategories.length > 0) master._alias_categories = aliasCategories;
       master._merged = dupes.map((d) => ({
         id: d.id ? String(d.id) : undefined,
         title: d.title ? String(d.title) : undefined,
         description: d.description ? String(d.description) : undefined,
+        category: d.category ? String(d.category) : undefined,
       }));
       master._merged_count = dupes.length;
       const mutable = master as DedupableFinding;
@@ -289,9 +303,13 @@ export function consolidateFindings<T extends DedupableFinding>(
           ? { ...(existingMeta as Record<string, unknown>) }
           : ({} as Record<string, unknown>);
       meta.merged_duplicates = master._merged;
+      if (aliasCategories.length > 0) {
+        meta.merged_categories = [winnerCategory, ...aliasCategories].filter(Boolean);
+      }
       mutable.metadata = meta;
     }
     out.push({ index: winner.index, row: master });
+
   }
 
   return out.sort((a, b) => a.index - b.index).map((o) => o.row);
