@@ -53,6 +53,15 @@ import {
 } from "docx";
 import { rt, setReportTemplateLocale, resolveReportLocale, getReportTemplateLocale } from "./report-i18n";
 import { MX_DOMAINS } from "./intelligence/mx-coverage";
+import {
+  ATTORNEY_GROUPS,
+  METHODOLOGY_STATEMENT,
+  buildCaseSnapshot,
+  buildExecutiveQuestions,
+  buildFindingWorkProduct,
+  type AttorneyGroupKey,
+  type WorkProductContext,
+} from "./reporting/attorney-workproduct";
 
 /**
  * Locale-aware TextRun. Every DOCX run of template text passes through the
