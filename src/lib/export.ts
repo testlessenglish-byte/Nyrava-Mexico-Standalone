@@ -2302,7 +2302,55 @@ function jurisdictionIntelDocxParas(data: CaseExportData): Paragraph[] {
   return out;
 }
 
+// Attorney Case Snapshot — the panel an attorney reads before the detailed
+// analysis. Strengths, weaknesses, critical and missing evidence,
+// procedural concerns and the suggested review order, all derived from
+// verified findings and the real document inventory.
+function snapshotBlocks(data: CaseExportData): Array<{ title: string; items: string[]; empty: string }> {
+  const wpCtx = workProductContext(data);
+  const wpFindings = (data.findings ?? []).map((f) => findingWithResolvedRefs(f));
+  const s = buildCaseSnapshot(wpFindings, wpCtx);
+  return [
+    { title: "Fortalezas del Expediente", items: s.strengths, empty: "No se identificaron hallazgos sustentados por dos o más documentos de alto valor probatorio." },
+    { title: "Debilidades del Expediente", items: s.weaknesses, empty: "No se identificaron hallazgos con soporte documental limitado." },
+    { title: "Evidencia Crítica", items: s.criticalEvidence, empty: "El corpus no contiene documentos públicos, resoluciones, documentos certificados ni dictámenes periciales." },
+    { title: "Evidencia Faltante", items: s.missingEvidence, empty: "No se detectó documentación faltante con base en el inventario actual." },
+    { title: "Aspectos Procesales a Vigilar", items: s.proceduralConcerns, empty: "No se identificaron hallazgos de naturaleza procesal." },
+    { title: "Orden de Revisión Prioritaria", items: s.priorityReview, empty: "No hay hallazgos priorizados." },
+  ];
+}
+
+function renderCaseSnapshot(b: PdfBuilder, data: CaseExportData) {
+  b.h1("Instantánea del Expediente");
+  b.text(
+    "Panel de arranque para el abogado: resume, antes del análisis detallado, en qué se sostiene el expediente, " +
+      "dónde es vulnerable, qué documentación falta y qué debe revisarse primero.",
+    { size: 9.5, color: MUTED, gap: 8 },
+  );
+  for (const block of snapshotBlocks(data)) {
+    b.h2(block.title);
+    if (block.items.length) b.bullets(block.items);
+    else b.text(block.empty, { size: 9.5, color: MUTED, gap: 4 });
+  }
+}
+
+function caseSnapshotDocxParas(data: CaseExportData): Paragraph[] {
+  const out: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Instantánea del Expediente")] }),
+  ];
+  for (const block of snapshotBlocks(data)) {
+    out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(block.title)] }));
+    if (block.items.length) {
+      for (const item of block.items) out.push(new Paragraph({ children: [new TextRun(`• ${item}`)] }));
+    } else {
+      out.push(new Paragraph({ children: [new TextRun(block.empty)] }));
+    }
+  }
+  return out;
+}
+
 function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) {
+
   const r = asObj(data.report);
   const execLocale = resolveReportLocale(data.report, data.case);
   b.h1(execLocale === "en" ? "Executive Summary" : "Resumen Ejecutivo");
