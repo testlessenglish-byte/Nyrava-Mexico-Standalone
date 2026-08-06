@@ -9,10 +9,12 @@ import {
   markAuthorityVerified,
   searchVerifiedAuthorities,
   markAuthoritySuperseded,
+  getPendingAuthoritiesBySource,
+  bulkVerifyTrustedSource,
   type TestConnectorSyncResult,
   type AuthoritySearchResult,
 } from "@/lib/legal-knowledge-admin.functions";
-import { BookOpen, Database, ShieldCheck, ShieldAlert, RefreshCw, Clock, AlertTriangle, PlayCircle, Check, X, ExternalLink } from "lucide-react";
+import { BookOpen, Database, ShieldCheck, ShieldAlert, RefreshCw, Clock, AlertTriangle, PlayCircle, Check, X, ExternalLink, CheckCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/legal-knowledge")({
   head: () => ({ meta: [{ title: "Legal Knowledge Network — Nyrava" }] }),
@@ -120,6 +122,12 @@ function LegalKnowledgePage() {
               </div>
             )}
           </div>
+
+          {/* Bulk-verify by trusted source — reduces the manual backlog for
+              connectors whose access method is a structured official feed
+              (API/JSON/XML/RSS/CSV/ZIP), never for OCR'd or HTML-scraped
+              sources. See bulkVerifyTrustedSource's doc comment. */}
+          <BulkVerifyBySource />
 
           {/* Pending-authority review — the missing verification workflow.
               Only jurisprudencia/court_decision rows show up here: those
@@ -262,6 +270,96 @@ function LegalKnowledgePage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BulkVerifyBySource() {
+  const queryClient = useQueryClient();
+  const fetchBreakdown = useServerFn(getPendingAuthoritiesBySource);
+  const { data, isLoading } = useQuery({
+    queryKey: ["nlkn-pending-by-source"],
+    queryFn: () => fetchBreakdown(),
+  });
+
+  const bulkFn = useServerFn(bulkVerifyTrustedSource);
+  const [lastResult, setLastResult] = useState<{ code: string; verified: number; skippedIncomplete: number } | null>(
+    null,
+  );
+  const bulk = useMutation({
+    mutationFn: (connectorCode: string) => bulkFn({ data: { connectorCode } }),
+    onSuccess: (result, connectorCode) => {
+      setLastResult({ code: connectorCode, ...result });
+      queryClient.invalidateQueries({ queryKey: ["nlkn-pending-by-source"] });
+      queryClient.invalidateQueries({ queryKey: ["nlkn-pending-authorities"] });
+      queryClient.invalidateQueries({ queryKey: ["nlkn-stats"] });
+    },
+  });
+
+  const rows = data?.rows ?? [];
+  if (!isLoading && rows.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Verificación masiva por fuente confiable
+      </h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Solo para fuentes que entregan texto estructurado directo de la autoridad emisora (API/JSON/XML/RSS/CSV/ZIP
+        oficial) — nunca para fuentes que dependen de OCR o scraping de HTML, donde un error de extracción puede
+        alterar lo que la cita realmente dice. Incluso en una fuente confiable, un registro sin título, cita o texto
+        completo se deja pendiente para revisión manual.
+      </p>
+      {isLoading ? (
+        <div className="py-4 text-center text-xs text-muted-foreground">Cargando…</div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((r) => {
+            const isBulking = bulk.isPending && bulk.variables === r.connectorCode;
+            return (
+              <div
+                key={r.connectorCode}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background/40 px-3 py-2 text-sm"
+              >
+                <div>
+                  <span className="font-medium">{r.connectorName}</span>{" "}
+                  <span className="text-xs text-muted-foreground">
+                    ({r.connectorCode}) · {r.count} pendiente{r.count === 1 ? "" : "s"}
+                  </span>
+                </div>
+                {r.trusted ? (
+                  <button
+                    onClick={() => bulk.mutate(r.connectorCode)}
+                    disabled={isBulking}
+                    className="flex items-center gap-1 rounded-md border border-success/40 px-2 py-1 text-xs font-medium text-success hover:bg-success/10 disabled:opacity-50"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" />
+                    {isBulking ? "Verificando…" : `Verificar las ${r.count} de fuente estructurada`}
+                  </button>
+                ) : (
+                  <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Requiere revisión manual
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {lastResult && (
+        <div className="mt-3 rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-xs text-success">
+          {lastResult.verified} verificada{lastResult.verified === 1 ? "" : "s"} de {lastResult.code}
+          {lastResult.skippedIncomplete > 0
+            ? ` · ${lastResult.skippedIncomplete} dejada${lastResult.skippedIncomplete === 1 ? "" : "s"} pendiente por datos incompletos`
+            : ""}
+          .
+        </div>
+      )}
+      {bulk.isError && (
+        <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          {bulk.error instanceof Error ? bulk.error.message : String(bulk.error)}
         </div>
       )}
     </div>
