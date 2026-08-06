@@ -241,12 +241,35 @@ export const cancelMySubscription = createServerFn({ method: "POST" })
 // ---------------------------------------------------------------------
 
 async function requireAdmin(ctx: { supabase: Db; userId: string }) {
+  // Primary check: SECURITY DEFINER helper through the caller's own client.
   const { data: isAdmin, error } = await ctx.supabase.rpc("is_admin_tier", {
     _user_id: ctx.userId,
   });
-  if (error) throw new Error(error.message);
-  if (!isAdmin) throw new Error("Forbidden — admin required.");
+  if (!error && isAdmin) return;
+
+  // Fallback: read user_roles directly with the service-role client.
+  // The RPC path can come back false/null in production when EXECUTE grants
+  // or the caller's PostgREST role drift (the "I AM the admin but it says
+  // admin required" report). Roles live in public.user_roles and are the
+  // source of truth — verify them directly rather than denying a real admin.
+  const admin = getAdminClient();
+  const { data: roleRows, error: roleErr } = await admin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", ctx.userId);
+  if (roleErr) throw new Error(roleErr.message);
+  const roles = (roleRows ?? []).map((r) => String((r as { role: string }).role));
+  const adminRoles = ["admin", "super_admin", "platform_admin", "firm_admin"];
+  if (roles.some((r) => adminRoles.includes(r))) return;
+
+  console.warn(
+    `[billing.requireAdmin] denied user ${ctx.userId} — roles=[${roles.join(",")}] rpc_error=${
+      error?.message ?? "none"
+    }`,
+  );
+  throw new Error("Forbidden — admin required.");
 }
+
 
 export type AdminUserRow = {
   user_id: string;
