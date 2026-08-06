@@ -4642,6 +4642,15 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         ),
     },
     {
+      id: "case_snapshot",
+      title: "Instantánea del Expediente",
+      gatedInLimited: false,
+      available: (d) => (d.findings ?? []).length > 0 || d.documents.length > 0,
+      renderPdf: (b, d) => renderCaseSnapshot(b, d),
+      renderDocx: (d) => caseSnapshotDocxParas(d),
+    },
+
+    {
       id: "recommended_motions",
       title: "Promociones Recomendadas",
       // Motion opportunities are ESS-gated, exactly like the old Action
