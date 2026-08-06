@@ -359,6 +359,7 @@ function buildImportance(
   f: AnyFinding,
   docs: FindingSourceDoc[],
   ctx: WorkProductContext,
+  detail: EvidenceSynthesis | null,
 ): string[] {
   const paras: string[] = [];
   const materia = materiaLabel(ctx.caseType);
@@ -389,9 +390,17 @@ function buildImportance(
     docs.length > 0
       ? `Con base en las fuentes que lo sustentan (${docs.length} documento(s); el de mayor peso probatorio es ` +
         `${strongest.name} — ${strongest.weight.label} ${strongest.weight.glyphs}), el hallazgo ${effect}. ` +
+        // Corroboration is asserted only when the extracted facts actually
+        // agree across documents — never inferred from document count.
         (docs.length === 1
           ? "Al descansar en una sola fuente, su fuerza probatoria depende de que se localice corroboración independiente."
-          : "La coincidencia entre varias fuentes documentales incrementa la confiabilidad probatoria del punto.")
+          : detail?.conflicts.length
+            ? `Los documentos citados divergen en ${detail.conflicts.length} dato(s) concreto(s), por lo que la discrepancia debe resolverse antes de apoyarse en el hallazgo.`
+            : detail?.agreements.some((a) => a.independent)
+              ? "Los datos extraídos coinciden entre documentos de distinta naturaleza probatoria, lo que constituye corroboración independiente del punto."
+              : detail?.agreements.length
+                ? "Los datos extraídos coinciden entre documentos de la misma naturaleza probatoria, lo que constituye soporte acumulativo y no corroboración independiente."
+                : "Los pasajes citados no contienen datos concretos comparables entre sí, por lo que no puede afirmarse que las fuentes se corroboren entre ellas.")
       : `El hallazgo ${effect}; sin embargo, no se identificó en el expediente una fuente documental citada de manera directa, ` +
         "por lo que su valor probatorio no puede considerarse acreditado en este estado del expediente.";
   paras.push(p2);
@@ -450,7 +459,7 @@ export function buildFindingWorkProduct(
   const pending = buildPending(f, ctx);
   const { synthesis, detail } = buildSynthesis(f, docs, ctx);
   return {
-    importance: buildImportance(f, docs, ctx),
+    importance: buildImportance(f, docs, ctx, detail),
     synthesis,
     synthesisDetail: detail,
     pending,
@@ -477,25 +486,39 @@ function title(f: AnyFinding): string {
 export function buildCaseSnapshot(findings: AnyFinding[], ctx: WorkProductContext): CaseSnapshot {
   const enriched = findings.map((f) => ({ f, wp: buildFindingWorkProduct(f, ctx) }));
 
+  // Strength = facts that agree across documents of different evidentiary
+  // families, not simply several documents attached to the finding.
   const strengths = enriched
     .filter(
       ({ wp }) =>
-        (wp.synthesis?.docs.length ?? 0) >= 2 && (wp.synthesis?.docs[0].weight.stars ?? 0) >= 4,
+        !wp.synthesisDetail?.conflicts.length &&
+        (wp.synthesisDetail?.agreements.some((a) => a.independent) ?? false),
     )
     .slice(0, 5)
-    .map(
-      ({ f, wp }) =>
-        `${title(f)} — sustentado por ${wp.synthesis!.docs.length} documentos (${wp.synthesis!.docs[0].weight.label}).`,
-    );
+    .map(({ f, wp }) => {
+      const a = wp.synthesisDetail!.agreements.find((x) => x.independent)!;
+      return `${title(f)} — «${a.display}» corroborado de forma independiente por ${a.docs.length} documentos (${wp.synthesis!.docs[0].weight.label}).`;
+    });
 
   const weaknesses = enriched
-    .filter(({ f, wp }) => (wp.synthesis?.docs.length ?? 0) <= 1 || Number(f.confidence ?? 0) < 0.6)
+    .filter(
+      ({ f, wp }) =>
+        (wp.synthesis?.docs.length ?? 0) <= 1 ||
+        Number(f.confidence ?? 0) < 0.6 ||
+        (wp.synthesisDetail?.conflicts.length ?? 0) > 0 ||
+        !(wp.synthesisDetail?.agreements.length ?? 0),
+    )
     .slice(0, 5)
-    .map(({ f, wp }) =>
-      wp.synthesis?.docs.length
-        ? `${title(f)} — fuente documental única (${wp.synthesis.docs[0].weight.label}).`
-        : `${title(f)} — sin fuente documental citada de manera directa.`,
-    );
+    .map(({ f, wp }) => {
+      const d = wp.synthesisDetail;
+      if (d?.conflicts.length)
+        return `${title(f)} — los documentos citados divergen en ${d.conflicts.length} dato(s) concreto(s).`;
+      if (!wp.synthesis?.docs.length)
+        return `${title(f)} — sin fuente documental citada de manera directa.`;
+      if (wp.synthesis.docs.length === 1)
+        return `${title(f)} — fuente documental única (${wp.synthesis.docs[0].weight.label}).`;
+      return `${title(f)} — sin datos concretos coincidentes entre los pasajes citados.`;
+    });
 
   const docWeights = ctx.documentLabels
     .map((name) => ({ name, w: classifyEvidenceWeight(name) }))
