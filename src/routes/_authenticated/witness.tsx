@@ -5,7 +5,9 @@ import { useState } from "react";
 import { Users } from "lucide-react";
 import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
-import { ModuleHeader, ModuleEmpty } from "@/components/modules/SuppressedNotice";
+import { ModuleHeader } from "@/components/modules/SuppressedNotice";
+import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
+import { computeModuleStates, selectWitnessSignals } from "@/lib/modules/applicability";
 import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/witness")({
@@ -42,6 +44,11 @@ function WitnessPage() {
 
   const witnesses = (data?.witnesses ?? []) as any[];
   const credibilityAgent = (data?.agents ?? []).find((a: any) => a.agent_type === "witness_credibility");
+  // Witness profiles are the primary output, but the credibility agent often
+  // produces reliability findings on a case with no formal witness roster.
+  // Those must be surfaced instead of showing a bare "no witnesses" wall.
+  const signals = data ? selectWitnessSignals(data) : [];
+  const state = data ? computeModuleStates(data).find((m) => m.key === "witness")! : null;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
@@ -59,7 +66,27 @@ function WitnessPage() {
             caseLoading ? (
               <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.witness.loading")}</div>
             ) : witnesses.length === 0 ? (
-              <ModuleEmpty title={t("mod.witness.empty.title")} hint={t("mod.witness.empty.hint")} />
+              <div className="space-y-4">
+                {state ? <ModuleStateNotice state={state} /> : null}
+                {signals.length > 0 ? (
+                  <section className="space-y-2">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t("mod.witness.signals", { count: signals.length })}
+                    </h2>
+                    {signals.slice(0, 25).map((f: any) => (
+                      <article key={f.id} className="rounded-xl border border-border bg-card/60 p-4">
+                        <h3 className="text-sm font-semibold">{f.title}</h3>
+                        {f.description ? (
+                          <p className="mt-1 text-sm text-foreground/90">{f.description}</p>
+                        ) : null}
+                        {f.source_quote ? (
+                          <p className="mt-2 text-xs italic text-muted-foreground">{f.source_quote}</p>
+                        ) : null}
+                      </article>
+                    ))}
+                  </section>
+                ) : null}
+              </div>
             ) : (
               <>
                 {credibilityAgent?.summary ? (
