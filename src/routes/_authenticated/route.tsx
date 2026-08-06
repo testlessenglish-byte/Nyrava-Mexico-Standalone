@@ -181,6 +181,21 @@ function AppLayout() {
     queryFn: () => fetchIsAdmin(),
   });
 
+  // Beta testers get the full product but must register a real professional
+  // profile first. Everyone else is untouched by this gate.
+  const fetchProfileStatus = useServerFn(getProfileSetupStatus);
+  const { data: profileStatus } = useQuery({
+    queryKey: ["profile-setup-status"],
+    queryFn: () => fetchProfileStatus(),
+    staleTime: 60000,
+  });
+  useEffect(() => {
+    if (!profileStatus?.isBetaTester || profileStatus.complete) return;
+    if (pathname === "/profile-setup" || pathname === "/onboarding") return;
+    nav({ to: "/profile-setup", replace: true });
+  }, [profileStatus, pathname, nav]);
+
+
   // Real unread count, shared with the /alerts page — see src/hooks/useAlerts.ts.
   const { unreadCount } = useAlerts();
   const unreadLabel = unreadCount > 9 ? "9+" : String(unreadCount);
