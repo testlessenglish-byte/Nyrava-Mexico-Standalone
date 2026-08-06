@@ -6,12 +6,13 @@ export const Route = createFileRoute("/accessibility")({
     meta: [
       { title: "Accessibility Statement — Nyrava" },
       { name: "description", content: "Nyrava's commitment to accessible legal technology." },
-      { property: "og:url", content: "https://nyrava.com/accessibility" },
-      { name: "twitter:url", content: "https://nyrava.com/accessibility" },
+      { property: "og:url", content: "https://mexico.nyrava.com/accessibility" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/accessibility" },
       { property: "og:title", content: "Accessibility Statement — Nyrava" },
       { property: "og:description", content: "WCAG-aligned accessibility goals and feedback channel." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/accessibility" }],
   }),
   component: () => (
     <DocsLayout

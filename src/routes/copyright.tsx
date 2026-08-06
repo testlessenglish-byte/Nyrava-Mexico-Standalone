@@ -6,12 +6,13 @@ export const Route = createFileRoute("/copyright")({
     meta: [
       { title: "Copyright Policy — Nyrava" },
       { name: "description", content: "Ownership of content uploaded to and produced by Nyrava." },
-      { property: "og:url", content: "https://nyrava.com/copyright" },
-      { name: "twitter:url", content: "https://nyrava.com/copyright" },
+      { property: "og:url", content: "https://mexico.nyrava.com/copyright" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/copyright" },
       { property: "og:title", content: "Copyright Policy — Nyrava" },
       { property: "og:description", content: "Ownership, licenses, and third-party rights." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/copyright" }],
   }),
   component: () => (
     <DocsLayout

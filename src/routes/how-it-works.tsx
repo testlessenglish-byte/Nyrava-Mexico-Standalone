@@ -8,9 +8,10 @@ export const Route = createFileRoute("/how-it-works")({
       { name: "description", content: "How the Nyrava legal intelligence pipeline turns documents into analysis." },
       { property: "og:title", content: "How It Works \u2014 Nyrava" },
       { property: "og:description", content: "How the Nyrava legal intelligence pipeline turns documents into analysis." },
-      { property: "og:url", content: "https://nyrava.com/how-it-works" },
-      { name: "twitter:url", content: "https://nyrava.com/how-it-works" },
+      { property: "og:url", content: "https://mexico.nyrava.com/how-it-works" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/how-it-works" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/how-it-works" }],
   }),
   component: HowItWorksPage,
 });

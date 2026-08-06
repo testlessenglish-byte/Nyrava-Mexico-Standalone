@@ -24,7 +24,7 @@ import { MobileNav } from "@/components/MobileNav";
 import { useI18n } from "@/i18n";
 import { listPublishedDemoCases } from "@/lib/demo-cases.functions";
 
-const SITE_URL = "https://nyravamexico.lovable.app";
+const SITE_URL = "https://mexico.nyrava.com";
 const LOGO_URL = `${SITE_URL}/nyrava-shield.png`;
 
 const ORGANIZATION_JSON_LD = JSON.stringify({
@@ -68,7 +68,9 @@ export const Route = createFileRoute("/")({
         content: "Inteligencia jurídica más allá del análisis humano.",
       },
     ],
+    links: [{ rel: "canonical", href: `${SITE_URL}/` }],
     scripts: [
+
       { type: "application/ld+json", children: ORGANIZATION_JSON_LD },
       { type: "application/ld+json", children: WEBSITE_JSON_LD },
     ],

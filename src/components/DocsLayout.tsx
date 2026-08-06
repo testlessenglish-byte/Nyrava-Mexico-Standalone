@@ -376,4 +376,4 @@ export function breadcrumbJsonLd(base: string, crumbs: Crumb[]) {
   });
 }
 
-export const CANONICAL_BASE = "https://nyrava.com";
+export const CANONICAL_BASE = "https://mexico.nyrava.com";

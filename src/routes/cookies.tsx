@@ -8,9 +8,10 @@ export const Route = createFileRoute("/cookies")({
       { name: "description", content: "How Nyrava uses cookies and similar browser storage." },
       { property: "og:title", content: "Cookie Policy \u2014 Nyrava" },
       { property: "og:description", content: "How Nyrava uses cookies and similar browser storage." },
-      { property: "og:url", content: "https://nyrava.com/cookies" },
-      { name: "twitter:url", content: "https://nyrava.com/cookies" },
+      { property: "og:url", content: "https://mexico.nyrava.com/cookies" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/cookies" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/cookies" }],
   }),
   component: CookiesPage,
 });

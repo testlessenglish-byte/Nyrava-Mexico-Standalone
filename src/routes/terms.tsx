@@ -8,9 +8,10 @@ export const Route = createFileRoute("/terms")({
       { name: "description", content: "Terms governing use of the Nyrava platform." },
       { property: "og:title", content: "Terms of Service \u2014 Nyrava" },
       { property: "og:description", content: "Terms governing use of the Nyrava platform." },
-      { property: "og:url", content: "https://nyrava.com/terms" },
-      { name: "twitter:url", content: "https://nyrava.com/terms" },
+      { property: "og:url", content: "https://mexico.nyrava.com/terms" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/terms" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/terms" }],
   }),
   component: TermsPage,
 });

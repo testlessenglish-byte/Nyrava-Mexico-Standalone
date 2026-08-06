@@ -6,12 +6,13 @@ export const Route = createFileRoute("/acceptable-use")({
     meta: [
       { title: "Acceptable Use Policy — Nyrava" },
       { name: "description", content: "How Nyrava Intelligence OS may and may not be used." },
-      { property: "og:url", content: "https://nyrava.com/acceptable-use" },
-      { name: "twitter:url", content: "https://nyrava.com/acceptable-use" },
+      { property: "og:url", content: "https://mexico.nyrava.com/acceptable-use" },
+      { name: "twitter:url", content: "https://mexico.nyrava.com/acceptable-use" },
       { property: "og:title", content: "Acceptable Use Policy — Nyrava" },
       { property: "og:description", content: "Prohibited uses and account conduct rules." },
       { property: "og:type", content: "article" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/acceptable-use" }],
   }),
   component: () => (
     <DocsLayout

@@ -2105,7 +2105,7 @@ class PdfBuilder {
       // Bound-checked the same way header()'s right-hand label already is:
       // a long case name must never be allowed to grow into the reserved
       // "Page i / N" zone on the right.
-      const brandLine = `Nyrava Legal Intelligence  ·  nyrava.com  ·  ${this.caseName}`;
+      const brandLine = `Nyrava Legal Intelligence  ·  mexico.nyrava.com  ·  ${this.caseName}`;
       const brandMaxW = this.pageW - this.margin * 2 - pageLabelW;
       const brandFitted =
         (this.doc.splitTextToSize(brandLine, brandMaxW) as string[])[0] ?? brandLine;
@@ -2153,7 +2153,7 @@ class PdfBuilder {
     this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(10);
     this.doc.setTextColor(...MUTED);
-    this.doc.text("nyrava.com", cx, yy, { align: "center" });
+    this.doc.text("mexico.nyrava.com", cx, yy, { align: "center" });
     yy += 22;
     this.doc.setDrawColor(...CARD_BORDER);
     this.doc.setLineWidth(0.75);
