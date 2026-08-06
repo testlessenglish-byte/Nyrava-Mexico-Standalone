@@ -8,7 +8,7 @@ import { getCase, draftMotion, getMotionDrafts } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, SuppressedNotice } from "@/components/modules/SuppressedNotice";
 import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
-import { computeModuleStates } from "@/lib/modules/applicability";
+import { computeModuleStates, selectMotionOpportunities } from "@/lib/modules/applicability";
 import { isDeterministicFallback } from "@/lib/intelligence/canonical";
 import { MotionPreview, downloadMotionPdf, printMotion } from "@/lib/motion-markdown";
 import { MotionEditor } from "@/components/MotionEditor";
@@ -58,11 +58,7 @@ function MotionPage() {
   const [caseDetail, setCaseDetail] = useState<CaseDetailContext | null>(null);
   const motionsSuppressed = report?.motions_suppressed === true;
   const detFallback = isDeterministicFallback(report);
-  const opps = ((data?.opportunities ?? []) as any[]).filter(
-    (o) =>
-      /motion/i.test(o.opportunity_type ?? "") ||
-      (Array.isArray(o.recommended_motions) && o.recommended_motions.length > 0),
-  );
+  const opps = selectMotionOpportunities(data);
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text).then(

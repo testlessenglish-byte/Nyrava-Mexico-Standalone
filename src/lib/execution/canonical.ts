@@ -130,7 +130,16 @@ export const CANONICAL_STAGES = [
     key: "timeline",
     label: "Build Timeline",
     engine: "timeline",
-    dependsOn: ["extraction"],
+    // runTimelineAudit() (cases.functions.ts) hard-requires the Analyzers
+    // stage's `analyses.timeline` column AND Agents' `agents_at` timestamp
+    // to already exist — it throws "Run Analyzers/Agents first" otherwise.
+    // dependsOn previously only listed "extraction", so on a resume where
+    // analyzers/agents had failed or were blocked upstream, the dependency
+    // gate never recognized timeline as blocked-by-association: it ran
+    // anyway, hit that internal guard, and surfaced as an unexplained stage
+    // FAILURE instead of a clean "blocked" state — leaving Timeline Builder
+    // permanently empty for that case with no honest reason shown.
+    dependsOn: ["extraction", "analyzers", "agents"],
     requirement: "enriching",
     timeoutMs: 120_000,
   },
