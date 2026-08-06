@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { listCases } from "@/lib/cases.functions";
+import { ensureStarterCases } from "@/lib/account.functions";
 import { getAttorneyHome } from "@/lib/casework.functions";
+
 import { PipelineStatusGrid } from "@/components/PipelineStatusGrid";
 import { PipelineTracePanel } from "@/components/PipelineTracePanel";
 import { useRoles } from "@/hooks/use-roles";
