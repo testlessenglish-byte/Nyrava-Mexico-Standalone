@@ -1,0 +1,28 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+PEDIMENTO DEL AGENTE DEL MINISTERIO PÚBLICO DE LA FEDERACIÓN
+Adscrito al Primer Tribunal Colegiado en Materia de Trabajo del Cuarto Circuito.
+Amparo directo 233/2026 — 9 de julio de 2026.
+
+I. PROCEDENCIA
+El juicio es procedente: se reclama un laudo definitivo que pone fin al juicio laboral, la demanda
+es oportuna y la quejosa tiene interés jurídico directo.
+
+II. OPINIÓN SOBRE EL FONDO
+Se estima FUNDADO el primer concepto de violación. El laudo reconoce la existencia de dictámenes
+contradictorios y, no obstante, resuelve la contradicción sin examinar el dictamen del perito
+tercero en discordia, que es precisamente el medio previsto por la ley para dirimirla. La propia
+autoridad responsable admite en su informe justificado que el laudo no contiene un apartado de
+valoración de dicha probanza.
+
+Se estima igualmente FUNDADO el segundo concepto: retirado el ofrecimiento de trabajo, la carga de
+acreditar la causa de terminación permanece en el patrón (arts. 784 y 804 LFT).
+
+Se considera INNECESARIO el estudio de los conceptos restantes, al bastar los anteriores para
+conceder el amparo, sin perjuicio de que en el nuevo laudo se atienda lo relativo a la integración
+salarial y al riesgo de trabajo.
+
+III. PROPUESTA
+Conceder el amparo para el efecto de que la autoridad responsable deje insubsistente el laudo
+reclamado y dicte otro en el que valore de manera expresa y razonada el dictamen del perito
+tercero en discordia, aplique correctamente la carga probatoria y resuelva conforme a derecho.

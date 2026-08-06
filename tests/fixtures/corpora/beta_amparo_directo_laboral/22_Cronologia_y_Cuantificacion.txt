@@ -1,0 +1,35 @@
+=== DATOS FICTICIOS DE PRUEBA — FICTIONAL BENCHMARK TEST DATA (NYRAVA MÉXICO) ===
+
+CRONOLOGÍA CONSOLIDADA Y CUANTIFICACIÓN — VILLARREAL CANTÚ VS. MANUFACTURAS TERMOPLÁSTICAS
+Documento de trabajo del despacho — 28 de julio de 2026.
+
+LÍNEA DE TIEMPO
+04/03/2019 — Ingreso como Inspectora de Calidad.
+01/07/2022 — Ascenso a Supervisora de Control de Calidad ($28,400.00 mensuales).
+18/10/2023 — Reporte de no conformidad NC-2023-0417 (lote TP-4471).
+Nov 2023 – may 2024 — Exclusión de juntas de calidad y retiro de personal a cargo.
+09/02/2024 — Lesión lumbar al manipular molde de 34 kg; sin aviso ST-7.
+03/06/2024 — Impedimento de acceso a la planta; sin marcaje biométrico ese día.
+04/06/2024 — Baja ante el IMSS con clave "1 — término de contrato".
+24/06/2024 — Demanda laboral.
+12/09/2024 — Retiro del ofrecimiento de trabajo.
+22/05/2025 — Dictamen del perito tercero: firma calcada (coincidencia 99.1%).
+30/07/2025 — Inspección: controles 2024 y bitácora de caseta no exhibidos.
+14/05/2026 — Laudo absolutorio parcial, sin valorar el dictamen del tercero.
+10/06/2026 — Demanda de amparo directo 233/2026.
+24/07/2026 — Proyecto de ponencia propone conceder el amparo para efectos.
+
+CUANTIFICACIÓN EN CASO DE LAUDO FAVORABLE (estimación)
+Salario diario integrado propuesto (con bono): $1,047.75 (vs. $946.66 fijado en el laudo).
+Salarios caídos 03/06/2024 – 31/12/2025 (tope art. 48 LFT, 12 meses): $382,428.75.
+Intereses del 2% mensual sobre 15 meses de salario (art. 48, tercer párrafo): $141,446.25.
+Prima de antigüedad recalculada: $188,595.00 (diferencia de $18,196.20 frente a lo condenado).
+Horas extra 24/06/2023 – 31/05/2024 (no prescritas), 9 h semanales: $278,940.00 (sujeto a prueba).
+Prima dominical 41 domingos: $10,742.44.
+Riesgo de trabajo: pendiente de valuación por incapacidad parcial permanente.
+
+RIESGOS
+- Que el Tribunal Colegiado conceda el amparo solo para efectos formales y el nuevo laudo reitere
+  el sentido absolutorio con motivación reforzada.
+- Que el tercero interesado promueva amparo adhesivo para fortalecer la absolución.
+- Prescripción de la acción de riesgo de trabajo respecto de prestaciones anteriores.
