@@ -1480,7 +1480,8 @@ type Doc = {
   mime_type: string | null;
   size_bytes: number | null;
   error: string | null;
-  extracted_text: string | null;
+  // extracted_text is fetched lazily (see DocumentTextSection) — it is no
+  // longer part of the getCase payload.
   metadata: unknown;
   entities: unknown;
 };
