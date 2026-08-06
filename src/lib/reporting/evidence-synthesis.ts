@@ -17,13 +17,20 @@
 // =============================================================================
 
 import {
+  resolveLegalContext,
+  type JurisdictionSignals,
+  type LegalContext,
+} from "@/lib/legal/jurisdiction-resolver";
+import { getApplicableAuthority } from "@/lib/legal/legal-validity";
+import {
   extractFacts,
   FACT_KIND_LABEL,
   normalizeText,
   type ExtractedFact,
   type FactKind,
 } from "./evidence-facts";
-import { actLabel, resolveActLexicon, type ActKey, type ActLexicon } from "./legal-acts";
+import { actAuthorityRefs, actLabel, resolveActLexicon, type ActKey, type ActLexicon } from "./legal-acts";
+
 
 type Weight = { stars: number; glyphs: string; label: string };
 
