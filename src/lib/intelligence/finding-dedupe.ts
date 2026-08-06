@@ -82,6 +82,8 @@ export type DedupeOptions = {
   crossCategoryTitleThreshold?: number;
   /** Description agreement accepted as corroboration for a cross-category merge. */
   crossCategoryDescriptionThreshold?: number;
+  /** Weaker description bar accepted when the two titles are byte-identical. */
+  crossCategoryExactTitleDescriptionThreshold?: number;
 };
 
 const DEFAULTS: Required<DedupeOptions> = {
@@ -90,7 +92,9 @@ const DEFAULTS: Required<DedupeOptions> = {
   descriptionThreshold: 0.6,
   crossCategoryTitleThreshold: 0.8,
   crossCategoryDescriptionThreshold: 0.5,
+  crossCategoryExactTitleDescriptionThreshold: 0.3,
 };
+
 
 type Prepared = {
   row: DedupableFinding;
