@@ -49,9 +49,16 @@ async function requireAdmin(ctx: { supabase: Db; userId: string }) {
   if (!isAdmin) throw new Error("Forbidden — admin required.");
 }
 
-function publicUrl(admin: Db, path: string | null): string | null {
+// The demo-cases bucket is PRIVATE. Every URL handed to the browser is a
+// short-lived signed URL minted server-side, so unpublished/staging assets can
+// never be read by simply guessing an object path.
+const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
+
+async function signedUrl(admin: Db, path: string | null): Promise<string | null> {
   if (!path) return null;
-  return admin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error) return null;
+  return data?.signedUrl ?? null;
 }
 
 // -------------------- Public (no auth) --------------------
@@ -64,15 +71,17 @@ export const listPublishedDemoCases = createServerFn({ method: "GET" }).handler(
     .eq("published", true)
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((c) => ({
-    id: c.id,
-    slug: c.slug,
-    name: c.name,
-    case_type: c.case_type,
-    case_type_label: PRACTICE_AREA_LABELS[c.case_type as PracticeArea] ?? c.case_type,
-    summary: c.summary,
-    thumbnail_url: publicUrl(supabaseAdmin, c.thumbnail_path),
-  }));
+  return await Promise.all(
+    (data ?? []).map(async (c) => ({
+      id: c.id,
+      slug: c.slug,
+      name: c.name,
+      case_type: c.case_type,
+      case_type_label: PRACTICE_AREA_LABELS[c.case_type as PracticeArea] ?? c.case_type,
+      summary: c.summary,
+      thumbnail_url: await signedUrl(supabaseAdmin, c.thumbnail_path),
+    })),
+  );
 });
 
 export const getPublishedDemoCase = createServerFn({ method: "GET" })
@@ -101,13 +110,15 @@ export const getPublishedDemoCase = createServerFn({ method: "GET" })
       case_type_label: PRACTICE_AREA_LABELS[demoCase.case_type as PracticeArea] ?? demoCase.case_type,
       summary: demoCase.summary,
       description: demoCase.description,
-      thumbnail_url: publicUrl(supabaseAdmin, demoCase.thumbnail_path),
-      documents: (docs ?? []).map((d) => ({
-        id: d.id,
-        doc_type: d.doc_type as DemoDocType,
-        file_name: d.file_name,
-        url: publicUrl(supabaseAdmin, d.storage_path)!,
-      })),
+      thumbnail_url: await signedUrl(supabaseAdmin, demoCase.thumbnail_path),
+      documents: await Promise.all(
+        (docs ?? []).map(async (d) => ({
+          id: d.id,
+          doc_type: d.doc_type as DemoDocType,
+          file_name: d.file_name,
+          url: (await signedUrl(supabaseAdmin, d.storage_path)) ?? "",
+        })),
+      ),
     };
   });
 
@@ -134,11 +145,18 @@ export const adminListDemoCases = createServerFn({ method: "GET" })
       list.push(d);
       byCase.set(d.demo_case_id, list);
     }
-    return (cases ?? []).map((c) => ({
-      ...c,
-      thumbnail_url: publicUrl(supabaseAdmin, c.thumbnail_path),
-      documents: (byCase.get(c.id) ?? []).map((d) => ({ ...d, url: publicUrl(supabaseAdmin, d.storage_path)! })),
-    }));
+    return await Promise.all(
+      (cases ?? []).map(async (c) => ({
+        ...c,
+        thumbnail_url: await signedUrl(supabaseAdmin, c.thumbnail_path),
+        documents: await Promise.all(
+          (byCase.get(c.id) ?? []).map(async (d) => ({
+            ...d,
+            url: (await signedUrl(supabaseAdmin, d.storage_path)) ?? "",
+          })),
+        ),
+      })),
+    );
   });
 
 const demoCaseInput = z.object({
@@ -242,7 +260,7 @@ export const adminUploadDemoThumbnail = createServerFn({ method: "POST" })
     if (uploadError) throw new Error(uploadError.message);
     const { error } = await supabaseAdmin.from("demo_cases").update({ thumbnail_path: path }).eq("id", demoCaseId);
     if (error) throw new Error(error.message);
-    return { path, url: supabaseAdmin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl };
+    return { path, url: (await signedUrl(supabaseAdmin, path)) ?? "" };
   });
 
 export const adminUploadDemoDocument = createServerFn({ method: "POST" })
@@ -300,7 +318,7 @@ export const adminUploadDemoDocument = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
-    return { ...inserted, url: supabaseAdmin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl };
+    return { ...inserted, url: (await signedUrl(supabaseAdmin, path)) ?? "" };
   });
 
 export const adminDeleteDemoDocument = createServerFn({ method: "POST" })
