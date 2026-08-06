@@ -94,12 +94,24 @@ export function selectWitnessSignals(data: Any): Any[] {
   );
 }
 
+// The opportunity engine's opportunity_type vocabulary (constitutional,
+// timeline_attack, credibility_attack, discovery, evidence_attack, etc. —
+// see engines.server.ts's allowedCategories) never actually contains a
+// "motion"/"recurso"/"amparo" substring, and the model doesn't reliably
+// populate recommended_motions on every opportunity it's grounded on. A
+// filter that required one of those two conditions left Motion Center empty
+// for cases with real, high-severity, evidence-cited opportunities (e.g. a
+// CRITICAL "exceso en la garantía" constitutional defect) that plainly
+// warrant attorney review for a filing even though the model never
+// literally wrote out a motion title for it. High/critical severity is
+// itself the signal that the opportunity is worth surfacing here.
 export function selectMotionOpportunities(data: Any): Any[] {
-  return ((data?.opportunities ?? []) as Any[]).filter(
-    (o) =>
-      /motion|promoci|recurso|amparo|incidente/i.test(String(o?.opportunity_type ?? "")) ||
-      (Array.isArray(o?.recommended_motions) && o.recommended_motions.length > 0),
-  );
+  return ((data?.opportunities ?? []) as Any[]).filter((o) => {
+    if (/motion|promoci|recurso|amparo|incidente/i.test(String(o?.opportunity_type ?? ""))) return true;
+    if (Array.isArray(o?.recommended_motions) && o.recommended_motions.length > 0) return true;
+    const sev = String(o?.severity ?? "").toLowerCase();
+    return sev === "critical" || sev === "high";
+  });
 }
 
 /**

@@ -8,6 +8,7 @@ import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty, SuppressedNotice } from "@/components/modules/SuppressedNotice";
 import { isDeterministicFallback } from "@/lib/intelligence/canonical";
 import { useI18n } from "@/i18n";
+import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
 
 export const Route = createFileRoute("/_authenticated/strategy")({
   head: () => ({ meta: [{ title: "Centro de Estrategia — Nyrava" }] }),
@@ -33,12 +34,43 @@ function StrategyPage() {
   const scoresSuppressed = report?.scores_suppressed === true;
   const detFallback = isDeterministicFallback(report);
 
-  const theories = (data?.theories ?? []) as any[];
+  const rawTheories = (data?.theories ?? []) as any[];
   const strategies = (data?.strategy ?? []) as any[];
-  const opps = (data?.opportunities ?? []) as any[];
-  const attack = strategies.filter((s) => /attack|prosecut/i.test(s.perspective));
-  const defense = strategies.filter((s) => /defense|defend/i.test(s.perspective));
-  const nonMotion = opps.filter((o) => !/motion/i.test(o.opportunity_type ?? ""));
+  const rawOpps = (data?.opportunities ?? []) as any[];
+  const rawAttack = strategies.filter((s) => /attack|prosecut/i.test(s.perspective));
+  const rawDefense = strategies.filter((s) => /defense|defend/i.test(s.perspective));
+  const rawNonMotion = rawOpps.filter((o) => !/motion/i.test(o.opportunity_type ?? ""));
+
+  // Screen-reading translation only — never applied to the formal Report.
+  // Only the currently active tab's items are translated, since only one
+  // tab's content is visible at a time.
+  const sourceLocale =
+    (data?.case as { report_language?: string | null } | undefined)?.report_language === "en" ? "en" : "es";
+  const { texts: translatedTheoryNarratives } = useTranslatedTexts(
+    tab === "theories" ? rawTheories.map((th) => th.narrative ?? "") : [],
+    sourceLocale,
+  );
+  const theories = rawTheories.map((th, i) => ({ ...th, narrative: translatedTheoryNarratives[i] || th.narrative }));
+
+  const activePerspective = tab === "attack" ? rawAttack : tab === "defense" ? rawDefense : [];
+  const { texts: translatedSummaries } = useTranslatedTexts(
+    activePerspective.map((s) => s.summary ?? ""),
+    sourceLocale,
+  );
+  const withTranslatedSummary = (list: any[]) =>
+    list.map((s, i) => ({ ...s, summary: translatedSummaries[i] || s.summary }));
+  const attack = tab === "attack" ? withTranslatedSummary(rawAttack) : rawAttack;
+  const defense = tab === "defense" ? withTranslatedSummary(rawDefense) : rawDefense;
+
+  const { texts: translatedOppFlat } = useTranslatedTexts(
+    tab === "opportunities" ? rawNonMotion.flatMap((o) => [o.title, o.description]) : [],
+    sourceLocale,
+  );
+  const nonMotion = rawNonMotion.map((o, i) => ({
+    ...o,
+    title: translatedOppFlat[i * 2] || o.title,
+    description: translatedOppFlat[i * 2 + 1] || o.description,
+  }));
 
   const tabs: Array<{ id: Tab; label: string; count: number }> = [
     { id: "theories", label: t("mod.strategy.tab.theories"), count: theories.length },

@@ -56,7 +56,7 @@ import { MultiAgentPanel } from "@/components/MultiAgentPanel";
 import { ParityBadge } from "@/components/ParityBadge";
 import { ClaimBadge } from "@/components/ClaimBadge";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
-import { MX_PARTY_ROLES, resolveMxProfile, mxRoleLabel } from "@/lib/execution/mx-pipeline";
+import { MX_PARTY_ROLES, mxProfileOrNull, mxRoleLabel } from "@/lib/execution/mx-pipeline";
 import {
   getCanonicalCounts,
   getContradictions,
@@ -147,6 +147,7 @@ import {
 import { TransactionCenterPanel } from "@/components/TransactionCenterPanel";
 import { ModuleStatusStrip } from "@/components/modules/ModuleStatus";
 import { computeModuleStates } from "@/lib/modules/applicability";
+import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
 
 export const Route = createFileRoute("/_authenticated/cases/$caseId")({
   head: () => ({ meta: [{ title: "Case workspace — Nyrava" }] }),
@@ -784,7 +785,12 @@ function Workspace() {
               </>
             )}
 
-            {tab === "findings" && <FindingsTab findings={findings} />}
+            {tab === "findings" && (
+              <FindingsTab
+                findings={findings}
+                sourceLocale={(c as { report_language?: string | null }).report_language === "en" ? "en" : "es"}
+              />
+            )}
             {tab === "strategic" && <StrategicFindingsTab findings={findings} />}
             {tab === "attack" && <AttackSurfaceTab surface={attackSurface} />}
             {tab === "intel" && <IntelTab docs={docs} caseId={c.id} invalidate={invalidate} />}
@@ -1360,7 +1366,11 @@ function DashboardList({ title, items, empty }: { title: string; items: Finding[
   );
 }
 
-function FindingsTab({ findings }: { findings: Finding[] }) {
+// Fields translated per finding, in the fixed order the flat batch below
+// relies on to reconstruct each finding after translation.
+const FINDING_TRANSLATED_FIELDS = ["title", "description", "legal_significance", "potential_impact"] as const;
+
+function FindingsTab({ findings, sourceLocale = "es" }: { findings: Finding[]; sourceLocale?: "es" | "en" }) {
   const [sev, setSev] = useState<string>("all");
   const [cat, setCat] = useState<string>("all");
   const categories = Array.from(new Set(findings.map((f) => f.category))).sort();
@@ -1368,6 +1378,23 @@ function FindingsTab({ findings }: { findings: Finding[] }) {
     .filter((f) => sev === "all" || f.severity === sev)
     .filter((f) => cat === "all" || f.category === cat)
     .sort((a, b) => sevRank(b.severity) - sevRank(a.severity));
+
+  // One batched translation call for every visible finding's title,
+  // description, legal significance and potential impact — never for the
+  // formal Report, which always stays in its generated language.
+  const flatSource = filtered.flatMap((f) => [f.title, f.description, f.legal_significance, f.potential_impact]);
+  const { texts: flatTranslated } = useTranslatedTexts(flatSource, sourceLocale);
+  const translatedFindings: Finding[] = filtered.map((f, i) => {
+    const base = i * FINDING_TRANSLATED_FIELDS.length;
+    return {
+      ...f,
+      title: flatTranslated[base] || f.title,
+      description: flatTranslated[base + 1] || f.description,
+      legal_significance: f.legal_significance ? flatTranslated[base + 2] || f.legal_significance : null,
+      potential_impact: f.potential_impact ? flatTranslated[base + 3] || f.potential_impact : null,
+    };
+  });
+
   if (findings.length === 0)
     return <Empty msg="No findings yet. Run analyzers + agents to populate the findings store." />;
   return (
@@ -1388,7 +1415,7 @@ function FindingsTab({ findings }: { findings: Finding[] }) {
         Showing {filtered.length} of {findings.length}
       </div>
       <div className="space-y-2">
-        {filtered.map((f) => (
+        {translatedFindings.map((f) => (
           <details key={f.id} className="rounded-lg border border-border bg-card">
             <summary className="flex cursor-pointer items-start gap-3 px-4 py-3 text-sm">
               <span
@@ -3246,8 +3273,14 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
         // analysis for those two materias and the UI was throwing it away.
         // Mirrors isCriminalOrCivilRights exactly.
         const constitutionalRelevant = ct === "penal" || ct === "amparo" || ct === "constitucional";
-        const profile = resolveMxProfile(ct);
-        const roles = MX_PARTY_ROLES[profile];
+        // Tolerant lookup: `ct` falls back to the literal "general_civil"
+        // above when full_report.case_type is missing (e.g. legacy reports
+        // generated before that field was stamped), which is not a real
+        // materia — resolveMxProfile/requireMxProfile would throw on it and
+        // take down the whole Report tab (blank page). mxProfileOrNull
+        // degrades to the generic title instead.
+        const profile = mxProfileOrNull(ct);
+        const roles = profile ? MX_PARTY_ROLES[profile] : null;
         const renderSection = (key: string, title: string) => {
           const body = rStr(r[key]);
           if (!body) return null;
@@ -3262,7 +3295,7 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
           // Penal keeps its existing "Prosecution Theory"/"Defense Theory"
           // titles unchanged — those are already correct.
           const renderedTitle =
-            ct === "penal"
+            ct === "penal" || !roles
               ? title
               : key === "prosecution_theory_report"
                 ? `${mxRoleLabel(roles.a)} Theory`

@@ -3007,6 +3007,75 @@ export const getMotionDrafts = createServerFn({ method: "POST" })
     return { drafts: await fetchDrafts(supabase, data.caseId) };
   });
 
+// On-demand UI translation for AI-generated case content (finding titles/
+// descriptions, opportunity text, timeline events, witness profiles, etc.)
+// shown outside the formal Report. The Report itself (Reports page, the
+// case workspace's Report tab, and PDF/DOCX/JSON export) intentionally
+// never calls this — it always renders in the language it was generated in,
+// since that's the language it's meant to be filed/read in. This is purely
+// a screen-reading convenience for attorneys viewing the app UI in the
+// other locale than the case was analyzed in.
+export const translateTexts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        texts: z.array(z.string().max(4000)).min(1).max(150),
+        targetLocale: z.enum(["en", "es"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = await getAuthedContext(context, "Translate");
+    const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
+    const { keys, userKeyCount } = await resolveProviderKeys(supabase, userId, "groq");
+    const activeKey = keys[0] ?? getApiKey();
+
+    // Best-effort quota accounting, same metered resource as every other AI
+    // call — but never blocks the screen: a translation failure/limit just
+    // falls back to showing the original text, so usage exhaustion degrades
+    // gracefully instead of breaking the page.
+    const { checkAndConsumeUsage } = await import("@/lib/usage.server");
+    const usage = await checkAndConsumeUsage({
+      userId,
+      kind: "ai_request",
+      feature: "ui_translation",
+      byokActive: userKeyCount > 0,
+    });
+    if (!usage.allowed) {
+      return { translations: data.texts, skipped: true as const };
+    }
+
+    const { callGroq, parseJsonLoose } = await import("./groq.server");
+    const targetLabel = data.targetLocale === "en" ? "English" : "Spanish";
+    const r = await callGroq({
+      apiKey: activeKey,
+      apiKeys: keys,
+      model: "openai/gpt-oss-120b",
+      systemInstruction:
+        "You are a precise legal translator for a Mexican legal-intelligence platform. " +
+        "Translate each string faithfully — preserve legal terminology, citations, article numbers, " +
+        "party names, dates, and quotes verbatim where they appear untranslated in the source language " +
+        "convention (e.g. keep 'quejoso', 'amparo', article citations). Never summarize, shorten, or add " +
+        "commentary. Output STRICT JSON only.",
+      userContent:
+        `Translate every string in this JSON array into ${targetLabel}. Preserve array order and length ` +
+        `exactly — return exactly ${data.texts.length} items. Return STRICT JSON: {"translations": string[]}.\n\n` +
+        JSON.stringify(data.texts),
+      json: true,
+      cache: true,
+      temperature: 0,
+    });
+    const parsed = parseJsonLoose<{ translations?: unknown }>(r.text) ?? {};
+    const raw = Array.isArray(parsed.translations) ? parsed.translations : [];
+    // Defensive: fall back to the original string per-item rather than the
+    // whole batch if the model drops/reorders an entry or returns a non-string.
+    const translations = data.texts.map((orig, i) =>
+      typeof raw[i] === "string" && (raw[i] as string).trim() ? (raw[i] as string) : orig,
+    );
+    return { translations, skipped: false as const };
+  });
+
 // Metadata fields safe to return for a quality_blocked report — enough for
 // the UI to render an accurate "blocked" state (report exists, here's why),
 // nothing that constitutes report content export.ts could render into a

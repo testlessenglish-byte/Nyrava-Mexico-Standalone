@@ -9,6 +9,7 @@ import { ModuleHeader } from "@/components/modules/SuppressedNotice";
 import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
 import { computeModuleStates, selectWitnessSignals } from "@/lib/modules/applicability";
 import { useI18n } from "@/i18n";
+import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
 
 export const Route = createFileRoute("/_authenticated/witness")({
   head: () => ({ meta: [{ title: "Inteligencia de Testigos — Nyrava" }] }),
@@ -47,8 +48,26 @@ function WitnessPage() {
   // Witness profiles are the primary output, but the credibility agent often
   // produces reliability findings on a case with no formal witness roster.
   // Those must be surfaced instead of showing a bare "no witnesses" wall.
-  const signals = data ? selectWitnessSignals(data) : [];
+  const rawSignals = data ? selectWitnessSignals(data) : [];
   const state = data ? computeModuleStates(data).find((m) => m.key === "witness")! : null;
+
+  // Screen-reading translation only — never applied to the formal Report.
+  const sourceLocale =
+    (data?.case as { report_language?: string | null } | undefined)?.report_language === "en" ? "en" : "es";
+  const { texts: translatedSignalFlat } = useTranslatedTexts(
+    rawSignals.flatMap((f: any) => [f.title ?? "", f.description ?? ""]),
+    sourceLocale,
+  );
+  const signals = rawSignals.map((f: any, i: number) => ({
+    ...f,
+    title: translatedSignalFlat[i * 2] || f.title,
+    description: f.description ? translatedSignalFlat[i * 2 + 1] || f.description : f.description,
+  }));
+  const { texts: translatedCredibility } = useTranslatedTexts(
+    [credibilityAgent?.summary ?? ""],
+    sourceLocale,
+  );
+  const credibilitySummary = credibilityAgent?.summary ? translatedCredibility[0] || credibilityAgent.summary : null;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
@@ -89,10 +108,10 @@ function WitnessPage() {
               </div>
             ) : (
               <>
-                {credibilityAgent?.summary ? (
+                {credibilitySummary ? (
                   <div className="rounded-xl border border-border bg-card/60 p-4">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">{t("mod.witness.credibility")}</p>
-                    <p className="mt-1.5 text-sm">{credibilityAgent.summary}</p>
+                    <p className="mt-1.5 text-sm">{credibilitySummary}</p>
                   </div>
                 ) : null}
                 <div className="grid gap-3 md:grid-cols-2">

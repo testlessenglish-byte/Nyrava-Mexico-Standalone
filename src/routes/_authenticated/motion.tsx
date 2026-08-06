@@ -8,7 +8,7 @@ import { getCase, draftMotion, getMotionDrafts } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, SuppressedNotice } from "@/components/modules/SuppressedNotice";
 import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
-import { computeModuleStates } from "@/lib/modules/applicability";
+import { computeModuleStates, selectMotionOpportunities } from "@/lib/modules/applicability";
 import { isDeterministicFallback } from "@/lib/intelligence/canonical";
 import { MotionPreview, downloadMotionPdf, printMotion } from "@/lib/motion-markdown";
 import { MotionEditor } from "@/components/MotionEditor";
@@ -16,6 +16,7 @@ import { buildSupportingAuthority } from "@/lib/intelligence/authority";
 import { SupportingAuthorityCard } from "@/components/SupportingAuthorityCard";
 import { CaseDetailPanel, type CaseDetailContext } from "@/components/CaseDetailPanel";
 import { useI18n } from "@/i18n";
+import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
 
 export const Route = createFileRoute("/_authenticated/motion")({
   head: () => ({
@@ -58,11 +59,21 @@ function MotionPage() {
   const [caseDetail, setCaseDetail] = useState<CaseDetailContext | null>(null);
   const motionsSuppressed = report?.motions_suppressed === true;
   const detFallback = isDeterministicFallback(report);
-  const opps = ((data?.opportunities ?? []) as any[]).filter(
-    (o) =>
-      /motion/i.test(o.opportunity_type ?? "") ||
-      (Array.isArray(o.recommended_motions) && o.recommended_motions.length > 0),
+  const opps = selectMotionOpportunities(data);
+
+  // Screen-reading translation only — never applied to the formal Report.
+  const sourceLocale = (data?.case as { report_language?: string | null } | undefined)?.report_language === "en"
+    ? "en"
+    : "es";
+  const { texts: translatedFlat } = useTranslatedTexts(
+    opps.flatMap((o) => [o.title, o.description]),
+    sourceLocale,
   );
+  const translatedOpps = opps.map((o, i) => ({
+    ...o,
+    title: translatedFlat[i * 2] || o.title,
+    description: translatedFlat[i * 2 + 1] || o.description,
+  }));
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text).then(
@@ -94,7 +105,7 @@ function MotionPage() {
               <>
                 {detFallback ? <SuppressedNotice title={t("motion.limited")} /> : null}
                 <div className="grid gap-3">
-                  {opps.map((o) => (
+                  {translatedOpps.map((o) => (
                     <OpportunityCard
                       key={o.id}
                       o={o}

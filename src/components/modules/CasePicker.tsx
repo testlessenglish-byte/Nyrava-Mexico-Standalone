@@ -9,6 +9,13 @@ import { useI18n } from "@/i18n";
 
 const LS_KEY = "nyrava.module.activeCase";
 
+// Recency key used to pick the default case: most recently *run* first
+// (completed_at — when its last analysis pipeline finished), falling back to
+// most recently *created* for cases that haven't completed a run yet.
+function lastRunRank(c: { completed_at?: string | null; created_at?: string | null }): string {
+  return c.completed_at ?? c.created_at ?? "";
+}
+
 export function useActiveCase(initial: string | null = null) {
   const fetchCases = useServerFn(listCases);
   const { data, isLoading } = useQuery({
@@ -17,16 +24,26 @@ export function useActiveCase(initial: string | null = null) {
     refetchInterval: 15000,
   });
   const cases = useMemo(() => (data ?? []).filter((c) => !c.archived_at), [data]);
+  // Default target: the case whose analysis most recently finished running,
+  // not just whichever one listCases() happened to return first.
+  const mostRecentlyRunId = useMemo(() => {
+    if (cases.length === 0) return null;
+    return [...cases].sort((a, b) => lastRunRank(b).localeCompare(lastRunRank(a)))[0].id;
+  }, [cases]);
 
-  const stored = typeof window !== "undefined" ? window.localStorage.getItem(LS_KEY) : null;
+  // Session-scoped only: an explicit pick should follow the attorney across
+  // module pages for the rest of this browsing session, but a new session
+  // (new tab, next day) must default to the most recently run case again
+  // instead of resurrecting a pick from days ago (localStorage never expired).
+  const stored = typeof window !== "undefined" ? window.sessionStorage.getItem(LS_KEY) : null;
   const initialId = initial ?? stored ?? null;
 
   const exists = initialId && cases.some((c) => c.id === initialId);
-  const activeId = exists ? initialId : cases[0]?.id ?? null;
+  const activeId = exists ? initialId : mostRecentlyRunId;
 
   useEffect(() => {
     if (activeId && typeof window !== "undefined") {
-      window.localStorage.setItem(LS_KEY, activeId);
+      window.sessionStorage.setItem(LS_KEY, activeId);
     }
   }, [activeId]);
 
