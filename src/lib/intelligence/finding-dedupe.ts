@@ -145,7 +145,9 @@ function prepare(row: DedupableFinding, index: number): Prepared {
     titleTokens: tokens(title),
     descTokens: tokens(desc),
     titleKey: normalizeText(title).split(" ").slice(0, 6).join(" "),
+    fullTitle: normalizeText(title),
     evidence: evidenceOf(row),
+
   };
 }
 
