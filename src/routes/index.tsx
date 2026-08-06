@@ -68,7 +68,9 @@ export const Route = createFileRoute("/")({
         content: "Inteligencia jurídica más allá del análisis humano.",
       },
     ],
+    links: [{ rel: "canonical", href: `${SITE_URL}/` }],
     scripts: [
+
       { type: "application/ld+json", children: ORGANIZATION_JSON_LD },
       { type: "application/ld+json", children: WEBSITE_JSON_LD },
     ],
