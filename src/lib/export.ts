@@ -62,6 +62,7 @@ import {
   ATTORNEY_GROUPS,
   METHODOLOGY_STATEMENT,
   buildCaseSnapshot,
+  buildDocumentGraph,
   buildExecutiveQuestions,
   buildFindingWorkProduct,
   type AttorneyGroupKey,
@@ -521,6 +522,11 @@ function workProductContext(data: CaseExportData): WorkProductContext {
     documentLabels,
     caseType: (data.case as { case_type?: string } | null)?.case_type ?? null,
     missingDocuments,
+    // Cross-finding document index: lets the synthesis state which other
+    // findings depend on the same source document.
+    graph: buildDocumentGraph(
+      (data.findings ?? []).map((f) => findingWithResolvedRefs(f)),
+    ),
   };
 }
 
@@ -3820,8 +3826,10 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       for (const para of wp.importance) b.text(para, { size: 9.4, gap: 4 });
       if (wp.synthesis) {
         b.text(spaced("SÍNTESIS PROBATORIA"), { size: 7.4, bold: true, color: ACCENT, gap: 3 });
-        b.bullets(wp.synthesis.docs.map((d) => `${d.weight.glyphs} ${d.weight.label} — ${d.name}`));
         b.text(wp.synthesis.narrative, { size: 9.4, gap: 4 });
+        if (wp.synthesis.lines.length) b.bullets(wp.synthesis.lines);
+        b.text(rt("Fuentes documentales citadas:"), { size: 8.6, color: MUTED, gap: 2 });
+        b.bullets(wp.synthesis.docs.map((d) => `${d.weight.glyphs} ${d.weight.label} — ${d.name}`));
       }
       if (wp.pending.length) {
         b.text(spaced("EVIDENCIA PENDIENTE O NO LOCALIZADA"), {
