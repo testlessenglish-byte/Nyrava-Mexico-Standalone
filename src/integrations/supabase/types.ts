@@ -5626,6 +5626,10 @@ export type Database = {
         Returns: Json
       }
       admin_get_user_id_by_email: { Args: { _email: string }; Returns: string }
+      admin_grant_beta_access: {
+        Args: { _email: string; _note?: string }
+        Returns: Json
+      }
       admin_list_firms_with_seats: {
         Args: never
         Returns: {
