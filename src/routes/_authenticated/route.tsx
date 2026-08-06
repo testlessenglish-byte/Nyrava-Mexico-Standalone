@@ -39,6 +39,9 @@ import { NyravaLogo } from "@/components/NyravaLogo";
 import { TrustStrip } from "@/components/TrustStrip";
 import { useAlerts } from "@/hooks/useAlerts";
 import { ScrollToTop } from "@/components/ScrollToTop";
+import { FeedbackButton } from "@/components/FeedbackButton";
+import { getProfileSetupStatus } from "@/lib/account.functions";
+
 import { BackButton } from "@/components/BackButton";
 import { UserMenu } from "@/components/UserMenu";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
