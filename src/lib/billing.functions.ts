@@ -354,8 +354,10 @@ export const adminListPendingBetaInvites = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const ctx = context as { supabase: Db; userId: string };
     await requireAdmin(ctx);
+    // Service-role client: EXECUTE is revoked from `authenticated`.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (ctx.supabase as any).rpc("admin_list_pending_beta_invites");
+    const { data, error } = await (getAdminClient() as any).rpc("admin_list_pending_beta_invites");
+
     if (error) throw new Error(error.message);
     return (data ?? []) as { email: string; note: string | null; invited_at: string }[];
   });
