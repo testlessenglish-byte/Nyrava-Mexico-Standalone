@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { NyravaLogo } from "@/components/NyravaLogo";
 import { TrustStrip } from "@/components/TrustStrip";
-import { useAlerts } from "@/hooks/useAlerts";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { FeedbackButton } from "@/components/FeedbackButton";
 import { getProfileSetupStatus } from "@/lib/account.functions";
@@ -198,9 +198,14 @@ function AppLayout() {
   }, [profileStatus, pathname, nav]);
 
 
-  // Real unread count, shared with the /alerts page — see src/hooks/useAlerts.ts.
-  const { unreadCount } = useAlerts();
+  // Header bell is dedicated to the message/support system (Comentarios +
+  // Ayuda y soporte) — NOT case pipeline/finding alerts, which already
+  // surface inside each case's own Reports/Findings tabs and stay reachable
+  // from the "Alerts & Briefings" sidebar link (still /alerts) on its own.
+  // See src/hooks/useUnreadMessages.ts.
+  const { unreadCount } = useUnreadMessages(!!adminInfo?.isAdmin);
   const unreadLabel = unreadCount > 9 ? "9+" : String(unreadCount);
+  const messagesLink = adminInfo?.isAdmin ? "/admin/messages" : "/messages";
 
   const displayName = fullName || email.split("@")[0] || "";
   const initials = (
@@ -276,7 +281,7 @@ function AppLayout() {
         <NyravaLogo size={28} withWordmark />
         <div className="flex items-center gap-2">
           <Link
-            to="/alerts"
+            to={messagesLink}
             className="relative rounded-md p-1.5 text-sidebar-foreground/80 hover:bg-sidebar-accent"
             aria-label={t("shell.notifications")}
           >
@@ -523,7 +528,7 @@ function AppLayout() {
               )}
             </div>
             <Link
-              to="/alerts"
+              to={messagesLink}
               className="relative rounded-lg border border-border bg-card/60 p-2 hover:bg-card"
               aria-label={t("shell.notifications")}
             >
