@@ -2483,10 +2483,88 @@ export const listCases = createServerFn({ method: "GET" })
   });
 
 // -------- Alerts feed (cross-case) --------
+/** Reminders (hearings/events + task deadlines) due within 3 days, or
+ * overdue, as alert items — surfaced on the Alerts & Briefings page
+ * ("the notifications") independent of the recently-updated-cases list
+ * below, since a reminder's case may not have changed recently. */
+async function reminderAlerts(
+  supabase: Db,
+  userId: string,
+): Promise<Array<{ key: string; caseId: string; caseName: string; level: "info" | "warning" | "critical"; title: string; detail?: string | null; at: string }>> {
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 3 * 86400000);
+  const grace = new Date(now.getTime() - 2 * 3600000);
+
+  type EvRow = { id: string; case_id: string; title: string; scheduled_at: string };
+  type TaskRow = { id: string; case_id: string; title: string; due_date: string };
+
+  const [eventsRes, tasksRes] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase.from("case_events") as any)
+      .select("id, case_id, title, scheduled_at")
+      .eq("user_id", userId)
+      .eq("reminder_enabled", true)
+      .gte("scheduled_at", grace.toISOString())
+      .lte("scheduled_at", horizon.toISOString()) as Promise<{ data: EvRow[] | null }>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase.from("case_tasks") as any)
+      .select("id, case_id, title, due_date")
+      .eq("user_id", userId)
+      .eq("reminder_enabled", true)
+      .in("status", ["todo", "in_progress", "blocked"])
+      .not("due_date", "is", null)
+      .lte("due_date", horizon.toISOString().slice(0, 10)) as Promise<{ data: TaskRow[] | null }>,
+  ]);
+
+  const caseIds = Array.from(
+    new Set([...(eventsRes.data ?? []).map((e) => e.case_id), ...(tasksRes.data ?? []).map((t) => t.case_id)]),
+  );
+  if (caseIds.length === 0) return [];
+  const { data: caseRows } = await supabase.from("cases").select("id,name").in("id", caseIds);
+  const nameOf = new Map((caseRows ?? []).map((c) => [c.id, c.name]));
+  const today = now.toISOString().slice(0, 10);
+
+  const out: Array<{
+    key: string;
+    caseId: string;
+    caseName: string;
+    level: "info" | "warning" | "critical";
+    title: string;
+    detail?: string | null;
+    at: string;
+  }> = [];
+  for (const e of eventsRes.data ?? []) {
+    const overdue = new Date(e.scheduled_at).getTime() < now.getTime();
+    out.push({
+      key: `reminder:event:${e.id}`,
+      caseId: e.case_id,
+      caseName: nameOf.get(e.case_id) ?? "—",
+      level: overdue ? "critical" : "warning",
+      title: overdue ? `Audiencia/evento vencido: ${e.title}` : `Próxima audiencia/evento: ${e.title}`,
+      detail: new Date(e.scheduled_at).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }),
+      at: e.scheduled_at,
+    });
+  }
+  for (const t of tasksRes.data ?? []) {
+    const overdue = t.due_date < today;
+    out.push({
+      key: `reminder:task:${t.id}`,
+      caseId: t.case_id,
+      caseName: nameOf.get(t.case_id) ?? "—",
+      level: overdue ? "critical" : "warning",
+      title: overdue ? `Vencimiento vencido: ${t.title}` : `Próximo vencimiento: ${t.title}`,
+      detail: new Date(`${t.due_date}T12:00:00`).toLocaleDateString("es-MX"),
+      at: `${t.due_date}T12:00:00.000Z`,
+    });
+  }
+  return out;
+}
+
 export const listAlerts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = await getAuthedContext(context, "Alerts");
+    const { supabase, userId } = await getAuthedContext(context, "Alerts");
+    const reminders = await reminderAlerts(supabase, userId);
     const { data: cases } = await supabase
       .from("cases")
       .select("id,name,status,status_message,updated_at")
@@ -2495,7 +2573,7 @@ export const listAlerts = createServerFn({ method: "GET" })
       .order("updated_at", { ascending: false })
       .limit(25);
     const list = cases ?? [];
-    if (list.length === 0) return [] as any[];
+    if (list.length === 0) return reminders as any[];
     const ids = list.map((c) => c.id);
 
     const [agents, findings, reports] = await Promise.all([
@@ -2596,6 +2674,7 @@ export const listAlerts = createServerFn({ method: "GET" })
       }
     }
 
+    alerts.push(...reminders);
     alerts.sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
     return alerts.slice(0, 200);
   });

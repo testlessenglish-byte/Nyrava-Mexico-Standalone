@@ -19,6 +19,9 @@ import {
   seedCaseTaskTemplates,
 } from "@/lib/casework.functions";
 import { TASK_STATUS_LABELS, PRIORITY_LABELS, label } from "./labels";
+import { ReminderControl, type ReminderValue } from "./ReminderControl";
+
+const DEFAULT_REMINDER: ReminderValue = { enabled: false, leadMinutes: 1440, channels: ["browser"] };
 
 type Task = {
   id: string;
@@ -42,12 +45,14 @@ export function CaseTasksPanel({ caseId, embedded }: { caseId: string; embedded?
   const seed = useServerFn(seedCaseTaskTemplates);
 
   const { data, isLoading } = useQuery({ queryKey: key, queryFn: () => list({ data: { caseId } }) });
-  const [draft, setDraft] = useState<{ title: string; due_date: string; priority: string } | null>(null);
+  const [draft, setDraft] = useState<
+    { title: string; due_date: string; priority: string; description: string; reminder: ReminderValue } | null
+  >(null);
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: key });
 
   const mSave = useMutation({
-    mutationFn: (p: Partial<Task> & { title: string }) =>
+    mutationFn: (p: Partial<Task> & { title: string; description?: string; reminder?: ReminderValue }) =>
       save({
         data: {
           caseId,
@@ -57,6 +62,14 @@ export function CaseTasksPanel({ caseId, embedded }: { caseId: string; embedded?
           status: p.status ?? "todo",
           priority: p.priority ?? "normal",
           template_key: p.template_key ?? null,
+          ...(p.description !== undefined ? { description: p.description || null } : {}),
+          ...(p.reminder
+            ? {
+                reminder_enabled: p.reminder.enabled,
+                reminder_lead_minutes: p.reminder.leadMinutes,
+                reminder_channels: p.reminder.channels,
+              }
+            : {}),
         },
       }),
     onSuccess: () => {
@@ -152,54 +165,80 @@ export function CaseTasksPanel({ caseId, embedded }: { caseId: string; embedded?
       )}
 
       {draft ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
-          <Input
-            className="min-w-[220px] flex-1"
-            placeholder={t("tasks.title")}
-            value={draft.title}
-            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+        <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              className="min-w-[220px] flex-1"
+              placeholder={t("tasks.title")}
+              value={draft.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            />
+            <input
+              type="date"
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={draft.due_date}
+              onChange={(e) => setDraft({ ...draft, due_date: e.target.value })}
+            />
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={draft.priority}
+              onChange={(e) => setDraft({ ...draft, priority: e.target.value })}
+            >
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>
+                  {label(PRIORITY_LABELS, p, locale)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <textarea
+            placeholder="Notas"
+            value={draft.description}
+            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+            className="min-h-[60px] rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           />
-          <input
-            type="date"
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={draft.due_date}
-            onChange={(e) => setDraft({ ...draft, due_date: e.target.value })}
-          />
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={draft.priority}
-            onChange={(e) => setDraft({ ...draft, priority: e.target.value })}
-          >
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {label(PRIORITY_LABELS, p, locale)}
-              </option>
-            ))}
-          </select>
-          <Button
-            size="sm"
-            disabled={!draft.title.trim() || mSave.isPending}
-            onClick={() =>
-              mSave.mutate({
-                title: draft.title.trim(),
-                due_date: draft.due_date,
-                priority: draft.priority as Task["priority"],
-                status: "todo",
-              })
-            }
-          >
-            {t("common.save")}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-            <X className="h-3.5 w-3.5" />
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ReminderControl
+              itemType="task"
+              enabled={draft.reminder.enabled}
+              leadMinutes={draft.reminder.leadMinutes}
+              channels={draft.reminder.channels}
+              align="left"
+              onSave={(v) => setDraft({ ...draft, reminder: v })}
+            />
+            <span className="text-xs text-muted-foreground">
+              {draft.reminder.enabled ? "Recordatorio activado" : "Sin recordatorio"}
+            </span>
+            <Button
+              size="sm"
+              className="ml-auto"
+              disabled={!draft.title.trim() || mSave.isPending}
+              onClick={() =>
+                mSave.mutate({
+                  title: draft.title.trim(),
+                  due_date: draft.due_date,
+                  priority: draft.priority as Task["priority"],
+                  status: "todo",
+                  description: draft.description,
+                  reminder: draft.reminder,
+                })
+              }
+            >
+              {t("common.save")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setDraft({ title: "", due_date: "", priority: "normal" })}
+            onClick={() =>
+              setDraft({ title: "", due_date: "", priority: "normal", description: "", reminder: DEFAULT_REMINDER })
+            }
           >
             <Plus className="mr-1 h-3.5 w-3.5" />
             {t("tasks.add")}
