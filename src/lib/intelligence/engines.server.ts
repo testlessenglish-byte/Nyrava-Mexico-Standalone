@@ -191,6 +191,23 @@ export async function runTheoryEngine(args: {
   apiKeys?: string[];
 }) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
+
+  // STRICT-mode firewall — theory synthesis is interpretive, not
+  // extraction/validation, and is not allowed in strict mode.
+  {
+    const { getAnalysisMode: getMode } = await import("./evidence-gate.server");
+    const { engineAllowedInMode } = await import("./case-state.server");
+    const mode = await getMode(db, caseId);
+    if (!engineAllowedInMode("theory", mode)) {
+      console.info(`[mode:${mode}] theory engine skipped — not allowed in this mode`);
+      await setCase(db, caseId, {
+        status_message: `Case theories skipped (${mode} mode is extraction/validation only)`,
+        progress: 30,
+      });
+      return { theories: [], audit: { rejected: 0 } };
+    }
+  }
+
   await setCase(db, caseId, { status_message: "Generating case theories", progress: 30 });
 
   const ctx = await buildContext(db, caseId);
@@ -448,6 +465,23 @@ export async function runOpportunityEngine(args: {
   apiKeys?: string[];
 }) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
+
+  // STRICT-mode firewall — opportunity synthesis is interpretive, not
+  // extraction/validation, and is not allowed in strict mode.
+  {
+    const { getAnalysisMode: getMode } = await import("./evidence-gate.server");
+    const { engineAllowedInMode } = await import("./case-state.server");
+    const mode = await getMode(db, caseId);
+    if (!engineAllowedInMode("opportunity", mode)) {
+      console.info(`[mode:${mode}] opportunity engine skipped — not allowed in this mode`);
+      await setCase(db, caseId, {
+        status_message: `Opportunities skipped (${mode} mode is extraction/validation only)`,
+        progress: 50,
+      });
+      return { opportunities: [], potential_opportunities: [], audit: { input: 0, rejected: 0, rejections: [] } };
+    }
+  }
+
   await setCase(db, caseId, { status_message: "Identifying defense opportunities", progress: 50 });
 
   const ctx = await buildContext(db, caseId);
@@ -1267,6 +1301,23 @@ export async function runTrialPrepEngine(args: {
   apiKeys?: string[];
 }) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
+
+  // STRICT-mode firewall — trial-prep synthesis is interpretive, not
+  // extraction/validation, and is not allowed in strict mode.
+  {
+    const { getAnalysisMode: getMode } = await import("./evidence-gate.server");
+    const { engineAllowedInMode } = await import("./case-state.server");
+    const mode = await getMode(db, caseId);
+    if (!engineAllowedInMode("trial_prep", mode)) {
+      console.info(`[mode:${mode}] trial prep engine skipped — not allowed in this mode`);
+      await setCase(db, caseId, {
+        status_message: `Trial prep skipped (${mode} mode is extraction/validation only)`,
+        progress: 80,
+      });
+      return;
+    }
+  }
+
   await setCase(db, caseId, { status_message: "Generando preparación para audiencia/juicio oral", progress: 80 });
 
   const ctx = await buildContext(db, caseId);
@@ -1558,6 +1609,27 @@ export async function runWorkProductEngine(args: {
   apiKeys?: string[];
 }) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
+
+  // STRICT-mode firewall — drafting attorney work product (motions/memos) is
+  // interpretive, not extraction/validation, and is not allowed in strict mode.
+  {
+    const { getAnalysisMode: getMode } = await import("./evidence-gate.server");
+    const { engineAllowedInMode } = await import("./case-state.server");
+    const mode = await getMode(db, caseId);
+    if (!engineAllowedInMode("work_product", mode)) {
+      console.info(`[mode:${mode}] work product engine skipped — not allowed in this mode`);
+      await setCase(db, caseId, {
+        status_message: `Work product skipped (${mode} mode is extraction/validation only)`,
+        progress: 90,
+      });
+      return {
+        documents: [],
+        failed: 0,
+        verification: { total: 0, clean: 0, flagged: 0, rejected: 0, empty: 0 },
+      };
+    }
+  }
+
   await setCase(db, caseId, { status_message: "Drafting attorney work product", progress: 90 });
 
   const ctx = await buildContext(db, caseId);

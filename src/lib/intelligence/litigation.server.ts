@@ -133,6 +133,22 @@ async function getKeys(db: Db, userId: string, override?: string): Promise<strin
 // =====================================================================
 export async function runPerspectivesEngine(args: { db: Db; caseId: string; userId: string; apiKey?: string }) {
   const { db, caseId, userId } = args;
+
+  // STRICT-mode firewall — perspective analysis is interpretive, not
+  // extraction/validation, and is not allowed in strict mode.
+  const { getAnalysisMode } = await import("./evidence-gate.server");
+  const { engineAllowedInMode } = await import("./case-state.server");
+  const mode = await getAnalysisMode(db, caseId);
+  if (!engineAllowedInMode("perspectives", mode)) {
+    console.info(`[mode:${mode}] perspectives engine skipped — not allowed in this mode`);
+    await setCase(db, caseId, {
+      status: "intelligence_complete",
+      status_message: `Multi-Perspective Analysis skipped (${mode} mode is extraction/validation only)`,
+      progress: 100,
+    });
+    return;
+  }
+
   await setCase(db, caseId, {
     status: "intelligence_running",
     status_message: "Building shared analysis brief",
@@ -452,6 +468,22 @@ ${briefText}`,
 // =====================================================================
 export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; userId: string; apiKey?: string }) {
   const { db, caseId, userId } = args;
+
+  // STRICT-mode firewall — evidence classification/gap detection is
+  // interpretive, not extraction/validation, and is not allowed in strict mode.
+  const { getAnalysisMode } = await import("./evidence-gate.server");
+  const { engineAllowedInMode } = await import("./case-state.server");
+  const mode = await getAnalysisMode(db, caseId);
+  if (!engineAllowedInMode("evidence_intel", mode)) {
+    console.info(`[mode:${mode}] evidence intel engine skipped — not allowed in this mode`);
+    await setCase(db, caseId, {
+      status: "intelligence_complete",
+      status_message: `Evidence Intelligence skipped (${mode} mode is extraction/validation only)`,
+      progress: 100,
+    });
+    return { classifications: 0, promoted_findings: 0, promotion_gate: null, promotion_mode: mode, promotion_corpus: null };
+  }
+
   await setCase(db, caseId, {
     status: "intelligence_running",
     status_message: "Classifying evidence and detecting gaps",

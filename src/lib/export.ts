@@ -4347,7 +4347,19 @@ function renderTheories(b: PdfBuilder, data: CaseExportData) {
   if (!ts.length) return;
   b.h1("Análisis de Teoría del Caso");
   for (const t of ts) {
+    const isAiTheory = asStr(t.finding_type) === "AI_THEORY";
     b.h3(`${mxRoleLabel(asStr(t.theory_type))} Theory`);
+    if (isAiTheory) {
+      // Only ever persisted when the case was run in exploratory mode (see
+      // evidence-gate.server.ts) — an uncited, model-generated theory. Must
+      // never render indistinguishably from a citation-backed theory.
+      b.text("IA — TEORÍA NO VERIFICADA, REQUIERE REVISIÓN DEL ABOGADO", {
+        size: 9,
+        bold: true,
+        color: DANGER,
+        gap: 4,
+      });
+    }
     b.label("Confianza", Number(t.confidence ?? 0).toFixed(2));
     if (t.risk) b.label("Riesgo", asStr(t.risk));
     b.text(asStr(t.narrative), { size: 10.5, gap: 4 });
