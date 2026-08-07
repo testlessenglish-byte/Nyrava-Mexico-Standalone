@@ -169,18 +169,19 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
   const stageBudgetMs = budgetFor("perspectives");
   const stageStartedAt = Date.now();
 
-  // Perspectives all read the same cached SharedBrief, so they are fully
-  // independent calls. Running them one-at-a-time made this the single
-  // largest wall-clock sink in the pipeline (~20s x N applicable
-  // perspectives). They now run 3 at a time, but every provider call goes
-  // through the process-wide `withAiSlot` gate, so the peak request rate the
-  // Groq/Gemini key pool sees stays bounded no matter how many stages fan out
-  // simultaneously — the reliability concern that originally forced this to 1.
-  // The checkpoint budget is still checked between batches, so an in-flight
-  // batch always finishes together.
-  // ROLLBACK: set PERSPECTIVE_CONCURRENCY back to 1.
+  // ROLLBACK APPLIED (2026-08-07): this ran 3 perspectives at a time for
+  // wall-clock speed. withAiSlot's process-wide cap bounds TOTAL concurrent
+  // provider calls, but it does nothing about 3 calls from the SAME stage
+  // landing on the SAME one or two configured Groq keys in the same instant
+  // — that's a correlated burst against a single key's per-key rate limit,
+  // not 3 independent coin flips. Because this stage only succeeds as a
+  // whole when every individual perspective call succeeds (a total failure
+  // throws — see below), that correlated-burst risk showed up in practice
+  // as "Multi-Perspective Analysis" repeatedly reporting zero output across
+  // many cases where every other (single-call) engine succeeded fine.
+  // Serializing trades some wall-clock time for actually finishing.
   const { withAiSlot } = await import("../ai/concurrency.server");
-  const PERSPECTIVE_CONCURRENCY = 3;
+  const PERSPECTIVE_CONCURRENCY = 1;
   const batches: Perspective[][] = [];
   for (let i = 0; i < PERSPECTIVES.length; i += PERSPECTIVE_CONCURRENCY) {
     batches.push(PERSPECTIVES.slice(i, i + PERSPECTIVE_CONCURRENCY));
