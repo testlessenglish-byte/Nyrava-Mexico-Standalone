@@ -33,7 +33,7 @@ export const DOCS_NAV: DocGroup[] = [
       { to: "/product/evidence-intelligence", label: "Evidence Intelligence", description: "Grounded, cited fact extraction from your corpus.", keywords: ["evidence", "extraction", "citations"] },
       { to: "/product/timeline-intelligence", label: "Timeline Intelligence", description: "Automatic chronology with cited events.", keywords: ["timeline", "chronology"] },
       { to: "/product/witness-intelligence", label: "Witness Intelligence", description: "Cluster statements, surface contradictions.", keywords: ["witness", "statements", "contradictions", "impeachment"] },
-      { to: "/product/constitutional-intelligence", label: "Constitutional Intelligence", description: "Fourth, Fifth, Sixth, Fourteenth Amendment issue spotting.", keywords: ["constitutional", "brady", "miranda"] },
+      { to: "/product/constitutional-intelligence", label: "Constitutional Intelligence", description: "CPEUM and derechos humanos issue spotting.", keywords: ["constitutional", "cpeum", "derechos humanos", "amparo"] },
       { to: "/product/motion-intelligence", label: "Motion Intelligence", description: "First-draft motions grounded in the record.", keywords: ["motion", "drafting", "suppress"] },
       { to: "/product/report-intelligence", label: "Report Intelligence", description: "17-section canonical case analysis, export-ready.", keywords: ["report", "canonical"] },
     ],
@@ -41,8 +41,8 @@ export const DOCS_NAV: DocGroup[] = [
   {
     heading: "Practice Areas",
     entries: [
-      { to: "/product/corporate", label: "Corporate Law Intelligence", description: "Governance, M&A, due diligence — same 17-section report, corporate content.", keywords: ["corporate", "governance", "m&a", "delaware", "dgcl", "fiduciary", "revlon", "caremark", "shareholder", "board"] },
-      { to: "/product/commercial", label: "Business & Commercial Law Intelligence", description: "Contract disputes, UCC Article 2, business torts — same 17-section report, commercial content.", keywords: ["commercial", "business", "contract", "breach", "ucc", "warranty", "tortious interference", "trade secret", "arbitration", "non-compete"] },
+      { to: "/product/corporate", label: "Corporate Law Intelligence", description: "Governance, M&A, due diligence — same 17-section report, corporate content.", keywords: ["corporate", "governance", "m&a", "lgsm", "fiduciary", "shareholder", "board", "asamblea"] },
+      { to: "/product/commercial", label: "Business & Commercial Law Intelligence", description: "Contract disputes, compraventa mercantil, business torts — same 17-section report, commercial content.", keywords: ["commercial", "business", "contract", "breach", "codigo de comercio", "warranty", "competencia desleal", "trade secret", "arbitration", "non-compete"] },
     ],
   },
   {

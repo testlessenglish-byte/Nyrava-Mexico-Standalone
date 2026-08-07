@@ -13,6 +13,7 @@ export const Route = createFileRoute("/platform")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/platform" }],
   }),
   component: PlatformPage,
 });
