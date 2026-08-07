@@ -962,6 +962,10 @@ export type Database = {
           id: string
           location: string | null
           notes: string | null
+          reminder_channels: string[]
+          reminder_enabled: boolean
+          reminder_fired_at: string | null
+          reminder_lead_minutes: number
           scheduled_at: string
           title: string
           updated_at: string
@@ -974,6 +978,10 @@ export type Database = {
           id?: string
           location?: string | null
           notes?: string | null
+          reminder_channels?: string[]
+          reminder_enabled?: boolean
+          reminder_fired_at?: string | null
+          reminder_lead_minutes?: number
           scheduled_at: string
           title: string
           updated_at?: string
@@ -986,6 +994,10 @@ export type Database = {
           id?: string
           location?: string | null
           notes?: string | null
+          reminder_channels?: string[]
+          reminder_enabled?: boolean
+          reminder_fired_at?: string | null
+          reminder_lead_minutes?: number
           scheduled_at?: string
           title?: string
           updated_at?: string
@@ -1593,6 +1605,10 @@ export type Database = {
           due_date: string | null
           id: string
           priority: string
+          reminder_channels: string[]
+          reminder_enabled: boolean
+          reminder_fired_at: string | null
+          reminder_lead_minutes: number
           status: string
           template_key: string | null
           title: string
@@ -1607,6 +1623,10 @@ export type Database = {
           due_date?: string | null
           id?: string
           priority?: string
+          reminder_channels?: string[]
+          reminder_enabled?: boolean
+          reminder_fired_at?: string | null
+          reminder_lead_minutes?: number
           status?: string
           template_key?: string | null
           title: string
@@ -1621,6 +1641,10 @@ export type Database = {
           due_date?: string | null
           id?: string
           priority?: string
+          reminder_channels?: string[]
+          reminder_enabled?: boolean
+          reminder_fired_at?: string | null
+          reminder_lead_minutes?: number
           status?: string
           template_key?: string | null
           title?: string
@@ -5096,6 +5120,89 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      support_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          sender: string
+          sender_user_id: string | null
+          thread_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          sender: string
+          sender_user_id?: string | null
+          thread_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          sender?: string
+          sender_user_id?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "support_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_threads: {
+        Row: {
+          case_id: string | null
+          category: string
+          created_at: string
+          email: string | null
+          id: string
+          last_message_at: string
+          page_path: string | null
+          severity: string
+          status: string
+          unread_by_admin: boolean
+          unread_by_user: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          case_id?: string | null
+          category?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          last_message_at?: string
+          page_path?: string | null
+          severity?: string
+          status?: string
+          unread_by_admin?: boolean
+          unread_by_user?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string | null
+          category?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          last_message_at?: string
+          page_path?: string | null
+          severity?: string
+          status?: string
+          unread_by_admin?: boolean
+          unread_by_user?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       usage_counters: {
         Row: {
