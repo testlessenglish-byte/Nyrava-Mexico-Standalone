@@ -796,7 +796,12 @@ function Workspace() {
             {tab === "intel" && <IntelTab docs={docs} caseId={c.id} invalidate={invalidate} />}
             {tab === "analyzers" && <AnalyzersTab a={analysis} />}
             {tab === "agents" && <AgentsTab agents={agents} />}
-            {tab === "perspectives" && <PerspectivesPanel perspectives={perspectives} />}
+            {tab === "perspectives" && (
+              <PerspectivesPanel
+                perspectives={perspectives}
+                ranAt={(c as { perspectives_at?: string | null }).perspectives_at}
+              />
+            )}
             {tab === "evidence" && (
               <>
                 <ImageIntelligencePanel
@@ -806,6 +811,7 @@ function Workspace() {
                 <EvidenceIntelPanel
                   evidence={evidenceIntel}
                   documents={docs.map((d) => ({ id: d.id, filename: d.filename }))}
+                  ranAt={(c as { evidence_intel_at?: string | null }).evidence_intel_at}
                 />
               </>
             )}

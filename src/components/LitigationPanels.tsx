@@ -85,14 +85,22 @@ const PERSPECTIVE_ICON: Record<string, typeof Shield> = {
   investigator: FileSearch,
 };
 
-export function PerspectivesPanel({ perspectives }: { perspectives: PerspectiveRow[] }) {
+export function PerspectivesPanel({
+  perspectives,
+  ranAt,
+}: {
+  perspectives: PerspectiveRow[];
+  ranAt?: string | null;
+}) {
   const [active, setActive] = useState<string>(perspectives[0]?.perspective ?? "defense");
   const current = perspectives.find((p) => p.perspective === active) ?? perspectives[0];
 
   if (!perspectives || perspectives.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-        Run “Multi-Perspective Analysis” from the Intelligence Engines panel to see how the case looks from every side.
+        {ranAt
+          ? "Multi-Perspective Analysis ran but every perspective call failed — most commonly an AI-provider rate limit or quota exhaustion, not a lack of applicable perspectives for this case type. Check Admin → AI Providers for cooldown/quota status, then rerun."
+          : "Run “Multi-Perspective Analysis” from the Intelligence Engines panel to see how the case looks from every side."}
       </div>
     );
   }
@@ -255,9 +263,11 @@ const CLASS_LABEL: Record<string, { label: string; icon: typeof Link2; tone: str
 export function EvidenceIntelPanel({
   evidence,
   documents,
+  ranAt,
 }: {
   evidence: EvidenceRow[];
   documents: { id: string; filename: string }[];
+  ranAt?: string | null;
 }) {
   const [filter, setFilter] = useState<string>("all");
   const docMap = new Map(documents.map((d) => [d.id, d.filename]));
@@ -265,7 +275,9 @@ export function EvidenceIntelPanel({
   if (!evidence || evidence.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-        Run “Evidence Intelligence” to classify every piece of evidence and detect what's missing.
+        {ranAt
+          ? "Evidence Intelligence ran successfully but found no evidence to classify or flag as missing given the current corpus."
+          : "Run “Evidence Intelligence” to classify every piece of evidence and detect what's missing."}
       </div>
     );
   }
