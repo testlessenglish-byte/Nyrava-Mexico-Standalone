@@ -93,7 +93,7 @@ export function UserMenu({ initials, displayName, email, isAdmin }: Props) {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/settings" className="flex items-center gap-2">
+          <Link to={isAdmin ? "/admin/messages" : "/messages"} className="flex items-center gap-2">
             <HelpCircle className="h-4 w-4" /> Help & Support
           </Link>
         </DropdownMenuItem>

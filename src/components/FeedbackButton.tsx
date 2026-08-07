@@ -1,14 +1,18 @@
-// Floating feedback button — sends a note straight to the admin inbox
-// (/admin/feedback). Rendered once in the authenticated layout so beta
-// testers can report from wherever the problem happened; the current path
-// travels with the message.
+// Floating feedback button — sends a note straight to the unified admin
+// inbox (/admin/messages). Rendered once in the authenticated layout so
+// beta testers can report from wherever the problem happened; the current
+// path travels with the message. Replies from the admin show up in the
+// sender's own "Mensajes" page (see support.functions.ts) — this is a real
+// two-way thread, not a one-way suggestion box.
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useRouterState } from "@tanstack/react-router";
+import { useRouterState, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Loader2, MessageSquarePlus, X } from "lucide-react";
-import { submitFeedback, FEEDBACK_CATEGORIES } from "@/lib/feedback.functions";
+import { submitSupportMessage, SUPPORT_CATEGORIES } from "@/lib/support.functions";
+
+const FEEDBACK_CATEGORIES = SUPPORT_CATEGORIES.filter((c) => c !== "support");
 
 const CATEGORY_LABELS: Record<string, string> = {
   bug: "Error / falla",
@@ -32,7 +36,7 @@ const inputCls =
 export function FeedbackButton() {
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const sendFn = useServerFn(submitFeedback);
+  const sendFn = useServerFn(submitSupportMessage);
 
   const [message, setMessage] = useState("");
   const [category, setCategory] = useState<string>("general");
@@ -42,7 +46,7 @@ export function FeedbackButton() {
     mutationFn: () =>
       sendFn({
         data: {
-          message: message.trim(),
+          body: message.trim(),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           category: category as any,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,7 +55,7 @@ export function FeedbackButton() {
         },
       }),
     onSuccess: () => {
-      toast.success("Gracias — tu comentario llegó directo al equipo.");
+      toast.success("Gracias — tu comentario llegó directo al equipo. Te avisaremos aquí cuando respondamos.");
       setMessage("");
       setCategory("general");
       setSeverity("normal");
@@ -162,6 +166,14 @@ export function FeedbackButton() {
                 Enviar
               </button>
             </form>
+
+            <Link
+              to="/messages"
+              onClick={() => setOpen(false)}
+              className="mt-3 block text-center text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Ver mis mensajes anteriores
+            </Link>
           </div>
         </div>
       )}
