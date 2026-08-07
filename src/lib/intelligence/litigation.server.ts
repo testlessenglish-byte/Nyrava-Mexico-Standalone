@@ -241,6 +241,47 @@ ${briefText}`,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const p = parseJsonLoose<any>(r.text) ?? {};
+
+      // Second-layer guardrail, matching the check runStrategyEngine already
+      // applies to its own output: mexicoLock() instructs the model never to
+      // use U.S. legal terms, but an instruction alone isn't a mechanical
+      // guarantee. Scan every text field the model actually wrote and reject
+      // the whole perspective (same failure path as an API error) rather
+      // than silently persisting content flagged as U.S.-law language into a
+      // Mexican case file.
+      const { textMatchesCaseType } = await import("./evidence-gate.server");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const combinedText = [
+        p.summary,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(Array.isArray(p.strengths) ? p.strengths.map((x: any) => `${x?.title ?? ""} ${x?.detail ?? ""}`) : []),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(Array.isArray(p.weaknesses) ? p.weaknesses.map((x: any) => `${x?.title ?? ""} ${x?.detail ?? ""}`) : []),
+        ...(Array.isArray(p.opposing_arguments)
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            p.opposing_arguments.map((x: any) => `${x?.argument ?? ""}`)
+          : []),
+        ...(Array.isArray(p.counter_arguments)
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            p.counter_arguments.map((x: any) => `${x?.argument ?? ""} ${x?.rationale ?? ""}`)
+          : []),
+        ...(Array.isArray(p.key_evidence)
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            p.key_evidence.map((x: any) => `${x?.item ?? ""} ${x?.why_it_matters ?? ""}`)
+          : []),
+        ...(Array.isArray(p.recommended_actions)
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            p.recommended_actions.map((x: any) => `${x?.action ?? ""}`)
+          : []),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      if (!textMatchesCaseType(combinedText, caseType)) {
+        throw new Error(
+          `"${perspective}" output used non-Mexican legal terminology and was rejected before persisting`,
+        );
+      }
+
       // supabase-js does NOT throw on a rejected insert — it returns { error }.
       // Swallowing it made a constraint/RLS rejection look like a successful
       // model call, so the stage reported "4/4 calls ok" and then died on

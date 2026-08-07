@@ -221,8 +221,16 @@ export const adminListSupportThreads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const ctx = context as { supabase: Db; userId: string };
     await requireAdmin(ctx);
+    // Service-role client, not ctx.supabase: requireAdmin's own fallback
+    // exists precisely because is_admin_tier() can drift false in
+    // production (see its comment above). If the query below still ran
+    // through the RLS-bound user client, a drifted admin would pass the
+    // permission check here and then silently get an empty/wrong inbox from
+    // support_threads_select_own_or_admin's OWN is_admin_tier() check,
+    // which has no such fallback — same class of "locked out of your own
+    // inbox" bug this pattern was built to prevent.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (ctx.supabase as any)
+    const { data, error } = await (getAdminClient() as any)
       .from("support_threads")
       .select("*")
       .order("last_message_at", { ascending: false })
@@ -239,7 +247,7 @@ export const adminCountUnreadSupportThreads = createServerFn({ method: "GET" })
     const ctx = context as { supabase: Db; userId: string };
     await requireAdmin(ctx);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { count, error } = await (ctx.supabase as any)
+    const { count, error } = await (getAdminClient() as any)
       .from("support_threads")
       .select("id", { count: "exact", head: true })
       .eq("unread_by_admin", true);
@@ -255,8 +263,9 @@ export const adminGetSupportThread = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ctx = context as { supabase: Db; userId: string };
     await requireAdmin(ctx);
+    const admin = getAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: thread, error: threadErr } = await (ctx.supabase as any)
+    const { data: thread, error: threadErr } = await (admin as any)
       .from("support_threads")
       .select("*")
       .eq("id", data.threadId)
@@ -265,7 +274,7 @@ export const adminGetSupportThread = createServerFn({ method: "POST" })
     if (!thread) throw new Error("Thread not found.");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: messages, error: msgErr } = await (ctx.supabase as any)
+    const { data: messages, error: msgErr } = await (admin as any)
       .from("support_messages")
       .select("*")
       .eq("thread_id", data.threadId)
@@ -274,10 +283,7 @@ export const adminGetSupportThread = createServerFn({ method: "POST" })
 
     if (thread.unread_by_admin) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (getAdminClient() as any)
-        .from("support_threads")
-        .update({ unread_by_admin: false })
-        .eq("id", data.threadId);
+      await (admin as any).from("support_threads").update({ unread_by_admin: false }).eq("id", data.threadId);
     }
 
     return { thread: thread as SupportThreadRow, messages: (messages ?? []) as SupportMessageRow[] };
