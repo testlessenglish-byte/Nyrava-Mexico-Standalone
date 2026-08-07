@@ -244,7 +244,6 @@ const CLASS_LABEL: Record<string, { label: string; icon: typeof Link2; tone: str
   weak: { label: "Débil", icon: HelpCircle, tone: "text-warning" },
   missing: { label: "Faltante", icon: FileQuestion, tone: "text-warning" },
   undisclosed: { label: "No revelada", icon: ShieldAlert, tone: "text-destructive" },
-  brady: { label: "Riesgo Brady", icon: ShieldAlert, tone: "text-destructive" },
   chain_of_custody: { label: "Cadena de Custodia", icon: Link2, tone: "text-warning" },
   timeline_inconsistency: {
     label: "Inconsistencia de Cronología",

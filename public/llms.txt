@@ -9,11 +9,12 @@ Nyrava helps lawyers and legal professionals build case analysis, manage evidenc
 - [/](/): Nyrava Intelligence — legal intelligence OS overview.
 - [/about](/about): What Nyrava does, who it is for, and the problems it solves.
 - [/how-it-works](/how-it-works): How cases flow through intake, evidence grounding, analysis, and export.
-- [/product/ai-analysis](/product/ai-analysis): AI-assisted legal analysis and report generation.
-- [/product/evidence-management](/product/evidence-management): Document intake, grounding, and citation management.
-- [/product/litigation-reports](/product/litigation-reports): Premium litigation report exports.
-- [/product/team-workspaces](/product/team-workspaces): Firm-wide workspace and seat management.
-- [/demo/constitutional-review](/demo/constitutional-review): Interactive sample case demo.
+- [/product/evidence-intelligence](/product/evidence-intelligence): Grounded, cited fact extraction from the case corpus.
+- [/product/timeline-intelligence](/product/timeline-intelligence): Automatic chronology reconstruction with cited events.
+- [/product/witness-intelligence](/product/witness-intelligence): Cluster statements, surface contradictions.
+- [/product/constitutional-intelligence](/product/constitutional-intelligence): CPEUM and derechos humanos issue spotting.
+- [/product/motion-intelligence](/product/motion-intelligence): First-draft motions grounded in the record.
+- [/product/report-intelligence](/product/report-intelligence): Canonical 17-section case analysis, export-ready.
 - [/contact](/contact): Sales, support, and enterprise inquiries.
 
 ## Documentation
@@ -48,9 +49,5 @@ Nyrava helps lawyers and legal professionals build case analysis, manage evidenc
 
 ## Practice Areas
 
-- [/product/corporate](/product/corporate): Corporate Law Intelligence — governance, M&A, and due-diligence analysis inside Nyrava's frozen 17-section canonical report.
-- [/product/commercial](/product/commercial): Business & Commercial Law Intelligence — contract disputes, UCC Article 2, warranty, business torts, and trade-secret analysis inside the same 17-section canonical report.
-
-## Optional
-
-- [/product/security](/product/security): Security and compliance features for enterprise teams.
+- [/product/corporate](/product/corporate): Corporate Law Intelligence — governance, M&A, and due-diligence analysis under Mexican corporate law (LGSM), inside Nyrava's frozen 17-section canonical report.
+- [/product/commercial](/product/commercial): Business & Commercial Law Intelligence — contract disputes, compraventa mercantil, warranty, business torts, and trade-secret analysis inside the same 17-section canonical report.

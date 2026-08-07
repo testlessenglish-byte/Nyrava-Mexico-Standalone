@@ -17,6 +17,7 @@ export const Route = createFileRoute("/auth")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
+    links: [{ rel: "canonical", href: "https://mexico.nyrava.com/auth" }],
   }),
   component: AuthPage,
 });

@@ -97,6 +97,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "author", content: "Nyrava Intelligence México" },
       { name: "theme-color", content: "#0a1420" },
+      // Site-wide default social-preview image — no page currently sets its
+      // own og:image/twitter:image, so this applies everywhere without
+      // conflict. If a page adds its own later, verify how TanStack
+      // Router's head merge handles the duplicate tag before relying on it.
+      { property: "og:image", content: "https://mexico.nyrava.com/nyrava-logo.png" },
+      { name: "twitter:image", content: "https://mexico.nyrava.com/nyrava-logo.png" },
     ],
     links: [
       {
