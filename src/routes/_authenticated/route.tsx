@@ -38,6 +38,7 @@ import {
 import { NyravaLogo } from "@/components/NyravaLogo";
 import { TrustStrip } from "@/components/TrustStrip";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import { useReminderNotifications } from "@/hooks/useReminderNotifications";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { FeedbackButton } from "@/components/FeedbackButton";
 import { getProfileSetupStatus } from "@/lib/account.functions";
@@ -197,7 +198,6 @@ function AppLayout() {
     nav({ to: "/profile-setup", replace: true });
   }, [profileStatus, pathname, nav]);
 
-
   // Header bell is dedicated to the message/support system (Comentarios +
   // Ayuda y soporte) — NOT case pipeline/finding alerts, which already
   // surface inside each case's own Reports/Findings tabs and stay reachable
@@ -206,6 +206,11 @@ function AppLayout() {
   const { unreadCount } = useUnreadMessages(!!adminInfo?.isAdmin);
   const unreadLabel = unreadCount > 9 ? "9+" : String(unreadCount);
   const messagesLink = adminInfo?.isAdmin ? "/admin/messages" : "/messages";
+
+  // Desktop notifications for due reminders (hearings/events + task
+  // deadlines) the user opted into. Runs app-wide, not just on /dashboard,
+  // so a reminder still fires while the attorney is working a different case.
+  useReminderNotifications(true);
 
   const displayName = fullName || email.split("@")[0] || "";
   const initials = (
@@ -590,7 +595,6 @@ function AppLayout() {
       </div>
       <ScrollToTop />
       <FeedbackButton />
-
     </div>
   );
 }

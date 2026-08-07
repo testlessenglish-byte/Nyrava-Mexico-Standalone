@@ -86,6 +86,7 @@ import { Route as ApiVoiceTranscribeRouteImport } from './routes/api/voice/trans
 import { Route as ApiPublicHooksLegalIngestWorkerRouteImport } from './routes/api/public/hooks/legal-ingest-worker'
 import { Route as ApiPublicHooksMercadopagoWebhookRouteImport } from './routes/api/public/hooks/mercadopago-webhook'
 import { Route as ApiPublicHooksPipelineWorkerRouteImport } from './routes/api/public/hooks/pipeline-worker'
+import { Route as ApiPublicHooksRemindersWorkerRouteImport } from './routes/api/public/hooks/reminders-worker'
 import { Route as ApiPublicHooksStripeWebhookRouteImport } from './routes/api/public/hooks/stripe-webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
@@ -490,6 +491,12 @@ const ApiPublicHooksPipelineWorkerRoute =
     path: '/api/public/hooks/pipeline-worker',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksRemindersWorkerRoute =
+  ApiPublicHooksRemindersWorkerRouteImport.update({
+    id: '/api/public/hooks/reminders-worker',
+    path: '/api/public/hooks/reminders-worker',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksStripeWebhookRoute =
   ApiPublicHooksStripeWebhookRouteImport.update({
     id: '/api/public/hooks/stripe-webhook',
@@ -590,6 +597,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/legal-ingest-worker': typeof ApiPublicHooksLegalIngestWorkerRoute
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
+  '/api/public/hooks/reminders-worker': typeof ApiPublicHooksRemindersWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -671,6 +679,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/legal-ingest-worker': typeof ApiPublicHooksLegalIngestWorkerRoute
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
+  '/api/public/hooks/reminders-worker': typeof ApiPublicHooksRemindersWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -755,6 +764,7 @@ export interface FileRoutesById {
   '/api/public/hooks/legal-ingest-worker': typeof ApiPublicHooksLegalIngestWorkerRoute
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
+  '/api/public/hooks/reminders-worker': typeof ApiPublicHooksRemindersWorkerRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -839,6 +849,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/legal-ingest-worker'
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
+    | '/api/public/hooks/reminders-worker'
     | '/api/public/hooks/stripe-webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -920,6 +931,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/legal-ingest-worker'
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
+    | '/api/public/hooks/reminders-worker'
     | '/api/public/hooks/stripe-webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -1003,6 +1015,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/legal-ingest-worker'
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
+    | '/api/public/hooks/reminders-worker'
     | '/api/public/hooks/stripe-webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -1046,6 +1059,7 @@ export interface RootRouteChildren {
   ApiPublicHooksLegalIngestWorkerRoute: typeof ApiPublicHooksLegalIngestWorkerRoute
   ApiPublicHooksMercadopagoWebhookRoute: typeof ApiPublicHooksMercadopagoWebhookRoute
   ApiPublicHooksPipelineWorkerRoute: typeof ApiPublicHooksPipelineWorkerRoute
+  ApiPublicHooksRemindersWorkerRoute: typeof ApiPublicHooksRemindersWorkerRoute
   ApiPublicHooksStripeWebhookRoute: typeof ApiPublicHooksStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1593,6 +1607,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksPipelineWorkerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/reminders-worker': {
+      id: '/api/public/hooks/reminders-worker'
+      path: '/api/public/hooks/reminders-worker'
+      fullPath: '/api/public/hooks/reminders-worker'
+      preLoaderRoute: typeof ApiPublicHooksRemindersWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/stripe-webhook': {
       id: '/api/public/hooks/stripe-webhook'
       path: '/api/public/hooks/stripe-webhook'
@@ -1778,6 +1799,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksLegalIngestWorkerRoute: ApiPublicHooksLegalIngestWorkerRoute,
   ApiPublicHooksMercadopagoWebhookRoute: ApiPublicHooksMercadopagoWebhookRoute,
   ApiPublicHooksPipelineWorkerRoute: ApiPublicHooksPipelineWorkerRoute,
+  ApiPublicHooksRemindersWorkerRoute: ApiPublicHooksRemindersWorkerRoute,
   ApiPublicHooksStripeWebhookRoute: ApiPublicHooksStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,

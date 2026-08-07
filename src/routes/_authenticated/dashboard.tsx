@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listCases } from "@/lib/cases.functions";
 import { ensureStarterCases } from "@/lib/account.functions";
-import { getAttorneyHome } from "@/lib/casework.functions";
+import { getAttorneyHome, setEventReminder, setTaskReminder } from "@/lib/casework.functions";
+import { requestDesktopNotificationPermission } from "@/hooks/useReminderNotifications";
 
 import { PipelineStatusGrid } from "@/components/PipelineStatusGrid";
 import { PipelineTracePanel } from "@/components/PipelineTracePanel";
@@ -35,7 +36,14 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
-const RUNNING = new Set(["extracting", "analyzing", "agents_running", "scoring", "reporting", "intelligence_running"]);
+const RUNNING = new Set([
+  "extracting",
+  "analyzing",
+  "agents_running",
+  "scoring",
+  "reporting",
+  "intelligence_running",
+]);
 
 function DashboardPage() {
   const { t } = useI18n();
@@ -81,7 +89,11 @@ function DashboardPage() {
 
   const completeCount = cases.filter((c) => c.status === "complete").length;
   const highPriorityCount = useMemo(
-    () => cases.reduce((sum, c) => sum + ((c as { high_priority_findings?: number }).high_priority_findings ?? 0), 0),
+    () =>
+      cases.reduce(
+        (sum, c) => sum + ((c as { high_priority_findings?: number }).high_priority_findings ?? 0),
+        0,
+      ),
     [cases],
   );
   const witnessTotal = useMemo(
@@ -89,11 +101,19 @@ function DashboardPage() {
     [cases],
   );
   const contradictionTotal = useMemo(
-    () => cases.reduce((sum, c) => sum + ((c as { contradiction_count?: number | null }).contradiction_count ?? 0), 0),
+    () =>
+      cases.reduce(
+        (sum, c) => sum + ((c as { contradiction_count?: number | null }).contradiction_count ?? 0),
+        0,
+      ),
     [cases],
   );
   const discoveryGapTotal = useMemo(
-    () => cases.reduce((sum, c) => sum + ((c as { discovery_gap_count?: number | null }).discovery_gap_count ?? 0), 0),
+    () =>
+      cases.reduce(
+        (sum, c) => sum + ((c as { discovery_gap_count?: number | null }).discovery_gap_count ?? 0),
+        0,
+      ),
     [cases],
   );
 
@@ -211,8 +231,12 @@ function DashboardPage() {
                   <MessageSquare className="h-5 w-5" />
                 </span>
                 <div>
-                  <div className="text-sm font-semibold text-primary">{t("dashboard.talk.title")}</div>
-                  <div className="text-xs text-muted-foreground">{t("dashboard.talk.subtitle")}</div>
+                  <div className="text-sm font-semibold text-primary">
+                    {t("dashboard.talk.title")}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {t("dashboard.talk.subtitle")}
+                  </div>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-primary" />
@@ -231,7 +255,9 @@ function DashboardPage() {
               </Link>
             </div>
             {cases.length === 0 ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">{t("dashboard.recentActivity.empty")}</p>
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                {t("dashboard.recentActivity.empty")}
+              </p>
             ) : (
               <ul className="space-y-3">
                 {cases.slice(0, 5).map((c) => (
@@ -242,10 +268,13 @@ function DashboardPage() {
                       className="min-w-0 flex-1 truncate hover:text-primary"
                     >
                       <span className="font-medium text-foreground">{c.name}</span>
-                      <span className="ml-2 text-muted-foreground">{c.status_message ?? c.status}</span>
+                      <span className="ml-2 text-muted-foreground">
+                        {c.status_message ?? c.status}
+                      </span>
                     </Link>
                     <span className="shrink-0 text-muted-foreground">
-                      <Clock className="inline h-3 w-3" /> {timeAgo(c.completed_at ?? c.created_at, t)}
+                      <Clock className="inline h-3 w-3" />{" "}
+                      {timeAgo(c.completed_at ?? c.created_at, t)}
                     </span>
                   </li>
                 ))}
@@ -259,11 +288,18 @@ function DashboardPage() {
                 <AlertTriangle className="h-5 w-5 text-warning" />
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-bold uppercase tracking-wider text-warning">
-                    {t(activeCount === 1 ? "dashboard.processing.singular" : "dashboard.processing.plural", {
-                      count: activeCount,
-                    })}
+                    {t(
+                      activeCount === 1
+                        ? "dashboard.processing.singular"
+                        : "dashboard.processing.plural",
+                      {
+                        count: activeCount,
+                      },
+                    )}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{t("dashboard.processing.subtitle")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("dashboard.processing.subtitle")}
+                  </p>
                 </div>
               </div>
             </div>
@@ -272,10 +308,26 @@ function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <QuickAction to="/new" icon={<Plus className="h-5 w-5" />} label={t("dashboard.quickActions.newCase")} />
-        <QuickAction to="/reports" icon={<FileText className="h-5 w-5" />} label={t("dashboard.quickActions.reports")} />
-        <QuickAction to="/strategy" icon={<Target className="h-5 w-5" />} label={t("dashboard.quickActions.strategy")} />
-        <QuickAction to="/alerts" icon={<Bell className="h-5 w-5" />} label={t("dashboard.quickActions.alerts")} />
+        <QuickAction
+          to="/new"
+          icon={<Plus className="h-5 w-5" />}
+          label={t("dashboard.quickActions.newCase")}
+        />
+        <QuickAction
+          to="/reports"
+          icon={<FileText className="h-5 w-5" />}
+          label={t("dashboard.quickActions.reports")}
+        />
+        <QuickAction
+          to="/strategy"
+          icon={<Target className="h-5 w-5" />}
+          label={t("dashboard.quickActions.strategy")}
+        />
+        <QuickAction
+          to="/alerts"
+          icon={<Bell className="h-5 w-5" />}
+          label={t("dashboard.quickActions.alerts")}
+        />
       </div>
     </div>
   );
@@ -295,6 +347,11 @@ function AttorneyHome({ home }: { home: HomeData | undefined }) {
   });
   const d = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-MX", { dateStyle: "medium" });
 
+  const qc = useQueryClient();
+  const saveEventReminder = useServerFn(setEventReminder);
+  const saveTaskReminder = useServerFn(setTaskReminder);
+  const refreshHome = () => void qc.invalidateQueries({ queryKey: ["attorney-home"] });
+
   return (
     <section className="space-y-3">
       <div>
@@ -304,30 +361,46 @@ function AttorneyHome({ home }: { home: HomeData | undefined }) {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <HomeCard icon={<CalendarDays className="h-4 w-4" />} title={t("home.events")}>
           {(home?.upcomingEvents ?? []).map((e) => (
-            <HomeRow
+            <ReminderableRow
               key={e.id}
               caseId={e.case_id}
               primary={e.title}
               secondary={`${e.case_name} · ${dt.format(new Date(e.scheduled_at))}`}
+              itemType="event"
+              enabled={e.reminder_enabled}
+              leadMinutes={e.reminder_lead_minutes}
+              channels={e.reminder_channels}
+              onSave={(v) => saveEventReminder({ data: { id: e.id, ...v } }).then(refreshHome)}
             />
           ))}
         </HomeCard>
 
         <HomeCard icon={<ListChecks className="h-4 w-4" />} title={t("home.deadlines")}>
           {(home?.deadlines ?? []).map((task) => (
-            <HomeRow
+            <ReminderableRow
               key={task.id}
               caseId={task.case_id}
               primary={task.title}
               secondary={`${task.case_name} · ${task.due_date ? d.format(new Date(`${task.due_date}T12:00:00`)) : ""}`}
               danger={!!task.due_date && task.due_date < new Date().toISOString().slice(0, 10)}
+              itemType="task"
+              enabled={task.reminder_enabled}
+              leadMinutes={task.reminder_lead_minutes}
+              channels={task.reminder_channels}
+              onSave={(v) => saveTaskReminder({ data: { id: task.id, ...v } }).then(refreshHome)}
             />
           ))}
         </HomeCard>
 
         <HomeCard icon={<AlertTriangle className="h-4 w-4" />} title={t("home.alerts")}>
           {(home?.aiAlerts ?? []).map((f) => (
-            <HomeRow key={f.id} caseId={f.case_id} primary={f.title ?? ""} secondary={f.case_name} danger />
+            <HomeRow
+              key={f.id}
+              caseId={f.case_id}
+              primary={f.title ?? ""}
+              secondary={f.case_name}
+              danger
+            />
           ))}
         </HomeCard>
 
@@ -413,7 +486,9 @@ function HomeRow({
         className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-primary/5"
       >
         <span className="min-w-0 flex-1">
-          <span className={`block truncate font-medium ${danger ? "text-destructive" : "text-foreground"}`}>
+          <span
+            className={`block truncate font-medium ${danger ? "text-destructive" : "text-foreground"}`}
+          >
             {primary}
           </span>
           {secondary && <span className="block truncate text-muted-foreground">{secondary}</span>}
@@ -421,6 +496,188 @@ function HomeRow({
         <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
       </Link>
     </li>
+  );
+}
+
+const EVENT_LEAD_OPTIONS = [
+  { value: 30, label: "30 min antes" },
+  { value: 60, label: "1 hora antes" },
+  { value: 180, label: "3 horas antes" },
+  { value: 1440, label: "1 día antes" },
+  { value: 4320, label: "3 días antes" },
+];
+const TASK_LEAD_OPTIONS = [
+  { value: 1440, label: "1 día antes" },
+  { value: 4320, label: "3 días antes" },
+  { value: 10080, label: "7 días antes" },
+];
+
+function ReminderableRow({
+  caseId,
+  primary,
+  secondary,
+  danger,
+  itemType,
+  enabled,
+  leadMinutes,
+  channels,
+  onSave,
+}: {
+  caseId: string;
+  primary: string;
+  secondary?: string;
+  danger?: boolean;
+  itemType: "event" | "task";
+  enabled: boolean;
+  leadMinutes: number;
+  channels: string[];
+  onSave: (v: { enabled: boolean; leadMinutes: number; channels: ("browser" | "email")[] }) => void;
+}) {
+  return (
+    <li className="flex items-center gap-1">
+      <Link
+        to="/cases/$caseId"
+        params={{ caseId }}
+        className="group flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-primary/5"
+      >
+        <span className="min-w-0 flex-1">
+          <span
+            className={`block truncate font-medium ${danger ? "text-destructive" : "text-foreground"}`}
+          >
+            {primary}
+          </span>
+          {secondary && <span className="block truncate text-muted-foreground">{secondary}</span>}
+        </span>
+        <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
+      </Link>
+      <ReminderControl
+        itemType={itemType}
+        enabled={enabled}
+        leadMinutes={leadMinutes}
+        channels={channels}
+        onSave={onSave}
+      />
+    </li>
+  );
+}
+
+function ReminderControl({
+  itemType,
+  enabled,
+  leadMinutes,
+  channels,
+  onSave,
+}: {
+  itemType: "event" | "task";
+  enabled: boolean;
+  leadMinutes: number;
+  channels: string[];
+  onSave: (v: { enabled: boolean; leadMinutes: number; channels: ("browser" | "email")[] }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [localEnabled, setLocalEnabled] = useState(enabled);
+  const [localLead, setLocalLead] = useState(leadMinutes);
+  const [localChannels, setLocalChannels] = useState<("browser" | "email")[]>(
+    (channels as ("browser" | "email")[]) ?? ["browser"],
+  );
+  const options = itemType === "event" ? EVENT_LEAD_OPTIONS : TASK_LEAD_OPTIONS;
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={(ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          setLocalEnabled(enabled);
+          setLocalLead(leadMinutes);
+          setLocalChannels((channels as ("browser" | "email")[]) ?? ["browser"]);
+          setOpen((o) => !o);
+        }}
+        className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${
+          enabled ? "text-primary" : "text-muted-foreground"
+        } hover:bg-primary/10`}
+        title={enabled ? "Recordatorio activado" : "Activar recordatorio"}
+      >
+        <Bell className="h-3.5 w-3.5" fill={enabled ? "currentColor" : "none"} />
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-7 z-20 w-60 space-y-2 rounded-lg border border-border bg-popover p-3 text-xs shadow-lg"
+          onClick={(ev) => ev.stopPropagation()}
+        >
+          <label className="flex items-center justify-between gap-2 font-medium text-foreground">
+            Recordatorio
+            <input
+              type="checkbox"
+              checked={localEnabled}
+              onChange={(ev) => setLocalEnabled(ev.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+          </label>
+          <select
+            className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs disabled:opacity-50"
+            value={localLead}
+            disabled={!localEnabled}
+            onChange={(ev) => setLocalLead(Number(ev.target.value))}
+          >
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <div className="flex flex-col gap-1.5 text-muted-foreground">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5"
+                disabled={!localEnabled}
+                checked={localChannels.includes("browser")}
+                onChange={(ev) =>
+                  setLocalChannels((c) =>
+                    ev.target.checked
+                      ? Array.from(new Set([...c, "browser" as const]))
+                      : c.filter((x) => x !== "browser"),
+                  )
+                }
+              />
+              Notificarme en esta computadora
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5"
+                disabled={!localEnabled}
+                checked={localChannels.includes("email")}
+                onChange={(ev) =>
+                  setLocalChannels((c) =>
+                    ev.target.checked
+                      ? Array.from(new Set([...c, "email" as const]))
+                      : c.filter((x) => x !== "email"),
+                  )
+                }
+              />
+              Enviarme un correo
+            </label>
+          </div>
+          <button
+            type="button"
+            className="w-full rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+            onClick={() => {
+              const chans = localChannels.length
+                ? localChannels
+                : (["browser"] as ("browser" | "email")[]);
+              if (localEnabled) void requestDesktopNotificationPermission();
+              onSave({ enabled: localEnabled, leadMinutes: localLead, channels: chans });
+              setOpen(false);
+            }}
+          >
+            Guardar
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -443,10 +700,14 @@ function KpiChip({
         : "text-primary bg-primary/10 ring-primary/30";
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-3">
-      <span className={`grid h-10 w-10 place-items-center rounded-lg ring-1 ${toneCls}`}>{icon}</span>
+      <span className={`grid h-10 w-10 place-items-center rounded-lg ring-1 ${toneCls}`}>
+        {icon}
+      </span>
       <div className="min-w-0">
         <div className="text-2xl font-bold leading-none">{value}</div>
-        <div className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+          {label}
+        </div>
       </div>
     </div>
   );
@@ -494,13 +755,19 @@ function QuickAction({
       to={to}
       className="flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 transition hover:border-primary/40 hover:bg-primary/5"
     >
-      <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</span>
+      <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
+        {icon}
+      </span>
       <span className="text-sm font-medium">{label}</span>
     </Link>
   );
 }
 
-function FeaturedCaseCard({ caseRow }: { caseRow: NonNullable<ReturnType<typeof useMemoFeatured>> }) {
+function FeaturedCaseCard({
+  caseRow,
+}: {
+  caseRow: NonNullable<ReturnType<typeof useMemoFeatured>>;
+}) {
   const { t } = useI18n();
   const score = (caseRow as { score?: number | null }).score ?? null;
   const isComplete = caseRow.status === "complete";
@@ -520,7 +787,9 @@ function FeaturedCaseCard({ caseRow }: { caseRow: NonNullable<ReturnType<typeof 
             {t("dashboard.featured.title")}
           </div>
           <h2 className="mt-1 truncate text-xl font-semibold md:text-2xl">{caseRow.name}</h2>
-          <div className="mt-1 text-xs text-muted-foreground">{caseRow.status_message ?? caseRow.status}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {caseRow.status_message ?? caseRow.status}
+          </div>
         </div>
         <div className="flex items-center gap-6">
           <div className="text-center">
@@ -528,7 +797,9 @@ function FeaturedCaseCard({ caseRow }: { caseRow: NonNullable<ReturnType<typeof 
               {t("dashboard.featured.score")}
             </div>
             {!isComplete ? (
-              <div className="text-sm font-medium text-muted-foreground">{t("dashboard.featured.calculating")}</div>
+              <div className="text-sm font-medium text-muted-foreground">
+                {t("dashboard.featured.calculating")}
+              </div>
             ) : (
               <>
                 <div className={`text-4xl font-bold ${tone}`}>{score ?? t("common.dash")}</div>
@@ -559,7 +830,10 @@ function useMemoFeatured() {
   };
 }
 
-function timeAgo(iso: string | null, t: (key: string, params?: Record<string, string | number>) => string) {
+function timeAgo(
+  iso: string | null,
+  t: (key: string, params?: Record<string, string | number>) => string,
+) {
   if (!iso) return t("common.dash");
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
