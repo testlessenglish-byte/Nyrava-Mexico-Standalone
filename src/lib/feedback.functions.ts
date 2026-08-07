@@ -97,8 +97,13 @@ export const adminListFeedback = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const ctx = context as { supabase: Db; userId: string };
     await requireAdmin(ctx);
+    // Service-role client, not ctx.supabase — requireAdmin's own fallback
+    // exists because is_admin_tier() can drift false in production (see its
+    // comment above); reading through the RLS-bound user client here would
+    // re-run that same fragile check a second time with no fallback,
+    // silently returning nothing to a real admin who just passed the check.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (ctx.supabase as any)
+    const { data, error } = await (getAdminClient() as any)
       .from("user_feedback")
       .select("*")
       .order("created_at", { ascending: false })
