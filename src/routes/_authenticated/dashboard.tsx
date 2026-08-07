@@ -4,8 +4,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listCases } from "@/lib/cases.functions";
 import { ensureStarterCases } from "@/lib/account.functions";
-import { getAttorneyHome, setEventReminder, setTaskReminder } from "@/lib/casework.functions";
-import { requestDesktopNotificationPermission } from "@/hooks/useReminderNotifications";
+import {
+  getAttorneyHome,
+  setEventReminder,
+  setTaskReminder,
+  upsertCaseEvent,
+  upsertCaseTask,
+} from "@/lib/casework.functions";
+import { ReminderControl, type ReminderValue } from "@/components/casework/ReminderControl";
 
 import { PipelineStatusGrid } from "@/components/PipelineStatusGrid";
 import { PipelineTracePanel } from "@/components/PipelineTracePanel";
@@ -140,7 +146,7 @@ function DashboardPage() {
         />
       </div>
 
-      <AttorneyHome home={home} />
+      <AttorneyHome home={home} cases={cases} />
 
       {isLoading ? (
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">
@@ -339,7 +345,7 @@ function DashboardPage() {
  */
 type HomeData = Awaited<ReturnType<typeof getAttorneyHome>>;
 
-function AttorneyHome({ home }: { home: HomeData | undefined }) {
+function AttorneyHome({ home, cases }: { home: HomeData | undefined; cases: Array<{ id: string; name: string }> }) {
   const { t, locale } = useI18n();
   const dt = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-MX", {
     dateStyle: "medium",
@@ -350,7 +356,12 @@ function AttorneyHome({ home }: { home: HomeData | undefined }) {
   const qc = useQueryClient();
   const saveEventReminder = useServerFn(setEventReminder);
   const saveTaskReminder = useServerFn(setTaskReminder);
+  const createEvent = useServerFn(upsertCaseEvent);
+  const createTask = useServerFn(upsertCaseTask);
   const refreshHome = () => void qc.invalidateQueries({ queryKey: ["attorney-home"] });
+
+  const [addingEvent, setAddingEvent] = useState(false);
+  const [addingTask, setAddingTask] = useState(false);
 
   return (
     <section className="space-y-3">
@@ -359,7 +370,36 @@ function AttorneyHome({ home }: { home: HomeData | undefined }) {
         <p className="text-xs text-muted-foreground">{t("home.subtitle")}</p>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <HomeCard icon={<CalendarDays className="h-4 w-4" />} title={t("home.events")}>
+        <HomeCard
+          icon={<CalendarDays className="h-4 w-4" />}
+          title={t("home.events")}
+          headerRight={<AddButton onClick={() => setAddingEvent((v) => !v)} active={addingEvent} />}
+          extra={
+            addingEvent ? (
+              <QuickAddForm
+                kind="event"
+                cases={cases}
+                onCancel={() => setAddingEvent(false)}
+                onSubmit={async (v) => {
+                  await createEvent({
+                    data: {
+                      caseId: v.caseId,
+                      title: v.title,
+                      event_type: "other",
+                      scheduled_at: v.when,
+                      notes: v.notes || null,
+                      reminder_enabled: v.reminder.enabled,
+                      reminder_lead_minutes: v.reminder.leadMinutes,
+                      reminder_channels: v.reminder.channels,
+                    },
+                  });
+                  setAddingEvent(false);
+                  refreshHome();
+                }}
+              />
+            ) : null
+          }
+        >
           {(home?.upcomingEvents ?? []).map((e) => (
             <ReminderableRow
               key={e.id}
@@ -375,7 +415,37 @@ function AttorneyHome({ home }: { home: HomeData | undefined }) {
           ))}
         </HomeCard>
 
-        <HomeCard icon={<ListChecks className="h-4 w-4" />} title={t("home.deadlines")}>
+        <HomeCard
+          icon={<ListChecks className="h-4 w-4" />}
+          title={t("home.deadlines")}
+          headerRight={<AddButton onClick={() => setAddingTask((v) => !v)} active={addingTask} />}
+          extra={
+            addingTask ? (
+              <QuickAddForm
+                kind="task"
+                cases={cases}
+                onCancel={() => setAddingTask(false)}
+                onSubmit={async (v) => {
+                  await createTask({
+                    data: {
+                      caseId: v.caseId,
+                      title: v.title,
+                      due_date: v.when,
+                      status: "todo",
+                      priority: "normal",
+                      description: v.notes || null,
+                      reminder_enabled: v.reminder.enabled,
+                      reminder_lead_minutes: v.reminder.leadMinutes,
+                      reminder_channels: v.reminder.channels,
+                    },
+                  });
+                  setAddingTask(false);
+                  refreshHome();
+                }}
+              />
+            ) : null
+          }
+        >
           {(home?.deadlines ?? []).map((task) => (
             <ReminderableRow
               key={task.id}
@@ -444,20 +514,28 @@ function AttorneyHome({ home }: { home: HomeData | undefined }) {
 function HomeCard({
   icon,
   title,
+  headerRight,
+  extra,
   children,
 }: {
   icon: React.ReactNode;
   title: string;
+  headerRight?: React.ReactNode;
+  extra?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { t } = useI18n();
   const empty = !Array.isArray(children) || children.length === 0;
   return (
     <div className="rounded-xl border border-border bg-card/60 p-4">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <span className="text-primary">{icon}</span>
-        {title}
+      <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="flex items-center gap-2">
+          <span className="text-primary">{icon}</span>
+          {title}
+        </span>
+        {headerRight}
       </div>
+      {extra}
       {empty ? (
         <p className="py-4 text-center text-xs text-muted-foreground">{t("home.empty")}</p>
       ) : (
@@ -498,19 +576,6 @@ function HomeRow({
     </li>
   );
 }
-
-const EVENT_LEAD_OPTIONS = [
-  { value: 30, label: "30 min antes" },
-  { value: 60, label: "1 hora antes" },
-  { value: 180, label: "3 horas antes" },
-  { value: 1440, label: "1 día antes" },
-  { value: 4320, label: "3 días antes" },
-];
-const TASK_LEAD_OPTIONS = [
-  { value: 1440, label: "1 día antes" },
-  { value: 4320, label: "3 días antes" },
-  { value: 10080, label: "7 días antes" },
-];
 
 function ReminderableRow({
   caseId,
@@ -561,122 +626,123 @@ function ReminderableRow({
   );
 }
 
-function ReminderControl({
-  itemType,
-  enabled,
-  leadMinutes,
-  channels,
-  onSave,
-}: {
-  itemType: "event" | "task";
-  enabled: boolean;
-  leadMinutes: number;
-  channels: string[];
-  onSave: (v: { enabled: boolean; leadMinutes: number; channels: ("browser" | "email")[] }) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [localEnabled, setLocalEnabled] = useState(enabled);
-  const [localLead, setLocalLead] = useState(leadMinutes);
-  const [localChannels, setLocalChannels] = useState<("browser" | "email")[]>(
-    (channels as ("browser" | "email")[]) ?? ["browser"],
+function AddButton({ onClick, active }: { onClick: () => void; active: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`grid h-6 w-6 shrink-0 place-items-center rounded-md normal-case tracking-normal ${
+        active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+      }`}
+      title="Agregar"
+    >
+      <Plus className="h-3.5 w-3.5" />
+    </button>
   );
-  const options = itemType === "event" ? EVENT_LEAD_OPTIONS : TASK_LEAD_OPTIONS;
+}
+
+type QuickAddValue = { caseId: string; title: string; when: string; notes: string; reminder: ReminderValue };
+
+function QuickAddForm({
+  kind,
+  cases,
+  onSubmit,
+  onCancel,
+}: {
+  kind: "event" | "task";
+  cases: Array<{ id: string; name: string }>;
+  onSubmit: (v: QuickAddValue) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [caseId, setCaseId] = useState(cases[0]?.id ?? "");
+  const [title, setTitle] = useState("");
+  const [when, setWhen] = useState("");
+  const [notes, setNotes] = useState("");
+  const [reminder, setReminder] = useState<ReminderValue>({
+    enabled: false,
+    leadMinutes: kind === "event" ? 60 : 1440,
+    channels: ["browser"],
+  });
+  const [saving, setSaving] = useState(false);
+
+  if (cases.length === 0) {
+    return (
+      <p className="mb-3 rounded-lg border border-dashed border-border bg-card/40 p-3 text-center text-xs text-muted-foreground">
+        Crea primero un expediente para poder agregar {kind === "event" ? "una audiencia/evento" : "un vencimiento"}.
+      </p>
+    );
+  }
+
+  const canSave = !!caseId && title.trim().length > 0 && when.length > 0 && !saving;
 
   return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        onClick={(ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          setLocalEnabled(enabled);
-          setLocalLead(leadMinutes);
-          setLocalChannels((channels as ("browser" | "email")[]) ?? ["browser"]);
-          setOpen((o) => !o);
-        }}
-        className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${
-          enabled ? "text-primary" : "text-muted-foreground"
-        } hover:bg-primary/10`}
-        title={enabled ? "Recordatorio activado" : "Activar recordatorio"}
+    <div className="mb-3 space-y-2 rounded-lg border border-border bg-card/40 p-3">
+      <select
+        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+        value={caseId}
+        onChange={(e) => setCaseId(e.target.value)}
       >
-        <Bell className="h-3.5 w-3.5" fill={enabled ? "currentColor" : "none"} />
-      </button>
-      {open && (
-        <div
-          className="absolute right-0 top-7 z-20 w-60 space-y-2 rounded-lg border border-border bg-popover p-3 text-xs shadow-lg"
-          onClick={(ev) => ev.stopPropagation()}
+        {cases.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+      <input
+        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+        placeholder={kind === "event" ? "Título de la audiencia/evento" : "Título del vencimiento"}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <input
+        type={kind === "event" ? "datetime-local" : "date"}
+        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+        value={when}
+        onChange={(e) => setWhen(e.target.value)}
+      />
+      <textarea
+        placeholder="Notas"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        className="min-h-[56px] w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+      />
+      <div className="flex items-center gap-2">
+        <ReminderControl
+          itemType={kind}
+          enabled={reminder.enabled}
+          leadMinutes={reminder.leadMinutes}
+          channels={reminder.channels}
+          align="left"
+          onSave={setReminder}
+        />
+        <span className="text-xs text-muted-foreground">
+          {reminder.enabled ? "Recordatorio activado" : "Sin recordatorio"}
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={async () => {
+            setSaving(true);
+            try {
+              await onSubmit({ caseId, title: title.trim(), when, notes, reminder });
+            } finally {
+              setSaving(false);
+            }
+          }}
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          <label className="flex items-center justify-between gap-2 font-medium text-foreground">
-            Recordatorio
-            <input
-              type="checkbox"
-              checked={localEnabled}
-              onChange={(ev) => setLocalEnabled(ev.target.checked)}
-              className="h-3.5 w-3.5"
-            />
-          </label>
-          <select
-            className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs disabled:opacity-50"
-            value={localLead}
-            disabled={!localEnabled}
-            onChange={(ev) => setLocalLead(Number(ev.target.value))}
-          >
-            {options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <div className="flex flex-col gap-1.5 text-muted-foreground">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5"
-                disabled={!localEnabled}
-                checked={localChannels.includes("browser")}
-                onChange={(ev) =>
-                  setLocalChannels((c) =>
-                    ev.target.checked
-                      ? Array.from(new Set([...c, "browser" as const]))
-                      : c.filter((x) => x !== "browser"),
-                  )
-                }
-              />
-              Notificarme en esta computadora
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5"
-                disabled={!localEnabled}
-                checked={localChannels.includes("email")}
-                onChange={(ev) =>
-                  setLocalChannels((c) =>
-                    ev.target.checked
-                      ? Array.from(new Set([...c, "email" as const]))
-                      : c.filter((x) => x !== "email"),
-                  )
-                }
-              />
-              Enviarme un correo
-            </label>
-          </div>
-          <button
-            type="button"
-            className="w-full rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-            onClick={() => {
-              const chans = localChannels.length
-                ? localChannels
-                : (["browser"] as ("browser" | "email")[]);
-              if (localEnabled) void requestDesktopNotificationPermission();
-              onSave({ enabled: localEnabled, leadMinutes: localLead, channels: chans });
-              setOpen(false);
-            }}
-          >
-            Guardar
-          </button>
-        </div>
-      )}
+          {saving ? "Guardando…" : "Guardar"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary"
+        >
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }

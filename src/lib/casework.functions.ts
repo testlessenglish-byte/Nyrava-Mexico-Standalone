@@ -130,6 +130,13 @@ const taskInput = z.object({
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   assignee_hint: z.string().max(200).nullable().optional(),
   template_key: z.string().max(120).nullable().optional(),
+  // Optional at create/update time so a single call can create a task and
+  // configure its reminder together (dashboard quick-add). Omitted on a
+  // plain edit (e.g. toggling status) leaves any existing reminder alone —
+  // see the `!== undefined` guards below.
+  reminder_enabled: z.boolean().optional(),
+  reminder_lead_minutes: z.number().int().min(5).max(43200).optional(),
+  reminder_channels: z.array(z.enum(["browser", "email"])).min(1).max(2).optional(),
 });
 
 export const upsertCaseTask = createServerFn({ method: "POST" })
@@ -137,7 +144,7 @@ export const upsertCaseTask = createServerFn({ method: "POST" })
   .inputValidator((d: z.input<typeof taskInput>) => taskInput.parse(d))
   .handler(async ({ data, context }) => {
     await assertCaseAccess(context.supabase, data.caseId);
-    const row = {
+    const row: Record<string, unknown> = {
       case_id: data.caseId,
       user_id: context.userId,
       title: data.title,
@@ -148,9 +155,12 @@ export const upsertCaseTask = createServerFn({ method: "POST" })
       assignee_hint: data.assignee_hint ?? null,
       template_key: data.template_key ?? null,
     };
-    const q = data.id
-      ? context.supabase.from("case_tasks").update(row).eq("id", data.id).select("*").single()
-      : context.supabase.from("case_tasks").insert(row).select("*").single();
+    if (data.reminder_enabled !== undefined) row.reminder_enabled = data.reminder_enabled;
+    if (data.reminder_lead_minutes !== undefined) row.reminder_lead_minutes = data.reminder_lead_minutes;
+    if (data.reminder_channels !== undefined) row.reminder_channels = data.reminder_channels;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const table = context.supabase.from("case_tasks") as any;
+    const q = data.id ? table.update(row).eq("id", data.id).select("*").single() : table.insert(row).select("*").single();
     const { data: saved, error } = await q;
     if (error) throw new Error(error.message);
     return saved;
@@ -226,6 +236,10 @@ const eventInput = z.object({
   scheduled_at: z.string().min(1),
   location: z.string().max(300).nullable().optional(),
   notes: z.string().max(4000).nullable().optional(),
+  // See taskInput above — same "omitted leaves existing reminder alone" rule.
+  reminder_enabled: z.boolean().optional(),
+  reminder_lead_minutes: z.number().int().min(5).max(43200).optional(),
+  reminder_channels: z.array(z.enum(["browser", "email"])).min(1).max(2).optional(),
 });
 
 export const upsertCaseEvent = createServerFn({ method: "POST" })
@@ -233,7 +247,7 @@ export const upsertCaseEvent = createServerFn({ method: "POST" })
   .inputValidator((d: z.input<typeof eventInput>) => eventInput.parse(d))
   .handler(async ({ data, context }) => {
     await assertCaseAccess(context.supabase, data.caseId);
-    const row = {
+    const row: Record<string, unknown> = {
       case_id: data.caseId,
       user_id: context.userId,
       title: data.title,
@@ -242,9 +256,12 @@ export const upsertCaseEvent = createServerFn({ method: "POST" })
       location: data.location ?? null,
       notes: data.notes ?? null,
     };
-    const q = data.id
-      ? context.supabase.from("case_events").update(row).eq("id", data.id).select("*").single()
-      : context.supabase.from("case_events").insert(row).select("*").single();
+    if (data.reminder_enabled !== undefined) row.reminder_enabled = data.reminder_enabled;
+    if (data.reminder_lead_minutes !== undefined) row.reminder_lead_minutes = data.reminder_lead_minutes;
+    if (data.reminder_channels !== undefined) row.reminder_channels = data.reminder_channels;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const table = context.supabase.from("case_events") as any;
+    const q = data.id ? table.update(row).eq("id", data.id).select("*").single() : table.insert(row).select("*").single();
     const { data: saved, error } = await q;
     if (error) throw new Error(error.message);
     return saved;

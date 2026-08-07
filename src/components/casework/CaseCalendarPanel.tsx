@@ -12,10 +12,19 @@ import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { listCaseEvents, upsertCaseEvent, deleteCaseEvent } from "@/lib/casework.functions";
 import { EVENT_TYPE_LABELS, label } from "./labels";
+import { ReminderControl, type ReminderValue } from "./ReminderControl";
 
 const EVENT_TYPES = ["hearing", "filing", "meeting", "closing", "deadline", "other"] as const;
 
-type Draft = { title: string; event_type: string; scheduled_at: string; location: string };
+type Draft = {
+  title: string;
+  event_type: string;
+  scheduled_at: string;
+  location: string;
+  notes: string;
+  reminder: ReminderValue;
+};
+const DEFAULT_REMINDER: ReminderValue = { enabled: false, leadMinutes: 60, channels: ["browser"] };
 
 export function CaseCalendarPanel({ caseId, embedded }: { caseId: string; embedded?: boolean }) {
   const { t, locale } = useI18n();
@@ -38,6 +47,10 @@ export function CaseCalendarPanel({ caseId, embedded }: { caseId: string; embedd
           event_type: d.event_type,
           scheduled_at: d.scheduled_at,
           location: d.location || null,
+          notes: d.notes || null,
+          reminder_enabled: d.reminder.enabled,
+          reminder_lead_minutes: d.reminder.leadMinutes,
+          reminder_channels: d.reminder.channels,
         },
       }),
     onSuccess: () => {
@@ -116,6 +129,25 @@ export function CaseCalendarPanel({ caseId, embedded }: { caseId: string; embedd
             value={draft.location}
             onChange={(ev) => setDraft({ ...draft, location: ev.target.value })}
           />
+          <textarea
+            placeholder="Notas"
+            value={draft.notes}
+            onChange={(ev) => setDraft({ ...draft, notes: ev.target.value })}
+            className="min-h-[60px] rounded-md border border-input bg-background px-2 py-1.5 text-sm md:col-span-2"
+          />
+          <div className="flex items-center gap-2 md:col-span-2">
+            <ReminderControl
+              itemType="event"
+              enabled={draft.reminder.enabled}
+              leadMinutes={draft.reminder.leadMinutes}
+              channels={draft.reminder.channels}
+              align="left"
+              onSave={(v) => setDraft({ ...draft, reminder: v })}
+            />
+            <span className="text-xs text-muted-foreground">
+              {draft.reminder.enabled ? "Recordatorio activado" : "Sin recordatorio"}
+            </span>
+          </div>
           <div className="flex gap-2 md:col-span-2">
             <Button
               size="sm"
@@ -136,7 +168,16 @@ export function CaseCalendarPanel({ caseId, embedded }: { caseId: string; embedd
           size="sm"
           variant="outline"
           className="mt-3"
-          onClick={() => setDraft({ title: "", event_type: "hearing", scheduled_at: "", location: "" })}
+          onClick={() =>
+            setDraft({
+              title: "",
+              event_type: "hearing",
+              scheduled_at: "",
+              location: "",
+              notes: "",
+              reminder: DEFAULT_REMINDER,
+            })
+          }
         >
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t("calendar.add")}
