@@ -137,19 +137,20 @@ export async function projectCanonical(
     // construction, no verified evidence_refs/quote grounding it (see
     // evidence-gate.server.ts's exemptCitation path and the
     // procedural-compliance.server.ts fix that routes missing-checklist
-    // items through it). It must not render like a verified finding —
-    // appearing under Hallazgos Clave, contributing to verified-finding
-    // counts, or supporting scoring/recommendations/narrative text
-    // indistinguishably from grounded findings. Per the documented safe
-    // default ("exclude it from final reports; or place it in a clearly
-    // separate section — for limited reports, default to excluding"),
-    // this excludes it from the canonical Findings array entirely. The
-    // underlying case_findings row is untouched — this only affects what
-    // the report-facing CaseAnalysis object surfaces.
-    if (findingType === "AI_THEORY") continue;
+    // items through it). It must not render like a verified finding or
+    // silently feed scoring/recommendations. It only ever exists in
+    // case_findings at all when the case was run in "exploratory" mode
+    // (strict/balanced drop it at the evidence gate before persisting), so
+    // its presence here already reflects the mode the case was actually run
+    // in. Per the documented safe default's second option ("place it in a
+    // clearly separate section"), it is included — visibly labeled — rather
+    // than dropped; the `critical`/Risks/Recommendations filter below
+    // explicitly excludes finding_type === "AI_THEORY" so it can never be
+    // surfaced as a verified risk or recommendation.
+    const isAiTheory = findingType === "AI_THEORY";
     const finding: Finding = {
       id: String(f.id),
-      title: String(f.title ?? ""),
+      title: isAiTheory ? `[IA — teoría no verificada] ${String(f.title ?? "")}` : String(f.title ?? ""),
       description: String(f.description ?? ""),
       category: String(f.category ?? "general"),
       severity: normalizeSeverity(f.severity),
@@ -168,7 +169,9 @@ export async function projectCanonical(
     };
     analysis.Findings.push(finding);
     const src = String(f.source_module ?? "");
-    if (/evidence|classification/i.test(src) || finding.category === "evidence") {
+    // Evidence section is evidence-grounded by definition — an unverified AI
+    // theory never belongs there regardless of category/source_module.
+    if (!isAiTheory && (/evidence|classification/i.test(src) || finding.category === "evidence")) {
       analysis.Evidence.push(finding);
     }
   }
@@ -264,8 +267,10 @@ export async function projectCanonical(
     key_moves: safeArr(strategyRow?.key_moves as string[] | undefined),
   };
 
-  // Discovery gaps with corpus gap protection
+  // Discovery gaps with corpus gap protection. Excludes AI_THEORY — an
+  // unverified theory must never be presented as a confirmed procedural gap.
   for (const f of analysis.Findings) {
+    if (f.finding_type === "AI_THEORY") continue;
     if (/discovery/i.test(f.category) || /discovery/i.test(f.description)) {
       const isCorpusGap = /not identified in the corpus|no se identific[oó]|elemento no identificado/i.test(
         f.description,
@@ -308,7 +313,11 @@ export async function projectCanonical(
   }
   if (reportRow?.scores_suppressed) analysis.Scores.suppressed = true;
 
-  const critical = analysis.Findings.filter((f) => f.severity === "critical" || f.severity === "high");
+  // AI_THEORY is excluded here too — Risks/Recommendations/top_findings must
+  // only ever be built from grounded findings, never an unverified theory.
+  const critical = analysis.Findings.filter(
+    (f) => (f.severity === "critical" || f.severity === "high") && f.finding_type !== "AI_THEORY",
+  );
   analysis.Risks = critical.slice(0, 20).map((f) => ({
     id: f.id,
     label: f.title,
