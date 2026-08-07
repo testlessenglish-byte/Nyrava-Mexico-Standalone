@@ -17,7 +17,6 @@ const uuid = z.string().uuid();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function assertCaseAccess(supabase: any, caseId: string) {
-
   const { data, error } = await supabase
     .from("cases")
     .select("id, case_type, additional_domains, lifecycle_status")
@@ -261,6 +260,159 @@ export const deleteCaseEvent = createServerFn({ method: "POST" })
   });
 
 // ---------------------------------------------------------------------------
+// Reminders — a lightweight on/off + lead-time control layered onto existing
+// events and tasks (no new table). A background worker (reminders-worker)
+// emails due reminders; browser/desktop notifications are fired client-side
+// by polling listDueReminders while the app is open.
+// ---------------------------------------------------------------------------
+
+const REMINDER_CHANNEL = z.enum(["browser", "email"]);
+
+const reminderInput = z.object({
+  id: uuid,
+  enabled: z.boolean(),
+  leadMinutes: z.number().int().min(5).max(43200).default(60),
+  channels: z.array(REMINDER_CHANNEL).min(1).max(2).default(["browser"]),
+});
+
+// The reminder_* columns are new (see migration
+// 20260807120000_case_reminders_and_worker.sql) and not yet in the generated
+// Supabase types, so these queries go through `as any` — same pattern used
+// for other freshly-added tables/columns elsewhere in this codebase.
+
+export const setEventReminder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: z.input<typeof reminderInput>) => reminderInput.parse(d))
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (context.supabase.from("case_events") as any)
+      .update({
+        reminder_enabled: data.enabled,
+        reminder_lead_minutes: data.leadMinutes,
+        reminder_channels: data.channels,
+        reminder_fired_at: null,
+      })
+      .eq("id", data.id)
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const setTaskReminder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: z.input<typeof reminderInput>) => reminderInput.parse(d))
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (context.supabase.from("case_tasks") as any)
+      .update({
+        reminder_enabled: data.enabled,
+        reminder_lead_minutes: data.leadMinutes,
+        reminder_channels: data.channels,
+        reminder_fired_at: null,
+      })
+      .eq("id", data.id)
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export type DueReminder = {
+  id: string;
+  case_id: string;
+  case_name: string;
+  title: string;
+  type: "event" | "task";
+  triggerAt: string;
+  channels: string[];
+};
+
+/** Reminders whose trigger time has arrived (or is within 5 min), for
+ * client-side desktop-notification polling. Email delivery is handled
+ * separately by the reminders-worker cron job. */
+export const listDueReminders = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const now = new Date();
+    const horizon = new Date(now.getTime() + 24 * 3600000);
+
+    type ReminderEventRow = {
+      id: string;
+      case_id: string;
+      title: string;
+      scheduled_at: string;
+      reminder_lead_minutes: number | null;
+      reminder_channels: string[] | null;
+    };
+    type ReminderTaskRow = {
+      id: string;
+      case_id: string;
+      title: string;
+      due_date: string | null;
+      reminder_lead_minutes: number | null;
+      reminder_channels: string[] | null;
+    };
+
+    const [eventsRes, tasksRes, casesRes] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("case_events") as any)
+        .select("id, case_id, title, scheduled_at, reminder_lead_minutes, reminder_channels")
+        .eq("user_id", userId)
+        .eq("reminder_enabled", true)
+        .gte("scheduled_at", now.toISOString())
+        .lte("scheduled_at", horizon.toISOString()) as Promise<{ data: ReminderEventRow[] | null }>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("case_tasks") as any)
+        .select("id, case_id, title, due_date, reminder_lead_minutes, reminder_channels")
+        .eq("user_id", userId)
+        .eq("reminder_enabled", true)
+        .in("status", ["todo", "in_progress", "blocked"])
+        .not("due_date", "is", null)
+        .lte("due_date", horizon.toISOString().slice(0, 10)) as Promise<{
+        data: ReminderTaskRow[] | null;
+      }>,
+      supabase.from("cases").select("id, name").eq("user_id", userId),
+    ]);
+
+    const nameOf = new Map((casesRes.data ?? []).map((c) => [c.id, c.name]));
+    const out: DueReminder[] = [];
+
+    for (const e of eventsRes.data ?? []) {
+      const triggerAt = new Date(
+        new Date(e.scheduled_at).getTime() - (e.reminder_lead_minutes ?? 60) * 60000,
+      );
+      out.push({
+        id: e.id,
+        case_id: e.case_id,
+        case_name: nameOf.get(e.case_id) ?? "—",
+        title: e.title,
+        type: "event",
+        triggerAt: triggerAt.toISOString(),
+        channels: e.reminder_channels ?? ["browser"],
+      });
+    }
+    for (const t of tasksRes.data ?? []) {
+      if (!t.due_date) continue;
+      const triggerAt = new Date(
+        new Date(`${t.due_date}T15:00:00.000Z`).getTime() -
+          (t.reminder_lead_minutes ?? 1440) * 60000,
+      );
+      out.push({
+        id: t.id,
+        case_id: t.case_id,
+        case_name: nameOf.get(t.case_id) ?? "—",
+        title: t.title,
+        type: "task",
+        triggerAt: triggerAt.toISOString(),
+        channels: t.reminder_channels ?? ["browser"],
+      });
+    }
+
+    const cutoff = now.getTime() + 5 * 60000;
+    return out.filter((r) => new Date(r.triggerAt).getTime() <= cutoff);
+  });
+
+// ---------------------------------------------------------------------------
 // Lifecycle status (attorney-facing; the pipeline never writes it)
 // ---------------------------------------------------------------------------
 
@@ -295,24 +447,51 @@ export const getAttorneyHome = createServerFn({ method: "GET" })
     const in30 = new Date(now.getTime() + 30 * 86400000);
     const in7 = new Date(now.getTime() + 7 * 86400000);
 
+    type HomeEventRow = {
+      id: string;
+      case_id: string;
+      title: string;
+      event_type: string;
+      scheduled_at: string;
+      location: string | null;
+      reminder_enabled: boolean;
+      reminder_lead_minutes: number;
+      reminder_channels: string[];
+    };
+    type HomeTaskRow = {
+      id: string;
+      case_id: string;
+      title: string;
+      due_date: string | null;
+      priority: string;
+      status: string;
+      reminder_enabled: boolean;
+      reminder_lead_minutes: number;
+      reminder_channels: string[];
+    };
+
     const [eventsRes, tasksRes, findingsRes, reportsRes, chatRes, casesRes] = await Promise.all([
-      supabase
-        .from("case_events")
-        .select("id, case_id, title, event_type, scheduled_at, location")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("case_events") as any)
+        .select(
+          "id, case_id, title, event_type, scheduled_at, location, reminder_enabled, reminder_lead_minutes, reminder_channels",
+        )
         .eq("user_id", userId)
         .gte("scheduled_at", now.toISOString())
         .lte("scheduled_at", in30.toISOString())
         .order("scheduled_at", { ascending: true })
-        .limit(8),
-      supabase
-        .from("case_tasks")
-        .select("id, case_id, title, due_date, priority, status")
+        .limit(8) as Promise<{ data: HomeEventRow[] | null }>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("case_tasks") as any)
+        .select(
+          "id, case_id, title, due_date, priority, status, reminder_enabled, reminder_lead_minutes, reminder_channels",
+        )
         .eq("user_id", userId)
         .in("status", ["todo", "in_progress", "blocked"])
         .not("due_date", "is", null)
         .lte("due_date", in7.toISOString().slice(0, 10))
         .order("due_date", { ascending: true })
-        .limit(8),
+        .limit(8) as Promise<{ data: HomeTaskRow[] | null }>,
       supabase
         .from("case_findings")
         .select("id, case_id, title, priority, created_at")
@@ -402,7 +581,12 @@ export const upsertCaseCommunication = createServerFn({ method: "POST" })
       approved_at: approving ? new Date().toISOString() : null,
     };
     const q = data.id
-      ? context.supabase.from("case_communications").update(row).eq("id", data.id).select("*").single()
+      ? context.supabase
+          .from("case_communications")
+          .update(row)
+          .eq("id", data.id)
+          .select("*")
+          .single()
       : context.supabase.from("case_communications").insert(row).select("*").single();
     const { data: saved, error } = await q;
     if (error) throw new Error(error.message);
