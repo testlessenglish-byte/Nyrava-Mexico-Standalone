@@ -10,6 +10,8 @@
 // =============================================================================
 
 import { resolveMxProfile, type MxPipelineProfile } from "../execution/mx-pipeline";
+import { jurisdictionLevelOf } from "./jurisdictions";
+
 
 export const MEXICAN_STATES: readonly { code: string; name: string; aliases: readonly string[] }[] = [
   { code: "AGU", name: "Aguascalientes", aliases: [] },
