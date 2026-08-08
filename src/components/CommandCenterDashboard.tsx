@@ -238,25 +238,10 @@ export function CommandCenterDashboard({
   ).length;
   const totalEngines = COMMAND_CENTER_ENGINES.length;
 
-  // Node rotation positions (heptagon, 7 nodes).
-  const nodePositions = visibleNodes.map((_, i) => {
-    const angle = -Math.PI / 2 + (i * (2 * Math.PI)) / Math.max(visibleNodes.length, 1);
-    return { x: 50 + 38 * Math.cos(angle), y: 50 + 38 * Math.sin(angle) };
-  });
-
   return (
     <div className="space-y-4">
       <style>{`
-        @keyframes nyr-spin-slow { from { transform: rotate(0); } to { transform: rotate(360deg); } }
-        @keyframes nyr-spin-rev  { from { transform: rotate(360deg); } to { transform: rotate(0); } }
-        @keyframes nyr-pulse     { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
-        @keyframes nyr-dash      { to { stroke-dashoffset: -200; } }
-        @keyframes nyr-glow      { 0%,100% { box-shadow: 0 0 24px -4px rgba(34,211,238,.35); } 50% { box-shadow: 0 0 40px -2px rgba(34,211,238,.65); } }
-        .nyr-ring1 { animation: nyr-spin-slow 28s linear infinite; transform-origin: center; transform-box: fill-box; }
-        .nyr-ring2 { animation: nyr-spin-rev 38s linear infinite; transform-origin: center; transform-box: fill-box; }
-        .nyr-ring3 { animation: nyr-spin-slow 60s linear infinite; transform-origin: center; transform-box: fill-box; }
-        .nyr-pulse { animation: nyr-pulse 2.4s ease-in-out infinite; }
-        .nyr-flow  { stroke-dasharray: 4 6; animation: nyr-dash 6s linear infinite; }
+        @keyframes nyr-glow { 0%,100% { box-shadow: 0 0 24px -4px rgba(124,58,237,.35); } 50% { box-shadow: 0 0 40px -2px rgba(124,58,237,.65); } }
         .nyr-glow  { animation: nyr-glow 3.2s ease-in-out infinite; }
       `}</style>
 
@@ -367,189 +352,16 @@ export function CommandCenterDashboard({
           </span>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_minmax(260px,360px)_1fr] items-center">
-          {/* LEFT chips */}
-          <div className="hidden lg:flex flex-col gap-3">
-            {visibleNodes.slice(0, 3).map((n) => (
-              <EngineChip
-                key={n.key}
-                node={n}
-                status={rollupStatus(pickLatest(latestByEngine, n.matches))}
-                caseType={caseType}
-                align="left"
-              />
-            ))}
-          </div>
-
-          {/* CENTER radar */}
-          <div className="relative mx-auto aspect-square w-full max-w-[360px]">
-            <svg viewBox="0 0 100 100" className="w-full h-full">
-              <defs>
-                <radialGradient id="nyrCore" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#A78BFA" stopOpacity="0.45" />
-                  <stop offset="60%" stopColor="#7C3AED" stopOpacity="0.08" />
-                  <stop offset="100%" stopColor="#7C3AED" stopOpacity="0" />
-                </radialGradient>
-                <linearGradient id="nyrStroke" x1="0" x2="1">
-                  <stop offset="0%" stopColor="#7C3AED" />
-                  <stop offset="100%" stopColor="#C4B5FD" />
-                </linearGradient>
-                <radialGradient id="nyrCenterGrad" cx="35%" cy="30%" r="75%">
-                  <stop offset="0%" stopColor="#A78BFA" />
-                  <stop offset="100%" stopColor="#5B21B6" />
-                </radialGradient>
-                <clipPath id="hubClip">
-                  <circle cx="50" cy="50" r="7.3" />
-                </clipPath>
-              </defs>
-
-              {/* core glow */}
-              <circle cx="50" cy="50" r="44" fill="url(#nyrCore)" />
-
-              {/* rotating rings */}
-              <g className="nyr-ring1">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  fill="none"
-                  stroke="url(#nyrStroke)"
-                  strokeWidth="0.4"
-                  strokeDasharray="2 3"
-                  opacity="0.7"
-                />
-              </g>
-              <g className="nyr-ring2">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="34"
-                  fill="none"
-                  stroke="#7C3AED"
-                  strokeWidth="0.3"
-                  strokeDasharray="1 4"
-                  opacity="0.55"
-                />
-              </g>
-              <g className="nyr-ring3">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="26"
-                  fill="none"
-                  stroke="#C4B5FD"
-                  strokeWidth="0.25"
-                  strokeDasharray="0.6 2"
-                  opacity="0.55"
-                />
-              </g>
-
-              {/* connection lines from center → each node */}
-              {nodePositions.map((p, i) => {
-                const st = rollupStatus(pickLatest(latestByEngine, visibleNodes[i].matches));
-                const stroke =
-                  st === "completed"
-                    ? "#34d399"
-                    : st === "running"
-                      ? "#7C3AED"
-                      : st === "failed"
-                        ? "#f87171"
-                        : "#B0A8CC";
-                return (
-                  <line
-                    key={i}
-                    x1="50"
-                    y1="50"
-                    x2={p.x}
-                    y2={p.y}
-                    stroke={stroke}
-                    strokeWidth="0.35"
-                    opacity="0.55"
-                    className={st === "running" ? "nyr-flow" : ""}
-                  />
-                );
-              })}
-
-              {/* node dots */}
-              {nodePositions.map((p, i) => {
-                const st = rollupStatus(pickLatest(latestByEngine, visibleNodes[i].matches));
-                const fill =
-                  st === "completed"
-                    ? "#34d399"
-                    : st === "running"
-                      ? "#7C3AED"
-                      : st === "failed"
-                        ? "#f87171"
-                        : "#B0A8CC";
-                return (
-                  <g key={i}>
-                    <circle
-                      cx={p.x}
-                      cy={p.y}
-                      r={st === "running" ? 1.8 : 1.2}
-                      fill={fill}
-                      className={st === "running" ? "nyr-pulse" : ""}
-                    />
-                    {st === "running" && (
-                      <circle
-                        cx={p.x}
-                        cy={p.y}
-                        r="3"
-                        fill="none"
-                        stroke={fill}
-                        strokeWidth="0.3"
-                        opacity="0.5"
-                        className="nyr-pulse"
-                      />
-                    )}
-                  </g>
-                );
-              })}
-
-              {/* center badge — the Nyrava mark, clipped to a circle */}
-              <g>
-                <circle cx="50" cy="50" r="8" fill="url(#nyrCenterGrad)" />
-                <text
-                  x="50"
-                  y="53"
-                  textAnchor="middle"
-                  fontSize="8.5"
-                  fontWeight="800"
-                  fill="#FFFFFF"
-                  fontFamily="ui-sans-serif, sans-serif"
-                >
-                  N
-                </text>
-                <circle cx="50" cy="50" r="8" fill="none" stroke="url(#nyrStroke)" strokeWidth="0.4" />
-              </g>
-            </svg>
-          </div>
-
-          {/* RIGHT chips */}
-          <div className="hidden lg:flex flex-col gap-3">
-            {visibleNodes.slice(3, 6).map((n) => (
-              <EngineChip
-                key={n.key}
-                node={n}
-                status={rollupStatus(pickLatest(latestByEngine, n.matches))}
-                caseType={caseType}
-                align="right"
-              />
-            ))}
-          </div>
-
-          {/* Mobile chips */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:hidden col-span-full">
-            {visibleNodes.map((n) => (
-              <EngineChip
-                key={n.key}
-                node={n}
-                status={rollupStatus(pickLatest(latestByEngine, n.matches))}
-                caseType={caseType}
-                align="left"
-              />
-            ))}
-          </div>
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {visibleNodes.slice(0, 6).map((n) => (
+            <EngineChip
+              key={n.key}
+              node={n}
+              status={rollupStatus(pickLatest(latestByEngine, n.matches))}
+              caseType={caseType}
+              align="left"
+            />
+          ))}
         </div>
 
         {/* Bottom evidence chip + overall progress */}

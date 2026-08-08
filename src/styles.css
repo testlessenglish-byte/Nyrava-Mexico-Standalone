@@ -84,8 +84,13 @@
   --secondary-foreground: #4C1D95;
   --muted: #F3F1FA;
   --muted-foreground: #6F6B85;
-  --accent: #EDE9FE;
-  --accent-foreground: #5B21B6;
+  /* Distinct from --primary on purpose: dozens of call sites across the
+     app use text-accent/border-accent/bg-accent directly as a second
+     saturated brand color (active pills, badges, icons), not just as the
+     shadcn subtle-hover tint — so this has to stay legible on its own,
+     not a pale background wash. */
+  --accent: #BE185D;
+  --accent-foreground: #FFFFFF;
 
   --destructive: #DC2626;
   --destructive-foreground: #FFFFFF;
