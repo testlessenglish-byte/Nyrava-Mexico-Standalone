@@ -146,8 +146,6 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { TransactionCenterPanel } from "@/components/TransactionCenterPanel";
-import { ModuleStatusStrip } from "@/components/modules/ModuleStatus";
-import { computeModuleStates } from "@/lib/modules/applicability";
 import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
 
 export const Route = createFileRoute("/_authenticated/cases/$caseId")({
@@ -720,25 +718,31 @@ function Workspace() {
         </aside>
 
         <section className="min-w-0">
-          <div className="flex flex-wrap gap-1 border-b border-border">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {_filteredTabs.map((t) => {
               const Icon = t.icon;
+              const active = tab === t.k;
               return (
                 <button
                   key={t.k}
                   onClick={() => setTab(t.k)}
-                  className={`relative inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
-                    tab === t.k ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+                    active
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5" />
-                  {t.label}
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{t.label}</span>
                   {t.count != null && t.count > 0 && (
-                    <span className="ml-0.5 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] tabular-nums">
+                    <span
+                      className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                        active ? "bg-primary/20" : "bg-secondary"
+                      }`}
+                    >
                       {t.count}
                     </span>
                   )}
-                  {tab === t.k && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent" />}
                 </button>
               );
             })}
@@ -747,9 +751,6 @@ function Workspace() {
           <div className="mt-6">
             {tab === "dashboard" && (
               <>
-                <div className="mb-6">
-                  <ModuleStatusStrip states={computeModuleStates(data)} />
-                </div>
                 <CommandCenterDashboard
                   caseId={c.id}
                   caseName={c.name}
