@@ -70,6 +70,8 @@ type Props = {
   /** Live row counts from the case page; fall back to canonical report counts. */
   findingsCount?: number;
   witnessesCount?: number;
+  evidenceCount?: number;
+  opportunitiesCount?: number;
   /** Opens a workspace tab when a summary tile is clicked. */
   onOpenTab?: (tab: string) => void;
   onOpenChat: () => void;
@@ -139,6 +141,8 @@ export function CommandCenterDashboard({
   caseRow,
   findingsCount,
   witnessesCount,
+  evidenceCount,
+  opportunitiesCount,
   onOpenTab,
   onOpenChat,
   onOpenVoice,
@@ -160,9 +164,14 @@ export function CommandCenterDashboard({
   // ---------------- derived metrics ----------------
   const counts = useMemo(() => getCanonicalCounts(report ?? null), [report]);
   // Live table rows win over the report snapshot: a case can have witness /
-  // finding rows persisted before (or without) a finished report.
+  // finding / evidence-intel / opportunity rows persisted before (or
+  // without) a finished report — e.g. a case stuck in "needs revision"
+  // never assembled a full report snapshot, but the underlying analysis
+  // tables it read from are already populated and should still count.
   const findingsTotal = Math.max(findingsCount ?? 0, counts.findings);
   const witnessesTotal = Math.max(witnessesCount ?? 0, counts.witnesses);
+  const evidenceTotal = Math.max(evidenceCount ?? 0, counts.evidence);
+  const opportunitiesTotal = Math.max(opportunitiesCount ?? 0, counts.opportunities);
 
   const ess = useMemo(() => getEssState(report ?? null), [report]);
   const scores = useMemo(() => getScores(report ?? null), [report]);
@@ -360,7 +369,7 @@ export function CommandCenterDashboard({
         <SummaryTile
           icon={ShieldAlert}
           label={t("cc.tile.evidence")}
-          value={counts.evidence + counts.findings}
+          value={evidenceTotal + findingsTotal}
           tint="emerald"
           onClick={onOpenTab ? () => onOpenTab("evidence") : undefined}
         />
@@ -389,7 +398,7 @@ export function CommandCenterDashboard({
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MiniBadge icon={Scale} label={t("cc.tile.disputed")} value={counts.disputed_issues} />
-        <MiniBadge icon={Gauge} label={t("cc.tile.opportunities")} value={counts.opportunities} />
+        <MiniBadge icon={Gauge} label={t("cc.tile.opportunities")} value={opportunitiesTotal} />
         <MiniBadge icon={Radar} label={t("cc.tile.timeline")} value={counts.timeline_events} />
         <MiniBadge icon={Activity} label={t("cc.tile.constitutional")} value={counts.constitutional} />
       </div>

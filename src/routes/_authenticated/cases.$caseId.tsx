@@ -761,6 +761,8 @@ function Workspace() {
                   caseRow={c as unknown as Record<string, unknown>}
                   findingsCount={findings.length}
                   witnessesCount={witnesses.length}
+                  evidenceCount={evidenceIntel.length}
+                  opportunitiesCount={opportunities.length}
                   onOpenTab={(k) => setTab(k as Tab)}
                   onOpenChat={() => setTab("chat")}
                   invalidate={invalidate}
