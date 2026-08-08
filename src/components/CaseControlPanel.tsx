@@ -15,7 +15,7 @@ import {
 } from "@/lib/cases.functions";
 import { AGENT_DEFINITIONS } from "@/lib/agents/types";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
-import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
+import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
 import { useI18n } from "@/i18n";
 import { drivePipeline } from "@/lib/pipeline-driver";
 

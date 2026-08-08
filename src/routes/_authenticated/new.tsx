@@ -6,7 +6,7 @@ import { createCaseAndUpload, listGroqKeys } from "@/lib/cases.functions";
 import { toast } from "sonner";
 import { Upload, FileText, X, KeyRound, ShieldCheck, Scale, Sparkles } from "lucide-react";
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
-import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
+import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
 import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/new")({
