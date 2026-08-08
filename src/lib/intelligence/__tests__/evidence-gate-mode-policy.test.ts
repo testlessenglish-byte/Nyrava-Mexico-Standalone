@@ -35,7 +35,12 @@ describe("diagnoseEvidenceGate: procedural-defect-grounding survives mode policy
     });
     expect(accepted).toHaveLength(1);
     expect(accepted[0].gated.finding_type).toBe("AI_THEORY");
-    expect(accepted[0].gated.title).toMatch(/^NO ESTABLECIDO/);
+    // gated.title/description stay byte-identical to the input (they are the
+    // lookup key addGatedFindings uses to reunite this result with its row —
+    // see GatedItem.not_established_rewrite's doc comment); the "NO
+    // ESTABLECIDO" framing rides separately so that lookup can never break.
+    expect(accepted[0].gated.title).toBe("Notificación Defectuosa");
+    expect(accepted[0].gated.not_established_rewrite?.title).toMatch(/^NO ESTABLECIDO/);
     expect(audit.downgraded_bare_legal_rule).toBe(1);
     expect(audit.rejected_unsupported_claim).toBe(0);
   });
@@ -57,7 +62,8 @@ describe("diagnoseEvidenceGate: procedural-defect-grounding survives mode policy
     });
     expect(accepted).toHaveLength(1);
     expect(accepted[0].gated.finding_type).toBe("AI_THEORY");
-    expect(accepted[0].gated.title).toMatch(/^NO ESTABLECIDO/);
+    expect(accepted[0].gated.title).toBe("Defecto de suspensión");
+    expect(accepted[0].gated.not_established_rewrite?.title).toMatch(/^NO ESTABLECIDO/);
   });
 
   it("regression guard: a genuinely unsupported finding (no citation at all) is still dropped in strict mode", () => {
