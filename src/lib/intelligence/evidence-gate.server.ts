@@ -334,6 +334,20 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
     }
 
     let type: FindingType;
+    // True only for the procedural-defect-grounding backstop below — NOT
+    // for a generic AI_THEORY (unsupported speculation with no citation at
+    // all). This category is different in kind: the model found a REAL,
+    // verified quote, it's just the law's own text rather than a
+    // case-specific fact — closer to "we checked and this cannot be
+    // established from the corpus" than to "we made something up". Per the
+    // over-suppression regression this exists to fix (a downgrade to
+    // AI_THEORY was being silently DROPPED by the strict/balanced mode
+    // gate below, not just excluded from the dashboard — turning a useful
+    // "not established" signal into nothing at all), this category is
+    // exempted from the mode-based drop: it always survives, in every
+    // mode, framed explicitly as not-established rather than as a
+    // confirmed defect or a speculative theory.
+    let notEstablishedTopic = false;
     if (verified.length > 0) {
       type = classifyFindingType({ hasVerifiedCitation: true, text });
       if (type === "EVIDENCE_BASED_INFERENCE") audit.downgraded_inference += 1;
@@ -356,6 +370,7 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
         });
         if (assessment.isBareLegalRule) {
           type = "AI_THEORY";
+          notEstablishedTopic = true;
           audit.downgraded_bare_legal_rule += 1;
         }
       }
@@ -400,7 +415,13 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
     //   strict       → only DIRECT_EVIDENCE
     //   balanced     → DIRECT_EVIDENCE + EVIDENCE_BASED_INFERENCE
     //   exploratory  → all, but AI_THEORY explicitly labeled
-    if (opts.mode === "strict" && type !== "DIRECT_EVIDENCE") {
+    // notEstablishedTopic is exempt from both mode drops below — see the
+    // comment where it's set. Deleting the signal entirely (the
+    // pre-existing behavior) is worse than showing it clearly labeled: an
+    // attorney in strict mode benefits from "this topic was raised but
+    // cannot be established from the corpus" exactly as much as one in
+    // exploratory mode does.
+    if (opts.mode === "strict" && type !== "DIRECT_EVIDENCE" && !notEstablishedTopic) {
       if (verified.length > 0)
         reject(
           index,
@@ -413,8 +434,22 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
         );
       continue;
     }
-    if (opts.mode === "balanced" && type === "AI_THEORY") continue;
+    if (opts.mode === "balanced" && type === "AI_THEORY" && !notEstablishedTopic) continue;
     if (type === "AI_THEORY") audit.tagged_ai_theory += 1;
+
+    // Rewrite the title/description so a notEstablishedTopic finding never
+    // reads like a confirmed defect or an unrelated "AI theory" guess —
+    // it reads as exactly what it is: a real legal topic the corpus
+    // raises, without the case-specific fact needed to resolve it. This
+    // survives into every downstream renderer's existing AI_THEORY
+    // handling (already excluded from Risks/Recommendations/dashboard,
+    // already visible in the full findings record) without requiring a
+    // new finding_type or a new schema column.
+    const originalTitle = item.title ?? "Untitled finding";
+    const outputTitle = notEstablishedTopic ? `NO ESTABLECIDO — se requiere evidencia adicional: ${originalTitle}` : item.title;
+    const outputDescription = notEstablishedTopic
+      ? `${item.description ?? ""}\n\nEl corpus disponible plantea este tema, pero la única cita verificada que lo respalda es el texto de la norma/doctrina aplicable, no un hecho específico de este expediente. No puede determinarse con la evidencia disponible si este punto constituye una irregularidad en este caso — no se afirma que exista un defecto ni que no exista. Se requiere evidencia documental adicional (constancias, actas, resoluciones) que describa lo ocurrido en este expediente.`.trim()
+      : item.description;
 
     const primary = verified[0] ?? candidates[0] ?? null;
     audit.accepted += 1;
@@ -423,6 +458,8 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
       item,
       gated: {
         ...item,
+        title: outputTitle,
+        description: outputDescription,
         finding_type: type,
         source_document_id: primary?.document_id ?? null,
         source_page: primary?.page ?? null,
