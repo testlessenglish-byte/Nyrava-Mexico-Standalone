@@ -872,10 +872,13 @@ async function _runPipelineForCase(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: mxCaseRow } = await (supabase as any)
       .from("cases")
-      .select("case_type,report_language")
+      .select("case_type,report_language,name")
       .eq("id", caseId)
       .maybeSingle();
     const mxCaseType = (mxCaseRow as { case_type?: string | null } | null)?.case_type ?? null;
+    // Case name is the only signal used to detect a segunda instancia
+    // (apelación) proceeding — see effectiveMxProfile in mx-pipeline.ts.
+    const mxCaseName = (mxCaseRow as { name?: string | null } | null)?.name ?? null;
 
     const mxLocale =
       (mxCaseRow as { report_language?: string | null } | null)?.report_language === "en"
@@ -886,9 +889,9 @@ async function _runPipelineForCase(
         ? (enLocale as Record<string, string>)
         : (esLocale as Record<string, string>);
 
-    const excluded = stages.filter((s) => !isStageRelevantForCaseType(mxCaseType, s.key));
+    const excluded = stages.filter((s) => !isStageRelevantForCaseType(mxCaseType, s.key, mxCaseName));
     for (const stage of excluded) {
-      const reasonKey = stageSkipReasonKey(stage.key, mxCaseType);
+      const reasonKey = stageSkipReasonKey(stage.key, mxCaseType, mxCaseName);
       const reason = dict[reasonKey] ?? reasonKey;
       // Best-effort — a failure here must never block the pipeline itself,
       // it only means the OMITIDO badge falls back to no explanation.
@@ -900,7 +903,7 @@ async function _runPipelineForCase(
       }).catch((e) => console.warn("[mx-pipeline] recordSkipped failed", stage.key, e));
     }
 
-    stages = stages.filter((s) => isStageRelevantForCaseType(mxCaseType, s.key));
+    stages = stages.filter((s) => isStageRelevantForCaseType(mxCaseType, s.key, mxCaseName));
   }
   // Terminal ledger state for every engine, read once. Used to (a) clamp the
   // resume point, (b) seed cross-tick dependency state, and (c) skip
@@ -1593,15 +1596,16 @@ async function _runPipelineForCase(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: postRun } = await (supabase as any)
     .from("cases")
-    .select("status,status_message,case_type")
+    .select("status,status_message,case_type,name")
     .eq("id", caseId)
     .maybeSingle();
 
   try {
     const { isStageRelevantForCaseType } = await import("./execution/mx-pipeline");
     const finalCaseType = (postRun as { case_type?: string | null } | null)?.case_type ?? null;
+    const finalCaseName = (postRun as { name?: string | null } | null)?.name ?? null;
     for (const [key, table] of Object.entries(OPTIONAL_OUTPUT_TABLES) as [PipelineStageKey, string][]) {
-      if (!isStageRelevantForCaseType(finalCaseType, key)) continue; // excluded for this materia — not a gap
+      if (!isStageRelevantForCaseType(finalCaseType, key, finalCaseName)) continue; // excluded for this materia — not a gap
       if (optionalFailureKeys.has(key)) continue; // already flagged this tick
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count } = await (supabase as any)

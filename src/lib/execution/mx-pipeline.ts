@@ -118,6 +118,63 @@ export function resolveMxProfile(caseType: string | null | undefined): MxPipelin
   return requireMxProfile(caseType);
 }
 
+/**
+ * Materias where an apelación before a tribunal de alzada is a real,
+ * distinct SEGUNDA INSTANCIA proceeding — not just one of many possible
+ * interim motions a first-instance case might file (see
+ * MX_MOTION_TYPES.recurso_de_apelacion_* in mexico-policy.ts, which lists
+ * apelación as an available motion for these same materias without
+ * implying the case itself is on appeal). amparo/laboral/fiscal/
+ * administrativo/electoral/agrario/ambiental/constitucional each resolve
+ * their own segunda instancia through a different vehicle (amparo directo,
+ * recurso de reconsideración, revisión fiscal, etc.) already modeled by
+ * their own profile — "apelacion" doesn't apply to them.
+ */
+const APELACION_ELIGIBLE_MATERIAS = new Set<MexicanCaseType>(["civil", "mercantil", "familiar", "penal"]);
+
+/**
+ * Case-NAME signal (deliberately not the full description) that this
+ * proceeding IS the appeal, not a first-instance case that might later have
+ * one filed in it. This app's naming convention stamps the proceeding type
+ * in the case name itself (e.g. "Amparo Directo 233/2026", "Concurso
+ * Mercantil 24/2026-IV"), so a real appeal is expected to be named "Toca de
+ * Apelación ...", "Recurso de Apelación ...", etc. Scanning the full
+ * description instead would catch incidental, boilerplate mentions of
+ * "apelación" that don't mean the case IS one — e.g. standard
+ * notice-of-appeal-rights language quoted from a first-instance judgment.
+ */
+const APELACION_NAME_SIGNAL = /\b(toca de apelacion|recurso de apelacion|segunda instancia|tribunal de alzada)\b/;
+
+function foldApelacionSignal(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+/**
+ * The pipeline profile actually in effect for this case: its materia's base
+ * profile, unless the case name signals this specific proceeding is an
+ * appeal, in which case it resolves to "apelacion" instead. Same
+ * text-narrows-never-widens pattern as detectMatterSubtype() in
+ * matter-subtype.ts (familiar → sucesorio) — not a second case-type
+ * taxonomy, just a materia-scoped override for a proceeding shape the base
+ * materia's profile doesn't fit.
+ */
+export function effectiveMxProfile(caseType: unknown, caseName?: string | null): MxPipelineProfile {
+  const profile = requireMxProfile(caseType);
+  const materia = normalizeMexicanCaseType(caseType);
+  if (
+    materia &&
+    APELACION_ELIGIBLE_MATERIAS.has(materia) &&
+    caseName &&
+    APELACION_NAME_SIGNAL.test(foldApelacionSignal(caseName))
+  ) {
+    return "apelacion";
+  }
+  return profile;
+}
+
 
 /**
  * Stages that are NOT legally relevant per profile. Everything else in
@@ -257,14 +314,23 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
 export const SKIP_REASON_NOT_RELEVANT_MX = "not_relevant_to_mx_case_type";
 
 /** Exclusions for a case whose materia is not resolved yet: only the
- *  quota-heavy optional stages are off, nothing materia-specific is assumed. */
-function exclusionsFor(caseType: unknown): readonly string[] {
-  const profile = mxProfileOrNull(caseType);
-  return profile ? EXCLUDED_STAGES[profile] : [];
+ *  quota-heavy optional stages are off, nothing materia-specific is assumed.
+ *  `caseName` is optional so every existing caller keeps working unchanged;
+ *  passing it lets a detected apelación (see effectiveMxProfile) apply its
+ *  own exclusions instead of the base materia's. */
+function exclusionsFor(caseType: unknown, caseName?: string | null): readonly string[] {
+  const materia = normalizeMexicanCaseType(caseType);
+  if (!materia) return [];
+  const profile = effectiveMxProfile(caseType, caseName);
+  return EXCLUDED_STAGES[profile];
 }
 
-export function isStageRelevantForCaseType(caseType: string | null | undefined, stageKey: string): boolean {
-  return !exclusionsFor(caseType).includes(stageKey);
+export function isStageRelevantForCaseType(
+  caseType: string | null | undefined,
+  stageKey: string,
+  caseName?: string | null,
+): boolean {
+  return !exclusionsFor(caseType, caseName).includes(stageKey);
 }
 
 /**
@@ -363,21 +429,26 @@ const SKIP_REASON_KEYS: Record<string, Partial<Record<MxPipelineProfile, string>
 
 /** i18n key for why a stage was skipped for this case type, or a generic
  *  fallback if this exact (stage, profile) pair isn't specifically documented. */
-export function stageSkipReasonKey(stageKey: string, caseType: string | null | undefined): string {
-  const profile = mxProfileOrNull(caseType);
-  if (!profile) return "pipeline.skip.generic";
+export function stageSkipReasonKey(
+  stageKey: string,
+  caseType: string | null | undefined,
+  caseName?: string | null,
+): string {
+  const materia = normalizeMexicanCaseType(caseType);
+  if (!materia) return "pipeline.skip.generic";
+  const profile = effectiveMxProfile(caseType, caseName);
   return SKIP_REASON_KEYS[stageKey]?.[profile] ?? "pipeline.skip.generic";
 }
 
 /** Ordered, profile-filtered stage list for a case type. */
-export function mxPipelineStages(caseType: string | null | undefined): StageDef[] {
-  const excluded = exclusionsFor(caseType);
+export function mxPipelineStages(caseType: string | null | undefined, caseName?: string | null): StageDef[] {
+  const excluded = exclusionsFor(caseType, caseName);
   return CANONICAL_STAGES.filter((s) => !excluded.includes(s.key));
 }
 
 /** Stage keys only — convenient for server-side filtering. */
-export function mxPipelineStageKeys(caseType: string | null | undefined): string[] {
-  return mxPipelineStages(caseType).map((s) => s.key);
+export function mxPipelineStageKeys(caseType: string | null | undefined, caseName?: string | null): string[] {
+  return mxPipelineStages(caseType, caseName).map((s) => s.key);
 }
 
 // -----------------------------------------------------------------------------

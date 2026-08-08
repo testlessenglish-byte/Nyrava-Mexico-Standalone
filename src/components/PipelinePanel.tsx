@@ -96,7 +96,8 @@ export function PipelinePanel({
   // Jurisdiction-aware pipeline: the case's materia decides which engines are
   // legally relevant, and how each one is named for a Mexican attorney.
   const caseType = (caseRow?.case_type as string | undefined) ?? null;
-  const stageDefs = useMemo(() => mxPipelineStages(caseType), [caseType]);
+  const caseName = (caseRow?.name as string | undefined) ?? null;
+  const stageDefs = useMemo(() => mxPipelineStages(caseType, caseName), [caseType, caseName]);
   const materiaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(caseType)];
   const rows = runs;
 
