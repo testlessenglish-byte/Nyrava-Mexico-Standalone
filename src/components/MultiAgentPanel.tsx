@@ -173,7 +173,7 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
                     <span className="font-mono text-[10px] text-muted-foreground/70">#{def.index}</span>
                     <span className="truncate text-sm font-medium text-foreground">{t(`agent.${def.key}.name`)}</span>
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{t(`agent.${def.key}.desc`)}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{t(`agent.${def.key}.desc`)}</p>
                   {row && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
                       <span className="rounded bg-background/60 px-1.5 py-0.5">
@@ -190,10 +190,26 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
                     </div>
                   )}
                   {row?.no_output_reason && (
-                    <p className="mt-1 truncate text-[11px] text-warning">{t("agents.noOutput", { reason: row.no_output_reason })}</p>
+                    <p className="mt-1 text-[11px] text-warning">{t("agents.noOutput", { reason: row.no_output_reason })}</p>
                   )}
                   {errs.length > 0 && (
-                    <p className="mt-1 truncate text-[11px] text-destructive">{errs[0]}</p>
+                    <p className="mt-1 text-[11px] text-destructive">{errs[0]}</p>
+                  )}
+                  {isAdmin && (row?.no_output_reason || errs.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => mut.mutate()}
+                      disabled={running || mut.isPending}
+                      className="mt-1.5 inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+                      title={t("agents.rerunAll.hint")}
+                    >
+                      {running || mut.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Play className="h-3 w-3" />
+                      )}
+                      {t("agents.rerunAll")}
+                    </button>
                   )}
                 </div>
               </div>
