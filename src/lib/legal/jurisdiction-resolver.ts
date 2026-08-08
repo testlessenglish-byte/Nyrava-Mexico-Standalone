@@ -177,11 +177,16 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
     const federalSignal = FEDERAL_COURT_RE.test(hay);
     const stateSignal = STATE_COURT_RE.test(hay);
     const municipalSignal = MUNICIPAL_RE.test(hay) || Boolean(String(sig.municipality ?? "").trim());
+    const declared = declaredLevelOf(sig.jurisdictionValue);
 
     let level: JurisdictionLevel;
     let confidence: number;
 
-    if (federalOnly) {
+    if (declared) {
+      // Attorney-declared jurisdiction is authoritative.
+      level = declared;
+      confidence = 1;
+    } else if (federalOnly) {
       level = "federal";
       confidence = federalSignal ? 0.95 : 0.8;
     } else if (municipalSignal && !federalSignal) {
@@ -201,6 +206,14 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
 
     const ids = new Set<string>(UNIVERSAL_AUTHORITY_IDS);
     for (const id of MATERIA_AUTHORITY_IDS[materia] ?? []) ids.add(id);
+    if (level === "federal") {
+      // Federal channel always carries the constitutional + amparo/federal
+      // review instruments, whatever the materia.
+      ids.add("cpeum");
+      ids.add("ley_amparo");
+      ids.add("criterio_tcc");
+    }
+
 
     const ctx: LegalContext = {
       materia,
