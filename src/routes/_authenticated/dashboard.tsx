@@ -13,13 +13,12 @@ import {
 } from "@/lib/casework.functions";
 import { ReminderControl, type ReminderValue } from "@/components/casework/ReminderControl";
 
-import { PipelineStatusGrid } from "@/components/PipelineStatusGrid";
 import { PipelineTracePanel } from "@/components/PipelineTracePanel";
+import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { useRoles } from "@/hooks/use-roles";
 import { useI18n } from "@/i18n";
 import {
   FileText,
-  FileSearch,
   Users,
   AlertTriangle,
   HelpCircle,
@@ -125,7 +124,7 @@ function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 md:px-8 md:py-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KpiChip
           icon={<FileText className="h-4 w-4" />}
           value={cases.length}
@@ -143,6 +142,24 @@ function DashboardPage() {
           value={highPriorityCount}
           label={t("dashboard.kpi.highPriorityFindings")}
           tone="danger"
+        />
+        <KpiChip
+          icon={<Users className="h-4 w-4" />}
+          value={witnessTotal}
+          label={t("dashboard.stat.witnesses")}
+          tone="primary"
+        />
+        <KpiChip
+          icon={<AlertTriangle className="h-4 w-4" />}
+          value={contradictionTotal}
+          label={t("dashboard.stat.contradictions")}
+          tone="danger"
+        />
+        <KpiChip
+          icon={<HelpCircle className="h-4 w-4" />}
+          value={discoveryGapTotal}
+          label={t("dashboard.stat.discoveryGaps")}
+          tone="warning"
         />
       </div>
 
@@ -168,39 +185,6 @@ function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <StatTile
-          icon={<FileText className="h-5 w-5" />}
-          value={cases.length}
-          label={t("dashboard.stat.cases")}
-          tone="primary"
-        />
-        <StatTile
-          icon={<FileSearch className="h-5 w-5" />}
-          value={completeCount}
-          label={t("dashboard.stat.analyzed")}
-          tone="success"
-        />
-        <StatTile
-          icon={<Users className="h-5 w-5" />}
-          value={witnessTotal}
-          label={t("dashboard.stat.witnesses")}
-          tone="accent"
-        />
-        <StatTile
-          icon={<AlertTriangle className="h-5 w-5" />}
-          value={contradictionTotal}
-          label={t("dashboard.stat.contradictions")}
-          tone="warning"
-        />
-        <StatTile
-          icon={<HelpCircle className="h-5 w-5" />}
-          value={discoveryGapTotal}
-          label={t("dashboard.stat.discoveryGaps")}
-          tone="accent"
-        />
-      </div>
-
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-5">
           {featured ? (
@@ -218,8 +202,7 @@ function DashboardPage() {
                   {t("dashboard.commandCenter.openCase")} <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              <PipelineStatusGrid caseRow={featured as any} />
+              <PipelineProgressSummary caseId={featured.id} />
             </div>
           ) : null}
 
@@ -747,6 +730,38 @@ function QuickAddForm({
   );
 }
 
+/**
+ * Compact pipeline status for the Mission Control summary — a progress bar
+ * and stage count, not a full stage-by-stage breakdown. The full 20+ stage
+ * grid already lives on the case detail page (behind its own collapsed
+ * toggle); repeating it here just duplicated that page's job.
+ */
+function PipelineProgressSummary({ caseId }: { caseId: string }) {
+  const { t } = useI18n();
+  const { progress } = useCaseExecution(caseId);
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{t("pipeline.overallProgress")}</span>
+        <span className="font-medium tabular-nums text-foreground">
+          {progress.completedStages}/{progress.totalStages}
+        </span>
+      </div>
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary">
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${progress.percent}%`, background: "var(--gradient-primary)" }}
+        />
+      </div>
+      {progress.hasFailures && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="h-3.5 w-3.5" /> {t("dashboard.commandCenter.hasIssues")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function KpiChip({
   icon,
   value,
@@ -756,14 +771,16 @@ function KpiChip({
   icon: React.ReactNode;
   value: number | string;
   label: string;
-  tone: "primary" | "success" | "danger";
+  tone: "primary" | "success" | "danger" | "warning";
 }) {
   const toneCls =
     tone === "success"
       ? "text-success bg-success/10 ring-success/30"
       : tone === "danger"
         ? "text-destructive bg-destructive/10 ring-destructive/30"
-        : "text-primary bg-primary/10 ring-primary/30";
+        : tone === "warning"
+          ? "text-warning bg-warning/10 ring-warning/30"
+          : "text-primary bg-primary/10 ring-primary/30";
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card/60 px-4 py-3">
       <span className={`grid h-10 w-10 place-items-center rounded-lg ring-1 ${toneCls}`}>
@@ -775,34 +792,6 @@ function KpiChip({
           {label}
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatTile({
-  icon,
-  value,
-  label,
-  tone,
-}: {
-  icon: React.ReactNode;
-  value: number | string;
-  label: string;
-  tone: "primary" | "success" | "accent" | "warning";
-}) {
-  const toneCls =
-    tone === "success"
-      ? "text-success border-success/30"
-      : tone === "warning"
-        ? "text-warning border-warning/30"
-        : tone === "accent"
-          ? "text-accent border-accent/30"
-          : "text-primary border-primary/30";
-  return (
-    <div className={`flex flex-col items-start gap-1 rounded-xl border bg-card/60 p-4 ${toneCls}`}>
-      <span className="opacity-80">{icon}</span>
-      <div className="text-xl font-bold text-foreground">{value}</div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
   );
 }

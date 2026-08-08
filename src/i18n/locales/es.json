@@ -638,6 +638,7 @@
   "dash.tile.defenseOpportunities": "Oportunidades de defensa",
   "dash.tile.totalFindings": "Hallazgos totales",
   "dash.tile.witnesses": "Testigos perfilados",
+  "dashboard.commandCenter.hasIssues": "Este caso tiene etapas con error o bloqueadas",
   "dashboard.commandCenter.openCase": "Abrir caso",
   "dashboard.commandCenter.subtitle": "Construcción de inteligencia en tiempo real",
   "dashboard.commandCenter.title": "Centro de Comando de Análisis",
