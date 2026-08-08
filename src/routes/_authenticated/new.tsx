@@ -173,13 +173,18 @@ function NewCasePage() {
               onChange={(e) => setJurisdiction(e.target.value)}
               className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">{t("new.field.jurisdiction.nationwide")}</option>
-              {JURISDICTION_OPTIONS.filter((o) => o.value !== "federal").map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
+              <option value="">{t("new.field.jurisdiction.auto")}</option>
+              {JURISDICTION_GROUPS.map((g) => (
+                <optgroup key={g.level} label={g.label}>
+                  {g.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
+
           </div>
         </div>
 
