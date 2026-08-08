@@ -20,6 +20,8 @@ import {
   UNIVERSAL_AUTHORITY_IDS,
   type JurisdictionLevel,
 } from "./authority-registry";
+import { jurisdictionLevelOf as declaredLevelOf } from "@/lib/intelligence/jurisdictions";
+
 
 export type LegalContext = {
   materia: string;
@@ -31,6 +33,12 @@ export type LegalContext = {
 
 export type JurisdictionSignals = {
   materia?: string | null;
+  /**
+   * Declared cases.jurisdiction value ("federal", a state code, "municipal").
+   * When it resolves to a level, it OVERRIDES every textual heuristic below —
+   * an attorney who selected Federal (México) is routed federally, period.
+   */
+  jurisdictionValue?: string | null;
   /** Court, tribunal or authority that issued/received the documents. */
   court?: string | null;
   entity?: string | null;
@@ -41,6 +49,7 @@ export type JurisdictionSignals = {
   /** Free-text case location / jurisdiction field. */
   caseLocation?: string | null;
 };
+
 
 // ---------------------------------------------------------------------------
 
@@ -170,11 +179,16 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
     const federalSignal = FEDERAL_COURT_RE.test(hay);
     const stateSignal = STATE_COURT_RE.test(hay);
     const municipalSignal = MUNICIPAL_RE.test(hay) || Boolean(String(sig.municipality ?? "").trim());
+    const declared = declaredLevelOf(sig.jurisdictionValue);
 
     let level: JurisdictionLevel;
     let confidence: number;
 
-    if (federalOnly) {
+    if (declared) {
+      // Attorney-declared jurisdiction is authoritative.
+      level = declared;
+      confidence = 1;
+    } else if (federalOnly) {
       level = "federal";
       confidence = federalSignal ? 0.95 : 0.8;
     } else if (municipalSignal && !federalSignal) {
@@ -194,6 +208,16 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
 
     const ids = new Set<string>(UNIVERSAL_AUTHORITY_IDS);
     for (const id of MATERIA_AUTHORITY_IDS[materia] ?? []) ids.add(id);
+    // Only a *positively determined* federal routing carries the federal
+    // overlay; the low-confidence fallback frame stays universal.
+    if (level === "federal" && confidence >= 0.8) {
+      // Federal channel always carries the constitutional + amparo/federal
+      // review instruments, whatever the materia.
+      ids.add("cpeum");
+      ids.add("ley_amparo");
+      ids.add("criterio_tcc");
+    }
+
 
     const ctx: LegalContext = {
       materia,
@@ -202,7 +226,8 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
       confidence: Math.round(confidence * 100) / 100,
     };
     if (state && level !== "federal") ctx.state = state;
-    else if (state && !federalOnly) ctx.state = state;
+    else if (state && !federalOnly && declared !== "federal") ctx.state = state;
+
     return ctx;
   } catch {
     return {

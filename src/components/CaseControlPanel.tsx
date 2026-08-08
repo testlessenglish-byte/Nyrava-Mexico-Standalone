@@ -15,7 +15,7 @@ import {
 } from "@/lib/cases.functions";
 import { AGENT_DEFINITIONS } from "@/lib/agents/types";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
-import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
+import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
 import { useI18n } from "@/i18n";
 import { drivePipeline } from "@/lib/pipeline-driver";
 
@@ -390,12 +390,17 @@ function CollapsedCaseSettings({
               disabled={disabled}
               className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm disabled:opacity-50"
             >
-              <option value="">{t("caseSettings.jurisdiction.national")}</option>
-              {JURISDICTION_OPTIONS.filter((o) => o.value !== "federal").map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
+              <option value="">{t("caseSettings.jurisdiction.auto")}</option>
+              {JURISDICTION_GROUPS.map((g) => (
+                <optgroup key={g.level} label={g.label}>
+                  {g.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
+
             </select>
           </div>
 

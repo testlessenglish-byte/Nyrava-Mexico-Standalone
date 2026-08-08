@@ -390,10 +390,19 @@ export async function buildLegalIssuesWithCaseLaw(db: Db, caseId: string): Promi
   if (!issues.length) return issues;
   try {
     const { attachCaseLaw } = await import("./case-law.server");
+    const { isFederalJurisdiction } = await import("./jurisdictions");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: caseRow } = await (db as any).from("cases").select("case_type").eq("id", caseId).maybeSingle();
-    const materia = (caseRow as { case_type?: string } | null)?.case_type ?? undefined;
-    return await attachCaseLaw(db, issues, materia);
+    const { data: caseRow } = await (db as any)
+      .from("cases")
+      .select("case_type, jurisdiction")
+      .eq("id", caseId)
+      .maybeSingle();
+    const row = (caseRow ?? {}) as { case_type?: string | null; jurisdiction?: string | null };
+    const materia = row.case_type ?? undefined;
+    return await attachCaseLaw(db, issues, materia, {
+      federalOnly: isFederalJurisdiction(row.jurisdiction ?? null),
+    });
+
   } catch (err) {
     console.warn("[legal-issues] case law attachment failed, returning issues without it:", err);
     return issues;
