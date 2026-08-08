@@ -87,6 +87,7 @@ import {
   type ImpactCard,
 } from "@/lib/intelligence/litigation-impact";
 import { MX_PARTY_ROLES, mxProfileOrNull, mxRoleLabel } from "@/lib/execution/mx-pipeline";
+import { filterExecutiveDashboardEligible } from "@/lib/intelligence/judicial-hierarchy";
 
 // Report Engine v1.0 — frozen release identifier surfaced on every PDF footer.
 // The structure, section order, and scoring formulas are locked; only bug
@@ -2175,7 +2176,12 @@ function renderCover(
     ]);
   }
 
-  const findings = data.findings ?? [];
+  // filterExecutiveDashboardEligible keeps a rejected/superseded lower-
+  // instance holding (e.g. a Tribunal Colegiado position the SCJN's
+  // ejecutoria revoked) out of the Executive Dashboard's Top Findings — a
+  // no-op unless the extraction pass ran judicial-hierarchy attribution on
+  // this case. See judicial-hierarchy.ts and ADR 5829/2025 for the bug.
+  const findings = filterExecutiveDashboardEligible(data.findings ?? []);
   if (findings.length) {
     const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 } as Record<string, number>;
     const top = [...findings]

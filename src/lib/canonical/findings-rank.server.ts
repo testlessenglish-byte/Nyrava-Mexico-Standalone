@@ -4,6 +4,7 @@
 // Freeze-compliant: array is reordered/pruned in place; section stays.
 
 import type { CaseAnalysis, Finding } from "./case-analysis";
+import { filterExecutiveDashboardEligible } from "@/lib/intelligence/judicial-hierarchy";
 
 const IMPORTANCE: Record<string, number> = {
   contradiction: 1.0,
@@ -69,10 +70,13 @@ export function rankFindings(analysis: CaseAnalysis): CaseAnalysis {
   analysis.Findings = analysis.Findings.filter((f) => !isWitnessProfile(f));
   analysis.Findings.sort((a, b) => weightOf(b) - weightOf(a));
   // Refresh Executive Summary top_findings to reflect the new order (first 5
-  // non-suppressed).
+  // non-suppressed, and — once this case's findings carry judicial-hierarchy
+  // attribution — never a rejected/superseded lower-instance holding or an
+  // unresolved party argument; see judicial-hierarchy.ts).
   if (analysis.ExecutiveSummary) {
+    const dashboardEligibleIds = new Set(filterExecutiveDashboardEligible(analysis.Findings).map((f) => f.id));
     analysis.ExecutiveSummary.top_findings = analysis.Findings
-      .filter((f) => !f.suppressed && !f.quarantined)
+      .filter((f) => !f.suppressed && !f.quarantined && dashboardEligibleIds.has(f.id))
       .slice(0, 5)
       .map((f) => f.id);
   }
