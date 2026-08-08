@@ -102,6 +102,35 @@ function normParty(s: unknown): AffectedParty | null {
   if (v === "defense" || v === "prosecution" || v === "both" || v === "neutral") return v;
   return null;
 }
+// Judicial-hierarchy attribution (see judicial-hierarchy.ts). Unlike
+// normSeverity/normParty, an unrecognized or absent value normalizes to
+// `null`, not a guessed default — a finding the extraction pass never
+// attributed must read as "not attributed", never as a fabricated
+// speaker/adoption tag that would then feed the dashboard/scoring gates.
+function normSpeakerRole(s: unknown): Finding["speaker_role"] {
+  const v = String(s ?? "").toLowerCase();
+  if (v === "quejoso" || v === "autoridad" || v === "tribunal_colegiado" || v === "tribunal_local" || v === "scjn")
+    return v;
+  return null;
+}
+function normPropositionType(s: unknown): Finding["proposition_type"] {
+  const v = String(s ?? "").toLowerCase();
+  if (
+    v === "argument" ||
+    v === "holding" ||
+    v === "rejected_holding" ||
+    v === "procedural_fact" ||
+    v === "evidence" ||
+    v === "issue"
+  )
+    return v;
+  return null;
+}
+function normAdoptionStatus(s: unknown): Finding["adoption_status"] {
+  const v = String(s ?? "").toLowerCase();
+  if (v === "adopted" || v === "rejected" || v === "unresolved" || v === "historical") return v;
+  return null;
+}
 function clamp01(n: unknown): number {
   const v = typeof n === "number" ? n : Number(n);
   if (!Number.isFinite(v)) return 0.5;
@@ -782,6 +811,9 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       legal_significance: r.legal_significance,
       potential_impact: r.potential_impact,
       affected_party: normParty(r.affected_party),
+      speaker_role: normSpeakerRole(r.speaker_role),
+      proposition_type: normPropositionType(r.proposition_type),
+      adoption_status: normAdoptionStatus(r.adoption_status),
       source_doc_ids: r.source_doc_ids ?? [],
       evidence_refs: (r.evidence_refs ?? []) as J,
       related_finding_ids: r.related_finding_ids ?? [],
@@ -985,6 +1017,9 @@ export function normalizeLlmFindings(args: {
       legal_significance: i.legal_significance ?? null,
       potential_impact: i.potential_impact ?? i.impact ?? null,
       affected_party: normParty(i.affected_party ?? i.benefits),
+      speaker_role: normSpeakerRole(i.speaker_role),
+      proposition_type: normPropositionType(i.proposition_type),
+      adoption_status: normAdoptionStatus(i.adoption_status),
       evidence_refs,
       source_doc_ids,
       tags: Array.isArray(i.tags) ? i.tags : [],

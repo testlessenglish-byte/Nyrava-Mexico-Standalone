@@ -15,6 +15,7 @@ import {
   type TimelineEvent,
   type Witness,
 } from "./case-analysis";
+import { filterExecutiveDashboardEligible } from "@/lib/intelligence/judicial-hierarchy";
 
 type Db = SupabaseClient<Database>;
 
@@ -166,6 +167,9 @@ export async function projectCanonical(
       quarantined: /reject|quarantin/i.test(String(f.verification_status ?? "")),
       finding_status: findingStatus,
       finding_type: findingType ?? undefined,
+      speaker_role: (f.speaker_role as Finding["speaker_role"]) ?? null,
+      proposition_type: (f.proposition_type as Finding["proposition_type"]) ?? null,
+      adoption_status: (f.adoption_status as Finding["adoption_status"]) ?? null,
     };
     analysis.Findings.push(finding);
     const src = String(f.source_module ?? "");
@@ -315,8 +319,20 @@ export async function projectCanonical(
 
   // AI_THEORY is excluded here too — Risks/Recommendations/top_findings must
   // only ever be built from grounded findings, never an unverified theory.
+  // Eligibility is computed over the FULL findings set (not the severity-
+  // filtered slice below) so the "highest instance present" determination
+  // isn't skewed by a lower-severity adopted holding sitting outside the
+  // critical/high cut. filterExecutiveDashboardEligible additionally keeps
+  // out any rejected/superseded lower-instance holding or unresolved party
+  // argument once the extraction pass has attributed judicial-hierarchy
+  // roles on this case (a no-op for findings that were never attributed) —
+  // see judicial-hierarchy.ts and ADR 5829/2025 for the bug this closes.
+  const dashboardEligibleIds = new Set(filterExecutiveDashboardEligible(analysis.Findings).map((f) => f.id));
   const critical = analysis.Findings.filter(
-    (f) => (f.severity === "critical" || f.severity === "high") && f.finding_type !== "AI_THEORY",
+    (f) =>
+      (f.severity === "critical" || f.severity === "high") &&
+      f.finding_type !== "AI_THEORY" &&
+      dashboardEligibleIds.has(f.id),
   );
   analysis.Risks = critical.slice(0, 20).map((f) => ({
     id: f.id,

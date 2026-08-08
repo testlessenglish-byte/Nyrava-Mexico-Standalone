@@ -29,6 +29,7 @@
 
 import type { Finding } from "./types";
 import { dimensionTag, type DimensionKey } from "./dimension-map.server";
+import { excludeRejectedFromScoring } from "./judicial-hierarchy";
 
 export type ScoreContributor = {
   finding_id: string;
@@ -441,7 +442,15 @@ export function applicableDimensionsFor(caseType: string | undefined): string[] 
   return CASE_TYPE_DIMENSIONS[caseType ?? "general_civil"] ?? DEFAULT_DIMENSIONS;
 }
 
-export function computeDeterministicScorecard(findings: Finding[], caseType?: string): DeterministicScorecard {
+export function computeDeterministicScorecard(rawFindings: Finding[], caseType?: string): DeterministicScorecard {
+  // A lower instance's holding a higher instance rejected or superseded
+  // (see judicial-hierarchy.ts — e.g. a Tribunal Colegiado position the
+  // SCJN's ejecutoria revoked) must never contribute to a dimension score:
+  // scoring runs strictly after every analyzer/agent stage has persisted
+  // its findings (assertPipelineOrder), so this is the attribution-aware
+  // recompute point. A no-op for findings the extraction pass never
+  // attributed — i.e. every non-precedent-review materia is unaffected.
+  const findings = excludeRejectedFromScoring(rawFindings);
   const applicable = new Set(applicableDimensionsFor(caseType));
   const dims: Record<string, DimensionScore> = {};
   for (const [key, def] of Object.entries(DIMENSIONS)) {

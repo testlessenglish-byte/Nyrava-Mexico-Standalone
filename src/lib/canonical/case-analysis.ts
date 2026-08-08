@@ -30,6 +30,13 @@ export type Finding = {
   agreement_weight?: number;
   finding_status?: "promoted" | "verified" | "disputed" | "candidate";
   finding_type?: "DIRECT_EVIDENCE" | "EVIDENCE_BASED_INFERENCE" | "AI_THEORY" | string;
+  /** Judicial-hierarchy attribution — see src/lib/intelligence/judicial-hierarchy.ts.
+   * Null for the vast majority of findings (non-precedent-review materias);
+   * populated only when extraction ran the multi-instance attribution pass
+   * on an amparo directo en revisión / recurso de revisión / apelación. */
+  speaker_role?: "quejoso" | "autoridad" | "tribunal_colegiado" | "tribunal_local" | "scjn" | null;
+  proposition_type?: "argument" | "holding" | "rejected_holding" | "procedural_fact" | "evidence" | "issue" | null;
+  adoption_status?: "adopted" | "rejected" | "unresolved" | "historical" | null;
 };
 
 export type Witness = {

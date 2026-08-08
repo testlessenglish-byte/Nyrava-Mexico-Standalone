@@ -3,6 +3,26 @@
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type AffectedParty = "defense" | "prosecution" | "both" | "neutral";
 
+/** Judicial-hierarchy attribution — see judicial-hierarchy.ts.
+ *
+ * Who ASSERTED a proposition in a multi-instance judicial resolution
+ * (amparo directo en revisión, recurso de revisión, apelación, ...), as
+ * distinct from `affected_party` which says who a finding BENEFITS. Null
+ * for findings the extraction pass never attributed (the overwhelming
+ * majority of non-precedent-review findings) — this is additive metadata,
+ * never a narrowing of the existing Finding contract. */
+export type JudicialSpeakerRole = "quejoso" | "autoridad" | "tribunal_colegiado" | "tribunal_local" | "scjn";
+/** argument = a party's position; holding = the speaker's own ruling on the
+ * point; rejected_holding = a lower instance's ruling a higher instance
+ * expressly overturned/superseded; procedural_fact = an undisputed
+ * procedural event; evidence = an evidentiary point; issue = a question the
+ * resolution frames but does not itself resolve. */
+export type PropositionType = "argument" | "holding" | "rejected_holding" | "procedural_fact" | "evidence" | "issue";
+/** Whether the highest instance present in the case adopted this
+ * proposition as part of its holding. "unresolved" = raised but not ruled
+ * on; "historical" = a superseded position kept only for narrative context. */
+export type AdoptionStatus = "adopted" | "rejected" | "unresolved" | "historical";
+
 export type EvidenceType = "inculpatory" | "exculpatory" | "impeachment" | "neutral";
 export type ImpactDirection = "strengthens" | "weakens" | "neutral";
 
@@ -59,6 +79,9 @@ export type Finding = {
   impact_direction?: ImpactDirection | null;
   strategic_significance?: string | null;
   priority?: number | null;
+  speaker_role?: JudicialSpeakerRole | null;
+  proposition_type?: PropositionType | null;
+  adoption_status?: AdoptionStatus | null;
   source_doc_ids: string[];
   evidence_refs: Array<{ label?: string; quote?: string; doc_id?: string }>;
   related_finding_ids: string[];
