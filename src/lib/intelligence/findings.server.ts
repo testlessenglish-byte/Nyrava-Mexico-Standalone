@@ -838,6 +838,31 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     .select("id");
   if (error) {
     console.error("addFindings failed", error);
+    // Schema-drift resilience: speaker_role/proposition_type/adoption_status
+    // (see migration 20260808201119_finding_judicial_attribution.sql) are
+    // additive columns that may not have propagated to every environment
+    // yet. A batch INSERT referencing a column Postgres doesn't recognize
+    // fails ATOMICALLY for the whole batch — silently zeroing out an
+    // entire, otherwise-valid set of findings with no per-row signal of
+    // why. Retry once with just those three optional columns stripped so a
+    // pending migration can never take down finding persistence entirely.
+    const strippedPayload = (payload as Array<Record<string, unknown>>).map((row) => {
+      const { speaker_role: _sr, proposition_type: _pt, adoption_status: _as, ...rest } = row;
+      return rest;
+    });
+    const retry = await db
+      .from("case_findings")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert(strippedPayload as any)
+      .select("id");
+    if (!retry.error) {
+      console.error(
+        "addFindings: recovered by inserting without judicial-hierarchy attribution columns — the finding_judicial_attribution migration needs to be applied to this environment",
+        { originalError: error },
+      );
+      return retry.data ?? [];
+    }
+    console.error("addFindings retry (without judicial-hierarchy columns) also failed", retry.error);
     return [];
   }
   return data ?? [];
