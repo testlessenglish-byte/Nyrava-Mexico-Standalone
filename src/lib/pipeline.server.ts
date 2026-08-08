@@ -12,7 +12,7 @@ import { ENGINE, engineForStage } from "./execution/canonical";
 import { callGroq, parseJsonLoose, type GroqContent } from "./groq.server";
 import type { ProviderType } from "./ai/providers/types";
 
-import { mexicoLock, getReportLocale } from "@/lib/mexico-lock";
+import { mexicoLock, getReportLocale, groundingContract } from "@/lib/mexico-lock";
 import { sha256Hex } from "./hash.server";
 import {
   addFindings,
@@ -2014,8 +2014,10 @@ async function _runAnalyzersInner(args: {
   const analyzerArea = String((caseRowForArea as any)?.case_type ?? "general_civil");
   const analyzerDomains = await getActiveDomains(db, caseId);
   const analyzerAreaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(analyzerArea)];
+  const analyzerLocaleForPreamble = await getReportLocale(db, caseId);
   const analyzerPreamble =
-    `${mexicoLock(await getReportLocale(db, caseId))}\n` +
+    `${mexicoLock(analyzerLocaleForPreamble)}\n` +
+    `${groundingContract(analyzerLocaleForPreamble)}\n` +
     `CASE TYPE: ${analyzerAreaLabel} (${analyzerArea}). ` +
     `Only surface findings whose legal theory applies to a ${analyzerAreaLabel} matter. ` +
     `Do NOT generate findings framed around sistema penal acusatorio concepts (vinculación a proceso, ` +
@@ -3498,8 +3500,10 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       `Standing: ${execProfile.standing} ` +
       `${execProfile.precedentGuidance} Never invent a specific case-law citation (registry number, paragraph, docket) — ` +
       `name only the doctrine or the deciding body, and flag that the exact citation needs human verification.`;
+    const areaPreambleLocale = await getReportLocale(db, caseId);
     const areaPreamble =
-      `${mexicoLock(await getReportLocale(db, caseId))}\n` +
+      `${mexicoLock(areaPreambleLocale)}\n` +
+      `${groundingContract(areaPreambleLocale)}\n` +
       `CASE TYPE: ${areaLabel} (${area}). ` +
       `Only surface findings whose legal theory is applicable to a ${areaLabel} matter. ` +
       `Do NOT manufacture findings from other practice areas. ` +

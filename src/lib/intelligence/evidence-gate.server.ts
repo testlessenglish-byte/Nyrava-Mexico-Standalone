@@ -16,6 +16,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { buildGroundingCorpus, verifyQuoteDetailed, type GroundingCorpus } from "./grounding.server";
+import { assessProceduralDefectGrounding } from "./procedural-defect-grounding.server";
 
 export type AnalysisMode = "strict" | "balanced" | "exploratory";
 export type FindingType = "DIRECT_EVIDENCE" | "EVIDENCE_BASED_INFERENCE" | "AI_THEORY";
@@ -105,6 +106,13 @@ export type GateAudit = {
   rejected_unsupported_claim: number;
   downgraded_inference: number;
   tagged_ai_theory: number;
+  /** A finding named a known procedural-defect topic (notification,
+   * deadline, jurisdiction, standing/definitividad, suspension, due
+   * process) but every verified quote attached to it was, on its face, the
+   * text of the rule rather than a case-specific fact — downgraded to
+   * AI_THEORY instead of DIRECT_EVIDENCE. See
+   * procedural-defect-grounding.server.ts. */
+  downgraded_bare_legal_rule: number;
   rejections: GateRejection[];
 };
 
@@ -272,6 +280,7 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
     rejected_unsupported_claim: 0,
     downgraded_inference: 0,
     tagged_ai_theory: 0,
+    downgraded_bare_legal_rule: 0,
     rejections: [],
   };
   const accepted: Array<{ index: number; item: T; gated: GatedItem<T> }> = [];
@@ -328,6 +337,28 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
     if (verified.length > 0) {
       type = classifyFindingType({ hasVerifiedCitation: true, text });
       if (type === "EVIDENCE_BASED_INFERENCE") audit.downgraded_inference += 1;
+      // Backstop for "a legal rule got reported as a case finding": a
+      // finding naming a known procedural-defect topic (notification,
+      // deadline, jurisdiction, standing/definitividad, suspension, due
+      // process) whose ONLY verified quotes are, on their face, statute/
+      // doctrine text rather than a case-specific fact is downgraded to
+      // AI_THEORY regardless of citation completeness — the citation floor
+      // alone can't tell "a real quote exists" from "a real quote of the
+      // LAW exists", which is exactly how a confirmed ADR 5829/2025-class
+      // report fabricated a "notificación defectuosa" finding from a quote
+      // of the notification statute itself. See
+      // procedural-defect-grounding.server.ts for the (deliberately
+      // conservative) heuristic.
+      if (type === "DIRECT_EVIDENCE") {
+        const assessment = assessProceduralDefectGrounding({
+          titleAndDescription: text,
+          quotes: verified.map((c) => c.quote),
+        });
+        if (assessment.isBareLegalRule) {
+          type = "AI_THEORY";
+          audit.downgraded_bare_legal_rule += 1;
+        }
+      }
     } else {
       type = "AI_THEORY";
       if (malformed && candidates.length === 0) {
