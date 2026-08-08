@@ -638,6 +638,7 @@
   "dash.tile.defenseOpportunities": "Defense opportunities",
   "dash.tile.totalFindings": "Total findings",
   "dash.tile.witnesses": "Witnesses profiled",
+  "dashboard.commandCenter.hasIssues": "This case has failed or blocked stages",
   "dashboard.commandCenter.openCase": "Open case",
   "dashboard.commandCenter.subtitle": "Real-time intelligence build",
   "dashboard.commandCenter.title": "Analysis Command Center",
