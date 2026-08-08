@@ -94,6 +94,13 @@ export type GatedItem<T> = T & {
   source_page: number | null;
   source_quote: string | null;
   citations: Array<{ quote: string; document_id: string | null; page: number | null; doc_n: number | null }>;
+  /** Set only for a procedural-defect-grounding downgrade (see
+   * procedural-defect-grounding.server.ts). Callers apply this to the KEPT
+   * row's title/description AFTER matching it back to the input row —
+   * `gated.title`/`gated.description` themselves are never rewritten, so
+   * the title+description lookup key callers use to reunite a gate result
+   * with its input row stays stable. See the comment where this is set. */
+  not_established_rewrite: { title: string; description: string } | null;
 };
 
 export type GateAudit = {
@@ -437,19 +444,25 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
     if (opts.mode === "balanced" && type === "AI_THEORY" && !notEstablishedTopic) continue;
     if (type === "AI_THEORY") audit.tagged_ai_theory += 1;
 
-    // Rewrite the title/description so a notEstablishedTopic finding never
-    // reads like a confirmed defect or an unrelated "AI theory" guess —
-    // it reads as exactly what it is: a real legal topic the corpus
-    // raises, without the case-specific fact needed to resolve it. This
-    // survives into every downstream renderer's existing AI_THEORY
-    // handling (already excluded from Risks/Recommendations/dashboard,
-    // already visible in the full findings record) without requiring a
-    // new finding_type or a new schema column.
-    const originalTitle = item.title ?? "Untitled finding";
-    const outputTitle = notEstablishedTopic ? `NO ESTABLECIDO — se requiere evidencia adicional: ${originalTitle}` : item.title;
-    const outputDescription = notEstablishedTopic
-      ? `${item.description ?? ""}\n\nEl corpus disponible plantea este tema, pero la única cita verificada que lo respalda es el texto de la norma/doctrina aplicable, no un hecho específico de este expediente. No puede determinarse con la evidencia disponible si este punto constituye una irregularidad en este caso — no se afirma que exista un defecto ni que no exista. Se requiere evidencia documental adicional (constancias, actas, resoluciones) que describa lo ocurrido en este expediente.`.trim()
-      : item.description;
+    // notEstablishedRewrite carries the "NO ESTABLECIDO" framing SEPARATELY
+    // from `gated.title`/`gated.description` — those two fields must stay
+    // byte-identical to `item.title`/`item.description`, because
+    // addGatedFindings() (findings.server.ts) matches each caller-supplied
+    // row back to its gate result by looking up `${title}::${description}`
+    // in a map keyed off `gated`. An earlier version of this fix rewrote
+    // `gated.title`/`gated.description` directly, which changed that lookup
+    // key and made every notEstablishedTopic finding invisible to its own
+    // caller — silently dropped one layer up, even though this function
+    // itself had just decided to keep it. addGatedFindings applies this
+    // rewrite AFTER its lookup succeeds, once identity is no longer in
+    // question.
+    const notEstablishedRewrite = notEstablishedTopic
+      ? {
+          title: `NO ESTABLECIDO — se requiere evidencia adicional: ${item.title ?? "Untitled finding"}`,
+          description:
+            `${item.description ?? ""}\n\nEl corpus disponible plantea este tema, pero la única cita verificada que lo respalda es el texto de la norma/doctrina aplicable, no un hecho específico de este expediente. No puede determinarse con la evidencia disponible si este punto constituye una irregularidad en este caso — no se afirma que exista un defecto ni que no exista. Se requiere evidencia documental adicional (constancias, actas, resoluciones) que describa lo ocurrido en este expediente.`.trim(),
+        }
+      : null;
 
     const primary = verified[0] ?? candidates[0] ?? null;
     audit.accepted += 1;
@@ -458,9 +471,8 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
       item,
       gated: {
         ...item,
-        title: outputTitle,
-        description: outputDescription,
         finding_type: type,
+        not_established_rewrite: notEstablishedRewrite,
         source_document_id: primary?.document_id ?? null,
         source_page: primary?.page ?? null,
         source_quote: primary?.quote ?? null,

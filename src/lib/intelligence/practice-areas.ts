@@ -209,6 +209,21 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
 // itself received only 4 of 12 analyzer items (audit.input: 4), meaning
 // the other 8 were dropped by this allow-list before the gate ever saw
 // them — not rejected by evidence verification.
+// FIX (2026-08-08): the same class of bug as the 2026-07-29 fix above, found
+// via a real-case export (amparo case, 8 specialized agents produced 16
+// grounded findings with verbatim evidence_refs, 0 reached case_findings —
+// score.rationale.flags: ["CANONICAL_FINDINGS_EMPTY"]). The chain_of_custody
+// agent (src/lib/pipeline.server.ts's AGENTS array) declares
+// `category: "chain_of_custody"` (English) and is enabled to RUN via
+// MX_ENGINES for penal, amparo, constitucional, and electoral — but no
+// materia's MX_FINDING_MODULES list ever contained the literal string
+// "chain_of_custody"; penal's list only has the Spanish "cadena_de_custodia",
+// which shares no substring with the agent's actual category token. Every
+// chain_of_custody finding, in every materia that runs this engine
+// (including penal, its primary use case), has been silently dropped since
+// this agent was added — reproducible 100% of the time, not case-specific.
+// Same fix as before: promote the structural pipeline-output token to
+// UNIVERSAL rather than duplicate it into 4+ materia lists.
 const UNIVERSAL_FINDING_MODULES = [
   "extraction",
   "fact",
@@ -221,6 +236,7 @@ const UNIVERSAL_FINDING_MODULES = [
   "missing_evidence",
   "procedural",
   "strength",
+  "chain_of_custody",
   "coverage",
   "scoring",
   "ess",

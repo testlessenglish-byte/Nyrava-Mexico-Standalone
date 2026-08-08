@@ -906,6 +906,13 @@ export async function addGatedFindings(
           source_document_id: g.source_document_id,
           source_page: g.source_page,
           source_quote: g.source_quote,
+          // Applied here, AFTER the title::description lookup above has
+          // already matched this gate result back to its input row — see
+          // GatedItem.not_established_rewrite's doc comment for why this
+          // can't happen inside diagnoseEvidenceGate itself.
+          ...(g.not_established_rewrite
+            ? { title: g.not_established_rewrite.title, description: g.not_established_rewrite.description }
+            : {}),
         } as Partial<NewFinding>),
       } as NewFinding);
     } else if (opts?.exemptCitation) {
