@@ -208,7 +208,9 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
 
     const ids = new Set<string>(UNIVERSAL_AUTHORITY_IDS);
     for (const id of MATERIA_AUTHORITY_IDS[materia] ?? []) ids.add(id);
-    if (level === "federal") {
+    // Only a *positively determined* federal routing carries the federal
+    // overlay; the low-confidence fallback frame stays universal.
+    if (level === "federal" && confidence >= 0.8) {
       // Federal channel always carries the constitutional + amparo/federal
       // review instruments, whatever the materia.
       ids.add("cpeum");
