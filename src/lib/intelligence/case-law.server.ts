@@ -67,16 +67,31 @@ const runCache = new Map<string, CaseLawResult[]>();
  * row; rows without a materia tag are still eligible (many jurisprudencia
  * entries are cross-cutting) so this narrows rather than excludes.
  */
+// Issuers that belong to the federal judicial channel. Used to filter (and,
+// failing that, prioritize) precedent when the matter is routed as
+// Federal (México): SCJN, Plenos Regionales, Tribunales Colegiados/Unitarios
+// de Circuito, Juzgados de Distrito, TFJA, TEPJF, Tribunales Agrarios, CJF.
+const FEDERAL_ISSUER_RE =
+  /suprema corte|scjn|pleno (regional|de circuito)|primera sala|segunda sala|tribunal(es)? colegiado|tribunal(es)? unitario|colegiado de circuito|juzgado de distrito|consejo de la judicatura federal|\bcjf\b|tribunal federal de justicia administrativa|\btfja\b|tribunal electoral del poder judicial|\btepjf\b|tribunal (unitario|superior) agrario|poder judicial de la federaci/i;
+
+export function isFederalIssuer(issuer: string | null | undefined): boolean {
+  return FEDERAL_ISSUER_RE.test(String(issuer ?? ""));
+}
+
 export async function searchCaseLaw(
   db: Db,
   query: string,
-  opts: { maxResults?: number; materia?: string } = {},
+  opts: { maxResults?: number; materia?: string; federalOnly?: boolean } = {},
 ): Promise<CaseLawResult[]> {
-  const cacheKey = `${query}::${opts.materia ?? ""}`;
+  const cacheKey = `${query}::${opts.materia ?? ""}::${opts.federalOnly ? "fed" : "all"}`;
   const cached = runCache.get(cacheKey);
   if (cached) return cached;
 
   const max = opts.maxResults ?? 3;
+  // Under the federal channel we over-fetch so federal precedent can be
+  // isolated and ranked ahead of anything local before truncating to `max`.
+  const fetchLimit = opts.federalOnly ? Math.max(max * 6, 18) : max;
+
   try {
     // NOTE (2026-07-29 fix): the legal_authorities.kind column comment in
     // its migration documents aspirational values ('law','code',
