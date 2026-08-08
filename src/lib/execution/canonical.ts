@@ -432,11 +432,16 @@ export function requireEngineForStage(stageKey: string): string {
 // multi-agent review, producing a report next to a permanently-dangling
 // "still running" engine. This intentionally no longer filters by
 // `requirement` — it lists every stage except report_generator itself
-// (self-referential, see note above) and multi_agent (runs AFTER report,
-// so it can never be a precondition for it). The underlying `requirement`
-// field on each CANONICAL_STAGES entry is left untouched — it's still used
-// elsewhere (e.g. whether a failed stage flips the whole pipeline run to
-// "failed"), and this change is scoped to the report gate only.
+// (self-referential, see note above). multi_agent WAS excluded here in an
+// earlier revision, back when it ran after report; it was moved ahead of
+// report generation (see the multi_agent stage's own comment above) and IS
+// now correctly included as a precondition — a stray "and multi_agent runs
+// after report" note survived that move and contradicted both this filter
+// (which only excludes report_generator) and report's own `dependsOn`
+// (which lists multi_agent). The underlying `requirement` field on each
+// CANONICAL_STAGES entry is left untouched — it's still used elsewhere
+// (e.g. whether a failed stage flips the whole pipeline run to "failed"),
+// and this change is scoped to the report gate only.
 export const REPORT_BLOCKING_ENGINES: readonly string[] = CANONICAL_STAGES.filter(
   (s) => s.engine !== "report_generator",
 ).map((s) => s.engine);

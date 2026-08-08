@@ -48,9 +48,10 @@ export function PipelineStatusGrid({ caseRow }: { caseRow: Case; runs?: unknown 
   const { t } = useI18n();
   const { stages } = useCaseExecution(caseRow.id);
   const caseType = (caseRow as { case_type?: string | null }).case_type ?? null;
+  const caseName = (caseRow as { name?: string | null }).name ?? null;
   // Show every stage that is legally relevant for this materia, including the
   // 13-agent run that closes the pipeline after the report.
-  const displayStages = stages.filter((s) => isStageRelevantForCaseType(caseType, s.key));
+  const displayStages = stages.filter((s) => isStageRelevantForCaseType(caseType, s.key, caseName));
 
   return (
     <section className="rounded-xl border border-border bg-card p-4">

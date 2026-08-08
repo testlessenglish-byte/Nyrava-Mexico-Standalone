@@ -157,7 +157,7 @@ export function CommandCenterDashboard({
   const caseType = (caseRow?.case_type as string | undefined) ?? null;
   const visibleNodes = NODES.filter((n) => {
     const key = resolveStageKeyLoose(n.labelEngine);
-    return !key || isStageRelevantForCaseType(caseType, key);
+    return !key || isStageRelevantForCaseType(caseType, key, caseName);
   });
   const bottomNode = visibleNodes.length > 6 ? visibleNodes[6] : null;
 
