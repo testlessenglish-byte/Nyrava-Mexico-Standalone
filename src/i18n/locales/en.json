@@ -369,6 +369,7 @@
   "caseControl.working": "Working…",
   "caseSettings.analysisMode": "Analysis mode",
   "caseSettings.caseType": "Case type",
+  "caseSettings.caseType.unclassified": "Unclassified — select the practice area",
   "caseSettings.jurisdiction": "Jurisdiction",
   "caseSettings.jurisdiction.hint": "Scopes case-law lookups to that state's courts.",
   "caseSettings.jurisdiction.national": "Nationwide (no state filter)",

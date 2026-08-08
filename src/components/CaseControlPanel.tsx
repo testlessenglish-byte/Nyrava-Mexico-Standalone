@@ -321,11 +321,16 @@ function CollapsedCaseSettings({
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const updateFn = useServerFn(updateCaseSettings);
-  const [ct, setCt] = useState<string>(caseType ?? "general_civil");
+  // "" (not a stale English default like "general_civil") means the case
+  // carries no recognized Mexican materia yet — CASE_TYPE_SELECT_OPTIONS
+  // only lists the 13 real materias, so any other fallback value would not
+  // match an <option>, leaving the browser to silently highlight whichever
+  // option happens to be first (Penal) while state stays out of sync.
+  const [ct, setCt] = useState<string>(caseType ?? "");
   const [mode, setMode] = useState<string>(analysisMode || "balanced");
   const [juris, setJuris] = useState<string>(jurisdiction ?? "");
   useEffect(() => {
-    setCt(caseType ?? "general_civil");
+    setCt(caseType ?? "");
     setMode(analysisMode || "balanced");
     setJuris(jurisdiction ?? "");
   }, [caseType, analysisMode, jurisdiction]);
@@ -345,7 +350,7 @@ function CollapsedCaseSettings({
   });
 
   const dirty =
-    ct !== (caseType ?? "general_civil") || mode !== (analysisMode || "balanced") || juris !== (jurisdiction ?? "");
+    ct !== (caseType ?? "") || mode !== (analysisMode || "balanced") || juris !== (jurisdiction ?? "");
   const disabled = running || m.isPending;
 
   return (
@@ -373,6 +378,11 @@ function CollapsedCaseSettings({
               disabled={disabled}
               className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm disabled:opacity-50"
             >
+              {!ct && (
+                <option value="" disabled>
+                  {t("caseSettings.caseType.unclassified")}
+                </option>
+              )}
               {CASE_TYPE_SELECT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -425,7 +435,7 @@ function CollapsedCaseSettings({
 
           <button
             onClick={() => m.mutate({ case_type: ct, analysis_mode: mode, jurisdiction: juris || null })}
-            disabled={disabled || !dirty}
+            disabled={disabled || !dirty || !ct}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
           >
             {m.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

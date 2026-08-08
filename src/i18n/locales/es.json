@@ -369,6 +369,7 @@
   "caseControl.working": "Procesando…",
   "caseSettings.analysisMode": "Modo de análisis",
   "caseSettings.caseType": "Materia",
+  "caseSettings.caseType.unclassified": "Sin clasificar — selecciona la materia",
   "caseSettings.jurisdiction": "Jurisdicción",
   "caseSettings.jurisdiction.hint": "Limita la búsqueda de criterios a los tribunales de esa entidad.",
   "caseSettings.jurisdiction.national": "Nacional (sin filtro estatal)",
