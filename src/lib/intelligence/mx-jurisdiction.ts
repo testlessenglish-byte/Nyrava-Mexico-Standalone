@@ -55,7 +55,16 @@ export type JurisdictionProfile = {
   /** How the state was determined. */
   state_source: "case_field" | "corpus" | "unresolved";
   fuero: Fuero;
+  /**
+   * Judicial classification actually routed on (federal / state / municipal).
+   * Distinct from geographic reach: a federal matter is federal because of the
+   * competent court system, not because it happens "nationwide".
+   */
+  jurisdiction_level: "federal" | "state" | "municipal" | "unresolved";
+  /** Where jurisdiction_level came from. `declared` wins over everything. */
+  jurisdiction_source: "declared" | "materia" | "corpus" | "unresolved";
   materia: MxPipelineProfile;
+
   /** Court families with competence over this matter. */
   courts: readonly string[];
   /** Substantive law that governs the merits. */
