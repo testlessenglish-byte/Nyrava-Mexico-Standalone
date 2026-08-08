@@ -258,6 +258,7 @@ export function CommandCenterDashboard({
     (engine) => latestByEngine.get(engine)?.status === "completed",
   ).length;
   const totalEngines = COMMAND_CENTER_ENGINES.length;
+  const hasReport = !!caseRow?.report_at || !!report;
 
   return (
     <div className="space-y-4">
@@ -455,6 +456,26 @@ export function CommandCenterDashboard({
           </div>
         </div>
       </div>
+
+      {/* ============ REPORT READY ============ */}
+      {hasReport && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-success/30 bg-success/10 p-4">
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-success">{t("cc.reportReady.title")}</div>
+            <p className="text-xs text-muted-foreground">{t("cc.reportReady.subtitle")}</p>
+          </div>
+          {onOpenTab && (
+            <button
+              type="button"
+              onClick={() => onOpenTab("report")}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-success/40 bg-success/10 px-3 py-1.5 text-xs font-medium text-success hover:bg-success/20"
+            >
+              {t("cc.reportReady.view")} <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ============ TALK TO THIS CASE ============ */}
       <button
