@@ -31,6 +31,12 @@ export type LegalContext = {
 
 export type JurisdictionSignals = {
   materia?: string | null;
+  /**
+   * Declared cases.jurisdiction value ("federal", a state code, "municipal").
+   * When it resolves to a level, it OVERRIDES every textual heuristic below —
+   * an attorney who selected Federal (México) is routed federally, period.
+   */
+  jurisdictionValue?: string | null;
   /** Court, tribunal or authority that issued/received the documents. */
   court?: string | null;
   entity?: string | null;
@@ -41,6 +47,7 @@ export type JurisdictionSignals = {
   /** Free-text case location / jurisdiction field. */
   caseLocation?: string | null;
 };
+
 
 // ---------------------------------------------------------------------------
 
