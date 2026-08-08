@@ -4,19 +4,23 @@
 // detail page. Every value is wired to live data — engine statuses
 // come from `pipeline_engine_runs`, counts from the canonical report
 // helpers.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Activity,
   AlertTriangle,
   ArrowRight,
   Brain,
   CheckCircle2,
+  Clock,
   FileText,
   Gauge,
   Loader2,
   MessageCircle,
   Mic,
   Radar,
+  RotateCcw,
   Scale,
   ShieldAlert,
   Sparkles,
@@ -36,6 +40,7 @@ import { engineLabelKey, isStageRelevantForCaseType, resolveStageKeyLoose, statu
 import { scoreBand } from "@/lib/score-bands";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { COMMAND_CENTER_ENGINES } from "@/lib/execution/canonical";
+import { clearPipelineStuckState, resumeFullPipelineStep } from "@/lib/cases.functions";
 
 type EngineStatus = "queued" | "running" | "completed" | "failed" | "skipped";
 
@@ -69,6 +74,8 @@ type Props = {
   onOpenTab?: (tab: string) => void;
   onOpenChat: () => void;
   onOpenVoice?: () => void;
+  /** Refetches the parent case row after a resume/clear-stuck action. */
+  invalidate?: () => void;
 };
 
 
@@ -135,9 +142,11 @@ export function CommandCenterDashboard({
   onOpenTab,
   onOpenChat,
   onOpenVoice,
+  invalidate,
 
 }: Props) {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const { runs: engineRows, latestByEngine, progress: execProgress, isRunning } = useCaseExecution(caseId);
   // Jurisdiction-aware radar: hide engines that aren't legally relevant for
   // this materia (e.g. witness intelligence in an amparo).
@@ -177,6 +186,73 @@ export function CommandCenterDashboard({
   const running =
     isRunning ||
     (!!status && ["extracting", "ocr", "analyzing", "running", "generating_report", "queued"].includes(status));
+
+  // A worker holds a time-boxed lease while actively processing a stage; if
+  // the lease expired while the case is still incomplete, the run died
+  // without finishing (crashed worker, deploy, etc.) rather than just being
+  // slow. That's the "stuck" case Resume/Clear-stuck exist for — surfaced
+  // directly here instead of buried behind the pipeline detail toggle.
+  const leaseUntil = caseRow?.worker_lease_until as string | null | undefined;
+  const leaseActive = !!leaseUntil && new Date(leaseUntil).getTime() > Date.now();
+  const activelyRunning = running && leaseActive;
+  const incomplete = engineRows.length > 0 && execProgress.completedStages < execProgress.totalStages;
+
+  const [resuming, setResuming] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  async function handleResume() {
+    setResuming(true);
+    try {
+      const res = (await resumeFullPipelineStep({ data: { caseId } })) as {
+        alreadyComplete?: boolean;
+        ok?: boolean;
+        alreadyRunning?: boolean;
+        done?: boolean;
+        status?: string | null;
+      };
+      if (res?.alreadyComplete) {
+        toast.info(t("pipeline.toast.alreadyComplete"));
+      } else if (res?.ok === false && res?.alreadyRunning) {
+        toast.info(t("pipeline.panel.running"));
+      } else if (res?.ok === false && res?.done) {
+        toast.info(t("pipeline.toast.alreadyComplete"));
+      } else {
+        toast.success(t("pipeline.toast.resumed"));
+      }
+      invalidate?.();
+      queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
+    } catch (err) {
+      toast.error(String((err as Error)?.message ?? err));
+      invalidate?.();
+      queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
+    } finally {
+      setResuming(false);
+    }
+  }
+
+  async function handleClearStuck() {
+    setClearing(true);
+    try {
+      const res = (await clearPipelineStuckState({ data: { caseId } })) as {
+        ok?: boolean;
+        alreadyRunning?: boolean;
+        resumeKey?: string | null;
+      };
+      if (res?.alreadyRunning) {
+        toast.info(t("pipeline.panel.running"));
+      } else {
+        toast.success(t("pipeline.toast.cleared"));
+      }
+      invalidate?.();
+      queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
+    } catch (err) {
+      toast.error(String((err as Error)?.message ?? err));
+      invalidate?.();
+      queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
+    } finally {
+      setClearing(false);
+    }
+  }
 
   const completedEngines = COMMAND_CENTER_ENGINES.filter(
     (engine) => latestByEngine.get(engine)?.status === "completed",
@@ -218,6 +294,51 @@ export function CommandCenterDashboard({
           </div>
         </div>
       </div>
+
+      {/* ============ RESUME / CLEAR STUCK ============ */}
+      {incomplete && (
+        <div
+          className={`flex flex-wrap items-center gap-3 rounded-2xl border p-4 ${
+            activelyRunning ? "border-primary/30 bg-primary/5" : "border-warning/40 bg-warning/10"
+          }`}
+        >
+          {activelyRunning ? (
+            <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" />
+          ) : (
+            <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className={`text-sm font-semibold ${activelyRunning ? "text-primary" : "text-warning"}`}>
+              {activelyRunning ? t("cc.stuck.runningTitle") : t("cc.stuck.title")}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {activelyRunning ? t("cc.stuck.runningSubtitle") : t("cc.stuck.subtitle")}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              disabled={resuming || activelyRunning}
+              onClick={handleResume}
+              className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+            >
+              {resuming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
+              {t("pipeline.panel.resume")}
+            </button>
+            {!activelyRunning && (
+              <button
+                type="button"
+                disabled={clearing}
+                onClick={handleClearStuck}
+                className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-1.5 text-xs font-medium text-warning hover:bg-warning/20 disabled:opacity-50"
+              >
+                {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                {t("pipeline.panel.clearStuck")}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ============ INTELLIGENCE SUMMARY ============ */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
