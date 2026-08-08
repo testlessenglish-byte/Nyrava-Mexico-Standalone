@@ -222,7 +222,8 @@ export function resolveLegalContext(sig: JurisdictionSignals = {}): LegalContext
       confidence: Math.round(confidence * 100) / 100,
     };
     if (state && level !== "federal") ctx.state = state;
-    else if (state && !federalOnly) ctx.state = state;
+    else if (state && !federalOnly && declared !== "federal") ctx.state = state;
+
     return ctx;
   } catch {
     return {
