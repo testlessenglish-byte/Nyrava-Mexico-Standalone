@@ -20,6 +20,8 @@ import {
   UNIVERSAL_AUTHORITY_IDS,
   type JurisdictionLevel,
 } from "./authority-registry";
+import { jurisdictionLevelOf as declaredLevelOf } from "@/lib/intelligence/jurisdictions";
+
 
 export type LegalContext = {
   materia: string;
