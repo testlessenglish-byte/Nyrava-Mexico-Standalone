@@ -221,8 +221,8 @@ export function CaseControlPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-amber-400/20 bg-background/60 p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-300">{t("caseControl.title")}</h2>
+      <div className="rounded-2xl border border-primary/20 bg-background/60 p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-primary">{t("caseControl.title")}</h2>
         <p className="mt-1 text-xs text-muted-foreground">
           {t("caseControl.subtitle")}
         </p>
@@ -236,7 +236,7 @@ export function CaseControlPanel({
         <button
           onClick={() => runM.mutate(false)}
           disabled={disabled}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/15 px-4 py-3 text-sm font-semibold text-amber-100 hover:bg-amber-400/25 disabled:opacity-50"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/15 px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/25 disabled:opacity-50"
         >
           {runM.isPending && !runM.variables ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -255,7 +255,7 @@ export function CaseControlPanel({
             }
           }}
           disabled={disabled}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2.5 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
         >
           {(runM.isPending && runM.variables) || awaitingCancel ? (
             <Loader2 className="h-4 w-4 animate-spin" />

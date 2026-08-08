@@ -8,36 +8,13 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Fetches the actual crest logo asset once and caches it as a base64 data
-// URL for jsPDF's addImage(), which needs a base64 string or data URL
-// rather than a plain file path. Cached at module scope so repeated PDF
-// exports in the same session don't re-fetch/re-encode it every time.
-let logoBase64Cache: Promise<string | null> | null = null;
+// The report cover/header mark is drawn as a vector (see logoMark() /
+// trustBadge() below) rather than an embedded raster asset, so it always
+// matches the current brand palette exactly instead of drifting from a
+// cached PNG. Kept as a resolved-null async function so call sites that
+// await a logo asset don't need to change.
 function getLogoBase64(): Promise<string | null> {
-  if (!logoBase64Cache) {
-    logoBase64Cache = fetch("/brand/nyrava-crest.png")
-      .then((res) => {
-        if (!res.ok) throw new Error(`logo fetch failed: ${res.status}`);
-        return res.blob();
-      })
-      .then(
-        (blob) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(blob);
-          }),
-      )
-      .catch((e) => {
-        // Logo is a nice-to-have, not a report-blocker — if it fails to
-        // load (offline export, asset moved, etc.), fall back to the
-        // vector shield mark rather than failing the whole export.
-        console.error("[export] logo load failed, falling back to vector mark", e);
-        return null;
-      });
-  }
-  return logoBase64Cache;
+  return Promise.resolve(null);
 }
 
 import {
@@ -117,10 +94,10 @@ import { MX_PARTY_ROLES, mxProfileOrNull, mxRoleLabel } from "@/lib/execution/mx
 // See docs/RELEASE-REPORT-ENGINE-v1.0.md and docs/FREEZE.md.
 export const NYRAVA_REPORT_VERSION = "1.0.0";
 
-// Brand gold, matching the site's shield/wordmark lockup exactly
-// (#D8B36A). Used for the logo mark and its subtitle so the report opens
+// Brand violet accent, matching the site's mark/wordmark lockup exactly
+// (#C4B5FD). Used for the logo mark and its subtitle so the report opens
 // on the same brand identity as the site.
-const BRAND_CYAN: [number, number, number] = [216, 179, 106];
+const BRAND_CYAN: [number, number, number] = [196, 181, 253];
 
 // Legal-mode flag controls whether the export labels itself "Attorney Work
 // Product". When false (default), the report renders as a neutral analytical
@@ -424,25 +401,25 @@ export function downloadJson(data: CaseExportData, name: string) {
 type Pdf = jsPDF & { lastAutoTable?: { finalY: number } };
 
 // ---- Design tokens (report redesign) ---------------------------------
-// Warm, print-oriented palette: forest green + desaturated gold on a warm
-// off-white sheet. Deliberately not pure white / cool slate — the warm
-// paper tone is what makes the export read as a designed legal document
-// rather than a browser printout.
-const PAGE_BG: [number, number, number] = [250, 248, 244]; // warm off-white sheet
-const PRIMARY: [number, number, number] = [14, 36, 29]; // deep forest green
-const PRIMARY_DEEP: [number, number, number] = [9, 24, 19]; // depth bands on the cover
-const ACCENT: [number, number, number] = [198, 158, 90]; // gold
-const ACCENT_SOFT: [number, number, number] = [231, 214, 175]; // pale gold, for dark backgrounds
-const INK: [number, number, number] = [26, 31, 29]; // warm near-black body text
-const MUTED: [number, number, number] = [100, 108, 104]; // secondary text
-const LINE: [number, number, number] = [223, 219, 208]; // hairlines on light bg
+// Print-oriented palette: deep violet + amber accent on a soft
+// lavender-white sheet. Deliberately not pure white / cool slate — the
+// tinted paper tone is what makes the export read as a designed legal
+// document rather than a browser printout.
+const PAGE_BG: [number, number, number] = [249, 247, 253]; // soft lavender-white sheet
+const PRIMARY: [number, number, number] = [91, 33, 182]; // deep violet (#5B21B6)
+const PRIMARY_DEEP: [number, number, number] = [46, 20, 90]; // depth bands on the cover
+const ACCENT: [number, number, number] = [217, 119, 6]; // amber, the gradient's warm terminus
+const ACCENT_SOFT: [number, number, number] = [196, 181, 253]; // pale violet, for dark backgrounds
+const INK: [number, number, number] = [28, 24, 48]; // near-black ink body text
+const MUTED: [number, number, number] = [111, 107, 133]; // secondary text
+const LINE: [number, number, number] = [234, 230, 245]; // hairlines on light bg
 const SUCCESS: [number, number, number] = [39, 98, 66];
 const DANGER: [number, number, number] = [155, 42, 42];
 const HIGH: [number, number, number] = [176, 108, 34];
 const MEDIUM: [number, number, number] = [150, 128, 34];
-const QUOTE_BG: [number, number, number] = [246, 244, 237]; // evidence blockquote fill
+const QUOTE_BG: [number, number, number] = [244, 242, 251]; // evidence blockquote fill
 const CARD_BG: [number, number, number] = [255, 255, 255]; // card fill pops on PAGE_BG
-const CARD_BORDER: [number, number, number] = [231, 227, 216]; // card border
+const CARD_BORDER: [number, number, number] = [230, 225, 242]; // card border
 
 // Generic (non-case-type-specific) severity-tier grouping used to give
 // Key Findings a visual hierarchy — critical items read as clearly more
@@ -541,9 +518,9 @@ function findingWithResolvedRefs(f: Record<string, unknown>): Record<string, unk
   return { ...f, evidence_refs: refs };
 }
 
-const NAVY_TINT: [number, number, number] = [16, 35, 29]; // brand deep green (#10231D), was slate-800
-const SILVER: [number, number, number] = [243, 227, 184]; // warm gold-cream ring (#F3E3B8), matches the shield icon's edge highlight
-const SHIELD_DARK: [number, number, number] = [21, 21, 15]; // warm near-black shield plate (#15150F), matches the app's hub badge
+const NAVY_TINT: [number, number, number] = [46, 20, 90]; // deep violet band (#2E1059), matches --primary-deep
+const SILVER: [number, number, number] = [196, 181, 253]; // pale violet ring (#C4B5FD), matches the mark's edge highlight
+const SHIELD_DARK: [number, number, number] = [91, 33, 182]; // brand violet plate (#5B21B6), matches the app's hub badge
 // Height reserved at the top of every page after the cover for the
 // compact branded header (see PdfBuilder.header()). Every addPage() call
 // only ever produces a continuation page (page 1 exists before any
@@ -781,9 +758,11 @@ class PdfBuilder {
     return lines.length * (size * 1.55) + gap;
   }
 
-  // Draws the crest image at its true aspect ratio, centered on (cx, cy),
-  // scaled to `drawH` points tall. No ring, no frame — the crest is a
-  // shield silhouette and reads as a mark on its own.
+  // Draws a raster crest image at its true aspect ratio if one was loaded.
+  // Currently always a no-op — the report mark is drawn as a vector (see
+  // logoMark() / trustBadge() below) so it can never drift from the
+  // current brand palette — kept so a future raster asset can drop back in
+  // without touching call sites.
   private drawCrest(cx: number, cy: number, drawH: number) {
     if (!this.logoBase64) return false;
     let aspect = 1;
@@ -798,10 +777,7 @@ class PdfBuilder {
     return true;
   }
 
-  // Small header/footer logo. Draws the real crest image when loaded;
-  // falls back to the vector rounded-square "N" mark if the fetch failed
-  // (offline export, asset moved, etc.) so a logo hiccup never blocks the
-  // whole report.
+  // Small header/footer logo — the violet rounded-square "N" mark.
   logoMark(cx: number, cy: number, r: number) {
     const size = r * 2;
     const x = cx - r;
@@ -818,99 +794,25 @@ class PdfBuilder {
     this.doc.text("N", cx, cy + r * 0.5, { align: "center" });
   }
 
-  // True shield mark matching the app's logo exactly (see
-  // components/TrustBadge.tsx's <path d="M32 4 L58 10 Q60 10.6 60 12.6 ...">,
-  // viewBox 64x72) — reproduced here with jsPDF line/curve primitives
-  // (there's no image asset to embed) instead of the old nested-roundedRect
-  // approximation, which read as a plain rounded square rather than an
-  // actual shield outline. (cx, cy) is the shield's center; `h` is its
-  // full height; width follows the source viewBox's 64:72 aspect ratio.
-  private fillShield(x0: number, y0: number, w: number, h: number, style: "F" | "FD" | "S") {
-    const sx = w / 64;
-    const sy = h / 72;
-    const toX = (vx: number) => x0 + vx * sx;
-    const toY = (vy: number) => y0 + vy * sy;
-
-    let cur: [number, number] = [toX(32), toY(4)];
-    const start = cur;
-    const segs: number[][] = [];
-
-    const lineTo = (vx: number, vy: number) => {
-      const p: [number, number] = [toX(vx), toY(vy)];
-      segs.push([p[0] - cur[0], p[1] - cur[1]]);
-      cur = p;
-    };
-    // SVG Q (quadratic) → cubic control points via the standard 2/3 rule,
-    // since jsPDF's lines() only draws cubic bezier segments.
-    const quadTo = (qvx: number, qvy: number, evx: number, evy: number) => {
-      const q: [number, number] = [toX(qvx), toY(qvy)];
-      const e: [number, number] = [toX(evx), toY(evy)];
-      const c1: [number, number] = [
-        cur[0] + (2 / 3) * (q[0] - cur[0]),
-        cur[1] + (2 / 3) * (q[1] - cur[1]),
-      ];
-      const c2: [number, number] = [e[0] + (2 / 3) * (q[0] - e[0]), e[1] + (2 / 3) * (q[1] - e[1])];
-      segs.push([
-        c1[0] - cur[0],
-        c1[1] - cur[1],
-        c2[0] - cur[0],
-        c2[1] - cur[1],
-        e[0] - cur[0],
-        e[1] - cur[1],
-      ]);
-      cur = e;
-    };
-    const curveTo = (
-      c1vx: number,
-      c1vy: number,
-      c2vx: number,
-      c2vy: number,
-      evx: number,
-      evy: number,
-    ) => {
-      const c1: [number, number] = [toX(c1vx), toY(c1vy)];
-      const c2: [number, number] = [toX(c2vx), toY(c2vy)];
-      const e: [number, number] = [toX(evx), toY(evy)];
-      segs.push([
-        c1[0] - cur[0],
-        c1[1] - cur[1],
-        c2[0] - cur[0],
-        c2[1] - cur[1],
-        e[0] - cur[0],
-        e[1] - cur[1],
-      ]);
-      cur = e;
-    };
-
-    lineTo(58, 10);
-    quadTo(60, 10.6, 60, 12.6);
-    lineTo(60, 34);
-    curveTo(60, 50, 48, 60, 32, 68);
-    curveTo(16, 60, 4, 50, 4, 34);
-    lineTo(4, 12.6);
-    quadTo(4, 10.6, 6, 10);
-
-    this.doc.lines(segs, start[0], start[1], [1, 1], style, true);
-  }
-
-  // Large cover-page badge. Draws the real crest image when loaded; falls
-  // back to the vector shield+"N" mark otherwise.
+  // Large cover-page badge — the violet rounded-square "N" mark at cover
+  // scale. (cx, cy) is the badge's center; `h` is its full height/width.
   trustBadge(cx: number, cy: number, h: number) {
-    const w = h * (64 / 72);
-    const x0 = cx - w / 2;
-    const y0 = cy - h / 2;
-
     if (this.drawCrest(cx, cy, h)) return;
 
+    const x0 = cx - h / 2;
+    const y0 = cy - h / 2;
+    const r = h * 0.22;
+
     this.doc.setFillColor(...SHIELD_DARK);
+    this.doc.roundedRect(x0, y0, h, h, r, r, "F");
     this.doc.setDrawColor(...SILVER);
-    this.doc.setLineWidth(Math.max(0.5, h * 0.045));
-    this.fillShield(x0, y0, w, h, "FD");
+    this.doc.setLineWidth(Math.max(0.5, h * 0.03));
+    this.doc.roundedRect(x0, y0, h, h, r, r, "S");
 
     // Illuminated "N".
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(h * 0.42);
-    this.doc.setTextColor(...BRAND_CYAN);
+    this.doc.setTextColor(255, 255, 255);
     this.doc.text("N", cx, cy + h * 0.12, { align: "center" });
   }
 
@@ -5794,9 +5696,9 @@ export async function downloadDocx(
   const children: Paragraph[] = [];
 
   // --- Premium branded cover page (mirrors the PDF cover) ---
-  const NAVY = "0F172A";
-  const CYAN = "2BBFC7";
-  const GOLD = "A16207";
+  const NAVY = "2E1059";
+  const CYAN = "C4B5FD";
+  const GOLD = "7C3AED";
   const goldBorder = { style: BorderStyle.SINGLE, size: 8, color: GOLD, space: 4 };
 
   children.push(

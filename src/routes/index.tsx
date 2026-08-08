@@ -107,8 +107,8 @@ function Landing() {
 
   return (
     <div className="min-h-screen text-foreground">
-      {/* Top nav — cream/marble bar, matches the reference design */}
-      <header className="border-b border-[oklch(0.70_0.06_85_/_0.4)] bg-cream text-cream-foreground">
+      {/* Top nav — soft white bar, matches the reference design */}
+      <header className="border-b border-border bg-cream text-cream-foreground">
         <div className="mx-auto flex max-w-[100rem] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <NyravaLogo size={64} glow={false} />
@@ -141,16 +141,17 @@ function Landing() {
             )}
           </nav>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-            <LanguageSwitcher className="border-[oklch(0.40_0.05_155)] text-cream-foreground" />
+            <LanguageSwitcher className="border-border text-cream-foreground" />
             <Link
               to="/auth"
-              className="hidden rounded-md border border-[oklch(0.40_0.05_155)] px-3 py-2 text-[11px] font-semibold tracking-[0.14em] text-cream-foreground hover:bg-black/5 sm:inline-flex"
+              className="hidden rounded-md border border-border px-3 py-2 text-[11px] font-semibold tracking-[0.14em] text-cream-foreground hover:bg-primary/5 sm:inline-flex"
             >
               {t("nav.signIn")}
             </Link>
             <Link
               to="/auth"
-              className="rounded-md bg-primary px-3 py-2 text-[11px] font-bold tracking-[0.12em] text-primary-foreground shadow-sm transition hover:brightness-105 sm:px-4"
+              className="rounded-md px-3 py-2 text-[11px] font-bold tracking-[0.12em] text-primary-foreground shadow-sm transition hover:brightness-105 sm:px-4"
+              style={{ background: "var(--gradient-primary)" }}
             >
               {t("nav.openPlatform")}
             </Link>
@@ -160,7 +161,7 @@ function Landing() {
                   ? { label: t(n.key).toUpperCase(), to: n.to }
                   : { label: t(n.key).toUpperCase(), href: n.href },
               )}
-              triggerClassName="border-[oklch(0.40_0.05_155)] text-cream-foreground"
+              triggerClassName="border-border text-cream-foreground"
             >
               <Link
                 to="/auth"
@@ -174,54 +175,44 @@ function Landing() {
       </header>
 
       <main>
-        {/* Hero — deep justice-green, gold accents, marble-column mood */}
-        <section
-          className="relative overflow-hidden"
-          style={{ background: "linear-gradient(160deg, #0A1D17 0%, #10231D 100%)" }}
-        >
-          {/* Architectural relief — real photographic asset, blended into the wall, not a foreground logo */}
+        {/* Hero — soft lavender surface, violet-to-amber gradient accent */}
+        <section className="relative overflow-hidden bg-background">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] md:block"
-            style={{
-              backgroundImage: "url('/brand/eagle-relief.png')",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              opacity: 0.35,
-              filter: "grayscale(100%) contrast(1.1) brightness(0.95)",
-              maskImage: "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
-              WebkitMaskImage: "radial-gradient(85% 95% at 100% 50%, black 50%, transparent 100%)",
-            }}
+            className="pointer-events-none absolute -left-24 -top-40 h-[420px] w-[420px] rounded-full opacity-40 blur-[70px]"
+            style={{ background: "#A78BFA" }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-40 left-1/3 h-[360px] w-[360px] rounded-full opacity-35 blur-[70px]"
+            style={{ background: "#FBBE85" }}
           />
           <div className="relative mx-auto max-w-[100rem] px-6 py-14 lg:py-20">
             <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
               {/* Left: headline + CTAs */}
               <div>
-                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold tracking-[0.24em] text-amber">
+                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold tracking-[0.24em] text-primary">
                   <Scale className="h-3.5 w-3.5" /> {t("home.hero.tagline")}
                 </div>
-                <h1 className="font-serif text-[64px] font-semibold not-italic leading-[0.95] tracking-tight md:text-[74px]">
+                <h1 className="font-display text-[56px] font-extrabold not-italic leading-[1.02] tracking-tight text-foreground md:text-[64px]">
                   {t("home.hero.line1")}
                   <br />
-                  <span style={{ color: "#D8B36A" }}>{t("home.hero.line2")}</span>
+                  <span className="text-gradient-primary">{t("home.hero.line2")}</span>
                 </h1>
-                <p
-                  className="mt-8 max-w-[560px] text-[24px] leading-relaxed"
-                  style={{ color: "rgba(255,255,255,0.88)" }}
-                >
+                <p className="mt-8 max-w-[560px] text-[19px] leading-relaxed text-muted-foreground">
                   {t("home.hero.subtitle")}
                 </p>
                 <div className="mt-10 flex flex-wrap gap-3">
                   <Link
                     to="/auth"
-                    className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border bg-secondary px-6 text-[11px] font-bold tracking-[0.14em] text-foreground transition hover:-translate-y-0.5"
-                    style={{ borderColor: "rgba(216,179,106,0.4)" }}
+                    className="inline-flex h-[58px] items-center gap-2 rounded-[14px] px-6 text-[11px] font-bold tracking-[0.14em] text-primary-foreground shadow-lg transition hover:-translate-y-0.5"
+                    style={{ background: "var(--gradient-primary)", boxShadow: "0 14px 30px -10px rgba(124,58,237,0.5)" }}
                   >
                     {t("home.cta.launchCommand")} <ArrowRight className="h-4 w-4" />
                   </Link>
                   <a
                     href="#product"
-                    className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border border-primary/50 px-6 text-[11px] font-bold tracking-[0.14em] text-primary transition hover:-translate-y-0.5 hover:bg-primary/10"
+                    className="inline-flex h-[58px] items-center gap-2 rounded-[14px] border border-border bg-card px-6 text-[11px] font-bold tracking-[0.14em] text-foreground transition hover:-translate-y-0.5 hover:border-primary/50"
                   >
                     {t("home.cta.watchDemo")} <Play className="h-3.5 w-3.5" />
                   </a>
@@ -235,7 +226,7 @@ function Landing() {
         </section>
 
         {/* Cream feature strip */}
-        <section className="border-y border-[oklch(0.70_0.06_85_/_0.4)] bg-cream text-cream-foreground">
+        <section className="border-y border-border bg-cream text-cream-foreground">
           <div className="mx-auto grid max-w-[100rem] grid-cols-2 gap-6 px-6 py-8 md:grid-cols-4">
             {[
               {
@@ -276,10 +267,10 @@ function Landing() {
         </section>
 
         {/* Experience Nyrava — upload band */}
-        <section className="bg-[oklch(0.12_0.03_155)] text-foreground">
+        <section className="bg-secondary/40 text-foreground">
           <div className="mx-auto grid max-w-[100rem] gap-8 px-6 py-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
-              <div className="mb-3 text-[11px] font-semibold tracking-[0.24em] text-amber">
+              <div className="mb-3 text-[11px] font-semibold tracking-[0.24em] text-primary">
                 {t("home.upload.tag")}
               </div>
               <h2 className="max-w-md font-display text-2xl font-semibold leading-tight md:text-3xl">
@@ -316,7 +307,7 @@ function Landing() {
                 ))}
               </div>
             </div>
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-primary/50 bg-card/40 px-6 py-16 text-center transition hover:border-primary hover:bg-card/60">
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-primary/50 bg-card px-6 py-16 text-center transition hover:border-primary hover:bg-card/80">
               <UploadCloud className="h-10 w-10 text-primary" strokeWidth={1.25} />
               <div className="text-sm font-bold tracking-[0.04em]">
                 {t("home.upload.dropzone.title")}
@@ -333,10 +324,10 @@ function Landing() {
           <div className="border-t border-border/40">
             <div className="mx-auto flex max-w-[100rem] flex-col gap-2 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:items-center md:justify-between">
               <span className="flex items-center gap-2">
-                <Scale className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.criterion")}
+                <Scale className="h-3.5 w-3.5 text-primary" /> {t("home.disclaimer.criterion")}
               </span>
               <span className="flex items-center gap-2">
-                <Lock className="h-3.5 w-3.5 text-amber" /> {t("home.disclaimer.dataLaw")}
+                <Lock className="h-3.5 w-3.5 text-primary" /> {t("home.disclaimer.dataLaw")}
               </span>
             </div>
           </div>
@@ -344,7 +335,7 @@ function Landing() {
 
         {/* Experience Nyrava — live case demos */}
         <section id="product" className="mx-auto max-w-[100rem] px-6 py-12 lg:py-16">
-          <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-amber">
+          <div className="mb-3 text-[11px] font-semibold tracking-[0.28em] tag-bracket text-primary">
             {t("home.demos.tag")}
           </div>
           <h2 className="mb-8 max-w-2xl font-display text-2xl font-semibold leading-tight md:text-3xl">
@@ -372,12 +363,12 @@ function Landing() {
                   params={{ slug: c.slug }}
                   className="panel group flex flex-col gap-4 p-5 transition hover:-translate-y-0.5"
                 >
-                  <div className="grid h-12 w-12 place-items-center rounded-md border border-border bg-card/60 p-1">
+                  <div className="grid h-12 w-12 place-items-center rounded-md border border-border bg-card p-1">
                     <NyravaLogo size={32} />
                   </div>
 
                   <div>
-                    <div className="text-[10.5px] font-semibold tracking-[0.2em] text-amber">
+                    <div className="text-[10.5px] font-semibold tracking-[0.2em] text-primary">
                       {c.case_type_label.toUpperCase()}
                     </div>
                     <h3 className="mt-1 font-display text-base font-semibold leading-tight">

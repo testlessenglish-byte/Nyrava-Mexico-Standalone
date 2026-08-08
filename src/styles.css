@@ -5,12 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Nyrava Intelligence México — Design System
+ * Nyrava Intelligence — Design System
  *
- * "Palacio de Justicia" edition — deep justice-green foundation with a
- * warm gold intelligence accent and cream marble sections, evoking
- * Mexican federal architecture (marble, columns, gold seals). All
- * colors in oklch.
+ * Violet intelligence platform: white cards and soft lavender surfaces,
+ * a violet→magenta→amber gradient accent, deep violet primary actions.
+ * All colors in hex/oklch.
  *
  * This is a NEW isolated project. Design tokens are ported from the
  * Nyrava reference codebase; no runtime code, data, or infrastructure
@@ -67,64 +66,64 @@
 }
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
-  /* Deep forest-green judicial surface with warm gold accent — exact hex per brand spec */
-  --background: #0E241D;
-  --foreground: #F5F1E6;
+  /* Soft lavender-white surface with a violet intelligence accent */
+  --background: #F8F6FC;
+  --foreground: #1C1830;
 
-  --card: rgba(39,90,71,0.32);
-  --card-foreground: #F5F1E6;
-  --popover: #234F3F;
-  --popover-foreground: #F5F1E6;
+  --card: #FFFFFF;
+  --card-foreground: #1C1830;
+  --popover: #FFFFFF;
+  --popover-foreground: #1C1830;
 
-  --primary: #D8B36A;
-  --primary-foreground: #16241d;
+  --primary: #7C3AED;
+  --primary-foreground: #FFFFFF;
 
-  --secondary: #2E6350;
-  --secondary-foreground: #F5F1E6;
-  --muted: #2E6350;
-  --muted-foreground: #b7c4bc;
-  --accent: #D8B36A;
-  --accent-foreground: #16241d;
+  --secondary: #EDE9FE;
+  --secondary-foreground: #4C1D95;
+  --muted: #F3F1FA;
+  --muted-foreground: #6F6B85;
+  --accent: #EDE9FE;
+  --accent-foreground: #5B21B6;
 
-  --destructive: oklch(0.62 0.21 25);
-  --destructive-foreground: oklch(0.98 0.01 240);
-  --success: oklch(0.70 0.13 155);
-  --success-foreground: oklch(0.14 0.03 155);
-  --warning: #D8B36A;
-  --warning-foreground: oklch(0.12 0.025 240);
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --success: #0F9D63;
+  --success-foreground: #FFFFFF;
+  --warning: #D97706;
+  --warning-foreground: #FFFFFF;
 
-  --border: rgba(216,179,106,0.22);
-  --input: rgba(39,90,71,0.30);
-  --ring: #D8B36A;
+  --border: #EAE6F5;
+  --input: #F3F1FA;
+  --ring: #7C3AED;
 
-  --sidebar: #0b1d17;
-  --sidebar-foreground: #ece5d4;
-  --sidebar-primary: #D8B36A;
-  --sidebar-primary-foreground: #16241d;
-  --sidebar-accent: #2E6350;
-  --sidebar-accent-foreground: #F5F1E6;
-  --sidebar-border: rgba(216,179,106,0.28);
-  --sidebar-ring: #D8B36A;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1C1830;
+  --sidebar-primary: #7C3AED;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EDE9FE;
+  --sidebar-accent-foreground: #5B21B6;
+  --sidebar-border: #EAE6F5;
+  --sidebar-ring: #7C3AED;
 
   /* Brand accents */
-  --teal: #D8B36A;
-  --amber: #D8B36A;
+  --teal: #DB2777;
+  --amber: #D97706;
   /* México accent — the flag green, restrained */
   --mx-flag: oklch(0.55 0.14 145);
 
-  /* Cream / marble tone for light banner sections on the marketing site */
-  --cream: #F5E7CF;
-  --cream-foreground: #23392f;
+  /* Warm white banner tone for marketing top-nav / light sections */
+  --cream: #FDFCFF;
+  --cream-foreground: #1C1830;
 
-  --gradient-primary: linear-gradient(135deg, #EBD8A8, #D8B36A);
-  --gradient-panel: linear-gradient(180deg, rgba(39,90,71,0.28), rgba(34,79,63,0.32));
-  --gradient-page: radial-gradient(ellipse at top, rgba(16,35,29,0.55), #071511 65%);
-  --gradient-mx: linear-gradient(90deg, oklch(0.55 0.14 145 / 0.9), #D8B36A, oklch(0.55 0.14 145 / 0.9));
+  --gradient-primary: linear-gradient(92deg, #7C3AED 0%, #D6479C 55%, #F0883D 100%);
+  --gradient-panel: linear-gradient(180deg, #FFFFFF, #FDFCFF);
+  --gradient-page: radial-gradient(ellipse at top, rgba(167,139,250,0.16), transparent 55%), #F8F6FC;
+  --gradient-mx: linear-gradient(90deg, oklch(0.55 0.14 145 / 0.9), #7C3AED, oklch(0.55 0.14 145 / 0.9));
 
-  --shadow-glow-cyan: 0 0 24px rgba(216,179,106,0.22);
-  --shadow-panel: 0 10px 30px oklch(0 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.03);
+  --shadow-glow-cyan: 0 0 24px rgba(124,58,237,0.22);
+  --shadow-panel: 0 10px 30px rgba(76,29,149,0.08), inset 0 1px 0 rgba(255,255,255,0.6);
 }
 
 @layer base {
@@ -148,14 +147,12 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-panel);
-    backdrop-filter: blur(18px);
   }
   .panel-glow {
     background: var(--gradient-panel);
-    border: 1px solid rgba(216,179,106,0.45);
+    border: 1px solid rgba(124,58,237,0.35);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-panel), var(--shadow-glow-cyan);
-    backdrop-filter: blur(18px);
   }
   .stat-tile {
     background: var(--gradient-panel);
@@ -164,7 +161,7 @@
     transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
   }
   .stat-tile:hover {
-    border-color: rgba(216,179,106,0.5);
+    border-color: rgba(124,58,237,0.4);
     box-shadow: var(--shadow-glow-cyan);
     transform: translateY(-1px);
   }
@@ -180,21 +177,21 @@
     background-clip: text;
     color: transparent;
   }
-  .tag-bracket::before { content: "[ "; color: var(--amber); }
-  .tag-bracket::after  { content: " ]"; color: var(--amber); }
+  .tag-bracket::before { content: "[ "; color: var(--primary); }
+  .tag-bracket::after  { content: " ]"; color: var(--primary); }
   .kbd {
     font-family: var(--font-mono);
     font-size: 10px;
     padding: 2px 6px;
     border-radius: 4px;
-    background: #2E6350;
+    background: var(--muted);
     border: 1px solid var(--color-border);
     color: var(--muted-foreground);
   }
   .divider-grid {
     background-image:
-      linear-gradient(rgba(216,179,106,0.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(216,179,106,0.06) 1px, transparent 1px);
+      linear-gradient(rgba(124,58,237,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,58,237,0.07) 1px, transparent 1px);
     background-size: 40px 40px;
   }
 }
@@ -214,18 +211,9 @@
 }
 .animate-scan { animation: scan-line 6s ease-in-out infinite; }
 
-/* Global glass effect for every bg-card surface across the app (cases
-   list, dashboard tiles, account page, etc.) -- transparency alone
-   reads as flat/washed out without blur behind it. */
-.bg-card {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
 .bg-input {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background-color: var(--input);
 }
 input.bg-input:focus, textarea.bg-input:focus, select.bg-input:focus {
-  background-color: rgba(39,90,71,0.45);
+  background-color: #FFFFFF;
 }

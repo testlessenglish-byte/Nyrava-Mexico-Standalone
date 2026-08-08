@@ -34,7 +34,7 @@ function SourceCardTile({ card }: { card: SourceCard }) {
   return (
     <div
       className="panel flex h-[86px] items-center gap-3 rounded-[18px] px-4 py-3 backdrop-blur transition hover:-translate-y-[3px]"
-      style={{ boxShadow: "var(--shadow-panel), 0 0 24px rgba(216,179,106,0.08)" }}
+      style={{ boxShadow: "var(--shadow-panel), 0 0 24px rgba(124,58,237,0.10)" }}
     >
       <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border bg-card/70">
         <Icon className="h-5 w-5 text-primary" />
@@ -62,7 +62,7 @@ export function HeroOSDashboard() {
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(55% 55% at 50% 50%, rgba(216,179,106,0.14), transparent 70%)",
+            "radial-gradient(55% 55% at 50% 50%, rgba(124,58,237,0.14), transparent 70%)",
         }}
       />
 
@@ -85,7 +85,7 @@ export function HeroOSDashboard() {
               cy="100"
               r="92"
               fill="none"
-              stroke="rgba(216,179,106,0.18)"
+              stroke="rgba(124,58,237,0.20)"
               strokeWidth="0.6"
               strokeDasharray="2 6"
             />
@@ -94,7 +94,7 @@ export function HeroOSDashboard() {
               cy="100"
               r="70"
               fill="none"
-              stroke="rgba(216,179,106,0.12)"
+              stroke="rgba(124,58,237,0.14)"
               strokeWidth="0.6"
             />
           </svg>

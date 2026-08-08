@@ -3,13 +3,13 @@
 
 export const colors = {
   background: "#ffffff",
-  surface: "#F5F1E6",
-  foreground: "#16241d",
-  muted: "#5c6b62",
-  primary: "#D8B36A",
-  primaryForeground: "#16241d",
-  border: "rgba(22,36,29,0.12)",
-  footer: "#7a857d",
+  surface: "#F8F6FC",
+  foreground: "#1C1830",
+  muted: "#6F6B85",
+  primary: "#7C3AED",
+  primaryForeground: "#ffffff",
+  border: "rgba(124,58,237,0.14)",
+  footer: "#8B84A0",
 };
 
 export const main = {
@@ -62,7 +62,7 @@ export const mutedText = {
 };
 
 export const link = {
-  color: colors.primaryForeground,
+  color: colors.primary,
   textDecoration: "underline",
   fontWeight: "500" as const,
 };

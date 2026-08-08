@@ -226,7 +226,7 @@ export function CommandCenterDashboard({
   const caseScore = Math.max(0, Math.min(100, Math.round((scores.strength ?? 0) || 100 - (scores.risk ?? 100))));
   const caseBand = scoreBand(caseScore);
   const scoreLabel = caseScore > 0 ? t(caseBand.labelKey) : t("score.pending");
-  const scoreColor = caseScore > 0 ? caseBand.hex : "#7a8f84";
+  const scoreColor = caseScore > 0 ? caseBand.hex : "#B0A8CC";
 
   const progressPct = engineRows.length > 0 ? execProgress.percent : Math.max(0, Math.min(100, progress ?? 0));
   const running =
@@ -262,19 +262,19 @@ export function CommandCenterDashboard({
 
       {/* ============ HEADER: Case Score + Status ============ */}
       <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-        <div className="rounded-2xl border border-amber-400/15 bg-gradient-to-br from-background via-card to-background p-5 relative overflow-hidden">
+        <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-background via-card to-background p-5 relative overflow-hidden">
           <div
             className="absolute inset-0 opacity-30 pointer-events-none"
-            style={{ background: "radial-gradient(800px 200px at 20% 0%, rgba(34,211,238,.18), transparent 60%)" }}
+            style={{ background: "radial-gradient(800px 200px at 20% 0%, rgba(124,58,237,.14), transparent 60%)" }}
           />
           <div className="relative flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-amber-300/80">{t("cc.caseIntelligence")}</div>
-              <h2 className="mt-1 truncate text-xl font-semibold text-white">{caseName}</h2>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-primary/80">{t("cc.caseIntelligence")}</div>
+              <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{caseName}</h2>
               <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <span
-                    className={`h-1.5 w-1.5 rounded-full ${running ? "bg-amber-300 animate-pulse" : "bg-emerald-400"}`}
+                    className={`h-1.5 w-1.5 rounded-full ${running ? "bg-primary animate-pulse" : "bg-success"}`}
                   />
                   {status ? t(`cases.status.${status}`) : t("cases.status.idle")}
                 </span>
@@ -344,11 +344,11 @@ export function CommandCenterDashboard({
 
 
       {/* ============ ANALYSIS COMMAND CENTER ============ */}
-      <div className="rounded-2xl border border-amber-400/15 bg-background/60 p-5">
+      <div className="rounded-2xl border border-primary/15 bg-background/60 p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">{t("pipeline.panel.title")}</h3>
-            <p className="text-xs text-amber-300/70">
+            <h3 className="text-sm font-semibold text-foreground">{t("pipeline.panel.title")}</h3>
+            <p className="text-xs text-primary/70">
               {t("cc.subtitle", { done: String(completedEngines), total: String(totalEngines) })}
               {agentSummary.loaded > 0 && (
                 <>
@@ -362,7 +362,7 @@ export function CommandCenterDashboard({
               )}
             </p>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
+          <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-primary">
             <Loader2 className={`h-3 w-3 ${running ? "animate-spin" : ""}`} /> {running ? t("cc.live") : t("cc.ready")}
           </span>
         </div>
@@ -386,14 +386,18 @@ export function CommandCenterDashboard({
             <svg viewBox="0 0 100 100" className="w-full h-full">
               <defs>
                 <radialGradient id="nyrCore" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#D8B36A" stopOpacity="0.55" />
-                  <stop offset="60%" stopColor="#15150F" stopOpacity="0.15" />
-                  <stop offset="100%" stopColor="#15150F" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#A78BFA" stopOpacity="0.45" />
+                  <stop offset="60%" stopColor="#7C3AED" stopOpacity="0.08" />
+                  <stop offset="100%" stopColor="#7C3AED" stopOpacity="0" />
                 </radialGradient>
                 <linearGradient id="nyrStroke" x1="0" x2="1">
-                  <stop offset="0%" stopColor="#D8B36A" />
-                  <stop offset="100%" stopColor="#F3E3B8" />
+                  <stop offset="0%" stopColor="#7C3AED" />
+                  <stop offset="100%" stopColor="#C4B5FD" />
                 </linearGradient>
+                <radialGradient id="nyrCenterGrad" cx="35%" cy="30%" r="75%">
+                  <stop offset="0%" stopColor="#A78BFA" />
+                  <stop offset="100%" stopColor="#5B21B6" />
+                </radialGradient>
                 <clipPath id="hubClip">
                   <circle cx="50" cy="50" r="7.3" />
                 </clipPath>
@@ -421,10 +425,10 @@ export function CommandCenterDashboard({
                   cy="50"
                   r="34"
                   fill="none"
-                  stroke="#D8B36A"
+                  stroke="#7C3AED"
                   strokeWidth="0.3"
                   strokeDasharray="1 4"
-                  opacity="0.6"
+                  opacity="0.55"
                 />
               </g>
               <g className="nyr-ring3">
@@ -433,10 +437,10 @@ export function CommandCenterDashboard({
                   cy="50"
                   r="26"
                   fill="none"
-                  stroke="#F0C674"
+                  stroke="#C4B5FD"
                   strokeWidth="0.25"
                   strokeDasharray="0.6 2"
-                  opacity="0.45"
+                  opacity="0.55"
                 />
               </g>
 
@@ -447,10 +451,10 @@ export function CommandCenterDashboard({
                   st === "completed"
                     ? "#34d399"
                     : st === "running"
-                      ? "#D8B36A"
+                      ? "#7C3AED"
                       : st === "failed"
                         ? "#f87171"
-                        : "#5c7268";
+                        : "#B0A8CC";
                 return (
                   <line
                     key={i}
@@ -473,10 +477,10 @@ export function CommandCenterDashboard({
                   st === "completed"
                     ? "#34d399"
                     : st === "running"
-                      ? "#D8B36A"
+                      ? "#7C3AED"
                       : st === "failed"
                         ? "#f87171"
-                        : "#5c7268";
+                        : "#B0A8CC";
                 return (
                   <g key={i}>
                     <circle
@@ -502,18 +506,20 @@ export function CommandCenterDashboard({
                 );
               })}
 
-              {/* center badge — the real crest logo, clipped to a circle */}
+              {/* center badge — the Nyrava mark, clipped to a circle */}
               <g>
-                <circle cx="50" cy="50" r="8" fill="#15150F" />
-                <image
-                  href="/brand/nyrava-eagle-badge.png"
-                  x="42.5"
-                  y="42.5"
-                  width="15"
-                  height="15"
-                  clipPath="url(#hubClip)"
-                  preserveAspectRatio="xMidYMid slice"
-                />
+                <circle cx="50" cy="50" r="8" fill="url(#nyrCenterGrad)" />
+                <text
+                  x="50"
+                  y="53"
+                  textAnchor="middle"
+                  fontSize="8.5"
+                  fontWeight="800"
+                  fill="#FFFFFF"
+                  fontFamily="ui-sans-serif, sans-serif"
+                >
+                  N
+                </text>
                 <circle cx="50" cy="50" r="8" fill="none" stroke="url(#nyrStroke)" strokeWidth="0.4" />
               </g>
             </svg>
@@ -560,12 +566,12 @@ export function CommandCenterDashboard({
           <div className="flex-1">
             <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
               <span>{t("pipeline.overallProgress")}</span>
-              <span className="tabular-nums text-amber-300">{progressPct}%</span>
+              <span className="tabular-nums text-primary">{progressPct}%</span>
             </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-card">
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-300 via-amber-400 to-amber-600 transition-all duration-700"
-                style={{ width: `${progressPct}%`, boxShadow: "0 0 12px rgba(216,179,106,.55)" }}
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${progressPct}%`, background: "var(--gradient-primary)", boxShadow: "0 0 12px rgba(124,58,237,.45)" }}
               />
             </div>
           </div>
@@ -575,14 +581,14 @@ export function CommandCenterDashboard({
       {/* ============ TALK TO THIS CASE ============ */}
       <button
         onClick={onOpenChat}
-        className="nyr-glow group flex w-full items-center gap-4 rounded-2xl border border-amber-400/30 bg-gradient-to-r from-background via-card to-background p-5 text-left transition hover:border-amber-300/60"
+        className="nyr-glow group flex w-full items-center gap-4 rounded-2xl border border-primary/30 bg-gradient-to-r from-background via-card to-background p-5 text-left transition hover:border-primary/60"
       >
-        <div className="grid h-12 w-12 place-items-center rounded-xl border border-amber-400/40 bg-amber-400/10 text-amber-300">
+        <div className="grid h-12 w-12 place-items-center rounded-xl border border-primary/40 bg-primary/10 text-primary">
           <MessageCircle className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-white">{t("caseWorkspace.talk.title")}</div>
-          <div className="text-xs text-amber-300/70">
+          <div className="text-sm font-semibold text-foreground">{t("caseWorkspace.talk.title")}</div>
+          <div className="text-xs text-primary/70">
             {t("caseWorkspace.talk.subtitle")}
           </div>
         </div>
@@ -600,19 +606,19 @@ export function CommandCenterDashboard({
                 onOpenVoice();
               }
             }}
-            className="hidden sm:grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-amber-400/40 bg-amber-400/10 text-amber-200 transition hover:bg-amber-400/20"
+            className="hidden sm:grid h-10 w-10 cursor-pointer place-items-center rounded-full border border-primary/40 bg-primary/10 text-primary transition hover:bg-primary/20"
             title={t("caseWorkspace.voiceMode")}
           >
             <Mic className="h-4 w-4" />
           </span>
         )}
-        <ArrowRight className="h-5 w-5 text-amber-300 transition group-hover:translate-x-1" />
+        <ArrowRight className="h-5 w-5 text-primary transition group-hover:translate-x-1" />
       </button>
 
       {/* ============ RECENT ACTIVITY ============ */}
       <div className="rounded-2xl border border-border/40 bg-background/50 p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-white">{t("pipeline.activity.recent")}</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t("pipeline.activity.recent")}</h3>
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{t("pipeline.activity.liveFeed")}</span>
         </div>
         <ul className="mt-3 divide-y divide-border/60">
@@ -623,7 +629,7 @@ export function CommandCenterDashboard({
             <li key={ev.id} className="flex items-center gap-3 py-2 text-sm">
               <span
                 className={`h-2 w-2 rounded-full ${
-                  ev.level === "error" ? "bg-red-400" : ev.level === "warn" ? "bg-amber-300" : "bg-amber-300"
+                  ev.level === "error" ? "bg-destructive" : ev.level === "warn" ? "bg-warning" : "bg-primary"
                 }`}
               />
               <span className="min-w-0 flex-1 truncate text-foreground/90">
@@ -675,7 +681,7 @@ function ScoreGauge({ value, color, label }: { value: number; color: string; lab
   return (
     <div className="relative grid place-items-center">
       <svg width="120" height="120" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r={R} fill="none" stroke="#234F3F" strokeWidth="7" />
+        <circle cx="50" cy="50" r={R} fill="none" stroke="#EDE9FE" strokeWidth="7" />
         <circle
           cx="50"
           cy="50"
@@ -693,7 +699,7 @@ function ScoreGauge({ value, color, label }: { value: number; color: string; lab
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("cc.caseScore")}</div>
-          <div className="text-2xl font-bold tabular-nums text-white">
+          <div className="text-2xl font-bold tabular-nums text-foreground">
             {value}
             <span className="text-xs text-muted-foreground">/100</span>
           </div>
@@ -707,10 +713,10 @@ function ScoreGauge({ value, color, label }: { value: number; color: string; lab
 }
 
 const TINTS: Record<string, string> = {
-  cyan: "from-amber-500/20 to-amber-500/0 border-amber-400/30 text-amber-200",
-  emerald: "from-emerald-500/20 to-emerald-500/0 border-emerald-400/30 text-emerald-200",
-  violet: "from-amber-500/20 to-amber-500/0 border-amber-400/30 text-amber-200",
-  amber: "from-amber-500/20 to-amber-500/0 border-amber-400/30 text-amber-200",
+  cyan: "from-primary/20 to-primary/0 border-primary/30 text-primary",
+  emerald: "from-success/20 to-success/0 border-success/30 text-success",
+  violet: "from-teal/20 to-teal/0 border-teal/30 text-teal",
+  amber: "from-warning/20 to-warning/0 border-warning/30 text-warning",
   rose: "from-destructive/20 to-destructive/0 border-destructive/30 text-destructive",
 };
 
@@ -730,7 +736,7 @@ function SummaryTile({
   const inner = (
     <>
       <Icon className="h-4 w-4 opacity-80" />
-      <div className="mt-1 text-2xl font-bold tabular-nums text-white">{value}</div>
+      <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">{value}</div>
       <div className="text-[11px] uppercase tracking-wider opacity-80">{label}</div>
     </>
   );
@@ -740,7 +746,7 @@ function SummaryTile({
     <button
       type="button"
       onClick={onClick}
-      className={`${base} w-full text-left transition hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50`}
+      className={`${base} w-full text-left transition hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50`}
     >
       {inner}
     </button>
@@ -759,9 +765,9 @@ function MiniBadge({
 }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/40 px-3 py-2">
-      <Icon className="h-3.5 w-3.5 text-amber-300" />
+      <Icon className="h-3.5 w-3.5 text-primary" />
       <span className="flex-1 text-xs text-foreground/80">{label}</span>
-      <span className="text-sm font-semibold tabular-nums text-white">{value}</span>
+      <span className="text-sm font-semibold tabular-nums text-foreground">{value}</span>
     </div>
   );
 }

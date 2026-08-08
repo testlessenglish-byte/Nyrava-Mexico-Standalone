@@ -60,7 +60,7 @@ function AccountPage() {
         {acc.roles.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {acc.roles.map((r: string) => (
-              <span key={r} className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-200">{r}</span>
+              <span key={r} className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-primary">{r}</span>
             ))}
           </div>
         )}
@@ -137,7 +137,7 @@ function SecurityCard({ email }: { email: string }) {
             <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
               className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground" />
             <button onClick={() => emailM.mutate()} disabled={emailM.isPending || !newEmail || newEmail === email}
-              className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50">
+              className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50">
               {emailM.isPending ? t("acct.security.sending") : t("acct.security.updateEmail")}
             </button>
           </div>
@@ -149,7 +149,7 @@ function SecurityCard({ email }: { email: string }) {
             <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} placeholder={t("acct.security.pwdPlaceholder")}
               className="flex-1 rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground" />
             <button onClick={() => pwdM.mutate()} disabled={pwdM.isPending || newPwd.length < 8}
-              className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:opacity-50">
+              className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50">
               {pwdM.isPending ? t("acct.security.saving") : t("acct.security.changePassword")}
             </button>
           </div>
@@ -249,7 +249,7 @@ function VoiceCard({ settings, onSaved }: { settings: Record<string, unknown> | 
         {filteredVoices.map((v) => (
           <label key={v.id}
             className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border p-3 transition ${
-              voiceId === v.id ? "border-amber-400/60 bg-amber-400/10" : "border-border bg-input hover:border-border/80"
+              voiceId === v.id ? "border-primary/60 bg-primary/10" : "border-border bg-input hover:border-border/80"
             }`}>
             <div className="flex items-center gap-2">
               <input type="radio" name="voice" checked={voiceId === v.id} onChange={() => setVoiceId(v.id)} className="accent-primary" />
@@ -412,7 +412,7 @@ function Card({ icon, title, children }: { icon: React.ReactNode; title: string;
   return (
     <section className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5">
       <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-foreground">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-amber-400/30 bg-amber-400/10 text-amber-300">{icon}</span>
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">{icon}</span>
         {title}
       </h2>
       {children}
@@ -424,7 +424,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
     <label className="block">
       <span className="block text-xs font-medium text-foreground/80">{label}</span>
       <input type="text" value={value ?? ""} onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-amber-400/60" />
+        className="mt-1 w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-primary/60" />
     </label>
   );
 }
@@ -441,7 +441,7 @@ function Select<T extends string>({ label, value, onChange, options }: { label: 
     <label className="block">
       <span className="block text-xs font-medium text-foreground/80">{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value as T)}
-        className="mt-1 w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-amber-400/60">
+        className="mt-1 w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-primary/60">
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
@@ -452,7 +452,7 @@ function SaveButton({ pending, onClick }: { pending: boolean; onClick: () => voi
   return (
     <div className="mt-4 flex justify-end">
       <button onClick={onClick} disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-400/15 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-400/25 disabled:opacity-50">
+        className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/15 px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/25 disabled:opacity-50">
         {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
         {t("acct.save")}
       </button>
