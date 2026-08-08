@@ -369,6 +369,7 @@
   "caseControl.working": "Procesando…",
   "caseSettings.analysisMode": "Modo de análisis",
   "caseSettings.caseType": "Materia",
+  "caseSettings.caseType.unclassified": "Sin clasificar — selecciona la materia",
   "caseSettings.jurisdiction": "Jurisdicción",
   "caseSettings.jurisdiction.hint": "Fuero que rige el asunto: federal, local (entidad) o municipal. No es el alcance geográfico.",
   "caseSettings.jurisdiction.auto": "Sin declarar (detección automática del fuero)",

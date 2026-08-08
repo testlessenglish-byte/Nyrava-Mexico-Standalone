@@ -369,6 +369,7 @@
   "caseControl.working": "Working…",
   "caseSettings.analysisMode": "Analysis mode",
   "caseSettings.caseType": "Case type",
+  "caseSettings.caseType.unclassified": "Unclassified — select the practice area",
   "caseSettings.jurisdiction": "Jurisdiction",
   "caseSettings.jurisdiction.hint": "Court system governing the matter: federal, state (local) or municipal. Not a geographic scope.",
   "caseSettings.jurisdiction.auto": "Not declared (auto-detect the fuero)",
