@@ -143,6 +143,7 @@ import {
   ListChecks,
   CalendarDays,
   Mail,
+  ChevronDown,
 } from "lucide-react";
 import { TransactionCenterPanel } from "@/components/TransactionCenterPanel";
 import { ModuleStatusStrip } from "@/components/modules/ModuleStatus";
@@ -234,6 +235,8 @@ function Workspace() {
   const { t } = useI18n();
   const { caseId } = Route.useParams();
   const qc = useQueryClient();
+
+  const [showPipelineDetail, setShowPipelineDetail] = useState(false);
 
   const [tab, setTab] = useState<Tab>(() => {
     // One-shot handoff from Talk To Cases: after pushing a chat answer into
@@ -760,13 +763,29 @@ function Workspace() {
                   onOpenTab={(k) => setTab(k as Tab)}
                   onOpenChat={() => setTab("chat")}
                 />
-                <div className="mt-6">
-                  <PipelinePanel
-                    caseId={c.id}
-                    caseStatus={c.status}
-                    caseRow={c as unknown as Record<string, unknown>}
-                    invalidate={invalidate}
-                  />
+                {/* Collapsed by default: CommandCenterDashboard above already
+                    surfaces per-engine status, so the full stage-by-stage
+                    breakdown (with Resume/Clear-stuck recovery actions) is
+                    opt-in here instead of a second always-visible block. */}
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowPipelineDetail((v) => !v)}
+                    className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-card/40 px-4 py-2.5 text-xs font-medium text-foreground/80 hover:bg-card/60"
+                  >
+                    {showPipelineDetail ? t("pipeline.panel.hideDetail") : t("pipeline.panel.showDetail")}
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showPipelineDetail ? "rotate-180" : ""}`} />
+                  </button>
+                  {showPipelineDetail && (
+                    <div className="mt-3">
+                      <PipelinePanel
+                        caseId={c.id}
+                        caseStatus={c.status}
+                        caseRow={c as unknown as Record<string, unknown>}
+                        invalidate={invalidate}
+                      />
+                    </div>
+                  )}
                 </div>
                 {/* PipelineStatusGrid + CaseEngineStatus removed — CommandCenterDashboard + PipelinePanel already surface stage state via useCaseExecution. */}
                 <div className="mt-4">
