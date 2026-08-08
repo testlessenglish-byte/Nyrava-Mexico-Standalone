@@ -188,6 +188,8 @@ export type WorkProductContext = {
   documentLabels: string[];
   /** Materia key, e.g. "laboral". */
   caseType?: string | null;
+  /** Declared cases.jurisdiction ("federal", state code, "municipal"). */
+  jurisdiction?: string | null;
   /** Corpus-level missing documents already detected upstream. */
   missingDocuments?: string[];
   /** Cross-finding document index (buildDocumentGraph), for shared-source statements. */
@@ -435,6 +437,9 @@ function buildSynthesis(
   if (!docs.length) return { synthesis: null, detail: null };
   const detail = synthesizeEvidence(docs, {
     caseType: ctx.caseType ?? null,
+    // Declared jurisdiction is authoritative for authority retrieval:
+    // Federal (México) pulls the federal instruments, not local codes.
+    jurisdiction: { materia: ctx.caseType ?? null, jurisdictionValue: ctx.jurisdiction ?? null },
     graph: ctx.graph,
     findingTitle: String(f.title ?? "").trim(),
   });
