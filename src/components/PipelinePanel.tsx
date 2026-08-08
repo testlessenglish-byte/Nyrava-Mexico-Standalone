@@ -3,16 +3,13 @@
 // screen shows identical data. Adds an "out of date" state when a new
 // document has been uploaded after the last completed run.
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText, RotateCcw } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { clearPipelineStuckState, resumeFullPipelineStep } from "@/lib/cases.functions";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
 import { PIPELINE_STAGE_TO_ENGINE } from "@/lib/execution/canonical";
 import { mxPipelineStages, stageLabelKey, statusLabelKey, resolveMxProfile } from "@/lib/execution/mx-pipeline";
 import { useI18n } from "@/i18n";
 import { PRACTICE_AREA_LABELS, normalizePracticeArea } from "@/lib/intelligence/practice-areas";
-import { toast } from "sonner";
 
 type EngineRow = {
   id: string;
@@ -89,15 +86,12 @@ export function PipelinePanel({
   caseId,
   caseStatus,
   caseRow,
-  invalidate,
 }: {
   caseId: string;
   caseStatus: string | null | undefined;
   caseRow?: Record<string, unknown> | null;
-  invalidate?: () => void;
 }) {
   const { t } = useI18n();
-  const queryClient = useQueryClient();
   const { runs, latestByEngine } = useCaseExecution(caseId);
   // Jurisdiction-aware pipeline: the case's materia decides which engines are
   // legally relevant, and how each one is named for a Mexican attorney.
@@ -108,8 +102,6 @@ export function PipelinePanel({
 
   const [latestDocAt, setLatestDocAt] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
-  const [resuming, setResuming] = useState(false);
-  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,17 +173,9 @@ export function PipelinePanel({
     ].includes(caseStatus)
   );
 
-  // A "running" case whose worker lease has expired is stalled, not running.
-  // Resume must stay clickable in that state so the user can restart from the
-  // exact stage the case died on.
-  const leaseUntil = caseRow?.worker_lease_until as string | null | undefined;
-  const leaseActive = !!leaseUntil && new Date(leaseUntil).getTime() > Date.now();
-  const activelyRunning = anyRunning && leaseActive;
-
   const completedCount = stageDefs.filter((s) => visuals[s.key]?.state === "completed").length;
   const failedCount = stageDefs.filter((s) => visuals[s.key]?.state === "failed").length;
   const outOfDateCount = stageDefs.filter((s) => visuals[s.key]?.state === "out_of_date").length;
-  const incomplete = completedCount < stageDefs.length;
 
   return (
     <div className="rounded-2xl border border-primary/15 bg-background/60 p-4 sm:p-5 space-y-4">
@@ -200,12 +184,12 @@ export function PipelinePanel({
           <h3 className="text-sm font-semibold text-foreground">{t("pipeline.panel.title")}</h3>
           <p className="text-xs text-muted-foreground">
             {t("pipeline.panel.engines", { done: completedCount, total: stageDefs.length })}
-            {anyRunning && <span className="text-amber-300"> · {t("pipeline.panel.running")}</span>}
+            {anyRunning && <span className="text-warning"> · {t("pipeline.panel.running")}</span>}
             {failedCount > 0 && (
-              <span className="text-red-400"> · {t("pipeline.panel.failed", { n: failedCount })}</span>
+              <span className="text-destructive"> · {t("pipeline.panel.failed", { n: failedCount })}</span>
             )}
             {outOfDateCount > 0 && (
-              <span className="text-amber-300"> · {t("pipeline.panel.outOfDate", { n: outOfDateCount })}</span>
+              <span className="text-warning"> · {t("pipeline.panel.outOfDate", { n: outOfDateCount })}</span>
             )}
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground/70">
@@ -213,74 +197,6 @@ export function PipelinePanel({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {incomplete && (
-            <button
-              disabled={resuming || activelyRunning}
-              onClick={async () => {
-                setResuming(true);
-                try {
-                  const res = (await resumeFullPipelineStep({ data: { caseId } })) as {
-                    alreadyComplete?: boolean;
-                    ok?: boolean;
-                    alreadyRunning?: boolean;
-                    done?: boolean;
-                    status?: string | null;
-                  };
-                  if (res?.alreadyComplete) {
-                    toast.info(t("pipeline.toast.alreadyComplete"));
-                  } else if (res?.ok === false && res?.alreadyRunning) {
-                    toast.info(t("pipeline.panel.running"));
-                  } else if (res?.ok === false && res?.done) {
-                    toast.info(t("pipeline.toast.alreadyComplete"));
-                  } else {
-                    toast.success(t("pipeline.toast.resumed"));
-                  }
-                  invalidate?.();
-                  queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
-                } catch (err) {
-                  toast.error(String((err as Error)?.message ?? err));
-                  invalidate?.();
-                  queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
-                } finally {
-                  setResuming(false);
-                }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
-            >
-              {resuming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />} {t("pipeline.panel.resume")}
-            </button>
-          )}
-          {incomplete && !activelyRunning && (
-            <button
-              disabled={resuming || clearing}
-              onClick={async () => {
-                setClearing(true);
-                try {
-                  const res = (await clearPipelineStuckState({ data: { caseId } })) as {
-                    ok?: boolean;
-                    alreadyRunning?: boolean;
-                    resumeKey?: string | null;
-                  };
-                  if (res?.alreadyRunning) {
-                    toast.info(t("pipeline.panel.running"));
-                  } else {
-                    toast.success(t("pipeline.toast.cleared"));
-                  }
-                  invalidate?.();
-                  queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
-                } catch (err) {
-                  toast.error(String((err as Error)?.message ?? err));
-                  invalidate?.();
-                  queryClient.invalidateQueries({ queryKey: ["case-execution", caseId] });
-                } finally {
-                  setClearing(false);
-                }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
-            >
-              {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} {t("pipeline.panel.clearStuck")}
-            </button>
-          )}
           <button
             onClick={() => setShowLog((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border/40 bg-card/40 px-3 py-1.5 text-xs text-foreground/80 hover:bg-card/50"
@@ -318,10 +234,10 @@ export function PipelinePanel({
                       </>
                     )}
                     {row.status === "failed" && row.error && (
-                      <span className="text-red-300">{row.error.slice(0, 140)}</span>
+                      <span className="text-destructive">{row.error.slice(0, 140)}</span>
                     )}
                     {v.outOfDate && (
-                      <span className="text-amber-300">
+                      <span className="text-warning">
                         New evidence uploaded after this ran — Rerun Case recommended
                       </span>
                     )}
@@ -359,7 +275,7 @@ export function PipelinePanel({
                       <tr key={r.id} className="border-t border-border/60">
                         <td className="py-1 pr-2 font-mono text-foreground/90">{r.engine}</td>
                         <td
-                          className={`py-1 pr-2 ${r.status === "failed" ? "text-red-300" : r.status === "completed" ? "text-emerald-300" : "text-muted-foreground"}`}
+                          className={`py-1 pr-2 ${r.status === "failed" ? "text-destructive" : r.status === "completed" ? "text-success" : "text-muted-foreground"}`}
                         >
                           {r.status}
                         </td>
@@ -368,7 +284,7 @@ export function PipelinePanel({
                         <td className="py-1 pr-2">{fmtMs(r.runtime_ms)}</td>
                         <td className="py-1 pr-2 text-muted-foreground">
                           {r.error ? (
-                            <span className="text-red-300">{r.error.slice(0, 120)}</span>
+                            <span className="text-destructive">{r.error.slice(0, 120)}</span>
                           ) : (
                             `gen ${r.generated} · ok ${r.accepted} · rej ${r.rejected}`
                           )}

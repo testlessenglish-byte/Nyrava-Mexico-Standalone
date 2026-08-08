@@ -763,6 +763,7 @@ function Workspace() {
                   witnessesCount={witnesses.length}
                   onOpenTab={(k) => setTab(k as Tab)}
                   onOpenChat={() => setTab("chat")}
+                  invalidate={invalidate}
                 />
                 {/* Collapsed by default: CommandCenterDashboard above already
                     surfaces per-engine status, so the full stage-by-stage
@@ -783,7 +784,6 @@ function Workspace() {
                         caseId={c.id}
                         caseStatus={c.status}
                         caseRow={c as unknown as Record<string, unknown>}
-                        invalidate={invalidate}
                       />
                     </div>
                   )}
