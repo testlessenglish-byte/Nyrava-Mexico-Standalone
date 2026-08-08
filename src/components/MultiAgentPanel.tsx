@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Loader as Loader2, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, Circle, ShieldCheck, ShieldAlert, Play } from "lucide-react";
 import { runMultiAgentAnalysis, getAgentLogs } from "@/lib/agents/multi-agent.functions";
 import { checkIsAdmin } from "@/lib/cases.functions";
@@ -36,19 +35,19 @@ type LogRow = {
 };
 
 function statusIcon(status: string) {
-  if (status === "success") return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
-  if (status === "running") return <Loader2 className="h-4 w-4 animate-spin text-amber-500" />;
-  if (status === "failed") return <AlertCircle className="h-4 w-4 text-rose-500" />;
-  if (status === "blocked") return <ShieldAlert className="h-4 w-4 text-amber-500" />;
+  if (status === "success") return <CheckCircle2 className="h-4 w-4 text-success" />;
+  if (status === "running") return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+  if (status === "failed") return <AlertCircle className="h-4 w-4 text-destructive" />;
+  if (status === "blocked") return <ShieldAlert className="h-4 w-4 text-warning" />;
   if (status === "skipped") return <Circle className="h-4 w-4 text-muted-foreground" />;
   return <Circle className="h-4 w-4 text-muted-foreground/70" />;
 }
 
 function SummaryTile({ label, value, tone }: { label: string; value: number; tone: "slate" | "cyan" | "emerald" | "amber" }) {
   const toneClass =
-    tone === "cyan" ? "text-amber-100" :
-    tone === "emerald" ? "text-emerald-300" :
-    tone === "amber" ? "text-amber-300" : "text-foreground";
+    tone === "cyan" ? "text-primary" :
+    tone === "emerald" ? "text-success" :
+    tone === "amber" ? "text-warning" : "text-foreground";
   return (
     <div className="rounded-lg border border-border bg-card/50 p-3">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{label}</p>
@@ -133,10 +132,10 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
   const summary: AgentSummary = canonical.executed > 0 ? canonical : derived;
 
   return (
-    <Card className="border-amber-500/20 bg-background/40">
+    <Card className="border-primary/15 bg-background/60">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-amber-100">
-          <ShieldCheck className="h-5 w-5 text-amber-400" />
+        <CardTitle className="flex items-center gap-2 text-foreground">
+          <ShieldCheck className="h-5 w-5 text-primary" />
           {t("agents.title", { count: AGENT_DEFINITIONS.length })}
         </CardTitle>
         {isAdmin ? (
@@ -158,63 +157,49 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
           <SummaryTile label={t("agents.tile.suppressed")} value={summary.suppressedFindings} tone="amber" />
         </div>
 
-        <ol className="space-y-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {AGENT_DEFINITIONS.map((def) => {
             const row = byKey.get(def.key);
             const status = row?.status ?? "pending";
             const errs = Array.isArray(row?.errors) ? (row?.errors as string[]) : [];
             return (
-              <li
+              <div
                 key={def.key}
-                className="flex items-start gap-3 rounded-md border border-border/60 bg-card/40 px-3 py-2"
+                className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card/40 p-3"
               >
-                <div className="mt-0.5">{statusIcon(status)}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground/70">#{def.index}</span>
-                    <span className="font-medium text-foreground">{t(`agent.${def.key}.name`)}</span>
-                    <code className="text-xs text-muted-foreground/70">{def.outputFile}</code>
-                    {row?.confidence != null && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t("agents.conf", { pct: (Number(row.confidence) * 100).toFixed(0) })}
-                      </Badge>
-                    )}
-                    {row?.processing_time_ms != null && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {Math.round(row.processing_time_ms)}ms
-                      </Badge>
-                    )}
-                    {row && (
-                      <Badge variant="outline" className="border-emerald-500/30 text-[10px] text-emerald-300">
-                        {Number(row.findings_produced ?? 0) === 1
-                          ? t("agents.findings.singular")
-                          : t("agents.findings.plural", { count: Number(row.findings_produced ?? 0) })}
-                      </Badge>
-                    )}
+                <div className="mt-0.5 shrink-0">{statusIcon(status)}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-muted-foreground/70">#{def.index}</span>
+                    <span className="truncate text-sm font-medium text-foreground">{t(`agent.${def.key}.name`)}</span>
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{t(`agent.${def.key}.desc`)}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{t(`agent.${def.key}.desc`)}</p>
                   {row && (
-                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.docs", { count: Number(row.documents_analyzed ?? 0) })}</span>
-                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.generated", { count: Number(row.findings_generated ?? 0) })}</span>
-                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.promoted", { count: Number(row.findings_promoted ?? row.findings_produced ?? 0) })}</span>
-                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.suppressed", { count: Number(row.findings_suppressed ?? 0) })}</span>
-                      <span className="rounded bg-background/60 px-2 py-0.5">{t("agents.chip.outputItems", { count: Number(row.output_items ?? 0) })}</span>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="rounded bg-background/60 px-1.5 py-0.5">
+                        {t("agents.chip.generated", { count: Number(row.findings_generated ?? 0) })}
+                      </span>
+                      {row.confidence != null && (
+                        <span className="rounded bg-background/60 px-1.5 py-0.5">
+                          {t("agents.conf", { pct: (Number(row.confidence) * 100).toFixed(0) })}
+                        </span>
+                      )}
+                      {row.processing_time_ms != null && (
+                        <span className="rounded bg-background/60 px-1.5 py-0.5">{Math.round(row.processing_time_ms)}ms</span>
+                      )}
                     </div>
                   )}
                   {row?.no_output_reason && (
-                    <p className="mt-1 text-xs text-amber-300">{t("agents.noOutput", { reason: row.no_output_reason })}</p>
+                    <p className="mt-1 truncate text-[11px] text-warning">{t("agents.noOutput", { reason: row.no_output_reason })}</p>
                   )}
                   {errs.length > 0 && (
-                    <ul className="mt-1 list-disc pl-4 text-xs text-rose-400">
-                      {errs.slice(0, 3).map((e, i) => <li key={i}>{e}</li>)}
-                    </ul>
+                    <p className="mt-1 truncate text-[11px] text-destructive">{errs[0]}</p>
                   )}
                 </div>
-              </li>
+              </div>
             );
           })}
-        </ol>
+        </div>
       </CardContent>
     </Card>
   );

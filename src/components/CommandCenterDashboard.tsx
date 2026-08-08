@@ -2,9 +2,9 @@
 // ---------------------------------------------------------------
 // Mission-control style dashboard rendered at the top of a case
 // detail page. Every value is wired to live data — engine statuses
-// come from `pipeline_engine_runs`, the activity feed from
-// `pipeline_events`, and counts from the canonical report helpers.
-import { useEffect, useMemo, useRef, useState } from "react";
+// come from `pipeline_engine_runs`, counts from the canonical report
+// helpers.
+import { useMemo } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -23,7 +23,6 @@ import {
   Target,
   Users,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import {
   getCanonicalCounts,
   getEssState,
@@ -33,7 +32,6 @@ import {
   type ReportLike,
 } from "@/lib/intelligence/canonical";
 import { useI18n } from "@/i18n";
-import { localizeActivityMessage } from "@/lib/activity-i18n";
 import { engineLabelKey, isStageRelevantForCaseType, resolveStageKeyLoose, statusLabelKey } from "@/lib/execution/mx-pipeline";
 import { scoreBand } from "@/lib/score-bands";
 import { useCaseExecution } from "@/hooks/useCaseExecution";
@@ -54,14 +52,6 @@ type EngineRow = {
   created_at?: string | null;
   started_at: string | null;
   ended_at: string | null;
-};
-
-type EventRow = {
-  id: string;
-  stage: string;
-  level: string;
-  message: string;
-  created_at: string;
 };
 
 type Props = {
@@ -147,7 +137,7 @@ export function CommandCenterDashboard({
   onOpenVoice,
 
 }: Props) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { runs: engineRows, latestByEngine, progress: execProgress, isRunning } = useCaseExecution(caseId);
   // Jurisdiction-aware radar: hide engines that aren't legally relevant for
   // this materia (e.g. witness intelligence in an amparo).
@@ -157,51 +147,6 @@ export function CommandCenterDashboard({
     return !key || isStageRelevantForCaseType(caseType, key);
   });
   const bottomNode = visibleNodes.length > 6 ? visibleNodes[6] : null;
-  const [events, setEvents] = useState<EventRow[]>([]);
-  const wasRunningRef = useRef(false);
-
-  // The initial `load()` below only fires once per caseId mount, then the
-  // feed is driven purely by realtime INSERTs on top of it. Clicking
-  // Run/Rerun on an already-mounted case page doesn't remount this
-  // component (same caseId), so nothing re-triggered that initial fetch —
-  // the panel just kept showing the previous run's last 12 events,
-  // unchanged, until a full page refresh forced a remount. Detect the
-  // idle -> running transition here and clear immediately so the feed
-  // reflects "this run hasn't produced events yet" instead of stale
-  // history from the run before it.
-  useEffect(() => {
-    if (isRunning && !wasRunningRef.current) {
-      setEvents([]);
-    }
-    wasRunningRef.current = isRunning;
-  }, [isRunning]);
-
-  // -------- realtime: activity events --------
-  useEffect(() => {
-    let cancel = false;
-    const load = async () => {
-      const { data } = await supabase
-        .from("pipeline_events")
-        .select("id,stage,level,message,created_at")
-        .eq("case_id", caseId)
-        .order("created_at", { ascending: false })
-        .limit(12);
-      if (!cancel) setEvents((data ?? []) as unknown as EventRow[]);
-    };
-    load();
-    const ch = supabase
-      .channel(`cmdctr-events-${caseId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "pipeline_events", filter: `case_id=eq.${caseId}` },
-        (p) => setEvents((prev) => [p.new as EventRow, ...prev].slice(0, 12)),
-      )
-      .subscribe();
-    return () => {
-      cancel = true;
-      supabase.removeChannel(ch);
-    };
-  }, [caseId]);
 
   // ---------------- derived metrics ----------------
   const counts = useMemo(() => getCanonicalCounts(report ?? null), [report]);
@@ -426,32 +371,6 @@ export function CommandCenterDashboard({
         )}
         <ArrowRight className="h-5 w-5 text-primary transition group-hover:translate-x-1" />
       </button>
-
-      {/* ============ RECENT ACTIVITY ============ */}
-      <div className="rounded-2xl border border-border/40 bg-background/50 p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">{t("pipeline.activity.recent")}</h3>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{t("pipeline.activity.liveFeed")}</span>
-        </div>
-        <ul className="mt-3 divide-y divide-border/60">
-          {events.length === 0 && (
-            <li className="py-3 text-xs text-muted-foreground/70">{t("pipeline.activity.empty")}</li>
-          )}
-          {events.map((ev) => (
-            <li key={ev.id} className="flex items-center gap-3 py-2 text-sm">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  ev.level === "error" ? "bg-destructive" : ev.level === "warn" ? "bg-warning" : "bg-primary"
-                }`}
-              />
-              <span className="min-w-0 flex-1 truncate text-foreground/90">
-                {localizeActivityMessage(ev.message, ev.stage, caseType, t, locale)}
-              </span>
-              <span className="text-[11px] tabular-nums text-muted-foreground/70">{relTime(ev.created_at, t)}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   );
 }
@@ -470,18 +389,6 @@ function pickLatest<T extends { status: string }>(map: Map<string, T>, keys: str
     if (rank(r.status) > rank(best.status)) best = r;
   }
   return best;
-}
-
-function relTime(iso: string, t: (k: string, v?: Record<string, string>) => string): string {
-  const ms = new Date(iso).getTime();
-  const diff = Math.max(0, Date.now() - ms);
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return t("time.secondsAgo", { n: String(s) });
-  const m = Math.floor(s / 60);
-  if (m < 60) return t("time.minutesAgo", { n: String(m) });
-  const h = Math.floor(m / 60);
-  if (h < 24) return t("time.hoursAgo", { n: String(h) });
-  return t("time.daysAgo", { n: String(Math.floor(h / 24)) });
 }
 
 // ---------------- Subcomponents ----------------
