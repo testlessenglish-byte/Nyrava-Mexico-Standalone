@@ -852,7 +852,12 @@ function Workspace() {
             {tab === "calendar" && <CaseCalendarPanel caseId={c.id} />}
             {tab === "communications" && <CaseCommunicationsPanel caseId={c.id} />}
             {tab === "chat" && <ChatTab caseId={caseId} />}
-            {tab === "report" && <ReportTab r={report as unknown as Report | null} />}
+            {tab === "report" && (
+              <ReportTab
+                r={report as unknown as Report | null}
+                documents={docs.map((d) => ({ id: d.id, filename: d.filename }))}
+              />
+            )}
           </div>
         </section>
       </div>
@@ -2735,7 +2740,13 @@ function ReportHistoryPanel({ caseId, currentVersion }: { caseId: string; curren
   );
 }
 
-function ReportTab({ r }: { r: Report | null | undefined }) {
+function ReportTab({
+  r,
+  documents,
+}: {
+  r: Report | null | undefined;
+  documents?: Array<{ id: string; filename: string }>;
+}) {
   if (!r) return <Empty msg="No report generated yet. Complete the pipeline then Generate Report." />;
 
   // Honor ESS suppression: if the report flagged scores_suppressed or
@@ -2747,7 +2758,31 @@ function ReportTab({ r }: { r: Report | null | undefined }) {
   const strength = scoresSuppressed ? null : rNum(r.case_strength_score);
   const risk = scoresSuppressed ? null : rNum(r.risk_score);
   const citations = rArr(r.citations);
-  const evidenceIndex = rArr(r.evidence_index);
+  // The AI-generated snapshot (r.evidence_index) is written once, at report
+  // generation time — it goes stale/thin exactly like the dashboard's
+  // Evidence/Opportunities tiles did before they were fixed to fall back to
+  // live data. Any uploaded document the snapshot doesn't cover (new upload
+  // after the last report run, or the AI simply omitted it) is appended here
+  // as a metadata-only row, same rendering already used below for a row the
+  // AI classified without a summary — so the index always reflects every
+  // document actually in the case, not just what the last report run wrote.
+  const reportEvidenceIndex = rArr(r.evidence_index);
+  const indexedDocIds = new Set(
+    reportEvidenceIndex.map((e) => rStr((e as Record<string, unknown> | null)?.document_id)).filter(Boolean),
+  );
+  const missingDocs = (documents ?? []).filter((d) => !indexedDocIds.has(d.id));
+  const evidenceIndex = [
+    ...reportEvidenceIndex,
+    ...missingDocs.map((d, i) => ({
+      doc_n: reportEvidenceIndex.length + i + 1,
+      document_id: d.id,
+      filename: d.filename,
+      role: "neutral",
+      key_pages: [],
+      summary: "",
+      summary_source: "metadata_only",
+    })),
+  ];
   const contradictionsAll = rArr(r.contradictions_struct);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const disputedIssues = rArr(((r.full_report as any) ?? {}).disputed_issues);
