@@ -2728,6 +2728,44 @@ export function resolveCaseTypeSourceConflict(
   return { sourceConflict: null, case_type_source: "manual_override" };
 }
 
+/**
+ * Applies a `cases` patch, retrying once without case_type_source/
+ * case_type_verification_status if the update fails — those two additive
+ * columns (migration 20260809143021_case_classification_evidence.sql) may
+ * not have propagated to every environment yet, and a single UPDATE
+ * referencing a column Postgres doesn't recognize fails ATOMICALLY for the
+ * WHOLE statement. Without this retry, a pending migration silently blocked
+ * every OTHER field in the same save too (case_analysis_mode, analysis_mode,
+ * jurisdiction...) — CaseControlPanel.tsx's settings form always bundles
+ * case_type into every save, so case_type_source got computed and written
+ * on every save from that panel regardless of what the attorney actually
+ * changed. Extracted so it's directly unit-testable without the
+ * createServerFn/auth-middleware plumbing.
+ */
+export async function updateCaseWithSchemaDriftRetry(
+  supabase: Db,
+  caseId: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabase
+    .from("cases")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update(patch as any)
+    .eq("id", caseId);
+  if (!error) return;
+  const { case_type_source: _cts, case_type_verification_status: _ctvs, ...strippedPatch } = patch;
+  const retry = await supabase
+    .from("cases")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update(strippedPatch as any)
+    .eq("id", caseId);
+  if (retry.error) throw new Error(error.message);
+  console.error(
+    "updateCaseWithSchemaDriftRetry: recovered by saving without case_type_source/case_type_verification_status — a pending migration needs to be applied to this environment",
+    { originalError: error },
+  );
+}
+
 export const updateCaseSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -2846,11 +2884,7 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
       patch.next_stage = null;
     }
 
-    const { error } = await supabase
-      .from("cases")
-      .update(patch as any)
-      .eq("id", data.caseId);
-    if (error) throw new Error(error.message);
+    await updateCaseWithSchemaDriftRetry(supabase, data.caseId, patch);
 
     if (modeChanged || caseAnalysisModeChanged) {
       // Drop non-authoritative ledger rows so the next run re-executes those
