@@ -1025,13 +1025,31 @@ export async function addGatedFindings(
 }
 
 export async function listFindings(db: Db, caseId: string): Promise<Finding[]> {
-  const { data, error } = await db
-    .from("case_findings")
-    .select("*")
-    .eq("case_id", caseId)
-    .not("source_module", "like", PROJECTION_LIKE)
-    .order("priority", { ascending: true, nullsFirst: false })
-    .order("created_at");
+  // Excludes superseded findings by default — this is THE single choke
+  // point the report, dashboard, and scoring all read findings through, so
+  // filtering here (rather than at each of the ~40 other call sites in the
+  // codebase that query case_findings directly) is what makes a Talk-to-Case
+  // supersession actually disappear from what matters most: the generated
+  // report. See case-state-reconciliation.server.ts, which sets
+  // superseded_at. Retries without the filter on schema drift (migration
+  // 20260809150000_finding_supersession.sql not yet applied to this
+  // environment) — same resilience pattern as addFindings()'s retry.
+  const base = () =>
+    db
+      .from("case_findings")
+      .select("*")
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE)
+      .order("priority", { ascending: true, nullsFirst: false })
+      .order("created_at");
+  let { data, error } = await base().is("superseded_at", null);
+  if (error) {
+    console.warn(
+      "listFindings: superseded_at filter failed (schema drift?), retrying without it",
+      error,
+    );
+    ({ data, error } = await base());
+  }
   if (error) {
     console.error("listFindings failed", error);
     return [];

@@ -97,6 +97,11 @@ export type Finding = {
   proposition_type?: PropositionType | null;
   adoption_status?: AdoptionStatus | null;
   audit_classification?: AuditClassification | null;
+  /** Set when a verified case-state update (currently: a Talk-to-Case
+   *  clarification) established this finding no longer reflects the case
+   *  record. NULL = still active. See case-state-reconciliation.server.ts. */
+  superseded_at?: string | null;
+  superseded_reason?: string | null;
   source_doc_ids: string[];
   evidence_refs: Array<{ label?: string; quote?: string; doc_id?: string }>;
   related_finding_ids: string[];
