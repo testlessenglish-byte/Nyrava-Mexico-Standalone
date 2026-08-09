@@ -1047,6 +1047,106 @@ export async function clearFindingsByModule(db: Db, caseId: string, modulePrefix
     .like("source_module", `${modulePrefix}%`);
 }
 
+// ---------------------------------------------------------------------------
+// Corpus-bounded absence language — deterministic backstop, not prompt-only.
+//
+// An LLM-generated "absence" finding (no keyword match for something it
+// searched for) tends to phrase itself as a definitive negative — "No se
+// encontró X" / "No evidence was found of X" — which reads as a factual
+// conclusion about the real world ("X did not happen") rather than what it
+// actually is: a statement about what the UPLOADED documents establish
+// ("X was not identified in the reviewed corpus"). Confirmed on a real
+// completed-case audit export (ways_out_analysis): findings literally
+// titled "No se encontró referencia a la presentación de alegatos
+// adicionales..." — definitive language the corpus alone cannot support,
+// since a single-document or partial expediente never proves an event never
+// occurred, only that it wasn't found in what was reviewed. Rewrites the
+// LEADING clause only, preserving the rest of the sentence, so this stays a
+// narrow, targeted fix rather than a blanket rewrite of finding text.
+// ---------------------------------------------------------------------------
+const ABSENCE_LANGUAGE_REWRITES: Array<[RegExp, string]> = [
+  [/^No se encontr[oó]\b/i, "No se identificó en el corpus/documentos analizados"],
+  [/^No se localiz[oó]\b/i, "No se identificó en el corpus/documentos analizados"],
+  [/^No se advirti[oó]\b/i, "No se identificó en el corpus/documentos analizados"],
+  [/^No existe\b/i, "No se identificó en el corpus/documentos analizados evidencia de que exista"],
+  [/^No hay evidencia de\b/i, "No se identificó en el corpus/documentos analizados evidencia de"],
+  [/^No evidence (?:was )?found of\b/i, "The corpus/documents reviewed do not identify"],
+  [/^There is no evidence of\b/i, "The corpus/documents reviewed do not identify evidence of"],
+  [
+    /^No reference (?:was |is )?found\b/i,
+    "The corpus/documents reviewed do not identify a reference",
+  ],
+];
+
+export function enforceCorpusBoundedAbsenceLanguage(text: string): string {
+  if (!text) return text;
+  for (const [pattern, replacement] of ABSENCE_LANGUAGE_REWRITES) {
+    if (pattern.test(text)) return text.replace(pattern, replacement);
+  }
+  return text;
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic source gate for PROCEDURAL RECOMMENDATIONS, not just factual
+// claims — extends the same "never trust a claim you can't independently
+// verify" discipline (evidence-provenance.server.ts, completed-case-audit's
+// enforceStatementSource/enforceLawSource) to ways_out_analysis's remedy
+// proposals. A remedy recommendation needs BOTH a verified case fact (the
+// existing evidence_refs/citation floor already requires this) AND a
+// verified applicable Mexican legal authority — confirmed missing on a real
+// case export: a "podría justificar la interposición de un incidente de
+// suspensión" finding shipped with an empty legal_authority field. Any
+// ways_out_analysis row proposing a concrete remedy (remedy_type set) without
+// a real legal_authority string is force-downgraded to EVIDENCE_GAP — it can
+// never be presented as an available route on citation alone.
+// ---------------------------------------------------------------------------
+const TRIVIAL_LEGAL_AUTHORITY = new Set([
+  "",
+  "n/a",
+  "na",
+  "ninguna",
+  "ninguno",
+  "none",
+  "unknown",
+  "desconocido",
+  "desconocida",
+  "por determinar",
+  "tbd",
+]);
+
+export function enforceRemedyLegalAuthorityGate(
+  rows: NewFinding[],
+  locale: "es" | "en" = "es",
+): NewFinding[] {
+  const caveat =
+    locale === "en"
+      ? " [REQUIRES VERIFICATION: no legal authority applicable to this specific procedural stage was cited or verified for this proposed remedy.]"
+      : " [REQUIERE VERIFICACIÓN: no se citó ni verificó la autoridad legal aplicable a esta etapa procesal específica para este remedio propuesto.]";
+  return rows.map((r) => {
+    if (!String(r.source_module ?? "").includes("ways_out_analysis")) return r;
+    const raw = (r.metadata as Record<string, unknown> | undefined)?.raw as
+      | Record<string, unknown>
+      | undefined;
+    const remedyType = typeof raw?.remedy_type === "string" ? raw.remedy_type.trim() : "";
+    // Only rows that actually propose a remedy avenue need this gate —
+    // EVIDENCE_GAP/NOT_FOUND rows already honestly express absence.
+    if (!remedyType) return r;
+    if (r.audit_classification === "EVIDENCE_GAP" || r.audit_classification === "NOT_FOUND") {
+      return r;
+    }
+    const legalAuthority =
+      typeof raw?.legal_authority === "string" ? raw.legal_authority.trim() : "";
+    const hasRealAuthority =
+      legalAuthority.length > 10 && !TRIVIAL_LEGAL_AUTHORITY.has(legalAuthority.toLowerCase());
+    if (hasRealAuthority) return r;
+    return {
+      ...r,
+      audit_classification: "EVIDENCE_GAP" as NewFinding["audit_classification"],
+      description: `${r.description}${caveat}`,
+    };
+  });
+}
+
 // Normalize an LLM-returned findings array into NewFinding[]
 export function normalizeLlmFindings(args: {
   caseId: string;
@@ -1060,25 +1160,29 @@ export function normalizeLlmFindings(args: {
   if (!Array.isArray(items)) return [];
   return items.map((it) => {
     const i = it ?? {};
-    const title = String(
-      i.title ??
-        i.finding ??
-        i.issue ??
-        i.violation ??
-        i.gap ??
-        i.item ??
-        i.subject ??
+    const title = enforceCorpusBoundedAbsenceLanguage(
+      String(
+        i.title ??
+          i.finding ??
+          i.issue ??
+          i.violation ??
+          i.gap ??
+          i.item ??
+          i.subject ??
+          i.description ??
+          "Untitled finding",
+      ).slice(0, 400),
+    );
+    const description = enforceCorpusBoundedAbsenceLanguage(
+      String(
         i.description ??
-        "Untitled finding",
-    ).slice(0, 400);
-    const description = String(
-      i.description ??
-        i.detail ??
-        i.why_needed ??
-        i.support_text ??
-        i.explanation ??
-        i.rationale ??
-        title,
+          i.detail ??
+          i.why_needed ??
+          i.support_text ??
+          i.explanation ??
+          i.rationale ??
+          title,
+      ),
     );
     const confidence = clamp01(i.confidence ?? 0.7);
     const evidence_refs = Array.isArray(i.support)

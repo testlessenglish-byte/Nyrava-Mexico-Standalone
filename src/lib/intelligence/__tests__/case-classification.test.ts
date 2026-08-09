@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import {
   classifyCaseFromDocuments,
   runCaseClassification,
+  resolveVerifiedProceedingType,
   type DocInput,
 } from "@/lib/intelligence/case-classification.server";
 
@@ -255,5 +256,48 @@ describe("runCaseClassification: manual override cannot be silently replaced by 
 
     expect(state.updatePatch?.case_type).toBe("amparo");
     expect(state.updatePatch?.case_type_source).toBe("source_confirmed");
+  });
+});
+
+function makeEvidenceOnlyFakeDb(row: { status?: string; value?: string | null } | null) {
+  return {
+    from(table: string) {
+      if (table !== "case_classification_evidence") throw new Error(`unexpected table: ${table}`);
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              maybeSingle: () => Promise.resolve({ data: row, error: null }),
+            }),
+          }),
+        }),
+      };
+    },
+  };
+}
+
+describe("resolveVerifiedProceedingType: the PROCEDURAL TYPE LOCK's read-side guarantee", () => {
+  it("returns the verbatim source-confirmed proceeding caption when CONFIRMED", async () => {
+    const db = makeEvidenceOnlyFakeDb({ status: "CONFIRMED", value: "AMPARO DIRECTO EN REVISIÓN" });
+    const result = await resolveVerifiedProceedingType(db as never, "case-1");
+    expect(result).toBe("AMPARO DIRECTO EN REVISIÓN");
+  });
+
+  it("never fabricates a proceeding type — returns null for INSUFFICIENT_DATA, CONFLICT, or no evidence at all", async () => {
+    expect(
+      await resolveVerifiedProceedingType(
+        makeEvidenceOnlyFakeDb({ status: "INSUFFICIENT_DATA", value: null }) as never,
+        "case-1",
+      ),
+    ).toBeNull();
+    expect(
+      await resolveVerifiedProceedingType(
+        makeEvidenceOnlyFakeDb({ status: "CONFLICT", value: null }) as never,
+        "case-1",
+      ),
+    ).toBeNull();
+    expect(
+      await resolveVerifiedProceedingType(makeEvidenceOnlyFakeDb(null) as never, "case-1"),
+    ).toBeNull();
   });
 });

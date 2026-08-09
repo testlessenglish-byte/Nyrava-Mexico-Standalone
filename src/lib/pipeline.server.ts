@@ -19,6 +19,7 @@ import {
   addGatedFindings,
   clearFindingsByModule,
   normalizeLlmFindings,
+  enforceRemedyLegalAuthorityGate,
   listFindings,
 } from "./intelligence/findings.server";
 import { extractPdf, extractDocx, extractXlsx, extractCsv, extractPlainText } from "./intelligence/extract.server";
@@ -2015,12 +2016,24 @@ async function _runAnalyzersInner(args: {
   const analyzerDomains = await getActiveDomains(db, caseId);
   const analyzerAreaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(analyzerArea)];
   const analyzerLocaleForPreamble = await getReportLocale(db, caseId);
-  const { getCaseAnalysisMode, getCaseAnalysisObjective } = await import("./intelligence/case-analysis-mode");
+  const { getCaseAnalysisMode, getCaseAnalysisObjective, getProceduralTypeLock } =
+    await import("./intelligence/case-analysis-mode");
   const analyzerCaseAnalysisMode = await getCaseAnalysisMode(db, caseId);
-  const analyzerCaseAnalysisObjective = getCaseAnalysisObjective(analyzerCaseAnalysisMode, analyzerLocaleForPreamble);
+  const analyzerCaseAnalysisObjective = getCaseAnalysisObjective(
+    analyzerCaseAnalysisMode,
+    analyzerLocaleForPreamble,
+  );
+  const { resolveVerifiedProceedingType: resolveVerifiedProceedingTypeForAnalyzer } =
+    await import("./intelligence/case-classification.server");
+  const analyzerVerifiedProceedingType = await resolveVerifiedProceedingTypeForAnalyzer(db, caseId);
+  const analyzerProceduralTypeLock = getProceduralTypeLock(
+    analyzerVerifiedProceedingType,
+    analyzerLocaleForPreamble,
+  );
   const analyzerPreamble =
     `${mexicoLock(analyzerLocaleForPreamble)}\n` +
     `${groundingContract(analyzerLocaleForPreamble)}\n` +
+    (analyzerProceduralTypeLock ? `${analyzerProceduralTypeLock}\n` : "") +
     (analyzerCaseAnalysisObjective ? `${analyzerCaseAnalysisObjective}\n` : "") +
     `CASE TYPE: ${analyzerAreaLabel} (${analyzerArea}). ` +
     `Only surface findings whose legal theory applies to a ${analyzerAreaLabel} matter. ` +
@@ -3559,13 +3572,29 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     const areaPreambleLocale = await getReportLocale(db, caseId);
     // Reuse caseAnalysisMode fetched above for the AUDIT_ONLY_AGENT_TYPES
     // gate — same case, no need to refetch.
-    const { getCaseAnalysisObjective } = await import("./intelligence/case-analysis-mode");
-    const areaCaseAnalysisObjective = getCaseAnalysisObjective(caseAnalysisMode, areaPreambleLocale);
+    const { getCaseAnalysisObjective, getProceduralTypeLock } =
+      await import("./intelligence/case-analysis-mode");
+    const areaCaseAnalysisObjective = getCaseAnalysisObjective(
+      caseAnalysisMode,
+      areaPreambleLocale,
+    );
+    // Procedural type lock (source-confirmed proceeding caption, e.g. "AMPARO
+    // DIRECTO EN REVISIÓN") — a hard constraint on remedies/deadlines/
+    // suspension analysis/document requests, narrower than materia alone.
+    // null (no-op) whenever the corpus hasn't source-confirmed a specific
+    // proceeding — see resolveVerifiedProceedingType().
+    const { resolveVerifiedProceedingType } =
+      await import("./intelligence/case-classification.server");
+    const verifiedProceedingType = await resolveVerifiedProceedingType(db, caseId);
+    const proceduralTypeLock = getProceduralTypeLock(verifiedProceedingType, areaPreambleLocale);
     const { getAllowedMotionTypes } = await import("./intelligence/practice-areas");
-    const allowedMotionTypesForArea = Array.from(getAllowedMotionTypes(normalizedArea, activeDomains)).sort();
+    const allowedMotionTypesForArea = Array.from(
+      getAllowedMotionTypes(normalizedArea, activeDomains),
+    ).sort();
     const areaPreamble =
       `${mexicoLock(areaPreambleLocale)}\n` +
       `${groundingContract(areaPreambleLocale)}\n` +
+      (proceduralTypeLock ? `${proceduralTypeLock}\n` : "") +
       (areaCaseAnalysisObjective ? `${areaCaseAnalysisObjective}\n` : "") +
       `CASE TYPE: ${areaLabel} (${area}). ` +
       `Only surface findings whose legal theory is applicable to a ${areaLabel} matter. ` +
@@ -3977,7 +4006,12 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
               isFindingAllowed(area, row.source_module ?? `agent:${agent.type}`, activeDomains) &&
               isFindingAllowed(area, `agent:${String(row.category ?? agent.category)}`, activeDomains),
           );
-          const gate = await addGatedFindings(db, caseId, allowedRows);
+          // Deterministic source gate for procedural recommendations (not
+          // just factual claims) — a ways_out_analysis remedy proposed
+          // without a verified applicable legal authority is force-downgraded
+          // to EVIDENCE_GAP; see enforceRemedyLegalAuthorityGate's doc comment.
+          const gatedRows = enforceRemedyLegalAuthorityGate(allowedRows, areaPreambleLocale);
+          const gate = await addGatedFindings(db, caseId, gatedRows);
           const accepted = gate.audit?.accepted ?? allowedRows.length;
           totalGenerated += generated;
           totalAccepted += accepted;
@@ -4256,6 +4290,14 @@ async function _runScoringInner(args: { db: Db; caseId: string; userId: string; 
   // failure on another engine with the same pattern. 150 findings is far
   // more than any dimension_breakdowns synthesis needs to cite specific
   // positive/negative contributors.
+  // audit_classification is included so the LLM can tell a CONFIRMED defect
+  // apart from a searched-and-not-found result — without it, a finding
+  // titled e.g. "Interés jurídico o legítimo no identificado en el corpus"
+  // (whose audit_classification is NOT_FOUND/EVIDENCE_GAP, meaning the
+  // search came up empty) previously read exactly like a confirmed defect,
+  // and got cited as a negative rationale contributor implying the amparo
+  // lacks standing — confirmed on a real case export. See the explicit
+  // instruction below.
   const findingsForLlm = findings.slice(0, 150).map((f) => ({
     id: f.id,
     category: f.category,
@@ -4263,12 +4305,13 @@ async function _runScoringInner(args: { db: Db; caseId: string; userId: string; 
     confidence: f.confidence,
     title: f.title,
     affected_party: f.affected_party,
+    audit_classification: f.audit_classification ?? null,
   }));
 
   const r = await callGroq({
     apiKey,
     apiKeys,
-    systemInstruction: `${mexicoLock(await getReportLocale(db, caseId))}\nYou score legal cases objectively across 10 dimensions. EVERY score must list specific positive and negative contributors that reference finding ids. NEVER produce opaque scores. Output STRICT JSON only.`,
+    systemInstruction: `${mexicoLock(await getReportLocale(db, caseId))}\nYou score legal cases objectively across 10 dimensions. EVERY score must list specific positive and negative contributors that reference finding ids. NEVER produce opaque scores. Output STRICT JSON only.\nCRITICAL: each finding carries audit_classification. NOT_FOUND and EVIDENCE_GAP mean Nyrava searched for that issue and found no supporting basis — that is the ABSENCE of a defect, never proof of one. NEVER cite a NOT_FOUND/EVIDENCE_GAP finding as a negative contributor implying a confirmed problem (e.g. do not treat "interés jurídico no identificado en el corpus" as proof the case lacks standing) — only VERIFIED_FACT, VERIFIED_COURT_HOLDING, VERIFIED_LEGAL_RULE, or a clearly-labeled SUPPORTED_INFERENCE/POTENTIAL_ISSUE may be cited as a negative contributor, and POTENTIAL_ISSUE/SUPPORTED_INFERENCE must be phrased as unconfirmed, not as an established weakness.`,
     userContent: `Return STRICT JSON. Each numeric field is 0-100 (integer). Each dimension_breakdowns entry must list at least 2 positive and 2 negative contributors with finding_id references when available.
 
 {
