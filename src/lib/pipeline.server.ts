@@ -2517,7 +2517,14 @@ ${digestText}`;
   const groundCat = <T extends Record<string, unknown>>(items: T[]) =>
     groundItems(items, groundCorpus, { minVerified: 1 });
 
-  await db.from("analyses").upsert(
+  // Same class of bug fixed in runTrialPrepEngine/case_witnesses/
+  // case_opportunities: Supabase upsert() does NOT throw on its own. This
+  // result was previously discarded entirely, so a rejected write (RLS,
+  // constraint, transient DB error) on the core 4-category analyzer output
+  // — timeline, contradictions, missing_evidence, procedural_issues,
+  // key_findings — left the case silently missing the source data several
+  // report sections and the evidence-gate rely on, with no signal.
+  const { error: analysesUpsertError } = await db.from("analyses").upsert(
     {
       case_id: caseId,
       user_id: userId,
@@ -2530,6 +2537,9 @@ ${digestText}`;
     },
     { onConflict: "case_id" },
   );
+  if (analysesUpsertError) {
+    throw new Error(`analyses upsert failed for case ${caseId}: ${analysesUpsertError.message}`);
+  }
 
   await clearFindingsByModule(db, caseId, "analyzer:");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
