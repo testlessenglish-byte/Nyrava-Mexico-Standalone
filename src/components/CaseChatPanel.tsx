@@ -26,19 +26,11 @@ import {
   X,
   FolderOpen,
   RotateCw,
-  CheckCircle2,
   FilePenLine,
   Maximize2,
   Minimize2,
 } from "lucide-react";
 import { toast } from "sonner";
-
-// Session-only, single-shot signal used to tell the Case Workspace which tab
-// to land on right after a Talk-to-Case push. Read once on the workspace's
-// mount effect and cleared immediately — see cases.$caseId.tsx. sessionStorage
-// (not React state) is required because this crosses a full route navigation,
-// which unmounts this component entirely.
-const OPEN_TAB_KEY = (caseId: string) => `nyrava:open-tab:${caseId}`;
 
 type ChatMsg = {
   id: string;
@@ -102,12 +94,12 @@ export function CaseChatPanel({
   const [input, setInput] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
+  // Regenerate now navigates back to the case workspace as soon as the
+  // rerun is kicked off (see handleRegenerate) rather than staying on this
+  // panel until it finishes, so there is no longer a moment where this
+  // component is still mounted AND the rerun has completed — only this
+  // click-to-navigate transition state is meaningful here.
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
-  // Per-message: which messages have already had a rerun triggered from
-  // them, and which report version that rerun landed on. Keyed by message
-  // id so re-rendering the same suggestion after the mutation succeeds
-  // shows a confirmation instead of the button again.
-  const [regeneratedVersions, setRegeneratedVersions] = useState<Record<string, number | null>>({});
   const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -261,53 +253,61 @@ export function CaseChatPanel({
   // (addEvidenceAndRerun -> queue -> drive -> finalize change log). This is
   // deliberately a click, not an automatic side effect of the AI's answer —
   // see the "REPORT UPDATE SIGNAL" rule in chat.server.ts for why.
-  const handleRegenerate = async (msg: ChatMsg, precedingQuestion: string | null, manualReason?: string) => {
+  // FIX: this used to await the ENTIRE rerun (upload, queue, the full
+  // multi-agent pipeline drive-tick loop, report finalize — routinely
+  // minutes) before navigating, so the attorney sat on Talk to Case the
+  // whole time watching only this panel's own small inline spinner. The
+  // actual pipeline run is navigation-independent (drivePipeline, module
+  // state — see pipeline-driver.ts; useAddEvidenceAndRerun already calls
+  // it), and the case workspace has its own live progress UI (the
+  // "Analysis in progress" banner, the Pipeline Ledger). Kick the rerun off
+  // and navigate back to the workspace immediately so the attorney watches
+  // it happen there instead of sitting on Talk to Case; the rest of the
+  // rerun (invalidation, success/error toast) resolves in the background
+  // and still fires even after this component unmounts.
+  const handleRegenerate = (
+    msg: ChatMsg,
+    precedingQuestion: string | null,
+    manualReason?: string,
+  ) => {
     setRegeneratingId(msg.id);
-    try {
-      const reason = manualReason ?? msg.metadata?.rerun_reason ?? "Resolves a report-flagged item.";
-      const body = [
-        "ATTORNEY CLARIFICATION — Case Chat",
-        caseName ? `Case: ${caseName}` : null,
-        `Date: ${new Date().toISOString()}`,
-        "",
-        "Attorney note / question:",
-        precedingQuestion || "(not captured)",
-        "",
-        "Nyrava Intelligence response:",
-        msg.content,
-        "",
-        `Reason flagged for report update: ${reason}`,
-      ]
-        .filter((l): l is string => l !== null)
-        .join("\n");
-      const file = new File([body], `case-chat-clarification-${Date.now()}.txt`, {
-        type: "text/plain",
+    const reason = manualReason ?? msg.metadata?.rerun_reason ?? "Resolves a report-flagged item.";
+    const body = [
+      "ATTORNEY CLARIFICATION — Case Chat",
+      caseName ? `Case: ${caseName}` : null,
+      `Date: ${new Date().toISOString()}`,
+      "",
+      "Attorney note / question:",
+      precedingQuestion || "(not captured)",
+      "",
+      "Nyrava Intelligence response:",
+      msg.content,
+      "",
+      `Reason flagged for report update: ${reason}`,
+    ]
+      .filter((l): l is string => l !== null)
+      .join("\n");
+    const file = new File([body], `case-chat-clarification-${Date.now()}.txt`, {
+      type: "text/plain",
+    });
+
+    regen
+      .run([file])
+      .then(async (res) => {
+        await qc.invalidateQueries({ queryKey: ["case", caseId] });
+        await qc.invalidateQueries({ queryKey: ["case-docs", caseId] });
+        toast.success(res.nextVersion ? `Report updated to v${res.nextVersion}` : "Report updated");
+      })
+      .catch((e) => {
+        toast.error(e instanceof Error ? e.message : "Regenerate failed");
+      })
+      .finally(() => {
+        setRegeneratingId(null);
       });
-      const res = await regen.run([file]);
-      setRegeneratedVersions((prev) => ({ ...prev, [msg.id]: res.nextVersion }));
-      // Invalidate BEFORE navigating so the case query is already marked
-      // stale by the time the workspace route mounts — it then fetches the
-      // fresh report/pipeline state on that mount instead of ever serving
-      // what was cached from before this rerun. This (not a page reload) is
-      // what removes the need for a manual browser refresh.
-      await qc.invalidateQueries({ queryKey: ["case", caseId] });
-      await qc.invalidateQueries({ queryKey: ["case-docs", caseId] });
-      toast.success(res.nextVersion ? `Report updated to v${res.nextVersion}` : "Report updated");
-      // One-shot handoff so the workspace opens on the Report tab. Read and
-      // cleared on the workspace's mount effect (see cases.$caseId.tsx) —
-      // sessionStorage is required here (not React state) because this is a
-      // full route navigation that unmounts this component.
-      try {
-        window.sessionStorage.setItem(OPEN_TAB_KEY(caseId), "report");
-      } catch {
-        /* ignore — sessionStorage unavailable (private browsing, etc.) */
-      }
-      navigate({ to: "/cases/$caseId", params: { caseId } });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Regenerate failed");
-    } finally {
-      setRegeneratingId(null);
-    }
+
+    // No tab handoff needed — the workspace's default tab is already
+    // "dashboard", which is exactly where the live rerun progress is visible.
+    navigate({ to: "/cases/$caseId", params: { caseId } });
   };
 
   const suggestions = [
@@ -480,7 +480,6 @@ export function CaseChatPanel({
             // to be pushed into the report.
             const isErrorNotice = m.role === "assistant" && !!m.metadata?.error;
             const suggestsRerun = m.role === "assistant" && !isErrorNotice && !!m.metadata?.suggests_rerun;
-            const alreadyRegenerated = Object.prototype.hasOwnProperty.call(regeneratedVersions, m.id);
             const isRegeneratingThis = regeneratingId === m.id;
 
             return (
@@ -504,32 +503,21 @@ export function CaseChatPanel({
 
                   {suggestsRerun && (
                     <div className="mt-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2">
-                      {alreadyRegenerated ? (
-                        <div className="flex items-center gap-1.5 text-xs text-emerald-500">
-                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                          {regeneratedVersions[m.id]
-                            ? t("chat.report.updatedTo", { version: regeneratedVersions[m.id] ?? "" })
-                            : t("chat.report.updated")}
-                        </div>
-                      ) : (
-                        <>
-                          <p className="text-xs text-foreground/80">
-                            {m.metadata?.rerun_reason || t("chat.report.flagged")}
-                          </p>
-                          <button
-                            onClick={() => handleRegenerate(m, precedingQuestion)}
-                            disabled={regen.busy}
-                            className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
-                          >
-                            {isRegeneratingThis ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <RotateCw className="h-3 w-3" />
-                            )}
-                            {isRegeneratingThis ? regen.progress || t("chat.report.regenerating") : t("chat.report.regenerate")}
-                          </button>
-                        </>
-                      )}
+                      <p className="text-xs text-foreground/80">
+                        {m.metadata?.rerun_reason || t("chat.report.flagged")}
+                      </p>
+                      <button
+                        onClick={() => handleRegenerate(m, precedingQuestion)}
+                        disabled={regen.busy}
+                        className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
+                      >
+                        {isRegeneratingThis ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RotateCw className="h-3 w-3" />
+                        )}
+                        {isRegeneratingThis ? regen.progress || t("chat.report.regenerating") : t("chat.report.regenerate")}
+                      </button>
                     </div>
                   )}
 
@@ -539,34 +527,25 @@ export function CaseChatPanel({
                     judgment even when the AI didn't think to suggest it. */}
                   {m.role === "assistant" && !suggestsRerun && !isErrorNotice && (
                     <div className="mt-2">
-                      {alreadyRegenerated ? (
-                        <div className="flex items-center gap-1.5 text-xs text-emerald-500">
-                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                          {regeneratedVersions[m.id]
-                            ? t("chat.report.updatedTo", { version: regeneratedVersions[m.id] ?? "" })
-                            : t("chat.report.updated")}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() =>
-                            handleRegenerate(
-                              m,
-                              precedingQuestion,
-                              "Attorney manually pushed this chat answer into the report.",
-                            )
-                          }
-                          disabled={regen.busy}
-                          className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary/60 hover:text-foreground disabled:opacity-50"
-                          title={t("chat.report.manualTitle")}
-                        >
-                          {isRegeneratingThis ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <FilePenLine className="h-3 w-3" />
-                          )}
-                          {isRegeneratingThis ? regen.progress || t("chat.report.updatingShort") : t("chat.report.update")}
-                        </button>
-                      )}
+                      <button
+                        onClick={() =>
+                          handleRegenerate(
+                            m,
+                            precedingQuestion,
+                            "Attorney manually pushed this chat answer into the report.",
+                          )
+                        }
+                        disabled={regen.busy}
+                        className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary/60 hover:text-foreground disabled:opacity-50"
+                        title={t("chat.report.manualTitle")}
+                      >
+                        {isRegeneratingThis ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <FilePenLine className="h-3 w-3" />
+                        )}
+                        {isRegeneratingThis ? regen.progress || t("chat.report.updatingShort") : t("chat.report.update")}
+                      </button>
                     </div>
                   )}
                 </div>

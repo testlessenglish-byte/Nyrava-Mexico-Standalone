@@ -493,6 +493,20 @@ export async function answerCaseQuestion(args: {
   const { getProceduralTypeLock } = await import("./case-analysis-mode");
   const proceduralTypeLock = getProceduralTypeLock(verifiedProceedingType, locale) ?? "";
 
+  // Chat never asked for a completion cap, so every provider defaulted to
+  // reserving 4096 output tokens (see reservedOutputTokens in
+  // ai/router.server.ts) even though this system prompt already demands
+  // "Concise. Concrete." replies (~60 words for voice). That reservation is
+  // subtracted from Groq's fixed 5,500-token free-tier input budget BEFORE
+  // checking whether the prompt fits — so a normal case-context chat prompt
+  // (routinely 3-5k tokens) left Groq only ~1,400 usable input tokens and it
+  // was skipped as payload_too_large on effectively every real question,
+  // even with a valid, in-quota Groq key configured. A real conversational
+  // reply is nowhere near 4096 tokens; requesting a realistic cap here
+  // reclaims that headroom so Groq is an actual usable fallback, not a
+  // provider that's silently unusable for chat.
+  const chatMaxTokens = voiceMode ? 300 : 900;
+
   let r: Awaited<ReturnType<typeof callGroq>>;
   try {
     r = await callGroq({
@@ -500,6 +514,7 @@ export async function answerCaseQuestion(args: {
       apiKeys,
       userId,
       temperature: 0.35,
+      maxTokens: chatMaxTokens,
 
       systemInstruction: `${mexicoLock(locale)}
 
