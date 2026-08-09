@@ -233,7 +233,16 @@ export async function persistCanonicalTimeline(
     if (!existing) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (db as any).from("case_timeline_events").insert(nextRow);
-      if (!error) inserted += 1;
+      if (!error) {
+        inserted += 1;
+      } else {
+        // Previously swallowed with no signal at all — a failed insert here
+        // (RLS, constraint, transient DB error) just silently dropped the
+        // event from the timeline with no way to distinguish it from "this
+        // event was never extracted." Log so it's diagnosable; don't throw,
+        // since one bad event shouldn't abort persisting the rest.
+        console.error(`[canonical-timeline] insert failed case=${caseId} canonical_id=${canonical_id}`, error);
+      }
       continue;
     }
     const same =
@@ -251,7 +260,12 @@ export async function persistCanonicalTimeline(
       .insert(nextRow)
       .select("id")
       .maybeSingle();
-    if (insErr || !insertedRow?.id) continue;
+    if (insErr || !insertedRow?.id) {
+      if (insErr) {
+        console.error(`[canonical-timeline] supersede insert failed case=${caseId} canonical_id=${canonical_id}`, insErr);
+      }
+      continue;
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (db as any)
       .from("case_timeline_events")

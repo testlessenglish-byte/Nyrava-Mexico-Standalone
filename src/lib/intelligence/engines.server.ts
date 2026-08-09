@@ -656,8 +656,15 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
   // attorney-review-only, never as verified opportunities.
   await db.from("case_opportunities").delete().eq("case_id", caseId);
   if (kept.length || rejectedForReview.length) {
+    // Same class of bug fixed in runTrialPrepEngine/case_witnesses/
+    // case_theories: Supabase insert() does NOT throw on its own. This
+    // result was previously discarded entirely (not even destructured),
+    // so a rejected batch (RLS, constraint, transient DB error) left the
+    // case with zero persisted opportunities and no signal anything went
+    // wrong. Check and throw so the pipeline records this as a real
+    // failure instead of silently vanishing.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.from("case_opportunities").insert([
+    const { error: opportunitiesInsertError } = await db.from("case_opportunities").insert([
       ...kept.map((o, idx) => ({
         case_id: caseId,
         user_id: userId,
@@ -699,6 +706,11 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
         citations: [] as unknown as J,
       })),
     ] as any);
+    if (opportunitiesInsertError) {
+      throw new Error(
+        `case_opportunities insert failed for case ${caseId} (${kept.length + rejectedForReview.length} row(s)): ${opportunitiesInsertError.message}`,
+      );
+    }
   }
 
   await clearFindingsByModule(db, caseId, "engine:opportunity");

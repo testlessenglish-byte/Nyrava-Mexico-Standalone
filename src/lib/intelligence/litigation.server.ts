@@ -623,7 +623,15 @@ ${briefText}`,
     );
 
   if (rows.length > 0) {
-    await db.from("evidence_classifications").insert(rows);
+    // Same class of bug fixed for case_perspectives above in this file:
+    // Supabase insert() does NOT throw on its own; this result was
+    // previously discarded entirely.
+    const { error: evidenceClassificationsInsertError } = await db.from("evidence_classifications").insert(rows);
+    if (evidenceClassificationsInsertError) {
+      throw new Error(
+        `evidence_classifications insert failed for case ${caseId} (${rows.length} row(s)): ${evidenceClassificationsInsertError.message}`,
+      );
+    }
   }
 
   // Step 5: back-populate cross-reference columns on evidence_classifications
