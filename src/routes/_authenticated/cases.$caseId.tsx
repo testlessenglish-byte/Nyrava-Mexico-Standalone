@@ -761,6 +761,7 @@ function Workspace() {
                   documentsCount={docs.length}
                   report={report as unknown as Parameters<typeof getCanonicalCounts>[0]}
                   caseRow={c as unknown as Record<string, unknown>}
+                  score={score}
                   findingsCount={findings.length}
                   witnessesCount={witnesses.length}
                   evidenceCount={evidenceIntel.length}
