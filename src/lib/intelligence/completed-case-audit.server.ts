@@ -9,9 +9,23 @@
 // memory for that), identify both sides' strongest positions, and produce a
 // probability-based outcome assessment with reasoning — never a guarantee.
 //
+// ZERO-HALLUCINATION ENFORCEMENT — this is the "system-level validation
+// rule" requirement: the model's own self-assigned classification is NEVER
+// trusted on its own. A statement can only survive as FACT_DOCUMENTED or
+// COURT_FINDING if its claimed quote actually verifies against the case's
+// own documents (verifyQuoteDetailed — the exact same primitive the rest of
+// this codebase's citation floor already relies on), and can only survive
+// as LAW_VERIFIED if it cross-references a citation that
+// verifyStatutoryCitation() (added for Talk-to-Case) independently marked
+// VERIFIED. Anything that fails is forcibly downgraded in code, regardless
+// of what the model claimed — see enforceStatementSource()/enforceLawSource()
+// below.
+//
 // Persists to public.case_outcome_assessments (additive, brand-new table —
-// never touches case_findings, cases, or reports). See the migration
-// 20260809135402_completed_case_audit.sql for the schema this writes.
+// never touches case_findings, cases, or reports). See the migrations
+// 20260809135402_completed_case_audit.sql and
+// 20260809140747_completed_case_audit_outcome_status.sql for the schema
+// this writes.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { mexicoLock, groundingContract, getReportLocale } from "@/lib/mexico-lock";
@@ -24,6 +38,12 @@ import {
   type StatutoryCitationVerification,
 } from "@/lib/legal/citation-verification.server";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
+import {
+  buildGroundingCorpus,
+  verifyQuoteDetailed,
+  type GroundingCorpus,
+} from "./grounding.server";
+import { locateQuoteInText, pageForOffset } from "./evidence-provenance.server";
 
 type Db = SupabaseClient<Database>;
 const MODEL = GROQ_DEFAULT_MODEL;
@@ -37,12 +57,42 @@ const FINDING_REVIEW_STATUSES = [
 ] as const;
 type FindingReviewStatus = (typeof FINDING_REVIEW_STATUSES)[number];
 
+const SOURCE_CLASSIFICATIONS = [
+  "FACT_DOCUMENTED",
+  "LAW_VERIFIED",
+  "COURT_FINDING",
+  "INFERENCE",
+  "POSSIBILITY",
+  "UNKNOWN",
+] as const;
+export type SourceClassification = (typeof SOURCE_CLASSIFICATIONS)[number];
+
+const NOT_ESTABLISHED = "NOT ESTABLISHED FROM THE AVAILABLE RECORD";
+const SOURCE_NOT_LOCATED = "SOURCE NOT LOCATED — DO NOT TREAT AS ESTABLISHED";
+const AUTHORITY_NOT_VERIFIED = "LEGAL AUTHORITY NOT VERIFIED";
+
+export type SourceReference = {
+  document_id: string | null;
+  filename: string | null;
+  page: number | null;
+  quote: string | null;
+} | null;
+
+export type ClassifiedStatement = {
+  text: string;
+  classification: SourceClassification;
+  source: SourceReference;
+  note?: string;
+};
+
 export type CompletedCaseAuditResult = {
   id: string;
   overall_position: "FAVORABLE" | "UNFAVORABLE" | "MIXED";
-  favorable_pct: number;
-  unfavorable_pct: number;
-  confidence: "LOW" | "MODERATE" | "HIGH";
+  outcome_status: "ESTIMATED" | "INSUFFICIENT_DATA";
+  favorable_pct: number | null;
+  unfavorable_pct: number | null;
+  confidence: "LOW" | "MODERATE" | "HIGH" | null;
+  no_material_error_identified: boolean;
 } | null;
 
 /** Article-number citations only ("Art. 123 de la Ley..." / "Art. 123") —
@@ -88,6 +138,111 @@ async function logUsage(
   });
 }
 
+const FORBIDDEN_CERTAINTY =
+  /\b(you will win|guaranteed victory|100% chance|ganará(s)? seguro|victoria garantizada)\b/i;
+function scrubCertainty(s: unknown): string {
+  const str = String(s ?? "");
+  return FORBIDDEN_CERTAINTY.test(str)
+    ? "[redacted — the model's original wording overclaimed certainty; see biggest_risk/confidence instead]"
+    : str;
+}
+
+/** Resolves a claimed quote against the case's real documents — the SAME
+ *  primitive the rest of this codebase's citation floor already trusts.
+ *  Returns null when the quote doesn't actually verify (missing, invented,
+ *  or paraphrased beyond the soft-match threshold). */
+export function resolveSource(
+  quote: string | null | undefined,
+  corpus: GroundingCorpus,
+  docs: Array<{ id: string; filename: string; extracted_text: string | null }>,
+): SourceReference {
+  if (!quote) return null;
+  if (!verifyQuoteDetailed(quote, corpus).verified) return null;
+  for (const doc of docs) {
+    const loc = locateQuoteInText(quote, doc.extracted_text ?? "");
+    if (loc) {
+      return {
+        document_id: doc.id,
+        filename: doc.filename,
+        page: pageForOffset(loc.start, corpus.pageChars),
+        quote,
+      };
+    }
+  }
+  // Verified against the corpus as a whole (a soft/shingle match spanning a
+  // normalization boundary can do this) but couldn't be pinned to one
+  // document's raw text — still real, just without a page number.
+  return { document_id: null, filename: null, page: null, quote };
+}
+
+/**
+ * THE technical barrier the spec asks for: a statement can only keep a
+ * FACT_DOCUMENTED or COURT_FINDING classification if its claimed quote
+ * actually resolves against the case's own documents. This NEVER trusts the
+ * model's self-assigned classification — every FACT_DOCUMENTED/COURT_FINDING
+ * claim is independently re-checked here, and forcibly downgraded to UNKNOWN
+ * with an explicit SOURCE NOT LOCATED note if the quote doesn't verify (or
+ * wasn't provided at all).
+ */
+export function enforceStatementSource(
+  item: { text?: unknown; classification?: unknown; quote?: unknown },
+  corpus: GroundingCorpus,
+  docs: Array<{ id: string; filename: string; extracted_text: string | null }>,
+): ClassifiedStatement | null {
+  const text = scrubCertainty(item.text);
+  if (!text) return null;
+  const claimed = SOURCE_CLASSIFICATIONS.includes(item.classification as SourceClassification)
+    ? (item.classification as SourceClassification)
+    : "UNKNOWN";
+  const quote = typeof item.quote === "string" ? item.quote : null;
+
+  if (claimed === "FACT_DOCUMENTED" || claimed === "COURT_FINDING") {
+    const source = resolveSource(quote, corpus, docs);
+    if (!source) return { text, classification: "UNKNOWN", source: null, note: SOURCE_NOT_LOCATED };
+    return { text, classification: claimed, source };
+  }
+  // LAW_VERIFIED is gated separately (enforceLawSource) since it verifies
+  // against legal_authorities/legal_articles, not the case corpus.
+  if (claimed === "LAW_VERIFIED")
+    return { text, classification: "UNKNOWN", source: null, note: AUTHORITY_NOT_VERIFIED };
+  // INFERENCE / POSSIBILITY / UNKNOWN never claim to be established, so no
+  // source is required — but attach one opportunistically if the model gave
+  // a quote that happens to verify, since that only strengthens the item.
+  return {
+    text,
+    classification: claimed,
+    source: quote ? resolveSource(quote, corpus, docs) : null,
+  };
+}
+
+/** Same barrier, for legal-authority claims: only survives as LAW_VERIFIED
+ *  if it names a citation this run's deterministic re-verification (see
+ *  runCompletedCaseAudit's citationReviews) independently marked VERIFIED. */
+export function enforceLawSource(
+  item: { text?: unknown; citation_text?: unknown },
+  citationReviews: Array<{ citation_text: string; verification: StatutoryCitationVerification }>,
+): ClassifiedStatement | null {
+  const text = scrubCertainty(item.text);
+  if (!text) return null;
+  const citationText = typeof item.citation_text === "string" ? item.citation_text : null;
+  const match = citationText
+    ? citationReviews.find((c) => c.citation_text === citationText)
+    : undefined;
+  if (match && match.verification.status === "VERIFIED") {
+    return {
+      text,
+      classification: "LAW_VERIFIED",
+      source: {
+        document_id: null,
+        filename: null,
+        page: null,
+        quote: match.verification.matched_article_body,
+      },
+    };
+  }
+  return { text, classification: "UNKNOWN", source: null, note: AUTHORITY_NOT_VERIFIED };
+}
+
 /**
  * Runs the completed-case audit for one case. No-op (returns null) when the
  * case is not under a completed-case analysis mode — safe to call
@@ -114,10 +269,22 @@ export async function runCompletedCaseAudit(
   // date as "cannot verify vigency" rather than asserting current law.
   const caseDate = (caseRow as { created_at?: string } | null)?.created_at ?? null;
 
+  const { data: docsRaw } = await db
+    .from("documents")
+    .select("id,filename,extracted_text")
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: true });
+  const docs = (docsRaw ?? []) as Array<{
+    id: string;
+    filename: string;
+    extracted_text: string | null;
+  }>;
+  const corpus = buildGroundingCorpus(docs);
+
   const { data: findingsRaw } = await db
     .from("case_findings")
     .select(
-      "id,title,description,category,severity,confidence,legal_significance,evidence_refs,audit_classification,source_module",
+      "id,title,description,category,severity,confidence,legal_significance,evidence_refs,audit_classification,finding_type,source_module",
     )
     .eq("case_id", caseId)
     .not("source_module", "like", PROJECTION_LIKE);
@@ -131,6 +298,7 @@ export async function runCompletedCaseAudit(
     legal_significance: string | null;
     evidence_refs: unknown;
     audit_classification: string | null;
+    finding_type: string | null;
     source_module: string;
   }>;
   if (findings.length === 0) return null; // nothing to audit yet
@@ -201,30 +369,33 @@ export async function runCompletedCaseAudit(
     r = await callGroq({
       apiKeys,
       model: MODEL,
-      temperature: 0.2,
+      temperature: 0.15,
       json: true,
       systemInstruction: `${mexicoLock(locale)}
 
 ${groundingContract(locale)}
 
-You are a senior Mexican litigation attorney performing a FINAL QUALITY-CONTROL AUDIT of a completed case analysis — a "second pair of eyes" review, not a fresh investigation. You are given the EXISTING findings this case's analysis already produced (do not invent new ones), plus REAL, deterministically-verified statutory citation checks (CITATION VERIFICATION RESULTS below — these come from an actual database of Mexican legal sources, not from your own memory; treat them as ground truth, never override a citation's verification status based on what you believe the law says).
+You are a senior Mexican litigation attorney performing a FINAL QUALITY-CONTROL AUDIT of a completed case analysis — a "second pair of eyes" review, not a fresh investigation. Accuracy is more important than producing an answer. You may NEVER invent facts, evidence, citations, statutes, court holdings, defendants, procedural events, testimony, or documents.
 
-YOUR TASK — audit the existing analysis and produce a structured outcome assessment covering:
-1. ERRORS in the existing analysis: incorrect statutes/articles, misquoted or outdated provisions, incorrect jurisdiction, incorrect legal classification, unsupported conclusions, misunderstood/omitted evidence, contradictions between facts/evidence/conclusions, missing procedural requirements, incorrect assumptions about Mexican law, or any common-law (U.S.) terminology that does not apply to a Mexican proceeding.
-2. LEGAL AUTHORITY RE-CHECK: use ONLY the CITATION VERIFICATION RESULTS provided — never assert a citation is correct/incorrect from your own memory. Distinguish verified law from AI inference explicitly.
-3. BOTH SIDES: the strongest arguments, evidence, and weaknesses for each side, and contradictions/gaps that could materially affect the outcome.
-4. PROBABILITY-BASED OUTCOME (never a guarantee): favorable_pct + unfavorable_pct must sum to 100 and must be derived from the actual findings/evidence provided, never a generic/round default.
-5. WHY: explain the percentage through the specific factors listed in the schema below.
-6. WHAT COULD CHANGE THE OUTCOME: evidence that could help or hurt, unresolved legal issues, missing documents/testimony, facts needing verification.
-7. Per-finding review status: for EACH finding id given, classify it VERIFIED (the record/law directly supports it) | CORRECTED (materially right but you are correcting an error in it — explain in the note) | UNVERIFIED (plausible but not independently confirmable here) | CONTRADICTED (conflicts with other evidence/findings or with a verified citation) | MISSING_EVIDENCE (the finding depends on evidence that is not actually in the record).
-8. LANGUAGE DISCIPLINE: never write "you will win", "guaranteed", or "100% chance" anywhere in any field. Use "estimated favorable outcome", "current assessment based on the evidence currently available", and note this assessment may change if additional evidence or legal authority is discovered.
+ZERO-HALLUCINATION RULES (mandatory):
+- If something is not established by the EXISTING FINDINGS, the case documents, or the CITATION VERIFICATION RESULTS below, write "${NOT_ESTABLISHED}" — never guess, never infer that something happened merely because it would normally happen in a case like this.
+- Do not assume a document, testimony, search, seizure, arrest, interrogation, expert examination, or hearing occurred unless the record actually establishes it.
+- EVERY statement you classify FACT_DOCUMENTED or COURT_FINDING MUST include a "quote" field with the EXACT verbatim text from the case's own documents that supports it — copied character-for-character, not paraphrased. A statement with no genuine supporting quote CANNOT be FACT_DOCUMENTED or COURT_FINDING; classify it INFERENCE, POSSIBILITY, or UNKNOWN instead. This is independently re-verified in code — a fabricated or paraphrased quote will be caught and the statement downgraded regardless of what you write here, so do not attempt to satisfy this requirement with an invented quote.
+- EVERY statement you classify LAW_VERIFIED MUST include a "citation_text" field matching EXACTLY one of the strings in CITATION VERIFICATION RESULTS below, and that citation's status must be "VERIFIED" there — never mark something LAW_VERIFIED from memory. This is also independently re-checked in code.
+- If the record does not establish the supporting location for a claim, do not present it as established.
+- If two documents/findings conflict, do NOT silently pick one — report both and describe the conflict (record_conflicts).
+- It is a valid and IMPORTANT result to find NO material error. Do not manufacture a weakness or an error to have something to report. If you find nothing wrong, say so plainly (leave confirmed_errors empty).
+- If the anonymized identity of a party is not stated in the record, do NOT infer or invent a name, address, age, criminal history, organization, or personal history for them.
+- If the available evidence is too thin to support a meaningful outcome probability, set "outcome_status" to "INSUFFICIENT_DATA" and explain why in "basis" — do NOT invent a plausible-sounding percentage. A real percentage must be traceable to specific factors below, never a generic/round default like 75/25.
+- Distinguish the law as it applied at the time of the events (LAW AT TIME OF EVENTS) from current law where a reform changed it — the CITATION VERIFICATION RESULTS already carry vigency information; use it, do not override it from memory.
+- Never write "you will win", "guaranteed", or "100% chance" anywhere.
 
 Output STRICT JSON only, in ${locale === "en" ? "English" : "Spanish (México)"}.`,
       userContent: `EXISTING FINDINGS (audit these — do not invent new ones):
 ${JSON.stringify(findingsForPrompt)}
 
-CITATION VERIFICATION RESULTS (ground truth — deterministic, from the real legal-source corpus):
-${citationsForPrompt.length > 0 ? JSON.stringify(citationsForPrompt) : "No statutory article citations with a resolvable statute name were found in the existing findings' text."}
+CITATION VERIFICATION RESULTS (ground truth — deterministic, from the real legal-source corpus; cite ONLY these by exact string in citation_text fields):
+${citationsForPrompt.length > 0 ? JSON.stringify(citationsForPrompt) : "No statutory article citations with a resolvable statute name were found in the existing findings' text — do not classify anything LAW_VERIFIED."}
 
 CASE SCORE SUMMARY (already computed, for context only):
 ${JSON.stringify(scoreRow ?? {})}
@@ -232,39 +403,33 @@ ${JSON.stringify(scoreRow ?? {})}
 EXECUTIVE SUMMARY (already generated, for context only):
 ${String((reportRow as { executive_summary?: string } | null)?.executive_summary ?? "").slice(0, 3000)}
 
-Return STRICT JSON:
+Return STRICT JSON. Every item in verified_facts/court_findings/confirmed_errors/potential_issues/unverified_claims/defense_opportunities/prosecution_counterarguments is { "text": string, "classification": "FACT_DOCUMENTED"|"COURT_FINDING"|"INFERENCE"|"POSSIBILITY"|"UNKNOWN", "quote": string|null }. Every item in verified_law is { "text": string, "citation_text": string }.
 {
-  "overall_position": "FAVORABLE"|"UNFAVORABLE"|"MIXED",
-  "favorable_pct": number (0-100),
+  "verified_facts": [ {...} ],
+  "verified_law": [ {...} ],
+  "court_findings": [ {...} ],
+  "confirmed_errors": [ {...} ],
+  "potential_issues": [ {...} ],
+  "unverified_claims": [ {...} ],
+  "record_conflicts": [ { "description": string, "quote_a": string|null, "quote_b": string|null } ],
+  "missing_information": [ string ],
+  "defense_opportunities": [ {...} ],
+  "prosecution_counterarguments": [ {...} ],
+  "outcome_status": "ESTIMATED"|"INSUFFICIENT_DATA",
+  "favorable_pct": number (0-100, only meaningful if outcome_status is ESTIMATED),
   "unfavorable_pct": number (0-100, must be 100 - favorable_pct),
   "confidence": "LOW"|"MODERATE"|"HIGH",
+  "basis": string (WHY this percentage — must reference specific evidence/factors, required if outcome_status is ESTIMATED),
+  "overall_position": "FAVORABLE"|"UNFAVORABLE"|"MIXED",
   "principal_strength": string,
   "principal_weakness": string,
   "biggest_risk": string,
   "most_important_missing_evidence": string,
-  "both_sides": {
-    "claimant_side": { "arguments": [string], "evidence": [string], "weaknesses": [string] },
-    "defendant_side": { "arguments": [string], "evidence": [string], "weaknesses": [string] },
-    "contradictions_or_gaps": [string]
-  },
   "factors": {
-    "legal_foundation": string,
-    "evidence_strength": string,
-    "procedural_position": string,
-    "contradictions": string,
-    "opposing_arguments": string,
-    "missing_evidence": string,
-    "witness_evidence_reliability": string,
-    "applicable_mexican_law": string,
-    "serious_vulnerabilities": string,
-    "potential_dispositive_issues": string
-  },
-  "what_could_change": {
-    "evidence_that_could_improve": [string],
-    "evidence_that_could_damage": [string],
-    "legal_issues_to_resolve": [string],
-    "missing_documents_or_testimony": [string],
-    "facts_requiring_verification": [string]
+    "legal_foundation": string, "evidence_strength": string, "procedural_position": string,
+    "contradictions": string, "opposing_arguments": string, "missing_evidence": string,
+    "witness_evidence_reliability": string, "applicable_mexican_law": string,
+    "serious_vulnerabilities": string, "potential_dispositive_issues": string
   },
   "finding_reviews": [ { "finding_id": string, "status": "VERIFIED"|"CORRECTED"|"UNVERIFIED"|"CONTRADICTED"|"MISSING_EVIDENCE", "note": string } ]
 }`,
@@ -292,43 +457,118 @@ Return STRICT JSON:
   const parsed = parseJsonLoose<Record<string, any>>(r.text);
   if (!parsed) return null;
 
-  // ---- Deterministic backstop — never trust the model's own arithmetic or
-  // language discipline blindly, mirroring the established pattern (e.g.
-  // procedural-defect-grounding.server.ts) of a code-level backstop behind
-  // every prompt-level instruction. ----------------------------------------
-  const clampPct = (v: unknown): number => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
-  const favorable = clampPct(parsed.favorable_pct);
-  let unfavorable = clampPct(parsed.unfavorable_pct);
-  if (favorable + unfavorable !== 100) {
-    // Trust favorable_pct as primary (schema asks for it first); derive the
-    // complement rather than the model's (possibly inconsistent) figure.
-    unfavorable = 100 - favorable;
+  // ---- Deterministic source-verification gate — THE technical barrier ----
+
+  const toStatements = (arr: unknown): ClassifiedStatement[] =>
+    (Array.isArray(arr) ? arr : [])
+      .map((item) => enforceStatementSource(item as Record<string, unknown>, corpus, docs))
+      .filter((x): x is ClassifiedStatement => x !== null);
+
+  const verifiedFacts = toStatements(parsed.verified_facts);
+  const courtFindings = toStatements(parsed.court_findings);
+  const potentialIssues = toStatements(parsed.potential_issues);
+  const unverifiedClaims = toStatements(parsed.unverified_claims);
+  const defenseOpportunities = toStatements(parsed.defense_opportunities);
+  const prosecutionCounterarguments = toStatements(parsed.prosecution_counterarguments);
+
+  const verifiedLaw = (Array.isArray(parsed.verified_law) ? parsed.verified_law : [])
+    .map((item: Record<string, unknown>) => enforceLawSource(item, citationReviews))
+    .filter((x: ClassifiedStatement | null): x is ClassifiedStatement => x !== null);
+
+  // confirmed_errors is the highest-stakes bucket — the spec's explicit
+  // "model must be unable to mark something CONFIRMED without a source"
+  // requirement. An error claim needs EITHER a verified case-document quote
+  // OR a verified legal citation behind it; anything that fails either check
+  // is demoted into potential_issues rather than discarded, since "we think
+  // there might be an issue here, but couldn't independently confirm it" is
+  // still real information — it's the CONFIRMED label that's not earned.
+  const confirmedErrorsRaw = Array.isArray(parsed.confirmed_errors) ? parsed.confirmed_errors : [];
+  const confirmedErrors: ClassifiedStatement[] = [];
+  for (const raw of confirmedErrorsRaw) {
+    const item = raw as Record<string, unknown>;
+    const withFactSource = enforceStatementSource(
+      { text: item.text, classification: "FACT_DOCUMENTED", quote: item.quote },
+      corpus,
+      docs,
+    );
+    if (withFactSource && withFactSource.classification === "FACT_DOCUMENTED") {
+      confirmedErrors.push(withFactSource);
+      continue;
+    }
+    const withLawSource = item.citation_text ? enforceLawSource(item, citationReviews) : null;
+    if (withLawSource && withLawSource.classification === "LAW_VERIFIED") {
+      confirmedErrors.push({ ...withLawSource, classification: "FACT_DOCUMENTED" });
+      continue;
+    }
+    // Neither a verified document quote nor a verified citation — cannot be
+    // CONFIRMED. Demote to potential_issues, not silently dropped.
+    const text = scrubCertainty(item.text);
+    if (text)
+      potentialIssues.push({
+        text,
+        classification: "POSSIBILITY",
+        source: null,
+        note: SOURCE_NOT_LOCATED,
+      });
   }
+  const noMaterialErrorIdentified = confirmedErrors.length === 0;
+
+  const recordConflictsRaw = Array.isArray(parsed.record_conflicts) ? parsed.record_conflicts : [];
+  const recordConflicts = recordConflictsRaw
+    .map((c: Record<string, unknown>) => ({
+      description: scrubCertainty(c.description),
+      source_a: resolveSource(typeof c.quote_a === "string" ? c.quote_a : null, corpus, docs),
+      source_b: resolveSource(typeof c.quote_b === "string" ? c.quote_b : null, corpus, docs),
+    }))
+    .filter((c: { description: string }) => c.description);
+
+  const missingInformation = (
+    Array.isArray(parsed.missing_information) ? parsed.missing_information : []
+  )
+    .map((s: unknown) => scrubCertainty(s))
+    .filter(Boolean);
+
+  // ---- Outcome probability — INSUFFICIENT_DATA is a first-class result ---
+  const clampPct = (v: unknown): number => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+  const basis = scrubCertainty(parsed.basis);
+  // Never invent a percentage: the model must both say ESTIMATED AND give a
+  // non-empty basis. Missing either forces INSUFFICIENT_DATA regardless of
+  // what favorable_pct/unfavorable_pct the model returned.
+  const modelWantsEstimate = parsed.outcome_status === "ESTIMATED" && basis.length > 0;
+  const outcomeStatus: "ESTIMATED" | "INSUFFICIENT_DATA" = modelWantsEstimate
+    ? "ESTIMATED"
+    : "INSUFFICIENT_DATA";
+
+  let favorable: number | null = null;
+  let unfavorable: number | null = null;
+  let confidence: "LOW" | "MODERATE" | "HIGH" | null = null;
+  if (outcomeStatus === "ESTIMATED") {
+    favorable = clampPct(parsed.favorable_pct);
+    unfavorable = clampPct(parsed.unfavorable_pct);
+    if (favorable + unfavorable !== 100) unfavorable = 100 - favorable;
+    confidence =
+      parsed.confidence === "LOW" ||
+      parsed.confidence === "MODERATE" ||
+      parsed.confidence === "HIGH"
+        ? parsed.confidence
+        : "LOW";
+  }
+
   const overallPosition: "FAVORABLE" | "UNFAVORABLE" | "MIXED" =
     parsed.overall_position === "FAVORABLE" ||
     parsed.overall_position === "UNFAVORABLE" ||
     parsed.overall_position === "MIXED"
       ? parsed.overall_position
-      : favorable > 60
-        ? "FAVORABLE"
-        : favorable < 40
-          ? "UNFAVORABLE"
-          : "MIXED";
-  const confidence: "LOW" | "MODERATE" | "HIGH" =
-    parsed.confidence === "LOW" || parsed.confidence === "MODERATE" || parsed.confidence === "HIGH"
-      ? parsed.confidence
-      : "LOW";
-
-  const FORBIDDEN_CERTAINTY =
-    /\b(you will win|guaranteed victory|100% chance|ganará(s)? seguro|victoria garantizada)\b/i;
-  const scrubCertainty = (s: unknown): string => {
-    const str = String(s ?? "");
-    return FORBIDDEN_CERTAINTY.test(str)
-      ? "[redacted — the model's original wording overclaimed certainty; see biggest_risk/confidence instead]"
-      : str;
-  };
+      : favorable != null
+        ? favorable > 60
+          ? "FAVORABLE"
+          : favorable < 40
+            ? "UNFAVORABLE"
+            : "MIXED"
+        : "MIXED";
 
   const findingIds = new Set(findings.map((f) => f.id));
+  const findingTypeById = new Map(findings.map((f) => [f.id, f.finding_type]));
   const findingReviewsRaw = Array.isArray(parsed.finding_reviews) ? parsed.finding_reviews : [];
   const findingReviews = findingReviewsRaw
     .filter((fr: unknown): fr is { finding_id: string; status: string; note?: string } => {
@@ -339,27 +579,52 @@ Return STRICT JSON:
         FINDING_REVIEW_STATUSES.includes(x.status as FindingReviewStatus)
       );
     })
-    .map((fr: { finding_id: string; status: string; note?: string }) => ({
-      finding_id: fr.finding_id,
-      status: fr.status as FindingReviewStatus,
-      note: scrubCertainty(fr.note ?? ""),
-    }));
+    .map((fr: { finding_id: string; status: string; note?: string }) => {
+      // A finding can only be confirmed VERIFIED here if the underlying
+      // finding itself already carries DIRECT_EVIDENCE — a citation-floor
+      // guarantee case_findings already enforces at write time. Anything
+      // else claiming VERIFIED is downgraded rather than trusted twice-removed.
+      const status: FindingReviewStatus =
+        fr.status === "VERIFIED" && findingTypeById.get(fr.finding_id) !== "DIRECT_EVIDENCE"
+          ? "UNVERIFIED"
+          : (fr.status as FindingReviewStatus);
+      return { finding_id: fr.finding_id, status, note: scrubCertainty(fr.note ?? "") };
+    });
+
+  // All the source-gated classified content lives under both_sides (a jsonb
+  // column — see the migration's comment on why this is deliberately
+  // variable-shape rather than one column per bucket).
+  const bothSides = {
+    verified_facts: verifiedFacts,
+    verified_law: verifiedLaw,
+    court_findings: courtFindings,
+    confirmed_errors: confirmedErrors,
+    potential_issues: potentialIssues,
+    unverified_claims: unverifiedClaims,
+    record_conflicts: recordConflicts,
+    defense_opportunities: defenseOpportunities,
+    prosecution_counterarguments: prosecutionCounterarguments,
+    basis: outcomeStatus === "ESTIMATED" ? basis : "OUTCOME PROBABILITY: INSUFFICIENT DATA",
+  };
 
   const insertRow = {
     case_id: caseId,
     user_id: userId,
     case_analysis_mode: mode,
     overall_position: overallPosition,
-    favorable_pct: favorable,
-    unfavorable_pct: unfavorable,
-    confidence,
-    principal_strength: scrubCertainty(parsed.principal_strength),
-    principal_weakness: scrubCertainty(parsed.principal_weakness),
-    biggest_risk: scrubCertainty(parsed.biggest_risk),
-    most_important_missing_evidence: scrubCertainty(parsed.most_important_missing_evidence),
-    both_sides: parsed.both_sides ?? {},
+    outcome_status: outcomeStatus,
+    favorable_pct: favorable ?? 0,
+    unfavorable_pct: unfavorable ?? 0,
+    confidence: confidence ?? "LOW",
+    no_material_error_identified: noMaterialErrorIdentified,
+    principal_strength: scrubCertainty(parsed.principal_strength) || NOT_ESTABLISHED,
+    principal_weakness: scrubCertainty(parsed.principal_weakness) || NOT_ESTABLISHED,
+    biggest_risk: scrubCertainty(parsed.biggest_risk) || NOT_ESTABLISHED,
+    most_important_missing_evidence:
+      scrubCertainty(parsed.most_important_missing_evidence) || NOT_ESTABLISHED,
+    both_sides: bothSides,
     factors: parsed.factors ?? {},
-    what_could_change: parsed.what_could_change ?? {},
+    what_could_change: { missing_information: missingInformation },
     finding_reviews: findingReviews,
     citation_reviews: citationReviews.map((c) => ({
       citation_text: c.citation_text,
@@ -382,8 +647,10 @@ Return STRICT JSON:
   return {
     id: (inserted as { id: string }).id,
     overall_position: overallPosition,
+    outcome_status: outcomeStatus,
     favorable_pct: favorable,
     unfavorable_pct: unfavorable,
     confidence,
+    no_material_error_identified: noMaterialErrorIdentified,
   };
 }
