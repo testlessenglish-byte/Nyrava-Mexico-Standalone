@@ -67,6 +67,10 @@ type Props = {
   documentsCount: number;
   report: ReportLike | null | undefined;
   caseRow?: Record<string, unknown> | null;
+  /** Live case_scores row — preferred over the (possibly ESS-suppressed or
+   *  stale) report snapshot for the header Case Score badge, same "live
+   *  wins over stale snapshot" principle already used for the counts below. */
+  score?: { overall_confidence: number | null; case_quality: number | null } | null;
   /** Live row counts from the case page; fall back to canonical report counts. */
   findingsCount?: number;
   witnessesCount?: number;
@@ -139,6 +143,7 @@ export function CommandCenterDashboard({
   documentsCount,
   report,
   caseRow,
+  score,
   findingsCount,
   witnessesCount,
   evidenceCount,
@@ -185,11 +190,31 @@ export function CommandCenterDashboard({
   // which is what produced the mismatch against the PDF's agent count.
   const agentSummary = useMemo(() => getAgentSummary(report ?? null), [report]);
 
-  // Case score: prefer overall confidence; fall back to derived quality.
-  const caseScore = Math.max(0, Math.min(100, Math.round((scores.strength ?? 0) || 100 - (scores.risk ?? 100))));
+  // Case score: prefer the live case_scores row (same "live wins over stale
+  // snapshot" principle already used above for findings/witnesses/evidence/
+  // opportunities counts), then the report snapshot's case_strength_score,
+  // then a risk-derived estimate; null only when none of those exist.
+  //
+  // FIX: the previous formula, `(scores.strength ?? 0) || 100 - (scores.risk
+  // ?? 100)`, had two bugs. First, `-` binds tighter than `||`, so it
+  // actually evaluated as `(scores.strength ?? 0) || (100 - (scores.risk ??
+  // 100))`, not the `(x ?? 0) || y` the author likely intended visually.
+  // Second, and the one that actually surfaced live: `||` treats 0 as falsy,
+  // so ANY time scores.strength was null (ESS-suppressed report, or no
+  // report yet) it collapsed to 0 via `?? 0`, which is falsy, which forced
+  // the `100 - (scores.risk ?? 100)` fallback — and since scores.risk is
+  // suppressed by the exact same ESS gate, THAT was also null, giving `100 -
+  // 100 = 0`. Confirmed live: a case showed a real case_scores-derived 75,
+  // then dropped to a flat 0 once the (ESS-suppressed, single-document)
+  // report finished generating and this component started reading the now-
+  // null report.case_strength_score instead.
+  const liveScore = (score?.overall_confidence ?? score?.case_quality) ?? null;
+  const reportScore = scores.strength ?? (scores.risk != null ? 100 - scores.risk : null);
+  const rawCaseScore = liveScore ?? reportScore;
+  const caseScore = rawCaseScore == null ? 0 : Math.max(0, Math.min(100, Math.round(rawCaseScore)));
   const caseBand = scoreBand(caseScore);
-  const scoreLabel = caseScore > 0 ? t(caseBand.labelKey) : t("score.pending");
-  const scoreColor = caseScore > 0 ? caseBand.hex : "#B0A8CC";
+  const scoreLabel = rawCaseScore != null ? t(caseBand.labelKey) : t("score.pending");
+  const scoreColor = rawCaseScore != null ? caseBand.hex : "#B0A8CC";
 
   const progressPct = engineRows.length > 0 ? execProgress.percent : Math.max(0, Math.min(100, progress ?? 0));
   const running =
