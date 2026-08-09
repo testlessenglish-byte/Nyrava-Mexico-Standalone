@@ -570,12 +570,32 @@ function dedupSemantically(rows: NewFinding[]): NewFinding[] {
       }));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = winner as any;
+      // FIX: when the winner is an existing-row anchor, it's the minimal
+      // existingShim object built below (case_id/user_id/source_module/
+      // category/title/description/severity/confidence/source_doc_ids/
+      // evidence_refs/metadata ONLY) — it never carries speaker_role/
+      // proposition_type/adoption_status/audit_classification, so spreading
+      // `...winner` alone silently discarded these from every loser too,
+      // even when a loser (this run's freshly generated finding) had a real
+      // value. Confirmed via a real case export: ways_out_analysis's LLM
+      // output correctly included audit_classification, but the persisted
+      // row stayed null because it merged into an existing-row anchor that
+      // structurally couldn't carry it forward. Prefer the winner's own
+      // value; otherwise take the first loser that has one — same
+      // enrichment principle already applied to evidence_refs/source_doc_ids
+      // above, just for these four additive fields.
+      const firstWith = <K extends keyof NewFinding>(key: K): NewFinding[K] | undefined =>
+        (w[key] as NewFinding[K] | undefined) ?? losers.map((l) => l[key]).find((v) => v != null);
       merged.push({
         ...winner,
         severity: mostSevere,
         confidence: mergedConfidence,
         evidence_refs: mergedRefs as NewFinding["evidence_refs"],
         source_doc_ids: mergedDocIds,
+        speaker_role: firstWith("speaker_role"),
+        proposition_type: firstWith("proposition_type"),
+        adoption_status: firstWith("adoption_status"),
+        audit_classification: firstWith("audit_classification"),
         metadata: {
           ...(w.metadata ?? {}),
           merged_from: [
@@ -695,6 +715,25 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
             severity: normSeverity(entry.severity),
             metadata: { ...restMeta, merged_from } as J,
             updated_at: new Date().toISOString(),
+            // FIX: a finding that merges into an already-persisted row (a
+            // checkpoint-resumed pass, or a later batch re-deriving the same
+            // canonical finding) previously had its judicial-hierarchy
+            // attribution and audit_classification silently frozen at
+            // whatever the FIRST insert produced — confirmed via a real
+            // case export: the ways_out_analysis agent's LLM output correctly
+            // included audit_classification (visible in metadata.raw), but
+            // the persisted column stayed null because this UPDATE never
+            // touched it, even though updated_at showed the row WAS
+            // re-merged minutes after its original insert. These four
+            // columns are additive/nullable (see the judicial-hierarchy and
+            // case-analysis-mode migrations) so refreshing them here can
+            // only improve a stale null, never regress a populated value
+            // with a worse one — normXxx already guarantees `entry`'s
+            // values are either a valid enum member or null.
+            speaker_role: normSpeakerRole(entry.speaker_role),
+            proposition_type: normPropositionType(entry.proposition_type),
+            adoption_status: normAdoptionStatus(entry.adoption_status),
+            audit_classification: normAuditClassification(entry.audit_classification),
           } as never)
           .eq("id", existingId);
         if (error) {
