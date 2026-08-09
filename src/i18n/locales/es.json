@@ -387,6 +387,7 @@
   "caseSettings.toast.caseAnalysisModeChanged": "Modo de Análisis del Caso actualizado — se limpió el análisis previo. Reejecute el caso para generar un reporte bajo el nuevo objetivo.",
   "caseSettings.toast.modeChanged": "Modo de análisis actualizado — reejecute el caso para volver a correr los motores afectados.",
   "caseSettings.toast.saveFailed": "No se pudo guardar",
+  "caseSettings.toast.sourceConflict": "Aviso: los documentos del expediente confirman la materia \"{source}\", distinta de \"{chosen}\" que acaba de seleccionar. Se guardó su selección, pero la clasificación confirmada por fuente se conserva y puede consultarse en cualquier momento.",
   "caseSettings.toast.saved": "Configuración guardada. Reejecute el caso para aplicarla.",
   "caseTab.agents": "Agentes",
   "caseTab.analyzers": "Analizadores",

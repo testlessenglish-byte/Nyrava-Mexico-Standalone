@@ -9,6 +9,13 @@
 // Nothing here calls an AI provider — detection is deterministic keyword
 // classification over the extracted corpus (see mx-case-classifier and
 // intelligence/mx-jurisdiction), so it costs no quota.
+//
+// Delegates the actual detection + evidence trail to
+// intelligence/case-classification.server.ts (source-grounded: every
+// detected field carries the document/page/quote that established it, and
+// disagreeing documents produce a recorded CONFLICT rather than a silent
+// pick) — this module is now a thin adapter that keeps the
+// AutoDetectResult contract every existing caller already relies on.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const TEXT_MIME = /^(text\/|application\/json)/i;
@@ -72,6 +79,7 @@ export async function autoDetectCaseContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any> | any,
   caseId: string,
+  userId?: string,
 ): Promise<AutoDetectResult> {
   const { data: row } = await supabase
     .from("cases")
@@ -84,56 +92,79 @@ export async function autoDetectCaseContext(
   const needsType = !declaredType || declaredType.toLowerCase() === "unknown";
   const needsJur = !declaredJur;
 
+  let result: AutoDetectResult;
   if (!needsType && !needsJur) {
-    return {
+    result = {
       caseType: declaredType || null,
       jurisdiction: declaredJur || null,
       detected: false,
       source: "case_field",
     };
+  } else {
+    const corpusText = await readCorpusText(supabase, caseId);
+    if (!corpusText.trim()) {
+      result = {
+        caseType: declaredType || null,
+        jurisdiction: declaredJur || null,
+        detected: false,
+        source: null,
+      };
+    } else {
+      const { resolveMxCaseType } = await import("@/lib/mx-case-classifier");
+      const { buildJurisdictionProfile } = await import("@/lib/intelligence/mx-jurisdiction");
+
+      const decided = resolveMxCaseType({ text: corpusText, declaredArea: declaredType || null });
+      const caseType = needsType ? decided.caseType : declaredType;
+
+      const profile = buildJurisdictionProfile({
+        caseType,
+        jurisdictionField: declaredJur || null,
+        corpusText,
+      });
+      // Store the CANONICAL jurisdiction value (a fuero, not a place name) so
+      // the federal channel can be routed on reliably downstream.
+      const jurisdiction = needsJur
+        ? profile.jurisdiction_level === "federal"
+          ? "federal"
+          : (profile.state?.code ?? null)
+        : declaredJur;
+
+      const patch: Record<string, unknown> = {};
+      if (needsType) patch.case_type = caseType;
+      if (needsJur && jurisdiction) patch.jurisdiction = jurisdiction;
+      if (Object.keys(patch).length) {
+        await supabase.from("cases").update(patch).eq("id", caseId);
+      }
+
+      result = {
+        caseType,
+        jurisdiction: jurisdiction ?? null,
+        detected: Object.keys(patch).length > 0,
+        source: needsType ? decided.source : "case_field",
+      };
+    }
   }
 
-  const corpusText = await readCorpusText(supabase, caseId);
-  if (!corpusText.trim()) {
-    return {
-      caseType: declaredType || null,
-      jurisdiction: declaredJur || null,
-      detected: false,
-      source: null,
-    };
+  // Build the source-grounded evidence trail (case type, jurisdiction, court,
+  // parties, expediente number, concluded status — each with its own
+  // document/page/quote) regardless of which branch above ran: the evidence
+  // record must exist whether or not case_type/jurisdiction needed filling
+  // in, so the UI can show "Source Verification: CONFIRMED BY SOURCE" (or
+  // CONFLICT/INSUFFICIENT_DATA) and a manual override can be checked against
+  // it later. Only refines cases.case_type/jurisdiction when it has better
+  // (quote-verified) evidence than what's already there and the attorney
+  // hasn't manually locked case_type away from a source classification — see
+  // runCaseClassification()'s own guards. Never fatal: classification
+  // evidence is a strict improvement over today's silent-guess behavior,
+  // never a requirement for the pipeline to proceed.
+  if (userId) {
+    try {
+      const { runCaseClassification } = await import("./intelligence/case-classification.server");
+      await runCaseClassification(supabase, caseId, userId);
+    } catch (e) {
+      console.warn("[case-classification] evidence build failed", e);
+    }
   }
 
-  const { resolveMxCaseType } = await import("@/lib/mx-case-classifier");
-  const { buildJurisdictionProfile } = await import("@/lib/intelligence/mx-jurisdiction");
-
-  const decided = resolveMxCaseType({ text: corpusText, declaredArea: declaredType || null });
-  const caseType = needsType ? decided.caseType : declaredType;
-
-  const profile = buildJurisdictionProfile({
-    caseType,
-    jurisdictionField: declaredJur || null,
-    corpusText,
-  });
-  // Store the CANONICAL jurisdiction value (a fuero, not a place name) so the
-  // federal channel can be routed on reliably downstream.
-  const jurisdiction = needsJur
-    ? profile.jurisdiction_level === "federal"
-      ? "federal"
-      : (profile.state?.code ?? null)
-    : declaredJur;
-
-
-  const patch: Record<string, unknown> = {};
-  if (needsType) patch.case_type = caseType;
-  if (needsJur && jurisdiction) patch.jurisdiction = jurisdiction;
-  if (Object.keys(patch).length) {
-    await supabase.from("cases").update(patch).eq("id", caseId);
-  }
-
-  return {
-    caseType,
-    jurisdiction: jurisdiction ?? null,
-    detected: Object.keys(patch).length > 0,
-    source: needsType ? decided.source : "case_field",
-  };
+  return result;
 }
