@@ -23,6 +23,20 @@ export type PropositionType = "argument" | "holding" | "rejected_holding" | "pro
  * on; "historical" = a superseded position kept only for narrative context. */
 export type AdoptionStatus = "adopted" | "rejected" | "unresolved" | "historical";
 
+/** Completed-case audit classification — see case-analysis-mode.ts. Set only
+ *  by findings generated under a completed-case analysis mode (concluded_audit
+ *  / judgment_audit / appeal_routes); null for every finding generated under
+ *  the default "ongoing" mode. Additive, never a narrowing of the existing
+ *  Finding contract. */
+export type AuditClassification =
+  | "VERIFIED_FACT"
+  | "VERIFIED_COURT_HOLDING"
+  | "VERIFIED_LEGAL_RULE"
+  | "SUPPORTED_INFERENCE"
+  | "POTENTIAL_ISSUE"
+  | "EVIDENCE_GAP"
+  | "NOT_FOUND";
+
 export type EvidenceType = "inculpatory" | "exculpatory" | "impeachment" | "neutral";
 export type ImpactDirection = "strengthens" | "weakens" | "neutral";
 
@@ -82,6 +96,7 @@ export type Finding = {
   speaker_role?: JudicialSpeakerRole | null;
   proposition_type?: PropositionType | null;
   adoption_status?: AdoptionStatus | null;
+  audit_classification?: AuditClassification | null;
   source_doc_ids: string[];
   evidence_refs: Array<{ label?: string; quote?: string; doc_id?: string }>;
   related_finding_ids: string[];

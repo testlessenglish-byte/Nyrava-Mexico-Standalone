@@ -131,6 +131,24 @@ function normAdoptionStatus(s: unknown): Finding["adoption_status"] {
   if (v === "adopted" || v === "rejected" || v === "unresolved" || v === "historical") return v;
   return null;
 }
+// Completed-case audit classification (case-analysis-mode.ts). Same
+// never-guess convention as the three normalizers above: unrecognized or
+// absent normalizes to `null`, never a fabricated classification. Uppercase
+// to match the CHECK constraint and the taxonomy's own casing (VERIFIED_FACT,
+// not verified_fact) — unlike the lowercase judicial-hierarchy enums above.
+const AUDIT_CLASSIFICATIONS = new Set([
+  "VERIFIED_FACT",
+  "VERIFIED_COURT_HOLDING",
+  "VERIFIED_LEGAL_RULE",
+  "SUPPORTED_INFERENCE",
+  "POTENTIAL_ISSUE",
+  "EVIDENCE_GAP",
+  "NOT_FOUND",
+]);
+function normAuditClassification(s: unknown): Finding["audit_classification"] {
+  const v = String(s ?? "").toUpperCase();
+  return AUDIT_CLASSIFICATIONS.has(v) ? (v as NonNullable<Finding["audit_classification"]>) : null;
+}
 function clamp01(n: unknown): number {
   const v = typeof n === "number" ? n : Number(n);
   if (!Number.isFinite(v)) return 0.5;
@@ -814,6 +832,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       speaker_role: normSpeakerRole(r.speaker_role),
       proposition_type: normPropositionType(r.proposition_type),
       adoption_status: normAdoptionStatus(r.adoption_status),
+      audit_classification: normAuditClassification(r.audit_classification),
       source_doc_ids: r.source_doc_ids ?? [],
       evidence_refs: (r.evidence_refs ?? []) as J,
       related_finding_ids: r.related_finding_ids ?? [],
@@ -839,15 +858,17 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   if (error) {
     console.error("addFindings failed", error);
     // Schema-drift resilience: speaker_role/proposition_type/adoption_status
-    // (see migration 20260808201119_finding_judicial_attribution.sql) are
-    // additive columns that may not have propagated to every environment
+    // (migration 20260808201119_finding_judicial_attribution.sql) and
+    // audit_classification (migration 20260809041757_case_analysis_mode.sql)
+    // are additive columns that may not have propagated to every environment
     // yet. A batch INSERT referencing a column Postgres doesn't recognize
     // fails ATOMICALLY for the whole batch — silently zeroing out an
     // entire, otherwise-valid set of findings with no per-row signal of
-    // why. Retry once with just those three optional columns stripped so a
+    // why. Retry once with just those optional columns stripped so a
     // pending migration can never take down finding persistence entirely.
     const strippedPayload = (payload as Array<Record<string, unknown>>).map((row) => {
-      const { speaker_role: _sr, proposition_type: _pt, adoption_status: _as, ...rest } = row;
+      const { speaker_role: _sr, proposition_type: _pt, adoption_status: _as, audit_classification: _ac, ...rest } =
+        row;
       return rest;
     });
     const retry = await db
@@ -857,7 +878,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       .select("id");
     if (!retry.error) {
       console.error(
-        "addFindings: recovered by inserting without judicial-hierarchy attribution columns — the finding_judicial_attribution migration needs to be applied to this environment",
+        "addFindings: recovered by inserting without judicial-hierarchy attribution / audit-classification columns — a pending migration needs to be applied to this environment",
         { originalError: error },
       );
       return retry.data ?? [];
@@ -1052,6 +1073,7 @@ export function normalizeLlmFindings(args: {
       speaker_role: normSpeakerRole(i.speaker_role),
       proposition_type: normPropositionType(i.proposition_type),
       adoption_status: normAdoptionStatus(i.adoption_status),
+      audit_classification: normAuditClassification(i.audit_classification),
       evidence_refs,
       source_doc_ids,
       tags: Array.isArray(i.tags) ? i.tags : [],
