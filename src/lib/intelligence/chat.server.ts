@@ -419,30 +419,37 @@ export async function answerCaseQuestion(args: {
   // mode reads a trimmed context and a shorter history window, which cuts
   // prompt size (and time-to-first-token) roughly in half without changing
   // what the model can cite for a short conversational reply.
-  const [built, history, profileRes, settingsRes, lastTurnRes] = await Promise.all([
-    buildChatContext(db, caseId, question),
-    db
-      .from("case_chat_messages")
-      .select("role,content")
-      .eq("case_id", caseId)
-      .order("created_at")
-      .limit(voiceMode ? 6 : 12),
-    db.from("profiles").select("display_name,full_name,email").eq("id", userId).maybeSingle(),
-    // The attorney-editable name lives in user_settings.display_name (Account
-    // page). profiles.display_name is auto-filled at signup from the email
-    // local-part, so it must never be used as a human name.
-    db.from("user_settings").select("display_name").eq("user_id", userId).maybeSingle(),
-    // Second-to-last message overall (the one before the question we just
-    // persisted) tells us whether this is a fresh session or a turn inside an
-    // ongoing exchange. That drives whether the assistant greets by name.
-    db
-      .from("case_chat_messages")
-      .select("created_at")
-      .eq("case_id", caseId)
-      .order("created_at", { ascending: false })
-      .range(1, 1)
-      .maybeSingle(),
-  ]);
+  const [built, history, profileRes, settingsRes, lastTurnRes, verifiedProceedingType] =
+    await Promise.all([
+      buildChatContext(db, caseId, question),
+      db
+        .from("case_chat_messages")
+        .select("role,content")
+        .eq("case_id", caseId)
+        .order("created_at")
+        .limit(voiceMode ? 6 : 12),
+      db.from("profiles").select("display_name,full_name,email").eq("id", userId).maybeSingle(),
+      // The attorney-editable name lives in user_settings.display_name (Account
+      // page). profiles.display_name is auto-filled at signup from the email
+      // local-part, so it must never be used as a human name.
+      db.from("user_settings").select("display_name").eq("user_id", userId).maybeSingle(),
+      // Second-to-last message overall (the one before the question we just
+      // persisted) tells us whether this is a fresh session or a turn inside an
+      // ongoing exchange. That drives whether the assistant greets by name.
+      db
+        .from("case_chat_messages")
+        .select("created_at")
+        .eq("case_id", caseId)
+        .order("created_at", { ascending: false })
+        .range(1, 1)
+        .maybeSingle(),
+      // Source-confirmed proceeding type/caption (e.g. "AMPARO DIRECTO EN
+      // REVISIÓN") — the procedural type lock below. null whenever the
+      // corpus hasn't source-confirmed a specific proceeding.
+      import("./case-classification.server").then((m) =>
+        m.resolveVerifiedProceedingType(db, caseId),
+      ),
+    ]);
   const corpus = built.corpus;
   const ctx = voiceMode && built.ctx.length > 6_000 ? `${built.ctx.slice(0, 6_000)}\n\n[...contexto abreviado para voz...]` : built.ctx;
 
@@ -483,6 +490,9 @@ export async function answerCaseQuestion(args: {
   // question with no reply and no explanation, which reads as "the chat box
   // is broken". The failure is now written back as an assistant turn stating
   // exactly what happened, so the attorney can see it and act on it.
+  const { getProceduralTypeLock } = await import("./case-analysis-mode");
+  const proceduralTypeLock = getProceduralTypeLock(verifiedProceedingType, locale) ?? "";
+
   let r: Awaited<ReturnType<typeof callGroq>>;
   try {
     r = await callGroq({
@@ -494,6 +504,8 @@ export async function answerCaseQuestion(args: {
       systemInstruction: `${mexicoLock(locale)}
 
 ${groundingContract(locale)}
+
+${proceduralTypeLock}
 
 You are Nyrava Intelligence — the embedded legal investigator and litigation strategist for this specific case. You are NOT a generic chatbot.
 
@@ -531,7 +543,7 @@ ABSOLUTE RULES — VIOLATION IS A CRITICAL FAILURE:
 
 5. CITATION HONESTY. Cite documents by filename and quote specific text. If the user asks about a specific fact, document, date, party or amount and the intelligence does not contain it, say "No consta en el expediente." — and then say what the expediente DOES contain on that topic, or what document would answer it. This phrase applies ONLY to factual case questions, never to conversation. Never fabricate.
 
-6. EVIDENCE GAPS. When the user's question reveals a true gap (no dictamen pericial, no comprobantes, no testimonial), list the SPECIFIC documents to upload and explain how each would strengthen the case. The user can drag files into this chat.
+6. EVIDENCE GAPS. When the user's question reveals a true gap (no dictamen pericial, no comprobantes, no testimonial), list the SPECIFIC documents to upload and explain how each would strengthen the case. The user can drag files into this chat. NEVER request a document merely because it would appear on a generic amparo/criminal-procedure checklist — a document request must be legally relevant to the PROCEDURAL TYPE LOCK above (if one applies) AND to the specific question asked. Do not ask for an auto de vinculación a proceso, auto de apertura a juicio, carpeta de investigación, or a "declaración de interés jurídico" unless the confirmed proceeding type and the actual legal issue make that specific document relevant — identify the proceeding and the applicable rule FIRST, then name only the evidence actually needed to answer it. If the corpus is insufficient, say exactly what is missing for THIS procedural posture, not a generic document list.
 
 7. REPORT UPDATE SIGNAL. If — and only if — this exchange resolves something the report already flags as missing, wrong, or unresolved (a newly uploaded document fills a documented evidence gap; the attorney corrects a fact the report got wrong; a flagged contradiction gets clarified with new information) — end your reply with exactly one line, after everything else, in this exact format: [[RERUN_SUGGESTED: <one sentence, under 25 words, naming what changed>]]. Do not include this line for ordinary questions, hypotheticals, requests for explanation, or anything that doesn't change the underlying case record. Never mention this marker to the user or explain that you're adding it — it is stripped before display.
 
@@ -540,6 +552,14 @@ ABSOLUTE RULES — VIOLATION IS A CRITICAL FAILURE:
 9. LIVING REPORT. LAST REPORT REVISION above says what changed in the report and why. When it is relevant, tell the attorney which sections moved and which new evidence caused it. If the record cannot support an answer, say what is missing and which document would resolve it — never speculate.
 
 10. STATUTORY CITATION HONESTY. When you name a statute, code, or article (e.g. "Artículo 14 CPEUM", "Art. 80 Ley de Amparo"), you are making an attorney-facing legal claim, not a stylistic flourish — the same standard as Rule 5 applies, specifically to legal authority rather than case documents. Only present a citation's number and jurisdiction as confirmed, and only quote "exact text" from an article, when that text is verified against the case record or the validated legal-source corpus (never invent or reconstruct statutory wording from memory, even when you are confident of the general rule). If you cannot verify a citation this way, say so plainly — name the concept or the general area of law instead of a specific article number, and tell the attorney it needs independent verification. A wrong or invented article number is worse than no citation at all.
+
+11. LAW VERIFIED ≠ CASE FACT VERIFIED — NEVER COMBINE THEM. "Is the legal rule verified?" and "Is this particular case fact verified?" are two different questions with two different answers. Never blend them into one label like "LAW VERIFIED (the classification is correct under Art. X)" when what you actually mean is "the statute says X, but whether it applies HERE is unconfirmed." When a question touches both a legal rule and its application to this case, answer in three explicit, separate lines:
+   LAW VERIFIED: <what the statute/rule establishes, only if independently verified per Rule 10>
+   CASE FACT: <ESTABLISHED (with citation) | NOT ESTABLISHED IN CORPUS | RECORD CONFLICT (documents disagree — show both)>
+   CONCLUSION: <state plainly whether the rule applies to this case, or that it cannot be determined from the available record — never let the LAW VERIFIED line imply the case fact is also settled>
+   A verified statute never upgrades an unverified case fact, and an established case fact never excuses an unverified citation — each half needs its own, independent verification.
+
+12. A SINGLE DOCUMENT IS NOT THE WHOLE EXPEDIENTE. If the case file contains only one or few documents, do not imply the full expediente was reviewed or that its silence on a topic is conclusive — say the available record is limited to what was uploaded and name what additional documents would be needed to go further (see the corpus_completeness signal in EVIDENCE IN CASE FILE above when present).
 
 
 

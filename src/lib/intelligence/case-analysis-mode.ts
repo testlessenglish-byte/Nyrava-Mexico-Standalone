@@ -91,7 +91,9 @@ const NEVER_CONFUSE_ES = `NUNCA CONFUNDIR (regla obligatoria):
 - Ausencia de evidencia en el corpus ≠ evidencia de ausencia. Si el expediente no lo establece: "NO DETERMINABLE CON EL CORPUS DISPONIBLE", nunca "no ocurrió".
 - Posible error ≠ error confirmado. Usa "POTENTIAL_ISSUE" hasta que el expediente lo establezca.
 - Argumento de una parte ≠ hecho establecido. Identifica los argumentos como argumentos.
-- Alegación ≠ hecho. Hallazgo ≠ conclusión. Posibilidad legal ≠ remedio disponible.`;
+- Alegación ≠ hecho. Hallazgo ≠ conclusión. Posibilidad legal ≠ remedio disponible.
+- "No se identificó en el corpus" (p. ej. interés jurídico, legitimación) NUNCA prueba que el elemento falte o que el asunto sea improcedente — solo que la búsqueda en los documentos disponibles no lo localizó. Clasifícalo como INSUFFICIENT_DATA / NOT_FOUND, nunca como un defecto procesal confirmado, salvo que el expediente mismo declare expresamente el defecto (p. ej. una resolución que sobresee por falta de interés jurídico).
+- Regla jurídica verificada ≠ hecho del caso verificado. Que un artículo/regla esté correctamente citado no dice nada sobre si ese artículo aplica a los hechos de ESTE caso — nunca combines ambas conclusiones bajo una sola etiqueta.`;
 
 const NEVER_CONFUSE_EN = `NEVER CONFUSE (mandatory rule):
 - Legal rule ≠ violation. Mexican law protecting a right does not mean that right was violated in this case.
@@ -99,7 +101,9 @@ const NEVER_CONFUSE_EN = `NEVER CONFUSE (mandatory rule):
 - Absence of evidence in the corpus ≠ evidence of absence. If the record does not establish it: "NOT DETERMINABLE WITH THE AVAILABLE CORPUS", never "did not occur".
 - Potential error ≠ confirmed error. Use "POTENTIAL_ISSUE" until the record establishes it.
 - A party's argument ≠ an established fact. Identify arguments as arguments.
-- Allegation ≠ fact. Finding ≠ conclusion. Legal possibility ≠ available remedy.`;
+- Allegation ≠ fact. Finding ≠ conclusion. Legal possibility ≠ available remedy.
+- "Not identified in the corpus" (e.g. standing/interés jurídico) NEVER proves the element is missing or that the case is inadmissible — only that the search over the available documents did not locate it. Classify as INSUFFICIENT_DATA / NOT_FOUND, never a confirmed procedural defect, unless the record itself expressly states the defect (e.g. a ruling dismissing for lack of standing).
+- A verified legal rule ≠ a verified case fact. A correctly-cited article says nothing about whether it applies to THIS case's facts — never combine both conclusions under a single label.`;
 
 const CLASSIFICATION_TAXONOMY_ES = `CLASIFICACIÓN OBLIGATORIA de cada hallazgo — usa "audit_classification" con EXACTAMENTE uno de estos valores, nunca los mezcles:
 - VERIFIED_FACT: el expediente lo establece directamente.
@@ -163,4 +167,44 @@ export function getCaseAnalysisObjective(mode: CaseAnalysisMode, locale: "es" | 
       ? "No prometas que el caso puede ganarse ni que un hallazgo revertirá la resolución. El abogado toma la determinación jurídica final."
       : "Do not promise the case can be won or that a finding will overturn the decision. The attorney makes the final legal determination.",
   ].join("\n");
+}
+
+/**
+ * PROCEDURAL TYPE LOCK — the hard constraint requested after a real stress
+ * test on Amparo Directo en Revisión 3684/2012: the source-confirmed
+ * proceeding type/caption (resolveVerifiedProceedingType() in
+ * case-classification.server.ts, e.g. "AMPARO DIRECTO EN REVISIÓN") must
+ * control every downstream procedural question — applicable remedies,
+ * deadlines, suspension analysis, pleadings, document requests, and "ways
+ * out" — not the broader materia alone ("amparo"). Before this, engines and
+ * Talk to Case reasoned as if any amparo-family proceeding were
+ * interchangeable, recommending first-instance mechanisms (incidente de
+ * suspensión, ampliación de demanda de amparo, auto de vinculación a
+ * proceso) on a case that is actually a SCJN/Colegiado REVISIÓN of an
+ * already-decided amparo directo — a different procedural posture with
+ * different available instruments. Injected into analyzerPreamble/
+ * areaPreamble (pipeline.server.ts) and Talk to Case's system prompt
+ * (chat.server.ts) whenever a CONFIRMED proceeding type exists; a no-op
+ * (returns null) otherwise, so cases without a source-confirmed caption are
+ * completely unaffected.
+ */
+export function getProceduralTypeLock(
+  proceedingType: string | null,
+  locale: "es" | "en",
+): string | null {
+  if (!proceedingType) return null;
+  const es = locale !== "en";
+  return es
+    ? `=== TIPO PROCESAL CONFIRMADO POR FUENTE (RESTRICCIÓN OBLIGATORIA) ===\n` +
+        `Los documentos del expediente confirman que este asunto es exactamente: "${proceedingType}".\n` +
+        `Esta es una restricción sobre TODO el razonamiento jurídico, no solo sobre el tipo de caso: los remedios disponibles, los plazos, el análisis de suspensión, los escritos/promociones aplicables y las posibles "vías de salida" deben corresponder específicamente a esta etapa procesal.\n` +
+        `NO analices, recomiendes ni solicites documentos que correspondan a una etapa procesal, tipo de asunto o vía DISTINTA (p. ej.: un nuevo juicio de amparo, una carpeta de investigación, un auto de vinculación a proceso, un auto de apertura a juicio, un incidente de suspensión de primera instancia) A MENOS QUE el corpus establezca explícitamente que ese procedimiento distinto está contemplado en este expediente.\n` +
+        `Antes de solicitar cualquier documento, pregúntate: ¿es este documento legalmente relevante para "${proceedingType}" específicamente y para la pregunta concreta planteada? Nunca solicites un documento solo porque aparecería en una lista genérica de expedientes de amparo o penales.\n` +
+        `Cualquier remedio, recurso, plazo o mecanismo procesal propuesto debe ser aplicable a "${proceedingType}" específicamente. Si no puedes verificar que aplica a esta etapa procesal concreta, clasifícalo como POTENTIAL_ISSUE o EVIDENCE_GAP con una nota explícita — nunca lo presentes como una vía disponible o como un paso siguiente recomendado.`
+    : `=== SOURCE-CONFIRMED PROCEDURAL TYPE (MANDATORY CONSTRAINT) ===\n` +
+        `The case documents confirm this matter is exactly: "${proceedingType}".\n` +
+        `This constrains ALL legal reasoning, not just the case-type label: available remedies, deadlines, suspension analysis, applicable pleadings, and possible "ways out" must correspond specifically to this procedural stage.\n` +
+        `Do NOT analyze, recommend, or request documents belonging to a DIFFERENT procedural stage, matter type, or proceeding (e.g. a new amparo filing, a carpeta de investigación, an auto de vinculación a proceso, an auto de apertura a juicio, a first-instance incidente de suspensión) UNLESS the corpus explicitly establishes that a distinct proceeding is contemplated in this record.\n` +
+        `Before requesting any document, ask: is this document legally relevant to "${proceedingType}" specifically and to the concrete question asked? Never request a document merely because it would appear on a generic amparo/criminal checklist.\n` +
+        `Any proposed remedy, motion, deadline, or procedural mechanism must be applicable to "${proceedingType}" specifically. If you cannot verify it applies to this specific procedural stage, classify it as POTENTIAL_ISSUE or EVIDENCE_GAP with an explicit note — never present it as an available route or recommended next step.`;
 }

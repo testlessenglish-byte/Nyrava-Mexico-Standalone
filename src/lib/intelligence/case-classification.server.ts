@@ -604,3 +604,30 @@ export async function resolveVerifiedCaseType(db: Db, caseId: string): Promise<s
   if (evidence?.status === "CONFIRMED" && evidence.value) return evidence.value;
   return declared;
 }
+
+/**
+ * Read-side guarantee for the PROCEDURAL TYPE LOCK: the verbatim,
+ * source-confirmed proceeding type/caption (e.g. "AMPARO DIRECTO EN
+ * REVISIÓN") — a strictly narrower, procedural-stage-specific fact than
+ * case_type/materia ("amparo"). Unlike resolveVerifiedCaseType, there is no
+ * declared/manual fallback: cases.case_type is a materia field, not a
+ * proceeding-type field, so there is nothing to fall back to. Returns null
+ * whenever the corpus does not CONFIRM a specific proceeding caption —
+ * callers must never fabricate a procedural stage from case_type alone.
+ * See getProceduralTypeLock() in case-analysis-mode.ts, which turns this
+ * into the hard-constraint preamble injected into every analyzer/agent/chat
+ * prompt.
+ */
+export async function resolveVerifiedProceedingType(
+  db: Db,
+  caseId: string,
+): Promise<string | null> {
+  const { data: evidenceRow } = await db
+    .from("case_classification_evidence")
+    .select("status,value")
+    .eq("case_id", caseId)
+    .eq("field", "proceeding_type")
+    .maybeSingle();
+  const evidence = evidenceRow as { status?: string; value?: string | null } | null;
+  return evidence?.status === "CONFIRMED" && evidence.value ? evidence.value : null;
+}
