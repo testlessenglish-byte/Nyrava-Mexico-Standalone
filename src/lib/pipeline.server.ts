@@ -2030,10 +2030,24 @@ async function _runAnalyzersInner(args: {
     analyzerVerifiedProceedingType,
     analyzerLocaleForPreamble,
   );
+  // Talk to Case as a case-state update, not just another document — see
+  // case-state-reconciliation.server.ts. null (no-op) when this case has no
+  // Talk-to-Case clarification document.
+  const { hasCaseStateUpdateDocs, getCaseStateUpdateNotice } =
+    await import("./intelligence/case-state-reconciliation.server");
+  const { data: analyzerDocFilenames } = await db
+    .from("documents")
+    .select("filename")
+    .eq("case_id", caseId);
+  const analyzerCaseStateUpdateNotice = getCaseStateUpdateNotice(
+    hasCaseStateUpdateDocs((analyzerDocFilenames ?? []) as never),
+    analyzerLocaleForPreamble,
+  );
   const analyzerPreamble =
     `${mexicoLock(analyzerLocaleForPreamble)}\n` +
     `${groundingContract(analyzerLocaleForPreamble)}\n` +
     (analyzerProceduralTypeLock ? `${analyzerProceduralTypeLock}\n` : "") +
+    (analyzerCaseStateUpdateNotice ? `${analyzerCaseStateUpdateNotice}\n` : "") +
     (analyzerCaseAnalysisObjective ? `${analyzerCaseAnalysisObjective}\n` : "") +
     `CASE TYPE: ${analyzerAreaLabel} (${analyzerArea}). ` +
     `Only surface findings whose legal theory applies to a ${analyzerAreaLabel} matter. ` +
@@ -3587,6 +3601,19 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       await import("./intelligence/case-classification.server");
     const verifiedProceedingType = await resolveVerifiedProceedingType(db, caseId);
     const proceduralTypeLock = getProceduralTypeLock(verifiedProceedingType, areaPreambleLocale);
+    // Talk to Case as a case-state update, not just another document — see
+    // case-state-reconciliation.server.ts. null (no-op) when this case has
+    // no Talk-to-Case clarification document.
+    const { hasCaseStateUpdateDocs, getCaseStateUpdateNotice } =
+      await import("./intelligence/case-state-reconciliation.server");
+    const { data: areaDocFilenames } = await db
+      .from("documents")
+      .select("filename")
+      .eq("case_id", caseId);
+    const areaCaseStateUpdateNotice = getCaseStateUpdateNotice(
+      hasCaseStateUpdateDocs((areaDocFilenames ?? []) as never),
+      areaPreambleLocale,
+    );
     const { getAllowedMotionTypes } = await import("./intelligence/practice-areas");
     const allowedMotionTypesForArea = Array.from(
       getAllowedMotionTypes(normalizedArea, activeDomains),
@@ -3595,6 +3622,7 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       `${mexicoLock(areaPreambleLocale)}\n` +
       `${groundingContract(areaPreambleLocale)}\n` +
       (proceduralTypeLock ? `${proceduralTypeLock}\n` : "") +
+      (areaCaseStateUpdateNotice ? `${areaCaseStateUpdateNotice}\n` : "") +
       (areaCaseAnalysisObjective ? `${areaCaseAnalysisObjective}\n` : "") +
       `CASE TYPE: ${areaLabel} (${area}). ` +
       `Only surface findings whose legal theory is applicable to a ${areaLabel} matter. ` +
@@ -4989,6 +5017,27 @@ async function _runReportInner(args: {
     // of this function.
   }
 
+  // ---- Talk to Case as a case-state update -----------------------------
+  // Runs before findings are read for this report (below) so a Talk-to-Case
+  // clarification's supersession decisions are already applied by the time
+  // listFindings() (which excludes superseded rows) is called. No-op — and
+  // cheap to check — whenever this case has no clarification document. See
+  // case-state-reconciliation.server.ts.
+  try {
+    const { reconcileSupersededFindings } =
+      await import("./intelligence/case-state-reconciliation.server");
+    const reconciliation = await reconcileSupersededFindings(db, caseId, userId, apiKey);
+    if (reconciliation.superseded.length > 0) {
+      console.info(
+        `[case-state-reconciliation] case=${caseId} superseded ${reconciliation.superseded.length}/${reconciliation.checked} findings via Talk-to-Case clarification`,
+      );
+    }
+  } catch (e) {
+    // Reconciliation is a defense-in-depth backstop, not a required stage —
+    // never let it block report generation.
+    console.error("[case-state-reconciliation] failed", e);
+  }
+
   const [
     { data: analysis },
     { data: agents },
@@ -5364,8 +5413,24 @@ CORPUS (paginated):
 ${corpus.slice(0, s(160000))}`;
   };
 
+  const { hasCaseStateUpdateDocs, getCaseStateUpdateNotice } =
+    await import("./intelligence/case-state-reconciliation.server");
+  const reportLocaleForNotice = await getReportLocale(db, caseId);
+  const reportDocsForNotice = docIndex.map((d) => ({
+    id: d.document_id,
+    filename: d.filename,
+    extracted_text: null,
+  }));
+  const reportCaseStateUpdateNotice = getCaseStateUpdateNotice(
+    hasCaseStateUpdateDocs(reportDocsForNotice),
+    reportLocaleForNotice,
+  );
+
   const systemInstruction =
-    `${mexicoLock(await getReportLocale(db, caseId))}\n` +
+    `${mexicoLock(reportLocaleForNotice)}\n` +
+    (reportCaseStateUpdateNotice
+      ? `${reportCaseStateUpdateNotice}\nThe findings below already reflect reconciliation — write ONE unified, internally-consistent report. Never frame any section as "based on the recent clarification" versus "the original analysis"; write as a single, freshly re-analyzed case throughout, including the executive summary, procedural analysis, recommendations, and Attorney Work Product.\n`
+      : "") +
     "You are an elite litigation intelligence engine for Mexican attorneys, NOT a summarizer. You produce court-ready work product grounded in the sistema penal acusatorio and Mexican civil procedure." +
     `\nCASE TYPE: ${caseType}. ` +
     (isCriminalOrCivilRights
