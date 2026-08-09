@@ -352,10 +352,26 @@ function CollapsedCaseSettings({
     }) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       updateFn({ data: { caseId, ...(patch as any) } }),
-    onSuccess: (res: { modeChanged?: boolean; caseAnalysisModeChanged?: boolean } | undefined) => {
+    onSuccess: (
+      res:
+        | {
+            modeChanged?: boolean;
+            caseAnalysisModeChanged?: boolean;
+            sourceConflict?: { field: string; sourceValue: string; requestedValue: string } | null;
+          }
+        | undefined,
+    ) => {
       toast.success(t("caseSettings.toast.saved"));
       if (res?.modeChanged) toast.info(t("caseSettings.toast.modeChanged"));
       if (res?.caseAnalysisModeChanged) toast.info(t("caseSettings.toast.caseAnalysisModeChanged"));
+      if (res?.sourceConflict) {
+        toast.warning(
+          t("caseSettings.toast.sourceConflict", {
+            source: res.sourceConflict.sourceValue,
+            chosen: res.sourceConflict.requestedValue,
+          }),
+        );
+      }
       setOpen(false);
       invalidate();
     },

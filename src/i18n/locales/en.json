@@ -387,6 +387,7 @@
   "caseSettings.toast.caseAnalysisModeChanged": "Case Analysis Mode changed — prior analysis was cleared. Rerun the case to generate a report under the new objective.",
   "caseSettings.toast.modeChanged": "Analysis mode changed — rerun the case to re-execute the affected engines.",
   "caseSettings.toast.saveFailed": "Save failed",
+  "caseSettings.toast.sourceConflict": "Note: the case documents confirm \"{source}\" as the case type, different from \"{chosen}\" you just selected. Your selection was saved, but the source-confirmed classification is preserved and can be reviewed at any time.",
   "caseSettings.toast.saved": "Settings saved. Rerun Case to apply.",
   "caseTab.agents": "Agents",
   "caseTab.analyzers": "Analyzers",

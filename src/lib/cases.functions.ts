@@ -2696,6 +2696,38 @@ export const renameCase = createServerFn({ method: "POST" })
   });
 
 // -------- Update case settings (case_type / analysis_mode) after upload --------
+// Pure decision logic for updateCaseSettings' manual-override-vs-source-
+// classification check — extracted so it's directly unit-testable without
+// the createServerFn/auth-middleware plumbing. A requested case_type that
+// matches a CONFIRMED source classification is recorded as source_confirmed
+// (not flagged); one that disagrees is flagged via sourceConflict AND
+// recorded as manual_override_conflicting so runCaseClassification's own
+// write path (case-classification.server.ts) knows never to silently
+// overwrite it later; no evidence yet (or evidence that isn't CONFIRMED)
+// is a plain manual_override.
+export function resolveCaseTypeSourceConflict(
+  evidence: { status?: string; value?: string | null } | null,
+  requestedCaseType: string | null,
+): {
+  sourceConflict: { field: "case_type"; sourceValue: string; requestedValue: string } | null;
+  case_type_source: "source_confirmed" | "manual_override" | "manual_override_conflicting";
+} {
+  if (evidence?.status === "CONFIRMED" && evidence.value && evidence.value !== requestedCaseType) {
+    return {
+      sourceConflict: {
+        field: "case_type",
+        sourceValue: evidence.value,
+        requestedValue: String(requestedCaseType),
+      },
+      case_type_source: "manual_override_conflicting",
+    };
+  }
+  if (evidence?.status === "CONFIRMED" && evidence.value === requestedCaseType) {
+    return { sourceConflict: null, case_type_source: "source_confirmed" };
+  }
+  return { sourceConflict: null, case_type_source: "manual_override" };
+}
+
 export const updateCaseSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -2716,6 +2748,32 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     if (data.analysis_mode !== undefined) patch.analysis_mode = data.analysis_mode;
     if (data.jurisdiction !== undefined) patch.jurisdiction = data.jurisdiction;
     if (data.case_analysis_mode !== undefined) patch.case_analysis_mode = data.case_analysis_mode;
+
+    // Manual case_type override vs. a source-confirmed classification
+    // (case-classification.server.ts): the attorney may always override,
+    // but a conflicting override must be flagged, not silent — and the
+    // underlying evidence row is NEVER touched here, so the source
+    // classification is always still visible/recoverable afterward. See
+    // resolveVerifiedCaseType(), which downstream engines can call to
+    // prefer the CONFIRMED source value over a conflicting override.
+    let sourceConflict: { field: "case_type"; sourceValue: string; requestedValue: string } | null =
+      null;
+    if (data.case_type !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: evidenceRow } = await (supabase as any)
+        .from("case_classification_evidence")
+        .select("status,value")
+        .eq("case_id", data.caseId)
+        .eq("field", "case_type")
+        .maybeSingle();
+      const resolved = resolveCaseTypeSourceConflict(
+        evidenceRow as { status?: string; value?: string | null } | null,
+        data.case_type ?? null,
+      );
+      sourceConflict = resolved.sourceConflict;
+      patch.case_type_source = resolved.case_type_source;
+    }
+
     if (Object.keys(patch).length === 0) return { ok: true };
 
     // Read the current mode/case_type first so we can tell whether this save
@@ -2809,7 +2867,7 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
         .in("status", ["skipped", "failed", "blocked", "queued", "running"]);
     }
 
-    return { ok: true, modeChanged, caseTypeChanged, caseAnalysisModeChanged };
+    return { ok: true, modeChanged, caseTypeChanged, caseAnalysisModeChanged, sourceConflict };
   });
 
 export const archiveCase = createServerFn({ method: "POST" })

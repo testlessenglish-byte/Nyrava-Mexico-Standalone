@@ -848,7 +848,7 @@ async function _runPipelineForCase(
   {
     const { autoDetectCaseContext } = await import("./mx-auto-detect.server");
     try {
-      const detection = await autoDetectCaseContext(supabase, caseId);
+      const detection = await autoDetectCaseContext(supabase, caseId, userId);
       trace("case.context_auto_detected", {
         case_type: detection.caseType,
         jurisdiction: detection.jurisdiction,
