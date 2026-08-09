@@ -499,6 +499,7 @@ function workProductContext(data: CaseExportData): WorkProductContext {
   return {
     documentLabels,
     caseType: (data.case as { case_type?: string } | null)?.case_type ?? null,
+    jurisdiction: (data.case as { jurisdiction?: string } | null)?.jurisdiction ?? null,
     missingDocuments,
     // Cross-finding document index: lets the synthesis state which other
     // findings depend on the same source document.

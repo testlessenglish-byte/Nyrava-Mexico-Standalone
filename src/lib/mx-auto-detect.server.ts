@@ -114,9 +114,14 @@ export async function autoDetectCaseContext(
     jurisdictionField: declaredJur || null,
     corpusText,
   });
+  // Store the CANONICAL jurisdiction value (a fuero, not a place name) so the
+  // federal channel can be routed on reliably downstream.
   const jurisdiction = needsJur
-    ? (profile.state?.name ?? (profile.fuero === "federal" ? "Federal" : null))
+    ? profile.jurisdiction_level === "federal"
+      ? "federal"
+      : (profile.state?.code ?? null)
     : declaredJur;
+
 
   const patch: Record<string, unknown> = {};
   if (needsType) patch.case_type = caseType;

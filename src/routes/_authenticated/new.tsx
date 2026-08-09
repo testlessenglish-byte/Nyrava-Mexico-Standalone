@@ -6,7 +6,7 @@ import { createCaseAndUpload, listGroqKeys } from "@/lib/cases.functions";
 import { toast } from "sonner";
 import { Upload, FileText, X, KeyRound, ShieldCheck, Scale, Sparkles } from "lucide-react";
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
-import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
+import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
 import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/new")({
@@ -173,13 +173,18 @@ function NewCasePage() {
               onChange={(e) => setJurisdiction(e.target.value)}
               className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">{t("new.field.jurisdiction.nationwide")}</option>
-              {JURISDICTION_OPTIONS.filter((o) => o.value !== "federal").map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
+              <option value="">{t("new.field.jurisdiction.auto")}</option>
+              {JURISDICTION_GROUPS.map((g) => (
+                <optgroup key={g.level} label={g.label}>
+                  {g.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
+
           </div>
         </div>
 

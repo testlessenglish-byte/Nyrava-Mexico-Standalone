@@ -67,16 +67,31 @@ const runCache = new Map<string, CaseLawResult[]>();
  * row; rows without a materia tag are still eligible (many jurisprudencia
  * entries are cross-cutting) so this narrows rather than excludes.
  */
+// Issuers that belong to the federal judicial channel. Used to filter (and,
+// failing that, prioritize) precedent when the matter is routed as
+// Federal (México): SCJN, Plenos Regionales, Tribunales Colegiados/Unitarios
+// de Circuito, Juzgados de Distrito, TFJA, TEPJF, Tribunales Agrarios, CJF.
+const FEDERAL_ISSUER_RE =
+  /suprema corte|scjn|pleno (regional|de circuito)|primera sala|segunda sala|tribunal(es)? colegiado|tribunal(es)? unitario|colegiado de circuito|juzgado de distrito|consejo de la judicatura federal|\bcjf\b|tribunal federal de justicia administrativa|\btfja\b|tribunal electoral del poder judicial|\btepjf\b|tribunal (unitario|superior) agrario|poder judicial de la federaci/i;
+
+export function isFederalIssuer(issuer: string | null | undefined): boolean {
+  return FEDERAL_ISSUER_RE.test(String(issuer ?? ""));
+}
+
 export async function searchCaseLaw(
   db: Db,
   query: string,
-  opts: { maxResults?: number; materia?: string } = {},
+  opts: { maxResults?: number; materia?: string; federalOnly?: boolean } = {},
 ): Promise<CaseLawResult[]> {
-  const cacheKey = `${query}::${opts.materia ?? ""}`;
+  const cacheKey = `${query}::${opts.materia ?? ""}::${opts.federalOnly ? "fed" : "all"}`;
   const cached = runCache.get(cacheKey);
   if (cached) return cached;
 
   const max = opts.maxResults ?? 3;
+  // Under the federal channel we over-fetch so federal precedent can be
+  // isolated and ranked ahead of anything local before truncating to `max`.
+  const fetchLimit = opts.federalOnly ? Math.max(max * 6, 18) : max;
+
   try {
     // NOTE (2026-07-29 fix): the legal_authorities.kind column comment in
     // its migration documents aspirational values ('law','code',
@@ -116,7 +131,7 @@ export async function searchCaseLaw(
       // do the wrong thing on a re-order.
       .order("authority_level", { ascending: false, nullsFirst: false })
       .order("published_at", { ascending: false })
-      .limit(max);
+      .limit(fetchLimit);
 
     const { data, error } = await q;
     if (error) {
@@ -126,7 +141,7 @@ export async function searchCaseLaw(
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = (Array.isArray(data) ? data : []) as any[];
-    const results: CaseLawResult[] = rows.map((r) => ({
+    let mapped: CaseLawResult[] = rows.map((r) => ({
       case_name: String(r.short_title ?? r.title ?? "Tesis/Jurisprudencia sin título"),
       citation: r.citation ? String(r.citation) : null,
       court: r.issuer ? String(r.issuer) : null,
@@ -135,6 +150,16 @@ export async function searchCaseLaw(
       snippet: String(r.body ?? "").slice(0, 400),
     }));
 
+    if (opts.federalOnly) {
+      // Federal channel: cite federal precedent (SCJN, Plenos, TCC, Juzgados
+      // de Distrito, TFJA, TEPJF). Only if the corpus yields no federal hit at
+      // all do we fall back to the unfiltered ranking, so the report is never
+      // left with zero authority.
+      const federal = mapped.filter((r) => isFederalIssuer(r.court));
+      mapped = federal.length ? federal : mapped;
+    }
+
+    const results = mapped.slice(0, max);
     runCache.set(cacheKey, results);
     return results;
   } catch (err) {
@@ -150,9 +175,15 @@ export async function searchCaseLaw(
  * report-augment.server.ts). Never mutates input; never throws — on any
  * failure the issue is returned with case_law: [].
  *
- * `materia`, when provided, narrows the search (see searchCaseLaw above).
+ * `materia` narrows the search; `federalOnly` routes precedent retrieval
+ * through the federal index (see searchCaseLaw above).
  */
-export async function attachCaseLaw(db: Db, issues: LegalIssueHit[], materia?: string): Promise<LegalIssueHit[]> {
+export async function attachCaseLaw(
+  db: Db,
+  issues: LegalIssueHit[],
+  materia?: string,
+  opts: { federalOnly?: boolean } = {},
+): Promise<LegalIssueHit[]> {
   // Only look up each distinct issue type once per report, not once per hit.
   const uniqueIssueTypes = Array.from(new Set(issues.map((i) => i.issue)));
   const byIssueType = new Map<string, CaseLawResult[]>();
@@ -164,7 +195,11 @@ export async function attachCaseLaw(db: Db, issues: LegalIssueHit[], materia?: s
         byIssueType.set(issueType, []);
         return;
       }
-      const cases = await searchCaseLaw(db, query, { maxResults: 3, materia });
+      const cases = await searchCaseLaw(db, query, {
+        maxResults: 3,
+        materia,
+        federalOnly: opts.federalOnly === true,
+      });
       byIssueType.set(issueType, cases);
     }),
   );
@@ -174,3 +209,4 @@ export async function attachCaseLaw(db: Db, issues: LegalIssueHit[], materia?: s
     case_law: byIssueType.get(i.issue) ?? [],
   }));
 }
+

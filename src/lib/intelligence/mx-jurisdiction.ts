@@ -10,6 +10,8 @@
 // =============================================================================
 
 import { resolveMxProfile, type MxPipelineProfile } from "../execution/mx-pipeline";
+import { jurisdictionLevelOf } from "./jurisdictions";
+
 
 export const MEXICAN_STATES: readonly { code: string; name: string; aliases: readonly string[] }[] = [
   { code: "AGU", name: "Aguascalientes", aliases: [] },
@@ -55,7 +57,16 @@ export type JurisdictionProfile = {
   /** How the state was determined. */
   state_source: "case_field" | "corpus" | "unresolved";
   fuero: Fuero;
+  /**
+   * Judicial classification actually routed on (federal / state / municipal).
+   * Distinct from geographic reach: a federal matter is federal because of the
+   * competent court system, not because it happens "nationwide".
+   */
+  jurisdiction_level: "federal" | "state" | "municipal" | "unresolved";
+  /** Where jurisdiction_level came from. `declared` wins over everything. */
+  jurisdiction_source: "declared" | "materia" | "corpus" | "unresolved";
   materia: MxPipelineProfile;
+
   /** Court families with competence over this matter. */
   courts: readonly string[];
   /** Substantive law that governs the merits. */
@@ -248,9 +259,27 @@ export function detectFuero(text: string | null | undefined, fallback: Fuero): F
   return fallback;
 }
 
+// Federal channel overlay. Applied whenever the matter is routed as
+// "Federal (México)" — the competent courts are the federal judiciary and the
+// governing law is federal, regardless of where in the country the facts sit.
+const FEDERAL_COURTS: readonly string[] = [
+  "Juzgado de Distrito",
+  "Tribunal Colegiado de Circuito",
+  "Tribunal Colegiado de Apelación",
+  "Suprema Corte de Justicia de la Nación (SCJN)",
+];
+const FEDERAL_PROCEDURAL: readonly string[] = [
+  "Ley de Amparo",
+  "Ley Orgánica del Poder Judicial de la Federación (LOPJF)",
+];
+const FEDERAL_SUBSTANTIVE: readonly string[] = [
+  "Constitución Política de los Estados Unidos Mexicanos (CPEUM)",
+  "Tratados internacionales de derechos humanos (CPEUM Art. 1º)",
+];
+
 export function buildJurisdictionProfile(args: {
   caseType: string | null | undefined;
-  /** cases.jurisdiction free-text field, if the attorney filled it. */
+  /** cases.jurisdiction value (canonical code or legacy free text). */
   jurisdictionField?: string | null;
   /** Concatenated extracted document text (truncated by the caller). */
   corpusText?: string | null;
@@ -259,32 +288,74 @@ export function buildJurisdictionProfile(args: {
   const law = MATERIA_LAW[materia];
   const notes: string[] = [];
 
-  let state = detectState(args.jurisdictionField);
+  const declaredLevel = jurisdictionLevelOf(args.jurisdictionField);
+  const declaredFederal = declaredLevel === "federal";
+
+  let state = declaredFederal ? null : detectState(args.jurisdictionField);
   let state_source: JurisdictionProfile["state_source"] = state ? "case_field" : "unresolved";
-  if (!state) {
+  if (!state && !declaredFederal) {
     state = detectState(args.corpusText);
     state_source = state ? "corpus" : "unresolved";
   }
-  if (!state && law.fuero !== "federal") {
+  if (!state && !declaredFederal && law.fuero !== "federal") {
     notes.push(
       "No fue posible determinar la entidad federativa; el análisis aplica la legislación federal supletoria y debe confirmarse la competencia local.",
     );
   }
 
-  const fuero = detectFuero(args.corpusText, law.fuero);
+  // Declared jurisdiction always wins over corpus heuristics: an attorney who
+  // selected "Federal (México)" must never be silently routed to a local fuero.
+  const fuero: Fuero = declaredFederal ? "federal" : detectFuero(args.corpusText, law.fuero);
   const stateName = state?.name ?? "la entidad federativa aplicable";
   const expand = (codes: readonly string[]) =>
     codes
       .map((c) => c.replace(/%STATE%/g, stateName))
+      // Under the federal channel, state-specific instruments are not the
+      // governing law — drop them rather than emitting a placeholder code.
+      .filter((c) => !(declaredFederal && /%STATE%|la entidad federativa aplicable/.test(c)))
       .filter((c, i, arr) => arr.indexOf(c) === i);
 
-  const substantive_codes = expand(law.substantive);
-  const procedural_codes = expand(law.procedural);
-  const courts = expand(law.courts);
+  const dedupe = (arr: readonly string[]) => arr.filter((c, i) => arr.indexOf(c) === i);
+
+  const substantive_codes = declaredFederal
+    ? dedupe([...FEDERAL_SUBSTANTIVE, ...expand(law.substantive)])
+    : expand(law.substantive);
+  const procedural_codes = declaredFederal
+    ? dedupe([...expand(law.procedural), ...FEDERAL_PROCEDURAL])
+    : expand(law.procedural);
+  const courts = declaredFederal
+    ? dedupe([...expand(law.courts).filter((c) => !/Tribunal Superior de Justicia|del Estado|Primera Instancia/i.test(c)), ...FEDERAL_COURTS])
+    : expand(law.courts);
+
+  if (declaredFederal) {
+    notes.push(
+      "Jurisdicción federal declarada: el análisis, la recuperación de autoridades y la jurisprudencia se resuelven por el canal federal (CPEUM, Ley de Amparo, LOPJF, SCJN, Tribunales Colegiados y Juzgados de Distrito), no por legislación local.",
+    );
+  }
+  if (declaredLevel === "municipal") {
+    notes.push(
+      "Jurisdicción municipal declarada: rigen los bandos, reglamentos y autoridades del ayuntamiento, con revisión eventual por el fuero común o el amparo.",
+    );
+  }
+
+  const jurisdiction_level: JurisdictionProfile["jurisdiction_level"] = declaredLevel
+    ? declaredLevel
+    : law.fuero === "federal"
+      ? "federal"
+      : state
+        ? "state"
+        : "unresolved";
+  const jurisdiction_source: JurisdictionProfile["jurisdiction_source"] = declaredLevel
+    ? "declared"
+    : law.fuero === "federal"
+      ? "materia"
+      : state
+        ? "corpus"
+        : "unresolved";
 
   const summary =
     `Materia ${MATERIA_LABEL_ES[materia]} — fuero ${fuero === "comun" ? "común" : fuero}` +
-    (state ? `, ${state.name}` : "") +
+    (declaredFederal ? " (Federal · México)" : state ? `, ${state.name}` : "") +
     `. Competencia: ${courts[0]}. Ley aplicable: ${[...substantive_codes, ...procedural_codes].slice(0, 3).join("; ")}.`;
 
   return {
@@ -292,6 +363,8 @@ export function buildJurisdictionProfile(args: {
     state,
     state_source,
     fuero,
+    jurisdiction_level,
+    jurisdiction_source,
     materia,
     courts,
     substantive_codes,
@@ -300,4 +373,5 @@ export function buildJurisdictionProfile(args: {
     summary,
     notes,
   };
+
 }
