@@ -2705,6 +2705,7 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
         case_type: z.enum(CASE_TYPE_VALUES).nullable().optional(),
         analysis_mode: z.enum(["strict", "balanced", "exploratory"]).optional(),
         jurisdiction: z.enum(JURISDICTION_VALUES).nullable().optional(),
+        case_analysis_mode: z.enum(["ongoing", "concluded_audit", "judgment_audit", "appeal_routes"]).optional(),
       })
       .parse(d),
   )
@@ -2714,6 +2715,7 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     if (data.case_type !== undefined) patch.case_type = data.case_type;
     if (data.analysis_mode !== undefined) patch.analysis_mode = data.analysis_mode;
     if (data.jurisdiction !== undefined) patch.jurisdiction = data.jurisdiction;
+    if (data.case_analysis_mode !== undefined) patch.case_analysis_mode = data.case_analysis_mode;
     if (Object.keys(patch).length === 0) return { ok: true };
 
     // Read the current mode/case_type first so we can tell whether this save
@@ -2727,12 +2729,23 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: before } = await (supabase as any)
       .from("cases")
-      .select("analysis_mode,case_type")
+      .select("analysis_mode,case_type,case_analysis_mode")
       .eq("id", data.caseId)
       .maybeSingle();
     const previousMode = (before?.analysis_mode as string | null) ?? null;
     const previousCaseType = (before?.case_type as string | null) ?? null;
+    const previousCaseAnalysisMode = (before?.case_analysis_mode as string | null) ?? "ongoing";
     const modeChanged = data.analysis_mode !== undefined && data.analysis_mode !== previousMode;
+    // Case Analysis Mode (case-analysis-mode.ts) changes the OBJECTIVE every
+    // analyzer/agent prompt is given (see analyzerPreamble/areaPreamble in
+    // pipeline.server.ts) and gates whether ways_out_analysis even runs — not
+    // just which engines may write, closer in blast radius to a materia
+    // change than a strictness-mode change. Findings generated under the old
+    // objective (e.g. "ongoing" case-prep framing) would otherwise sit
+    // alongside a report now claiming a "completed case audit" posture.
+    // Treated the same as caseTypeChanged: full derived-data reset.
+    const caseAnalysisModeChanged =
+      data.case_analysis_mode !== undefined && data.case_analysis_mode !== previousCaseAnalysisMode;
     // FIX: case_type had no invalidation at all — confirmed live: correcting
     // a misclassified materia (e.g. "constitucional" -> "amparo", the exact
     // Amparo Indirecto 412/2026 scenario mx-case-classifier.ts's own
@@ -2753,12 +2766,12 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     // derived analysis is cleared.
     const caseTypeChanged = data.case_type !== undefined && data.case_type !== previousCaseType;
 
-    if (caseTypeChanged) {
+    if (caseTypeChanged || caseAnalysisModeChanged) {
       await clearCaseDerivedData(supabase, data.caseId);
       Object.assign(patch, CASE_RESET_FIELDS);
       // clearCaseDerivedData/CASE_RESET_FIELDS don't touch case_type/
-      // analysis_mode/jurisdiction — patch's own values for those (set
-      // above) are untouched by this merge.
+      // analysis_mode/case_analysis_mode/jurisdiction — patch's own values
+      // for those (set above) are untouched by this merge.
     }
 
     if (modeChanged) {
@@ -2781,10 +2794,13 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
       .eq("id", data.caseId);
     if (error) throw new Error(error.message);
 
-    if (modeChanged) {
+    if (modeChanged || caseAnalysisModeChanged) {
       // Drop non-authoritative ledger rows so the next run re-executes those
       // engines instead of resuming past them. Completed rows are preserved —
-      // real work is never thrown away by a mode switch.
+      // real work is never thrown away by a mode switch. Also needed here so
+      // ways_out_analysis's prior "skipped: not_applicable_ongoing_case_mode"
+      // ledger row doesn't get treated as "already done" after switching into
+      // a completed-case mode.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from("pipeline_engine_runs")
@@ -2793,7 +2809,7 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
         .in("status", ["skipped", "failed", "blocked", "queued", "running"]);
     }
 
-    return { ok: true, modeChanged, caseTypeChanged };
+    return { ok: true, modeChanged, caseTypeChanged, caseAnalysisModeChanged };
   });
 
 export const archiveCase = createServerFn({ method: "POST" })

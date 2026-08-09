@@ -575,6 +575,8 @@ function Workspace() {
             analysisMode={(c as any).analysis_mode ?? "balanced"}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             jurisdiction={(c as any).jurisdiction ?? null}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            caseAnalysisMode={(c as any).case_analysis_mode ?? "ongoing"}
             documentsCount={docs.length}
             invalidate={invalidate}
           />

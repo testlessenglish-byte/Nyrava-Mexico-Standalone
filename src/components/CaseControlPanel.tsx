@@ -16,6 +16,7 @@ import {
 import { AGENT_DEFINITIONS } from "@/lib/agents/types";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_OPTIONS } from "@/lib/intelligence/jurisdictions";
+import { CASE_ANALYSIS_MODE_OPTIONS } from "@/lib/intelligence/case-analysis-mode";
 import { useI18n } from "@/i18n";
 import { drivePipeline } from "@/lib/pipeline-driver";
 
@@ -38,6 +39,7 @@ export function CaseControlPanel({
   caseType,
   analysisMode,
   jurisdiction,
+  caseAnalysisMode,
   documentsCount,
   invalidate,
 }: {
@@ -46,6 +48,7 @@ export function CaseControlPanel({
   caseType: string | null;
   analysisMode: string | null;
   jurisdiction: string | null;
+  caseAnalysisMode: string | null;
   documentsCount: number;
   invalidate: () => void;
 }) {
@@ -296,6 +299,7 @@ export function CaseControlPanel({
         caseType={caseType}
         analysisMode={analysisMode}
         jurisdiction={jurisdiction}
+        caseAnalysisMode={caseAnalysisMode}
         running={running}
         invalidate={invalidate}
       />
@@ -308,6 +312,7 @@ function CollapsedCaseSettings({
   caseType,
   analysisMode,
   jurisdiction,
+  caseAnalysisMode,
   running,
   invalidate,
 }: {
@@ -315,10 +320,11 @@ function CollapsedCaseSettings({
   caseType: string | null;
   analysisMode: string | null;
   jurisdiction: string | null;
+  caseAnalysisMode: string | null;
   running: boolean;
   invalidate: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const updateFn = useServerFn(updateCaseSettings);
   // "" (not a stale English default like "general_civil") means the case
@@ -329,19 +335,27 @@ function CollapsedCaseSettings({
   const [ct, setCt] = useState<string>(caseType ?? "");
   const [mode, setMode] = useState<string>(analysisMode || "balanced");
   const [juris, setJuris] = useState<string>(jurisdiction ?? "");
+  const [caseAnalysis, setCaseAnalysis] = useState<string>(caseAnalysisMode || "ongoing");
   useEffect(() => {
     setCt(caseType ?? "");
     setMode(analysisMode || "balanced");
     setJuris(jurisdiction ?? "");
-  }, [caseType, analysisMode, jurisdiction]);
+    setCaseAnalysis(caseAnalysisMode || "ongoing");
+  }, [caseType, analysisMode, jurisdiction, caseAnalysisMode]);
 
   const m = useMutation({
-    mutationFn: (patch: { case_type?: string; analysis_mode?: string; jurisdiction?: string | null }) =>
+    mutationFn: (patch: {
+      case_type?: string;
+      analysis_mode?: string;
+      jurisdiction?: string | null;
+      case_analysis_mode?: string;
+    }) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       updateFn({ data: { caseId, ...(patch as any) } }),
-    onSuccess: (res: { modeChanged?: boolean } | undefined) => {
+    onSuccess: (res: { modeChanged?: boolean; caseAnalysisModeChanged?: boolean } | undefined) => {
       toast.success(t("caseSettings.toast.saved"));
       if (res?.modeChanged) toast.info(t("caseSettings.toast.modeChanged"));
+      if (res?.caseAnalysisModeChanged) toast.info(t("caseSettings.toast.caseAnalysisModeChanged"));
       setOpen(false);
       invalidate();
     },
@@ -350,7 +364,10 @@ function CollapsedCaseSettings({
   });
 
   const dirty =
-    ct !== (caseType ?? "") || mode !== (analysisMode || "balanced") || juris !== (jurisdiction ?? "");
+    ct !== (caseType ?? "") ||
+    mode !== (analysisMode || "balanced") ||
+    juris !== (jurisdiction ?? "") ||
+    caseAnalysis !== (caseAnalysisMode || "ongoing");
   const disabled = running || m.isPending;
 
   return (
@@ -433,8 +450,35 @@ function CollapsedCaseSettings({
             </div>
           </div>
 
+          <div className="mt-4 space-y-1.5">
+            <label className="text-xs font-medium text-foreground/80">{t("caseSettings.caseAnalysisMode")}</label>
+            <p className="text-[11px] text-muted-foreground">{t("caseSettings.caseAnalysisMode.hint")}</p>
+            <div className="grid gap-1.5">
+              {CASE_ANALYSIS_MODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setCaseAnalysis(opt.value)}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${
+                    caseAnalysis === opt.value
+                      ? "border-accent bg-accent/10"
+                      : "border-border bg-background hover:bg-secondary"
+                  }`}
+                >
+                  <div className="font-medium">{locale === "en" ? opt.label_en : opt.label_es}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {locale === "en" ? opt.description_en : opt.description_es}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <button
-            onClick={() => m.mutate({ case_type: ct, analysis_mode: mode, jurisdiction: juris || null })}
+            onClick={() =>
+              m.mutate({ case_type: ct, analysis_mode: mode, jurisdiction: juris || null, case_analysis_mode: caseAnalysis })
+            }
             disabled={disabled || !dirty || !ct}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
           >

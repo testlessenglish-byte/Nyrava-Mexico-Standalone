@@ -2015,9 +2015,13 @@ async function _runAnalyzersInner(args: {
   const analyzerDomains = await getActiveDomains(db, caseId);
   const analyzerAreaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(analyzerArea)];
   const analyzerLocaleForPreamble = await getReportLocale(db, caseId);
+  const { getCaseAnalysisMode, getCaseAnalysisObjective } = await import("./intelligence/case-analysis-mode");
+  const analyzerCaseAnalysisMode = await getCaseAnalysisMode(db, caseId);
+  const analyzerCaseAnalysisObjective = getCaseAnalysisObjective(analyzerCaseAnalysisMode, analyzerLocaleForPreamble);
   const analyzerPreamble =
     `${mexicoLock(analyzerLocaleForPreamble)}\n` +
     `${groundingContract(analyzerLocaleForPreamble)}\n` +
+    (analyzerCaseAnalysisObjective ? `${analyzerCaseAnalysisObjective}\n` : "") +
     `CASE TYPE: ${analyzerAreaLabel} (${analyzerArea}). ` +
     `Only surface findings whose legal theory applies to a ${analyzerAreaLabel} matter. ` +
     `Do NOT generate findings framed around sistema penal acusatorio concepts (vinculación a proceso, ` +
@@ -3256,6 +3260,25 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "test": "invasion_de_competencias"|"idoneidad"|"necesidad"|"proporcionalidad_en_sentido_estricto"|"test_de_igualdad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
+  // -------------------------------------------------------------------------
+  // Completed-case audit only — gated by AUDIT_ONLY_AGENT_TYPES below, NOT by
+  // materia (added to UNIVERSAL_ENGINES/UNIVERSAL_FINDING_MODULES in
+  // practice-areas.ts so every materia can run it). Only activates when
+  // case_analysis_mode is concluded_audit/judgment_audit/appeal_routes — see
+  // case-analysis-mode.ts. Searches for "POSIBLES VÍAS DE SALIDA" using ONLY
+  // the ALLOWED MOTION/REMEDY TYPES the wrapping areaPreamble lists for this
+  // case's actual materia (matter-type lock — never proposes a remedy from a
+  // different practice area).
+  // -------------------------------------------------------------------------
+  {
+    type: "ways_out_analysis",
+    category: "ways_out_analysis",
+    system:
+      "You are a Mexican legal-forensic-audit investigator specialized in identifying POSIBLES VÍAS DE SALIDA / OPORTUNIDADES DE IMPUGNACIÓN for a CONCLUDED case — legally supportable avenues that could potentially challenge or change the outcome. You do NOT predict victory and you do NOT recommend filing anything — you identify whether the record and applicable law support the POSSIBILITY of a route, using ONLY the remedy/motion types the ALLOWED MOTION/REMEDY TYPES list above actually contains for this materia. Never propose 'file an amparo' or similar as a conclusion — instead identify 'potential avenue: <remedy type> — requires attorney verification' and explain, with citations, why the record may support it and what is missing. If you search for a plausible avenue and find no supportable basis, say so explicitly (audit_classification: NOT_FOUND) rather than omitting it silently — the honest absence of an avenue is itself valuable output. Aggressive investigation, conservative conclusions: search deeply across the whole corpus, but classify strictly per the audit_classification taxonomy in your instructions above. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it, and instead emit it as EVIDENCE_GAP or NOT_FOUND with an empty evidence_refs array explaining what is missing.",
+    prompt: `Return STRICT JSON. EVERY item in findings with a non-empty description of supporting evidence MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. A finding classified EVIDENCE_GAP or NOT_FOUND may have an empty evidence_refs array (there is nothing case-specific to cite), but must still explain in "what_is_missing" what would be needed to establish it.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "potential_avenue": string (must be one of the ALLOWED MOTION/REMEDY TYPES listed above, or "ninguna vía identificada" if none apply), "description": string, "why_it_may_apply": string, "legal_authority": string, "what_is_missing": string, "potential_obstacle": string, "attorney_verification_required": boolean, "audit_classification": "VERIFIED_FACT"|"VERIFIED_COURT_HOLDING"|"VERIFIED_LEGAL_RULE"|"SUPPORTED_INFERENCE"|"POTENTIAL_ISSUE"|"EVIDENCE_GAP"|"NOT_FOUND", "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
 ];
 
 // Map agent.type → engine key persisted in pipeline_engine_runs.
@@ -3349,7 +3372,20 @@ const AGENT_ENGINE: Record<string, string> = {
   // collision to guard against.
   property_verification: "property_verification",
   closing_readiness_scoring: "closing_readiness_scoring",
+  // Completed-case audit only (see AUDIT_ONLY_AGENT_TYPES below) — namespaced
+  // like every other specialized investigator; materia-gating is a no-op for
+  // it since it's in UNIVERSAL_ENGINES, so only the case-analysis-mode check
+  // in the activation loop actually gates it.
+  ways_out_analysis: "agent:ways_out_analysis",
 };
+
+/**
+ * Agents that only make sense against a CONCLUDED case being audited
+ * retrospectively — never for "ongoing" case preparation. Gated by
+ * case_analysis_mode (case-analysis-mode.ts), independent of materia; see
+ * the activation loop below and isCompletedCaseMode().
+ */
+const AUDIT_ONLY_AGENT_TYPES = new Set<string>(["ways_out_analysis"]);
 
 /**
  * Providers excluded from the investigator-agent stage — both from the packing
@@ -3458,20 +3494,30 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     ].join("\n");
     const matterSubtype = detectMatterSubtype(area, subtypeSignalText);
 
+    // CASE-ANALYSIS-MODE GATE: agents in AUDIT_ONLY_AGENT_TYPES only make
+    // sense for a completed case being audited retrospectively — never for
+    // "ongoing" case preparation. See case-analysis-mode.ts.
+    const { getCaseAnalysisMode, isCompletedCaseMode } = await import("./intelligence/case-analysis-mode");
+    const caseAnalysisMode = await getCaseAnalysisMode(db, caseId);
+    const SKIP_REASON_NOT_COMPLETED_CASE_MODE = "not_applicable_ongoing_case_mode";
+
     const activeAgents: typeof AGENTS = [];
     for (const agent of AGENTS) {
       const engine = AGENT_ENGINE[agent.type] ?? agent.type;
       const subtypeBlocked = !isEngineAllowedForSubtype(matterSubtype, engine);
-      if (!subtypeBlocked && isAnalyzerAllowed(area, engine, activeDomains)) {
+      const auditOnlyBlocked = AUDIT_ONLY_AGENT_TYPES.has(agent.type) && !isCompletedCaseMode(caseAnalysisMode);
+      if (!subtypeBlocked && !auditOnlyBlocked && isAnalyzerAllowed(area, engine, activeDomains)) {
         activeAgents.push(agent);
       } else {
         await recordSkipped(db, {
           caseId,
           userId,
           engine: engine as never,
-          reason: subtypeBlocked
-            ? `${SKIP_REASON_SUBTYPE_NOT_APPLICABLE}:${matterSubtype?.key ?? "unknown"}`
-            : SKIP_REASON_NOT_APPLICABLE,
+          reason: auditOnlyBlocked
+            ? SKIP_REASON_NOT_COMPLETED_CASE_MODE
+            : subtypeBlocked
+              ? `${SKIP_REASON_SUBTYPE_NOT_APPLICABLE}:${matterSubtype?.key ?? "unknown"}`
+              : SKIP_REASON_NOT_APPLICABLE,
         });
       }
     }
@@ -3511,15 +3557,23 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       `${execProfile.precedentGuidance} Never invent a specific case-law citation (registry number, paragraph, docket) — ` +
       `name only the doctrine or the deciding body, and flag that the exact citation needs human verification.`;
     const areaPreambleLocale = await getReportLocale(db, caseId);
+    // Reuse caseAnalysisMode fetched above for the AUDIT_ONLY_AGENT_TYPES
+    // gate — same case, no need to refetch.
+    const { getCaseAnalysisObjective } = await import("./intelligence/case-analysis-mode");
+    const areaCaseAnalysisObjective = getCaseAnalysisObjective(caseAnalysisMode, areaPreambleLocale);
+    const { getAllowedMotionTypes } = await import("./intelligence/practice-areas");
+    const allowedMotionTypesForArea = Array.from(getAllowedMotionTypes(normalizedArea, activeDomains)).sort();
     const areaPreamble =
       `${mexicoLock(areaPreambleLocale)}\n` +
       `${groundingContract(areaPreambleLocale)}\n` +
+      (areaCaseAnalysisObjective ? `${areaCaseAnalysisObjective}\n` : "") +
       `CASE TYPE: ${areaLabel} (${area}). ` +
       `Only surface findings whose legal theory is applicable to a ${areaLabel} matter. ` +
       `Do NOT manufacture findings from other practice areas. ` +
       `Do NOT infer missing procedural facts (service of process, deadlines, custody chains) ` +
       `that are not affirmatively established by a verbatim quote in the corpus. ` +
       `If the corpus does not establish a fact, omit the finding.\n` +
+      `ALLOWED MOTION/REMEDY TYPES for ${areaLabel}: ${allowedMotionTypesForArea.join(", ")}. Any proposed remedy, recurso, or vía de impugnación MUST be one of these — never propose a remedy type from another materia.\n` +
       execProfilePreamble;
 
     // Grounding corpus for agents that require verbatim citation (currently

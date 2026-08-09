@@ -103,6 +103,10 @@ export const UNIVERSAL_ENGINES = new Set<string>([
   // Nested verification agent (inside the "agents" wrapper). Namespaced so it
   // cannot collide with the independent `witness_intelligence` stage above.
   "agent:witness_credibility",
+  // Completed-case audit only — actually gated by case_analysis_mode
+  // (AUDIT_ONLY_AGENT_TYPES in pipeline.server.ts), not by materia, so it
+  // must be runnable in every materia. See case-analysis-mode.ts.
+  "agent:ways_out_analysis",
   "scoring",
   "ess_validator",
   "claim_validator",
@@ -242,6 +246,13 @@ const UNIVERSAL_FINDING_MODULES = [
   "ess",
   "validator",
   "misc",
+  // Completed-case audit only (ways_out_analysis agent, category
+  // "ways_out_analysis" — type === category, same convention as most other
+  // specialized agents). Added here on day one specifically because the
+  // chain_of_custody bug (above) was caused by adding an agent to the RUN
+  // gate without adding it here too — do not repeat that mistake for this
+  // one.
+  "ways_out_analysis",
 ];
 
 // Source_module wrapper tokens that carry no domain information.
