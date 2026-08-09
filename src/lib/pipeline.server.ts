@@ -7913,6 +7913,26 @@ ${paginationTail}`;
     console.warn("[final-release] review failed after report generation", e);
   }
 
+  // ---- Completed Case Audit / Outcome Assessment -------------------------
+  // Additive final layer, gated to case_analysis_mode !== "ongoing" (a no-op
+  // for every existing case and every ongoing case — see
+  // completed-case-audit.server.ts's own early return). Reads the findings/
+  // score/report this pipeline just finished producing; never reprocesses
+  // documents, never re-runs an analyzer or agent, never touches an existing
+  // stage. Purely additive and non-fatal — a failure here must never undo a
+  // successfully generated and released report.
+  try {
+    const { runCompletedCaseAudit } = await import("@/lib/intelligence/completed-case-audit.server");
+    const audit = await runCompletedCaseAudit(db, caseId, userId, apiKey);
+    if (audit) {
+      console.info(
+        `[completed-case-audit] case ${caseId} → ${audit.overall_position} (${audit.favorable_pct}% favorable, confidence=${audit.confidence})`,
+      );
+    }
+  } catch (e) {
+    console.warn("[completed-case-audit] audit failed after final release review", e);
+  }
+
   return {
     value: undefined,
     stats: {
