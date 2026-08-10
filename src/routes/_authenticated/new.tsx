@@ -8,7 +8,7 @@ import { Upload, FileText, X, KeyRound, ShieldCheck, Scale, Sparkles } from "luc
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
 import {
-  CASE_ANALYSIS_MODE_OPTIONS,
+  CASE_ANALYSIS_MODE_SELECTABLE_OPTIONS,
   type CaseAnalysisMode,
 } from "@/lib/intelligence/case-analysis-mode";
 import { useI18n } from "@/i18n";
@@ -242,7 +242,7 @@ function NewCasePage() {
               {t("caseSettings.caseAnalysisMode.hint")}
             </p>
             <div className="mt-2 grid gap-2">
-              {CASE_ANALYSIS_MODE_OPTIONS.map((opt) => {
+              {CASE_ANALYSIS_MODE_SELECTABLE_OPTIONS.map((opt) => {
                 const active = caseAnalysisMode === opt.value;
                 return (
                   <button

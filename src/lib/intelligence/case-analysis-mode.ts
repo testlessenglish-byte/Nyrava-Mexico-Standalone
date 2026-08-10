@@ -63,6 +63,24 @@ export const CASE_ANALYSIS_MODE_OPTIONS: CaseAnalysisModeOption[] = [
   },
 ];
 
+/**
+ * UI-facing subset of CASE_ANALYSIS_MODE_OPTIONS: only the two choices a
+ * user picks between (Ongoing vs. the full Concluded Case audit).
+ * "judgment_audit" and "appeal_routes" remain full CaseAnalysisMode values
+ * (normalizeCaseAnalysisMode/getCaseAnalysisObjective still handle them) so
+ * any case already set to one of those two keeps analyzing exactly as
+ * before — this only trims what the upload page and case settings panel
+ * offer going forward. "concluded_audit" is deliberately the sole completed-
+ * case button because its objective text is already the superset of the
+ * other two (procedural + evidence + judgment audit + ways out) — three
+ * near-identical "concluded case" options forced a user to get the right
+ * one up front.
+ */
+export const CASE_ANALYSIS_MODE_SELECTABLE_OPTIONS: CaseAnalysisModeOption[] =
+  CASE_ANALYSIS_MODE_OPTIONS.filter(
+    (opt) => opt.value === "ongoing" || opt.value === "concluded_audit",
+  );
+
 export function isCompletedCaseMode(mode: CaseAnalysisMode): boolean {
   return mode !== "ongoing";
 }
