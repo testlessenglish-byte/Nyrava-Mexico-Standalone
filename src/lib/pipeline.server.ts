@@ -4444,7 +4444,7 @@ ${JSON.stringify(findingsForLlm)}`,
   // Strip non-applicable dimensions from the LLM payload BEFORE persistence
   // so renderers (PDF, DOCX, dashboard) cannot show off-domain dimensions
   // like "Conviction Risk" or "Chain of Custody" on a civil case.
-  const { applicableDimensionsFor } = await import("./intelligence/scoring.server");
+  const { applicableDimensionsFor, scrubScoringContributors } = await import("./intelligence/scoring.server");
   const applicableSet = new Set(applicableDimensionsFor(caseTypeForScore));
   // Cross-domain escalation (e.g. a tax_law case where a charging document
   // was detected): union in the criminal dimension set so chain_of_custody /
@@ -4458,11 +4458,14 @@ ${JSON.stringify(findingsForLlm)}`,
   const llmDimsScoped: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(llmDimsRaw)) if (applicableSet.has(k)) llmDimsScoped[k] = v;
   // Also drop off-domain contributors that reference suppressed dimensions
-  // by label. Match is best-effort; deterministic contributors override.
-  const offDomainLabel =
-    /(conviction|appeal|chain of custody|miranda|4th amendment|5th amendment|6th amendment|search and seizure|grand jury|indictment|brady|giglio)/i;
+  // by label, and any contributor whose finding_id isn't a real, persisted
+  // finding for this case — see scrubScoringContributors's doc comment
+  // (scoring.server.ts) for why this fallback path specifically needs the
+  // finding_id check that the deterministic contributor path never does.
+  const validFindingIds = new Set(findings.map((f) => f.id));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const scrubContribs = (arr: any[]) => arr.filter((c) => criminalLike || !offDomainLabel.test(String(c?.label ?? "")));
+  const scrubContribs = (arr: any[]) =>
+    scrubScoringContributors(arr, { criminalLike, validFindingIds });
 
   // MODEL_DISAGREEMENT — deterministic is authoritative; LLM is comparison
   // only. Flag any dimension where the gap exceeds the threshold so the
