@@ -35,6 +35,7 @@ export type MxPipelineProfile =
   | "penal"
   | "amparo"
   | "derechos_humanos"
+  | "constitucional"
   | "laboral"
   | "civil"
   | "familiar"
@@ -57,7 +58,24 @@ export const MX_JURISDICTION = "MX" as const;
 const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
   penal: "penal",
   amparo: "amparo",
-  constitucional: "derechos_humanos",
+  // FIX: previously routed unconditionally to "derechos_humanos" — the CNDH
+  // administrative-complaint profile (queja ante la comisión, Ley de la
+  // CNDH) — for EVERY case in this materia, including judicial proceedings
+  // that have nothing to do with a CNDH complaint: controversia
+  // constitucional, acción de inconstitucionalidad, and amparo directo/
+  // indirecto EN REVISIÓN (an SCJN review of an amparo ruling on a genuine
+  // constitutional question). Confirmed on a real case (Amparo Directo en
+  // Revisión 2239/2018): the report asserted a false, scored-negative
+  // procedural defect — "Queja presentada ante la comisión competente" (Ley
+  // de la CNDH Art. 25-27) — on a judicial SCJN proceeding that was never a
+  // CNDH complaint and never could be one; the two proceedings share no
+  // procedure, authority, or filing vehicle. "constitucional" now defaults
+  // to its own profile modeling SCJN-level constitutional judicial review
+  // instead. "derechos_humanos" is not deleted — it is still reachable for
+  // an actual CNDH/human-rights-commission complaint via effectiveMxProfile
+  // below, which checks the case name for that proceeding's own vocabulary
+  // the same way it already does for "apelacion".
+  constitucional: "constitucional",
   laboral: "laboral",
   civil: "civil",
   familiar: "familiar",
@@ -145,7 +163,7 @@ const APELACION_ELIGIBLE_MATERIAS = new Set<MexicanCaseType>(["civil", "mercanti
  */
 const APELACION_NAME_SIGNAL = /\b(toca de apelacion|recurso de apelacion|segunda instancia|tribunal de alzada)\b/;
 
-function foldApelacionSignal(s: string): string {
+function foldCaseNameSignal(s: string): string {
   return s
     .toLowerCase()
     .normalize("NFD")
@@ -153,9 +171,24 @@ function foldApelacionSignal(s: string): string {
 }
 
 /**
+ * Case-NAME signal that this "constitucional" matter IS an actual CNDH (or
+ * state human-rights commission) administrative complaint — the one real
+ * use case "derechos_humanos" still models — rather than the SCJN-level
+ * judicial constitutional review ("constitucional" profile, the default for
+ * this materia as of the 2239/2018 fix above). Deliberately narrow: only
+ * the vocabulary that names the non-jurisdictional complaint vehicle
+ * itself, never the substantive derechos-humanos doctrine a judicial case
+ * can just as legitimately argue at length (that ambiguity is exactly what
+ * misrouted 2239/2018 in the first place).
+ */
+const CNDH_COMPLAINT_NAME_SIGNAL =
+  /\b(queja ante la cndh|queja ante la comision (nacional|estatal) de derechos humanos|comision nacional de los derechos humanos|comision estatal de derechos humanos|recomendacion cndh)\b/;
+
+/**
  * The pipeline profile actually in effect for this case: its materia's base
  * profile, unless the case name signals this specific proceeding is an
- * appeal, in which case it resolves to "apelacion" instead. Same
+ * appeal (→ "apelacion") or, for "constitucional", a genuine CNDH/human-
+ * rights-commission complaint (→ "derechos_humanos"). Same
  * text-narrows-never-widens pattern as detectMatterSubtype() in
  * matter-subtype.ts (familiar → sucesorio) — not a second case-type
  * taxonomy, just a materia-scoped override for a proceeding shape the base
@@ -168,9 +201,16 @@ export function effectiveMxProfile(caseType: unknown, caseName?: string | null):
     materia &&
     APELACION_ELIGIBLE_MATERIAS.has(materia) &&
     caseName &&
-    APELACION_NAME_SIGNAL.test(foldApelacionSignal(caseName))
+    APELACION_NAME_SIGNAL.test(foldCaseNameSignal(caseName))
   ) {
     return "apelacion";
+  }
+  if (
+    materia === "constitucional" &&
+    caseName &&
+    CNDH_COMPLAINT_NAME_SIGNAL.test(foldCaseNameSignal(caseName))
+  ) {
+    return "derechos_humanos";
   }
   return profile;
 }
@@ -208,6 +248,11 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   amparo: ["witness"],
   // Violaciones a derechos humanos por autoridad: mismo alcance que penal.
   derechos_humanos: [],
+  // Controversia constitucional / acción de inconstitucionalidad / amparo
+  // en revisión: se resuelve sobre la norma o acto impugnado y el
+  // expediente ante la SCJN — no hay desahogo de testigos, misma razón que
+  // amparo.
+  constitucional: ["witness"],
   // Materia laboral (LFT / tribunales laborales): sí hay audiencia, no hay
   // control constitucional directo en el juicio ordinario.
   laboral: ["constitutional"],
@@ -351,6 +396,17 @@ export const MX_PARTY_ROLES: Record<
   // without a third slot the model has nowhere correct to put that party.
   amparo: { a: "quejoso", b: "autoridad_responsable", c: "tercero_interesado", neutral: "ambas" },
   derechos_humanos: { a: "quejoso", b: "autoridad_responsable", neutral: "ambas" },
+  // Matches jurisdiction/mexico.ts's PARTY_ROLES.constitucional
+  // (a: "promovente", b: "autoridad_responsable") — same two core roles,
+  // plus a third slot for the tercero interesado that routinely appears in
+  // an amparo directo/indirecto en revisión (the beneficiary of the
+  // original amparo ruling), same rationale as amparo's own c slot above.
+  constitucional: {
+    a: "promovente",
+    b: "autoridad_responsable",
+    c: "tercero_interesado",
+    neutral: "ambas",
+  },
   laboral: { a: "trabajador", b: "patron", neutral: "ambas" },
   civil: { a: "parte_actora", b: "parte_demandada", neutral: "ambas" },
   familiar: { a: "parte_actora", b: "parte_demandada", neutral: "ambas" },

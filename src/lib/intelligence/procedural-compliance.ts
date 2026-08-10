@@ -283,6 +283,103 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       patterns: ["reparacion integral", "medidas de reparacion"],
     },
   ],
+  // FIX (2239/2018): controversia constitucional / acción de
+  // inconstitucionalidad / amparo directo o indirecto en revisión — SCJN
+  // judicial review of a norm, act, or amparo ruling. Previously evaluated
+  // against "derechos_humanos"'s checklist above, which asserted a CNDH
+  // administrative complaint (queja, Ley de la CNDH) as a REQUIRED element
+  // of a judicial proceeding that can never file one — a real case (Amparo
+  // Directo en Revisión 2239/2018) got exactly that false, scored-negative
+  // finding. This checklist reflects what these judicial proceedings
+  // actually require instead.
+  constitucional: [
+    {
+      id: "norma_o_acto_impugnado",
+      label_es: "Norma general o acto impugnado identificado",
+      label_en: "Challenged general norm or act identified",
+      authority:
+        "Ley Reglamentaria del Art. 105 CPEUM Arts. 22 fr. III y 61 fr. III; Ley de Amparo Art. 88",
+      requirement: "required",
+      patterns: [
+        "norma impugnada",
+        "acto impugnado",
+        "norma general impugnada",
+        "ley impugnada",
+        "decreto impugnado",
+      ],
+    },
+    {
+      id: "legitimacion_constitucional",
+      label_es: "Legitimación del promovente acreditada",
+      label_en: "Promovente's standing established",
+      authority: "CPEUM Art. 105 fr. I–II; Ley de Amparo Art. 81 fr. II",
+      requirement: "required",
+      patterns: [
+        "legitimacion activa",
+        "legitimacion procesal",
+        "organo legitimado",
+        "actor legitimado",
+        "recurrente legitimado",
+        "acredita su legitimacion",
+      ],
+    },
+    {
+      id: "plazo_impugnacion_constitucional",
+      label_es: "Promovido dentro del plazo legal aplicable",
+      label_en: "Filed within the applicable statutory term",
+      authority: "Ley Reglamentaria del Art. 105 CPEUM Arts. 21 y 60; Ley de Amparo Art. 86",
+      requirement: "required",
+      patterns: [
+        "dentro del plazo",
+        "treinta dias",
+        "diez dias",
+        "plazo para la interposicion",
+        "oportunidad del recurso",
+        "presentado en tiempo",
+        "presentada en tiempo",
+      ],
+    },
+    {
+      id: "concepto_invalidez_o_agravios",
+      label_es: "Conceptos de invalidez o agravios expresados",
+      label_en: "Concepts of invalidity or grievances stated",
+      authority:
+        "Ley Reglamentaria del Art. 105 CPEUM Arts. 22 fr. VII y 61 fr. V; Ley de Amparo Art. 88",
+      requirement: "required",
+      patterns: [
+        "conceptos de invalidez",
+        "concepto de invalidez",
+        "agravios",
+        "conceptos de violacion",
+      ],
+    },
+    {
+      id: "cuestion_constitucionalidad",
+      label_es: "Cuestión propiamente constitucional identificada (importancia y trascendencia)",
+      label_en: "Genuine constitutional question identified (importancia y trascendencia)",
+      authority: "Ley de Amparo Art. 81 fr. II; Acuerdo General 9/2015 SCJN",
+      // Recommended, not required: this element is specific to the recurso
+      // de revisión vehicle, not to controversia constitucional/acción de
+      // inconstitucionalidad — marking it required would produce a false
+      // "faltante" on those two proceedings, the same class of error this
+      // whole profile exists to stop.
+      requirement: "recommended",
+      patterns: [
+        "importancia y trascendencia",
+        "cuestion de constitucionalidad",
+        "interpretacion directa de la constitucion",
+        "planteamiento de constitucionalidad",
+      ],
+    },
+    {
+      id: "suspension_constitucional",
+      label_es: "Suspensión solicitada y resuelta, cuando proceda",
+      label_en: "Stay requested and resolved, where applicable",
+      authority: "Ley Reglamentaria del Art. 105 CPEUM Arts. 14–18",
+      requirement: "recommended",
+      patterns: ["suspension", "medida cautelar"],
+    },
+  ],
   laboral: [
     {
       id: "conciliacion_prejudicial",

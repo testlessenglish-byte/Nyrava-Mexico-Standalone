@@ -372,6 +372,14 @@ const RULES: Record<MxPipelineProfile, readonly DeadlineRule[]> = {
       basis: () => `30 días hábiles contados a partir de la notificación del acto impugnado (LFPCA Art. 13).`,
     },
   ],
+  // Controversia constitucional / acción de inconstitucionalidad / amparo en
+  // revisión: left deliberately empty, same conservative call as agrario/
+  // electoral/ambiental below — the plazo varies by vehicle (30 días
+  // naturales para la acción de inconstitucionalidad, 30 días hábiles para
+  // la controversia constitucional, 10 días hábiles para el recurso de
+  // revisión) and encoding one figure here risks asserting the wrong one for
+  // whichever proceeding is actually in the corpus.
+  constitucional: [],
   derechos_humanos: [
     {
       id: "plazo_queja_cndh",

@@ -188,6 +188,40 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["recomendacion", "punto recomendatorio"],
     },
   ],
+  constitucional: [
+    {
+      id: "norma_o_acto_impugnado_doc",
+      label_es: "Norma general o acto impugnado identificado",
+      label_en: "Challenged general norm or act identified",
+      authority:
+        "Ley Reglamentaria del Art. 105 Arts. 22 fr. III y 61 fr. III; Ley de Amparo Art. 88",
+      patterns: [
+        "norma impugnada",
+        "acto impugnado",
+        "norma general impugnada",
+        "decreto impugnado",
+      ],
+    },
+    {
+      id: "acreditacion_legitimacion_doc",
+      label_es: "Documento que acredita la legitimación del promovente",
+      label_en: "Document evidencing the promovente's standing",
+      authority: "CPEUM Art. 105 fr. I-II; Ley de Amparo Art. 81",
+      patterns: ["legitimacion activa", "legitimacion procesal", "acredita su legitimacion"],
+    },
+    {
+      id: "sentencia_o_norma_publicada",
+      label_es: "Sentencia de amparo o publicación de la norma en el diario/periódico oficial",
+      label_en: "Amparo judgment or official-gazette publication of the norm",
+      authority: "Ley Reglamentaria del Art. 105 Art. 60; Ley de Amparo Art. 86",
+      patterns: [
+        "diario oficial de la federacion",
+        "periodico oficial",
+        "sentencia que concede el amparo",
+        "sentencia que niega el amparo",
+      ],
+    },
+  ],
   civil: [
     {
       id: "contrato",

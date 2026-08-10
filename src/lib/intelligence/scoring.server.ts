@@ -442,6 +442,42 @@ export function applicableDimensionsFor(caseType: string | undefined): string[] 
   return CASE_TYPE_DIMENSIONS[caseType ?? "general_civil"] ?? DEFAULT_DIMENSIONS;
 }
 
+/**
+ * Filters a raw LLM positive_contributors/negative_contributors array before
+ * it can be persisted on case_scores. Two independent gates:
+ *   1. off-domain label scrub (e.g. "Conviction Risk" on a civil case) —
+ *      pre-existing behavior, unchanged.
+ *   2. finding_id must be present AND belong to one of this case's own
+ *      persisted findings.
+ * Gate 2 is the fix: this function is only ever reached as a FALLBACK, when
+ * the deterministic scorecard (computeDeterministicScorecard) found zero
+ * contributors across every dimension — a thin/sparse case. The
+ * deterministic path never needs this check: its contributors are built
+ * from `f.id` on real, already-persisted Finding rows, so a null/orphan
+ * finding_id can never reach the report through it. But the LLM's own JSON
+ * schema for these fields explicitly allows finding_id: string|null, and
+ * without this gate a labeled, weighted contributor with finding_id: null —
+ * or one referencing a finding_id that doesn't even exist for this case —
+ * rendered in the report indistinguishable from a real, evidence-backed
+ * one. Extracted so the gating decision is directly unit-testable without
+ * mocking the whole runScoring pipeline (callGroq, buildContext, upserts).
+ */
+export function scrubScoringContributors(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  arr: any[],
+  opts: { criminalLike: boolean; validFindingIds: ReadonlySet<string> },
+): // eslint-disable-next-line @typescript-eslint/no-explicit-any
+any[] {
+  const offDomainLabel =
+    /(conviction|appeal|chain of custody|miranda|4th amendment|5th amendment|6th amendment|search and seizure|grand jury|indictment|brady|giglio)/i;
+  return arr.filter(
+    (c) =>
+      (opts.criminalLike || !offDomainLabel.test(String(c?.label ?? ""))) &&
+      typeof c?.finding_id === "string" &&
+      opts.validFindingIds.has(c.finding_id),
+  );
+}
+
 export function computeDeterministicScorecard(rawFindings: Finding[], caseType?: string): DeterministicScorecard {
   // A lower instance's holding a higher instance rejected or superseded
   // (see judicial-hierarchy.ts — e.g. a Tribunal Colegiado position the

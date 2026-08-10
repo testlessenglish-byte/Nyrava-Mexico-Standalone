@@ -222,6 +222,47 @@ const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
       patterns: ["reparacion integral", "seguimiento a la recomendacion"],
     },
   ],
+  constitucional: [
+    {
+      id: "norma_o_acto_impugnado",
+      label_es: "Identificación de la norma o acto impugnado",
+      label_en: "Challenged norm or act identified",
+      authority: "Ley Reglamentaria del Art. 105 Arts. 22 y 61; Ley de Amparo Art. 88",
+      patterns: ["norma impugnada", "acto impugnado"],
+    },
+    {
+      id: "presentacion_demanda_constitucional",
+      label_es: "Presentación de la demanda o recurso",
+      label_en: "Complaint or appeal filed",
+      authority: "Ley Reglamentaria del Art. 105 Arts. 21 y 60; Ley de Amparo Art. 86",
+      patterns: [
+        "demanda de controversia constitucional",
+        "demanda de accion de inconstitucionalidad",
+        "recurso de revision",
+      ],
+    },
+    {
+      id: "admision_constitucional",
+      label_es: "Auto de admisión",
+      label_en: "Order admitting the claim",
+      authority: "Ley Reglamentaria del Art. 105 Art. 25; Ley de Amparo Art. 92",
+      patterns: ["se admite a tramite", "auto admisorio"],
+    },
+    {
+      id: "conceptos_de_invalidez_o_agravios",
+      label_es: "Conceptos de invalidez o agravios formulados",
+      label_en: "Concepts of invalidity or grievances stated",
+      authority: "Ley Reglamentaria del Art. 105 Arts. 22 fr. VII y 61 fr. V",
+      patterns: ["conceptos de invalidez", "agravios"],
+    },
+    {
+      id: "sentencia_constitucional",
+      label_es: "Sentencia del Pleno o la Sala de la SCJN",
+      label_en: "SCJN Pleno/Sala judgment",
+      authority: "Ley Reglamentaria del Art. 105 Arts. 41-45 y 72-73",
+      patterns: ["sentencia del pleno", "resuelve la suprema corte", "engrose"],
+    },
+  ],
   laboral: [
     {
       id: "conciliacion_prejudicial",

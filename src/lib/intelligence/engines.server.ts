@@ -1683,6 +1683,39 @@ export async function runWorkProductEngine(args: {
     ? knownFilenames.map((f) => `- ${f}`).join("\n")
     : "(no extracted documents)";
 
+  // ESS suppression — the same "sparse evidence -> sparse output" rule the
+  // report itself enforces (sufficiency.server.ts's computeESS,
+  // allowMotionGeneration) never reached this engine: it was gated only by
+  // analysis_mode above, never by evidence sufficiency. A case whose report
+  // showed STATUS=Limitado / PUNTAJES suprimido for insufficient evidence
+  // still produced "COMPLETE" attorney-ready drafts (Demanda de Amparo,
+  // Ofrecimiento de Pruebas) out of this engine — verifyWorkProductBody
+  // below only rejects a draft whose CONCRETE claims (dates, filenames,
+  // figures) fail to trace to the corpus, which a generically-worded
+  // boilerplate pleading can pass while still misrepresenting the case's
+  // actual evidentiary posture. Computed locally from data already loaded
+  // above (not the report stage's own ESS run, which executes later in the
+  // canonical order and would be too late to prevent generation here).
+  {
+    const { computeWorkProductEss } = await import("./sufficiency.server");
+    const ess = computeWorkProductEss(docRows, ctx.findings);
+    if (!ess.allowMotionGeneration) {
+      console.info(
+        `[ess:${ess.bin}] work product engine skipped — insufficient evidence for motion generation`,
+        { case_id: caseId, score: ess.score, reasons: ess.reasons },
+      );
+      await setCase(db, caseId, {
+        status_message: `Work product skipped (insufficient evidence: ${ess.bin} bin, ${ess.score}/100)`,
+        progress: 90,
+      });
+      return {
+        documents: [],
+        failed: 0,
+        verification: { total: 0, clean: 0, flagged: 0, rejected: 0, empty: 0 },
+      };
+    }
+  }
+
   const r = await callGroq({
     apiKey,
     apiKeys,

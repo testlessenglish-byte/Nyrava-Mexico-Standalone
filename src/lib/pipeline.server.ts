@@ -2717,7 +2717,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
     type: "witness_credibility",
     category: "witness",
     system:
-      "You are a witness credibility investigator. Examine statements for consistency, motive, bias, and corroboration. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+      "You are a witness credibility investigator. Examine FIRST-PERSON WITNESS OR PARTY STATEMENTS ONLY — testimony, declarations, sworn statements, interview transcripts — for consistency, motive, bias, and corroboration. A judicial ruling, sentencia, tesis, jurisprudencia, or statutory/constitutional text is NOT witness testimony, even when it quotes or summarizes what a witness said — the court speaking in its own resolutional voice ('esta Sala resuelve...', 'CONSIDERANDO...', 'por unanimidad de votos...') is a judicial decision, not a witness statement, and must NEVER be analyzed as one. If the corpus contains no genuine witness/party statements, emit ZERO findings rather than repurposing judicial or statutory text. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis; a spliced quote will not appear verbatim in the document and will be rejected outright. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely — do not fabricate continuity that isn't in the text. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -3998,6 +3998,28 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
               );
             }
           }
+          // Source-type gate: witness_credibility runs unconditionally on
+          // every case (UNIVERSAL_FINDING_MODULES), source-type-blind — on a
+          // case with no real witness testimony it has previously quoted the
+          // COURT'S OWN resolution language (an SCJN judgment) and analyzed
+          // it as if it were testimony. Drops any finding grounded entirely
+          // in judicial-decision or statutory/constitutional text before it
+          // can be persisted as "Testimonio de Testigo". See
+          // grounding.server.ts's dropJudicialTextFindings for the exact
+          // vocabulary this targets and why isLegalAuthorityCitation alone
+          // (used elsewhere) doesn't catch it.
+          if (agent.type === "witness_credibility") {
+            const { dropJudicialTextFindings } = await import("./intelligence/grounding.server");
+            const before = findingsForNormalize.length;
+            const result = dropJudicialTextFindings(findingsForNormalize);
+            findingsForNormalize = result.items;
+            groundingDropped += result.dropped;
+            if (result.dropped > 0) {
+              console.warn(
+                `[source-type-gate] case=${caseId} agent=${agent.type} dropped ${result.dropped}/${before} finding(s) grounded entirely in judicial-decision/statutory text — not witness testimony.`,
+              );
+            }
+          }
           void lastModel;
           assertDbOk(
             (
@@ -4422,7 +4444,7 @@ ${JSON.stringify(findingsForLlm)}`,
   // Strip non-applicable dimensions from the LLM payload BEFORE persistence
   // so renderers (PDF, DOCX, dashboard) cannot show off-domain dimensions
   // like "Conviction Risk" or "Chain of Custody" on a civil case.
-  const { applicableDimensionsFor } = await import("./intelligence/scoring.server");
+  const { applicableDimensionsFor, scrubScoringContributors } = await import("./intelligence/scoring.server");
   const applicableSet = new Set(applicableDimensionsFor(caseTypeForScore));
   // Cross-domain escalation (e.g. a tax_law case where a charging document
   // was detected): union in the criminal dimension set so chain_of_custody /
@@ -4436,11 +4458,14 @@ ${JSON.stringify(findingsForLlm)}`,
   const llmDimsScoped: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(llmDimsRaw)) if (applicableSet.has(k)) llmDimsScoped[k] = v;
   // Also drop off-domain contributors that reference suppressed dimensions
-  // by label. Match is best-effort; deterministic contributors override.
-  const offDomainLabel =
-    /(conviction|appeal|chain of custody|miranda|4th amendment|5th amendment|6th amendment|search and seizure|grand jury|indictment|brady|giglio)/i;
+  // by label, and any contributor whose finding_id isn't a real, persisted
+  // finding for this case — see scrubScoringContributors's doc comment
+  // (scoring.server.ts) for why this fallback path specifically needs the
+  // finding_id check that the deterministic contributor path never does.
+  const validFindingIds = new Set(findings.map((f) => f.id));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const scrubContribs = (arr: any[]) => arr.filter((c) => criminalLike || !offDomainLabel.test(String(c?.label ?? "")));
+  const scrubContribs = (arr: any[]) =>
+    scrubScoringContributors(arr, { criminalLike, validFindingIds });
 
   // MODEL_DISAGREEMENT — deterministic is authoritative; LLM is comparison
   // only. Flag any dimension where the gap exceeds the threshold so the

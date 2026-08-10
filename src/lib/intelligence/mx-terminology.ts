@@ -47,6 +47,12 @@ export const PARTY_ROLES_BY_PROFILE: Record<MxPipelineProfile, readonly string[]
   penal: ["imputado", "víctima", "ofendido", "Ministerio Público", "Fiscalía", "defensa", "asesor jurídico"],
   amparo: ["quejoso", "quejosa", "autoridad responsable", "tercero interesado", "Ministerio Público Federal"],
   derechos_humanos: ["víctima", "quejoso", "autoridad responsable", "Comisión de Derechos Humanos"],
+  constitucional: [
+    "promovente",
+    "autoridad responsable",
+    "tercero interesado",
+    "órgano o poder demandado",
+  ],
   laboral: ["trabajador", "patrón", "parte actora", "parte demandada", "sindicato"],
   civil: ["parte actora", "parte demandada", "tercero llamado a juicio"],
   familiar: ["parte actora", "parte demandada", "menor", "tutor"],
@@ -81,6 +87,13 @@ const PARTY_ROLE_SUBSTITUTIONS: Record<MxPipelineProfile, Record<string, string>
     prosecutor: "autoridad responsable",
     "district attorney": "autoridad responsable",
     plaintiff: "víctima",
+    defendant: "autoridad responsable",
+  },
+  constitucional: {
+    prosecution: "autoridad responsable",
+    prosecutor: "autoridad responsable",
+    "district attorney": "autoridad responsable",
+    plaintiff: "parte promovente",
     defendant: "autoridad responsable",
   },
   laboral: {
