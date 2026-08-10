@@ -66,7 +66,9 @@ export async function runProceduralCompliance(args: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (db as any).from("case_findings").delete().eq("case_id", caseId).eq("source_module", SOURCE_MODULE);
 
-  const missing = report.items.filter((i) => i.requirement === "required" && i.status === "faltante");
+  const missing = report.items.filter(
+    (i) => i.requirement === "required" && i.status === "no_identificado_en_corpus",
+  );
   let findings_written = 0;
   if (missing.length > 0) {
     const rows = missing.map((i) => ({
