@@ -13,17 +13,18 @@
 //      `_merged` / metadata so no legal analysis disappears.
 //   2. Only true duplicates merge. Within one category two findings must be
 //      lexically near-identical (token Jaccard over title, corroborated by the
-//      description). ACROSS categories — the cross-engine case, where two
-//      engines emit the same canonical issue under their own category label —
-//      the bar is deliberately much higher AND requires independent
-//      corroboration (shared evidence/source docs, or strongly agreeing
-//      descriptions). Merged rows carry the UNION of the categories.
+//      description) — OR rest on the literal identical quoted evidence text,
+//      which is strong enough corroboration on its own regardless of title
+//      wording. ACROSS categories — the cross-engine case, where two engines
+//      emit the same canonical issue under their own category label — the bar
+//      is deliberately much higher AND requires independent corroboration
+//      (shared evidence/source docs, or strongly agreeing descriptions).
+//      Merged rows carry the UNION of the categories.
 //   3. Materia-agnostic. No practice-area vocabulary is hard-coded here, so it
 //      behaves identically for penal, laboral, amparo, civil, etc.
 //   4. Order-stable: the surviving row keeps the input order of its cluster's
 //      strongest member, so report layout is unchanged apart from the removal
 //      of duplicated rows.
-
 
 const SEV_RANK: Record<string, number> = {
   critical: 0,
@@ -34,9 +35,41 @@ const SEV_RANK: Record<string, number> = {
 };
 
 const STOPWORDS = new Set([
-  "de","la","el","los","las","del","al","y","o","en","un","una","unos","unas",
-  "por","para","con","sin","que","se","su","sus","es","son","the","of","a","an",
-  "to","and","in","on","for","is","are",
+  "de",
+  "la",
+  "el",
+  "los",
+  "las",
+  "del",
+  "al",
+  "y",
+  "o",
+  "en",
+  "un",
+  "una",
+  "unos",
+  "unas",
+  "por",
+  "para",
+  "con",
+  "sin",
+  "que",
+  "se",
+  "su",
+  "sus",
+  "es",
+  "son",
+  "the",
+  "of",
+  "a",
+  "an",
+  "to",
+  "and",
+  "in",
+  "on",
+  "for",
+  "is",
+  "are",
 ]);
 
 /** Accent-folded, punctuation-stripped lowercase text. */
@@ -95,7 +128,6 @@ const DEFAULTS: Required<DedupeOptions> = {
   crossCategoryExactTitleDescriptionThreshold: 0.3,
 };
 
-
 type Prepared = {
   row: DedupableFinding;
   index: number;
@@ -105,8 +137,8 @@ type Prepared = {
   titleKey: string;
   fullTitle: string;
   evidence: Set<string>;
+  evidenceQuotes: Set<string>;
 };
-
 
 function categoryOf(f: DedupableFinding): string {
   return normalizeText(f.category ?? f.finding_type ?? "misc") || "misc";
@@ -120,17 +152,57 @@ function textOf(f: DedupableFinding, key: string): string {
 /** Union of the concrete evidence anchors a finding rests on. */
 const EVIDENCE_KEYS = ["evidence_refs", "source_doc_ids", "document_ids", "citations"] as const;
 
+/**
+ * evidence_refs entries are `{ label?, quote?, doc_id? }` (see types.ts).
+ * `label` is each engine's own free-text framing of why the quote matters —
+ * two engines routinely cite the identical quote/document under differently
+ * worded labels. Signing the whole object (the previous behavior) folded
+ * that wording difference into the signature, so an identical quote cited
+ * under two labels was never recognized as shared evidence. Key on
+ * doc_id::quote only, matching the doc_id::quote key findings.server.ts's
+ * evidenceKeys() already uses for its own (persist-time, narrower) overlap
+ * check.
+ */
+function evidenceSignature(item: unknown): string {
+  if (item && typeof item === "object") {
+    const obj = item as Record<string, unknown>;
+    const quote = normalizeText(obj.quote);
+    const docId = normalizeText(obj.doc_id ?? obj.document_id);
+    if (quote || docId) return `${docId}::${quote}`;
+    return normalizeText(JSON.stringify(item));
+  }
+  return normalizeText(String(item));
+}
+
 function evidenceOf(f: DedupableFinding): Set<string> {
   const out = new Set<string>();
   for (const key of EVIDENCE_KEYS) {
     const v = f[key];
     if (!Array.isArray(v)) continue;
     for (const item of v) {
-      const sig = normalizeText(
-        typeof item === "object" && item !== null ? JSON.stringify(item) : String(item),
-      );
+      const sig = evidenceSignature(item);
       if (sig) out.add(sig);
     }
+  }
+  return out;
+}
+
+/** Minimum normalized-quote length considered for the strong same-category
+ *  evidence signal below — long enough that a match can't be a coincidental
+ *  short common phrase ("el juez ordeno"). */
+const MIN_QUOTE_LEN = 20;
+
+/** Verbatim `evidence_refs[].quote` text only (not doc_id-only or citation
+ *  overlap, which are too weak a signal on their own — many distinct
+ *  findings in the same case legitimately cite the same source document). */
+function quoteEvidenceOf(f: DedupableFinding): Set<string> {
+  const out = new Set<string>();
+  const refs = f.evidence_refs;
+  if (!Array.isArray(refs)) return out;
+  for (const item of refs) {
+    if (!item || typeof item !== "object") continue;
+    const quote = normalizeText((item as Record<string, unknown>).quote);
+    if (quote.length >= MIN_QUOTE_LEN) out.add(quote);
   }
   return out;
 }
@@ -147,13 +219,19 @@ function prepare(row: DedupableFinding, index: number): Prepared {
     titleKey: normalizeText(title).split(" ").slice(0, 6).join(" "),
     fullTitle: normalizeText(title),
     evidence: evidenceOf(row),
-
+    evidenceQuotes: quoteEvidenceOf(row),
   };
 }
 
 function sharesEvidence(a: Prepared, b: Prepared): boolean {
   if (a.evidence.size === 0 || b.evidence.size === 0) return false;
   for (const e of a.evidence) if (b.evidence.has(e)) return true;
+  return false;
+}
+
+function sharesQuoteEvidence(a: Prepared, b: Prepared): boolean {
+  if (a.evidenceQuotes.size === 0 || b.evidenceQuotes.size === 0) return false;
+  for (const q of a.evidenceQuotes) if (b.evidenceQuotes.has(q)) return true;
   return false;
 }
 
@@ -167,7 +245,8 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
     // headline (e.g. "Notificación fuera de plazo" as a procedural issue vs.
     // an evidentiary one) still stay separate.
     const ts = jaccard(a.titleTokens, b.titleTokens);
-    const sameHeadline = (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= opts.crossCategoryTitleThreshold;
+    const sameHeadline =
+      (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= opts.crossCategoryTitleThreshold;
     if (!sameHeadline) return false;
     if (sharesEvidence(a, b)) return true;
     if (a.descTokens.size === 0 || b.descTokens.size === 0) return false;
@@ -185,11 +264,17 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
   const ts = jaccard(a.titleTokens, b.titleTokens);
   if (ts >= opts.titleThreshold) return true;
   if (ts >= opts.titleFallbackThreshold) {
-    return jaccard(a.descTokens, b.descTokens) >= opts.descriptionThreshold;
+    if (jaccard(a.descTokens, b.descTokens) >= opts.descriptionThreshold) return true;
   }
+  // Two findings in the same category resting on the literal same quoted
+  // evidentiary text are the same underlying claim no matter how
+  // differently each pass titled it ("Competencia del Juzgado" vs.
+  // "Competencia de la autoridad" citing one identical sentence) — unlike a
+  // shared source document, a verbatim shared quote of meaningful length
+  // cannot be coincidental.
+  if (sharesQuoteEvidence(a, b)) return true;
   return false;
 }
-
 
 function strength(f: DedupableFinding): [number, number, number] {
   const sev = SEV_RANK[String(f.severity ?? "info").toLowerCase()] ?? 9;
@@ -250,7 +335,6 @@ export type DedupedFinding = DedupableFinding & {
   _merged?: Array<{ id?: string; title?: string; description?: string; category?: string }>;
   _merged_count?: number;
 };
-
 
 /** Internal: `prepare` every row (preserving original array position as
  *  `index`) then cluster by `isSameIssue`. Shared by the exported clustering
@@ -353,7 +437,6 @@ export function consolidateFindings<T extends DedupableFinding>(
       mutable.metadata = meta;
     }
     out.push({ index: winner.index, row: master });
-
   }
 
   return out.sort((a, b) => a.index - b.index).map((o) => o.row);
