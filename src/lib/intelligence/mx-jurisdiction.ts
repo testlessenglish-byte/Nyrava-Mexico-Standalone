@@ -108,6 +108,19 @@ const MATERIA_LAW: Record<MxPipelineProfile, MateriaLaw> = {
     substantive: ["CPEUM Art. 1º", "Convención Americana sobre Derechos Humanos", "Ley General de Víctimas"],
     procedural: ["Ley de Amparo", "Ley de la Comisión Nacional de los Derechos Humanos"],
   },
+  constitucional: {
+    fuero: "federal",
+    courts: [
+      "Suprema Corte de Justicia de la Nación (SCJN)",
+      "Plenos Regionales",
+      "Tribunal Colegiado de Circuito",
+    ],
+    substantive: ["CPEUM", "Tratados internacionales de derechos humanos"],
+    procedural: [
+      "Ley Reglamentaria de las Fracciones I y II del Artículo 105 de la CPEUM",
+      "Ley de Amparo",
+    ],
+  },
   laboral: {
     fuero: "mixto",
     courts: ["Tribunal Laboral", "Centro de Conciliación Laboral", "Tribunal Colegiado en Materia de Trabajo"],
@@ -186,6 +199,7 @@ const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
   penal: ["CPEUM Art. 1º", "Art. 14", "Art. 16", "Art. 19", "Art. 20", "Art. 21"],
   amparo: ["CPEUM Art. 1º", "Art. 103", "Art. 107"],
   derechos_humanos: ["CPEUM Art. 1º", "Art. 102 apartado B"],
+  constitucional: ["CPEUM Art. 105", "Art. 103", "Art. 107"],
   laboral: ["CPEUM Art. 5º", "Art. 123 apartado A"],
   civil: ["CPEUM Art. 14", "Art. 16", "Art. 17"],
   familiar: ["CPEUM Art. 4º", "Art. 14", "Art. 16"],
@@ -203,6 +217,7 @@ const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
   penal: "penal",
   amparo: "amparo",
   derechos_humanos: "derechos humanos",
+  constitucional: "constitucional",
   laboral: "laboral",
   civil: "civil",
   familiar: "familiar",

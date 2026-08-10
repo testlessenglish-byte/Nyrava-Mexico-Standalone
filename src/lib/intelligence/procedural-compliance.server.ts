@@ -7,7 +7,7 @@
 // the report and the findings UI like any other risk.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { resolveMxProfile } from "@/lib/execution/mx-pipeline";
+import { effectiveMxProfile } from "@/lib/execution/mx-pipeline";
 import { evaluateProceduralCompliance, type ComplianceReport } from "./procedural-compliance";
 import { resolveProceduralStage, type ProceduralStageResolution } from "./mx-procedural-stages";
 import { resolveMissingDocuments, type MissingDocumentsReport } from "./mx-missing-documents";
@@ -38,10 +38,17 @@ export async function runProceduralCompliance(args: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: caseRow } = await (db as any)
     .from("cases")
-    .select("case_type")
+    .select("case_type,name")
     .eq("id", caseId)
     .maybeSingle();
-  const materia = resolveMxProfile((caseRow as { case_type?: string | null } | null)?.case_type ?? null);
+  // effectiveMxProfile (not the base resolveMxProfile) so a case name that
+  // signals a genuine CNDH/human-rights-commission complaint — or a real
+  // second-instance apelación — still resolves to its own checklist instead
+  // of unconditionally defaulting to the base materia's. Previously this
+  // read only case_type, so neither override could ever apply here even
+  // though mx-pipeline.ts already modeled both.
+  const caseRowTyped = caseRow as { case_type?: string | null; name?: string | null } | null;
+  const materia = effectiveMxProfile(caseRowTyped?.case_type ?? null, caseRowTyped?.name ?? null);
 
   // Compliance matching must scan the WHOLE corpus — a required procedural
   // act argued deep in an Amparo file (page 40+) was previously invisible

@@ -156,6 +156,32 @@ const BY_PROFILE: Record<MxPipelineProfile, MxWorkProductVehicle[]> = {
       when: "cuando proceda la vía no jurisdiccional",
     },
   ],
+  // Controversia constitucional / acción de inconstitucionalidad / amparo
+  // en revisión — SCJN judicial review, not a CNDH complaint (see
+  // "derechos_humanos" above for that separate, non-jurisdictional vehicle).
+  constitucional: [
+    {
+      id: "demanda_controversia_constitucional",
+      es: "Demanda de controversia constitucional",
+      en: "Controversia constitucional complaint",
+      basis: "Art. 105 fr. I CPEUM; Ley Reglamentaria del Art. 105, Título II",
+      when: "cuando el promovente sea un órgano o poder legitimado y exista un acto o norma de otro órgano que invada su esfera de competencia",
+    },
+    {
+      id: "demanda_accion_inconstitucionalidad",
+      es: "Demanda de acción de inconstitucionalidad",
+      en: "Acción de inconstitucionalidad complaint",
+      basis: "Art. 105 fr. II CPEUM; Ley Reglamentaria del Art. 105, Título III",
+      when: "cuando el promovente esté legitimado conforme al artículo 105 fracción II y exista una norma general recién publicada por impugnar",
+    },
+    {
+      id: "recurso_de_revision_constitucional",
+      es: "Recurso de revisión (amparo directo o indirecto)",
+      en: "Constitutional review appeal (amparo directo/indirecto en revisión)",
+      basis: "Arts. 81 y 83 Ley de Amparo; Art. 107 fracciones VIII y IX CPEUM",
+      when: "cuando exista sentencia de amparo directo o indirecto y se plantee una cuestión propiamente constitucional",
+    },
+  ],
   laboral: [
     {
       id: "demanda_laboral",
