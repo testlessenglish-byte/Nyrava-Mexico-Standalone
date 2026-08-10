@@ -299,8 +299,8 @@ export function resolvePracticeAreaOrNull(v: unknown): PracticeArea | null {
   return normalizeMexicanCaseType(v);
 }
 
-type AreaInput = PracticeArea | string | null | undefined;
-type DomainSet = ReadonlySet<string> | ReadonlyArray<string> | null | undefined;
+export type AreaInput = PracticeArea | string | null | undefined;
+export type DomainSet = ReadonlySet<string> | ReadonlyArray<string> | null | undefined;
 
 function effectiveAreas(area: AreaInput, activeDomains: DomainSet): PracticeArea[] {
   const set = new Set<PracticeArea>();

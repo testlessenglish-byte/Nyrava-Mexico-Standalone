@@ -43,6 +43,14 @@ import {
 import { buildGroundingCorpus, type GroundingCorpus } from "./grounding.server";
 import { mergeConfidence } from "./canonical-id";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
+import {
+  PROPOSITION_TYPES,
+  SPEAKER_ROLES,
+  ADOPTION_STATUSES,
+  AUDIT_CLASSIFICATIONS,
+} from "./finding-taxonomy";
+import { clusterBySameIssue } from "./finding-dedupe";
+import { validateFindingClassification } from "./finding-classification-gate";
 
 type Db = SupabaseClient<Database>;
 type J = import("@/integrations/supabase/types").Json;
@@ -107,47 +115,37 @@ function normParty(s: unknown): AffectedParty | null {
 // `null`, not a guessed default — a finding the extraction pass never
 // attributed must read as "not attributed", never as a fabricated
 // speaker/adoption tag that would then feed the dashboard/scoring gates.
+// The four normalizers below all read from finding-taxonomy.ts's shared
+// enums — the SAME source every agent/analyzer prompt schema is built from
+// (see judicialHierarchySchemaFragment()) — so a value the model was told is
+// valid can never be rejected here, and vice versa.
+const SPEAKER_ROLE_SET: ReadonlySet<string> = new Set(SPEAKER_ROLES);
+const PROPOSITION_TYPE_SET: ReadonlySet<string> = new Set(PROPOSITION_TYPES);
+const ADOPTION_STATUS_SET: ReadonlySet<string> = new Set(ADOPTION_STATUSES);
+const AUDIT_CLASSIFICATION_SET: ReadonlySet<string> = new Set(AUDIT_CLASSIFICATIONS);
+
 function normSpeakerRole(s: unknown): Finding["speaker_role"] {
   const v = String(s ?? "").toLowerCase();
-  if (v === "quejoso" || v === "autoridad" || v === "tribunal_colegiado" || v === "tribunal_local" || v === "scjn")
-    return v;
-  return null;
+  return SPEAKER_ROLE_SET.has(v) ? (v as NonNullable<Finding["speaker_role"]>) : null;
 }
 function normPropositionType(s: unknown): Finding["proposition_type"] {
   const v = String(s ?? "").toLowerCase();
-  if (
-    v === "argument" ||
-    v === "holding" ||
-    v === "rejected_holding" ||
-    v === "procedural_fact" ||
-    v === "evidence" ||
-    v === "issue"
-  )
-    return v;
-  return null;
+  return PROPOSITION_TYPE_SET.has(v) ? (v as NonNullable<Finding["proposition_type"]>) : null;
 }
 function normAdoptionStatus(s: unknown): Finding["adoption_status"] {
   const v = String(s ?? "").toLowerCase();
-  if (v === "adopted" || v === "rejected" || v === "unresolved" || v === "historical") return v;
-  return null;
+  return ADOPTION_STATUS_SET.has(v) ? (v as NonNullable<Finding["adoption_status"]>) : null;
 }
 // Completed-case audit classification (case-analysis-mode.ts). Same
 // never-guess convention as the three normalizers above: unrecognized or
 // absent normalizes to `null`, never a fabricated classification. Uppercase
 // to match the CHECK constraint and the taxonomy's own casing (VERIFIED_FACT,
 // not verified_fact) — unlike the lowercase judicial-hierarchy enums above.
-const AUDIT_CLASSIFICATIONS = new Set([
-  "VERIFIED_FACT",
-  "VERIFIED_COURT_HOLDING",
-  "VERIFIED_LEGAL_RULE",
-  "SUPPORTED_INFERENCE",
-  "POTENTIAL_ISSUE",
-  "EVIDENCE_GAP",
-  "NOT_FOUND",
-]);
 function normAuditClassification(s: unknown): Finding["audit_classification"] {
   const v = String(s ?? "").toUpperCase();
-  return AUDIT_CLASSIFICATIONS.has(v) ? (v as NonNullable<Finding["audit_classification"]>) : null;
+  return AUDIT_CLASSIFICATION_SET.has(v)
+    ? (v as NonNullable<Finding["audit_classification"]>)
+    : null;
 }
 function clamp01(n: unknown): number {
   const v = typeof n === "number" ? n : Number(n);
@@ -440,23 +438,12 @@ export function resetFindingsAudit(caseId: string): void {
 }
 
 // ============================================================================
-// SEMANTIC DEDUP — before insert, merge findings that share the same
-// factual basis (same category + near-identical normalized title or fully
-// overlapping evidence citations). Provenance of merged duplicates is
-// preserved in metadata.merged_from so audit trails remain intact.
+// SEMANTIC DEDUP — before insert, merge findings that describe the same
+// canonical legal issue (via clusterBySameIssue's title-Jaccard / cross-
+// category corroboration rule), refined by evidence-citation overlap.
+// Provenance of merged duplicates is preserved in metadata.merged_from so
+// audit trails remain intact.
 // ============================================================================
-function normTitleKey(s: string): string {
-  return String(s ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language finding titles dedupe correctly
-    .replace(/[^a-z0-9 ]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .slice(0, 6)
-    .join(" ");
-}
 function evidenceKeys(ev: unknown): string[] {
   if (!Array.isArray(ev)) return [];
   const out: string[] = [];
@@ -474,18 +461,19 @@ function evidenceKeys(ev: unknown): string[] {
 }
 function dedupSemantically(rows: NewFinding[]): NewFinding[] {
   if (rows.length <= 1) return rows;
-  const groups = new Map<string, NewFinding[]>();
-  for (const r of rows) {
-    const cat = String(r.category ?? "misc").toLowerCase();
-    const tk = normTitleKey(r.title);
-    const key = `${cat}::${tk}`;
-    const arr = groups.get(key) ?? [];
-    arr.push(r);
-    groups.set(key, arr);
-  }
+  // Canonical-issue clustering — shared with the report-time consolidator
+  // (finding-dedupe.ts) so "same issue" means one thing everywhere in Nyrava:
+  // cross-category merges require a near-identical title AND corroborating
+  // evidence/description agreement (a shared citation alone is never
+  // sufficient), same-category merges use title similarity. This replaces
+  // the previous exact `category::first-6-words` key, which could not catch
+  // two engines describing the same issue under different category labels or
+  // with reworded titles — and, unlike the old key, never merges two
+  // findings just because they cite the same statute.
+  const groupsArr = clusterBySameIssue(rows);
   const out: NewFinding[] = [];
   const sevRank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-  for (const arr of groups.values()) {
+  for (const arr of groupsArr) {
     if (arr.length === 1) {
       out.push(arr[0]);
       continue;
@@ -651,7 +639,19 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       );
     }
     const { kept } = await validateFindingsForCase(db, caseId, policyKept);
-    validated.push(...kept);
+    // Judicial-hierarchy consistency gate: a "holding"/"rejected_holding"
+    // proposition_type paired with a non-judicial speaker_role (a party's
+    // own submission) is structurally impossible — downgrade to "argument"
+    // rather than persist a party's argument as if a court had ruled on it.
+    // No-op for the overwhelming majority of findings, which set neither
+    // field. See finding-classification-gate.ts.
+    for (const r of kept) {
+      const { finding, downgrades } = validateFindingClassification(r);
+      if (downgrades.length > 0) {
+        console.warn(`[classification-gate] case=${caseId} downgraded`, downgrades);
+      }
+      validated.push(finding);
+    }
   }
 
   if (validated.length === 0) return [];
@@ -906,8 +906,13 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     // why. Retry once with just those optional columns stripped so a
     // pending migration can never take down finding persistence entirely.
     const strippedPayload = (payload as Array<Record<string, unknown>>).map((row) => {
-      const { speaker_role: _sr, proposition_type: _pt, adoption_status: _as, audit_classification: _ac, ...rest } =
-        row;
+      const {
+        speaker_role: _sr,
+        proposition_type: _pt,
+        adoption_status: _as,
+        audit_classification: _ac,
+        ...rest
+      } = row;
       return rest;
     });
     const retry = await db
@@ -922,7 +927,10 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       );
       return retry.data ?? [];
     }
-    console.error("addFindings retry (without judicial-hierarchy columns) also failed", retry.error);
+    console.error(
+      "addFindings retry (without judicial-hierarchy columns) also failed",
+      retry.error,
+    );
     return [];
   }
   return data ?? [];
@@ -996,7 +1004,10 @@ export async function addGatedFindings(
           // GatedItem.not_established_rewrite's doc comment for why this
           // can't happen inside diagnoseEvidenceGate itself.
           ...(g.not_established_rewrite
-            ? { title: g.not_established_rewrite.title, description: g.not_established_rewrite.description }
+            ? {
+                title: g.not_established_rewrite.title,
+                description: g.not_established_rewrite.description,
+              }
             : {}),
         } as Partial<NewFinding>),
       } as NewFinding);
@@ -1132,37 +1143,142 @@ const TRIVIAL_LEGAL_AUTHORITY = new Set([
   "tbd",
 ]);
 
-export function enforceRemedyLegalAuthorityGate(
+/**
+ * Five-state result of trying to independently verify a proposed remedy's
+ * legal_authority string, replacing the previous binary "non-empty string
+ * present or not" check:
+ *   AUTHORITY_MISSING     — empty/placeholder string (unchanged from before).
+ *   AUTHORITY_PRESENT     — a real-looking string, but no parseable article
+ *                           citation was found in it (extractCitationsFromText
+ *                           found nothing) — cannot attempt verification.
+ *   AUTHORITY_VERIFIED    — a citation was extracted AND matched a statute +
+ *                           article in the legal-source corpus, with no
+ *                           jurisdiction/temporal red flag.
+ *   AUTHORITY_NOT_VERIFIED — a citation was extracted but the corpus lookup
+ *                           found no match. Per citation-verification.server.ts's
+ *                           own contract this very often means "not ingested
+ *                           yet," not "wrong" — never downgraded on this
+ *                           alone.
+ *   AUTHORITY_INAPPLICABLE — the citation WAS matched in the corpus, but is
+ *                           flagged wrong-jurisdiction or not-in-force for
+ *                           this case — the strongest, only-if-detected
+ *                           signal that a real citation is nonetheless the
+ *                           wrong authority.
+ */
+export type RemedyAuthorityStatus =
+  | "AUTHORITY_MISSING"
+  | "AUTHORITY_PRESENT"
+  | "AUTHORITY_VERIFIED"
+  | "AUTHORITY_NOT_VERIFIED"
+  | "AUTHORITY_INAPPLICABLE";
+
+async function classifyRemedyAuthority(
+  db: Db,
+  legalAuthority: string,
+  // The case's relevant date for temporal validity — same fallback
+  // (cases.created_at) completed-case-audit.server.ts already uses for the
+  // identical verifyStatutoryCitation call. Without SOME date,
+  // authorityValidity() always returns reason "unknown_date" (see
+  // legal-validity.ts), so temporal_status can never resolve to "in_force"
+  // and AUTHORITY_VERIFIED/AUTHORITY_INAPPLICABLE would be unreachable.
+  caseDate: string | null,
+): Promise<RemedyAuthorityStatus> {
+  if (legalAuthority.length <= 10 || TRIVIAL_LEGAL_AUTHORITY.has(legalAuthority.toLowerCase())) {
+    return "AUTHORITY_MISSING";
+  }
+  const { extractCitationsFromText } = await import("@/lib/legal-connectors/citation-extract");
+  const { verifyStatutoryCitation } = await import("@/lib/legal/citation-verification.server");
+  const citations = extractCitationsFromText(legalAuthority);
+  // citedAuthorityHint is only ever set alongside an "Art. <n> de <hint>"
+  // citationText (see extractCitationsFromText), so re-extracting the article
+  // number from that same string is always safe when this hint is present.
+  const withArticle = citations.find((c) => c.citedAuthorityHint);
+  const articleNumber = withArticle
+    ? /^Art\.\s+(\S+)\s+de\s+/u.exec(withArticle.citationText)?.[1]
+    : undefined;
+  if (!withArticle || !articleNumber) return "AUTHORITY_PRESENT";
+  const verification = await verifyStatutoryCitation(db, {
+    authorityHint: withArticle.citedAuthorityHint!,
+    articleNumber,
+    caseDate,
+  });
+  // Checked BEFORE `status`, not after: verifyStatutoryCitation's own status
+  // only reaches "VERIFIED" once jurisdiction/temporal checks already pass
+  // (see its sourceConfirmed && temporalOk && jurisdictionOk && quoteOk
+  // gate), so a wrong-jurisdiction or expired/not-yet-in-force match always
+  // reports status "UNVERIFIED" — gating this check behind
+  // `status === "VERIFIED"` would make it unreachable and collapse
+  // AUTHORITY_INAPPLICABLE into AUTHORITY_NOT_VERIFIED.
+  const wrongJurisdiction = verification.jurisdiction_match === false;
+  const notInForce =
+    verification.temporal_status === "expired" ||
+    verification.temporal_status === "not_yet_in_force";
+  if (wrongJurisdiction || notInForce) return "AUTHORITY_INAPPLICABLE";
+  if (verification.status === "VERIFIED") return "AUTHORITY_VERIFIED";
+  return "AUTHORITY_NOT_VERIFIED";
+}
+
+export async function enforceRemedyLegalAuthorityGate(
+  db: Db,
   rows: NewFinding[],
   locale: "es" | "en" = "es",
-): NewFinding[] {
+): Promise<NewFinding[]> {
   const caveat =
     locale === "en"
       ? " [REQUIRES VERIFICATION: no legal authority applicable to this specific procedural stage was cited or verified for this proposed remedy.]"
       : " [REQUIERE VERIFICACIÓN: no se citó ni verificó la autoridad legal aplicable a esta etapa procesal específica para este remedio propuesto.]";
-  return rows.map((r) => {
-    if (!String(r.source_module ?? "").includes("ways_out_analysis")) return r;
-    const raw = (r.metadata as Record<string, unknown> | undefined)?.raw as
-      | Record<string, unknown>
-      | undefined;
-    const remedyType = typeof raw?.remedy_type === "string" ? raw.remedy_type.trim() : "";
-    // Only rows that actually propose a remedy avenue need this gate —
-    // EVIDENCE_GAP/NOT_FOUND rows already honestly express absence.
-    if (!remedyType) return r;
-    if (r.audit_classification === "EVIDENCE_GAP" || r.audit_classification === "NOT_FOUND") {
-      return r;
-    }
-    const legalAuthority =
-      typeof raw?.legal_authority === "string" ? raw.legal_authority.trim() : "";
-    const hasRealAuthority =
-      legalAuthority.length > 10 && !TRIVIAL_LEGAL_AUTHORITY.has(legalAuthority.toLowerCase());
-    if (hasRealAuthority) return r;
-    return {
-      ...r,
-      audit_classification: "EVIDENCE_GAP" as NewFinding["audit_classification"],
-      description: `${r.description}${caveat}`,
-    };
-  });
+  // Fetched at most once per distinct case_id, and only when a row actually
+  // needs verification — most calls (no ways_out_analysis rows, or rows
+  // without a remedy) never touch the DB here at all.
+  const caseDateCache = new Map<string, Promise<string | null>>();
+  const getCaseDate = (caseId: string): Promise<string | null> => {
+    const cached = caseDateCache.get(caseId);
+    if (cached) return cached;
+    const p: Promise<string | null> = db
+      .from("cases")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .select("created_at" as any)
+      .eq("id", caseId)
+      .maybeSingle()
+      .then(({ data }: { data: { created_at?: string } | null }) => data?.created_at ?? null);
+    caseDateCache.set(caseId, p);
+    return p;
+  };
+  return Promise.all(
+    rows.map(async (r) => {
+      if (!String(r.source_module ?? "").includes("ways_out_analysis")) return r;
+      const raw = (r.metadata as Record<string, unknown> | undefined)?.raw as
+        | Record<string, unknown>
+        | undefined;
+      const remedyType = typeof raw?.remedy_type === "string" ? raw.remedy_type.trim() : "";
+      // Only rows that actually propose a remedy avenue need this gate —
+      // EVIDENCE_GAP/NOT_FOUND rows already honestly express absence.
+      if (!remedyType) return r;
+      if (r.audit_classification === "EVIDENCE_GAP" || r.audit_classification === "NOT_FOUND") {
+        return r;
+      }
+      const legalAuthority =
+        typeof raw?.legal_authority === "string" ? raw.legal_authority.trim() : "";
+      const caseDate = await getCaseDate(r.case_id);
+      const status = await classifyRemedyAuthority(db, legalAuthority, caseDate);
+      const withStatus: NewFinding = {
+        ...r,
+        metadata: { ...(r.metadata ?? {}), remedy_authority_status: status },
+      };
+      // Only the two states where the authority is confirmed absent or
+      // confirmed WRONG are force-downgraded. AUTHORITY_NOT_VERIFIED /
+      // AUTHORITY_PRESENT pass through unchanged — an incomplete corpus must
+      // never be treated as proof the citation is invalid (see contract note
+      // on classifyRemedyAuthority above), which is exactly the previous
+      // (binary) gate's behavior for any non-trivial string.
+      if (status !== "AUTHORITY_MISSING" && status !== "AUTHORITY_INAPPLICABLE") return withStatus;
+      return {
+        ...withStatus,
+        audit_classification: "EVIDENCE_GAP" as NewFinding["audit_classification"],
+        description: `${r.description}${caveat}`,
+      };
+    }),
+  );
 }
 
 // Normalize an LLM-returned findings array into NewFinding[]

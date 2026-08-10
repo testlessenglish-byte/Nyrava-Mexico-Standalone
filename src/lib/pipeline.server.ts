@@ -2063,25 +2063,24 @@ async function _runAnalyzersInner(args: {
 
   const analyzerLocale = await getReportLocale(db, caseId);
   const { mxPartyRoleEnum } = await import("./execution/mx-pipeline");
+  const { judicialHierarchyInstructions, judicialHierarchySchemaFragment } =
+    await import("./intelligence/finding-taxonomy");
+  const jhFragment = judicialHierarchySchemaFragment();
 
   const buildPrompt = (corpusText: string) =>
     `Return STRICT JSON. EVERY item in contradictions, missing_evidence, procedural_issues, and key_findings MUST include an evidence_refs array of { doc_id?: string, doc_n?: number, quote: string (verbatim from corpus, <=200 chars) }. Every "legal_significance" value must explain the legal consequence of the fact (why it matters), not just restate the fact itself.
 
 CRITICAL: every string VALUE in this JSON (title, description, legal_significance, potential_impact, rule) MUST be written entirely in ${analyzerLocale === "en" ? "English" : "Spanish"} — regardless of what language the underlying source documents/corpus are written in. Never carry over English from an English-language source document (e.g. a WhatsApp message, bank statement, or email quoted in the corpus) into these fields; translate the legal analysis, only verbatim quotes inside evidence_refs may stay in their original language since they must match the source exactly.
 
-JUDICIAL-HIERARCHY ATTRIBUTION — applies ONLY when the corpus is (or includes) a resolution from one judicial instance reviewing another's ruling (e.g. amparo directo en revisión, recurso de revisión, apelación, revisión fiscal — any document where a higher instance affirms, revokes, or modifies a lower instance's sentencia/laudo/resolución). When that is the case, every item in "contradictions" and "key_findings" whose content is a legal conclusion drawn FROM that resolution (as opposed to a plain fact about the underlying dispute) MUST also include:
-  "speaker_role": which actor in the document ASSERTED this proposition — "quejoso" (the amparo petitioner's argument), "autoridad" (the responsible authority's position), "tribunal_local" (a local/administrative tribunal below the Tribunal Colegiado), "tribunal_colegiado" (the Tribunal Colegiado de Circuito's own ruling), or "scjn" (the Suprema Corte's own ruling in this document).
-  "proposition_type": "argument" (a party merely argued this, it was not ruled on) | "holding" (the speaker_role actor's own ruling on the point) | "rejected_holding" (a LOWER instance's holding that a HIGHER instance in this SAME document expressly revoked, overturned, or declared incorrect/no trascendente) | "procedural_fact" (an undisputed procedural event, e.g. a filing date or notification method) | "evidence" | "issue" (a question the document frames but does not itself resolve).
-  "adoption_status": "adopted" (the highest instance in the document affirmed this as part of its final ruling) | "rejected" (the highest instance expressly overturned, revoked, or discarded it — including when it said the point was "no trascendente para la conclusión alcanzada") | "unresolved" (raised but the document does not rule on it, e.g. remanded to a lower instance) | "historical" (a superseded intermediate position kept only for narrative context, e.g. what the trial-level Sala originally held before being reversed on appeal).
-CRITICAL RULE: if a Tribunal Colegiado's (or any lower instance's) reasoning is quoted or paraphrased ONLY because the higher instance (SCJN) is describing what that lower instance said — as antecedente, as the position under review, or as something the SCJN goes on to revoke/correct/deem not dispositive — the resulting finding's speaker_role MUST be the LOWER instance that actually said it (e.g. "tribunal_colegiado"), NEVER "scjn", even if the surrounding narrative sentence is written in the SCJN's voice ("el Tribunal Pleno determina que..."). Attribute every proposition to whoever is the true logical subject of the ruling being described, not to whichever court's document you are reading. When the case does not involve multi-instance review, omit all three fields entirely — do not force an attribution onto a single-instance matter (e.g. an ordinary civil, laboral, or familiar case with no reviewing court).
+${judicialHierarchyInstructions()}
 
 {
   "timeline": [ { "date": string, "event": string, "source_document": string } ],
-  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "speaker_role": "quejoso"|"autoridad"|"tribunal_colegiado"|"tribunal_local"|"scjn"|null, "proposition_type": "argument"|"holding"|"rejected_holding"|"procedural_fact"|"evidence"|"issue"|null, "adoption_status": "adopted"|"rejected"|"unresolved"|"historical"|null, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, ${jhFragment}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
   "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
   "procedural_issues": [ { "title": string, "description": string, "rule": string|null, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
   "evidence_relationships": [ { "from": string, "to": string, "relationship": string } ],
-  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "speaker_role": "quejoso"|"autoridad"|"tribunal_colegiado"|"tribunal_local"|"scjn"|null, "proposition_type": "argument"|"holding"|"rejected_holding"|"procedural_fact"|"evidence"|"issue"|null, "adoption_status": "adopted"|"rejected"|"unresolved"|"historical"|null, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
+  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, ${jhFragment}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
 }
 
 CASE CORPUS:
@@ -4081,7 +4080,11 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           // just factual claims) — a ways_out_analysis remedy proposed
           // without a verified applicable legal authority is force-downgraded
           // to EVIDENCE_GAP; see enforceRemedyLegalAuthorityGate's doc comment.
-          const gatedRows = enforceRemedyLegalAuthorityGate(allowedRows, areaPreambleLocale);
+          const gatedRows = await enforceRemedyLegalAuthorityGate(
+            db,
+            allowedRows,
+            areaPreambleLocale,
+          );
           const gate = await addGatedFindings(db, caseId, gatedRows);
           const accepted = gate.audit?.accepted ?? allowedRows.length;
           totalGenerated += generated;

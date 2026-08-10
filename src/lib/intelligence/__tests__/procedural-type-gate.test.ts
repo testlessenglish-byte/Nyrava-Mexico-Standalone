@@ -13,6 +13,40 @@ import {
   normalizeLlmFindings,
 } from "@/lib/intelligence/findings.server";
 
+// enforceRemedyLegalAuthorityGate now independently verifies any parseable
+// article citation against the legal_authorities corpus (Phase 1 item #4 of
+// the "Universal Completed Case Legal Audit Architecture Fix" — see
+// findings.server.ts's classifyRemedyAuthority), and looks up the case's
+// created_at once (as a caseDate fallback for temporal validity, same
+// pattern completed-case-audit.server.ts already uses). Every row here
+// shares case_id "case-1", so the "cases" query fires at most once. Only one
+// test below (a real "Artículo 104 de la Ley de Amparo..." string) reaches
+// the "legal_authorities" query; it returns no match (UNVERIFIED, never a
+// downgrade — see the "not verified is never treated as wrong" contract on
+// classifyRemedyAuthority).
+function fakeVerificationDb() {
+  return {
+    from: (table: string) => {
+      if (table === "cases") {
+        return {
+          select: (_cols: string) => ({
+            eq: (_col: string, _id: string) => ({
+              maybeSingle: () => Promise.resolve({ data: { created_at: null }, error: null }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: (_cols: string) => ({
+          or: (_filter: string) => ({
+            limit: (_n: number) => Promise.resolve({ data: [], error: null }),
+          }),
+        }),
+      };
+    },
+  };
+}
+
 describe("enforceCorpusBoundedAbsenceLanguage", () => {
   it("rewrites a definitive Spanish absence claim to corpus-bounded phrasing, preserving the rest of the sentence", () => {
     const text =
@@ -61,7 +95,7 @@ describe("normalizeLlmFindings: absence language is rewritten at the single norm
 });
 
 describe("enforceRemedyLegalAuthorityGate: procedural recommendations require verified legal authority, not just facts", () => {
-  it("downgrades a remedy proposal with no legal_authority to EVIDENCE_GAP and appends a verification caveat — the real incidente de suspensión case", () => {
+  it("downgrades a remedy proposal with no legal_authority to EVIDENCE_GAP and appends a verification caveat — the real incidente de suspensión case", async () => {
     const rows = normalizeLlmFindings({
       caseId: "case-1",
       userId: "user-1",
@@ -81,13 +115,13 @@ describe("enforceRemedyLegalAuthorityGate: procedural recommendations require ve
       ],
     });
 
-    const gated = enforceRemedyLegalAuthorityGate(rows, "es");
+    const gated = await enforceRemedyLegalAuthorityGate(fakeVerificationDb() as never, rows, "es");
     expect(gated[0].audit_classification).toBe("EVIDENCE_GAP");
     expect(gated[0].description).toMatch(/REQUIERE VERIFICACIÓN/);
     expect(gated[0].description).toMatch(/autoridad legal aplicable a esta etapa procesal/);
   });
 
-  it("does NOT downgrade a remedy proposal that carries a real, independently-stated legal authority", () => {
+  it("does NOT downgrade a remedy proposal that carries a real, independently-stated legal authority", async () => {
     const rows = normalizeLlmFindings({
       caseId: "case-1",
       userId: "user-1",
@@ -106,12 +140,12 @@ describe("enforceRemedyLegalAuthorityGate: procedural recommendations require ve
       ],
     });
 
-    const gated = enforceRemedyLegalAuthorityGate(rows, "es");
+    const gated = await enforceRemedyLegalAuthorityGate(fakeVerificationDb() as never, rows, "es");
     expect(gated[0].audit_classification).toBe("POTENTIAL_ISSUE");
     expect(gated[0].description).not.toMatch(/REQUIERE VERIFICACIÓN/);
   });
 
-  it("leaves NOT_FOUND/EVIDENCE_GAP rows and non-remedy findings from other modules untouched", () => {
+  it("leaves NOT_FOUND/EVIDENCE_GAP rows and non-remedy findings from other modules untouched", async () => {
     const rows = normalizeLlmFindings({
       caseId: "case-1",
       userId: "user-1",
@@ -133,7 +167,11 @@ describe("enforceRemedyLegalAuthorityGate: procedural recommendations require ve
       items: [{ title: "Cuestión constitucional identificada.", description: "Detalle." }],
     });
 
-    const gated = enforceRemedyLegalAuthorityGate([...rows, ...otherModuleRows], "es");
+    const gated = await enforceRemedyLegalAuthorityGate(
+      fakeVerificationDb() as never,
+      [...rows, ...otherModuleRows],
+      "es",
+    );
     expect(gated[0].audit_classification).toBe("NOT_FOUND");
     expect(gated[0].description).not.toMatch(/REQUIERE VERIFICACIÓN/);
     expect(gated[1].description).not.toMatch(/REQUIERE VERIFICACIÓN/);
