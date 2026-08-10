@@ -1591,6 +1591,16 @@ async function _runPipelineForCase(
     strategy: "case_strategy",
     litigation_strategy_center: "case_strategy_center",
     work_product: "case_work_product",
+    // FIX: confirmed on a real case (ADR-4321-2017-180507, balanced mode) —
+    // the ledger showed a "Witness Intelligence" row as SKIPPED (0ms,
+    // witnesses_at left null) while a DIFFERENT row sharing the same
+    // display label (the nested witness_credibility agent inside Multi-
+    // Agent Verification) showed COMPLETE, so the dashboard's "Witnesses
+    // Profiled" card silently read 0 with no visibility anywhere that the
+    // canonical witness-profiling stage never actually ran — every other
+    // optional synthesis engine already gets this same row-count reality
+    // check, witness just wasn't wired into it.
+    witness: "case_witnesses",
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
