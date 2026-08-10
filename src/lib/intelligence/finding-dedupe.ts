@@ -156,19 +156,36 @@ const EVIDENCE_KEYS = ["evidence_refs", "source_doc_ids", "document_ids", "citat
  * evidence_refs entries are `{ label?, quote?, doc_id? }` (see types.ts).
  * `label` is each engine's own free-text framing of why the quote matters —
  * two engines routinely cite the identical quote/document under differently
- * worded labels. Signing the whole object (the previous behavior) folded
+ * worded labels. Signing the whole object (the original behavior) folded
  * that wording difference into the signature, so an identical quote cited
- * under two labels was never recognized as shared evidence. Key on
- * doc_id::quote only, matching the doc_id::quote key findings.server.ts's
- * evidenceKeys() already uses for its own (persist-time, narrower) overlap
- * check.
+ * under two labels was never recognized as shared evidence.
+ *
+ * FIX: a prior version of this function keyed on doc_id::quote (matching
+ * findings.server.ts's own evidenceKeys()) to fix the label problem above —
+ * but that reintroduced the identical failure mode one layer down. Confirmed
+ * on a real completed-case export: two agents (chain_of_custody,
+ * witness_credibility) independently cited the same sentence — the quotes
+ * normalize BYTE-IDENTICAL (the only textual difference was a redacted
+ * `******` name token, which normalizeText's alnum-only filter strips
+ * entirely) — yet one agent's evidence_ref had already been enriched with
+ * `document_id` by a later citation-verification pass and the other hadn't,
+ * so doc_id::quote produced two different composite keys ("uuid::quote" vs.
+ * "::quote") for what was the exact same fact, and the pair never merged.
+ * A verified quote match is already the strongest, most specific signal
+ * available — two independent agents landing on the literal identical
+ * sentence cannot be coincidental — so it's sufficient on its own; requiring
+ * doc_id to ALSO match on top of it only creates false negatives like this
+ * one, it can't prevent a false positive a coincidental quote match
+ * wouldn't already risk. Key on quote alone when a quote is present, and
+ * fall back to doc_id only for quote-less entries.
  */
 function evidenceSignature(item: unknown): string {
   if (item && typeof item === "object") {
     const obj = item as Record<string, unknown>;
     const quote = normalizeText(obj.quote);
+    if (quote) return `quote:${quote}`;
     const docId = normalizeText(obj.doc_id ?? obj.document_id);
-    if (quote || docId) return `${docId}::${quote}`;
+    if (docId) return `doc:${docId}`;
     return normalizeText(JSON.stringify(item));
   }
   return normalizeText(String(item));
