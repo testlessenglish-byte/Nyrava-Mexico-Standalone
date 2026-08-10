@@ -8,6 +8,7 @@ import { z } from "zod";
 import { CANONICAL_STAGES, ENGINE, type CanonicalStageKey } from "@/lib/execution/canonical";
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
+import { normalizeCaseAnalysisMode } from "@/lib/intelligence/case-analysis-mode";
 import { PROJECTION_LIKE, selectFindings, isCanonicalFinding, type SelectableFinding } from "@/lib/intelligence/finding-selection";
 import { sha256HexSync as sha256Hex } from "@/lib/intelligence/sha256";
 
@@ -101,6 +102,10 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     const allowedJurisdictions = new Set<string>(JURISDICTION_VALUES);
     const rawJurisdiction = String(data.get("jurisdiction") ?? "");
     const jurisdiction = allowedJurisdictions.has(rawJurisdiction) ? rawJurisdiction : null;
+    // Settable at upload time (rather than only afterward, on the workspace
+    // page) so a user who already knows they're auditing a concluded case
+    // doesn't have to visit a second page just to set this before running.
+    const case_analysis_mode = normalizeCaseAnalysisMode(data.get("case_analysis_mode"));
     const files = data.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length === 0) throw new Error("No files uploaded");
 
@@ -135,6 +140,7 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
         analysis_mode,
         case_type,
         jurisdiction,
+        case_analysis_mode,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .select("id")
@@ -151,6 +157,7 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
           name,
           case_type,
           jurisdiction,
+          case_analysis_mode,
         },
       });
       throw new Error(error?.message ?? "Failed to create case");
@@ -169,6 +176,7 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
         case_type,
         jurisdiction,
         analysis_mode,
+        case_analysis_mode,
         file_count: files.length,
         total_bytes: totalBytes,
         files: files.map((f) => ({ name: f.name, bytes: f.size, mime: f.type || null })),
