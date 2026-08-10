@@ -1613,6 +1613,18 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
 // =========================================================================
 // ATTORNEY WORK PRODUCT GENERATOR
 // =========================================================================
+
+/**
+ * The completed-case objective/procedural-status warning spliced into the
+ * work-product prompt's caseFrame. Pure so the exact wording (in particular
+ * the "never describe a concluded matter as en trámite" rule) is unit-
+ * testable without a real DB/LLM call — see runWorkProductEngine's FIX
+ * comment for the real-world failure this addresses.
+ */
+export function buildWorkProductCompletedCaseNotice(caseAnalysisObjective: string | null): string {
+  return `\n\n${caseAnalysisObjective ?? ""}\n\nADVERTENCIA CRÍTICA DE ESTADO PROCESAL: este es un CASO CONCLUIDO en auditoría retrospectiva — el corpus que se te entrega ya refleja lo que efectivamente ocurrió (incluyendo, con frecuencia, una sentencia o resolución FINAL). NUNCA describas el asunto como "en trámite", "pendiente de resolución", "a la espera de informe justificado" o cualquier estado procesal anterior al que el propio corpus documenta — determina el estado procesal real leyendo la narrativa fáctica/antecedentes del corpus, no asumas que se trata de un expediente recién iniciado. Si redactas un documento (p. ej. una demanda o recurso ya presentado en el expediente), su sección de antecedentes/estado del juicio debe reflejar fielmente las etapas YA OCURRIDAS según el corpus, no una plantilla genérica de caso en curso.`;
+}
+
 export async function runWorkProductEngine(args: {
   db: Db;
   caseId: string;
@@ -1653,6 +1665,8 @@ export async function runWorkProductEngine(args: {
     await import("./work-product-verify.server");
   const { requireMxProfile, MX_PARTY_ROLES } = await import("@/lib/execution/mx-pipeline");
   const { mxWorkProductEnum, mxWorkProductGuide } = await import("@/lib/jurisdiction/mx-work-product");
+  const { getCaseAnalysisMode, isCompletedCaseMode, getCaseAnalysisObjective } =
+    await import("./case-analysis-mode");
   const caseType = await resolveCaseType(db, caseId, ctx.corpus.slice(0, 4000));
   // Materia-aware drafting: every vehicle below is a real Mexican procedural
   // instrument for THIS materia. The previous criminal/civil binary offered
@@ -1661,8 +1675,29 @@ export async function runWorkProductEngine(args: {
   const profile = requireMxProfile(caseType);
   const roles = MX_PARTY_ROLES[profile];
   const allowedTypes = mxWorkProductEnum(profile);
-  const requiredList = mxWorkProductGuide(profile, await getReportLocale(db, caseId));
-  const caseFrame = `Materia mexicana: ${caseType} (perfil procesal: ${profile}). Partes: ${roles.a} / ${roles.b}. Redacta conforme al derecho mexicano y al código procesal aplicable a esta materia. PROHIBIDO redactar instrumentos que no existen en México (motion to suppress, motion to dismiss, motion for summary judgment, discovery request, deposition notice, subpoena) y PROHIBIDO invocar doctrina o enmiendas constitucionales de EE.UU.`;
+  const workProductLocale = await getReportLocale(db, caseId);
+  const requiredList = mxWorkProductGuide(profile, workProductLocale);
+  // FIX: this engine never received the case_analysis_mode objective the
+  // analyzers/agents stages already inject (see getCaseAnalysisObjective's
+  // call sites in pipeline.server.ts) — confirmed via a real completed-case
+  // export: for a case whose ENTIRE corpus was a final sentencia resolving
+  // an already-concluded amparo, this engine drafted a "Demanda de Amparo
+  // Indirecto" whose own "Estado del Juicio" section asserted "El juicio se
+  // encuentra en trámite, con la admisión de la demanda y la solicitud de
+  // informes justificados..." — flatly contradicting the source document,
+  // which recounts a fully-completed procedural history (demanda admitted,
+  // informe justificado already rendered and accepted, an earlier amparo
+  // already granted, cumplimiento, and the recurso de revocación this
+  // sentencia itself resolves). The engine had no signal the matter was
+  // concluded, so the model defaulted to fresh-filing boilerplate. Every
+  // concrete date/figure in a drafted document was already grounded
+  // (verifyWorkProductBody, below) — this is a distinct failure mode:
+  // fabricating current PROCEDURAL POSTURE, not fabricating a fact.
+  const mode = await getCaseAnalysisMode(db, caseId);
+  const completedCaseNotice = isCompletedCaseMode(mode)
+    ? buildWorkProductCompletedCaseNotice(getCaseAnalysisObjective(mode, workProductLocale))
+    : "";
+  const caseFrame = `Materia mexicana: ${caseType} (perfil procesal: ${profile}). Partes: ${roles.a} / ${roles.b}. Redacta conforme al derecho mexicano y al código procesal aplicable a esta materia. PROHIBIDO redactar instrumentos que no existen en México (motion to suppress, motion to dismiss, motion for summary judgment, discovery request, deposition notice, subpoena) y PROHIBIDO invocar doctrina o enmiendas constitucionales de EE.UU.${completedCaseNotice}`;
 
   // Pull the raw document rows used to build the corpus index, so we can
   // ground every concrete claim in the generated drafts against verbatim
@@ -1721,7 +1756,7 @@ export async function runWorkProductEngine(args: {
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) +
+      mexicoLock(workProductLocale) +
       "\n\n" +
       'You draft attorney-ready legal work product. ABSOLUTE RULES: (1) Every concrete figure (dollar amount, percentage, date) MUST appear verbatim in the provided CASE CORPUS; if not present, say \'insufficient evidence\' instead. (2) NEVER reference a document filename that is not in the KNOWN DOCUMENTS list. (3) NEVER invent damages, settlement amounts, or fee figures. (4) Write like a senior litigation attorney: direct, confident sentences, not hedged AI prose. FORBIDDEN filler/hedge phrases: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". (5) Output STRICT JSON only.',
     userContent: `${caseFrame}
