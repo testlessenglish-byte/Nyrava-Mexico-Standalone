@@ -10,10 +10,20 @@
 // instructional paragraph, sourced from the SAME shared module the
 // analyzers stage and findings.server.ts's normalizers already use — and
 // that agents outside the intended scope were NOT touched.
+//
+// FOLLOW-UP: confirmed on a real completed-case audit (ADR-4321-2017-180507)
+// that audit_classification (case-analysis-mode.ts's completed-case
+// taxonomy) had the EXACT same bug — getCaseAnalysisObjective() already
+// injects the instructional prose into these same 11 agents' preamble, but
+// none of their JSON schemas listed the field itself, so it came back null
+// on every finding except ways_out_analysis (whose own hand-written schema
+// happened to already ask for it). Same fix, same shared-fragment pattern,
+// spliced immediately after the judicial-hierarchy fragment.
 import { describe, it, expect } from "vitest";
 import {
   judicialHierarchyInstructions,
   judicialHierarchySchemaFragment,
+  auditClassificationSchemaFragment,
 } from "../finding-taxonomy";
 
 const WIRED_AGENT_TYPES = [
@@ -68,14 +78,44 @@ describe("AGENTS array: judicial-hierarchy taxonomy wiring", () => {
     }
   });
 
-  it("every wired agent's schema fragment still sits immediately before evidence_refs, matching the analyzers-stage convention", async () => {
+  it("every wired agent's schema carries speaker_role/... immediately followed by audit_classification, then evidence_refs", async () => {
     const { __test__AGENTS } = await import("@/lib/pipeline.server");
     const fragment = judicialHierarchySchemaFragment();
+    const auditFragment = auditClassificationSchemaFragment();
     const byType = new Map(__test__AGENTS.map((a) => [a.type, a]));
 
     for (const type of WIRED_AGENT_TYPES) {
       const prompt = byType.get(type)!.prompt;
-      expect(prompt).toContain(`${fragment}, "evidence_refs":`);
+      expect(prompt).toContain(`${fragment}, ${auditFragment}, "evidence_refs":`);
+    }
+  });
+
+  it("every targeted agent's prompt also carries the shared audit_classification fragment", async () => {
+    const { __test__AGENTS } = await import("@/lib/pipeline.server");
+    const auditFragment = auditClassificationSchemaFragment();
+    const byType = new Map(__test__AGENTS.map((a) => [a.type, a]));
+
+    for (const type of WIRED_AGENT_TYPES) {
+      const agent = byType.get(type);
+      expect(
+        agent!.prompt,
+        `${type} prompt missing shared audit_classification fragment`,
+      ).toContain(auditFragment);
+    }
+  });
+
+  it("agents outside Phase 1 item #1's scope do not carry the SHARED audit_classification fragment (ways_out_analysis keeps its own independently-defined field)", async () => {
+    const { __test__AGENTS } = await import("@/lib/pipeline.server");
+    const auditFragment = auditClassificationSchemaFragment();
+    const byType = new Map(__test__AGENTS.map((a) => [a.type, a]));
+
+    for (const type of UNWIRED_AGENT_TYPES) {
+      const agent = byType.get(type);
+      expect(agent, `agent "${type}" not found in AGENTS`).toBeDefined();
+      expect(
+        agent!.prompt,
+        `${type} prompt unexpectedly carries the shared audit_classification fragment`,
+      ).not.toContain(auditFragment);
     }
   });
 });
