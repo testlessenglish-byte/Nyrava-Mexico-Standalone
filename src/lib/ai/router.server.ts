@@ -39,10 +39,16 @@ export interface RouteOpts extends ChatOpts {
   /** Internal: how many times this call already waited out a provider cooldown. */
   _cooldownWaits?: number;
   /**
-   * Internal: this call is the compressed second pass after every full-size
-   * provider failed. Prevents infinite re-entry.
+   * Internal: the smallest provider input-token budget already tried via
+   * compression this call chain (Infinity = none tried yet). Each cascade
+   * pass compresses to the largest size-skipped budget still BELOW this
+   * floor, so a provider with a much smaller budget (e.g. Groq, ~5.5k
+   * tokens) still gets tried after a mid-size one (e.g. OpenRouter, ~60k)
+   * fails, instead of the run dying after only the single largest
+   * size-skipped budget was attempted. Strictly decreasing each recursive
+   * call, so this always terminates.
    */
-  _compressedRetry?: boolean;
+  _compressionFloor?: number;
   /**
    * Internal: last-resort pass that ignores in-memory cooldowns entirely.
    * Used when EVERY key was skipped as cooling down and waiting is not an
@@ -155,6 +161,23 @@ function reservedOutputTokens(opts: { maxTokens?: number; json?: boolean }, prov
 
 function providerAvailableInputBudget(provider: ProviderType, opts: { maxTokens?: number; json?: boolean }): number {
   return Math.max(1_000, providerInputBudget(provider) - reservedOutputTokens(opts, provider));
+}
+
+/**
+ * Picks the next budget tier for the compressed-retry cascade: the largest
+ * size-skipped budget strictly BELOW `floor` (the smallest tier already
+ * tried), or `undefined` once every tier has been exhausted. Descending
+ * strictly below the floor each call guarantees the cascade terminates and
+ * that every size-skipped provider — not just the single largest one —
+ * eventually gets a request compressed to fit ITS OWN budget. Extracted so
+ * the cascade order is directly unit-testable without mocking routeAI's
+ * full provider/key resolution.
+ */
+export function nextCompressionBudget(
+  sizeSkippedBudgets: readonly number[],
+  floor: number,
+): number | undefined {
+  return sizeSkippedBudgets.filter((b) => b < floor).sort((a, b) => b - a)[0];
 }
 
 /** ~3.5 chars/token is a safe over-estimate for Spanish legal prose. */
@@ -1405,37 +1428,49 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
   }
 
   // ---------------------------------------------------------------------
-  // Compressed second pass.
+  // Compressed retry cascade.
   //
   // The pre-flight size gate skips an undersized provider whenever a
   // full-size one *looks* available. Chain order puts Groq before Gemini, so
   // that decision is made BEFORE Gemini has a chance to fail. When Gemini's
   // daily quota is exhausted, the result is a stage that dies every tick with
-  // `never_attempted: [groq]` while two perfectly usable Groq keys sit idle —
-  // and because the Gemini cooldown expires between worker ticks, the case
-  // loops forever at zero progress.
+  // `never_attempted: [groq]` while a perfectly usable Groq key sits idle.
   //
-  // So: if every attempted provider failed and the only untried ones were
-  // held back on size, shrink the payload to the largest of their budgets and
-  // run the chain once more. A trimmed answer beats a stalled case.
+  // FIX: this used to compress ONCE, to the LARGEST size-skipped budget, and
+  // stop — so when the agents stage has Groq (~5.5k tokens) AND OpenRouter
+  // (~60k tokens) both size-skipped behind Gemini, a real production failure
+  // (Amparo Directo en Revisión / Carlos Alan Espíndola García,
+  // authority_notification_validation agent) compressed only far enough to
+  // fit OpenRouter, and when OpenRouter's own attempt also failed, the run
+  // died — reporting "configured but never attempted: groq, openrouter" even
+  // though the user had just added fresh Groq keys specifically to unblock
+  // this. Now each pass compresses to the largest skipped budget strictly
+  // BELOW the floor already tried (_compressionFloor), cascading down
+  // through every tier — Gemini fails full-size -> OpenRouter-sized attempt
+  // -> Groq-sized attempt -> only then give up — so a genuinely working key
+  // is never left untried just because a wider-budget provider happened to
+  // be listed first.
   // ---------------------------------------------------------------------
-  if (!opts._compressedRetry && sizeSkippedBudgets.length > 0) {
-    const budget = Math.max(...sizeSkippedBudgets);
-    const compressed = fitOptsToBudget(opts, budget);
-    traceAsync({
-      phase: "ai",
-      step: "router.compressed_retry",
-      status: "warn",
-      model: opts.model ?? null,
-      detail: {
-        reason: "full_size_providers_failed",
-        estimated_input_tokens: estimatedInputTokens,
-        target_budget: budget,
-        compressed_input_tokens: estimateInputTokens(compressed),
-        tried: [...attemptedProviders],
-      },
-    });
-    return routeAI({ ...compressed, _compressedRetry: true });
+  {
+    const floor = opts._compressionFloor ?? Infinity;
+    const nextBudget = nextCompressionBudget(sizeSkippedBudgets, floor);
+    if (nextBudget !== undefined) {
+      const compressed = fitOptsToBudget(opts, nextBudget);
+      traceAsync({
+        phase: "ai",
+        step: "router.compressed_retry",
+        status: "warn",
+        model: opts.model ?? null,
+        detail: {
+          reason: "full_size_providers_failed",
+          estimated_input_tokens: estimatedInputTokens,
+          target_budget: nextBudget,
+          compressed_input_tokens: estimateInputTokens(compressed),
+          tried: [...attemptedProviders],
+        },
+      });
+      return routeAI({ ...compressed, _compressionFloor: nextBudget });
+    }
   }
 
   const triedProviders = [...attemptedProviders].join(", ") || "none";
