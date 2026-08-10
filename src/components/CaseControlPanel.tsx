@@ -16,7 +16,7 @@ import {
 import { AGENT_DEFINITIONS } from "@/lib/agents/types";
 import { CASE_TYPE_SELECT_OPTIONS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
-import { CASE_ANALYSIS_MODE_OPTIONS } from "@/lib/intelligence/case-analysis-mode";
+import { CASE_ANALYSIS_MODE_SELECTABLE_OPTIONS } from "@/lib/intelligence/case-analysis-mode";
 import { useI18n } from "@/i18n";
 import { drivePipeline } from "@/lib/pipeline-driver";
 
@@ -475,7 +475,7 @@ function CollapsedCaseSettings({
             <label className="text-xs font-medium text-foreground/80">{t("caseSettings.caseAnalysisMode")}</label>
             <p className="text-[11px] text-muted-foreground">{t("caseSettings.caseAnalysisMode.hint")}</p>
             <div className="grid gap-1.5">
-              {CASE_ANALYSIS_MODE_OPTIONS.map((opt) => (
+              {CASE_ANALYSIS_MODE_SELECTABLE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
