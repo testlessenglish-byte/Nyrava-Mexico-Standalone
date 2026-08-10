@@ -24,10 +24,17 @@ vi.mock("@/lib/canonical/encryption.server", () => ({
   decryptKey: (k: string) => k,
 }));
 
+import { createHash } from "node:crypto";
 import { buildProvider } from "@/lib/ai/providers/factory";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { routeAI, invalidateProviderCaches } from "@/lib/ai/router.server";
-import { clearProviderCooldowns } from "@/lib/ai/cooldown.server";
+import { clearProviderCooldowns, markProviderCooldown } from "@/lib/ai/cooldown.server";
+
+/** Mirrors router.server.ts's private keyFingerprint() so a test can seed a
+ *  cooldown entry that the router's own lookup will actually match. */
+function keyFingerprint(key: string): string {
+  return createHash("sha256").update(key).digest("hex").slice(0, 12);
+}
 
 const USER_ID = "user-router-test";
 
@@ -243,4 +250,65 @@ describe("routeAI: rotates through every key across every provider on failure", 
     expect(result.text).toBe(`response from ${calls[calls.length - 1]}`);
     expect(calls[calls.length - 1]).not.toBe(freshGroq1);
   }, 10_000);
+
+  it("still reaches a provider whose keys are on an unrelated cooldown once every OTHER provider has genuinely failed", async () => {
+    // Real reported bug: Gemini gets attempted and fails for its OWN fresh
+    // reason (a quota 429 on this very call), while Groq's keys are sitting
+    // on an unrelated, already-active cooldown from an earlier failure — and
+    // the router gave up reporting "tried: gemini ... configured but never
+    // attempted: groq" because the ignore-cooldowns retry only fired when
+    // NOTHING had been attempted at all (attemptedProviders.size === 0).
+    // Confirmed live twice on a real case (Amparo Directo en Revisión —
+    // Carlos Alan Espíndola García), on two different agents
+    // (authority_notification_validation, then
+    // constitutional_controversy_analysis), even after the compressed-retry
+    // cascade fix — because that fix only covers SIZE-skipped providers,
+    // not cooldown-skipped ones.
+    const freshGroq1 = "groq-key-cooldown-1";
+    const freshGroq2 = "groq-key-cooldown-2";
+    mockSupabase({
+      groq1: freshGroq1,
+      groq2: freshGroq2,
+      gemini1: GEMINI_KEY_1,
+      gemini2: GEMINI_KEY_2,
+    });
+
+    // Both Groq keys already cooling down BEFORE this call even starts —
+    // simulates a cooldown set by an earlier, unrelated agent's failure.
+    markProviderCooldown({
+      provider: "groq",
+      model: null,
+      key: keyFingerprint(freshGroq1),
+      reason: "quota",
+      message: "pre-existing cooldown from an earlier unrelated call",
+    });
+    markProviderCooldown({
+      provider: "groq",
+      model: null,
+      key: keyFingerprint(freshGroq2),
+      reason: "quota",
+      message: "pre-existing cooldown from an earlier unrelated call",
+    });
+
+    const calls: string[] = [];
+    mockProviderFactory(
+      {
+        [GEMINI_KEY_1]: { fail: () => new Error("HTTP 429 rate limit exceeded") },
+        [GEMINI_KEY_2]: { fail: () => new Error("HTTP 429 rate limit exceeded") },
+        // Neither Groq key has a configured failure — once actually reached,
+        // whichever one the router tries first succeeds.
+      },
+      calls,
+    );
+
+    const result = await routeAI({ userContent: "test question", userId: USER_ID });
+
+    expect(calls).toContain(GEMINI_KEY_1);
+    expect(calls).toContain(GEMINI_KEY_2);
+    // The real assertion: a cooldown-skipped provider was NOT left
+    // permanently unreached once the only non-cooling providers had all
+    // genuinely failed.
+    expect(calls.some((c) => c === freshGroq1 || c === freshGroq2)).toBe(true);
+    expect([freshGroq1, freshGroq2]).toContain(result.text.replace("response from ", ""));
+  });
 });
