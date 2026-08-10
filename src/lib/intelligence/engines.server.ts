@@ -993,12 +993,25 @@ ${ctx.corpus}`,
   // witness at once; the only change is how many witnesses one call is
   // asked to profile, which is what keeps each individual call's output
   // small enough to reliably finish inside the checkpoint budget.
-  // Concurrency is capped (not full Promise.all over every chunk) per the
-  // reviewed rate-limit guidance — a few concurrent Groq calls is fine,
-  // one per witness would not be.
+  //
+  // ROLLBACK APPLIED (same fix already proven for runPerspectivesEngine —
+  // see its own PERSPECTIVE_CONCURRENCY comment in litigation.server.ts):
+  // withAiSlot's process-wide cap bounds TOTAL concurrent provider calls,
+  // but does nothing about 3 calls from the SAME stage landing on the SAME
+  // one or two configured Groq keys in the same instant — a correlated
+  // burst against a single key's per-key rate limit, not 3 independent
+  // coin flips. This stage's Pass 2 throws (deliberately, so a real
+  // no-witnesses corpus is never conflated with a transient failure) when
+  // every chunk fails, which correlated-burst rate-limiting makes far more
+  // likely at concurrency 3 than concurrency 1. Confirmed on a real case
+  // (ADR-4321-2017-180507): witnesses_at stayed null and case_witnesses
+  // stayed empty despite the analyzer-stage prompt (which shares the same
+  // corpus) succeeding, consistent with this exact failure mode. Serializing
+  // trades some wall-clock time for actually finishing, same tradeoff
+  // already accepted for perspectives.
   // ---------------------------------------------------------------------
   const WITNESS_CHUNK_SIZE = 2;
-  const WITNESS_CONCURRENCY = 3;
+  const WITNESS_CONCURRENCY = 1;
   const chunks: Array<typeof candidateNames> = [];
   for (let i = 0; i < candidateNames.length; i += WITNESS_CHUNK_SIZE) {
     chunks.push(candidateNames.slice(i, i + WITNESS_CHUNK_SIZE));

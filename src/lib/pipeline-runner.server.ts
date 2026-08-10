@@ -1624,6 +1624,31 @@ async function _runPipelineForCase(
         .eq("case_id", caseId);
       if (!count) optionalFailureKeys.add(key);
     }
+
+    // Contradictions has no dedicated per-case table to row-count the way
+    // OPTIONAL_OUTPUT_TABLES's other entries do — deriveContradictions()
+    // (derived-engines.server.ts) counts case_findings rows tagged
+    // source_module LIKE 'analyzer:contradiction%' instead. Same visibility
+    // gap as witness above: a real completed-case audit
+    // (ADR-4321-2017-180507) showed contradiction_at set (the stage
+    // completed) but contradictions_struct null and zero contradiction
+    // findings, with nothing in case.error to tell the attorney whether
+    // that's a genuine "no contradictions in this corpus" result or the
+    // analyzer/grounding pipeline silently dropping them. Reported for
+    // visibility, same as every other entry here — a case can legitimately
+    // have zero contradictions.
+    if (
+      isStageRelevantForCaseType(finalCaseType, "contradictions", finalCaseName) &&
+      !optionalFailureKeys.has("contradictions")
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: contradictionCount } = await (supabase as any)
+        .from("case_findings")
+        .select("id", { count: "exact", head: true })
+        .eq("case_id", caseId)
+        .like("source_module", "analyzer:contradiction%");
+      if (!contradictionCount) optionalFailureKeys.add("contradictions");
+    }
   } catch (e) {
     console.warn("[pipeline] optional-engine output row check failed (non-fatal)", e);
   }
