@@ -252,18 +252,12 @@ export type DedupedFinding = DedupableFinding & {
 };
 
 
-/**
- * Collapse near-duplicate findings into one consolidated row per legal issue.
- * Non-duplicates pass through untouched and in their original order.
- */
-export function consolidateFindings<T extends DedupableFinding>(
-  rows: ReadonlyArray<T>,
-  options: DedupeOptions = {},
-): Array<T & DedupedFinding> {
-  const opts = { ...DEFAULTS, ...options };
-  const prepared = (rows ?? []).map(prepare);
+/** Internal: `prepare` every row (preserving original array position as
+ *  `index`) then cluster by `isSameIssue`. Shared by the exported clustering
+ *  and consolidation entry points below so both agree on exactly one
+ *  definition of "same issue." */
+function clusterPrepared(prepared: Prepared[], opts: Required<DedupeOptions>): Prepared[][] {
   const clusters: Prepared[][] = [];
-
   for (const p of prepared) {
     let placed = false;
     for (const cluster of clusters) {
@@ -277,6 +271,41 @@ export function consolidateFindings<T extends DedupableFinding>(
     }
     if (!placed) clusters.push([p]);
   }
+  return clusters;
+}
+
+/**
+ * Group rows into same-issue clusters using the same-category-title-Jaccard /
+ * cross-category-title-plus-corroboration rule (`isSameIssue`) — the pure
+ * clustering step, with no winner-selection or merging. Shared by
+ * `consolidateFindings` (report-time, read-only) and any caller that needs
+ * its own merge semantics on top of the same canonical-issue grouping (e.g.
+ * findings.server.ts's persist-time dedup, which additionally merges
+ * judicial-hierarchy taxonomy fields and prefers an existing DB row as the
+ * merge anchor). Clusters are returned in first-member original-order.
+ */
+export function clusterBySameIssue<T extends DedupableFinding>(
+  rows: ReadonlyArray<T>,
+  options: DedupeOptions = {},
+): Array<T[]> {
+  const opts = { ...DEFAULTS, ...options };
+  const prepared = (rows ?? []).map(prepare);
+  return clusterPrepared(prepared, opts)
+    .sort((a, b) => a[0].index - b[0].index)
+    .map((cluster) => cluster.map((p) => p.row as T));
+}
+
+/**
+ * Collapse near-duplicate findings into one consolidated row per legal issue.
+ * Non-duplicates pass through untouched and in their original order.
+ */
+export function consolidateFindings<T extends DedupableFinding>(
+  rows: ReadonlyArray<T>,
+  options: DedupeOptions = {},
+): Array<T & DedupedFinding> {
+  const opts = { ...DEFAULTS, ...options };
+  const prepared = (rows ?? []).map(prepare);
+  const clusters = clusterPrepared(prepared, opts);
 
   const out: Array<{ index: number; row: T & DedupedFinding }> = [];
   for (const cluster of clusters) {

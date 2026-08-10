@@ -1555,6 +1555,33 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
       `All configured provider keys are cooling down after HTTP 429/rate-limit responses (tried: none${untriedNote}).${retryText}${skipNote}`,
     );
   }
+  // FIX: one real attempt (e.g. Gemini) can fail for its OWN fresh reason
+  // (quota) while OTHER configured providers (Groq, OpenRouter) sit on an
+  // unrelated, possibly-stale in-memory cooldown from an earlier failure —
+  // previously left permanently unreached ("configured but never
+  // attempted") because the ignore-cooldowns retry above only fired when
+  // attemptedProviders.size === 0. Confirmed live: after the compressed-
+  // retry cascade fix (which only covers SIZE-skipped providers), the exact
+  // same "tried: gemini ... never attempted: groq, openrouter" stall
+  // recurred on a different agent (constitutional_controversy_analysis) —
+  // Groq/OpenRouter were cooldown-skipped, not size-skipped, so that fix
+  // never reached them either. Give any cooldown-skipped provider one real,
+  // cooldown-ignoring shot before giving up, same one-shot guard
+  // (_ignoreCooldowns) as the zero-attempts case above.
+  if (!opts._ignoreCooldowns && cooldownSkips.length > 0) {
+    traceAsync({
+      phase: "ai",
+      step: "router.cooldown_override",
+      status: "warn",
+      model: opts.model ?? null,
+      detail: {
+        reason: "attempted_and_failed_others_cooling",
+        tried: [...attemptedProviders],
+        cooldowns: cooldownSkips.slice(0, 8),
+      },
+    });
+    return routeAI({ ...opts, _ignoreCooldowns: true });
+  }
   throw new Error(
     `All configured provider keys failed (tried: ${triedProviders}${untriedNote}). ${errors.join(" | ")}${skipNote}`,
   );
