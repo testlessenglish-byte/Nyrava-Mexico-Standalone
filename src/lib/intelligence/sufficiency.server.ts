@@ -300,6 +300,43 @@ export function computeESS(inputs: ESSInputs): ESSResult {
   };
 }
 
+/**
+ * ESS for a work-product generation decision (engines.server.ts's
+ * runWorkProductEngine), built from data that engine already has loaded —
+ * not the report stage's own ESS run, which executes later in the
+ * canonical pipeline order and would be too late to gate generation here.
+ * `contradictionCount` is fixed at 0: contradiction detection is a separate,
+ * later pipeline stage not available at this call site, and its weight in
+ * computeESS's blend (0.05) is small enough that omitting it doesn't
+ * materially change the bin. Extracted so the gating decision is directly
+ * unit-testable without mocking the whole engine (callGroq, buildContext,
+ * the case_work_product upsert, etc.).
+ */
+export function computeWorkProductEss(
+  docRows: Array<{ extracted_text?: string | null; filename?: string | null }>,
+  findings: Array<{ source_doc_ids?: string[] }>,
+): ESSResult {
+  const extractedChars = docRows.reduce((n, d) => n + (d.extracted_text?.length ?? 0), 0);
+  const corroboratedCount = findings.reduce((n, f) => {
+    const ids = Array.isArray(f.source_doc_ids) ? f.source_doc_ids : [];
+    return n + (new Set(ids).size >= 2 ? 1 : 0);
+  }, 0);
+  const docTypeSignals = detectDocTypeSignals(docRows);
+  return computeESS({
+    documentCount: docRows.length,
+    // Not tracked at this call site and unused by computeESS's own scoring
+    // — pageCount is part of ESSInputs but never read in computeESS's body.
+    pageCount: 0,
+    extractedChars,
+    factCount: findings.length,
+    contradictionCount: 0,
+    corroboratedCount,
+    hasChargingDocument: docTypeSignals.hasChargingDocument,
+    highWeightDocTypeCount: docTypeSignals.highWeightDocTypeCount,
+    distinctDocTypeCount: docTypeSignals.distinctDocTypeCount,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Secondary validator — sentence-level corpus traceability.
 // Drops any sentence whose 4+ longest word tokens do not appear in the
