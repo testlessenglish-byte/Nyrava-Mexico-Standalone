@@ -58,15 +58,35 @@ describe("finding dedupe — duplicate consolidation", () => {
 
   it("works across practice areas, not just criminal", () => {
     const laboral = consolidateFindings([
-      f({ id: "l1", category: "laboral", title: "Omisión del pago de aguinaldo proporcional", severity: "high" }),
-      f({ id: "l2", category: "laboral", title: "Falta de pago del aguinaldo proporcional", severity: "medium" }),
+      f({
+        id: "l1",
+        category: "laboral",
+        title: "Omisión del pago de aguinaldo proporcional",
+        severity: "high",
+      }),
+      f({
+        id: "l2",
+        category: "laboral",
+        title: "Falta de pago del aguinaldo proporcional",
+        severity: "medium",
+      }),
     ]);
     expect(laboral).toHaveLength(1);
     expect(laboral[0].id).toBe("l1");
 
     const amparo = consolidateFindings([
-      f({ id: "m1", category: "amparo", title: "Violación al derecho de audiencia previa", severity: "critical" }),
-      f({ id: "m2", category: "amparo", title: "Vulneración del derecho de audiencia previa", severity: "high" }),
+      f({
+        id: "m1",
+        category: "amparo",
+        title: "Violación al derecho de audiencia previa",
+        severity: "critical",
+      }),
+      f({
+        id: "m2",
+        category: "amparo",
+        title: "Vulneración del derecho de audiencia previa",
+        severity: "high",
+      }),
       f({ id: "m3", category: "amparo", title: "Falta de fundamentación del acto reclamado" }),
     ]);
     expect(amparo).toHaveLength(2);
@@ -96,7 +116,10 @@ describe("finding dedupe — duplicate consolidation", () => {
     ]);
     expect(out).toHaveLength(1);
     expect(out[0].source_doc_ids).toEqual(["d1", "d2"]);
-    expect(out[0].supporting_engines).toEqual(["engine:contradictions", "agent:procedural_violations"]);
+    expect(out[0].supporting_engines).toEqual([
+      "engine:contradictions",
+      "agent:procedural_violations",
+    ]);
     expect(out[0].tags).toEqual(["contrato", "arrendamiento"]);
     expect(out[0].citations).toEqual(["CCF art. 2398", "CCF art. 2400"]);
   });
@@ -114,7 +137,11 @@ describe("finding dedupe — duplicate consolidation", () => {
   });
 
   it("passes single findings through untouched", () => {
-    const row = f({ id: "solo", category: "fiscal", title: "Determinación presuntiva improcedente" });
+    const row = f({
+      id: "solo",
+      category: "fiscal",
+      title: "Determinación presuntiva improcedente",
+    });
     const out = consolidateFindings([row]);
     expect(out).toHaveLength(1);
     expect(out[0]._alias_ids).toBeUndefined();
@@ -139,7 +166,8 @@ describe("finding dedupe — cross-engine (cross-category) duplication", () => {
         id: "e1",
         category: "custody_best_interest_analysis",
         title: "Deterioro cognitivo del testador",
-        description: "La valoración neuropsicológica documenta deterioro cognitivo moderado a severo.",
+        description:
+          "La valoración neuropsicológica documenta deterioro cognitivo moderado a severo.",
         severity: "high",
         evidence_refs: ["doc-neuropsicologia"],
         citations: ["CCF art. 1306"],
@@ -148,7 +176,8 @@ describe("finding dedupe — cross-engine (cross-category) duplication", () => {
         id: "e2",
         category: "domestic_violence_assessment",
         title: "Deterioro cognitivo del testador",
-        description: "El dictamen psiquiátrico confirma deterioro cognitivo moderado a severo del testador.",
+        description:
+          "El dictamen psiquiátrico confirma deterioro cognitivo moderado a severo del testador.",
         severity: "critical",
         evidence_refs: ["doc-psiquiatria"],
         citations: ["CCF art. 1313"],
@@ -195,9 +224,95 @@ describe("finding dedupe — cross-engine (cross-category) duplication", () => {
 
   it("does not merge different issues that merely share one evidence document", () => {
     const out = consolidateFindings([
-      f({ id: "a", category: "capacidad_testamentaria", title: "Deterioro cognitivo del testador", evidence_refs: ["doc-1"] }),
-      f({ id: "b", category: "formalidades", title: "Ausencia de firma de dos testigos instrumentales", evidence_refs: ["doc-1"] }),
+      f({
+        id: "a",
+        category: "capacidad_testamentaria",
+        title: "Deterioro cognitivo del testador",
+        evidence_refs: ["doc-1"],
+      }),
+      f({
+        id: "b",
+        category: "formalidades",
+        title: "Ausencia de firma de dos testigos instrumentales",
+        evidence_refs: ["doc-1"],
+      }),
     ]);
     expect(out.map((r) => r.id)).toEqual(["a", "b"]);
+  });
+
+  // Regression: a real completed-case export produced two same-category
+  // findings — "Competencia del Juzgado" and "Competencia de la autoridad"
+  // — that cite the literal identical quoted sentence from the sentencia,
+  // yet the title wording is different enough (Jaccard ~0.33) to miss both
+  // the title-similarity threshold (0.55) AND the title-fallback threshold
+  // (0.4) that gates the description check. Before this fix, the
+  // same-category branch of isSameIssue never looked at evidence at all, so
+  // this pair never merged. A verbatim shared quote must be enough on its
+  // own regardless of title wording.
+  it("merges same-category findings that cite the identical quoted evidence even when titles differ", () => {
+    const QUOTE =
+      "El Juzgado Segundo de Distrito en Materia Penal resulta competente para conocer del presente asunto conforme al artículo 37 de la Ley de Amparo.";
+    const out = consolidateFindings([
+      f({
+        id: "a",
+        category: "Amparo",
+        title: "Competencia del Juzgado",
+        description: "Se analiza la competencia territorial del órgano jurisdiccional.",
+        evidence_refs: [{ label: "Fragmento de la sentencia", quote: QUOTE, doc_id: "doc-1" }],
+      }),
+      f({
+        id: "b",
+        category: "Amparo",
+        title: "Competencia de la autoridad",
+        description:
+          "Se revisa si la autoridad responsable tenía competencia para el acto reclamado.",
+        evidence_refs: [{ label: "Cita textual de la resolución", quote: QUOTE, doc_id: "doc-1" }],
+      }),
+    ]);
+    expect(out).toHaveLength(1);
+  });
+
+  it("still keeps same-category findings separate when their quotes merely share a short common phrase", () => {
+    const out = consolidateFindings([
+      f({
+        id: "a",
+        category: "Amparo",
+        title: "Competencia del Juzgado",
+        evidence_refs: [{ quote: "el juez ordeno", doc_id: "doc-1" }],
+      }),
+      f({
+        id: "b",
+        category: "Amparo",
+        title: "Notificación fuera de plazo procesal",
+        evidence_refs: [{ quote: "el juez ordeno", doc_id: "doc-2" }],
+      }),
+    ]);
+    expect(out.map((r) => r.id)).toEqual(["a", "b"]);
+  });
+
+  // Regression: cross-category sharesEvidence() used to sign evidence_refs
+  // entries by JSON.stringify-ing the WHOLE {label,quote,doc_id} object, so
+  // two engines citing the identical quote under differently worded labels
+  // never registered as shared evidence, even with matching titles.
+  it("recognizes cross-category shared evidence even when the label wording differs", () => {
+    const QUOTE =
+      "El quejoso compareció ante la autoridad responsable y ofreció el testimonio correspondiente.";
+    const out = consolidateFindings([
+      f({
+        id: "a",
+        category: "Testimonio de Testigo",
+        title: "Existencia del Acto Reclamado",
+        evidence_refs: [{ label: "Declaración testimonial", quote: QUOTE, doc_id: "doc-1" }],
+      }),
+      f({
+        id: "b",
+        category: "Conventionality Pro Persona",
+        title: "Existencia del Acto Reclamado",
+        evidence_refs: [
+          { label: "Acta de audiencia constitucional", quote: QUOTE, doc_id: "doc-1" },
+        ],
+      }),
+    ]);
+    expect(out).toHaveLength(1);
   });
 });
