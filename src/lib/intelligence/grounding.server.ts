@@ -418,3 +418,85 @@ export function isLegalAuthorityCitation(quote: string | null | undefined): bool
   // connectors -> this quote IS the citation, nothing more.
   return remaining.length <= 2;
 }
+
+// ---------------------------------------------------------------------------
+// Judicial-decision voice detection.
+//
+// FIX (Amparo Directo en Revisión 2239/2018): the witness_credibility agent
+// (pipeline.server.ts AGENTS) runs unconditionally on every case
+// (UNIVERSAL_FINDING_MODULES) with a source-type-blind prompt — it just
+// grounds "credibility" findings in a verbatim corpus quote, with no check
+// on WHAT KIND of document that quote came from. On a case with no actual
+// witness testimony in the corpus (a pure SCJN judicial-review record), it
+// quoted the court's OWN resolution language and analyzed it as if it were a
+// witness's statement, producing a "Testimonio de Testigo" finding out of a
+// judgment. Unlike isLegalAuthorityCitation above (a quote that is
+// SUBSTANTIALLY JUST a bare citation), a court speaking in its own
+// resolutional voice — "esta Primera Sala resuelve...", "por unanimidad de
+// votos", "SEGUNDO. Se sobresee..." — is a full sentence with real content,
+// so that narrower check doesn't catch it; this one is deliberately broader
+// and keyed to vocabulary a genuine witness/party statement would essentially
+// never use on its own behalf.
+// ---------------------------------------------------------------------------
+const JUDICIAL_VOICE_PATTERNS: RegExp[] = [
+  /\b(esta|la)\s+(primera|segunda)\s+sala\b/i,
+  /\bel\s+pleno\s+(de\s+la\s+)?(suprema\s+corte)?\b/i,
+  /\btribunal(?:es)?\s+colegiados?\s+de\s+circuito\b/i,
+  /\bsuprema\s+corte\s+de\s+justicia\s+de\s+la\s+naci[oó]n\b/i,
+  /\bscjn\b/i,
+  /\bministr[oa]\s+ponente\b/i,
+  /\bpor\s+unanimidad\s+de\s+votos\b/i,
+  /\bpor\s+mayor[ií]a\s+de\s+votos\b/i,
+  /\bse\s+resuelve\s*:/i,
+  /\bresuelve\s*:/i,
+  /\bconsiderando\b/i,
+  /\bse\s+(concede|niega)\s+el\s+amparo\b/i,
+  /\bse\s+sobresee\b/i,
+  /\bamparo\s+directo\s+en\s+revisi[oó]n\b/i,
+  /\brecurso\s+de\s+revisi[oó]n\b/i,
+  /\bengrose\b/i,
+];
+
+/**
+ * True when a quote reads as JUDICIAL DECISION or STATUTORY/CONSTITUTIONAL
+ * text — a court resolving a matter in its own institutional voice, or a
+ * bare legal-authority citation — rather than a first-person party or
+ * witness statement. Used to keep the witness_credibility agent from
+ * analyzing a judgment's own language as if it were testimony.
+ */
+export function isJudicialOrStatutoryText(quote: string | null | undefined): boolean {
+  const q = (quote ?? "").trim();
+  if (q.length < 3) return false;
+  return isLegalAuthorityCitation(q) || JUDICIAL_VOICE_PATTERNS.some((rx) => rx.test(q));
+}
+
+/**
+ * Drops any item whose EVERY evidence_refs quote is judicial-decision or
+ * statutory/constitutional text — a witness-credibility finding grounded
+ * entirely in the court's own resolution language, not a witness or party
+ * statement, is not witness testimony and must not be presented as such. An
+ * item with at least one genuinely non-judicial quote is kept (its other
+ * grounding is real testimony); only the fully-misattributed case is
+ * suppressed. Mirrors the existing convention of dropping ungroundable
+ * items outright (see groundItems above) rather than silently mislabeling.
+ */
+export function dropJudicialTextFindings<T extends { evidence_refs?: unknown }>(
+  items: T[],
+): { items: T[]; dropped: number } {
+  let dropped = 0;
+  const kept = items.filter((item) => {
+    const refs = Array.isArray(item.evidence_refs)
+      ? (item.evidence_refs as Array<{ quote?: unknown }>)
+      : [];
+    if (refs.length === 0) return true; // nothing to classify — leave to the existing grounding gate
+    const allJudicial = refs.every((r) =>
+      isJudicialOrStatutoryText(typeof r?.quote === "string" ? r.quote : null),
+    );
+    if (allJudicial) {
+      dropped += 1;
+      return false;
+    }
+    return true;
+  });
+  return { items: kept, dropped };
+}

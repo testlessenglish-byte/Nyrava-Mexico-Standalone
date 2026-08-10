@@ -2717,7 +2717,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
     type: "witness_credibility",
     category: "witness",
     system:
-      "You are a witness credibility investigator. Examine statements for consistency, motive, bias, and corroboration. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+      "You are a witness credibility investigator. Examine FIRST-PERSON WITNESS OR PARTY STATEMENTS ONLY — testimony, declarations, sworn statements, interview transcripts — for consistency, motive, bias, and corroboration. A judicial ruling, sentencia, tesis, jurisprudencia, or statutory/constitutional text is NOT witness testimony, even when it quotes or summarizes what a witness said — the court speaking in its own resolutional voice ('esta Sala resuelve...', 'CONSIDERANDO...', 'por unanimidad de votos...') is a judicial decision, not a witness statement, and must NEVER be analyzed as one. If the corpus contains no genuine witness/party statements, emit ZERO findings rather than repurposing judicial or statutory text. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
     prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis; a spliced quote will not appear verbatim in the document and will be rejected outright. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely — do not fabricate continuity that isn't in the text. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -3995,6 +3995,28 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 `[grounding-gate] case=${caseId} agent=${agent.type} dropped ALL ${before} findings — ` +
                   `no verbatim quote could be grounded. This dimension will show 0 contributors, ` +
                   `which must not be read as "clean record."`,
+              );
+            }
+          }
+          // Source-type gate: witness_credibility runs unconditionally on
+          // every case (UNIVERSAL_FINDING_MODULES), source-type-blind — on a
+          // case with no real witness testimony it has previously quoted the
+          // COURT'S OWN resolution language (an SCJN judgment) and analyzed
+          // it as if it were testimony. Drops any finding grounded entirely
+          // in judicial-decision or statutory/constitutional text before it
+          // can be persisted as "Testimonio de Testigo". See
+          // grounding.server.ts's dropJudicialTextFindings for the exact
+          // vocabulary this targets and why isLegalAuthorityCitation alone
+          // (used elsewhere) doesn't catch it.
+          if (agent.type === "witness_credibility") {
+            const { dropJudicialTextFindings } = await import("./intelligence/grounding.server");
+            const before = findingsForNormalize.length;
+            const result = dropJudicialTextFindings(findingsForNormalize);
+            findingsForNormalize = result.items;
+            groundingDropped += result.dropped;
+            if (result.dropped > 0) {
+              console.warn(
+                `[source-type-gate] case=${caseId} agent=${agent.type} dropped ${result.dropped}/${before} finding(s) grounded entirely in judicial-decision/statutory text — not witness testimony.`,
               );
             }
           }
