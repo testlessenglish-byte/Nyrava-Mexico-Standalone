@@ -3415,15 +3415,36 @@ const AGENT_ENGINE: Record<string, string> = {
 const AUDIT_ONLY_AGENT_TYPES = new Set<string>(["ways_out_analysis"]);
 
 /**
- * Providers excluded from the investigator-agent stage — both from the packing
- * budget math AND from the runtime routing chain, which must stay in sync.
+ * Providers excluded from the investigator-agent stage's PACKING BUDGET MATH
+ * — not from the runtime routing chain, which still tries Groq's user keys
+ * as a genuine last resort (see below).
  *
  * Groq's ~5.5k-token input budget yields ~8,082 chars of usable corpus after
- * the agent prompt overhead, which clamped every agent batch to that floor and
- * produced 8+ batches per agent. Excluding it from the budget alone was not
- * enough: a widened batch packed for OpenRouter/Gemini that fell back to Groq
- * hit `fitOptsToBudget`, which SILENTLY TRUNCATES the corpus rather than
- * erroring. Excluding it at both layers is the actual fix.
+ * the agent prompt overhead, which clamped every agent batch to that floor
+ * and produced 8+ batches per agent. Excluding it here means packingCharBudget
+ * sizes agent batches for a wider-budget provider (OpenRouter/Gemini)
+ * instead, so a normal run doesn't fragment into tiny Groq-sized requests.
+ *
+ * This does NOT — and must not — also exclude Groq from routeAI's runtime
+ * chain (router.server.ts loads a user's provider keys via
+ * loadUserProviderKeyGroups independently of `skipProviders`, so Groq's user
+ * keys stay in `chain`). A batch packed for the wider budget is naturally
+ * too big for Groq's own limit, so the pre-flight size gate skips it whenever
+ * a full-size provider looks available — but routeAI's cascading compressed
+ * retry (the size-skipped-budget cascade, see its doc comment) means that
+ * once every wider provider has actually been tried and failed, the same
+ * request gets compressed down to Groq's OWN advertised budget and Groq gets
+ * a real, correctly-sized attempt — never a request silently truncated past
+ * recognition by a mismatched target. Confirmed live: a case stalled with
+ * "authority_notification_validation ... All configured provider keys
+ * failed (tried: gemini ... configured but never attempted: groq,
+ * openrouter)" after Gemini hit its daily quota — freshly-added Groq keys
+ * sat completely unreachable because the OLD compressed retry only ever
+ * compressed once, to the single LARGEST skipped budget (OpenRouter's), and
+ * gave up the moment that also failed. If this ever needs to become a true
+ * hard exclusion again, exclude the provider from `runtimeGroups` in
+ * router.server.ts too — filtering `rows` alone (the current
+ * `skippedProviders` behavior) never reaches user-key groups.
  */
 const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
 
