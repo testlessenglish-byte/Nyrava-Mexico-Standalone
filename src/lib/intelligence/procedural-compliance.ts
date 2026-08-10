@@ -3,9 +3,26 @@
 //
 // Per-materia checklist of the procedural acts, plazos and formalities a
 // Mexican matter must satisfy. Each item is evaluated against the extracted
-// document corpus: if the act is documented, it is "cumplido"; if it is
-// required by the applicable code and no document evidences it, it is
-// "faltante" (a real procedural risk the attorney must resolve).
+// document corpus via keyword-pattern matching: if a pattern is found, the
+// item is "cumplido" (confirmed present). If no pattern is found, the item is
+// "no_identificado_en_corpus" — NOT "missing" or "faltante". A text-search
+// miss against a partial corpus (frequently a single document, not the full
+// expediente) proves nothing about the official record; it only proves the
+// search didn't find it in what was supplied. This module must never convert
+// "keyword absent" into "requirement missing" — that conflation was traced to
+// a real completed-case audit where the aggregate summary flatly asserted
+// "Faltan 3 requisitos procesales obligatorios" for a single-document
+// amparo directo corpus, while the findings this same module generates for
+// the identical gap (see procedural-compliance.server.ts) correctly hedge
+// with "no necesariamente una omisión... verifique contra el expediente
+// oficial". Same underlying fact, same module, two different confidence
+// levels — score/summary must match the findings layer's discipline, not
+// contradict it.
+//
+// `score` is a corpus pattern-detection coverage ratio (patterns matched /
+// patterns checked), NOT a legal-compliance or procedural-failure score —
+// see its own doc comment below before wiring it into anything an attorney
+// reads as a verdict.
 //
 // Consumed by the `procedural_compliance` pipeline stage ("Análisis de
 // Cumplimiento Procesal"). Deterministic — no model calls, so it can never
@@ -29,7 +46,12 @@ export type ComplianceItem = {
 };
 
 export type ComplianceItemResult = ComplianceItem & {
-  status: "cumplido" | "faltante" | "no_documentado";
+  // "no_identificado_en_corpus" (not "faltante"/"missing"): the pattern
+  // search found nothing in the SUPPLIED corpus. That is a statement about
+  // this run's document set, never a finding about the official expediente
+  // — see the module header. Renamed from "faltante" specifically so the
+  // value itself can't be read as an assertion the requirement wasn't met.
+  status: "cumplido" | "no_identificado_en_corpus" | "no_documentado";
   /** Short excerpt of the matching corpus text, when found. */
   evidence: string | null;
 };
@@ -39,7 +61,17 @@ export type ComplianceReport = {
   evaluated: number;
   satisfied: number;
   missing_required: number;
-  /** 0–100 deterministic completeness score. */
+  /**
+   * 0–100 corpus pattern-detection coverage: the share of checklist items
+   * whose keyword pattern(s) were found somewhere in the supplied corpus.
+   * This is NOT a legal-compliance score and NOT a procedural-failure
+   * score — a low number means "few of these patterns showed up in the
+   * document(s) we were given," not "few of these requirements were
+   * actually met by the parties/court." Never render this as "Cumplimiento
+   * Procesal: N/100" or similar phrasing that implies a compliance verdict;
+   * pair it with `summary` (already hedged) or an equivalent disclosure of
+   * what the number measures.
+   */
   score: number;
   items: ComplianceItemResult[];
   /** Spanish one-line summary. */
@@ -886,7 +918,7 @@ export function evaluateProceduralCompliance(
     }
     return {
       ...item,
-      status: evidence ? "cumplido" : "faltante",
+      status: evidence ? "cumplido" : "no_identificado_en_corpus",
       evidence,
     };
   });
@@ -896,16 +928,20 @@ export function evaluateProceduralCompliance(
   const missing_required = requiredItems.filter((i) => i.status !== "cumplido").length;
   const score = items.length === 0 ? 0 : Math.round((satisfied / items.length) * 100);
 
+  // Hedged to match the discipline the findings this report feeds already
+  // use (procedural-compliance.server.ts's "no necesariamente una omisión...
+  // verifique contra el expediente oficial"): a pattern-search miss against
+  // the supplied corpus is never phrased as a confirmed procedural defect.
   const summary = !hasCorpus
     ? "No hay texto extraído suficiente para evaluar el cumplimiento procesal."
     : missing_required === 0
-      ? `Cumplimiento procesal completo en materia ${materia}: ${satisfied}/${items.length} requisitos documentados.`
-      : `Faltan ${missing_required} requisito(s) procesal(es) obligatorio(s) en materia ${materia}: ` +
+      ? `Cumplimiento procesal completo en materia ${materia}: ${satisfied}/${items.length} requisitos documentados en el corpus.`
+      : `No se identificaron en el corpus constancias o referencias suficientes para confirmar ${missing_required} elemento(s) procesal(es) obligatorio(s) o potencialmente aplicable(s) en materia ${materia}: ` +
         requiredItems
           .filter((i) => i.status !== "cumplido")
           .map((i) => `${i.label_es} (${i.authority})`)
           .join("; ") +
-        ".";
+        ". Esto no demuestra por sí mismo que dichos elementos estén ausentes del expediente oficial — verifique contra el expediente antes de asumir un defecto procesal.";
 
   return { materia, evaluated: items.length, satisfied, missing_required, score, items, summary };
 }
