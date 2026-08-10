@@ -10,6 +10,7 @@ import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/prac
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
 import { normalizeCaseAnalysisMode } from "@/lib/intelligence/case-analysis-mode";
 import { PROJECTION_LIKE, selectFindings, isCanonicalFinding, type SelectableFinding } from "@/lib/intelligence/finding-selection";
+import { consolidateFindings } from "@/lib/intelligence/finding-dedupe";
 import { sha256HexSync as sha256Hex } from "@/lib/intelligence/sha256";
 
 // Single source of truth for valid case_type values — derived from
@@ -3573,8 +3574,36 @@ export const getCase = createServerFn({ method: "POST" })
       // Delegating to selectFindings() (default include: engine+agent)
       // makes this the same single source of truth as every other
       // consumer, so the export can't drift from the fix again.
+      //
+      // FIX (2026-08-10): getCase() queried case_findings directly and never
+      // ran the result through consolidateFindings() — the SAME near-
+      // duplicate clustering pipeline.server.ts's report-generation stage
+      // already applies (as `allFindings = dedupeFindings(rawFindings)`,
+      // used for score_breakdown/structured summaries). Since getCase() is
+      // what feeds CaseExportData, and export.ts's PDF/DOCX/JSON "Hallazgos
+      // Clave" section renders `data.findings` directly, the downloadable
+      // report showed every raw duplicate case_findings row — confirmed on
+      // a real export where 3 agents (chain_of_custody, standing_procedencia,
+      // conventionality_pro_persona) each independently persisted a finding
+      // titled "Distinción entre amparo directo e indirecto" and all 3 (plus
+      // a 4th near-duplicate) rendered as separate rows, even though running
+      // the exact same consolidateFindings() call against that exact export
+      // data correctly collapses them to 1. Dedupe BEFORE the canonical
+      // filter, mirroring pipeline.server.ts's order, so a merged row that
+      // absorbed an analyzer:*-sourced duplicate still keeps whichever
+      // canonical evidence/citations that duplicate contributed.
+      //
+      // NOTE: consolidateFindings()'s generic return type intersects with
+      // finding-dedupe.ts's DedupableFinding (Record<string, unknown>), and
+      // extracting this into its own generic helper function was tried and
+      // reverted — TS inference collapsed the concrete Supabase row type to
+      // the bare Record<string, unknown> constraint at the call site, which
+      // fails createServerFn's ValidateSerializableMapped check. Keeping the
+      // cast inline (`as typeof rawRows`, closing over the concrete type
+      // right where it's inferred) avoids that collapse.
       findings: (() => {
-        const all = findings.data ?? [];
+        const rawRows = findings.data ?? [];
+        const all = consolidateFindings(rawRows) as typeof rawRows;
         // Cast only at the per-item predicate boundary (not the array
         // itself) so `canonical` keeps the full Supabase row type instead
         // of widening to the structural SelectableFinding shape — a
