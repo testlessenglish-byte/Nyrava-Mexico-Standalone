@@ -41,6 +41,7 @@ import { consolidateFindings } from "@/lib/intelligence/finding-dedupe";
 import {
   judicialHierarchyInstructions,
   judicialHierarchySchemaFragment,
+  auditClassificationSchemaFragment,
 } from "@/lib/intelligence/finding-taxonomy";
 
 type Db = SupabaseClient<Database>;
@@ -2068,6 +2069,7 @@ async function _runAnalyzersInner(args: {
   const analyzerLocale = await getReportLocale(db, caseId);
   const { mxPartyRoleEnum } = await import("./execution/mx-pipeline");
   const jhFragment = judicialHierarchySchemaFragment();
+  const auditClassificationFragment = auditClassificationSchemaFragment();
 
   const buildPrompt = (corpusText: string) =>
     `Return STRICT JSON. EVERY item in contradictions, missing_evidence, procedural_issues, and key_findings MUST include an evidence_refs array of { doc_id?: string, doc_n?: number, quote: string (verbatim from corpus, <=200 chars) }. Every "legal_significance" value must explain the legal consequence of the fact (why it matters), not just restate the fact itself.
@@ -2078,11 +2080,11 @@ ${judicialHierarchyInstructions()}
 
 {
   "timeline": [ { "date": string, "event": string, "source_document": string } ],
-  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, ${jhFragment}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, ${jhFragment}, ${auditClassificationFragment}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
   "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
   "procedural_issues": [ { "title": string, "description": string, "rule": string|null, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
   "evidence_relationships": [ { "from": string, "to": string, "relationship": string } ],
-  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, ${jhFragment}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
+  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, ${jhFragment}, ${auditClassificationFragment}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
 }
 
 CASE CORPUS:
@@ -2727,6 +2729,7 @@ ${digestText}`;
 // every case that isn't multi-instance review.
 const AGENT_JH_FRAGMENT = judicialHierarchySchemaFragment();
 const AGENT_JH_INSTRUCTIONS = judicialHierarchyInstructions();
+const AGENT_AUDIT_CLASSIFICATION_FRAGMENT = auditClassificationSchemaFragment();
 
 const AGENTS: { type: string; category: string; system: string; prompt: string }[] = [
   {
@@ -2739,7 +2742,7 @@ const AGENTS: { type: string; category: string; system: string; prompt: string }
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "chain_of_custody",
@@ -2751,7 +2754,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "item": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "item": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "constitutional_compliance",
@@ -2768,7 +2771,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "right": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "right": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "procedural_violations",
@@ -2783,7 +2786,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   // ---------------------------------------------------------------------
   // Amparo / Constitucional specialized investigators (2026-08-04).
@@ -2804,7 +2807,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "procedencia_issue": "interes_juridico"|"interes_legitimo"|"definitividad"|"subsidiariedad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "procedencia_issue": "interes_juridico"|"interes_legitimo"|"definitividad"|"subsidiariedad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "suspension_analysis",
@@ -2816,7 +2819,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "suspension_type": "de_oficio_y_de_plano"|"a_peticion_de_parte"|"improcedente", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "suspension_type": "de_oficio_y_de_plano"|"a_peticion_de_parte"|"improcedente", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "conventionality_pro_persona",
@@ -2828,7 +2831,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "constitutional_rights_mapping",
@@ -2840,7 +2843,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "right": string, "normative_source": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "right": string, "normative_source": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "authority_notification_validation",
@@ -2852,7 +2855,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "issue_type": "competencia_de_la_autoridad"|"notificacion_defectuosa"|"plazo_incumplido", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "issue_type": "competencia_de_la_autoridad"|"notificacion_defectuosa"|"plazo_incumplido", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   {
     type: "international_human_rights_analysis",
@@ -2864,7 +2867,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "treaty": string, "obligation": "respetar"|"proteger"|"garantizar", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "treaty": string, "obligation": "respetar"|"proteger"|"garantizar", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   // ---------------------------------------------------------------------
   // Penal specialized investigators (2026-08-04). Grouped: the four
@@ -3334,7 +3337,7 @@ ${AGENT_JH_INSTRUCTIONS}
 ${AGENT_JH_INSTRUCTIONS}
 
 { "summary": string, "confidence": number (0-1),
-  "findings": [ { "title": string, "test": "invasion_de_competencias"|"idoneidad"|"necesidad"|"proporcionalidad_en_sentido_estricto"|"test_de_igualdad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  "findings": [ { "title": string, "test": "invasion_de_competencias"|"idoneidad"|"necesidad"|"proporcionalidad_en_sentido_estricto"|"test_de_igualdad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
   },
   // -------------------------------------------------------------------------
   // Completed-case audit only — gated by AUDIT_ONLY_AGENT_TYPES below, NOT by

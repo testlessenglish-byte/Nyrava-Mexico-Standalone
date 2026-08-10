@@ -74,6 +74,27 @@ export function judicialHierarchySchemaFragment(): string {
 }
 
 /**
+ * The audit_classification field, same "always in the schema, prose decides
+ * when it's actually populated" shape as judicialHierarchySchemaFragment()
+ * above. Confirmed missing from every one of the 11 constitutional/amparo
+ * agent prompts (and the analyzers-stage contradictions/key_findings
+ * buckets) on a real completed-case audit: getCaseAnalysisObjective()
+ * (case-analysis-mode.ts) already conditionally injects the taxonomy's
+ * instructional prose into these same prompts' preamble (null outside
+ * completed-case modes) — but without the field actually listed in the
+ * engine's OWN JSON schema, the model has no declared slot to put the
+ * value in, so it came back null on every finding except the one agent
+ * (ways_out_analysis) whose schema already happened to ask for it
+ * explicitly. Splice this alongside judicialHierarchySchemaFragment()
+ * everywhere that fragment is used — same rationale, same "why isn't every
+ * engine on the same schema" root cause this module was built to close for
+ * speaker_role/proposition_type/adoption_status in the first place.
+ */
+export function auditClassificationSchemaFragment(): string {
+  return `"audit_classification": ${enumLiteral(AUDIT_CLASSIFICATIONS)}|null`;
+}
+
+/**
  * The instructional paragraph explaining WHEN and HOW to populate the three
  * judicial-hierarchy fields — same content and same "omit entirely on a
  * single-instance matter" rule as the analyzers-stage prompt
