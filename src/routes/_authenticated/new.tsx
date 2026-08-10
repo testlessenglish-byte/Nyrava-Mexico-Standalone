@@ -7,6 +7,10 @@ import { toast } from "sonner";
 import { Upload, FileText, X, KeyRound, ShieldCheck, Scale, Sparkles } from "lucide-react";
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
+import {
+  CASE_ANALYSIS_MODE_OPTIONS,
+  type CaseAnalysisMode,
+} from "@/lib/intelligence/case-analysis-mode";
 import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/new")({
@@ -15,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/new")({
 });
 
 function NewCasePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const nav = useNavigate();
   const uploadCase = useServerFn(createCaseAndUpload);
   const fetchKeyStatus = useServerFn(listGroqKeys);
@@ -24,6 +28,9 @@ function NewCasePage() {
   const [desc, setDesc] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<"strict" | "balanced" | "exploratory">("balanced");
+  // Default "ongoing" — same default the DB column already has, so a user
+  // who never touches this picks up byte-for-byte the prior behavior.
+  const [caseAnalysisMode, setCaseAnalysisMode] = useState<CaseAnalysisMode>("ongoing");
   // No default: a silent "general_civil" default caused cases to be
   // misclassified whenever a user didn't explicitly touch this dropdown
   // (e.g. a case named "criminal test" still ran as civil), which in turn
@@ -71,6 +78,7 @@ function NewCasePage() {
     fd.append("description", desc);
     fd.append("analysis_mode", mode);
     fd.append("case_type", caseType);
+    fd.append("case_analysis_mode", caseAnalysisMode);
     if (jurisdiction) fd.append("jurisdiction", jurisdiction);
 
     for (const f of files) fd.append("files", f);
@@ -89,7 +97,11 @@ function NewCasePage() {
   const MODE_KEYS = {
     strict: { label: "new.mode.strict", desc: "new.mode.strict.desc", icon: ShieldCheck },
     balanced: { label: "new.mode.balanced", desc: "new.mode.balanced.desc", icon: Scale },
-    exploratory: { label: "new.mode.exploratory", desc: "new.mode.exploratory.desc", icon: Sparkles },
+    exploratory: {
+      label: "new.mode.exploratory",
+      desc: "new.mode.exploratory.desc",
+      icon: Sparkles,
+    },
   } as const;
 
   return (
@@ -127,7 +139,8 @@ function NewCasePage() {
           </div>
           <div>
             <label className="text-sm font-medium">
-              {t("new.field.description")} <span className="text-muted-foreground">{t("common.optional")}</span>
+              {t("new.field.description")}{" "}
+              <span className="text-muted-foreground">{t("common.optional")}</span>
             </label>
             <textarea
               value={desc}
@@ -165,9 +178,12 @@ function NewCasePage() {
 
           <div>
             <label className="text-sm font-medium">
-              {t("new.field.jurisdiction")} <span className="text-muted-foreground">{t("common.optional")}</span>
+              {t("new.field.jurisdiction")}{" "}
+              <span className="text-muted-foreground">{t("common.optional")}</span>
             </label>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t("new.field.jurisdiction.hint")}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t("new.field.jurisdiction.hint")}
+            </p>
             <select
               value={jurisdiction}
               onChange={(e) => setJurisdiction(e.target.value)}
@@ -184,7 +200,6 @@ function NewCasePage() {
                 </optgroup>
               ))}
             </select>
-
           </div>
         </div>
 
@@ -208,9 +223,44 @@ function NewCasePage() {
                         : "border-border bg-background text-muted-foreground hover:bg-secondary/40"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
-                    <div className="mt-1.5 text-sm font-semibold text-foreground">{t(MODE_KEYS[m].label)}</div>
+                    <Icon
+                      className={`h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`}
+                    />
+                    <div className="mt-1.5 text-sm font-semibold text-foreground">
+                      {t(MODE_KEYS[m].label)}
+                    </div>
                     <div className="mt-0.5">{t(MODE_KEYS[m].desc)}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">{t("caseSettings.caseAnalysisMode")}</label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t("caseSettings.caseAnalysisMode.hint")}
+            </p>
+            <div className="mt-2 grid gap-2">
+              {CASE_ANALYSIS_MODE_OPTIONS.map((opt) => {
+                const active = caseAnalysisMode === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setCaseAnalysisMode(opt.value)}
+                    className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                      active
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-background text-muted-foreground hover:bg-secondary/40"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-foreground">
+                      {locale === "en" ? opt.label_en : opt.label_es}
+                    </div>
+                    <div className="mt-0.5">
+                      {locale === "en" ? opt.description_en : opt.description_es}
+                    </div>
                   </button>
                 );
               })}
@@ -235,7 +285,9 @@ function NewCasePage() {
               }}
               onClick={() => inputRef.current?.click()}
               className={`mt-1 cursor-pointer rounded-xl border-2 border-dashed p-10 text-center transition-colors ${
-                drag ? "border-primary bg-primary/5" : "border-border bg-background hover:bg-secondary/40"
+                drag
+                  ? "border-primary bg-primary/5"
+                  : "border-border bg-background hover:bg-secondary/40"
               }`}
             >
               <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
@@ -257,7 +309,9 @@ function NewCasePage() {
                     <div className="flex min-w-0 items-center gap-2">
                       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="truncate">{f.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{(f.size / 1024).toFixed(1)} KB</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {(f.size / 1024).toFixed(1)} KB
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -287,5 +341,9 @@ function NewCasePage() {
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</h2>;
+  return (
+    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      {children}
+    </h2>
+  );
 }
