@@ -315,4 +315,40 @@ describe("finding dedupe — cross-engine (cross-category) duplication", () => {
     ]);
     expect(out).toHaveLength(1);
   });
+
+  // Regression: a real completed-case export (Amparo Directo Penal 1/2026)
+  // had two agents (chain_of_custody, witness_credibility) independently
+  // cite the exact same sentence — the quotes differ only by a redacted
+  // `******` name token, which normalizeText's alnum-only filter strips
+  // entirely, so the two quotes normalize BYTE-IDENTICAL. But one agent's
+  // evidence_ref had already been enriched with `document_id` by a later
+  // citation-verification pass and the other hadn't, so a doc_id::quote
+  // compound signature produced two different keys ("uuid::quote" vs.
+  // "::quote") for the same fact and the pair never merged, even with
+  // byte-identical titles. A verified quote match is strong enough on its
+  // own — doc_id must never be required on top of it.
+  it("merges a cross-category pair whose quotes normalize identically even when only one side carries document_id", () => {
+    const q1 =
+      "la responsable consideró infundados los agravios vertidos contra el testimonio de ****** ****** ******* acerca de las fotografías de los lugares de entrega de los tambos con mosquiticida";
+    const q2 =
+      "la responsable consideró infundados los agravios vertidos contra el testimonio de ****** ****** ******* ********, acerca de las fotografías de los lugares de entrega de los tambos con mosquiticida";
+    const out = consolidateFindings([
+      f({
+        id: "a",
+        category: "Cadena de Custodia",
+        title: "Inconsistencias en la valoración de pruebas",
+        evidence_refs: [
+          { doc_n: 1, quote: q1, document_id: "465d2d38-0974-400a-b926-066db35674e2" },
+          { doc_n: 1, quote: "otra cita distinta sin relación" },
+        ],
+      }),
+      f({
+        id: "b",
+        category: "Testimonio de Testigo",
+        title: "Inconsistencias en la valoración de pruebas",
+        evidence_refs: [{ doc_n: 1, quote: q2 }],
+      }),
+    ]);
+    expect(out).toHaveLength(1);
+  });
 });
