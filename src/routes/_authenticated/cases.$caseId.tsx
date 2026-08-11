@@ -111,6 +111,10 @@ function buildExportData(raw: any): CaseExportData {
     strategy: (raw.strategy ?? []) as unknown as Record<string, unknown>[],
     strategy_center: (raw.strategy_center ?? null) as unknown as Record<string, unknown> | null,
     agent_logs: (raw.agent_logs ?? []) as unknown as Record<string, unknown>[],
+    outcome_assessment: (raw.outcome_assessment ?? null) as unknown as Record<
+      string,
+      unknown
+    > | null,
   };
 }
 import { getApplicableTabs } from "@/lib/intelligence/practice-areas";

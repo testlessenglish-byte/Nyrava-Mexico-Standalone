@@ -3432,6 +3432,7 @@ export const getCase = createServerFn({ method: "POST" })
       pipelineRuns,
       agentLogs,
       timelineEvents,
+      outcomeAssessment,
     ] = await Promise.all([
       supabase.from("cases").select("*").eq("id", data.caseId).maybeSingle(),
       supabase
@@ -3501,6 +3502,33 @@ export const getCase = createServerFn({ method: "POST" })
         .eq("case_id", data.caseId)
         .is("superseded_by", null)
         .order("event_date", { ascending: true, nullsFirst: false }),
+      // Completed Case Audit / Outcome Assessment (completed-case-audit.server.ts).
+      // Runs as the last step of the pipeline for every case_analysis_mode
+      // !== "ongoing" and persists to case_outcome_assessments — but until
+      // now nothing in the export path ever read it back, so its
+      // source-verified evidence classification (FACT_DOCUMENTED/
+      // COURT_FINDING/INFERENCE/POSSIBILITY/UNKNOWN), its explicit
+      // "no_material_error_identified" result, and its court-holding-vs-
+      // confirmed-error separation never reached the report or any export
+      // a user actually saw, despite running successfully. Most recent row
+      // only — a rerun writes a new row rather than overwriting, so this is
+      // never stale within a single analysis but does need ordering.
+      // raw_model_output is intentionally excluded: everything it contains
+      // that survived verification is already in the typed fields above; the
+      // raw field exists for internal debugging, not attorney-facing export.
+      // Not in the generated Database type (added via a later, additive
+      // migration) — same `as any` pattern case_strategy_center already
+      // uses a few lines up.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("case_outcome_assessments")
+        .select(
+          "id,case_analysis_mode,overall_position,outcome_status,favorable_pct,unfavorable_pct,confidence,no_material_error_identified,principal_strength,principal_weakness,biggest_risk,most_important_missing_evidence,both_sides,factors,what_could_change,finding_reviews,citation_reviews,created_at",
+        )
+        .eq("case_id", data.caseId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     // Phase 4: current canonical version, so the report header can say a
@@ -3629,6 +3657,8 @@ export const getCase = createServerFn({ method: "POST" })
       // the report JSON fallback is often empty for cases whose timeline was
       // built by the canonical timeline stage.
       timeline_events: timelineEvents.data ?? [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      outcome_assessment: (outcomeAssessment as any)?.data ?? null,
     };
   });
 

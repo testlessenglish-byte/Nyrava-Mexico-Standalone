@@ -380,6 +380,12 @@ export interface CaseExportData {
   strategy?: Array<Record<string, unknown>>;
   strategy_center?: Record<string, unknown> | null;
   agent_logs?: Array<Record<string, unknown>>;
+  // Completed Case Audit / Outcome Assessment (completed-case-audit.server.ts,
+  // public.case_outcome_assessments) — a source-verified "second pair of
+  // eyes" review that runs after the main pipeline for every
+  // case_analysis_mode !== "ongoing". null when the case is in ongoing mode,
+  // the audit hasn't run yet, or it failed non-fatally.
+  outcome_assessment?: Record<string, unknown> | null;
 }
 
 function saveBlob(blob: Blob, filename: string) {
