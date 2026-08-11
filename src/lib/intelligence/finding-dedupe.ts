@@ -83,7 +83,12 @@ export function normalizeText(s: unknown): string {
     .trim();
 }
 
-function tokens(s: unknown): Set<string> {
+// Exported for claim-evidence-relevance.ts — same tokenization (accent-fold,
+// stopword-strip, light stem) so a token that would make two findings look
+// like duplicates here is the identical token used to check whether a
+// finding's own cited quote actually relates to its own claim there. One
+// tokenizer, not two that could quietly drift apart.
+export function tokens(s: unknown): Set<string> {
   return new Set(
     normalizeText(s)
       .split(" ")
