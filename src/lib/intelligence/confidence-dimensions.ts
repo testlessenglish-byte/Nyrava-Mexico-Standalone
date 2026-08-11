@@ -135,6 +135,45 @@ export function deriveConfidenceDimensions(args: {
 }
 
 // ----------------------------------------------------------------------------
+// Evidence strength — case_findings.evidence_strength (numeric)
+// ----------------------------------------------------------------------------
+// Root cause (real completed-case audit, ADR 4640/2017): this column has
+// existed since the "Intelligence Aggregation Refactor" migration
+// (20260730052549) — added specifically so a finding's EVIDENCE strength
+// could be tracked separately from its legal SEVERITY (exactly the
+// distinction the user's spec item #9 asks for: "HIGH importance / LIMITED
+// evidence" must never collapse into "HIGH CONFIRMED"). But nothing in the
+// codebase ever wrote to it — findings.server.ts's single insert choke
+// point never set it, so every finding in every case has always persisted
+// this column as SQL NULL, and no report or export ever showed it.
+//
+// The signal this needs already exists, one JSON field over:
+// deriveConfidenceDimensions() above already computes evidence_quality
+// (from real corroboration signals — evidence_refs count — not the model's
+// self-report) for every finding. This maps that same, already-computed
+// level onto the flat numeric column the schema provisioned for it, so the
+// data that already exists in confidence_dimensions.evidence_quality
+// finally reaches the column named for it. "indeterminate" deliberately
+// maps to null rather than a guessed number — the whole point of this
+// column is to let a report say "we don't know" instead of asserting a
+// number the evidence doesn't support.
+export function evidenceStrengthFromDimensions(
+  dims: ConfidenceDimensions | null | undefined,
+): number | null {
+  const level = dims?.evidence_quality?.level;
+  switch (level) {
+    case "high":
+      return 0.85;
+    case "moderate":
+      return 0.55;
+    case "low":
+      return 0.25;
+    default:
+      return null;
+  }
+}
+
+// ----------------------------------------------------------------------------
 // Rationale
 // ----------------------------------------------------------------------------
 function toStringArray(v: unknown): string[] {
