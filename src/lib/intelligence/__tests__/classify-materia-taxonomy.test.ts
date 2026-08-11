@@ -20,7 +20,12 @@
 //      on) still resolves through it. Unmatched content now shows the
 //      honest "Hallazgo General" label instead of a specific, wrong one.
 import { describe, it, expect } from "vitest";
-import { rankAndClassify, classifyCategory, classifyCategoryKey } from "../classify.server";
+import {
+  rankAndClassify,
+  classifyCategory,
+  classifyCategoryKey,
+  classifyFinding,
+} from "../classify.server";
 
 describe("materia-aware category taxonomy: amparo", () => {
   it("classifies real amparo/constitutional content into amparo-specific categories, not criminal-evidence ones", () => {
@@ -112,5 +117,45 @@ describe("rankAndClassify: agent default category no longer overwrites the displ
     ];
     const [out] = rankAndClassify(rows, "es", "amparo");
     expect(out.category).not.toBe("Cadena de Custodia");
+  });
+});
+
+describe("classifyFinding: affected_party is not stamped 'prosecution'/'defense' outside penal matters", () => {
+  // Regression test for a real bug found on the ADR 4640/2017 rerun: a
+  // CIVIL apelación finding about "debido proceso" was rendered in the PDF
+  // as "PARTE: Ministerio Público" — a party that does not exist in a civil
+  // amparo case. Root cause: classify.server.ts's RULES table matches on
+  // vocabulary that appears in every materia (e.g. "debido proceso" is not
+  // penal-exclusive) but unconditionally assigned affected_party:
+  // "prosecution"/"defense", a purely criminal-adversarial framing that
+  // report-i18n.ts's glossary then rendered as the Spanish criminal-law
+  // term. classifyFinding() now only applies that framing for materia
+  // "penal" — everywhere else it returns "neutral", so rankAndClassify
+  // falls back to the engine's own value (or omits the party line
+  // entirely) instead of fabricating a criminal-only role.
+  const dueProcessFinding = {
+    title: "Argumento sobre debido proceso inoperante",
+    description:
+      "El argumento de la recurrente sobre la violación de su derecho al debido proceso fue considerado inoperante.",
+    category: "witness",
+  };
+
+  it("does not assign 'prosecution' for a civil/amparo materia", () => {
+    expect(classifyFinding(dueProcessFinding, "amparo").affected_party).toBe("neutral");
+    expect(classifyFinding(dueProcessFinding, "civil").affected_party).toBe("neutral");
+    expect(classifyFinding(dueProcessFinding, "laboral").affected_party).toBe("neutral");
+  });
+
+  it("still assigns 'prosecution' for a genuine penal matter", () => {
+    expect(classifyFinding(dueProcessFinding, "penal").affected_party).toBe("prosecution");
+  });
+
+  it("rankAndClassify never surfaces a fabricated 'Ministerio Público' party on a civil amparo finding", () => {
+    const [out] = rankAndClassify(
+      [{ ...dueProcessFinding, severity: "medium" as const }],
+      "es",
+      "amparo",
+    );
+    expect(out.affected_party).not.toBe("prosecution");
   });
 });
