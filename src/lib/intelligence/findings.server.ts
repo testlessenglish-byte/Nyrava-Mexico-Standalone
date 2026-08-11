@@ -34,6 +34,7 @@ import {
   deriveRationale,
   evidenceStrengthFromDimensions,
 } from "./confidence-dimensions";
+import { checkClaimEvidenceRelevance } from "./claim-evidence-relevance";
 import {
   applyEvidenceGate,
   getAnalysisMode,
@@ -817,13 +818,42 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   // single category, on purpose.
   const { computeDimensionTags } = await import("./dimension-map.server");
 
-  const payload = classified.map((r) => {
-    const ev = (r.evidence_refs ?? []) as Array<{
-      quote?: string;
-      doc_id?: string;
-      document_id?: string;
-      page?: number | string;
-    }>;
+  // CLAIM-EVIDENCE RELEVANCE GATE — closes a failure mode none of the other
+  // checks in this function catch: a quote can be verbatim, verified against
+  // the corpus, and still be about something else entirely, or too vacuous
+  // to substantively support anything. Two real production examples (ADR
+  // 4640/2017): a "la autoridad actuó dentro de su competencia" finding
+  // cited a quote about congruencia y exhaustividad (off-topic); two
+  // "no viola seguridad jurídica" findings cited "La respuesta a dicha
+  // interrogante es negativa, como se expone a continuación" (a
+  // transitional sentence, zero substantive content of its own). See
+  // claim-evidence-relevance.ts for the calibration this threshold is based
+  // on. A finding whose ONLY cited quote(s) fail this check had its entire
+  // claimed evidentiary basis turn out to be bogus — rejected outright,
+  // matching this codebase's existing "never silently insert an unsupported
+  // evidentiary claim" principle (same one the citation floor below already
+  // enforces for missing citations; this is the same principle for
+  // irrelevant ones). A finding with SOME relevant and some irrelevant
+  // citations only loses the irrelevant ones, not the whole finding.
+  type EvRef = { quote?: string; doc_id?: string; document_id?: string; page?: number | string };
+  const relevanceRejected: Array<{ title: string; case_id: string }> = [];
+  const payload: Array<Record<string, unknown>> = [];
+  for (const r of classified) {
+    const evRaw = (r.evidence_refs ?? []) as EvRef[];
+    const claimText = `${r.title ?? ""} ${r.description ?? ""}`;
+    const hadAnyQuoteBeforeGate = evRaw.some(
+      (e) => typeof e.quote === "string" && e.quote.length > 0,
+    );
+    const ev = evRaw.filter((e) => {
+      if (typeof e.quote !== "string" || e.quote.length === 0) return true; // nothing to relevance-check
+      return checkClaimEvidenceRelevance(claimText, e.quote).relevant;
+    });
+    const evHasQuote = ev.some((e) => typeof e.quote === "string" && e.quote.length > 0);
+    if (hadAnyQuoteBeforeGate && !evHasQuote) {
+      relevanceRejected.push({ title: r.title, case_id: r.case_id });
+      continue;
+    }
+
     const primaryQuote =
       ev.find((e) => typeof e.quote === "string" && e.quote.length > 0)?.quote ?? null;
     const primaryDocId =
@@ -858,7 +888,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     const meta = (r.metadata ?? {}) as Record<string, unknown>;
     const canonical_finding_id =
       typeof meta.canonical_finding_id === "string" ? (meta.canonical_finding_id as string) : null;
-    return {
+    payload.push({
       case_id: r.case_id,
       user_id: r.user_id,
       source_module: r.source_module,
@@ -881,7 +911,11 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       adoption_status: normAdoptionStatus(r.adoption_status),
       audit_classification: normAuditClassification(r.audit_classification),
       source_doc_ids: r.source_doc_ids ?? [],
-      evidence_refs: (r.evidence_refs ?? []) as J,
+      // The relevance-filtered set (`ev`), not the raw upstream one — an
+      // evidence_ref this gate stripped for being irrelevant must not
+      // persist in the stored array either, or the report could still
+      // render it even though it no longer backs source_quote/finding_type.
+      evidence_refs: ev as J,
       related_finding_ids: r.related_finding_ids ?? [],
       tags: [...new Set([...(r.tags ?? []), ...computeDimensionTags(r)])],
       metadata: (r.metadata ?? {}) as J,
@@ -894,8 +928,15 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       evidence_type: r.evidence_type,
       impact_direction: r.impact_direction,
       priority: r.priority,
-    };
-  });
+    });
+  }
+  if (relevanceRejected.length > 0) {
+    console.warn(
+      "[findings] claim-evidence relevance gate rejected findings whose only cited quote(s) were irrelevant",
+      relevanceRejected,
+    );
+  }
+  if (payload.length === 0) return [];
 
   const { data, error } = await db
     .from("case_findings")
