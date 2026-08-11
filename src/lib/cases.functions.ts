@@ -3317,6 +3317,23 @@ export function sanitizeBlockedReport<T extends Record<string, unknown> | null |
     sanitized.stale = true;
     sanitized.stale_reason =
       "A required pipeline stage completed more recently than this report was generated.";
+    // BUG FIXED (real completed-case export, ADR 4640/2017 rerun):
+    // report_mode is in BLOCKED_REPORT_METADATA_ALLOWLIST — kept intentionally
+    // for the `blocked` case, where the attorney benefits from knowing
+    // whether the blocked report was headed toward FULL or LIMITED. But for
+    // a STALE report that reasoning doesn't hold: every field this report_mode
+    // value would corroborate (scores_suppressed, case_strength_score,
+    // risk_score, findings_count, full_report's own "LIMITADO"/"Suprimido"
+    // narrative) is nulled by the loop above, since none of them are on the
+    // allowlist. Letting report_mode alone survive from a stale, superseded
+    // computation — sitting next to a wall of nulls for everything that
+    // would explain or corroborate it — is exactly the "JSON says FULL,
+    // everything else says nothing" self-contradiction this export showed:
+    // report.report_mode: "FULL" while scores_suppressed/case_strength_score/
+    // risk_score/findings_count were all null. Null it too: an honest
+    // "we don't know, this is stale" beats a leftover value from a run this
+    // export explicitly says is no longer current.
+    sanitized.report_mode = null;
   }
   return sanitized as T;
 }
@@ -3568,12 +3585,38 @@ export const getCase = createServerFn({ method: "POST" })
       blockingEngines,
     );
     const sanitizedReport = sanitizeBlockedReport(report.data, { stale: reportIsStale });
+    // BUG FIXED (real completed-case export, ADR 4640/2017 rerun): case_scores
+    // is a SEPARATE table, written by the scoring stage, which runs and
+    // persists its numbers BEFORE the later report stage decides — via the
+    // Evidence Sufficiency Score gate — whether the corpus actually supports
+    // showing quantitative scores at all. That later LIMITED decision wipes
+    // the report's OWN score fields (case_strength_score/risk_score,
+    // gatedScore() in pipeline.server.ts) but never retroactively touches
+    // this already-persisted case_scores row, so it kept flowing through
+    // ungated. Confirmed on a real export: report said "LIMITADO... Puntajes:
+    // Suprimido" in the PDF narrative while this same response's `score`
+    // carried real numbers (overall_confidence: 82, evidence_strength: 60,
+    // etc.) — an attorney reading both would have two irreconcilable
+    // statements about the same case. Only show the raw scorecard when the
+    // report has affirmatively said scores are NOT suppressed; a stale or
+    // ambiguous state (scores_suppressed null, e.g. from the sanitizer above)
+    // suppresses rather than guesses.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reportForGate = sanitizedReport as any;
+    // Allowlist, not a denylist: only an AFFIRMATIVE "report_mode is FULL
+    // and scores_suppressed is explicitly false" clears the scorecard for
+    // display. Anything else — LIMITED, a stale/ambiguous null (the
+    // sanitizer above now nulls report_mode when stale, specifically so
+    // this can't be mistaken for an all-clear), or no report row at all —
+    // withholds the scorecard rather than guessing.
+    const scoresConfirmedNotSuppressed =
+      reportForGate?.report_mode === "FULL" && reportForGate?.scores_suppressed === false;
     return {
       case: c.data,
       documents: docs.data ?? [],
       analysis: analysis.data,
       agents: agents.data ?? [],
-      score: score.data,
+      score: scoresConfirmedNotSuppressed ? score.data : null,
       report: sanitizedReport,
       canonical_current_version: canonicalCurrentVersion,
       // Apply the same canonical inclusion rule used everywhere else
