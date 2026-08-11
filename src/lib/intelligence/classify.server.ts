@@ -145,10 +145,27 @@ const RULES: Array<{ match: RegExp; cls: Classification }> = [
   },
 ];
 
-export function classifyFinding(f: Partial<NewFinding>): Classification {
+export function classifyFinding(f: Partial<NewFinding>, materia?: string): Classification {
   const blob = `${f.category ?? ""} ${f.title ?? ""} ${f.description ?? ""}`.toLowerCase();
   for (const r of RULES) {
-    if (r.match.test(blob)) return r.cls;
+    if (r.match.test(blob)) {
+      // BUG FIXED 2026-08-11 (real completed-case audit, ADR 4640/2017 rerun):
+      // every RULES entry's affected_party is "prosecution" or "defense" —
+      // an adversarial framing that only exists in a PENAL matter. This
+      // table is matched on universal vocabulary (e.g. "debido proceso"
+      // appears in civil, laboral, familiar, and amparo matters too, not
+      // just criminal ones), so a civil apelación finding about due process
+      // was being stamped affected_party: "prosecution" and rendered in the
+      // PDF as "PARTE: Ministerio Público" — a party that does not exist in
+      // that case. Outside penal, force "neutral" so rankAndClassify falls
+      // back to whatever the engine itself reported (or omits the party
+      // line entirely) instead of asserting a criminal-only role onto a
+      // civil dispute. evidence_type/impact_direction are left as-is: the
+      // observed bug was specifically the fabricated party label, not those
+      // fields, and narrowing scope to the demonstrated defect avoids
+      // guessing at a second fix that isn't evidenced yet.
+      return materia && materia !== "penal" ? { ...r.cls, affected_party: "neutral" } : r.cls;
+    }
   }
   return { evidence_type: "neutral", impact_direction: "neutral", affected_party: "neutral" };
 }
@@ -756,7 +773,7 @@ export function rankAndClassify<T extends Partial<NewFinding>>(
   const chainOfCustody = locale === "en" ? "Cadena de Custodia (Chain of Custody)" : "Cadena de Custodia";
   const financialFraud = locale === "en" ? "Fraude Financiero (Financial Misconduct)" : "Fraude Financiero";
   return rows.map((r) => {
-    const cls = classifyFinding(r);
+    const cls = classifyFinding(r, materia);
     const contentCat = classifyCategory(r, locale, materia);
     let category = contentCat;
     let categoryKey = classifyCategoryKey(r, materia);

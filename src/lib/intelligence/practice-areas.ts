@@ -545,10 +545,14 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
   {
     group: "Constitucional",
     options: [
-      { value: "amparo", label: "Juicio de Amparo (directo e indirecto)" },
+      {
+        value: "amparo",
+        label: "Juicio de Amparo (directo e indirecto — incluye amparo directo en revisión ante la SCJN)",
+      },
       {
         value: "constitucional",
-        label: "Constitucional / Derechos Humanos (controversias, acciones, control de convencionalidad)",
+        label:
+          "Constitucional / Derechos Humanos (controversias constitucionales, acciones de inconstitucionalidad — NO amparo, aun cuando el amparo plantee cuestiones constitucionales)",
       },
     ],
   },
