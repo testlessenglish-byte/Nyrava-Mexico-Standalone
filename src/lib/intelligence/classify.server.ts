@@ -609,10 +609,86 @@ const MATERIA_CATEGORY_RULES: Record<MexicanCaseType, CategoryRule[]> = {
       gloss: "Constitutional Controversy",
     },
   ],
+  // amparo (2026-08-11): populated after a real completed-case audit
+  // (ADR 4640/2017, Fabiola Romo Hernández) showed the empty registry slot
+  // silently routing every amparo finding — debido proceso, seguridad
+  // jurídica, doble instancia, congruencia y exhaustividad — through
+  // UNIVERSAL_CATEGORY_RULES (criminal-evidence vocabulary: chain of
+  // custody, witness testimony) or, when nothing there matched either, the
+  // LEGACY_CATEGORY_ALIAS fallback below, which mislabeled findings with
+  // whatever the PRODUCING AGENT's own default bucket happened to be
+  // (e.g. the witness_credibility agent's default category:"witness" →
+  // "Testimonio de Testigo" — regardless of the finding's actual content).
+  // Content-based rules checked first, before that fallback is ever
+  // reached, closes the gap for the vocabulary an amparo directo/directo
+  // en revisión matter actually uses.
+  amparo: [
+    {
+      match:
+        /\b(procedencia\s+del\s+amparo|causal\s+de\s+improcedencia|sobreseimiento\s+en\s+el\s+amparo|inter[eé]s\s+jur[ií]dico|inter[eé]s\s+leg[ií]timo|principio\s+de\s+definitividad|acto\s+reclamado|autoridad\s+responsable)\b/i,
+      key: "procedencia_amparo",
+      es: "Procedencia del Amparo",
+      gloss: "Admissibility of the Amparo Claim",
+    },
+    {
+      match:
+        /\b(agravio\s+inoperante|agravio\s+operante|agravio\s+infundado|agravio\s+fundado|agravio\s+novedoso|suplencia\s+de\s+la\s+queja|concepto\s+de\s+violaci[oó]n)\b/i,
+      key: "agravios",
+      es: "Agravios",
+      gloss: "Grounds of Appeal",
+    },
+    {
+      match:
+        /\b(congruencia\s+y\s+exhaustividad|principio\s+de\s+congruencia|exhaustividad\s+de\s+la\s+sentencia|incongruencia\s+de\s+la\s+sentencia|agravios?\s+no\s+(?:estudiados?|atendidos?|analizados?))\b/i,
+      key: "congruencia_exhaustividad",
+      es: "Congruencia y Exhaustividad",
+      gloss: "Consistency and Thoroughness of the Judgment",
+    },
+    {
+      match:
+        /\b(debido\s+proceso|derecho\s+de\s+audiencia|derecho\s+de\s+defensa|garant[ií]a\s+de\s+audiencia)\b/i,
+      key: "debido_proceso",
+      es: "Debido Proceso",
+      gloss: "Due Process",
+    },
+    {
+      match:
+        /\b(seguridad\s+jur[ií]dica|fundamentaci[oó]n\s+y\s+motivaci[oó]n|principio\s+de\s+legalidad|debida\s+fundamentaci[oó]n)\b/i,
+      key: "seguridad_juridica",
+      es: "Seguridad Jurídica",
+      gloss: "Legal Certainty",
+    },
+    {
+      match:
+        /\b(doble\s+instancia|derecho\s+al\s+recurso|recurso\s+efectivo|acceso\s+a\s+la\s+justicia|tutela\s+judicial\s+efectiva)\b/i,
+      key: "doble_instancia_acceso_justicia",
+      es: "Doble Instancia y Acceso a la Justicia",
+      gloss: "Right to Appeal and Access to Justice",
+    },
+    {
+      match:
+        /\b(control\s+de\s+convencionalidad|control\s+difuso|inconstitucionalidad\s+de\s+ley|interpretaci[oó]n\s+conforme|principio\s+pro\s+persona)\b/i,
+      key: "control_constitucionalidad",
+      es: "Control de Constitucionalidad y Convencionalidad",
+      gloss: "Constitutional and Conventionality Review",
+    },
+    {
+      match:
+        /\b(suspensi[oó]n\s+del\s+acto\s+reclamado|suspensi[oó]n\s+provisional|suspensi[oó]n\s+definitiva|incidente\s+de\s+suspensi[oó]n)\b/i,
+      key: "suspension_amparo",
+      es: "Suspensión del Acto Reclamado",
+      gloss: "Stay of the Challenged Act",
+    },
+    {
+      match: /\b(informe\s+justificado|informe\s+previo)\b/i,
+      key: "informe_justificado",
+      es: "Informe Justificado",
+      gloss: "Justified Report (Authority's Response)",
+    },
+  ],
   // Registry slots present for architectural completeness — not yet
   // populated. Findings for these materias fall through to
   // UNIVERSAL_CATEGORY_RULES until a real starter set is written for each.
-  amparo: [],
   electoral: [],
   agrario: [],
   ambiental: [],
@@ -686,19 +762,33 @@ export function rankAndClassify<T extends Partial<NewFinding>>(
     let categoryKey = classifyCategoryKey(r, materia);
     if (category === generalFinding) {
       const raw = String(r.category ?? "").toLowerCase();
+      // BUG FIXED 2026-08-11 (real completed-case audit, ADR 4640/2017):
+      // this branch used to also overwrite the human-facing `category`
+      // label with LEGACY_CATEGORY_ALIAS's translation of `raw` — but
+      // `raw` here is not always genuinely legacy stored data; for a
+      // freshly-produced finding it's the PRODUCING AGENT's own hardcoded
+      // default bucket (e.g. the witness_credibility agent's static
+      // category:"witness" in the AGENTS array), which describes what kind
+      // of agent looked at the document, not what the finding is actually
+      // about. Applying it to the display label meant a due-process
+      // holding the witness_credibility agent happened to emit was shown
+      // to the attorney as "Testimonio de Testigo" — a specific, wrong,
+      // false-confident legal category — instead of the honest "no
+      // specific category matched" result. category_key still resolves
+      // through the alias below: it's a machine token several existing
+      // consumers (report section bucketing, derived-engine counts,
+      // scoring's legacy substring fallback) already filter on, and this
+      // fix does not change what content those buckets that already relied
+      // on the alias received. Only the WRITTEN-OUT label attorneys read
+      // stops guessing when content-based classification found no match.
       if (raw && LEGACY_CATEGORY_ALIAS[raw]) {
-        const alias = LEGACY_CATEGORY_ALIAS[raw];
-        category = locale === "en" ? `${alias.es} (${alias.gloss})` : alias.es;
-        categoryKey = alias.key;
+        categoryKey = LEGACY_CATEGORY_ALIAS[raw].key;
       } else if (raw) {
         // Do NOT slugify arbitrary raw upstream text into an invented
         // category_key. Anything that actually matches a real category
         // already resolved via classifyCategoryKey() above; this branch
         // only runs when nothing matched at all, so the key stays the
-        // genuinely-generic "fact" token. The human-facing label can
-        // still be prettified from the raw text; only the machine key is
-        // constrained.
-        category = raw.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        // genuinely-generic "fact" token.
         categoryKey = "fact";
       }
     }
