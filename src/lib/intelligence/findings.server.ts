@@ -29,7 +29,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { Finding, NewFinding, Severity, AffectedParty } from "./types";
-import { deriveConfidenceDimensions, deriveRationale } from "./confidence-dimensions";
+import {
+  deriveConfidenceDimensions,
+  deriveRationale,
+  evidenceStrengthFromDimensions,
+} from "./confidence-dimensions";
 import {
   applyEvidenceGate,
   getAnalysisMode,
@@ -864,6 +868,10 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       severity: normSeverity(r.severity),
       confidence: clamp01(r.confidence),
       confidence_dimensions: (r.confidence_dimensions ?? null) as J,
+      // case_findings.evidence_strength — see confidence-dimensions.ts's
+      // evidenceStrengthFromDimensions() for why this was always null
+      // before and what it now derives from.
+      evidence_strength: evidenceStrengthFromDimensions(r.confidence_dimensions ?? null),
       rationale: (r.rationale ?? null) as J,
       legal_significance: r.legal_significance,
       potential_impact: r.potential_impact,
