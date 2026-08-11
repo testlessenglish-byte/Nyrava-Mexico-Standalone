@@ -35,6 +35,7 @@ import {
   evidenceStrengthFromDimensions,
 } from "./confidence-dimensions";
 import { checkClaimEvidenceRelevance } from "./claim-evidence-relevance";
+import { checkFindingDomainVocabulary } from "./domain-vocabulary-gate";
 import {
   applyEvidenceGate,
   getAnalysisMode,
@@ -837,8 +838,37 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   // citations only loses the irrelevant ones, not the whole finding.
   type EvRef = { quote?: string; doc_id?: string; document_id?: string; page?: number | string };
   const relevanceRejected: Array<{ title: string; case_id: string }> = [];
+  // DOMAIN VOCABULARY GATE — a finding's own text (not its cited quotes,
+  // which are checked separately) can assert an institution or procedural
+  // actor that structurally does not exist in the case's materia. Real
+  // example (ADR 4640/2017, a CIVIL apelación reviewed via amparo directo
+  // en revisión): agent:ways_out_analysis wrote "La resolución del
+  // Tribunal de Enjuiciamiento desestimó un argumento novedoso..." —
+  // Tribunal de Enjuiciamiento is exclusive to accusatorial CRIMINAL
+  // procedure (CNPP) and does not exist in a civil dispute; none of the
+  // finding's own cited quotes even mentioned it. See
+  // domain-vocabulary-gate.ts for why this is a denylist (unambiguous
+  // single-materia-exclusive institution names) rather than an allowlist
+  // (which would require this code to judge what's substantively
+  // applicable per materia — a legal-content call this codebase
+  // consistently leaves to the user's own research).
+  const domainVocabularyRejected: Array<{
+    title: string;
+    case_id: string;
+    violations: string[];
+  }> = [];
   const payload: Array<Record<string, unknown>> = [];
   for (const r of classified) {
+    const domainCheck = checkFindingDomainVocabulary(r, classifyMateria);
+    if (!domainCheck.clean) {
+      domainVocabularyRejected.push({
+        title: r.title,
+        case_id: r.case_id,
+        violations: domainCheck.violations,
+      });
+      continue;
+    }
+
     const evRaw = (r.evidence_refs ?? []) as EvRef[];
     const claimText = `${r.title ?? ""} ${r.description ?? ""}`;
     const hadAnyQuoteBeforeGate = evRaw.some(
@@ -934,6 +964,12 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     console.warn(
       "[findings] claim-evidence relevance gate rejected findings whose only cited quote(s) were irrelevant",
       relevanceRejected,
+    );
+  }
+  if (domainVocabularyRejected.length > 0) {
+    console.warn(
+      "[findings] domain vocabulary gate rejected findings asserting a materia-inappropriate institution",
+      domainVocabularyRejected,
     );
   }
   if (payload.length === 0) return [];
