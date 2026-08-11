@@ -78,3 +78,55 @@ describe("attorney work product", () => {
     expect(wp.pending.every((p) => p.startsWith("No"))).toBe(true);
   });
 });
+
+// Regression test for a real, verified bug (ADR-2239-2018-180906 — SCJN
+// First Chamber ruling that Article 75 of the Ley de Amparo IS
+// constitutional): every finding correctly carried
+// audit_classification: "VERIFIED_COURT_HOLDING", but groupForFinding()
+// checked severity BEFORE checking that classification, so 4 favorable
+// SCJN holdings landed in "Cuestiones Críticas" at ALTA-90/95% — the
+// report inverted a favorable ruling into what looked like a critical
+// risk. A holding is never risk-scored; it goes in its own section ahead
+// of any risk analysis.
+describe("groupForFinding: court holdings never enter the risk pipeline", () => {
+  it("routes a VERIFIED_COURT_HOLDING to 'holdings' regardless of severity", () => {
+    expect(
+      groupForFinding({
+        title: "Conformidad del artículo 75 de la Ley de Amparo con el derecho de acceso",
+        category: "Procedencia del Amparo",
+        severity: "high",
+        confidence: 0.95,
+        audit_classification: "VERIFIED_COURT_HOLDING",
+      }),
+    ).toBe("holdings");
+  });
+
+  it("still routes a genuine corpus gap normally — audit_classification null is a no-op", () => {
+    expect(
+      groupForFinding({
+        title: "Elemento no identificado en el corpus: Interés jurídico o legítimo acreditado",
+        description:
+          "No se identificó una argumentación expresa sobre el interés jurídico en los documentos proporcionados. Esto refleja lo que consta en el corpus, no necesariamente una omisión en un escrito ya presentado.",
+        category: "Procedencia del Amparo",
+        severity: "high",
+        confidence: 0.7,
+        audit_classification: null,
+      }),
+    ).toBe("vacios");
+  });
+
+  it("does not sweep VERIFIED_LEGAL_RULE (a different classification) into holdings", () => {
+    expect(
+      groupForFinding({
+        title: "Competencia de la autoridad",
+        category: "Procedencia del Amparo",
+        severity: "medium",
+        audit_classification: "VERIFIED_LEGAL_RULE",
+      }),
+    ).toBe("procesales");
+  });
+
+  it("holdings is a real, declared group", () => {
+    expect(ATTORNEY_GROUPS.map((g) => g.key)).toContain("holdings");
+  });
+});

@@ -64,6 +64,7 @@ export type FindingWorkProduct = {
 };
 
 export type AttorneyGroupKey =
+  | "holdings"
   | "criticas"
   | "procesales"
   | "favorable"
@@ -72,6 +73,16 @@ export type AttorneyGroupKey =
   | "revision";
 
 export const ATTORNEY_GROUPS: Array<{ key: AttorneyGroupKey; label: string }> = [
+  // Real bug (ADR-2239-2018-180906, SCJN ruling that Art. 75 IS
+  // constitutional): a VERIFIED_COURT_HOLDING — a favorable ruling the
+  // pipeline had already correctly classified as what the court decided,
+  // not a defect — was landing in "Cuestiones Críticas" at ALTA-95%
+  // because groupForFinding() below checked severity before it checked
+  // what KIND of proposition the finding even was. Court holdings are
+  // never risk-scored: they go in their own section, first, ahead of any
+  // risk analysis — a holding is what happened, not something wrong with
+  // the case's handling, and mixing the two inverts the report's meaning.
+  { key: "holdings", label: "Determinaciones del Tribunal (Resumen del Caso)" },
   { key: "criticas", label: "Cuestiones Críticas" },
   { key: "procesales", label: "Riesgos Procesales" },
   { key: "contradictoria", label: "Evidencia Contradictoria" },
@@ -231,6 +242,20 @@ const GAP_RE =
 const FAVORABLE_RE = /(corrobora|acredita|respalda|sustenta|favorable|exculpator)/;
 
 export function groupForFinding(f: AnyFinding): AttorneyGroupKey {
+  // BUG FIXED (real completed-case audit, ADR-2239-2018-180906 — SCJN
+  // First Chamber ruling that Article 75 of the Ley de Amparo IS
+  // constitutional): this function used to check severity FIRST, so a
+  // finding correctly tagged audit_classification: "VERIFIED_COURT_HOLDING"
+  // — the pipeline's own record of what the court actually decided, not a
+  // problem the attorney needs to address — still landed in "Cuestiones
+  // Críticas" at ALTA/95% purely because its severity field happened to be
+  // high. The favorable-evidence branch further down could never even be
+  // reached for a high/critical-severity finding, so there was no path by
+  // which a holding could avoid the risk buckets. audit_classification is
+  // the single most authoritative signal this pipeline computes about WHAT
+  // KIND of proposition a finding is (see finding-taxonomy.ts) — it must be
+  // checked before any text/category/severity heuristic, not after.
+  if (String(f.audit_classification ?? "") === "VERIFIED_COURT_HOLDING") return "holdings";
   const cat = norm(f.category ?? "");
   const text = findingText(f);
   const sev = norm(f.severity ?? "");

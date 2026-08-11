@@ -3624,18 +3624,31 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
   for (const group of ATTORNEY_GROUPS) {
     const entries = groupsPresent.get(group.key) ?? [];
     if (!entries.length) continue;
-    const tierColor = b.severityColor(asStr(entries[0].f.severity));
+    // A court holding (group "holdings") is never risk-scored — showing a
+    // severity pill like "ALTA · Alta conf." on the SCJN's own ruling reads
+    // as a risk indicator even after it's correctly out of the risk
+    // sections. Use a neutral, non-severity color and a label that says
+    // what it actually is: a verified judicial determination, not an
+    // urgency tier.
+    const isHoldingGroup = group.key === "holdings";
+    const tierColor: [number, number, number] = isHoldingGroup
+      ? PRIMARY
+      : b.severityColor(asStr(entries[0].f.severity));
     b.h2Tier(`${group.label} (${entries.length})`, tierColor);
     for (const [pos, { f, i }] of entries.entries()) {
       if (pos > 0) b.y += 10;
       b.ensureSpace(70);
-      const sevColor = b.severityColor(asStr(f.severity));
+      const sevColor: [number, number, number] = isHoldingGroup
+        ? PRIMARY
+        : b.severityColor(asStr(f.severity));
       // Severity bar down the left edge of the finding block plus a serif
       // headline: the finding reads as its own card rather than as one
       // more paragraph in a wall of text.
       const blockTop = b.y - 14;
       const conf = Number(f.confidence ?? 0);
-      const pillText = `${rt(asStr(f.severity).toUpperCase())} · ${confidenceLabel(conf)} ${rt("conf.")}`;
+      const pillText = isHoldingGroup
+        ? `${rt("DETERMINACIÓN JUDICIAL")} · ${confidenceLabel(conf)} ${rt("conf.")}`
+        : `${rt(asStr(f.severity).toUpperCase())} · ${confidenceLabel(conf)} ${rt("conf.")}`;
       b.doc.setFont("times", "bold");
       b.doc.setFontSize(13);
       b.doc.setTextColor(...PRIMARY);
