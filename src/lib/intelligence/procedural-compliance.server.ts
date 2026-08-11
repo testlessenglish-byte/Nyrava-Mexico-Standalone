@@ -79,7 +79,20 @@ export async function runProceduralCompliance(args: {
         `No se identificó una argumentación expresa y desarrollada sobre "${i.label_es}" (${i.authority}, materia ${materia}) en los documentos proporcionados. ` +
         "Esto refleja lo que consta en el corpus analizado, no necesariamente una omisión en un escrito ya presentado ante el órgano jurisdiccional — verifique contra el expediente oficial antes de asumir un defecto procesal.",
       category: "cumplimiento_procesal",
-      severity: "high" as const,
+      // BUG FIXED (real completed-case exports, ADR 4640/2017 and
+      // ADR-2239-2018-180906): this was hardcoded "high" for EVERY
+      // corpus-absence item, unconditionally — so a finding whose own
+      // description says "no necesariamente una omisión... verifique
+      // contra el expediente oficial antes de asumir un defecto procesal"
+      // still carried the same severity tier as a confirmed defect. Both
+      // external reviews of real runs flagged this exact contradiction
+      // (a 70-90%-confidence ALTA badge on a 0-source "not found in
+      // corpus" item). "medium": still flagged for attorney attention
+      // (this is a REQUIRED checklist item, not a discretionary one — if
+      // it genuinely is missing from the official expediente that
+      // matters) without the ALTA tier implying a confirmed defect the
+      // finding's own text explicitly disclaims.
+      severity: "medium" as const,
       legal_significance: i.authority,
       potential_impact: null,
       affected_party: null,

@@ -195,4 +195,32 @@ describe("runProceduralCompliance (the actual fixed file): missing-checklist fin
       expect(row.verification_status).not.toBe("verified");
     }
   });
+
+  // Regression test for a real bug found on two completed-case exports
+  // (ADR 4640/2017, ADR-2239-2018-180906): severity was hardcoded "high"
+  // for every corpus-absence finding, unconditionally — so a finding whose
+  // own description says "no necesariamente una omisión... verifique
+  // contra el expediente oficial antes de asumir un defecto procesal"
+  // still rendered as an ALTA-tier badge, contradicting its own hedged
+  // text. Both external reviews of real runs flagged this exact
+  // inconsistency (a 70-90%-confidence ALTA badge on a 0-source "not
+  // found in corpus" item).
+  it("never persists severity 'high' for a corpus-absence finding — its own text explicitly disclaims being a confirmed defect", async () => {
+    const { runProceduralCompliance } = await import(
+      "@/lib/intelligence/procedural-compliance.server"
+    );
+    const { client, inserted } = makeFakeDb({ caseType: "penal" });
+
+    await runProceduralCompliance({
+      db: client as never,
+      caseId: "case-generic-2",
+      userId: "user-generic",
+    });
+
+    expect(inserted.length).toBeGreaterThan(0);
+    for (const row of inserted) {
+      expect(row.severity).not.toBe("high");
+      expect(row.severity).toBe("medium");
+    }
+  });
 });
