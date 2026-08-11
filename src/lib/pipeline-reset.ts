@@ -38,6 +38,19 @@ export const CASE_DERIVED_TABLES = [
   "cross_agent_audit",
   "finding_version_snapshots",
   "pipeline_trace",
+  // Completed Case Audit / Outcome Assessment (completed-case-audit.server.ts).
+  // Runs as the LAST step of the pipeline and inserts — never overwrites —
+  // a new case_outcome_assessments row per run (by design: a normal
+  // re-audit of a still-completed case should not erase prior audit
+  // history). But that means a full "Rerun from scratch" left old rows
+  // behind, and getCase() (the export path, see cases.functions.ts) picks
+  // the most recent row by created_at with no other freshness check. If
+  // the NEW run's audit step never runs (e.g. the case is switched to
+  // "ongoing" mode) or fails non-fatally, the export would silently keep
+  // serving the PREVIOUS run's audit — a stale row masquerading as current.
+  // Included here so a full reset guarantees no run's audit output can
+  // ever outlive the run that produced it.
+  "case_outcome_assessments",
 ] as const;
 
 
