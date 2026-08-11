@@ -24,7 +24,9 @@ import { resolveMxProfile, type MxPipelineProfile } from "@/lib/execution/mx-pip
 import {
   auditText,
   dedupeViolations,
+  detectPartyGenderFromCorpus,
   findEnglishSentences,
+  remediatePartyGender,
   remediateText,
   type QaViolation,
 } from "./mx-terminology";
@@ -199,6 +201,21 @@ export async function runLegalQaGate(args: {
   const materia = resolveMxProfile(row.case_type ?? null);
   const locale: "es" | "en" = row.report_language === "en" ? "en" : "es";
 
+  // Party-role gender: read once from the case's own document text (never
+  // guessed from a party's name — see mx-terminology.ts's
+  // detectPartyGenderFromCorpus doc comment for why). Empty/no-op result
+  // when the corpus establishes nothing unambiguous, so this is a pure
+  // addition with zero effect on cases where it doesn't apply.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: docsForGender } = await (db as any)
+    .from("documents")
+    .select("extracted_text")
+    .eq("case_id", caseId);
+  const corpusTextForGender = ((docsForGender ?? []) as Array<{ extracted_text?: string | null }>)
+    .map((d) => d.extracted_text ?? "")
+    .join("\n");
+  const partyGenderMap = detectPartyGenderFromCorpus(corpusTextForGender);
+
   const remediations: LegalQaReport["remediations"] = [];
   const violations: (QaViolation & { table: string; field: string })[] = [];
   let checked_rows = 0;
@@ -258,6 +275,14 @@ export async function runLegalQaGate(args: {
         let dirty = replacements.length > 0;
         if (replacements.length > 0) {
           for (const rep of replacements) remediations.push({ table: target.table, field, ...rep });
+        }
+        const genderFix = remediatePartyGender(finalText, partyGenderMap);
+        if (genderFix.replacements.length > 0) {
+          finalText = genderFix.text;
+          dirty = true;
+          for (const rep of genderFix.replacements) {
+            remediations.push({ table: target.table, field, ...rep });
+          }
         }
         const es = await ensureSpanish(finalText, { table: target.table, field });
         if (es.changed) {

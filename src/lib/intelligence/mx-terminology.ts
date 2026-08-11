@@ -355,6 +355,115 @@ export function remediateText(
 }
 
 // -----------------------------------------------------------------------------
+// Party-role gender remediation.
+// -----------------------------------------------------------------------------
+// Real bug (ADR 4640/2017, Fabiola Romo Hernández — Amparo Directo en
+// Revisión): every generated finding said "el quejoso"/"El quejoso alega..."
+// even though the case's own party is a woman and the source document's
+// caption uses the feminine role term. This is a DETERMINISTIC extraction
+// failure, not a model-ambiguity one: a party's grammatical role gender is
+// never guessed from their name (a name is not a reliable gender signal —
+// see this session's own pronoun-inference rule) — it is only ever read
+// from the LITERAL role marker the source document itself uses in its
+// caption/body ("QUEJOSA" vs "QUEJOSO"). When the corpus establishes ONE
+// form unambiguously, every occurrence of the OTHER form anywhere in
+// generated findings is corrected to match — never the reverse, and never
+// when the corpus contains both forms (multiple parties, or no single
+// correction can be made safely).
+
+export type GenderedPartyRole = "quejoso" | "actor" | "demandado" | "tercero_interesado";
+
+const GENDERED_ROLE_PAIRS: Record<GenderedPartyRole, { m: string; f: string }> = {
+  quejoso: { m: "quejoso", f: "quejosa" },
+  actor: { m: "actor", f: "actora" },
+  demandado: { m: "demandado", f: "demandada" },
+  tercero_interesado: { m: "tercero interesado", f: "tercera interesada" },
+};
+
+/**
+ * Scans real corpus text (the case's own extracted document text — never a
+ * party's name) for an explicit, unambiguous grammatical role marker per
+ * role. Returns which form ("m" | "f") the corpus itself establishes for
+ * each role that appears in exactly one form; a role that doesn't appear at
+ * all, or appears in BOTH forms (ambiguous — multiple parties, or no single
+ * safe correction), is simply absent from the result.
+ */
+export function detectPartyGenderFromCorpus(
+  corpusText: string,
+): Partial<Record<GenderedPartyRole, "m" | "f">> {
+  const result: Partial<Record<GenderedPartyRole, "m" | "f">> = {};
+  for (const [role, forms] of Object.entries(GENDERED_ROLE_PAIRS) as Array<
+    [GenderedPartyRole, { m: string; f: string }]
+  >) {
+    const hasF = wordBoundaryRe(forms.f).test(corpusText);
+    const hasM = wordBoundaryRe(forms.m).test(corpusText);
+    if (hasF && !hasM) result[role] = "f";
+    else if (hasM && !hasF) result[role] = "m";
+  }
+  return result;
+}
+
+/**
+ * Rewrites every gendered party-role mention in `text` to match the form
+ * `genderMap` establishes from the real corpus (see
+ * detectPartyGenderFromCorpus). Same replacement-tracking shape as
+ * remediateText, so callers can merge both into one remediation log.
+ */
+export function remediatePartyGender(
+  text: string,
+  genderMap: Partial<Record<GenderedPartyRole, "m" | "f">>,
+): { text: string; replacements: Replacement[] } {
+  let out = text;
+  const replacements: Replacement[] = [];
+  for (const [role, forms] of Object.entries(GENDERED_ROLE_PAIRS) as Array<
+    [GenderedPartyRole, { m: string; f: string }]
+  >) {
+    const target = genderMap[role];
+    if (!target) continue;
+    const wrongForm = target === "f" ? forms.m : forms.f;
+    const rightForm = target === "f" ? forms.f : forms.m;
+    // "del"/"al" (de+el, a+el) are masculine-only contractions — going to
+    // feminine expands them ("del quejoso" -> "de la quejosa"); going to
+    // masculine, the bare "la"/"La" branch below handles the noun and the
+    // de-el/a-el cleanup pass after the loop re-contracts "de el"/"a el"
+    // back to "del"/"al".
+    const articleAlternatives = target === "f" ? "del|al|el|la|Del|Al|El|La" : "el|la|El|La";
+    const expandedArticle: Record<string, string> = {
+      del: "de la",
+      al: "a la",
+      Del: "De la",
+      Al: "A la",
+    };
+    const rightArticle = target === "f" ? "la" : "el";
+    // Match an optional leading definite article (or de-el/a-el
+    // contraction) together with the noun phrase, so the article is
+    // corrected to agree too — otherwise "El quejoso" naively becomes the
+    // ungrammatical "El quejosa" instead of "La quejosa".
+    const re = new RegExp(
+      `(?<![\\p{L}\\p{N}])(${articleAlternatives})?(\\s*)${escapeRe(wrongForm)}(?![\\p{L}\\p{N}])`,
+      "gu",
+    );
+    if (!re.test(out)) continue;
+    out = out.replace(re, (m, article: string | undefined, space: string) => {
+      const noun = preserveCase(wrongForm, rightForm);
+      const fixedArticle = article
+        ? (expandedArticle[article] ?? preserveCase(article, rightArticle))
+        : "";
+      const to = `${fixedArticle}${space ?? ""}${noun}`;
+      replacements.push({ from: m, to });
+      return to;
+    });
+  }
+  // Cleanup pass: correcting toward masculine can leave "de el"/"a el"
+  // where the source had "de la"/"a la" before the noun (this function only
+  // captures ONE preceding word, so the contraction with "de"/"a" one word
+  // further back isn't rebuilt inline) — re-contract to proper Spanish.
+  out = out.replace(/\bde el\b/g, "del").replace(/\bDe el\b/g, "Del");
+  out = out.replace(/\ba el\b/g, "al").replace(/\bA el\b/g, "Al");
+  return { text: out, replacements };
+}
+
+// -----------------------------------------------------------------------------
 // English-sentence detection (only meaningful when the report is Spanish).
 // -----------------------------------------------------------------------------
 
