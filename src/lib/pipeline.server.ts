@@ -5298,6 +5298,29 @@ async function _runReportInner(args: {
   const isCriminalOrCivilRights =
     materiaForReport === "penal" || materiaForReport === "amparo" || materiaForReport === "constitucional";
 
+  // Materia-aware Mexican procedural-vehicle catalogue for the "recommended
+  // motions" section of the legal memorandum below (audit P0-4). This used
+  // to be a hardcoded U.S. motion list (motion to dismiss/suppress/in
+  // limine/summary judgment/discovery sanctions — none of which exist under
+  // Mexican procedure), directly contradicting the mexicoLock() instruction
+  // a few lines below it. Replaced with the SAME materia-keyed, article-
+  // cited taxonomy already used by runWorkProductEngine
+  // (src/lib/jurisdiction/mx-work-product.ts) rather than inventing a new
+  // one — see that file's header for why each vehicle exists and its
+  // Mexican statutory basis. FLAG FOR ATTORNEY REVIEW: this is the first
+  // use of mx-work-product.ts's catalogue inside the legal-memorandum
+  // "recommended_motions" section specifically (its original, already-
+  // reviewed use is runWorkProductEngine's separate Attorney Work Product
+  // section) — a licensed Mexican attorney should confirm every vehicle
+  // listed here is appropriate to recommend as a court filing in this
+  // report context, not just as a work-product deliverable.
+  const { resolveMxProfile } = await import("./execution/mx-pipeline");
+  const { mxWorkProductGuide } = await import("./jurisdiction/mx-work-product");
+  const mxWorkProductPromptCatalogue = mxWorkProductGuide(
+    resolveMxProfile(caseType),
+    (await getReportLocale(db, caseId)) === "en" ? "en" : "es",
+  );
+
   const docLegend = docIndex
     .map((d) => `DOC ${d.doc_n} = "${d.filename}" (id=${d.document_id}, ${d.pages} pages)`)
     .join("\n");
@@ -5474,11 +5497,8 @@ Populate \`legal_memorandum\` as a court-ready memo derived from the same corpus
 - Set \`caption.date\` to today's date in the user's locale format.
 - Omit rows you cannot cite; do not fabricate exhibits, pages, or quotes.
 
-EVALUATE these motion categories (skip any not supported by the corpus): ${
-      isCriminalOrCivilRights
-        ? "Motion to dismiss, Motion to suppress, Motion in limine, Motion to compel, Discovery sanctions, Summary judgment, Evidentiary objections, Appellate preservation issues"
-        : "Motion to dismiss (civil), Motion to compel discovery, Motion for protective order, Motion in limine, Motion for summary judgment, Discovery sanctions, Evidentiary objections, Appellate preservation issues"
-    }.
+EVALUATE which of these Mexican procedural vehicles the corpus actually supports (skip any not supported by the corpus). These are the ONLY categories to draw from — do NOT propose a U.S.-law vehicle (motion to dismiss, motion to suppress, motion in limine, motion to compel, discovery sanctions, summary judgment, etc.); none of those exist under Mexican procedure and this platform serves Mexican attorneys exclusively:
+${mxWorkProductPromptCatalogue}
 
 PAGINATION RULES:
 - The corpus below is split into pages. Each page block is prefixed with \`--- DOC N p.M ---\`.
@@ -5873,7 +5893,14 @@ ${corpus.slice(0, 14000)}`;
     }
   };
 
-  const memoSysSuffix = `You generate ONLY the legal_memorandum object in this call. ${isCriminalOrCivilRights ? "Constitutional/Brady/Miranda analyses ARE relevant when supported by the corpus." : "This is NOT criminal/civil-rights — focus on civil procedure, discovery, and dispositive motions. Do NOT manufacture constitutional issues."} IRAC format is mandatory for every legal_analysis entry. The executive summary, high-level risk assessment, and primary recommendations already exist — see CANONICAL REPORT CONTEXT below. Do not rewrite or restate them. Reference them by summary only. Your job is ONLY the legal memorandum: IRAC legal analysis, motion drafts, evidence appendix, risk matrix detail, and next actions specific to litigation execution.`;
+  // Audit P0-4: this used to say "Constitutional/Brady/Miranda analyses ARE
+  // relevant" for criminal/civil-rights cases — appended (runChunk below:
+  // `systemInstruction + "\n" + sysSuffix`) directly AFTER systemInstruction's
+  // own correct "nunca en doctrina estadounidense (Miranda, Brady/Giglio...)"
+  // instruction, so the combined prompt for this call literally contradicted
+  // itself. Now mirrors that same instruction's Mexican framing instead of
+  // reintroducing the U.S. doctrine it forbids.
+  const memoSysSuffix = `You generate ONLY the legal_memorandum object in this call. ${isCriminalOrCivilRights ? "Constitutional analysis IS relevant when supported by the corpus — ground it in Art. 20 CPEUM (derechos del imputado y la víctima), the Art. 19 CPEUM catálogo de prisión preventiva oficiosa, and CNPP chain-of-custody rules (Arts. 227-230), NEVER in U.S. doctrine (Miranda, Brady/Giglio, U.S. constitutional amendments)." : "This is NOT criminal/civil-rights — focus on Mexican civil procedure, ofrecimiento de pruebas (evidence offering), and dispositive procedural vehicles under Mexican law. Do NOT manufacture constitutional issues, and do NOT use U.S. terms (discovery, dispositive motions)."} IRAC format is mandatory for every legal_analysis entry. The executive summary, high-level risk assessment, and primary recommendations already exist — see CANONICAL REPORT CONTEXT below. Do not rewrite or restate them. Reference them by summary only. Your job is ONLY the legal memorandum: IRAC legal analysis, motion drafts, evidence appendix, risk matrix detail, and next actions specific to litigation execution.`;
 
   const intelSysSuffix =
     "You generate ONLY structured intelligence outputs (citations, evidence_index, contradictions, missing_evidence, constitutional_issues, motion_opportunities, cross_examination, strategy_recommendations, next_actions, case_strength_score, risk_score, score_rationale). Return the shape below and nothing else. The executive summary, high-level risk narrative, constitutional discussion, and contradiction/missing-evidence summaries already exist — see CANONICAL REPORT CONTEXT below. Do NOT restate them in prose form. Your job is ONLY structured data: turn the underlying findings into citations, scorecards, contradiction matrix entries, and evidence classifications. Numeric scores (case_strength_score, risk_score) are new — the canonical context has no numeric risk score yet, so you own computing it.";

@@ -1227,8 +1227,12 @@ export async function runLitigationStrategyCenterEngine(args: {
   const seedText = JSON.stringify({ theories: (theories ?? []).slice(0, 3) }).slice(0, 4000);
   const caseType = await resolveCaseType(db, caseId, seedText);
   const civil = !isCriminalCaseType(caseType);
+  // Audit P0-5: "discovery" used to be listed as an ALLOWED civil term here
+  // — Mexican civil procedure has no discovery phase; the equivalent is
+  // ofrecimiento y desahogo de pruebas. Fixed to match the terminology this
+  // same function already requires elsewhere (see line ~1636 below).
   const caseFrame = civil
-    ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology only — liability, damages, comparative fault, settlement, discovery, credibility. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, reasonable doubt, prosecution).`
+    ? `This is a CIVIL matter (case_type=${caseType}). Use Mexican civil terminology only — responsabilidad civil, daños y perjuicios, culpa concurrente, convenio judicial, ofrecimiento y desahogo de pruebas, credibilidad. NEVER use U.S. terms (discovery, Miranda, Brady, suppression, reasonable doubt, prosecution).`
     : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology only — Ministerio Público, imputado, víctima u ofendido, sentencia condenatoria/absolutoria. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
 
   const witnessNames = (witnesses ?? []).map((w) => String((w as { name?: unknown }).name ?? "")).filter(Boolean);
@@ -1266,12 +1270,13 @@ export async function runLitigationStrategyCenterEngine(args: {
   const slimWitnesses = slim(witnesses, 15);
   const slimPerspectives = slim(perspectives, 10);
   const slimStrategy = slim(strategy, 5);
+  const reportLocale = await getReportLocale(db, caseId);
 
   const r = await callGroq({
     apiKeys,
     model: MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) +
+      mexicoLock(reportLocale) +
       "\n\n" +
       "You are lead trial counsel synthesizing everything already known about this case into a single strategic " +
       "briefing. You are NOT generating new theories, evidence, or witnesses — you are synthesizing what has " +
@@ -1388,13 +1393,20 @@ ${JSON.stringify(slimStrategy)}`,
     Array.isArray(parsed.weekly_priorities) ? parsed.weekly_priorities : [];
 
   // Computed in code — never asked from the model — so it can't drift out
-  // of sync with the fields it summarizes.
+  // of sync with the fields it summarizes. Audit P0-5: this used to be
+  // hardcoded English regardless of the case's actual report_language
+  // (including "discovery" — a U.S. civil-procedure term with no Mexican
+  // equivalent), reaching the live PDF export as a section of an otherwise
+  // Spanish document. Now respects reportLocale like the rest of the
+  // report pipeline (mexicoLock / getReportLocale above).
+  const en = reportLocale === "en";
+  const dash = (es: string, enLabel: string) => (en ? enLabel : es);
   const dashboard = [
-    { question: "What wins this case?", assessment: theme.theme ?? "—" },
-    { question: "Biggest weakness", assessment: weakness.weakness ?? "—" },
-    { question: "Biggest trial risk", assessment: risk.risk ?? "—" },
+    { question: dash("¿Qué gana este caso?", "What wins this case?"), assessment: theme.theme ?? "—" },
+    { question: dash("Mayor debilidad", "Biggest weakness"), assessment: weakness.weakness ?? "—" },
+    { question: dash("Mayor riesgo en juicio", "Biggest trial risk"), assessment: risk.risk ?? "—" },
     {
-      question: "Settlement leverage",
+      question: dash("Palanca de negociación", "Settlement leverage"),
       assessment: leverage.length
         ? leverage
             .map((l) => l.item)
@@ -1402,41 +1414,69 @@ ${JSON.stringify(slimStrategy)}`,
             .join("; ")
         : "—",
     },
-    { question: "Most dangerous witness", assessment: dangerousWitness ? String(dangerousWitness.name) : "—" },
-    { question: "Biggest missing evidence", assessment: gap.item ?? "—" },
-    { question: "Most likely defense", assessment: defense.primary_defense ?? "—" },
-    { question: "Best counter", assessment: counter || "—" },
     {
-      question: "Litigation posture",
+      question: dash("Testigo más peligroso", "Most dangerous witness"),
+      assessment: dangerousWitness ? String(dangerousWitness.name) : "—",
+    },
+    {
+      question: dash("Mayor vacío probatorio", "Biggest missing evidence"),
+      assessment: gap.item ?? "—",
+    },
+    {
+      question: dash("Defensa más probable", "Most likely defense"),
+      assessment: defense.primary_defense ?? "—",
+    },
+    { question: dash("Mejor contraargumento", "Best counter"), assessment: counter || "—" },
+    {
+      question: dash("Postura litigiosa", "Litigation posture"),
       assessment: theme.persuasion_likelihood
-        ? `${civil ? "Favorable a la parte actora" : "Favorable al Ministerio Público"} si el tema de persuasión de probabilidad ${String(theme.persuasion_likelihood).toLowerCase()} se sostiene`
+        ? en
+          ? `${civil ? "Favorable to the actor" : "Favorable to the Ministerio Público"} if the ${String(theme.persuasion_likelihood).toLowerCase()}-likelihood persuasion theme holds`
+          : `${civil ? "Favorable a la parte actora" : "Favorable al Ministerio Público"} si el tema de persuasión de probabilidad ${String(theme.persuasion_likelihood).toLowerCase()} se sostiene`
         : "—",
     },
   ];
 
   const leadCounselParts: string[] = [];
   if (theme.theme)
-    leadCounselParts.push(`The strongest path to success is ${theme.theme}${theme.why ? `. ${theme.why}` : "."}`);
+    leadCounselParts.push(
+      en
+        ? `The strongest path to success is ${theme.theme}${theme.why ? `. ${theme.why}` : "."}`
+        : `El camino más sólido hacia el éxito es ${theme.theme}${theme.why ? `. ${theme.why}` : "."}`,
+    );
   if (dangerousWitness) {
     const name = String(dangerousWitness.name);
-    leadCounselParts.push(`Counsel should prioritize preserving testimony from ${name}.`);
+    leadCounselParts.push(
+      en
+        ? `Counsel should prioritize preserving testimony from ${name}.`
+        : `Se recomienda priorizar la preservación del testimonio de ${name}.`,
+    );
   }
   if (gap.item)
     leadCounselParts.push(
-      `Obtaining ${gap.item} is a priority discovery target${gap.impact ? `: ${gap.impact}` : "."}`,
+      en
+        ? `Obtaining ${gap.item} is a priority evidence-gathering target${gap.impact ? `: ${gap.impact}` : "."}`
+        : `Obtener ${gap.item} es una prioridad en el ofrecimiento de pruebas${gap.impact ? `: ${gap.impact}` : "."}`,
     );
   if (leverage.length) {
+    const items = leverage
+      .map((l) => l.item)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(", ");
     leadCounselParts.push(
-      `Settlement leverage is likely to increase after key discovery milestones, particularly around ${leverage
-        .map((l) => l.item)
-        .filter(Boolean)
-        .slice(0, 3)
-        .join(", ")}.`,
+      en
+        ? `Settlement leverage is likely to increase around ${items}.`
+        : `Es probable que la palanca de negociación aumente en torno a ${items}.`,
     );
   }
   const leadCounselAssessment =
-    (leadCounselParts.length ? leadCounselParts.join(" ") : "Insufficient synthesized data to produce an assessment.") +
-    "\n\nStrategic analysis, not legal advice.";
+    (leadCounselParts.length
+      ? leadCounselParts.join(" ")
+      : en
+        ? "Insufficient synthesized data to produce an assessment."
+        : "Datos sintetizados insuficientes para producir una valoración.") +
+    (en ? "\n\nStrategic analysis, not legal advice." : "\n\nAnálisis estratégico, no constituye asesoría legal.");
 
   const row = {
     case_id: caseId,

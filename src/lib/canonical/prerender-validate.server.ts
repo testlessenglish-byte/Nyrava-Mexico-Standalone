@@ -53,6 +53,26 @@ const CRIMINAL_ONLY_TERMS = [
   /\bFourth Amendment (?:seizure|search)\b/i,
 ];
 
+// Audit P0-4/P0-5/A1/A2 follow-up: U.S. procedural vehicles that do not
+// exist under ANY Mexican materia — civil, mercantil, laboral, or penal.
+// Unlike CRIMINAL_ONLY_TERMS above (doctrine that is only wrong in the
+// WRONG case type), these are wrong unconditionally, so they are checked
+// for every case type, not gated behind `!criminal`. This is a second,
+// independent line of defense (defense in depth) against the class of bug
+// found in pipeline.server.ts's runReport prompt and
+// litigation.server.ts's litigation-strategy-center templates — those
+// sources are now fixed, so this list should stay empty in practice; it
+// exists to catch a future regression (a prompt edit or model drift
+// reintroducing these terms) before it reaches an attorney's PDF.
+const US_PROCEDURE_TERMS_ALWAYS_WRONG = [
+  /\bMotion to Dismiss\b/i,
+  /\bMotion to Compel\b/i,
+  /\bMotion in Limine\b/i,
+  /\bDiscovery Sanctions?\b/i,
+  /\bSummary Judgment\b/i,
+  /\bProtective Order\b/i,
+];
+
 const CRIMINAL_AREAS = new Set(["criminal", "criminal_defense", "criminal-defense"]);
 
 function isCriminal(caseType: string | null | undefined): boolean {
@@ -150,6 +170,20 @@ export function validateBeforeRender(analysis: CaseAnalysis): QaIssue[] {
             sample,
           });
         }
+      }
+    }
+    // U.S. procedural vehicles that are wrong for every Mexican case type —
+    // checked unconditionally, unlike CRIMINAL_ONLY_TERMS above.
+    for (const rx of US_PROCEDURE_TERMS_ALWAYS_WRONG) {
+      const sample = firstMatch(value, rx);
+      if (sample) {
+        issues.push({
+          code: "US_PROCEDURE_LEAK",
+          severity: "critical",
+          section: path.split(".")[0] || "Report",
+          message: `U.S. procedural term "${sample}" has no Mexican-law equivalent and must not appear in a Mexican report (${path}).`,
+          sample,
+        });
       }
     }
   }

@@ -42,6 +42,19 @@ function makeFakeDb(store: Record<string, unknown[]>) {
           prev().filter((r) => !String((r as Record<string, unknown>)[col] ?? "").startsWith(prefix));
         return api;
       },
+      // audit B8: listFindings() (findings.server.ts) added
+      // .is("superseded_at", null) as part of the finding-supersession
+      // feature — this fake builder didn't support .is() at all, so every
+      // call through listFindings() threw before returning any rows.
+      // Fixture rows in this file don't set superseded_at at all (absent,
+      // not explicitly null) — `?? null` treats "column absent" the same
+      // as "column is null", matching what a real un-superseded DB row
+      // actually looks like.
+      is(col: string, val: unknown) {
+        const prev = filtered;
+        filtered = () => prev().filter((r) => ((r as Record<string, unknown>)[col] ?? null) === val);
+        return api;
+      },
       order() {
         return api;
       },
@@ -248,6 +261,8 @@ describe("Talk to Case context cache", () => {
       select: () => rejecting,
       eq: () => rejecting,
       order: () => rejecting,
+      not: () => rejecting,
+      is: () => rejecting,
       maybeSingle: () => Promise.reject(new Error("connection reset")),
       then: (_resolve: unknown, reject: (e: Error) => void) => reject(new Error("connection reset")),
     };

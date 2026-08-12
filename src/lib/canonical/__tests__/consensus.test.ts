@@ -27,7 +27,13 @@ function finding(over: Partial<Finding> = {}): Finding {
 }
 
 function analysisWith(findings: Finding[]): CaseAnalysis {
-  const a = emptyCaseAnalysis({ caseId: "case-1", generatedAt: new Date().toISOString() });
+  const a = emptyCaseAnalysis({
+    caseId: "case-1",
+    caseName: "Test",
+    generatedAt: new Date().toISOString(),
+    pipelineVersion: "test",
+    reportMode: "FULL",
+  });
   a.Findings = findings;
   return a;
 }

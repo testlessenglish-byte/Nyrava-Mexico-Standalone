@@ -84,7 +84,20 @@ describe("addFindings: schema-drift resilience on the judicial-hierarchy columns
         legal_significance: null,
         potential_impact: null,
         affected_party: null,
-        evidence_refs: [{ doc_n: 1, quote: "El testigo declaró..." }],
+        // audit B8 (stale test): the original quote here ("El testigo
+        // declaró...") had only 2 non-stopword tokens, tripping
+        // checkClaimEvidenceRelevance's later-added quote_too_vacuous gate
+        // (claim-evidence-relevance.ts, min 3 substantive tokens) before
+        // addFindings ever reached the schema-drift retry path this test
+        // is actually about. Lengthened to a real, on-topic verbatim quote
+        // so the test exercises its intended scenario again.
+        evidence_refs: [
+          {
+            doc_n: 1,
+            quote:
+              "El testigo declaró que los hechos ocurrieron el día 5, pero en su declaración anterior había afirmado que ocurrieron el día 8",
+          },
+        ],
         source_doc_ids: ["doc-1"],
         tags: [],
         metadata: {},

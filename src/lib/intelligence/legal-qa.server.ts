@@ -120,6 +120,75 @@ const TARGETS: readonly {
     text: [],
     json: ["key_findings", "contradictions", "missing_evidence", "procedural_issues", "evidence_relationships"],
   },
+  // Audit P0-4/P0-5/B1: the two tables the confirmed U.S.-terminology leaks
+  // actually reached (pipeline.server.ts's runReport → reports.full_report,
+  // and litigation.server.ts's runLitigationStrategyCenterEngine →
+  // case_strategy_center) were absent from TARGETS entirely — the QA gate
+  // ran on every upstream engine table but never on the two artifacts an
+  // attorney actually reads (the report JSON/PDF and the strategy-center
+  // PDF section). `full_report` covers the legal_memorandum object (the
+  // section the U.S. motion list reached); the narrative text/json columns
+  // below are the same class of field (motion/strategy/theory narrative)
+  // already covered on case_opportunities/case_strategy/case_witnesses
+  // above, just reached via reports' own denormalized copies. Internal
+  // bookkeeping fields (report_chunk_cache, change_log,
+  // quality_block_reasons, engines_summary, item_flags, score_breakdown)
+  // are intentionally excluded — they are not attorney-facing narrative.
+  {
+    table: "reports",
+    key: "case_id",
+    idColumn: "id",
+    text: [
+      "executive_summary",
+      "attorney_summary",
+      "investigator_summary",
+      "case_overview",
+      "facts",
+      "recommendations",
+      "risk_analysis",
+      "evidence_summary",
+      "contradiction_report",
+      "procedural_issues_report",
+      "prosecution_theory_report",
+      "defense_theory_report",
+      "alternative_theory_report",
+      "appendix_sources",
+      "timeline_summary",
+      "witness_analysis",
+      "discovery_analysis",
+      "constitutional_issues",
+    ],
+    json: [
+      "full_report",
+      "citations",
+      "constitutional_issues_struct",
+      "contradictions_struct",
+      "cross_examination",
+      "evidence_index",
+      "missing_evidence_report",
+      "missing_evidence_struct",
+      "motion_opportunities",
+      "next_actions",
+      "strategy_recommendations",
+    ],
+  },
+  {
+    table: "case_strategy_center",
+    key: "case_id",
+    idColumn: "id",
+    text: ["lead_counsel_assessment", "recommended_counter_strategy"],
+    json: [
+      "primary_trial_theme",
+      "biggest_weakness",
+      "biggest_trial_risk",
+      "settlement_leverage",
+      "most_dangerous_witness",
+      "biggest_evidentiary_gap",
+      "expected_defense",
+      "weekly_priorities",
+      "winning_the_case_dashboard",
+    ],
+  },
 ];
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };

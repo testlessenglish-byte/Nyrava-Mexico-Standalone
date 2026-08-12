@@ -247,7 +247,20 @@ describe("isReportStaleByDocumentHash", () => {
 
 describe("sanitizeBlockedReport: staleness path", () => {
   it("strips content and sets stale/stale_reason when stale is true, even if quality_blocked is false", () => {
-    const report = {
+    // audit B8: sanitizeBlockedReport<T> returns the SAME type T as its
+    // input — it adds stale/stale_reason dynamically at runtime (via an
+    // internal Record<string, unknown> cast back to T), which the generic
+    // signature doesn't express. Declaring them here as optional on the
+    // input fixture's type lets T include them, matching what the function
+    // actually does, without changing the production function's signature.
+    const report: {
+      id: string;
+      quality_blocked: boolean;
+      full_report: Record<string, unknown> | null;
+      executive_summary: string | null;
+      stale?: boolean;
+      stale_reason?: string | null;
+    } = {
       id: "report-1",
       quality_blocked: false,
       full_report: { some: "content" },

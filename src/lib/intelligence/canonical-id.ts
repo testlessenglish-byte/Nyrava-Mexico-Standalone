@@ -90,8 +90,19 @@ const FALLBACK_RULES: Array<[RegExp, ClaimType]> = [
   [/\brecant|withdrew\s+statement\b/i, "witness_recantation"],
   [/\bdiscovery\s+(violation|abuse|misconduct)\b/i, "discovery_violation"],
   [/\bbrady|giglio|exculpatory.*disclos\b/i, "brady_disclosure_gap"],
-  [/\bconstitutional|fourth\s+amendment|fifth\s+amendment|sixth\s+amendment\b/i, "constitutional_violation"],
-  [/\bprocedural|miranda|due\s+process\b/i, "procedural_defect"],
+  [/\bconstitutional\b|fourth\s+amendment|fifth\s+amendment|sixth\s+amendment\b/i, "constitutional_violation"],
+  // `\bprocedural\b` (not just a leading `\bprocedural`) — audit P0-3: the
+  // unbounded form matched as a mere PREFIX with no trailing anchor, so it
+  // matched inside `category: "procedural_violations"` too (underscore is a
+  // `\w` character, so "procedural_violations" has no `\b` between "l" and
+  // "_" — this trailing `\b` correctly excludes it). Every finding whose
+  // *category* happened to be "procedural_violations" was collapsing to the
+  // single generic `procedural_defect` claim_type regardless of its actual
+  // title/description, which then made computeCanonicalFindingId() (category
+  // + claim_type + source_doc_ids) treat two genuinely different findings
+  // that merely shared a category and a document as the same claim —
+  // silently destroying one. See dedup-canonical-issue.test.ts.
+  [/\bprocedural\b|miranda|due\s+process\b/i, "procedural_defect"],
   [/\bspoliat|destruction\s+of\s+evidence\b/i, "spoliation_claim"],
   [/\bmissing\s+(evidence|document|record)\b/i, "missing_evidence"],
   [/\bcorroborat\b/i, "corroboration_gap"],
@@ -194,6 +205,19 @@ export function computeExactMatchId(args: {
  *    Complaint); doc-based collapsing is correct for claim-type findings
  *    (contradictions, missing evidence) but would wrongly merge unrelated
  *    people for entity-type findings.
+ * 3. `uncategorized_finding` — the claim_type catch-all `resolveClaimType`
+ *    returns when nothing in the closed taxonomy matches — always keys on
+ *    title too (audit P0-3). It carries no discriminating meaning by
+ *    definition, so doc-based collapsing under it silently destroyed
+ *    findings that shared nothing but a category and one cited document:
+ *    confirmed on a real pair ("Falta de notificación oportuna del acuerdo
+ *    de admisión" vs. "Omisión de fundamentación y motivación de la
+ *    resolución impugnada", both category "procedural_violations", both
+ *    citing doc-1) that resolveClaimType correctly refuses to classify
+ *    into any specific taxonomy entry — see dedup-canonical-issue.test.ts.
+ *    A *specific* claim_type (e.g. "chain_of_custody_gap") is a real
+ *    corroborating signal that same-doc same-type findings are the same
+ *    fact restated; the absence of one is not.
  *
  * Everything else keeps colliding on category+claim_type+docs exactly as
  * before, so genuine reworded-duplicate collapsing across engines (the
@@ -211,7 +235,10 @@ export function computeCanonicalFindingId(args: {
     .toLowerCase()
     .trim();
   const docIds = sortedDocIds(args.source_doc_ids);
-  const useTitleKey = docIds.length === 0 || ENTITY_SCOPED_CATEGORIES.has(category);
+  const useTitleKey =
+    docIds.length === 0 ||
+    ENTITY_SCOPED_CATEGORIES.has(category) ||
+    args.claim_type === "uncategorized_finding";
   const key = [
     category,
     args.claim_type,
