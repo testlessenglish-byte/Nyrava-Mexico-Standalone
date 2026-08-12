@@ -415,7 +415,15 @@ export const searchVerifiedAuthorities = createServerFn({ method: "POST" })
       .select("id,kind,title,short_title,citation,published_at,verification_status")
       .in("kind", ["jurisprudencia", "court_decision"])
       .eq("verification_status", "verified")
-      .or(`title.ilike.%${data.query}%,short_title.ilike.%${data.query}%,citation.ilike.%${data.query}%`)
+      // PostgREST `.or()` parses commas/parens/dots as filter syntax — strip
+      // them (plus wildcards) from the caller value so search text can never
+      // inject extra filter clauses.
+      .or(
+        (() => {
+          const q = data.query.replace(/[,().*%\\"']/g, " ").trim();
+          return `title.ilike.%${q}%,short_title.ilike.%${q}%,citation.ilike.%${q}%`;
+        })(),
+      )
       .order("published_at", { ascending: false })
       .limit(10);
     if (error) throw new Error(error.message);

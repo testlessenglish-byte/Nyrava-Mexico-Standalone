@@ -1319,13 +1319,10 @@ export async function enforceRemedyLegalAuthorityGate(
   const getCaseDate = (caseId: string): Promise<string | null> => {
     const cached = caseDateCache.get(caseId);
     if (cached) return cached;
-    const p: Promise<string | null> = db
-      .from("cases")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .select("created_at" as any)
-      .eq("id", caseId)
-      .maybeSingle()
-      .then(({ data }: { data: { created_at?: string } | null }) => data?.created_at ?? null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p: Promise<string | null> = Promise.resolve(
+      (db as any).from("cases").select("created_at").eq("id", caseId).maybeSingle(),
+    ).then((res: { data: { created_at?: string } | null }) => res.data?.created_at ?? null);
     caseDateCache.set(caseId, p);
     return p;
   };

@@ -633,7 +633,7 @@ Return STRICT JSON. Every item in verified_facts/court_findings/confirmed_errors
     raw_model_output: parsed,
   };
 
-  const { data: inserted, error } = await db
+  const { data: inserted, error } = await (db as any)
     .from("case_outcome_assessments")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .insert(insertRow as any)
@@ -645,7 +645,7 @@ Return STRICT JSON. Every item in verified_facts/court_findings/confirmed_errors
   }
 
   return {
-    id: (inserted as { id: string }).id,
+    id: (inserted as unknown as { id: string }).id,
     overall_position: overallPosition,
     outcome_status: outcomeStatus,
     favorable_pct: favorable,

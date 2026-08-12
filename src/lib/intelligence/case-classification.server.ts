@@ -505,7 +505,7 @@ export async function runCaseClassification(
   // Delete-then-insert per field, scoped to this case only — a fresh run
   // (new documents added) replaces prior evidence rather than accumulating
   // stale rows alongside current ones.
-  await db.from("case_classification_evidence").delete().eq("case_id", caseId);
+  await (db as any).from("case_classification_evidence").delete().eq("case_id", caseId);
   const rows = result.fields.map((f) => ({
     case_id: caseId,
     user_id: userId,
@@ -519,7 +519,7 @@ export async function runCaseClassification(
     conflicting_values: f.conflicts.map((c) => ({ value: c.value, ...c.source })),
   }));
   if (rows.length > 0) {
-    const { error } = await db.from("case_classification_evidence").insert(rows);
+    const { error } = await (db as any).from("case_classification_evidence").insert(rows);
     if (error) console.error("[case-classification] evidence insert failed", error);
   }
 
@@ -594,7 +594,7 @@ export async function resolveVerifiedCaseType(db: Db, caseId: string): Promise<s
     .maybeSingle();
   const declared = (caseRow as { case_type?: string | null } | null)?.case_type ?? null;
 
-  const { data: evidenceRow } = await db
+  const { data: evidenceRow } = await (db as any)
     .from("case_classification_evidence")
     .select("status,value")
     .eq("case_id", caseId)
@@ -622,7 +622,7 @@ export async function resolveVerifiedProceedingType(
   db: Db,
   caseId: string,
 ): Promise<string | null> {
-  const { data: evidenceRow } = await db
+  const { data: evidenceRow } = await (db as any)
     .from("case_classification_evidence")
     .select("status,value")
     .eq("case_id", caseId)

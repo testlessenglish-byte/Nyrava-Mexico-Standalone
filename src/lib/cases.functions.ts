@@ -3992,6 +3992,11 @@ export const setUserRole = createServerFn({ method: "POST" })
     if (!callerRoles.includes("super_admin") && !callerRoles.includes("admin")) {
       throw new Error("Forbidden: super admin required");
     }
+    // Only a super admin may grant or revoke the super_admin role — plain
+    // admins manage lower tiers only (privilege-escalation guard).
+    if (data.role === "super_admin" && !callerRoles.includes("super_admin")) {
+      throw new Error("Forbidden: super admin required");
+    }
     // Protect against removing the last super admin
     if (data.role === "super_admin" && !data.grant && data.targetUserId === userId) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
