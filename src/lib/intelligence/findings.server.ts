@@ -1178,10 +1178,21 @@ export async function clearFindingsByModule(db: Db, caseId: string, modulePrefix
 // LEADING clause only, preserving the rest of the sentence, so this stays a
 // narrow, targeted fix rather than a blanket rewrite of finding text.
 // ---------------------------------------------------------------------------
+// NOTE on the trailing `(?=[\s.,;:!?]|$)` lookaheads below (audit P0-2): they
+// replace what used to be a trailing `\b`. JS's `\b` is defined relative to
+// `\w` ([A-Za-z0-9_]), and accented vowels are NOT `\w` characters, so
+// `\b` immediately after an accented match char (e.g. the "ó" in
+// "encontró") never fires — both neighboring positions read as "non-word",
+// so there is no word/non-word transition for `\b` to anchor on. That made
+// every rewrite below silently no-op on the correctly-accented Spanish verb
+// form (encontró/localizó/advirtió) and only ever fire on the misspelled,
+// unaccented form (encontro/localizo/advirtio) — i.e. on real corpus text,
+// never. A lookahead for whitespace/punctuation/end-of-string is
+// unicode-safe and still refuses to match mid-word (e.g. "encontrológico").
 const ABSENCE_LANGUAGE_REWRITES: Array<[RegExp, string]> = [
-  [/^No se encontr[oó]\b/i, "No se identificó en el corpus/documentos analizados"],
-  [/^No se localiz[oó]\b/i, "No se identificó en el corpus/documentos analizados"],
-  [/^No se advirti[oó]\b/i, "No se identificó en el corpus/documentos analizados"],
+  [/^No se encontr[oó](?=[\s.,;:!?]|$)/i, "No se identificó en el corpus/documentos analizados"],
+  [/^No se localiz[oó](?=[\s.,;:!?]|$)/i, "No se identificó en el corpus/documentos analizados"],
+  [/^No se advirti[oó](?=[\s.,;:!?]|$)/i, "No se identificó en el corpus/documentos analizados"],
   [/^No existe\b/i, "No se identificó en el corpus/documentos analizados evidencia de que exista"],
   [/^No hay evidencia de\b/i, "No se identificó en el corpus/documentos analizados evidencia de"],
   [/^No evidence (?:was )?found of\b/i, "The corpus/documents reviewed do not identify"],

@@ -62,6 +62,21 @@ describe("prerender-validate", () => {
     expect(issues.some((i) => i.code === "CASE_TYPE_LEAK")).toBe(false);
   });
 
+  // Audit P0-4/P0-5 regression guard: these U.S. procedural terms have no
+  // Mexican-law equivalent and are wrong for every case type, unlike
+  // CRIMINAL_ONLY_TERMS above which is only wrong for the WRONG case type.
+  it("flags U.S. procedural terms regardless of case type", () => {
+    const civil = base();
+    civil.ExecutiveSummary.case_type = "commercial";
+    civil.ExecutiveSummary.narrative = "Counsel should file a Motion to Dismiss.";
+    expect(validateBeforeRender(civil).some((i) => i.code === "US_PROCEDURE_LEAK")).toBe(true);
+
+    const criminal = base();
+    criminal.ExecutiveSummary.case_type = "criminal";
+    criminal.ExecutiveSummary.narrative = "Summary Judgment is available here.";
+    expect(validateBeforeRender(criminal).some((i) => i.code === "US_PROCEDURE_LEAK")).toBe(true);
+  });
+
   it("partitionIssues splits by severity", () => {
     const { critical, warnings } = partitionIssues([
       { code: "X", severity: "critical", section: "S", message: "" },

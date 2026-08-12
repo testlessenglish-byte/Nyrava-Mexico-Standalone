@@ -238,6 +238,11 @@ function normalize(s: string): string {
     .toLowerCase();
 }
 
+/** Accent-stripped but case-PRESERVING \u2014 used only for matching state codes. */
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 /** Word-boundary search on normalized text — "GUA" must not match "Guadalajara". */
 function indexOfWord(haystack: string, needle: string): number {
   const re = new RegExp(
@@ -252,12 +257,23 @@ function indexOfWord(haystack: string, needle: string): number {
 export function detectState(text: string | null | undefined): { code: string; name: string } | null {
   if (!text) return null;
   const hay = normalize(text);
+  // Case-PRESERVING (accents stripped only) — codes must match their official
+  // uppercase abbreviation exactly. Several 3-letter state codes collide with
+  // ordinary lowercase Spanish words ("SIN" → "sin" = without, "SON" → "son" =
+  // [they] are, "VER" → "ver" = to see, "QUE" → "que" = that/what); matching
+  // codes case-insensitively against normal prose produced false positives
+  // (e.g. any document containing "...sin relación con..." was misdetected as
+  // Sinaloa). Full state names and city aliases stay case-insensitive since
+  // they are not also common words.
+  const hayCased = stripAccents(text);
   let best: { code: string; name: string; at: number } | null = null;
   for (const st of MEXICAN_STATES) {
-    for (const needle of [st.name, st.code, ...st.aliases]) {
+    for (const needle of [st.name, ...st.aliases]) {
       const at = indexOfWord(hay, normalize(needle));
       if (at >= 0 && (!best || at < best.at)) best = { code: st.code, name: st.name, at };
     }
+    const codeAt = indexOfWord(hayCased, st.code);
+    if (codeAt >= 0 && (!best || codeAt < best.at)) best = { code: st.code, name: st.name, at: codeAt };
   }
   return best ? { code: best.code, name: best.name } : null;
 }

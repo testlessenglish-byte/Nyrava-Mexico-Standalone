@@ -4332,7 +4332,7 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
   // ---- What Wins This Case? ----
   if (asStr(theme.theme)) {
     b.h2("¿Qué Gana Este Caso?");
-    b.h3("Primary Trial Theme");
+    b.h3("Tema Central del Litigio");
     b.text(asStr(theme.theme), { size: 11, bold: true, color: PRIMARY, gap: 4 });
     if (theme.why) b.text(asStr(theme.why), { size: 10, gap: 4 });
     if (theme.persuasion_likelihood)
@@ -4354,12 +4354,12 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
   if (asStr(weakness.weakness) || asStr(risk.risk)) {
     b.h2("¿Qué Podría Perder Este Caso?");
     if (weakness.weakness) {
-      b.h3("Biggest Weakness");
+      b.h3("Mayor Debilidad");
       b.text(asStr(weakness.weakness), { size: 10.5, bold: true, gap: 2 });
       if (weakness.why_it_matters) b.text(asStr(weakness.why_it_matters), { size: 10, gap: 4 });
     }
     if (risk.risk) {
-      b.h3("Biggest Trial Risk");
+      b.h3("Mayor Riesgo en Juicio");
       b.text(asStr(risk.risk), { size: 10.5, bold: true, gap: 2, color: DANGER });
       if (risk.explanation) b.text(asStr(risk.explanation), { size: 10, gap: 4 });
     }
@@ -4383,14 +4383,14 @@ function renderLitigationStrategyCenter(b: PdfBuilder, data: CaseExportData) {
     b.text(asStr(witness.name), { size: 11, bold: true, color: PRIMARY, gap: 4 });
     const reasons = Array.isArray(witness.reasons) ? (witness.reasons as string[]) : [];
     if (reasons.length) {
-      b.text("Why:", { size: 9, bold: true, color: MUTED });
+      b.text("Por qué:", { size: 9, bold: true, color: MUTED });
       b.bullets(reasons);
     }
     const approach = Array.isArray(witness.recommended_approach)
       ? (witness.recommended_approach as string[])
       : [];
     if (approach.length) {
-      b.text("Recommended approach:", { size: 9, bold: true, color: MUTED });
+      b.text("Enfoque recomendado:", { size: 9, bold: true, color: MUTED });
       b.bullets(approach);
     }
   }

@@ -106,8 +106,16 @@ describe("resume-checkpoint never skips an incomplete blocking-tier stage", () =
     persistedNext: string | null,
     completedEngines: Set<string>,
   ): string {
-    const stageKeys = new Set(PIPELINE_STAGES.map((s) => s.key));
-    const blockingStageKeys = new Set(
+    // audit B8: CANONICAL_STAGES (execution/canonical.ts) and PIPELINE_STAGES
+    // (cases.functions.ts) each declare their own narrow stage-key literal
+    // union type. This local test helper only ever does plain string
+    // equality/membership checks across the two, so the Sets are typed as
+    // Set<string> rather than inheriting either module's narrow union —
+    // otherwise TS rejects .has() calls that mix keys from one catalog
+    // against the other's narrower type, even though every value involved
+    // is a real, valid stage key at runtime.
+    const stageKeys = new Set<string>(PIPELINE_STAGES.map((s) => s.key));
+    const blockingStageKeys = new Set<string>(
       CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.key),
     );
     const engineFor = (key: string) => CANONICAL_STAGES.find((s) => s.key === key)?.engine;

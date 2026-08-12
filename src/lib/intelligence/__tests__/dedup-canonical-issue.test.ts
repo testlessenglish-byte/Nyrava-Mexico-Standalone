@@ -14,6 +14,7 @@
 // intentionally unexported) against a fake db seeded the same way as
 // findings-merge-preserves-classification.test.ts.
 import { describe, it, expect } from "vitest";
+import type { NewFinding } from "@/lib/intelligence/types";
 
 const QUOTE_A =
   "no se notificó al quejoso el acuerdo de admisión dentro del plazo legal establecido para tal efecto";
@@ -77,7 +78,25 @@ function makeFakeDb(opts: {
   };
 }
 
-const baseRow = (o: Record<string, unknown>) => ({
+// audit B8: was typed `(o: Record<string, unknown>)`, which erased which
+// keys callers actually provided — TypeScript could no longer verify the
+// required NewFinding fields (source_module/category/title/description)
+// were present at each call site, even though every real call site here
+// does provide them. Typed precisely so the compiler can actually check it.
+//
+// `citations` is deliberately allowed as an extra field even though it is
+// not part of the declared `Finding`/`NewFinding` type: finding-dedupe.ts's
+// `evidenceOf()` reads `f.citations` (one of its EVIDENCE_KEYS) off the
+// untyped `Record<string, unknown>` it actually operates on, so it IS real
+// signal at runtime for the "shared citation alone must not merge two
+// findings" test below — this fixture isn't wrong, the formal type is just
+// narrower than what the dedup layer actually reads. Not the place to
+// widen the real Finding type without a product decision on whether
+// `citations` should be a first-class column.
+const baseRow = (
+  o: Pick<NewFinding, "source_module" | "category" | "title" | "description"> &
+    Partial<NewFinding> & { citations?: string[] },
+) => ({
   case_id: "case-1",
   user_id: "user-1",
   severity: "medium" as const,
@@ -104,7 +123,7 @@ describe("addFindings: canonical-issue dedup across category labels", () => {
         category: "constitutional_rights_mapping",
         title: "Falta de notificación oportuna del acuerdo de admisión",
         description: "El acuerdo de admisión no fue notificado al quejoso dentro del plazo legal.",
-        evidence_refs: [{ doc_n: 1, quote: QUOTE_A }],
+        evidence_refs: [{ doc_id: "doc-1", quote: QUOTE_A }],
       }),
       baseRow({
         source_module: "agent:ways_out_analysis",
@@ -115,7 +134,7 @@ describe("addFindings: canonical-issue dedup across category labels", () => {
         // the shared evidence quote, not the wording alone.
         title: "Falta de notificación oportuna del acuerdo de admisión",
         description: "La autoridad no notificó oportunamente el acuerdo de admisión al quejoso.",
-        evidence_refs: [{ doc_n: 1, quote: QUOTE_A }],
+        evidence_refs: [{ doc_id: "doc-1", quote: QUOTE_A }],
       }),
     ];
 
@@ -143,7 +162,7 @@ describe("addFindings: canonical-issue dedup across category labels", () => {
         title: "Falta de notificación oportuna del acuerdo de admisión",
         description:
           "El acuerdo de admisión no fue notificado al quejoso dentro del plazo legal. CNPP art. 227.",
-        evidence_refs: [{ doc_n: 1, quote: QUOTE_A }],
+        evidence_refs: [{ doc_id: "doc-1", quote: QUOTE_A }],
         citations: ["CNPP art. 227"],
       }),
       baseRow({
@@ -152,7 +171,7 @@ describe("addFindings: canonical-issue dedup across category labels", () => {
         title: "Omisión de fundamentación y motivación de la resolución impugnada",
         description:
           "La autoridad responsable omitió fundar y motivar la resolución impugnada. CNPP art. 227.",
-        evidence_refs: [{ doc_n: 1, quote: QUOTE_B }],
+        evidence_refs: [{ doc_id: "doc-1", quote: QUOTE_B }],
         citations: ["CNPP art. 227"],
       }),
     ];
@@ -177,14 +196,14 @@ describe("addFindings: canonical-issue dedup across category labels", () => {
         category: "procedural_violations",
         title: "Falta de notificación oportuna del acuerdo de admisión",
         description: "El acuerdo de admisión no fue notificado al quejoso dentro del plazo legal.",
-        evidence_refs: [{ doc_n: 1, quote: QUOTE_A }],
+        evidence_refs: [{ doc_id: "doc-1", quote: QUOTE_A }],
       }),
       baseRow({
         source_module: "agent:ways_out_analysis",
         category: "procedural_violations",
         title: "Omisión de fundamentación y motivación de la resolución impugnada",
         description: "La autoridad responsable omitió fundar y motivar la resolución impugnada.",
-        evidence_refs: [{ doc_n: 1, quote: QUOTE_B }],
+        evidence_refs: [{ doc_id: "doc-1", quote: QUOTE_B }],
       }),
     ];
 
@@ -202,7 +221,7 @@ describe("addFindings: canonical-issue dedup across category labels", () => {
           id: "existing-row-1",
           category: "constitutional_rights_mapping",
           title: "Falta de notificación oportuna del acuerdo de admisión",
-          evidence_refs: [{ doc_n: 1, quote: QUOTE_A }],
+          evidence_refs: [{ doc_id: "doc-1", quote: QUOTE_A }],
           confidence: 0.6,
           source_doc_ids: ["doc-1"],
           metadata: {},
@@ -218,7 +237,7 @@ describe("addFindings: canonical-issue dedup across category labels", () => {
         category: "conventionality_pro_persona",
         title: "Falta de notificación oportuna del acuerdo de admisión",
         description: "La autoridad no notificó oportunamente el acuerdo de admisión al quejoso.",
-        evidence_refs: [{ doc_n: 1, quote: QUOTE_A }],
+        evidence_refs: [{ doc_id: "doc-1", quote: QUOTE_A }],
       }),
     ];
 

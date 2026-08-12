@@ -1,40 +1,21 @@
 {
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "eslint.config.js"],
-  "exclude": [
-    "src/lib/intelligence/**",
-    "src/lib/canonical/**",
-    "src/lib/ai/**",
-    "src/lib/agents/**",
-    "src/lib/execution/**",
-    "src/lib/account.functions.ts",
-    "src/lib/ai-admin.functions.ts",
-    "src/lib/ai-key-router.server.ts",
-    "src/lib/ai-keys.functions.ts",
-    "src/lib/ai-keys.server.ts",
-    "src/lib/audit.server.ts",
-    "src/lib/billing-plans.functions.ts",
-    "src/lib/billing-plans.ts",
-    "src/lib/billing.functions.ts",
-    "src/lib/canonical.functions.ts",
-    "src/lib/cases.functions.ts",
-    "src/lib/demo-cases.functions.ts",
-    "src/lib/execution-state.ts",
-    "src/lib/export-legal-memo.ts",
-    "src/lib/export.ts",
-    "src/lib/groq.server.ts",
-    "src/lib/hash.server.ts",
-    "src/lib/intelligence-providers.functions.ts",
-    "src/lib/log-scrub.ts",
-    "src/lib/motion-markdown.tsx",
-    "src/lib/pipeline-checkpoint.server.ts",
-    "src/lib/pipeline-runner.server.ts",
-    "src/lib/pipeline-stall.server.ts",
-    "src/lib/pipeline.server.ts",
-    "src/lib/security-dashboard.functions.ts",
-    "src/lib/seed-fixture.functions.ts",
-    "src/lib/stripe.server.ts",
-    "src/lib/team.functions.ts"
-  ],
+  // Audit A4/A5: this list used to exclude the entire business-logic engine
+  // (intelligence/, canonical/, ai/, agents/, execution/, plus ~25 named
+  // .server.ts/.functions.ts files — ~226 of 540 src files, the majority of
+  // the codebase) from typechecking entirely. Verified by running a full
+  // tsc pass with every exclusion removed: ai/, agents/, execution/, and
+  // every one of the named files had ZERO real type errors — the exclusion
+  // was stale caution, not a real risk barrier. All of it is now checked
+  // except this one file, which is excluded for a specific, documented
+  // reason rather than blanket caution: acceptance.test.ts has 4 tests
+  // (`it.skip`, see the comment at their describe block) quarantined
+  // pending a team decision on an undecided report-gate design — until
+  // that's resolved, the module/property references those tests describe
+  // (REPORT_MUST_BE_TERMINAL_ENGINES, ReportGate.stillInFlight) don't exist
+  // in execution-state.ts, so this file alone cannot typecheck clean.
+  // Remove this exclusion in the same commit that resolves that decision.
+  "exclude": ["src/lib/intelligence/__tests__/acceptance.test.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

@@ -59,7 +59,16 @@ describe("procedural compliance", () => {
     const r = evaluateProceduralCompliance("penal", "Se integró la carpeta de investigación y el IPH correspondiente.");
     expect(r.items.find((i) => i.id === "carpeta_investigacion")?.status).toBe("cumplido");
     expect(r.missing_required).toBeGreaterThan(0);
-    expect(r.summary).toContain("Faltan");
+    // audit B8 (stale test): procedural-compliance.ts deliberately rewrote
+    // this summary away from "Faltan N requisitos procesales obligatorios"
+    // — a real production case showed that phrasing flatly asserting
+    // official absence for something merely not found in a partial upload
+    // corpus. The current wording is corpus-bounded ("no se identificaron
+    // en el corpus... para confirmar"), matching the same discipline
+    // already applied to individual finding text (see
+    // enforceCorpusBoundedAbsenceLanguage in findings.server.ts).
+    expect(r.summary).toContain("No se identificaron en el corpus");
+    expect(r.summary).not.toContain("Faltan");
   });
 
   it("reports no evaluation without corpus", () => {

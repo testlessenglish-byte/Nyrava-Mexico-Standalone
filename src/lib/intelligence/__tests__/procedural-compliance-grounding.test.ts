@@ -97,7 +97,11 @@ describe("addGatedFindings: absence-of-evidence findings are classified honestly
 
   // Empty corpus — mirrors a "this element was searched for and not found"
   // scenario. No accents/language-specific content — deliberately generic.
-  const emptyCorpus: GroundingCorpus = { text: "", docs: [] };
+  // audit B8: pageChars added to GroundingCorpus (buildGroundingCorpus's
+  // page-size, needed to convert a char offset into a page number) after
+  // this fixture was written; 3000 matches buildGroundingCorpus's own
+  // default and is inert here since docs is empty.
+  const emptyCorpus: GroundingCorpus = { text: "", docs: [], pageChars: 3000 };
 
   it("does not let a zero-evidence absence finding come back classified as EVIDENCE_BASED_INFERENCE", async () => {
     const { client, inserted } = makeFakeDb();
