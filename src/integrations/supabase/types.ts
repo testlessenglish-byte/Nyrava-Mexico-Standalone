@@ -1015,7 +1015,9 @@ export type Database = {
       }
       case_findings: {
         Row: {
+          adoption_status: string | null
           affected_party: string | null
+          audit_classification: string | null
           authority_level: number
           canonical_finding_id: string | null
           case_id: string
@@ -1040,6 +1042,7 @@ export type Database = {
           priority: number | null
           projected_from_row_id: string | null
           projected_from_table: string | null
+          proposition_type: string | null
           rationale: Json | null
           related_finding_ids: string[] | null
           severity: string
@@ -1048,6 +1051,7 @@ export type Database = {
           source_module: string
           source_page: number | null
           source_quote: string | null
+          speaker_role: string | null
           strategic_significance: string | null
           supporting_engines: string[]
           tags: string[] | null
@@ -1059,7 +1063,9 @@ export type Database = {
           verified_at: string | null
         }
         Insert: {
+          adoption_status?: string | null
           affected_party?: string | null
+          audit_classification?: string | null
           authority_level?: number
           canonical_finding_id?: string | null
           case_id: string
@@ -1084,6 +1090,7 @@ export type Database = {
           priority?: number | null
           projected_from_row_id?: string | null
           projected_from_table?: string | null
+          proposition_type?: string | null
           rationale?: Json | null
           related_finding_ids?: string[] | null
           severity?: string
@@ -1092,6 +1099,7 @@ export type Database = {
           source_module: string
           source_page?: number | null
           source_quote?: string | null
+          speaker_role?: string | null
           strategic_significance?: string | null
           supporting_engines?: string[]
           tags?: string[] | null
@@ -1103,7 +1111,9 @@ export type Database = {
           verified_at?: string | null
         }
         Update: {
+          adoption_status?: string | null
           affected_party?: string | null
+          audit_classification?: string | null
           authority_level?: number
           canonical_finding_id?: string | null
           case_id?: string
@@ -1128,6 +1138,7 @@ export type Database = {
           priority?: number | null
           projected_from_row_id?: string | null
           projected_from_table?: string | null
+          proposition_type?: string | null
           rationale?: Json | null
           related_finding_ids?: string[] | null
           severity?: string
@@ -1136,6 +1147,7 @@ export type Database = {
           source_module?: string
           source_page?: number | null
           source_quote?: string | null
+          speaker_role?: string | null
           strategic_significance?: string | null
           supporting_engines?: string[]
           tags?: string[] | null
@@ -2003,6 +2015,7 @@ export type Database = {
           archived_at: string | null
           attack_surface: Json
           cancel_requested: boolean
+          case_analysis_mode: string
           case_language: string | null
           case_type: string | null
           completed_at: string | null
@@ -2060,6 +2073,7 @@ export type Database = {
           archived_at?: string | null
           attack_surface?: Json
           cancel_requested?: boolean
+          case_analysis_mode?: string
           case_language?: string | null
           case_type?: string | null
           completed_at?: string | null
@@ -2117,6 +2131,7 @@ export type Database = {
           archived_at?: string | null
           attack_surface?: Json
           cancel_requested?: boolean
+          case_analysis_mode?: string
           case_language?: string | null
           case_type?: string | null
           completed_at?: string | null
