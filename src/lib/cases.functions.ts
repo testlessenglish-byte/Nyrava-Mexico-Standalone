@@ -3893,6 +3893,11 @@ export const listUsersWithRoles = createServerFn({ method: "GET" })
     if (!callerRoles.includes("super_admin") && !callerRoles.includes("admin")) {
       throw new Error("Forbidden: super admin required");
     }
+    // Only a super admin may grant or revoke the super_admin role — plain
+    // admins manage lower tiers only (privilege-escalation guard).
+    if (data.role === "super_admin" && !callerRoles.includes("super_admin")) {
+      throw new Error("Forbidden: super admin required");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [{ data: profiles }, { data: allRoles }] = await Promise.all([
       supabaseAdmin.from("profiles").select("id,email,full_name,is_blocked").order("email"),
@@ -3990,6 +3995,11 @@ export const setUserRole = createServerFn({ method: "POST" })
     const { data: caller } = await supabase.from("user_roles").select("role").eq("user_id", userId);
     const callerRoles = (caller ?? []).map((r) => r.role as string);
     if (!callerRoles.includes("super_admin") && !callerRoles.includes("admin")) {
+      throw new Error("Forbidden: super admin required");
+    }
+    // Only a super admin may grant or revoke the super_admin role — plain
+    // admins manage lower tiers only (privilege-escalation guard).
+    if (data.role === "super_admin" && !callerRoles.includes("super_admin")) {
       throw new Error("Forbidden: super admin required");
     }
     // Protect against removing the last super admin
