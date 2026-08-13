@@ -9,7 +9,12 @@ import { CANONICAL_STAGES, ENGINE, type CanonicalStageKey } from "@/lib/executio
 import { PRACTICE_AREA_LABELS, type PracticeArea } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_VALUES } from "@/lib/intelligence/jurisdictions";
 import { normalizeCaseAnalysisMode } from "@/lib/intelligence/case-analysis-mode";
-import { PROJECTION_LIKE, selectFindings, isCanonicalFinding, type SelectableFinding } from "@/lib/intelligence/finding-selection";
+import {
+  PROJECTION_LIKE,
+  selectFindings,
+  isCanonicalFinding,
+  type SelectableFinding,
+} from "@/lib/intelligence/finding-selection";
 import { consolidateFindings } from "@/lib/intelligence/finding-dedupe";
 import { sha256HexSync as sha256Hex } from "@/lib/intelligence/sha256";
 
@@ -731,10 +736,11 @@ export const runContradictionStep = createServerFn({ method: "POST" })
 // re-declared. A stage's key and its `pipeline_engine_runs.engine` id are
 // different identifiers (witness → witness_intelligence, report →
 // report_generator); use `ENGINE[key]` / `engineForStage(key)` to cross over.
-export const PIPELINE_STAGES: readonly { readonly key: CanonicalStageKey; readonly label: string }[] =
-  CANONICAL_STAGES.map((s) => ({ key: s.key, label: s.label }));
+export const PIPELINE_STAGES: readonly {
+  readonly key: CanonicalStageKey;
+  readonly label: string;
+}[] = CANONICAL_STAGES.map((s) => ({ key: s.key, label: s.label }));
 export type PipelineStageKey = CanonicalStageKey;
-
 
 export const runFullPipelineStep = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1110,7 +1116,8 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "ResumePipeline");
-    const { PIPELINE_STAGE_TO_ENGINE, CANONICAL_STAGES } = await import("@/lib/execution/canonical");
+    const { PIPELINE_STAGE_TO_ENGINE, CANONICAL_STAGES } =
+      await import("@/lib/execution/canonical");
     const stageKeys = new Set<string>(PIPELINE_STAGES.map((s) => s.key));
     const blockingStageKeys = new Set<string>(
       CANONICAL_STAGES.filter((s) => s.requirement === "blocking").map((s) => s.key),
@@ -1138,7 +1145,9 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
 
     const persistedNext = typeof caseRow.next_stage === "string" ? caseRow.next_stage : null;
     const persistedCandidate =
-      persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext) ? persistedNext : undefined;
+      persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext)
+        ? persistedNext
+        : undefined;
 
     // Always compute the ledger-derived state — this is the single source of
     // truth for what has actually completed (docs/ARCHITECTURE.md §1), and is
@@ -1175,7 +1184,11 @@ export const resumeFullPipelineStep = createServerFn({ method: "POST" })
     }
     const completed = new Set<string>();
     for (const [engine, row] of latest) {
-      if (row.status === "completed" || row.status === "completed_negative" || row.status === "skipped")
+      if (
+        row.status === "completed" ||
+        row.status === "completed_negative" ||
+        row.status === "skipped"
+      )
         completed.add(engine);
     }
 
@@ -1293,10 +1306,13 @@ export async function autoRequeueStalledCase(
     .eq("id", caseId)
     .maybeSingle();
   const persistedNext = typeof caseRow?.next_stage === "string" ? caseRow.next_stage : null;
-  const nextRetryCount = (typeof caseRow?.stall_auto_retry_count === "number" ? caseRow.stall_auto_retry_count : 0) + 1;
+  const nextRetryCount =
+    (typeof caseRow?.stall_auto_retry_count === "number" ? caseRow.stall_auto_retry_count : 0) + 1;
   const stageKeys = new Set<string>(PIPELINE_STAGES.map((s) => s.key));
   const persistedCandidate =
-    persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext) ? persistedNext : undefined;
+    persistedNext && persistedNext !== "reset" && stageKeys.has(persistedNext)
+      ? persistedNext
+      : undefined;
 
   const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
   const blockingStageKeys = new Set<string>(
@@ -1308,7 +1324,10 @@ export async function autoRequeueStalledCase(
     .select("engine,status,ended_at,created_at")
     .eq("case_id", caseId);
 
-  const latest = new Map<string, { status: string; created_at?: string | null; ended_at?: string | null }>();
+  const latest = new Map<
+    string,
+    { status: string; created_at?: string | null; ended_at?: string | null }
+  >();
   for (const r of (rows ?? []) as Array<{
     engine: string;
     status: string;
@@ -1322,7 +1341,11 @@ export async function autoRequeueStalledCase(
   }
   const completed = new Set<string>();
   for (const [engine, row] of latest) {
-    if (row.status === "completed" || row.status === "completed_negative" || row.status === "skipped")
+    if (
+      row.status === "completed" ||
+      row.status === "completed_negative" ||
+      row.status === "skipped"
+    )
       completed.add(engine);
   }
 
@@ -2032,7 +2055,13 @@ export const getAiHealth = createServerFn({ method: "GET" })
         .filter((r) => r.enabled !== false)
         .map(async (r) => {
           const type = r.provider_type as
-            "groq" | "openai" | "anthropic" | "gemini" | "openrouter" | "ollama" | "lmstudio";
+            | "groq"
+            | "openai"
+            | "anthropic"
+            | "gemini"
+            | "openrouter"
+            | "ollama"
+            | "lmstudio";
           let keys: string[] = [];
           try {
             ({ keys } = await resolveProviderKeys(supabase, userId, type as never));
@@ -2505,7 +2534,17 @@ export const listCases = createServerFn({ method: "GET" })
 async function reminderAlerts(
   supabase: Db,
   userId: string,
-): Promise<Array<{ key: string; caseId: string; caseName: string; level: "info" | "warning" | "critical"; title: string; detail?: string | null; at: string }>> {
+): Promise<
+  Array<{
+    key: string;
+    caseId: string;
+    caseName: string;
+    level: "info" | "warning" | "critical";
+    title: string;
+    detail?: string | null;
+    at: string;
+  }>
+> {
   const now = new Date();
   const horizon = new Date(now.getTime() + 3 * 86400000);
   const grace = new Date(now.getTime() - 2 * 3600000);
@@ -2532,7 +2571,10 @@ async function reminderAlerts(
   ]);
 
   const caseIds = Array.from(
-    new Set([...(eventsRes.data ?? []).map((e) => e.case_id), ...(tasksRes.data ?? []).map((t) => t.case_id)]),
+    new Set([
+      ...(eventsRes.data ?? []).map((e) => e.case_id),
+      ...(tasksRes.data ?? []).map((t) => t.case_id),
+    ]),
   );
   if (caseIds.length === 0) return [];
   const { data: caseRows } = await supabase.from("cases").select("id,name").in("id", caseIds);
@@ -2555,7 +2597,9 @@ async function reminderAlerts(
       caseId: e.case_id,
       caseName: nameOf.get(e.case_id) ?? "—",
       level: overdue ? "critical" : "warning",
-      title: overdue ? `Audiencia/evento vencido: ${e.title}` : `Próxima audiencia/evento: ${e.title}`,
+      title: overdue
+        ? `Audiencia/evento vencido: ${e.title}`
+        : `Próxima audiencia/evento: ${e.title}`,
       detail: new Date(e.scheduled_at).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }),
       at: e.scheduled_at,
     });
@@ -2790,7 +2834,9 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
         case_type: z.enum(CASE_TYPE_VALUES).nullable().optional(),
         analysis_mode: z.enum(["strict", "balanced", "exploratory"]).optional(),
         jurisdiction: z.enum(JURISDICTION_VALUES).nullable().optional(),
-        case_analysis_mode: z.enum(["ongoing", "concluded_audit", "judgment_audit", "appeal_routes"]).optional(),
+        case_analysis_mode: z
+          .enum(["ongoing", "concluded_audit", "judgment_audit", "appeal_routes"])
+          .optional(),
       })
       .parse(d),
   )
@@ -3409,7 +3455,9 @@ export function isReportStaleByDocumentHash(
   documents: Array<{ id: string; extracted_text: string | null }>,
 ): boolean {
   if (!report) return false;
-  const citations = Array.isArray(report.citations) ? (report.citations as Array<Record<string, unknown>>) : [];
+  const citations = Array.isArray(report.citations)
+    ? (report.citations as Array<Record<string, unknown>>)
+    : [];
   if (citations.length === 0) return false;
 
   const storedHashByDoc = new Map<string, string>();
@@ -3587,7 +3635,11 @@ export const getCase = createServerFn({ method: "POST" })
     );
     const reportIsStale = isReportStale(
       report.data as { updated_at?: string | null; created_at?: string | null } | null,
-      (pipelineRuns.data ?? []) as Array<{ engine: string; created_at?: string | null; ended_at?: string | null }>,
+      (pipelineRuns.data ?? []) as Array<{
+        engine: string;
+        created_at?: string | null;
+        ended_at?: string | null;
+      }>,
       blockingEngines,
     );
     const sanitizedReport = sanitizeBlockedReport(report.data, { stale: reportIsStale });
@@ -4589,6 +4641,176 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("reports").update({ change_log: changeLog }).eq("case_id", caseId);
     return { ok: true, change_log: changeLog };
+  });
+
+// -------- Talk-to-Case "Push to Report" — patch, don't rerun --------
+// Replaces the old flow (Talk-to-Case -> addEvidenceAndRerun -> full
+// pipeline rerun) which regenerated findings from the SAME unchanged
+// corpus every time, so a finding the attorney had just gotten corrected
+// could simply reappear. This reviews the chat exchange against the
+// EXISTING findings, produces a grounded patch set (keep/amend/remove/
+// merge/create — see chat-patch.server.ts), applies it directly to
+// case_findings (never deleting a row — "remove" supersedes it with full
+// provenance), and regenerates ONLY the report from that updated state.
+// It never calls queueCaseForPipeline/addEvidenceAndRerun/drivePipeline and
+// never re-runs an analyzer/agent/engine stage — runReport() below
+// no-ops its own upstream-backfill check because every required engine
+// already has a completed run (see ensureRequiredEngines in
+// pipeline.server.ts).
+export const pushCaseChatCorrectionsToReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        caseId: z.string().uuid(),
+        chatMessageId: z.string().uuid(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = await getAuthedContext(context, "PushChatCorrections");
+    await assertCaseOwner(supabase, data.caseId, userId);
+    const caseId = data.caseId;
+
+    const { data: msgRows } = await supabase
+      .from("case_chat_messages")
+      .select("id,role,content,created_at")
+      .eq("case_id", caseId)
+      .order("created_at");
+    const rows = (msgRows ?? []) as Array<{
+      id: string;
+      role: string;
+      content: string;
+      created_at: string;
+    }>;
+    const idx = rows.findIndex((m) => m.id === data.chatMessageId);
+    if (idx === -1) throw new Error("Chat message not found");
+    const answerMsg = rows[idx];
+    const questionMsg = [...rows.slice(0, idx)].reverse().find((m) => m.role === "user");
+
+    // Real, permanently-attached case documents only — never the synthetic
+    // "case-chat-clarification-*.txt" files the OLD flow used to fabricate,
+    // so a patch can never ground itself in a document this new flow itself
+    // wrote a moment earlier.
+    const { data: docsRows } = await supabase
+      .from("documents")
+      .select("id,filename,extracted_text")
+      .eq("case_id", caseId)
+      .not("filename", "like", "case-chat-clarification-%");
+
+    const { generateFindingPatchSet, applyFindingPatchSet } =
+      await import("@/lib/intelligence/chat-patch.server");
+    const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
+    const { keys } = await resolveProviderKeys(supabase, userId, "groq");
+    const apiKey = keys[0] ?? getApiKey();
+
+    const patchSet = await generateFindingPatchSet(
+      supabase,
+      caseId,
+      userId,
+      {
+        question: questionMsg?.content ?? "",
+        answer: answerMsg.content,
+        attachedDocs: (docsRows ?? []) as Array<{
+          id: string;
+          filename: string;
+          extracted_text: string | null;
+        }>,
+      },
+      apiKey,
+    );
+
+    if (patchSet.patches.length === 0) {
+      return {
+        ok: true as const,
+        applied: [],
+        ungrounded: patchSet.ungrounded,
+        nextVersion: null,
+      };
+    }
+
+    const outcomes = await applyFindingPatchSet(
+      supabase,
+      caseId,
+      userId,
+      patchSet.patches,
+      data.chatMessageId,
+    );
+
+    // Snapshot the pre-patch report + bump the version, same convention
+    // addEvidenceAndRerun uses, so finalizeReportChangeLog (called by the
+    // client right after this, exactly like the old flow did) has a
+    // baseline to diff the regenerated report against.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: currentReport } = await (supabase as any)
+      .from("reports")
+      .select("*")
+      .eq("case_id", caseId)
+      .maybeSingle();
+    const baselineVersion: number = Number(currentReport?.version ?? 0) || 0;
+    if (currentReport) {
+      const { snapshotReportVersion } = await import("@/lib/intelligence/report-version.server");
+      const cur = currentReport as Record<string, unknown>;
+      const contradictions = Array.isArray(cur.contradictions_struct)
+        ? (cur.contradictions_struct as unknown[]).length
+        : 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const valBlock = ((cur.full_report as any) ?? {}).validation ?? {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ess = typeof (valBlock as any).ess === "number" ? (valBlock as any).ess : null;
+      const [{ count: docCount }, { count: findCount }] = await Promise.all([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("documents")
+          .select("id", { count: "exact", head: true })
+          .eq("case_id", caseId),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("case_findings")
+          .select("id", { count: "exact", head: true })
+          .eq("case_id", caseId)
+          .not("source_module", "like", PROJECTION_LIKE),
+      ]);
+      await snapshotReportVersion(supabase, {
+        caseId,
+        userId,
+        version: baselineVersion || 1,
+        report: cur,
+        changeLog: (cur.change_log as Record<string, unknown> | null) ?? null,
+        meta: {
+          documentCount: docCount ?? 0,
+          findingsCount: findCount ?? 0,
+          contradictionCount: contradictions,
+          ess,
+          score:
+            typeof cur.case_strength_score === "number"
+              ? (cur.case_strength_score as number)
+              : null,
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("reports")
+        .update({ version: baselineVersion + 1 })
+        .eq("case_id", caseId);
+    }
+
+    // Regenerate the report from the now-patched findings state only. This
+    // is the SAME runReport() every full pipeline run's report stage calls
+    // — it is independently callable and its own pre-flight backfill
+    // (ensureRequiredEngines) no-ops here because every required upstream
+    // engine already has a completed pipeline_engine_runs row. No analyzer,
+    // agent, discovery, contradiction, evidence-intel, or scoring engine
+    // re-runs.
+    const { runReport } = await import("@/lib/pipeline.server");
+    await runReport({ db: supabase, caseId, userId, apiKey, apiKeys: keys });
+
+    return {
+      ok: true as const,
+      applied: outcomes,
+      ungrounded: patchSet.ungrounded,
+      nextVersion: currentReport ? baselineVersion + 1 : null,
+    };
   });
 
 // List snapshotted report versions for a case (newest first).
