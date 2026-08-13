@@ -11,7 +11,10 @@ import {
   deleteCaseDocument,
   getDocumentDownloadUrl,
 } from "@/lib/cases.functions";
-import { usePushChatCorrectionsToReport } from "@/hooks/usePushChatCorrectionsToReport";
+import {
+  usePushChatCorrectionsToReport,
+  type CorrectionPreview,
+} from "@/hooks/usePushChatCorrectionsToReport";
 import { ChatMarkdown } from "@/lib/chat-markdown";
 import { useI18n } from "@/i18n";
 import {
@@ -95,12 +98,17 @@ export function CaseChatPanel({
   const [input, setInput] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
-  // Regenerate now navigates back to the case workspace as soon as the
-  // rerun is kicked off (see handleRegenerate) rather than staying on this
-  // panel until it finishes, so there is no longer a moment where this
-  // component is still mounted AND the rerun has completed — only this
-  // click-to-navigate transition state is meaningful here.
+  // Which message's "review correction" button is loading its preview.
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  // The active preview panel: the attorney must approve (or cancel) the
+  // proposed patch set before anything is written — see
+  // usePushChatCorrectionsToReport's doc comment for why this is a
+  // deliberate two-step flow, not a single click-and-go action.
+  const [correctionReview, setCorrectionReview] = useState<{
+    messageId: string;
+    data: CorrectionPreview;
+  } | null>(null);
+  const [applying, setApplying] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -249,40 +257,62 @@ export function CaseChatPanel({
     }
   };
 
-  // Reviews this chat exchange against the EXISTING findings and applies the
-  // resulting patch set (keep/amend/remove/merge/create) directly to
-  // case_findings, then regenerates only the report — see
+  // Reviews this chat exchange against the EXISTING findings and shows the
+  // attorney the resulting patch set (keep/amend/remove/merge/create/
+  // dispute_evidence) BEFORE anything is written — see
   // usePushChatCorrectionsToReport / chat-patch.server.ts. This does NOT
   // re-run the full pipeline: no new evidence document is fabricated from
   // the exchange, no analyzer/agent/engine stage re-executes, and a finding
   // the AI just corrected cannot simply reappear from the unchanged corpus,
   // which is exactly what the old addEvidenceAndRerun-based flow risked.
-  const handleRegenerate = (msg: ChatMsg) => {
+  const handleReviewCorrection = (msg: ChatMsg) => {
     setRegeneratingId(msg.id);
     regen
-      .run(msg.id)
-      .then(async (res) => {
-        await qc.invalidateQueries({ queryKey: ["case", caseId] });
-        if (res.patchCount === 0) {
+      .preview(msg.id)
+      .then((data) => {
+        if (data.patches.length === 0) {
           toast(
-            res.ungrounded > 0
+            data.ungrounded > 0
               ? "No groundable report changes found in this exchange."
               : "This exchange doesn't change any existing finding.",
           );
           return;
         }
+        setCorrectionReview({ messageId: msg.id, data });
+      })
+      .catch((e) => {
+        toast.error(e instanceof Error ? e.message : "Could not review this exchange");
+      })
+      .finally(() => {
+        setRegeneratingId(null);
+      });
+  };
+
+  const handleApplyCorrection = () => {
+    if (!correctionReview) return;
+    setApplying(true);
+    regen
+      .apply(correctionReview.messageId, correctionReview.data.patches)
+      .then(async (res) => {
+        await qc.invalidateQueries({ queryKey: ["case", caseId] });
+        setCorrectionReview(null);
         toast.success(
           res.nextVersion
             ? `Report updated to v${res.nextVersion} (${res.patchCount} finding change${res.patchCount === 1 ? "" : "s"})`
             : "Report updated",
         );
+        if (res.staleCitationCount > 0) {
+          toast(
+            `${res.staleCitationCount} report citation${res.staleCitationCount === 1 ? "" : "s"} may still reference superseded evidence — review before relying on this report.`,
+          );
+        }
         navigate({ to: "/cases/$caseId", params: { caseId } });
       })
       .catch((e) => {
         toast.error(e instanceof Error ? e.message : "Report update failed");
       })
       .finally(() => {
-        setRegeneratingId(null);
+        setApplying(false);
       });
   };
 
@@ -476,7 +506,7 @@ export function CaseChatPanel({
                         {m.metadata?.rerun_reason || t("chat.report.flagged")}
                       </p>
                       <button
-                        onClick={() => handleRegenerate(m)}
+                        onClick={() => handleReviewCorrection(m)}
                         disabled={regen.busy}
                         className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
                       >
@@ -499,7 +529,7 @@ export function CaseChatPanel({
                   {m.role === "assistant" && !suggestsRerun && !isErrorNotice && (
                     <div className="mt-2">
                       <button
-                        onClick={() => handleRegenerate(m)}
+                        onClick={() => handleReviewCorrection(m)}
                         disabled={regen.busy}
                         className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary/60 hover:text-foreground disabled:opacity-50"
                         title={t("chat.report.manualTitle")}
@@ -580,6 +610,111 @@ export function CaseChatPanel({
           </div>
         </div>
       </div>
+
+      {correctionReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-2xl">
+            <div className="border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold text-foreground">
+                {t("chat.correction.title")}
+              </h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t("chat.correction.subtitle")}
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              {correctionReview.data.patches.map((p, i) => {
+                const current = p.finding_ids
+                  .map((id) => correctionReview.data.currentFindings.find((f) => f.id === id))
+                  .filter((f): f is NonNullable<typeof f> => !!f);
+                return (
+                  <div key={i} className="mb-3 rounded-md border border-border bg-background p-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                        {p.action.replace("_", " ")}
+                      </span>
+                    </div>
+                    {current.length > 0 && (
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {current.map((f) => f.title).join(", ")}
+                      </p>
+                    )}
+                    {(p.new_title || p.new_description) && (
+                      <p className="mt-1 text-xs text-foreground">
+                        {p.new_title && <span className="font-medium">{p.new_title}: </span>}
+                        {p.new_description}
+                      </p>
+                    )}
+                    {p.action === "dispute_evidence" && (
+                      <p className="mt-1 text-xs text-foreground">
+                        {t("chat.correction.disputeStatus")}:{" "}
+                        <span className="font-medium">{p.dispute_status}</span>
+                      </p>
+                    )}
+                    <p className="mt-1.5 text-xs italic text-muted-foreground">"{p.reason}"</p>
+                  </div>
+                );
+              })}
+              {correctionReview.data.impact && (
+                <div className="rounded-md border border-border bg-secondary/40 p-3 text-xs text-foreground/80">
+                  <p className="font-medium text-foreground">{t("chat.correction.affected")}</p>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5">
+                    {correctionReview.data.impact.dependentFindingIds.length > 0 && (
+                      <li>
+                        {t("chat.correction.affectedFindings", {
+                          count: correctionReview.data.impact.dependentFindingIds.length,
+                        })}
+                      </li>
+                    )}
+                    {correctionReview.data.impact.scoreAffected && (
+                      <li>{t("chat.correction.affectedScore")}</li>
+                    )}
+                    {correctionReview.data.impact.affectedOpportunityIds.length > 0 && (
+                      <li>
+                        {t("chat.correction.affectedOpportunities", {
+                          count: correctionReview.data.impact.affectedOpportunityIds.length,
+                        })}
+                      </li>
+                    )}
+                    {correctionReview.data.impact.affectedCitationCount > 0 && (
+                      <li>
+                        {t("chat.correction.affectedCitations", {
+                          count: correctionReview.data.impact.affectedCitationCount,
+                        })}
+                      </li>
+                    )}
+                    {correctionReview.data.impact.dependentFindingIds.length === 0 &&
+                      !correctionReview.data.impact.scoreAffected &&
+                      correctionReview.data.impact.affectedOpportunityIds.length === 0 &&
+                      correctionReview.data.impact.affectedCitationCount === 0 && (
+                        <li>{t("chat.correction.affectedNone")}</li>
+                      )}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+              <button
+                onClick={() => setCorrectionReview(null)}
+                disabled={applying}
+                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary disabled:opacity-50"
+              >
+                {t("chat.correction.cancel")}
+              </button>
+              <button
+                onClick={handleApplyCorrection}
+                disabled={applying}
+                className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {applying
+                  ? regen.progress || t("chat.correction.applying")
+                  : t("chat.correction.apply")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

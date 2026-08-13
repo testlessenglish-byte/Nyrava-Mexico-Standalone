@@ -1128,6 +1128,7 @@ export type Database = {
           finding_id: string | null
           id: string
           reason: string
+          report_version: number | null
           result_finding_id: string | null
           source_document_id: string | null
           source_page: number | null
@@ -1144,6 +1145,7 @@ export type Database = {
           finding_id?: string | null
           id?: string
           reason: string
+          report_version?: number | null
           result_finding_id?: string | null
           source_document_id?: string | null
           source_page?: number | null
@@ -1160,6 +1162,7 @@ export type Database = {
           finding_id?: string | null
           id?: string
           reason?: string
+          report_version?: number | null
           result_finding_id?: string | null
           source_document_id?: string | null
           source_page?: number | null
@@ -2866,6 +2869,7 @@ export type Database = {
           created_at: string
           entities: Json
           error: string | null
+          evidence_scope: string
           extracted_text: string | null
           extraction_retry_count: number
           filename: string
@@ -2886,6 +2890,7 @@ export type Database = {
           created_at?: string
           entities?: Json
           error?: string | null
+          evidence_scope?: string
           extracted_text?: string | null
           extraction_retry_count?: number
           filename: string
@@ -2906,6 +2911,7 @@ export type Database = {
           created_at?: string
           entities?: Json
           error?: string | null
+          evidence_scope?: string
           extracted_text?: string | null
           extraction_retry_count?: number
           filename?: string

@@ -38,7 +38,10 @@ async function getSharedBriefResilient(args: {
     if (isCheckpointError(e)) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     if (isGroqCooldownOrRateLimit(msg)) {
-      throw new CheckpointRequired(stage, `shared brief build failed transiently, yielding: ${msg}`);
+      throw new CheckpointRequired(
+        stage,
+        `shared brief build failed transiently, yielding: ${msg}`,
+      );
     }
     throw e;
   }
@@ -74,7 +77,12 @@ async function logUsage(
   },
 ) {
   const { getKeyIdByIndex } = await import("../ai-key-router.server");
-  const provider = (args.provider ?? "groq") as "groq" | "openai" | "gemini" | "anthropic" | "openrouter";
+  const provider = (args.provider ?? "groq") as
+    | "groq"
+    | "openai"
+    | "gemini"
+    | "anthropic"
+    | "openrouter";
   const groqKeyId = getKeyIdByIndex(args.userId, provider, args.keyIndex);
   await db.from("ai_usage").insert({
     user_id: args.userId,
@@ -102,7 +110,11 @@ export class CancelledError extends Error {
 
 async function setCase(db: Db, caseId: string, patch: Record<string, unknown>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: row } = await (db as any).from("cases").select("cancel_requested").eq("id", caseId).maybeSingle();
+  const { data: row } = await (db as any)
+    .from("cases")
+    .select("cancel_requested")
+    .eq("id", caseId)
+    .maybeSingle();
   if (row?.cancel_requested) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (db as any)
@@ -115,7 +127,7 @@ async function setCase(db: Db, caseId: string, patch: Record<string, unknown>) {
       .eq("id", caseId);
     throw new CancelledError();
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   await db
     .from("cases")
     .update(patch as any)
@@ -131,7 +143,12 @@ async function getKeys(db: Db, userId: string, override?: string): Promise<strin
 // =====================================================================
 // PHASE 2 — Multi-Perspective Engine
 // =====================================================================
-export async function runPerspectivesEngine(args: { db: Db; caseId: string; userId: string; apiKey?: string }) {
+export async function runPerspectivesEngine(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey?: string;
+}) {
   const { db, caseId, userId } = args;
 
   // STRICT-mode firewall — perspective analysis is interpretive, not
@@ -157,7 +174,13 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
 
   const apiKeys = await getKeys(db, userId, args.apiKey);
   // Single master extraction — cached and reused by every agent.
-  const brief = await getSharedBriefResilient({ db, caseId, userId, apiKeys, stage: "perspectives" });
+  const brief = await getSharedBriefResilient({
+    db,
+    caseId,
+    userId,
+    apiKeys,
+    stage: "perspectives",
+  });
   const briefText = briefToPrompt(brief);
 
   await setCase(db, caseId, {
@@ -206,21 +229,22 @@ export async function runPerspectivesEngine(args: { db: Db; caseId: string; user
   const runOnePerspective = async (perspective: Perspective) => {
     const t0 = Date.now();
     try {
-      const r = await withAiSlot(async () => callGroq({
-        apiKeys,
-        model: MODEL,
-        systemInstruction:
-          mexicoLock(await getReportLocale(db, caseId)) +
-          "\n\n" +
-          `You are a neutral senior litigation analyst examining a case from the ${perspective.toUpperCase()} perspective. ` +
-          `Your job is to reveal the strongest case this side can build, the weaknesses they must address, ` +
-          `what the opposing side will argue, and how those arguments can be countered. ` +
-          `Use the four-tier confidence labels: confirmed (directly supported by evidence), ` +
-          `likely (strongly supported but not proven), possible (insufficient information), unknown. ` +
-          `Write like a senior litigation attorney, not an AI describing a case: one direct, confident sentence over three hedged ones. ` +
-          `FORBIDDEN filler/hedge phrases — rewrite around every instance: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ` +
-          `Output STRICT JSON only.`,
-        userContent: `Return STRICT JSON:
+      const r = await withAiSlot(async () =>
+        callGroq({
+          apiKeys,
+          model: MODEL,
+          systemInstruction:
+            mexicoLock(await getReportLocale(db, caseId)) +
+            "\n\n" +
+            `You are a neutral senior litigation analyst examining a case from the ${perspective.toUpperCase()} perspective. ` +
+            `Your job is to reveal the strongest case this side can build, the weaknesses they must address, ` +
+            `what the opposing side will argue, and how those arguments can be countered. ` +
+            `Use the four-tier confidence labels: confirmed (directly supported by evidence), ` +
+            `likely (strongly supported but not proven), possible (insufficient information), unknown. ` +
+            `Write like a senior litigation attorney, not an AI describing a case: one direct, confident sentence over three hedged ones. ` +
+            `FORBIDDEN filler/hedge phrases — rewrite around every instance: "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to". ` +
+            `Output STRICT JSON only.`,
+          userContent: `Return STRICT JSON:
 {
   "summary": string (3-5 sentences),
   "confidence_label": "confirmed"|"likely"|"possible"|"unknown",
@@ -239,9 +263,10 @@ PERSPECTIVE: ${perspective}
 
 SHARED CASE BRIEF (single source of truth — do not request more documents):
 ${briefText}`,
-        json: true,
-        temperature: 0.2,
-      }));
+          json: true,
+          temperature: 0.2,
+        }),
+      );
       await logUsage(db, {
         userId,
         caseId,
@@ -266,13 +291,17 @@ ${briefText}`,
       // than silently persisting content flagged as U.S.-law language into a
       // Mexican case file.
       const { textMatchesCaseType } = await import("./evidence-gate.server");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const combinedText = [
         p.summary,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...(Array.isArray(p.strengths) ? p.strengths.map((x: any) => `${x?.title ?? ""} ${x?.detail ?? ""}`) : []),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...(Array.isArray(p.weaknesses) ? p.weaknesses.map((x: any) => `${x?.title ?? ""} ${x?.detail ?? ""}`) : []),
+
+        ...(Array.isArray(p.strengths)
+          ? p.strengths.map((x: any) => `${x?.title ?? ""} ${x?.detail ?? ""}`)
+          : []),
+
+        ...(Array.isArray(p.weaknesses)
+          ? p.weaknesses.map((x: any) => `${x?.title ?? ""} ${x?.detail ?? ""}`)
+          : []),
         ...(Array.isArray(p.opposing_arguments)
           ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
             p.opposing_arguments.map((x: any) => `${x?.argument ?? ""}`)
@@ -319,7 +348,9 @@ ${briefText}`,
         recommended_actions: (p.recommended_actions ?? []) as J,
       });
       if (insertError) {
-        throw new Error(`case_perspectives insert failed for "${perspective}": ${insertError.message}`);
+        throw new Error(
+          `case_perspectives insert failed for "${perspective}": ${insertError.message}`,
+        );
       }
       return { perspective, ok: true as const };
     } catch (e) {
@@ -349,7 +380,9 @@ ${briefText}`,
 
   for (const batch of batches) {
     if (Date.now() - stageStartedAt > stageBudgetMs && done > 0 && done < PERSPECTIVES.length) {
-      console.warn(`[perspectives] checkpoint reached after ${done}/${PERSPECTIVES.length} — yielding`);
+      console.warn(
+        `[perspectives] checkpoint reached after ${done}/${PERSPECTIVES.length} — yielding`,
+      );
       throw new CheckpointRequired("perspectives", `${done}/${PERSPECTIVES.length} perspectives`);
     }
     const results = await Promise.all(batch.map(runOnePerspective));
@@ -456,7 +489,9 @@ ${briefText}`,
 
   await setCase(db, caseId, {
     status: "intelligence_complete",
-    status_message: failures.length ? `Perspectives done with ${failures.length} failures` : "Perspectives complete",
+    status_message: failures.length
+      ? `Perspectives done with ${failures.length} failures`
+      : "Perspectives complete",
     progress: 100,
     perspectives_at: new Date().toISOString(),
     error: failures.length ? failures.join("; ").slice(0, 2000) : null,
@@ -466,7 +501,12 @@ ${briefText}`,
 // =====================================================================
 // PHASE 3 — Evidence Intelligence Engine
 // =====================================================================
-export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; userId: string; apiKey?: string }) {
+export async function runEvidenceIntelEngine(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey?: string;
+}) {
   const { db, caseId, userId } = args;
 
   // STRICT-mode firewall — evidence classification/gap detection is
@@ -481,7 +521,13 @@ export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; use
       status_message: `Evidence Intelligence skipped (${mode} mode is extraction/validation only)`,
       progress: 100,
     });
-    return { classifications: 0, promoted_findings: 0, promotion_gate: null, promotion_mode: mode, promotion_corpus: null };
+    return {
+      classifications: 0,
+      promoted_findings: 0,
+      promotion_gate: null,
+      promotion_mode: mode,
+      promotion_corpus: null,
+    };
   }
 
   await setCase(db, caseId, {
@@ -491,12 +537,21 @@ export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; use
   });
 
   const apiKeys = await getKeys(db, userId, args.apiKey);
-  const brief = await getSharedBriefResilient({ db, caseId, userId, apiKeys, stage: "evidence_intel" });
+  const brief = await getSharedBriefResilient({
+    db,
+    caseId,
+    userId,
+    apiKeys,
+    stage: "evidence_intel",
+  });
   const briefText = briefToPrompt(brief);
   const { data: currentDocs } = await db
     .from("documents")
-    .select("id,filename,extracted_text,status")
+    .select("id,filename,extracted_text,status,evidence_scope")
     .eq("case_id", caseId)
+    // Analysis corpus only — Talk-to-Case attachments not yet promoted are
+    // excluded (see migration 20260813224813_document_evidence_scope).
+    .neq("evidence_scope", "revision_context")
     // Secondary sort on `id` for deterministic doc_n numbering — see the
     // identical note in shared-brief.server.ts's loadCorpus().
     .order("created_at", { ascending: true })
@@ -520,7 +575,9 @@ export async function runEvidenceIntelEngine(args: { db: Db; caseId: string; use
 
   await db.from("evidence_classifications").delete().eq("case_id", caseId);
 
-  const docIndex = brief.document_index.map((d) => `DOC ${d.n} id=${d.id} :: ${d.filename}`).join("\n");
+  const docIndex = brief.document_index
+    .map((d) => `DOC ${d.n} id=${d.id} :: ${d.filename}`)
+    .join("\n");
 
   const t0 = Date.now();
   const r = await callGroq({
@@ -594,7 +651,8 @@ ${briefText}`,
   const rows = items
     .map((c) => {
       const idx = typeof c.doc_n === "number" ? c.doc_n - 1 : -1;
-      const docRef = idx >= 0 && idx < brief.document_index.length ? brief.document_index[idx] : null;
+      const docRef =
+        idx >= 0 && idx < brief.document_index.length ? brief.document_index[idx] : null;
       return {
         case_id: caseId,
         user_id: userId,
@@ -626,7 +684,9 @@ ${briefText}`,
     // Same class of bug fixed for case_perspectives above in this file:
     // Supabase insert() does NOT throw on its own; this result was
     // previously discarded entirely.
-    const { error: evidenceClassificationsInsertError } = await db.from("evidence_classifications").insert(rows);
+    const { error: evidenceClassificationsInsertError } = await db
+      .from("evidence_classifications")
+      .insert(rows);
     if (evidenceClassificationsInsertError) {
       throw new Error(
         `evidence_classifications insert failed for case ${caseId} (${rows.length} row(s)): ${evidenceClassificationsInsertError.message}`,
@@ -638,26 +698,36 @@ ${briefText}`,
   // by joining (in-app) against case_findings / case_witnesses /
   // case_timeline_events. No LLM call — pure DB stitching.
   try {
-    const docIds = Array.from(new Set(rows.map((r) => r.document_id).filter((x): x is string => !!x)));
+    const docIds = Array.from(
+      new Set(rows.map((r) => r.document_id).filter((x): x is string => !!x)),
+    );
     if (docIds.length > 0) {
-      const [{ data: findingRows }, { data: witnessRows }, { data: timelineRows }] = await Promise.all([
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (db as any)
-          .from("case_findings")
-          .select("id, source_document_id, category, source_doc_ids")
-          .eq("case_id", caseId)
-          .not("source_module", "like", PROJECTION_LIKE),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (db as any).from("case_witnesses").select("id, source_document_id, source_doc_ids").eq("case_id", caseId),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (db as any)
-          .from("case_timeline_events")
-          .select("id, source_document_id, superseded_by")
-          .eq("case_id", caseId)
-          .is("superseded_by", null),
+      const [{ data: findingRows }, { data: witnessRows }, { data: timelineRows }] =
+        await Promise.all([
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (db as any)
+            .from("case_findings")
+            .select("id, source_document_id, category, source_doc_ids")
+            .eq("case_id", caseId)
+            .not("source_module", "like", PROJECTION_LIKE),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (db as any)
+            .from("case_witnesses")
+            .select("id, source_document_id, source_doc_ids")
+            .eq("case_id", caseId),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (db as any)
+            .from("case_timeline_events")
+            .select("id, source_document_id, superseded_by")
+            .eq("case_id", caseId)
+            .is("superseded_by", null),
+        ]);
+
+      const contradictionCats = new Set([
+        "contradiction",
+        "contradictory",
+        "timeline_inconsistency",
       ]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const contradictionCats = new Set(["contradiction", "contradictory", "timeline_inconsistency"]);
       const findingByDoc = new Map<string, { supports: string[]; contradicts: string[] }>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const f of (findingRows as any[]) ?? []) {
@@ -708,7 +778,10 @@ ${briefText}`,
   } catch (e) {
     const { rethrowIfCheckpoint } = await import("../pipeline-checkpoint.server");
     rethrowIfCheckpoint(e);
-    console.warn("[evidence_classifications] cross-ref stitching failed:", e instanceof Error ? e.message : e);
+    console.warn(
+      "[evidence_classifications] cross-ref stitching failed:",
+      e instanceof Error ? e.message : e,
+    );
   }
 
   // Promotion rule: evidence-intelligence classifications are work product,
@@ -823,7 +896,9 @@ export async function runStrategyEngine(args: {
   const { engineAllowedInMode } = await import("./case-state.server");
   const mode = await getAnalysisMode(db, caseId);
   if (!engineAllowedInMode("strategy", mode)) {
-    console.info(`[mode:${mode}] strategy engine skipped — strict mode produces no motions or strategies`);
+    console.info(
+      `[mode:${mode}] strategy engine skipped — strict mode produces no motions or strategies`,
+    );
     await setCase(db, caseId, {
       status: "intelligence_complete",
       status_message: `Strategy skipped (${mode} mode produces no motions or strategies)`,
@@ -852,7 +927,9 @@ export async function runStrategyEngine(args: {
       .limit(200),
     db
       .from("case_perspectives")
-      .select("perspective,summary,strengths,weaknesses,opposing_arguments,strength_score,risk_score")
+      .select(
+        "perspective,summary,strengths,weaknesses,opposing_arguments,strength_score,risk_score",
+      )
       .eq("case_id", caseId),
     db
       .from("evidence_classifications")
@@ -1082,8 +1159,8 @@ export async function buildAttackSurface(db: Db, caseId: string): Promise<Attack
   // the same Spanish vocabulary already established in classify.server.ts
   // and report-augment.server.ts's ISSUE_RULES.
   for (const f of findings) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const blob = `${(f as any).category ?? ""} ${(f as any).title ?? ""} ${(f as any).description ?? ""}`.toLowerCase();
+    const blob =
+      `${(f as any).category ?? ""} ${(f as any).title ?? ""} ${(f as any).description ?? ""}`.toLowerCase();
     if (
       /(debido\s+proceso|control\s+de\s+detenci[oó]n|cateo\s+sin\s+orden|cateo\s+irregular|detenci[oó]n\s+arbitraria|prueba\s+il[ií]cita|exclusi[oó]n\s+probatoria)/.test(
         blob,
@@ -1106,7 +1183,9 @@ export async function buildAttackSurface(db: Db, caseId: string): Promise<Attack
       out.omision_probatoria_risks.push(toItem(f));
     }
     if (
-      /(datos\s+falsos\s+en\s+cateo|omisi[oó]n\s+sustancial\s+en\s+cateo|solicitud\s+de\s+cateo\s+irregular)/.test(blob)
+      /(datos\s+falsos\s+en\s+cateo|omisi[oó]n\s+sustancial\s+en\s+cateo|solicitud\s+de\s+cateo\s+irregular)/.test(
+        blob,
+      )
     ) {
       out.cateo_irregular_risks.push(toItem(f));
     }
@@ -1139,7 +1218,8 @@ export async function buildAttackSurface(db: Db, caseId: string): Promise<Attack
     const v = out[k];
     if (Array.isArray(v)) {
       (v as AttackSurfaceItem[]).sort(
-        (a, b) => (a.priority ?? 4) - (b.priority ?? 4) || (sev[a.severity] ?? 4) - (sev[b.severity] ?? 4),
+        (a, b) =>
+          (a.priority ?? 4) - (b.priority ?? 4) || (sev[a.severity] ?? 4) - (sev[b.severity] ?? 4),
       );
     }
   }
@@ -1149,7 +1229,7 @@ export async function buildAttackSurface(db: Db, caseId: string): Promise<Attack
 export async function runAttackSurfaceEngine(args: { db: Db; caseId: string; userId: string }) {
   const { db, caseId } = args;
   const surface = await buildAttackSurface(db, caseId);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const { error } = await db
     .from("cases")
     .update({ attack_surface: surface as unknown as J } as any)
@@ -1205,20 +1285,27 @@ export async function runLitigationStrategyCenterEngine(args: {
     progress: 95,
   });
 
-  const [{ data: theories }, { data: opportunities }, { data: witnesses }, { data: perspectives }, { data: strategy }] =
-    await Promise.all([
-      db.from("case_theories").select("*").eq("case_id", caseId),
-      db.from("case_opportunities").select("*").eq("case_id", caseId),
-      db.from("case_witnesses").select("*").eq("case_id", caseId),
-      db.from("case_perspectives").select("*").eq("case_id", caseId),
-      db.from("case_strategy").select("*").eq("case_id", caseId),
-    ]);
+  const [
+    { data: theories },
+    { data: opportunities },
+    { data: witnesses },
+    { data: perspectives },
+    { data: strategy },
+  ] = await Promise.all([
+    db.from("case_theories").select("*").eq("case_id", caseId),
+    db.from("case_opportunities").select("*").eq("case_id", caseId),
+    db.from("case_witnesses").select("*").eq("case_id", caseId),
+    db.from("case_perspectives").select("*").eq("case_id", caseId),
+    db.from("case_strategy").select("*").eq("case_id", caseId),
+  ]);
 
   // Legitimate zero: no theories and no opportunities means there is
   // nothing to synthesize a trial strategy from yet. No-op, not a failure
   // — same pattern used by the witness/theory engines.
   if (!(theories ?? []).length && !(opportunities ?? []).length) {
-    console.info(`[engine:litigation_strategy_center] case=${caseId} no theories/opportunities — skipping (no-op)`);
+    console.info(
+      `[engine:litigation_strategy_center] case=${caseId} no theories/opportunities — skipping (no-op)`,
+    );
     return null;
   }
 
@@ -1235,7 +1322,9 @@ export async function runLitigationStrategyCenterEngine(args: {
     ? `This is a CIVIL matter (case_type=${caseType}). Use Mexican civil terminology only — responsabilidad civil, daños y perjuicios, culpa concurrente, convenio judicial, ofrecimiento y desahogo de pruebas, credibilidad. NEVER use U.S. terms (discovery, Miranda, Brady, suppression, reasonable doubt, prosecution).`
     : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology only — Ministerio Público, imputado, víctima u ofendido, sentencia condenatoria/absolutoria. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
 
-  const witnessNames = (witnesses ?? []).map((w) => String((w as { name?: unknown }).name ?? "")).filter(Boolean);
+  const witnessNames = (witnesses ?? [])
+    .map((w) => String((w as { name?: unknown }).name ?? ""))
+    .filter(Boolean);
 
   // Strip DB-only columns (id, case_id, user_id, created_at, updated_at)
   // before stringifying — the model never needs them, and on a case with
@@ -1251,7 +1340,10 @@ export async function runLitigationStrategyCenterEngine(args: {
   // when it hit the Groq 413.
   const DROP_COLUMNS = new Set(["id", "case_id", "user_id", "created_at", "updated_at"]);
   const FIELD_CHAR_CEILING = 15000;
-  function slim<T extends Record<string, unknown>>(rows: T[] | null | undefined, maxItems: number): Partial<T>[] {
+  function slim<T extends Record<string, unknown>>(
+    rows: T[] | null | undefined,
+    maxItems: number,
+  ): Partial<T>[] {
     let out = (rows ?? []).slice(0, maxItems).map((row) => {
       const stripped: Partial<T> = {};
       for (const [k, v] of Object.entries(row)) {
@@ -1369,7 +1461,9 @@ ${JSON.stringify(slimStrategy)}`,
         witness_id: (match as { id?: unknown }).id ?? null,
         name: (match as { name?: unknown }).name,
         reasons: Array.isArray(mdw.reasons) ? mdw.reasons : [],
-        recommended_approach: Array.isArray(mdw.recommended_approach) ? mdw.recommended_approach : [],
+        recommended_approach: Array.isArray(mdw.recommended_approach)
+          ? mdw.recommended_approach
+          : [],
       };
     } else {
       console.info(
@@ -1388,9 +1482,16 @@ ${JSON.stringify(slimStrategy)}`,
     : [];
   const gap = parsed.biggest_evidentiary_gap ?? {};
   const defense = parsed.expected_defense ?? {};
-  const counter = typeof parsed.recommended_counter_strategy === "string" ? parsed.recommended_counter_strategy : "";
-  const priorities: Array<{ priority?: string; action?: string; impact_stars?: number; reason?: string }> =
-    Array.isArray(parsed.weekly_priorities) ? parsed.weekly_priorities : [];
+  const counter =
+    typeof parsed.recommended_counter_strategy === "string"
+      ? parsed.recommended_counter_strategy
+      : "";
+  const priorities: Array<{
+    priority?: string;
+    action?: string;
+    impact_stars?: number;
+    reason?: string;
+  }> = Array.isArray(parsed.weekly_priorities) ? parsed.weekly_priorities : [];
 
   // Computed in code — never asked from the model — so it can't drift out
   // of sync with the fields it summarizes. Audit P0-5: this used to be
@@ -1402,9 +1503,15 @@ ${JSON.stringify(slimStrategy)}`,
   const en = reportLocale === "en";
   const dash = (es: string, enLabel: string) => (en ? enLabel : es);
   const dashboard = [
-    { question: dash("¿Qué gana este caso?", "What wins this case?"), assessment: theme.theme ?? "—" },
+    {
+      question: dash("¿Qué gana este caso?", "What wins this case?"),
+      assessment: theme.theme ?? "—",
+    },
     { question: dash("Mayor debilidad", "Biggest weakness"), assessment: weakness.weakness ?? "—" },
-    { question: dash("Mayor riesgo en juicio", "Biggest trial risk"), assessment: risk.risk ?? "—" },
+    {
+      question: dash("Mayor riesgo en juicio", "Biggest trial risk"),
+      assessment: risk.risk ?? "—",
+    },
     {
       question: dash("Palanca de negociación", "Settlement leverage"),
       assessment: leverage.length
@@ -1476,7 +1583,9 @@ ${JSON.stringify(slimStrategy)}`,
       : en
         ? "Insufficient synthesized data to produce an assessment."
         : "Datos sintetizados insuficientes para producir una valoración.") +
-    (en ? "\n\nStrategic analysis, not legal advice." : "\n\nAnálisis estratégico, no constituye asesoría legal.");
+    (en
+      ? "\n\nStrategic analysis, not legal advice."
+      : "\n\nAnálisis estratégico, no constituye asesoría legal.");
 
   const row = {
     case_id: caseId,
@@ -1496,7 +1605,9 @@ ${JSON.stringify(slimStrategy)}`,
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (db as any).from("case_strategy_center").upsert(row, { onConflict: "case_id" });
+  const { error } = await (db as any)
+    .from("case_strategy_center")
+    .upsert(row, { onConflict: "case_id" });
   if (error) {
     throw new Error(`case_strategy_center upsert failed: ${error.message}`);
   }

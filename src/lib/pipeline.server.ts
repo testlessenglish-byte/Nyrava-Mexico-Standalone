@@ -22,11 +22,24 @@ import {
   enforceRemedyLegalAuthorityGate,
   listFindings,
 } from "./intelligence/findings.server";
-import { extractPdf, extractDocx, extractXlsx, extractCsv, extractPlainText } from "./intelligence/extract.server";
+import {
+  extractPdf,
+  extractDocx,
+  extractXlsx,
+  extractCsv,
+  extractPlainText,
+} from "./intelligence/extract.server";
 import { computeDeterministicScorecard } from "./intelligence/scoring.server";
 import { computeCoverage } from "./intelligence/coverage.server";
-import { runEngine, clearEngineRuns, buildEnginesSummary } from "./intelligence/engine-audit.server";
-import { classifyContradiction, stripUnsupportedAmplification } from "./intelligence/dispute-classifier.server";
+import {
+  runEngine,
+  clearEngineRuns,
+  buildEnginesSummary,
+} from "./intelligence/engine-audit.server";
+import {
+  classifyContradiction,
+  stripUnsupportedAmplification,
+} from "./intelligence/dispute-classifier.server";
 import { isGroqCooldownOrRateLimit, rethrowIfCheckpoint } from "./pipeline-checkpoint.server";
 import { buildCaseTypeStandardsBlock } from "./intelligence/case-type-standards";
 import { scoreReportQuality } from "./intelligence/report-quality-gate";
@@ -104,7 +117,8 @@ function inferMimeType(filename: string): string {
 // content read), applied once, at the single choke point (uploadFiles) that
 // every ingestion path — direct upload and zip-expansion alike — passes
 // through.
-const NON_EVIDENTIARY_FILENAME = /^(00[_-]?)?answer[_-]?key|ground[_-]?truth|solution[_-]?(key|sheet)|^read[_-]?me\b/i;
+const NON_EVIDENTIARY_FILENAME =
+  /^(00[_-]?)?answer[_-]?key|ground[_-]?truth|solution[_-]?(key|sheet)|^read[_-]?me\b/i;
 
 /**
  * True if a filename matches a known non-evidentiary pattern (answer keys,
@@ -181,8 +195,15 @@ export async function uploadFiles(opts: {
   caseId: string;
   userId: string;
   uploads: Array<{ name: string; bytes: Uint8Array }>;
+  // 'case_corpus' (default): ordinary evidence, read by every full-pipeline
+  // analysis engine (see listCorpusDocuments below). 'revision_context':
+  // uploaded via Talk-to-Case — still extracted so the chat AI and the
+  // finding-patch generator can read it, but excluded from the analysis
+  // corpus until a user explicitly promotes it (promoteRevisionDocument in
+  // cases.functions.ts). See migration 20260813224813_document_evidence_scope.
+  evidenceScope?: "case_corpus" | "revision_context";
 }): Promise<{ uploaded: number; skipped: number; excludedNonEvidentiary: string[] }> {
-  const { db, caseId, userId, uploads: rawUploads } = opts;
+  const { db, caseId, userId, uploads: rawUploads, evidenceScope = "case_corpus" } = opts;
   const { sha256Hex } = await import("./hash.server");
   const uploads = expandZipsAndFiles(rawUploads);
 
@@ -220,10 +241,12 @@ export async function uploadFiles(opts: {
     // be the first segment or every insert is rejected with 42501.
     const storagePath = `${userId}/${caseId}/${crypto.randomUUID()}-${file.name}`;
 
-    const { error: uploadError } = await db.storage.from("case-files").upload(storagePath, file.bytes, {
-      contentType: mimeType,
-      upsert: false,
-    });
+    const { error: uploadError } = await db.storage
+      .from("case-files")
+      .upload(storagePath, file.bytes, {
+        contentType: mimeType,
+        upsert: false,
+      });
     if (uploadError) {
       throw new Error(`Failed to upload "${file.name}": ${uploadError.message}`);
     }
@@ -238,6 +261,7 @@ export async function uploadFiles(opts: {
       size_bytes: file.bytes.byteLength,
       storage_path: storagePath,
       status: "pending",
+      evidence_scope: evidenceScope,
     });
     if (insertError) {
       await db.storage.from("case-files").remove([storagePath]);
@@ -299,10 +323,19 @@ async function _runPipelineForCase(
   const updateCase = async (patch: Record<string, unknown>, source: string) => {
     const withHeartbeat: Record<string, unknown> = { ...patch };
     const statusValue = typeof patch.status === "string" ? patch.status : null;
-    const terminalStatuses = new Set(["complete", "released", "needs_revision", "failed", "cancelled"]);
-    const shouldExtendLease = statusValue === "intelligence_running" && !terminalStatuses.has(statusValue);
+    const terminalStatuses = new Set([
+      "complete",
+      "released",
+      "needs_revision",
+      "failed",
+      "cancelled",
+    ]);
+    const shouldExtendLease =
+      statusValue === "intelligence_running" && !terminalStatuses.has(statusValue);
     if (shouldExtendLease) {
-      withHeartbeat.worker_lease_until = new Date(Date.now() + RUNNER_LEASE_EXTENSION_MS).toISOString();
+      withHeartbeat.worker_lease_until = new Date(
+        Date.now() + RUNNER_LEASE_EXTENSION_MS,
+      ).toISOString();
     } else if (statusValue && terminalStatuses.has(statusValue)) {
       withHeartbeat.worker_lease_until = null;
     }
@@ -394,52 +427,66 @@ async function _runPipelineForCase(
         withStageTimeout(
           "jurisdiction_intel",
           () =>
-            persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.jurisdiction_intel }, async () => {
-              const { runJurisdictionIntelligence } = await import("@/lib/intelligence/jurisdiction-intel.server");
-              const value = await runJurisdictionIntelligence({ db: supabase, caseId });
-              return {
-                value,
-                stats: { generated: 1, accepted: 1, rows_written: 1, db_write_confirmed: true },
-              };
-            }),
+            persist.runCatalogedEngine(
+              supabase,
+              { caseId, userId, engine: ENGINE.jurisdiction_intel },
+              async () => {
+                const { runJurisdictionIntelligence } =
+                  await import("@/lib/intelligence/jurisdiction-intel.server");
+                const value = await runJurisdictionIntelligence({ db: supabase, caseId });
+                return {
+                  value,
+                  stats: { generated: 1, accepted: 1, rows_written: 1, db_write_confirmed: true },
+                };
+              },
+            ),
           { caseId, userId },
         ),
     },
 
     procedural_compliance: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.procedural_compliance }, async () => {
-          const { runProceduralCompliance } = await import("@/lib/intelligence/procedural-compliance.server");
-          const value = await runProceduralCompliance({ db: supabase, caseId, userId });
-          return {
-            value,
-            stats: {
-              generated: value.evaluated,
-              accepted: value.satisfied,
-              rows_written: value.findings_written,
-              db_write_confirmed: true,
-            },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.procedural_compliance },
+          async () => {
+            const { runProceduralCompliance } =
+              await import("@/lib/intelligence/procedural-compliance.server");
+            const value = await runProceduralCompliance({ db: supabase, caseId, userId });
+            return {
+              value,
+              stats: {
+                generated: value.evaluated,
+                accepted: value.satisfied,
+                rows_written: value.findings_written,
+                db_write_confirmed: true,
+              },
+            };
+          },
+        ),
     },
     legal_qa: {
       run: () =>
         withStageTimeout(
           "legal_qa",
           () =>
-            persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.legal_qa }, async () => {
-              const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-              const value = await runLegalQaGate({ db: supabase, caseId, userId });
-              return {
-                value,
-                stats: {
-                  generated: value.checked_fields,
-                  accepted: value.checked_fields - value.warnings.length,
-                  rows_written: value.remediated_fields,
-                  db_write_confirmed: true,
-                },
-              };
-            }),
+            persist.runCatalogedEngine(
+              supabase,
+              { caseId, userId, engine: ENGINE.legal_qa },
+              async () => {
+                const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
+                const value = await runLegalQaGate({ db: supabase, caseId, userId });
+                return {
+                  value,
+                  stats: {
+                    generated: value.checked_fields,
+                    accepted: value.checked_fields - value.warnings.length,
+                    rows_written: value.remediated_fields,
+                    db_write_confirmed: true,
+                  },
+                };
+              },
+            ),
           { caseId, userId },
         ),
     },
@@ -448,26 +495,37 @@ async function _runPipelineForCase(
     timeline: { run: () => runTimelineAudit({ supabase, userId, caseId }) },
     evidence_map: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.evidence_map }, async () => {
-          const m = await import("@/lib/intelligence/evidence-map.server");
-          const em = await m.buildEvidenceMap(supabase, caseId);
-          return {
-            value: em,
-            stats: {
-              generated: em.totals.total,
-              accepted: em.totals.total - em.totals.missing_evidence,
-            },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.evidence_map },
+          async () => {
+            const m = await import("@/lib/intelligence/evidence-map.server");
+            const em = await m.buildEvidenceMap(supabase, caseId);
+            return {
+              value: em,
+              stats: {
+                generated: em.totals.total,
+                accepted: em.totals.total - em.totals.missing_evidence,
+              },
+            };
+          },
+        ),
     },
     contradictions: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.contradictions }, async () => {
-          const d = await import("@/lib/intelligence/derived-engines.server");
-          const result = await d.deriveContradictions(supabase, caseId);
-          await updateCase({ contradiction_at: new Date().toISOString() }, "pipeline.contradictions");
-          return result;
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.contradictions },
+          async () => {
+            const d = await import("@/lib/intelligence/derived-engines.server");
+            const result = await d.deriveContradictions(supabase, caseId);
+            await updateCase(
+              { contradiction_at: new Date().toISOString() },
+              "pipeline.contradictions",
+            );
+            return result;
+          },
+        ),
     },
     // Task-9/10 stat plumbing: engines whose output is a mix of LLM + deterministic
     // templates now return real generated/accepted/rejected counts. Row counts come
@@ -477,61 +535,72 @@ async function _runPipelineForCase(
     // that produced legitimate deterministic output.
     witness: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.witness }, async () => {
-          const value = (await eng.runWitnessEngine(baseArgs)) as {
-            witnesses?: unknown[];
-            audit?: { input?: number; accepted?: number };
-          };
-          const { count } = await supabase
-            .from("case_witnesses")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const rows = count ?? value.witnesses?.length ?? 0;
-          const gen = Math.max(value.audit?.input ?? 0, rows);
-          const acc = Math.max(value.audit?.accepted ?? 0, rows);
-          return {
-            value,
-            stats: {
-              generated: gen,
-              accepted: acc,
-              rejected: Math.max(0, gen - acc),
-              rows_written: rows,
-              meta: { source: "hybrid" },
-            },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.witness },
+          async () => {
+            const value = (await eng.runWitnessEngine(baseArgs)) as {
+              witnesses?: unknown[];
+              audit?: { input?: number; accepted?: number };
+            };
+            const { count } = await supabase
+              .from("case_witnesses")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const rows = count ?? value.witnesses?.length ?? 0;
+            const gen = Math.max(value.audit?.input ?? 0, rows);
+            const acc = Math.max(value.audit?.accepted ?? 0, rows);
+            return {
+              value,
+              stats: {
+                generated: gen,
+                accepted: acc,
+                rejected: Math.max(0, gen - acc),
+                rows_written: rows,
+                meta: { source: "hybrid" },
+              },
+            };
+          },
+        ),
     },
     evidence_intel: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.evidence_intel }, async () => {
-          const value = (await lit.runEvidenceIntelEngine(baseArgs)) as {
-            classifications?: number;
-            promoted_findings?: number;
-            promotion_gate?: unknown;
-            promotion_mode?: unknown;
-            promotion_corpus?: unknown;
-          };
-          const gen = value.classifications ?? 0;
-          const acc = value.promoted_findings ?? gen;
-          await updateCase({ evidence_intel_at: new Date().toISOString() }, "pipeline.evidence_intel");
-          return {
-            value,
-            stats: {
-              generated: gen,
-              accepted: acc,
-              rejected: Math.max(0, gen - acc),
-              rows_written: gen,
-              meta: {
-                source: "hybrid",
-                evidence_gate: {
-                  mode: value.promotion_mode,
-                  audit: value.promotion_gate,
-                  corpus: value.promotion_corpus,
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.evidence_intel },
+          async () => {
+            const value = (await lit.runEvidenceIntelEngine(baseArgs)) as {
+              classifications?: number;
+              promoted_findings?: number;
+              promotion_gate?: unknown;
+              promotion_mode?: unknown;
+              promotion_corpus?: unknown;
+            };
+            const gen = value.classifications ?? 0;
+            const acc = value.promoted_findings ?? gen;
+            await updateCase(
+              { evidence_intel_at: new Date().toISOString() },
+              "pipeline.evidence_intel",
+            );
+            return {
+              value,
+              stats: {
+                generated: gen,
+                accepted: acc,
+                rejected: Math.max(0, gen - acc),
+                rows_written: gen,
+                meta: {
+                  source: "hybrid",
+                  evidence_gate: {
+                    mode: value.promotion_mode,
+                    audit: value.promotion_gate,
+                    corpus: value.promotion_corpus,
+                  },
                 },
               },
-            },
-          };
-        }),
+            };
+          },
+        ),
     },
     constitutional: {
       // PRACTICE-AREA GATE: this stage previously ran unconditionally for
@@ -541,7 +610,8 @@ async function _runPipelineForCase(
       // it under skipped_engines. Mirrors the same gate already used in
       // runAgents() and ensureRequiredEngines() above.
       run: async () => {
-        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } = await import("./intelligence/practice-areas");
+        const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE } =
+          await import("./intelligence/practice-areas");
         const { getActiveDomains } = await import("./intelligence/cross-domain.server");
         const { recordSkipped } = await import("./intelligence/engine-audit.server");
 
@@ -575,125 +645,145 @@ async function _runPipelineForCase(
     },
     discovery: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.discovery }, async () => {
-          const value = (await eng.runDiscoveryGapEngine(baseArgs)) as {
-            findings_gate?: unknown;
-            findings_gate_mode?: unknown;
-            findings_gate_corpus?: unknown;
-          };
-          const { count } = await supabase
-            .from("case_findings")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId)
-            .like("source_module", "engine:discovery%");
-          const n = count ?? 0;
-          await updateCase({ discovery_at: new Date().toISOString() }, "pipeline.discovery");
-          return {
-            value,
-            stats: {
-              generated: n,
-              accepted: n,
-              rows_written: n,
-              meta: {
-                source: "engine",
-                evidence_gate: {
-                  mode: value.findings_gate_mode,
-                  audit: value.findings_gate,
-                  corpus: value.findings_gate_corpus,
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.discovery },
+          async () => {
+            const value = (await eng.runDiscoveryGapEngine(baseArgs)) as {
+              findings_gate?: unknown;
+              findings_gate_mode?: unknown;
+              findings_gate_corpus?: unknown;
+            };
+            const { count } = await supabase
+              .from("case_findings")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId)
+              .like("source_module", "engine:discovery%");
+            const n = count ?? 0;
+            await updateCase({ discovery_at: new Date().toISOString() }, "pipeline.discovery");
+            return {
+              value,
+              stats: {
+                generated: n,
+                accepted: n,
+                rows_written: n,
+                meta: {
+                  source: "engine",
+                  evidence_gate: {
+                    mode: value.findings_gate_mode,
+                    audit: value.findings_gate,
+                    corpus: value.findings_gate_corpus,
+                  },
                 },
               },
-            },
-          };
-        }),
+            };
+          },
+        ),
     },
     perspectives: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.perspectives }, async () => {
-          const value = await lit.runPerspectivesEngine(baseArgs);
-          const { count } = await supabase
-            .from("case_perspectives")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const n = count ?? 0;
-          return {
-            value,
-            stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.perspectives },
+          async () => {
+            const value = await lit.runPerspectivesEngine(baseArgs);
+            const { count } = await supabase
+              .from("case_perspectives")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const n = count ?? 0;
+            return {
+              value,
+              stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
+            };
+          },
+        ),
     },
     theories: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.theories }, async () => {
-          const value = (await eng.runTheoryEngine(baseArgs)) as {
-            theories?: unknown[];
-            audit?: { rejected?: number };
-          };
-          const { count } = await supabase
-            .from("case_theories")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const acc = count ?? value.theories?.length ?? 0;
-          const gen = acc + (value.audit?.rejected ?? 0);
-          return {
-            value,
-            stats: {
-              generated: gen,
-              accepted: acc,
-              rejected: Math.max(0, gen - acc),
-              rows_written: acc,
-              meta: { source: "engine" },
-            },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.theories },
+          async () => {
+            const value = (await eng.runTheoryEngine(baseArgs)) as {
+              theories?: unknown[];
+              audit?: { rejected?: number };
+            };
+            const { count } = await supabase
+              .from("case_theories")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const acc = count ?? value.theories?.length ?? 0;
+            const gen = acc + (value.audit?.rejected ?? 0);
+            return {
+              value,
+              stats: {
+                generated: gen,
+                accepted: acc,
+                rejected: Math.max(0, gen - acc),
+                rows_written: acc,
+                meta: { source: "engine" },
+              },
+            };
+          },
+        ),
     },
     opportunities: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.opportunities }, async () => {
-          const value = (await eng.runOpportunityEngine(baseArgs)) as {
-            opportunities?: unknown[];
-            potential_opportunities?: unknown[];
-            audit?: { input?: number; rejected?: number; rejections?: unknown[] };
-          };
-          const { count } = await supabase
-            .from("case_opportunities")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const verified = value.opportunities?.length ?? 0;
-          const potential = value.potential_opportunities?.length ?? 0;
-          const rows = count ?? verified + potential;
-          const gen = Math.max(value.audit?.input ?? 0, verified + potential, rows);
-          const rejected = Math.max(value.audit?.rejected ?? potential, gen - verified);
-          return {
-            value,
-            stats: {
-              generated: gen,
-              accepted: verified,
-              rejected,
-              rows_written: rows,
-              meta: {
-                source: "engine",
-                verified_opportunities: verified,
-                potential_requires_review: potential,
-                gate_rejections: value.audit?.rejections ?? [],
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.opportunities },
+          async () => {
+            const value = (await eng.runOpportunityEngine(baseArgs)) as {
+              opportunities?: unknown[];
+              potential_opportunities?: unknown[];
+              audit?: { input?: number; rejected?: number; rejections?: unknown[] };
+            };
+            const { count } = await supabase
+              .from("case_opportunities")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const verified = value.opportunities?.length ?? 0;
+            const potential = value.potential_opportunities?.length ?? 0;
+            const rows = count ?? verified + potential;
+            const gen = Math.max(value.audit?.input ?? 0, verified + potential, rows);
+            const rejected = Math.max(value.audit?.rejected ?? potential, gen - verified);
+            return {
+              value,
+              stats: {
+                generated: gen,
+                accepted: verified,
+                rejected,
+                rows_written: rows,
+                meta: {
+                  source: "engine",
+                  verified_opportunities: verified,
+                  potential_requires_review: potential,
+                  gate_rejections: value.audit?.rejections ?? [],
+                },
               },
-            },
-          };
-        }),
+            };
+          },
+        ),
     },
     strategy: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.strategy }, async () => {
-          const value = await lit.runStrategyEngine(baseArgs);
-          const { count } = await supabase
-            .from("case_strategy")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const n = count ?? 0;
-          return {
-            value,
-            stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.strategy },
+          async () => {
+            const value = await lit.runStrategyEngine(baseArgs);
+            const { count } = await supabase
+              .from("case_strategy")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const n = count ?? 0;
+            return {
+              value,
+              stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
+            };
+          },
+        ),
     },
     // PIPELINE_STAGES (cases.functions.ts) lists 21 stages, but this object
     // only ever implemented 20 of them — litigation_strategy_center had no
@@ -704,59 +794,71 @@ async function _runPipelineForCase(
     // already present in pipeline-runner.server.ts.
     litigation_strategy_center: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.litigation_strategy_center }, async () => {
-          const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { count } = await (supabase as any)
-            .from("case_strategy_center")
-            .select("case_id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const n = count ?? (value ? 1 : 0);
-          return {
-            value,
-            stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
-          };
-        }),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.litigation_strategy_center },
+          async () => {
+            const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { count } = await (supabase as any)
+              .from("case_strategy_center")
+              .select("case_id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const n = count ?? (value ? 1 : 0);
+            return {
+              value,
+              stats: { generated: n, accepted: n, rows_written: n, meta: { source: "engine" } },
+            };
+          },
+        ),
     },
     work_product: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.work_product }, async () => {
-          const value = (await eng.runWorkProductEngine(baseArgs)) as {
-            documents?: unknown[];
-            failed?: number;
-            verification?: {
-              total?: number;
-              clean?: number;
-              flagged?: number;
-              rejected?: number;
-              empty?: number;
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.work_product },
+          async () => {
+            const value = (await eng.runWorkProductEngine(baseArgs)) as {
+              documents?: unknown[];
+              failed?: number;
+              verification?: {
+                total?: number;
+                clean?: number;
+                flagged?: number;
+                rejected?: number;
+                empty?: number;
+              };
             };
-          };
-          const { count } = await supabase
-            .from("case_work_product")
-            .select("id", { count: "exact", head: true })
-            .eq("case_id", caseId);
-          const rows = count ?? 0;
-          const gen = value.verification?.total ?? rows;
-          const acc = value.verification?.clean ?? rows;
-          const rej = (value.verification?.rejected ?? 0) + (value.verification?.empty ?? 0);
-          return {
-            value,
-            stats: {
-              generated: gen,
-              accepted: acc,
-              rejected: rej,
-              rows_written: rows,
-              meta: { source: "template", verification: value.verification ?? null },
-            },
-          };
-        }),
+            const { count } = await supabase
+              .from("case_work_product")
+              .select("id", { count: "exact", head: true })
+              .eq("case_id", caseId);
+            const rows = count ?? 0;
+            const gen = value.verification?.total ?? rows;
+            const acc = value.verification?.clean ?? rows;
+            const rej = (value.verification?.rejected ?? 0) + (value.verification?.empty ?? 0);
+            return {
+              value,
+              stats: {
+                generated: gen,
+                accepted: acc,
+                rejected: rej,
+                rows_written: rows,
+                meta: { source: "template", verification: value.verification ?? null },
+              },
+            };
+          },
+        ),
     },
     hallucination: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.hallucination }, async () => ({
-          value: await hal.runHallucinationReview({ db: supabase, caseId }),
-        })),
+        persist.runCatalogedEngine(
+          supabase,
+          { caseId, userId, engine: ENGINE.hallucination },
+          async () => ({
+            value: await hal.runHallucinationReview({ db: supabase, caseId }),
+          }),
+        ),
     },
     multi_agent: {
       run: async () =>
@@ -796,10 +898,9 @@ async function _runPipelineForCase(
   // Dependency graph — derived from CANONICAL_STAGES so there is exactly
   // one place that defines stage dependencies platform-wide.
   const { CANONICAL_STAGES } = await import("@/lib/execution/canonical");
-  const DEPENDS_ON = Object.fromEntries(CANONICAL_STAGES.map((s) => [s.key, [...s.dependsOn]])) as Record<
-    PipelineStageKey,
-    PipelineStageKey[]
-  >;
+  const DEPENDS_ON = Object.fromEntries(
+    CANONICAL_STAGES.map((s) => [s.key, [...s.dependsOn]]),
+  ) as Record<PipelineStageKey, PipelineStageKey[]>;
   // See matching comment in pipeline-runner.server.ts: only blocking/enriching
   // stage failures should flip the whole pipeline to "failed" — optional
   // stages are documented as "decorative; never blocks".
@@ -849,8 +950,12 @@ async function _runPipelineForCase(
   const completed = new Set<PipelineStageKey>();
   const failed = new Set<PipelineStageKey>();
   const blocked = new Set<PipelineStageKey>();
-  const { withCheckpointScope, budgetFor, WORKER_INVOCATION_BUDGET_MS, CHECKPOINT_SAFETY_BUFFER_MS } =
-    await import("./pipeline-checkpoint.server");
+  const {
+    withCheckpointScope,
+    budgetFor,
+    WORKER_INVOCATION_BUDGET_MS,
+    CHECKPOINT_SAFETY_BUFFER_MS,
+  } = await import("./pipeline-checkpoint.server");
   const invocationDeadlineAt = runStart + WORKER_INVOCATION_BUDGET_MS;
 
   // Cross-tick dependency correctness. `failed`/`blocked` above only track
@@ -873,7 +978,9 @@ async function _runPipelineForCase(
       // Fail loudly rather than silently proceeding with an incomplete
       // picture of prior failures — a swallowed error here is exactly the
       // kind of gap that let work_product run past a failed perspectives.
-      throw new Error(`failed to read pipeline_engine_runs history for resume: ${priorErr.message}`);
+      throw new Error(
+        `failed to read pipeline_engine_runs history for resume: ${priorErr.message}`,
+      );
     }
     const latestStatusByEngine = new Map<string, string>();
     for (const row of (priorRuns ?? []) as Array<{ engine: string; status: string }>) {
@@ -1058,8 +1165,13 @@ async function _runPipelineForCase(
               .select("report_checkpoint_count")
               .eq("id", caseId)
               .maybeSingle();
-            const next = ((cur as { report_checkpoint_count?: number } | null)?.report_checkpoint_count ?? 0) + 1;
-            await (supabase as any).from("cases").update({ report_checkpoint_count: next }).eq("id", caseId);
+            const next =
+              ((cur as { report_checkpoint_count?: number } | null)?.report_checkpoint_count ?? 0) +
+              1;
+            await (supabase as any)
+              .from("cases")
+              .update({ report_checkpoint_count: next })
+              .eq("id", caseId);
             trace("report.checkpoint_count", { count: next });
           } catch (cntErr) {
             console.warn("[pipeline] failed to increment report_checkpoint_count", cntErr);
@@ -1067,9 +1179,15 @@ async function _runPipelineForCase(
         }
         trace("stage.checkpoint", { stage: s.key, runtime_ms: Date.now() - stageStart });
         try {
-          await prog.emitEvent(supabase, caseId, s.key, `${s.label} checkpointed — will resume on next worker tick`, {
-            level: "warn",
-          });
+          await prog.emitEvent(
+            supabase,
+            caseId,
+            s.key,
+            `${s.label} checkpointed — will resume on next worker tick`,
+            {
+              level: "warn",
+            },
+          );
         } catch {
           /* noop */
         }
@@ -1213,7 +1331,12 @@ async function logUsage(
   },
 ) {
   const { getKeyIdByIndex } = await import("@/lib/ai-key-router.server");
-  const provider = (args.provider ?? "groq") as "groq" | "openai" | "gemini" | "anthropic" | "openrouter";
+  const provider = (args.provider ?? "groq") as
+    | "groq"
+    | "openai"
+    | "gemini"
+    | "anthropic"
+    | "openrouter";
   const groqKeyId = getKeyIdByIndex(args.userId, provider, args.keyIndex);
   await db.from("ai_usage").insert({
     user_id: args.userId,
@@ -1538,7 +1661,9 @@ async function _runExtractionInner(args: {
           success: true,
           keyIndex: r.keyIndex,
         });
-        const parsed = parseJsonLoose<{ text?: string; metadata?: unknown; entities?: unknown }>(r.text);
+        const parsed = parseJsonLoose<{ text?: string; metadata?: unknown; entities?: unknown }>(
+          r.text,
+        );
         extractedText = parsed?.text ?? r.text;
         metadata = parsed?.metadata ?? {};
         entities = parsed?.entities ?? [];
@@ -1550,7 +1675,9 @@ async function _runExtractionInner(args: {
             filename: d.filename,
             mimeType: d.mime_type ?? "image/*",
             extractedText,
-            entities: Array.isArray(entities) ? (entities as Array<{ type?: string; value?: string }>) : null,
+            entities: Array.isArray(entities)
+              ? (entities as Array<{ type?: string; value?: string }>)
+              : null,
           });
           metadata = { ...(metadata as Record<string, unknown>), vision };
         } catch (visErr) {
@@ -1615,7 +1742,11 @@ async function _runExtractionInner(args: {
           }
         } catch (imgErr) {
           rethrowIfCheckpoint(imgErr);
-          console.warn("[image_intel] second pass failed for", d.id, imgErr instanceof Error ? imgErr.message : imgErr);
+          console.warn(
+            "[image_intel] second pass failed for",
+            d.id,
+            imgErr instanceof Error ? imgErr.message : imgErr,
+          );
         }
       } else {
         throw new Error(
@@ -1730,7 +1861,13 @@ async function _runExtractionInner(args: {
     // Every document failed — do NOT mark the case as extracted, or downstream
     // steps will look "unlocked" while having nothing to work with.
     const firstErr = (
-      await db.from("documents").select("error").eq("case_id", caseId).eq("status", "failed").limit(1).maybeSingle()
+      await db
+        .from("documents")
+        .select("error")
+        .eq("case_id", caseId)
+        .eq("status", "failed")
+        .limit(1)
+        .maybeSingle()
     ).data?.error;
     await setCase(db, caseId, {
       status: "failed",
@@ -1791,7 +1928,8 @@ export async function retryFailedExtractions(args: {
   if (docsToRetry.length === 0) {
     return {
       retried: 0,
-      message: "No failed documents eligible for retry (either none failed or max retries reached).",
+      message:
+        "No failed documents eligible for retry (either none failed or max retries reached).",
     };
   }
 
@@ -1861,11 +1999,26 @@ export async function rollbackExtractions(args: { db: Db; caseId: string; docume
   return { cleared: eligible.length, documentIds: eligible };
 }
 
+// Excludes 'revision_context' documents (uploaded via Talk-to-Case — see
+// migration 20260813224813_document_evidence_scope) from every full-pipeline
+// analysis engine's document read, so a document a user attaches
+// mid-conversation cannot silently become part of the case's permanent
+// analytical record until explicitly promoted. Repeated inline at each
+// corpus-consuming query (this file's buildCorpus, plus evidence-map.server.ts,
+// litigation.server.ts, shared-brief.server.ts) rather than a shared query
+// builder, matching this codebase's existing per-call-site filter style.
+// Extraction itself, and Talk-to-Case's own chat context / finding-patch
+// grounding, intentionally do NOT apply this filter — a revision_context
+// document must still be extracted and still be readable by the chat AI,
+// just excluded from full-case analysis.
 async function buildCorpus(db: Db, caseId: string) {
   const { data: docs } = await db
     .from("documents")
-    .select("id,filename,extracted_text,metadata,entities,status")
+    .select("id,filename,extracted_text,metadata,entities,status,evidence_scope")
     .eq("case_id", caseId)
+    // Analysis corpus only — revision_context documents (Talk-to-Case
+    // attachments not yet promoted) are excluded, see listCorpusDocuments.
+    .neq("evidence_scope", "revision_context")
     // Secondary sort on `id` — see the identical note in
     // shared-brief.server.ts's loadCorpus(). This is the doc_n numbering
     // ("DOCUMENT N" headers) analyzers/agents prompts use; it must stay
@@ -1992,7 +2145,9 @@ export async function runAnalyzers(args: {
     "evidence_intelligence",
     "analyzers",
   ]);
-  return runEngine(db, { caseId, userId, engine: ENGINE.analyzers }, async () => _runAnalyzersInner(args));
+  return runEngine(db, { caseId, userId, engine: ENGINE.analyzers }, async () =>
+    _runAnalyzersInner(args),
+  );
 }
 
 async function _runAnalyzersInner(args: {
@@ -2094,7 +2249,10 @@ ${corpusText}`;
   // The budget is capped by the NARROWEST configured provider so Groq stays in
   // the fallback chain instead of being skipped as oversize on every call.
   const { packingCharBudget, PROMPT_OVERHEAD_CHARS } = await import("@/lib/ai/router.server");
-  const analyzerBudgetChars = await packingCharBudget(ANALYZER_CORPUS_BUDGET_CHARS, PROMPT_OVERHEAD_CHARS.analyzers);
+  const analyzerBudgetChars = await packingCharBudget(
+    ANALYZER_CORPUS_BUDGET_CHARS,
+    PROMPT_OVERHEAD_CHARS.analyzers,
+  );
   const initialBatches = packChunks(chunks, analyzerBudgetChars);
   console.log(
     `[analyzers] docs=${chunks.length} totalChars=${corpus.length} batches=${initialBatches.length} budgetChars=${analyzerBudgetChars}`,
@@ -2153,23 +2311,31 @@ ${corpusText}`;
   // sequentially after each wave settles, exactly as before.
   // ROLLBACK: set ANALYZER_BATCH_CONCURRENCY to 1.
   const ANALYZER_BATCH_CONCURRENCY = 2;
-  const { withAiSlot: _withAiSlot, mapSettled: _mapSettled } = await import("@/lib/ai/concurrency.server");
+  const { withAiSlot: _withAiSlot, mapSettled: _mapSettled } =
+    await import("@/lib/ai/concurrency.server");
   type AnalyzerFailure = { batch: CorpusChunk[]; batchIdx: number; msg: string };
 
-  const runAnalyzerBatch = async (batch: CorpusChunk[], idx: number): Promise<AnalyzerFailure | null> => {
+  const runAnalyzerBatch = async (
+    batch: CorpusChunk[],
+    idx: number,
+  ): Promise<AnalyzerFailure | null> => {
     const key = batch
       .map((c) => c.docId)
       .sort()
       .join("|");
     if (completedDocSets.has(key)) {
-      console.log(`[analyzers] batch ${idx} skipped (already completed in prior run) docs=${batch.length}`);
+      console.log(
+        `[analyzers] batch ${idx} skipped (already completed in prior run) docs=${batch.length}`,
+      );
       return null;
     }
     const batchCorpus = batch.map((c) => c.text).join("\n\n");
     const startedAt = new Date().toISOString();
     const t0 = Date.now();
     try {
-      console.log(`[analyzers] batch ${idx} start docs=${batch.length} chars=${batchCorpus.length}`);
+      console.log(
+        `[analyzers] batch ${idx} start docs=${batch.length} chars=${batchCorpus.length}`,
+      );
       const r = await _withAiSlot(() =>
         callGroq({
           apiKey,
@@ -2247,7 +2413,9 @@ ${corpusText}`;
     } catch (e) {
       rethrowIfCheckpoint(e);
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[analyzers] batch ${idx} failed chars=${batchCorpus.length}: ${msg.slice(0, 300)}`);
+      console.warn(
+        `[analyzers] batch ${idx} failed chars=${batchCorpus.length}: ${msg.slice(0, 300)}`,
+      );
       await db.from("pipeline_engine_runs").insert({
         case_id: caseId,
         user_id: userId,
@@ -2289,8 +2457,13 @@ ${corpusText}`;
   while (queue.length && !stopAnalyzers) {
     if (Date.now() - analyzerStartedAt > analyzerBudgetMs) {
       if (successes > 0) {
-        console.warn(`[analyzers] checkpoint reached after ${successes} batches — yielding, ${queue.length} remaining`);
-        throw new _AnalyzerCheckpoint("analyzers", `${successes} batches done, ${queue.length} remaining`);
+        console.warn(
+          `[analyzers] checkpoint reached after ${successes} batches — yielding, ${queue.length} remaining`,
+        );
+        throw new _AnalyzerCheckpoint(
+          "analyzers",
+          `${successes} batches done, ${queue.length} remaining`,
+        );
       }
       const { count: priorZeroProgress } = await db
         .from("pipeline_trace")
@@ -2351,25 +2524,41 @@ ${corpusText}`;
       if (payloadTooLarge && !nonRetryable && batch.length > 1) {
         const mid = Math.ceil(batch.length / 2);
         queue.unshift(batch.slice(0, mid), batch.slice(mid));
-        console.log(`[analyzers] batch ${failure.batchIdx} split → 2 sub-batches of ${mid}/${batch.length - mid}`);
+        console.log(
+          `[analyzers] batch ${failure.batchIdx} split → 2 sub-batches of ${mid}/${batch.length - mid}`,
+        );
         continue;
       }
-      if (payloadTooLarge && !nonRetryable && batch.length === 1 && batch[0].size > ANALYZER_MIN_BATCH_CHARS) {
+      if (
+        payloadTooLarge &&
+        !nonRetryable &&
+        batch.length === 1 &&
+        batch[0].size > ANALYZER_MIN_BATCH_CHARS
+      ) {
         const halves = splitOversizeChunk(batch[0]);
         if (halves.length > 1) {
           queue.unshift(...halves.map((h) => [h]));
-          console.log(`[analyzers] batch ${failure.batchIdx} single-doc split by text (${halves.length} halves)`);
+          console.log(
+            `[analyzers] batch ${failure.batchIdx} single-doc split by text (${halves.length} halves)`,
+          );
           continue;
         }
       }
       providerErrors.push(`batch ${failure.batchIdx} (${batch.length} docs): ${msg.slice(0, 300)}`);
       if (isGroqCooldownOrRateLimit(msg)) {
         const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
-        console.warn(`[analyzers] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`);
-        throw new CheckpointRequired("analyzers", `after ${successes} successful batch(es) — ${msg.slice(0, 300)}`);
+        console.warn(
+          `[analyzers] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`,
+        );
+        throw new CheckpointRequired(
+          "analyzers",
+          `after ${successes} successful batch(es) — ${msg.slice(0, 300)}`,
+        );
       }
       if (providerUnavailable || retryableTransport) {
-        console.warn(`[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`);
+        console.warn(
+          `[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`,
+        );
         stopAnalyzers = true;
         break;
       }
@@ -2390,7 +2579,9 @@ ${corpusText}`;
     );
   }
   if (providerErrors.length) {
-    console.warn(`[analyzers] completed with ${providerErrors.length} failed batch(es); ${successes} succeeded`);
+    console.warn(
+      `[analyzers] completed with ${providerErrors.length} failed batch(es); ${successes} succeeded`,
+    );
   }
 
   // ── Cross-batch synthesis pass ───────────────────────────────────────────
@@ -2411,7 +2602,9 @@ ${corpusText}`;
       return { ...c, text, size: text.length };
     });
     const synthesisBatches = packChunks(digestChunks, SYNTHESIS_BATCH_BUDGET_CHARS);
-    console.log(`[analyzers:synthesis] docs=${digestChunks.length} batches=${synthesisBatches.length}`);
+    console.log(
+      `[analyzers:synthesis] docs=${digestChunks.length} batches=${synthesisBatches.length}`,
+    );
 
     const synthesisSystem =
       `${analyzerPreamble}\n` +
@@ -2639,7 +2832,9 @@ ${digestText}`;
   // exemption addGatedFindings already supports for exactly this
   // evidentiary shape (see findings.server.ts's addGatedFindings
   // comment: "discovery-gap, trial risk/strength").
-  const missingRows = analyzerRows.filter((row) => String(row.category ?? "") === "missing_evidence");
+  const missingRows = analyzerRows.filter(
+    (row) => String(row.category ?? "") === "missing_evidence",
+  );
   const otherRows = analyzerRows.filter((row) => String(row.category ?? "") !== "missing_evidence");
   const otherGate = await addGatedFindings(db, caseId, otherRows);
   const missingGate = await addGatedFindings(db, caseId, missingRows, { exemptCitation: true });
@@ -2653,7 +2848,10 @@ ${digestText}`;
             ...otherGate.audit,
             input: (otherGate.audit.input ?? 0) + (missingGate.audit.input ?? 0),
             accepted: (otherGate.audit.accepted ?? 0) + (missingGate.audit.accepted ?? 0),
-            rejections: [...(otherGate.audit.rejections ?? []), ...(missingGate.audit.rejections ?? [])],
+            rejections: [
+              ...(otherGate.audit.rejections ?? []),
+              ...(missingGate.audit.rejections ?? []),
+            ],
           }
         : (otherGate.audit ?? missingGate.audit),
   };
@@ -3502,7 +3700,6 @@ const AUDIT_ONLY_AGENT_TYPES = new Set<string>(["ways_out_analysis"]);
  */
 const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
 
-
 /**
  * How many investigator agents may execute simultaneously inside the "agents"
  * stage.
@@ -3532,7 +3729,13 @@ const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
  */
 const AGENT_CONCURRENCY = 2;
 
-export async function runAgents(args: { db: Db; caseId: string; userId: string; apiKey: string; apiKeys?: string[] }) {
+export async function runAgents(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
   await setCase(db, caseId, {
     status: "agents_running",
@@ -3544,7 +3747,10 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
   // previous worker tick. Only wipe engine rows / agent_findings for agents
   // that haven't finished yet, so a checkpointed re-entry doesn't re-run
   // work that's already persisted.
-  const { data: prevAgentRows } = await db.from("agent_findings").select("agent_type,status").eq("case_id", caseId);
+  const { data: prevAgentRows } = await db
+    .from("agent_findings")
+    .select("agent_type,status")
+    .eq("case_id", caseId);
   const completedAgentTypes = new Set(
     (prevAgentRows ?? [])
       .filter((r) => (r as { status?: string }).status === "complete")
@@ -3553,9 +3759,15 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
   const completedEngines = Array.from(completedAgentTypes).map(
     (t) => AGENT_ENGINE[t as keyof typeof AGENT_ENGINE] ?? t,
   );
-  const engineWipeList = ["agents", ...Object.values(AGENT_ENGINE)].filter((e) => !completedEngines.includes(e));
+  const engineWipeList = ["agents", ...Object.values(AGENT_ENGINE)].filter(
+    (e) => !completedEngines.includes(e),
+  );
   if (engineWipeList.length > 0) {
-    await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).in("engine", engineWipeList);
+    await db
+      .from("pipeline_engine_runs")
+      .delete()
+      .eq("case_id", caseId)
+      .in("engine", engineWipeList);
   }
 
   return runEngine(db, { caseId, userId, engine: ENGINE.agents }, async () => {
@@ -3599,7 +3811,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     // CASE-ANALYSIS-MODE GATE: agents in AUDIT_ONLY_AGENT_TYPES only make
     // sense for a completed case being audited retrospectively — never for
     // "ongoing" case preparation. See case-analysis-mode.ts.
-    const { getCaseAnalysisMode, isCompletedCaseMode } = await import("./intelligence/case-analysis-mode");
+    const { getCaseAnalysisMode, isCompletedCaseMode } =
+      await import("./intelligence/case-analysis-mode");
     const caseAnalysisMode = await getCaseAnalysisMode(db, caseId);
     const SKIP_REASON_NOT_COMPLETED_CASE_MODE = "not_applicable_ongoing_case_mode";
 
@@ -3607,7 +3820,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     for (const agent of AGENTS) {
       const engine = AGENT_ENGINE[agent.type] ?? agent.type;
       const subtypeBlocked = !isEngineAllowedForSubtype(matterSubtype, engine);
-      const auditOnlyBlocked = AUDIT_ONLY_AGENT_TYPES.has(agent.type) && !isCompletedCaseMode(caseAnalysisMode);
+      const auditOnlyBlocked =
+        AUDIT_ONLY_AGENT_TYPES.has(agent.type) && !isCompletedCaseMode(caseAnalysisMode);
       if (!subtypeBlocked && !auditOnlyBlocked && isAnalyzerAllowed(area, engine, activeDomains)) {
         activeAgents.push(agent);
       } else {
@@ -3624,7 +3838,6 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       }
     }
 
-
     // Reset prior agent rows only for agents we're about to actually run.
     // Rows for agents that already completed on a prior tick are preserved
     // so a checkpointed resume doesn't wipe finished work. Finding rows
@@ -3634,7 +3847,13 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     const agentTypesToRun = agentsToRun.map((a) => a.type);
     if (agentTypesToRun.length > 0) {
       assertDbOk(
-        (await db.from("agent_findings").delete().eq("case_id", caseId).in("agent_type", agentTypesToRun)).error,
+        (
+          await db
+            .from("agent_findings")
+            .delete()
+            .eq("case_id", caseId)
+            .in("agent_type", agentTypesToRun)
+        ).error,
         "Failed to clear previous agent runs",
       );
       for (const t of agentTypesToRun) {
@@ -3644,7 +3863,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
 
     // Practice-area context for every agent prompt so the LLM doesn't invent
     // off-domain findings (e.g. Miranda on a contract dispute).
-    const { PRACTICE_AREA_LABELS, normalizePracticeArea } = await import("./intelligence/practice-areas");
+    const { PRACTICE_AREA_LABELS, normalizePracticeArea } =
+      await import("./intelligence/practice-areas");
     const normalizedArea = normalizePracticeArea(area);
     const areaLabel = PRACTICE_AREA_LABELS[normalizedArea];
     const { executionProfileFor } = await import("./jurisdiction/execution-profile");
@@ -3653,7 +3873,9 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       `GOVERNING FRAMEWORK for ${areaLabel}: ` +
       `laws — ${execProfile.governingLaws.map((l) => l.code).join(", ")}. ` +
       `constitutional articles — ${execProfile.constitutionalArticles.map((a) => a.article).join(", ")}. ` +
-      (execProfile.treaties.length > 0 ? `treaties — ${execProfile.treaties.map((t) => t.short).join(", ")}. ` : "") +
+      (execProfile.treaties.length > 0
+        ? `treaties — ${execProfile.treaties.map((t) => t.short).join(", ")}. `
+        : "") +
       `Burden of proof: ${execProfile.burdenOfProof} ` +
       `Standing: ${execProfile.standing} ` +
       `${execProfile.precedentGuidance} Never invent a specific case-law citation (registry number, paragraph, docket) — ` +
@@ -3752,8 +3974,11 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
       .limit(1)
       .maybeSingle();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const _lastEnd = (_lastBatchRow as any)?.ended_at ? Date.parse((_lastBatchRow as any).ended_at) : null;
-    const resumeGapMs = _lastEnd && Number.isFinite(_lastEnd) ? Math.max(0, agentStageStart - _lastEnd) : 0;
+    const _lastEnd = (_lastBatchRow as any)?.ended_at
+      ? Date.parse((_lastBatchRow as any).ended_at)
+      : null;
+    const resumeGapMs =
+      _lastEnd && Number.isFinite(_lastEnd) ? Math.max(0, agentStageStart - _lastEnd) : 0;
     if (resumeGapMs > 0) {
       await _agentTrace({
         db,
@@ -3804,7 +4029,6 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
 
           const agentBatches = packChunks(chunks, agentBudgetChars);
 
-
           const batchEngine = `${engine}_batch`;
           const batchKey = (batch: CorpusChunk[]) =>
             batch
@@ -3839,7 +4063,9 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           console.log(
             `[agent:${agent.type}] docs=${chunks.length} totalChars=${corpus.length} batches=${agentBatches.length} resumed=${priorBatchMetas.length}`,
           );
-          const queue: CorpusChunk[][] = agentBatches.filter((batch) => !completedBatchKeys.has(batchKey(batch)));
+          const queue: CorpusChunk[][] = agentBatches.filter(
+            (batch) => !completedBatchKeys.has(batchKey(batch)),
+          );
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const mergedFindings: any[] = priorBatchMetas.flatMap((m) =>
             Array.isArray(m.findings) ? (m.findings as any[]) : [],
@@ -3865,7 +4091,10 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           const AGENT_BATCH_CONCURRENCY = 2;
           const { withAiSlot, mapSettled } = await import("@/lib/ai/concurrency.server");
           type BatchFailure = { batch: CorpusChunk[]; batchIdx: number; msg: string };
-          const runOneBatch = async (batch: CorpusChunk[], idx: number): Promise<BatchFailure | null> => {
+          const runOneBatch = async (
+            batch: CorpusChunk[],
+            idx: number,
+          ): Promise<BatchFailure | null> => {
             const key = batchKey(batch);
             if (completedBatchKeys.has(key)) return null;
             const batchCorpus = batch.map((c) => c.text).join("\n\n");
@@ -3906,9 +4135,13 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 keyIndex: r.keyIndex,
               });
 
-              const parsed = parseJsonLoose<{ summary?: string; confidence?: number; findings?: any[] }>(r.text) ?? {};
+              const parsed =
+                parseJsonLoose<{ summary?: string; confidence?: number; findings?: any[] }>(
+                  r.text,
+                ) ?? {};
               if (Array.isArray(parsed.findings)) mergedFindings.push(...parsed.findings);
-              if (typeof parsed.summary === "string" && parsed.summary.trim()) summaries.push(parsed.summary.trim());
+              if (typeof parsed.summary === "string" && parsed.summary.trim())
+                summaries.push(parsed.summary.trim());
               if (typeof parsed.confidence === "number") confidences.push(parsed.confidence);
               assertDbOk(
                 (
@@ -3932,7 +4165,8 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                       docs: batch.length,
                       chars: batchCorpus.length,
                       docIds: batch.map((c) => c.docId),
-                      summary: typeof parsed.summary === "string" ? parsed.summary.slice(0, 4000) : null,
+                      summary:
+                        typeof parsed.summary === "string" ? parsed.summary.slice(0, 4000) : null,
                       confidence: typeof parsed.confidence === "number" ? parsed.confidence : null,
                       findings: Array.isArray(parsed.findings) ? parsed.findings : [],
                       provider: r.provider,
@@ -3985,7 +4219,12 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
                 queue.unshift(batch.slice(0, mid), batch.slice(mid));
                 continue;
               }
-              if (payloadTooLarge && !nonRetryable && batch.length === 1 && batch[0].size > ANALYZER_MIN_BATCH_CHARS) {
+              if (
+                payloadTooLarge &&
+                !nonRetryable &&
+                batch.length === 1 &&
+                batch[0].size > ANALYZER_MIN_BATCH_CHARS
+              ) {
                 const halves = splitOversizeChunk(batch[0]);
                 if (halves.length > 1) {
                   queue.unshift(...halves.map((h) => [h]));
@@ -4030,9 +4269,12 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           }
           if (successes === 0) {
             const providerBlocked =
-              batchErrors.some(isProviderUnavailableError) || batchErrors.some(isRetryableTransportError);
+              batchErrors.some(isProviderUnavailableError) ||
+              batchErrors.some(isRetryableTransportError);
             if (!providerBlocked) {
-              throw new Error(`Agent ${agent.type} failed on every batch. ${batchErrors.join(" | ")}`);
+              throw new Error(
+                `Agent ${agent.type} failed on every batch. ${batchErrors.join(" | ")}`,
+              );
             }
           }
           const parsed = {
@@ -4040,7 +4282,9 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
               successes === 0
                 ? `Agent pass suppressed: AI providers were unavailable or out of quota during this run. No uncited findings were generated.`
                 : summaries.join(" ").slice(0, 4000),
-            confidence: confidences.length ? confidences.reduce((a, b) => a + b, 0) / confidences.length : null,
+            confidence: confidences.length
+              ? confidences.reduce((a, b) => a + b, 0) / confidences.length
+              : null,
             findings: mergedFindings,
           };
           const generated = Array.isArray(parsed.findings) ? parsed.findings.length : 0;
@@ -4129,7 +4373,11 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
           const allowedRows = normalizedRows.filter(
             (row) =>
               isFindingAllowed(area, row.source_module ?? `agent:${agent.type}`, activeDomains) &&
-              isFindingAllowed(area, `agent:${String(row.category ?? agent.category)}`, activeDomains),
+              isFindingAllowed(
+                area,
+                `agent:${String(row.category ?? agent.category)}`,
+                activeDomains,
+              ),
           );
           // Deterministic source gate for procedural recommendations (not
           // just factual claims) — a ways_out_analysis remedy proposed
@@ -4209,21 +4457,28 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
     let queueIdx = 0;
     let checkpointNeeded = false;
     const startingDone = completedAgentTypes.size;
-    const workers = Array.from({ length: Math.min(AGENT_CONCURRENCY, agentsToRun.length) }, async () => {
-      while (!checkpointNeeded) {
-        const myIdx = queueIdx++;
-        if (myIdx >= agentsToRun.length) break;
-        await runOneAgent(agentsToRun[myIdx]);
-        // Yield only if (i) at least one agent has completed THIS tick (so
-        // we're making forward progress a resume can build on) and (ii) work
-        // remains. Avoids a livelock where the very first agent overruns the
-        // budget and every resume re-throws before anything new commits.
-        if (done < totalAgentCount && done > startingDone && Date.now() - agentStageStart > agentBudgetMs) {
-          checkpointNeeded = true;
-          break;
+    const workers = Array.from(
+      { length: Math.min(AGENT_CONCURRENCY, agentsToRun.length) },
+      async () => {
+        while (!checkpointNeeded) {
+          const myIdx = queueIdx++;
+          if (myIdx >= agentsToRun.length) break;
+          await runOneAgent(agentsToRun[myIdx]);
+          // Yield only if (i) at least one agent has completed THIS tick (so
+          // we're making forward progress a resume can build on) and (ii) work
+          // remains. Avoids a livelock where the very first agent overruns the
+          // budget and every resume re-throws before anything new commits.
+          if (
+            done < totalAgentCount &&
+            done > startingDone &&
+            Date.now() - agentStageStart > agentBudgetMs
+          ) {
+            checkpointNeeded = true;
+            break;
+          }
         }
-      }
-    });
+      },
+    );
     await Promise.all(workers);
 
     if (checkpointNeeded && done < totalAgentCount) {
@@ -4306,7 +4561,13 @@ export async function runAgents(args: { db: Db; caseId: string; userId: string; 
 }
 
 // ===== STEP 4: Scoring (explainable, sources from unified findings) =====
-export async function runScoring(args: { db: Db; caseId: string; userId: string; apiKey: string; apiKeys?: string[] }) {
+export async function runScoring(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}) {
   const { db, caseId, userId } = args;
   await setCase(db, caseId, {
     status: "scoring",
@@ -4314,16 +4575,28 @@ export async function runScoring(args: { db: Db; caseId: string; userId: string;
     progress: 30,
   });
   await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).eq("engine", "scoring");
-  return runEngine(db, { caseId, userId, engine: ENGINE.scoring }, async () => _runScoringInner(args));
+  return runEngine(db, { caseId, userId, engine: ENGINE.scoring }, async () =>
+    _runScoringInner(args),
+  );
 }
 
-async function _runScoringInner(args: { db: Db; caseId: string; userId: string; apiKey: string; apiKeys?: string[] }) {
+async function _runScoringInner(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}) {
   const { db, caseId, userId, apiKey, apiKeys } = args;
 
   // SINGLE SOURCE OF TRUTH: canonical finding selection (engine:* only,
   // pipeline must be finalized). Shared with the report generator.
-  const { getCanonicalScoringFindings, assertPipelineOrder, PipelineNotFinalizedError, CanonicalFindingsEmptyError } =
-    await import("./intelligence/scoring-selection");
+  const {
+    getCanonicalScoringFindings,
+    assertPipelineOrder,
+    PipelineNotFinalizedError,
+    CanonicalFindingsEmptyError,
+  } = await import("./intelligence/scoring-selection");
   const { data: caseRow } = await db
     .from("cases")
     .select("discovery_at,contradiction_at,evidence_intel_at,scored_at")
@@ -4497,7 +4770,10 @@ ${JSON.stringify(findingsForLlm)}`,
 
   // Collect finding ids referenced
 
-  const allContribs = [...((s.positive_contributors as any[]) ?? []), ...((s.negative_contributors as any[]) ?? [])];
+  const allContribs = [
+    ...((s.positive_contributors as any[]) ?? []),
+    ...((s.negative_contributors as any[]) ?? []),
+  ];
 
   const ids = allContribs
     .map((c: any) => c?.finding_id)
@@ -4516,14 +4792,16 @@ ${JSON.stringify(findingsForLlm)}`,
   const flatPos = Object.keys(det.dimensions).flatMap((k) => detContrib(k, "positives"));
   const flatNeg = Object.keys(det.dimensions).flatMap((k) => detContrib(k, "negatives"));
 
-  const { getActiveDomains, isCriminalEffective } = await import("./intelligence/cross-domain.server");
+  const { getActiveDomains, isCriminalEffective } =
+    await import("./intelligence/cross-domain.server");
   const activeDomainsForScore = await getActiveDomains(db, caseId);
   const criminalLike = isCriminalEffective(caseTypeForScore, activeDomainsForScore);
 
   // Strip non-applicable dimensions from the LLM payload BEFORE persistence
   // so renderers (PDF, DOCX, dashboard) cannot show off-domain dimensions
   // like "Conviction Risk" or "Chain of Custody" on a civil case.
-  const { applicableDimensionsFor, scrubScoringContributors } = await import("./intelligence/scoring.server");
+  const { applicableDimensionsFor, scrubScoringContributors } =
+    await import("./intelligence/scoring.server");
   const applicableSet = new Set(applicableDimensionsFor(caseTypeForScore));
   // Cross-domain escalation (e.g. a tax_law case where a charging document
   // was detected): union in the criminal dimension set so chain_of_custody /
@@ -4549,7 +4827,8 @@ ${JSON.stringify(findingsForLlm)}`,
   // MODEL_DISAGREEMENT — deterministic is authoritative; LLM is comparison
   // only. Flag any dimension where the gap exceeds the threshold so the
   // renderer can show it explicitly.
-  const { computeScoreDelta, SCORE_DISAGREEMENT_THRESHOLD } = await import("./intelligence/case-state.server");
+  const { computeScoreDelta, SCORE_DISAGREEMENT_THRESHOLD } =
+    await import("./intelligence/case-state.server");
   const llmDims = llmDimsScoped as Record<string, { score?: number | null }>;
 
   const detDims = det.dimensions as Record<string, { score?: number | null }>;
@@ -4674,7 +4953,6 @@ function dedupeFindings<T extends Record<string, unknown>>(
   return consolidateFindings(rows ?? []);
 }
 
-
 /**
  * Materia detection for cases whose `case_type` is not stamped yet. Delegates
  * to the single Mexican classifier (src/lib/mx-case-classifier.ts) — there is
@@ -4693,7 +4971,11 @@ export function isCriminalCaseType(caseType: string | undefined | null): boolean
  * USER-LOCKED case_type wins absolutely. Detection is only a fallback when
  * the user did not select one at upload time.
  */
-export async function resolveCaseType(db: Db, caseId: string, fallbackText?: string): Promise<string> {
+export async function resolveCaseType(
+  db: Db,
+  caseId: string,
+  fallbackText?: string,
+): Promise<string> {
   const { data } = await db
     .from("cases")
     .select("case_type,name,description" as any)
@@ -4719,7 +5001,8 @@ async function ensureRequiredEngines(args: {
   apiKeys?: string[];
 }): Promise<{ ran: string[]; failed: Array<{ engine: string; error: string }> }> {
   const { db, caseId, userId, apiKey, apiKeys } = args;
-  const { REPORT_REQUIRED_ENGINES, missingRequiredEngines, OPTIONAL_ENGINES } = await import("@/lib/execution-state");
+  const { REPORT_REQUIRED_ENGINES, missingRequiredEngines, OPTIONAL_ENGINES } =
+    await import("@/lib/execution-state");
   const { data: runs } = await db
     .from("pipeline_engine_runs")
     .select("id,engine,status,started_at,ended_at,created_at")
@@ -4775,17 +5058,15 @@ async function ensureRequiredEngines(args: {
     // then hard-failed with "core engines failed to complete".
     jurisdiction_intel: () =>
       runEngine(db, { caseId, userId, engine: ENGINE.jurisdiction_intel }, async () => {
-        const { runJurisdictionIntelligence } = await import(
-          "./intelligence/jurisdiction-intel.server"
-        );
+        const { runJurisdictionIntelligence } =
+          await import("./intelligence/jurisdiction-intel.server");
         const value = await runJurisdictionIntelligence({ db, caseId });
         return { value, stats: { generated: 1, accepted: 1 } };
       }),
     procedural_compliance: () =>
       runEngine(db, { caseId, userId, engine: ENGINE.procedural_compliance }, async () => {
-        const { runProceduralCompliance } = await import(
-          "./intelligence/procedural-compliance.server"
-        );
+        const { runProceduralCompliance } =
+          await import("./intelligence/procedural-compliance.server");
         const value = await runProceduralCompliance({ db, caseId, userId });
         return {
           value,
@@ -4815,8 +5096,12 @@ async function ensureRequiredEngines(args: {
   // are respected. Practice-area gated engines that don't apply to this case
   // type are skipped here too (constitutional_compliance etc.) so the
   // report-pre-flight gate is satisfied without forcing irrelevant work.
-  const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE, buildCaseTypeManifest, PRACTICE_GATED_ENGINES } =
-    await import("./intelligence/practice-areas");
+  const {
+    isAnalyzerAllowed,
+    SKIP_REASON_NOT_APPLICABLE,
+    buildCaseTypeManifest,
+    PRACTICE_GATED_ENGINES,
+  } = await import("./intelligence/practice-areas");
   const { getActiveDomains } = await import("./intelligence/cross-domain.server");
   const { recordSkipped } = await import("./intelligence/engine-audit.server");
   const { emitEvent } = await import("./intelligence/progress.server");
@@ -4937,7 +5222,13 @@ async function ensureRequiredEngines(args: {
   return { ran, failed };
 }
 
-export async function runReport(args: { db: Db; caseId: string; userId: string; apiKey: string; apiKeys?: string[] }) {
+export async function runReport(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}) {
   const { db, caseId, userId } = args;
   // Clear the per-case findings audit accumulator BEFORE any engine runs.
   // Without this, `_findingsAudit` (module-level Map keyed by caseId) keeps
@@ -4966,7 +5257,8 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
       .select("report_checkpoint_count")
       .eq("id", caseId)
       .maybeSingle();
-    const count = (cur as { report_checkpoint_count?: number } | null)?.report_checkpoint_count ?? 0;
+    const count =
+      (cur as { report_checkpoint_count?: number } | null)?.report_checkpoint_count ?? 0;
     if (count >= MAX_REPORT_CHECKPOINTS) {
       forceFinalize = true;
       console.warn(
@@ -5005,7 +5297,8 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
       .eq("case_id", caseId)
       .maybeSingle();
     const flags = (
-      ((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ?? []) as unknown[]
+      ((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ??
+        []) as unknown[]
     ).map(String);
     const stale = flags.some((f) =>
       ["PIPELINE_NOT_FINALIZED", "INVALID_PIPELINE_ORDER", "CANONICAL_FINDINGS_EMPTY"].includes(f),
@@ -5021,9 +5314,13 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
         contradiction_at: string | null;
         evidence_intel_at: string | null;
       } | null;
-      const finalizedNow = Boolean(ts?.discovery_at && ts?.contradiction_at && ts?.evidence_intel_at);
+      const finalizedNow = Boolean(
+        ts?.discovery_at && ts?.contradiction_at && ts?.evidence_intel_at,
+      );
       if (finalizedNow) {
-        console.warn(`[report] stale scoring suppression (${flags.join(",")}) — re-scoring before report`);
+        console.warn(
+          `[report] stale scoring suppression (${flags.join(",")}) — re-scoring before report`,
+        );
         pipelineWarnings.push(`rescored_after_${flags[0].toLowerCase()}`);
         await runScoring(args);
       } else {
@@ -5033,7 +5330,6 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
   } catch (e) {
     console.warn("[report] stale-suppression rescore check failed", e);
   }
-
 
   await setCase(db, caseId, {
     status: "reporting",
@@ -5057,7 +5353,13 @@ export async function runReport(args: { db: Db; caseId: string; userId: string; 
     .from("pipeline_engine_runs")
     .delete()
     .eq("case_id", caseId)
-    .in("engine", ["report_generator", "motion", "ess_validator", "claim_validator", "report_validator"]);
+    .in("engine", [
+      "report_generator",
+      "motion",
+      "ess_validator",
+      "claim_validator",
+      "report_validator",
+    ]);
   return runEngine(db, { caseId, userId, engine: ENGINE.report }, async () =>
     _runReportInner({ ...args, pipelineWarnings, forceFinalize }),
   );
@@ -5073,7 +5375,9 @@ async function _runReportInner(args: {
   forceFinalize?: boolean;
 }) {
   const { db, caseId, userId, apiKey, apiKeys, forceFinalize } = args;
-  const pipelineWarnings: string[] = Array.isArray(args.pipelineWarnings) ? [...args.pipelineWarnings] : [];
+  const pipelineWarnings: string[] = Array.isArray(args.pipelineWarnings)
+    ? [...args.pipelineWarnings]
+    : [];
 
   // ---- Pre-flight validation gate -------------------------------------
   // Block report generation unless the upstream engines actually completed.
@@ -5158,7 +5462,10 @@ async function _runReportInner(args: {
     { data: contradictionsExisting },
   ] = await Promise.all([
     db.from("analyses").select("*").eq("case_id", caseId).maybeSingle(),
-    db.from("agent_findings").select("agent_type,summary,findings,confidence").eq("case_id", caseId),
+    db
+      .from("agent_findings")
+      .select("agent_type,summary,findings,confidence")
+      .eq("case_id", caseId),
     db.from("case_scores").select("*").eq("case_id", caseId).maybeSingle(),
     listFindings(db, caseId),
     db.from("case_theories").select("*").eq("case_id", caseId),
@@ -5186,7 +5493,8 @@ async function _runReportInner(args: {
   // finalized and ordered correctly. If the canonical set is empty or order
   // is wrong, we degrade loudly via a pipeline warning rather than aborting
   // the entire report — scoring already handled the hard-error case.
-  const { getCanonicalScoringFindings, assertPipelineOrder } = await import("./intelligence/scoring-selection");
+  const { getCanonicalScoringFindings, assertPipelineOrder } =
+    await import("./intelligence/scoring-selection");
   const { data: caseTsRow } = await db
     .from("cases")
     .select("discovery_at,contradiction_at,evidence_intel_at,scored_at")
@@ -5243,7 +5551,10 @@ async function _runReportInner(args: {
       await import("@/lib/canonical/report-source.server");
     const src = await loadCanonicalReportSource(db, caseId);
     if (src) {
-      const ordered = applyCanonicalOrder(findings as unknown as { id?: string | null }[], src.orderedIds);
+      const ordered = applyCanonicalOrder(
+        findings as unknown as { id?: string | null }[],
+        src.orderedIds,
+      );
       if (ordered) {
         canonicalVersion = src.version;
         findings = ordered as unknown as typeof findings;
@@ -5265,8 +5576,13 @@ async function _runReportInner(args: {
   // Applicable marker instead of running the regex categorizer and
   // surfacing an indistinguishable empty result.
   try {
-    const caseTypeForAS = await resolveCaseType(db, caseId, String(JSON.stringify(analysis ?? {})).slice(0, 4000));
-    const { getActiveDomains, isCriminalEffective } = await import("./intelligence/cross-domain.server");
+    const caseTypeForAS = await resolveCaseType(
+      db,
+      caseId,
+      String(JSON.stringify(analysis ?? {})).slice(0, 4000),
+    );
+    const { getActiveDomains, isCriminalEffective } =
+      await import("./intelligence/cross-domain.server");
     const activeDomainsForAS = await getActiveDomains(db, caseId);
     if (isCriminalEffective(caseTypeForAS, activeDomainsForAS)) {
       const { runAttackSurfaceEngine } = await import("./intelligence/litigation.server");
@@ -5292,11 +5608,17 @@ async function _runReportInner(args: {
   if (!corpus) throw new Error("No extracted documents. Run Extraction first.");
 
   // User-locked case type — never overridden by document content
-  const caseType = await resolveCaseType(db, caseId, String(JSON.stringify(analysis ?? {})).slice(0, 4000));
+  const caseType = await resolveCaseType(
+    db,
+    caseId,
+    String(JSON.stringify(analysis ?? {})).slice(0, 4000),
+  );
   // Control constitucional aplica en materia penal, amparo y constitucional.
   const materiaForReport = normalizeMexicanCaseType(caseType);
   const isCriminalOrCivilRights =
-    materiaForReport === "penal" || materiaForReport === "amparo" || materiaForReport === "constitucional";
+    materiaForReport === "penal" ||
+    materiaForReport === "amparo" ||
+    materiaForReport === "constitucional";
 
   // Materia-aware Mexican procedural-vehicle catalogue for the "recommended
   // motions" section of the legal memorandum below (audit P0-4). This used
@@ -5326,7 +5648,13 @@ async function _runReportInner(args: {
     .join("\n");
   // Prioritized findings payload: sorts critical and high-severity, high-confidence
   // findings first so prompt truncation drops least important findings, never critical ones.
-  const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const SEVERITY_RANK: Record<string, number> = {
+    critical: 0,
+    high: 1,
+    medium: 2,
+    low: 3,
+    info: 4,
+  };
   const findingsLite = [...findings]
     .sort((a, b) => {
       const sevDiff = (SEVERITY_RANK[a.severity] ?? 5) - (SEVERITY_RANK[b.severity] ?? 5);
@@ -5834,8 +6162,11 @@ ${corpus.slice(0, 14000)}`;
     // same timeout — skip straight to the salvage/fallback path below
     // instead of burning another tick.
     if (forceFinalize) {
-      chunkStatus[name].error = chunkStatus[name].error ?? "skipped — report checkpoint backstop reached";
-      console.warn(`[report:chunk] ${name} skipped — checkpoint backstop reached, forcing finalization`);
+      chunkStatus[name].error =
+        chunkStatus[name].error ?? "skipped — report checkpoint backstop reached";
+      console.warn(
+        `[report:chunk] ${name} skipped — checkpoint backstop reached, forcing finalization`,
+      );
       return null;
     }
     try {
@@ -5850,7 +6181,9 @@ ${corpus.slice(0, 14000)}`;
         // slowest provider took every report chunk and timed out on all of
         // them. Gemini stays in the chain as fallback.
         systemInstruction: systemInstruction + "\n" + sysSuffix,
-        userContent: extraContext ? `${shape}\n\n${extraContext}\n\n${sharedContext}` : `${shape}\n\n${sharedContext}`,
+        userContent: extraContext
+          ? `${shape}\n\n${extraContext}\n\n${sharedContext}`
+          : `${shape}\n\n${sharedContext}`,
         json: true,
         temperature: 0.2,
         maxTokens,
@@ -5886,7 +6219,10 @@ ${corpus.slice(0, 14000)}`;
         // CheckpointRequired throw sites) so the loop-breaker in
         // pipeline-runner.server.ts can surface the actual cause instead of
         // just "Groq cooldown" if this keeps recurring across ticks.
-        throw new CheckpointRequired("report", `Groq cooldown during ${name} chunk — ${msg.slice(0, 250)}`);
+        throw new CheckpointRequired(
+          "report",
+          `Groq cooldown during ${name} chunk — ${msg.slice(0, 250)}`,
+        );
       }
       console.warn(`[report:chunk] ${name} failed — ${msg.slice(0, 200)}`);
       return null;
@@ -5982,7 +6318,11 @@ ${corpus.slice(0, 14000)}`;
   // unnecessary (and costly) split-group salvage calls.
   r = narrativeRes;
   if (!chunkStatus.narrative.ok) {
-    const errs = [chunkStatus.narrative.error, chunkStatus.memo.error, chunkStatus.intelligence.error]
+    const errs = [
+      chunkStatus.narrative.error,
+      chunkStatus.memo.error,
+      chunkStatus.intelligence.error,
+    ]
       .filter(Boolean)
       .join(" | ");
     reportLlmError = errs || "all report chunks failed";
@@ -5995,14 +6335,18 @@ ${corpus.slice(0, 14000)}`;
   // Independent memo salvage: narrative succeeded but memo chunk failed.
   // Without this, legal_memorandum silently disappears from the report.
   if (chunkStatus.narrative.ok && !chunkStatus.memo.ok && !cancelled) {
-    console.warn("[report:chunk] memo chunk failed but narrative ok — attempting isolated memo salvage");
+    console.warn(
+      "[report:chunk] memo chunk failed but narrative ok — attempting isolated memo salvage",
+    );
     await runChunk("memo", memoSysSuffix, memoShape, 3000);
     if (chunkStatus.memo.ok) pipelineWarnings.push("legal_memorandum_recovered_by_salvage");
   }
 
   // Independent intelligence salvage: narrative succeeded but intel failed.
   if (chunkStatus.narrative.ok && !chunkStatus.intelligence.ok && !cancelled) {
-    console.warn("[report:chunk] intelligence chunk failed but narrative ok — attempting isolated salvage");
+    console.warn(
+      "[report:chunk] intelligence chunk failed but narrative ok — attempting isolated salvage",
+    );
     await runChunk(
       "intelligence",
       "You generate ONLY structured intelligence outputs. Return the shape below and nothing else.",
@@ -6042,7 +6386,12 @@ ${corpus.slice(0, 14000)}`;
     const groups: Array<{ label: string; sections: string[] }> = [
       {
         label: "summary+overview",
-        sections: ["executive_summary", "attorney_summary", "investigator_summary", "case_overview"],
+        sections: [
+          "executive_summary",
+          "attorney_summary",
+          "investigator_summary",
+          "case_overview",
+        ],
       },
       {
         label: "facts+timeline",
@@ -6143,7 +6492,10 @@ ${paginationTail}`;
           temperature: 0.2,
           maxTokens: 6000,
         });
-        groupResults.push({ status: "fulfilled", value: { kind: "prose" as const, group: g, res } });
+        groupResults.push({
+          status: "fulfilled",
+          value: { kind: "prose" as const, group: g, res },
+        });
       } catch (reason) {
         groupResults.push({ status: "rejected", reason });
       }
@@ -6174,7 +6526,12 @@ ${paginationTail}`;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const parsedMemo = parseJsonLoose<Record<string, any>>(gr.value.res.text) ?? {};
           const memoObj = (parsedMemo.legal_memorandum ?? parsedMemo) as Record<string, unknown>;
-          if (memoObj && typeof memoObj === "object" && !Array.isArray(memoObj) && Object.keys(memoObj).length > 0) {
+          if (
+            memoObj &&
+            typeof memoObj === "object" &&
+            !Array.isArray(memoObj) &&
+            Object.keys(memoObj).length > 0
+          ) {
             salvagedMemo = memoObj;
             salvageAnySuccess = true;
           }
@@ -6371,7 +6728,9 @@ ${paginationTail}`;
     let lastKeyword: string | null = null;
     let m: RegExpExecArray | null;
     while ((m = SCORE_KEYWORD_RE.exec(before))) lastKeyword = m[1];
-    return lastKeyword && RISK_KEYWORDS.has(lastKeyword.toLowerCase()) ? "elevated" : "well-supported";
+    return lastKeyword && RISK_KEYWORDS.has(lastKeyword.toLowerCase())
+      ? "elevated"
+      : "well-supported";
   };
   const fallbackFor = (keyword: string): string =>
     RISK_KEYWORDS.has(keyword.toLowerCase()) ? "elevated" : "well-supported";
@@ -6403,11 +6762,14 @@ ${paginationTail}`;
       const val = parseInt(numStr, 10);
       return knownScoreNumbers.has(val) ? match : fallbackForContext(text, offset);
     });
-    out = out.replace(KEYWORD_NUMBER_RE, (match, keyword: string, numStr: string, offset: number) => {
-      if (insideAnyRange(ranges, offset)) return match;
-      const val = parseInt(numStr, 10);
-      return knownScoreNumbers.has(val) ? match : fallbackFor(keyword);
-    });
+    out = out.replace(
+      KEYWORD_NUMBER_RE,
+      (match, keyword: string, numStr: string, offset: number) => {
+        if (insideAnyRange(ranges, offset)) return match;
+        const val = parseInt(numStr, 10);
+        return knownScoreNumbers.has(val) ? match : fallbackFor(keyword);
+      },
+    );
     return out;
   };
   for (const [k, v] of Object.entries(prose)) {
@@ -6457,18 +6819,25 @@ ${paginationTail}`;
   // Deterministic backfill: if the LLM returned an empty / unparseable prose
   // block, we still emit a defensible report assembled from the verified
   // findings and the deterministic scorecard rather than failing mid-report.
-  const proseLooksEmpty = Object.values(prose).filter((v) => typeof v === "string" && v.trim().length > 0).length < 3;
+  const proseLooksEmpty =
+    Object.values(prose).filter((v) => typeof v === "string" && v.trim().length > 0).length < 3;
   if (proseLooksEmpty) {
     const sevRank = { critical: 4, high: 3, medium: 2, low: 1, info: 0 } as Record<string, number>;
-    const top = [...findings].sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0)).slice(0, 10);
-    const bullets = top.map((f) => `- (${f.severity}) ${f.title} — ${f.legal_significance ?? f.category}`).join("\n");
+    const top = [...findings]
+      .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
+      .slice(0, 10);
+    const bullets = top
+      .map((f) => `- (${f.severity}) ${f.title} — ${f.legal_significance ?? f.category}`)
+      .join("\n");
     const docLines = docIndex
       .map((d) => `- DOC ${d.doc_n}: ${d.filename} (${d.pages} page${d.pages === 1 ? "" : "s"})`)
       .join("\n");
     const agentLines = (agents ?? [])
       .map((a: any) => `- ${a.agent_type}: ${a.summary ?? a.status ?? "completed"}`)
       .join("\n");
-    const timelineItems = Array.isArray((analysis as any)?.timeline) ? ((analysis as any).timeline as any[]) : [];
+    const timelineItems = Array.isArray((analysis as any)?.timeline)
+      ? ((analysis as any).timeline as any[])
+      : [];
     // Timeline formatting: never emit a bare leading colon. Treat empty
     // strings as missing dates and drop the colon entirely rather than
     // rendering "- : Alarm" in a legal document.
@@ -6525,7 +6894,10 @@ ${paginationTail}`;
 
     const byParty = (party: string) =>
       [...findings]
-        .filter((f) => (f as any).affected_party === party || (f as any).affected_party === partyRoles.neutral)
+        .filter(
+          (f) =>
+            (f as any).affected_party === party || (f as any).affected_party === partyRoles.neutral,
+        )
         .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
         .slice(0, 5)
         .map((f) => `- (${f.severity}) ${f.title}`)
@@ -6631,7 +7003,8 @@ ${paginationTail}`;
         : "Teoría Alternativa\nEvidencia verificada insuficiente para generar una teoría alternativa. Suba documentos adicionales y vuelva a ejecutar.");
 
     prose.risk_analysis =
-      prose.risk_analysis || `${locale === "en" ? "Risk Analysis" : "Análisis de Riesgo"}\n${scoreLine}`;
+      prose.risk_analysis ||
+      `${locale === "en" ? "Risk Analysis" : "Análisis de Riesgo"}\n${scoreLine}`;
 
     prose.facts =
       prose.facts ||
@@ -6661,12 +7034,14 @@ ${paginationTail}`;
     return arr.map((c) => {
       if (!c || typeof c !== "object") return c;
       const out = { ...c };
-      if (typeof out.doc_n === "number" && !out.document_id) out.document_id = docNToId.get(out.doc_n) ?? null;
+      if (typeof out.doc_n === "number" && !out.document_id)
+        out.document_id = docNToId.get(out.doc_n) ?? null;
       if (Array.isArray(out.citations)) {
         out.citations = out.citations.map((cc: unknown) => {
           if (cc && typeof cc === "object") {
             const x = cc as Record<string, unknown>;
-            if (typeof x.doc_n === "number" && !x.document_id) x.document_id = docNToId.get(x.doc_n as number) ?? null;
+            if (typeof x.doc_n === "number" && !x.document_id)
+              x.document_id = docNToId.get(x.doc_n as number) ?? null;
             return x;
           }
           return cc;
@@ -6713,7 +7088,12 @@ ${paginationTail}`;
         id: `F${i + 1}-${j + 1}`,
         doc_n: typeof ref.doc_n === "number" ? ref.doc_n : null,
         document_id: ref.document_id ?? ref.doc_id ?? f.source_document_id ?? null,
-        page: typeof ref.page === "number" ? ref.page : typeof f.source_page === "number" ? f.source_page : 1,
+        page:
+          typeof ref.page === "number"
+            ? ref.page
+            : typeof f.source_page === "number"
+              ? f.source_page
+              : 1,
         quote: ref.quote ?? f.source_quote ?? "",
         topic: f.title ?? f.category ?? "Finding",
         finding_id: f.id ?? null,
@@ -6724,7 +7104,9 @@ ${paginationTail}`;
     citations = findingsCitations;
   } else {
     const seenQuotes = new Set(
-      citations.map((c: any) => (typeof c.quote === "string" ? c.quote.trim().toLowerCase() : "")).filter(Boolean),
+      citations
+        .map((c: any) => (typeof c.quote === "string" ? c.quote.trim().toLowerCase() : ""))
+        .filter(Boolean),
     );
     const extra = findingsCitations.filter((c) => !seenQuotes.has(c.quote.trim().toLowerCase()));
     citations = citations.concat(extra);
@@ -6742,7 +7124,9 @@ ${paginationTail}`;
     // and any doc_n not covered gets the same metadata-only placeholder the
     // old fully-empty fallback used.
     const coveredDocNs = new Set(
-      evidenceIndex.map((e: any) => (typeof e?.doc_n === "number" ? e.doc_n : null)).filter((n: unknown) => n !== null),
+      evidenceIndex
+        .map((e: any) => (typeof e?.doc_n === "number" ? e.doc_n : null))
+        .filter((n: unknown) => n !== null),
     );
     const missing = docIndex.filter((d) => !coveredDocNs.has(d.doc_n));
     if (missing.length) {
@@ -6759,7 +7143,9 @@ ${paginationTail}`;
         supports: [],
         undermines: [],
       }));
-      evidenceIndex = [...evidenceIndex, ...placeholders].sort((a: any, b: any) => (a?.doc_n ?? 0) - (b?.doc_n ?? 0));
+      evidenceIndex = [...evidenceIndex, ...placeholders].sort(
+        (a: any, b: any) => (a?.doc_n ?? 0) - (b?.doc_n ?? 0),
+      );
     }
   }
 
@@ -6768,7 +7154,9 @@ ${paginationTail}`;
   const constIssuesRaw = isCriminalOrCivilRights ? resolveCites(parsed.constitutional_issues) : [];
   const motionsRaw = resolveCites(parsed.motion_opportunities);
   const crossExamRaw = Array.isArray(parsed.cross_examination) ? parsed.cross_examination : [];
-  const strategy = Array.isArray(parsed.strategy_recommendations) ? parsed.strategy_recommendations : [];
+  const strategy = Array.isArray(parsed.strategy_recommendations)
+    ? parsed.strategy_recommendations
+    : [];
   const nextActions = Array.isArray(parsed.next_actions)
     ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (parsed.next_actions as any[]).slice().sort((a, b) => (a?.order ?? 99) - (b?.order ?? 99))
@@ -6795,8 +7183,12 @@ ${paginationTail}`;
   const verifyAndLabel = <T extends Record<string, unknown>>(
     arr: T[],
     quoteFields: Array<string | string[]>,
-  ): Array<T & { quote_verified: boolean; confidence_label: string; insufficient_evidence?: true }> => {
-    const out: Array<T & { quote_verified: boolean; confidence_label: string; insufficient_evidence?: true }> = [];
+  ): Array<
+    T & { quote_verified: boolean; confidence_label: string; insufficient_evidence?: true }
+  > => {
+    const out: Array<
+      T & { quote_verified: boolean; confidence_label: string; insufficient_evidence?: true }
+    > = [];
     for (const item of arr) {
       if (!item || typeof item !== "object") continue;
       // Collect every quote referenced anywhere on the item.
@@ -6848,7 +7240,11 @@ ${paginationTail}`;
     return out;
   };
 
-  const contradictions = verifyAndLabel(contradictionsRaw, [["document_a", "quote"], ["document_b", "quote"], "quote"]);
+  const contradictions = verifyAndLabel(contradictionsRaw, [
+    ["document_a", "quote"],
+    ["document_b", "quote"],
+    "quote",
+  ]);
   // Dispute vs factual classifier — relabel each surviving item so the
   // renderer can split "Factual Contradictions" from "Disputed Issues".
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -6861,7 +7257,9 @@ ${paginationTail}`;
   // Missing evidence is about *absence* — no corpus quote required, but flag confidence.
   const missingEvidence = (missingEvidenceRaw as Record<string, unknown>[]).map((m) => ({
     ...m,
-    confidence_label: confidenceLabel(typeof (m as any).confidence === "number" ? (m as any).confidence : 0.6),
+    confidence_label: confidenceLabel(
+      typeof (m as any).confidence === "number" ? (m as any).confidence : 0.6,
+    ),
   }));
 
   // === Claim-Strength Guardrail ===========================================
@@ -6869,7 +7267,8 @@ ${paginationTail}`;
   // cited source. Adds Tier-5 legal-risk corroboration, intent-inference block,
   // evidence-type ceilings, source-span validation, and red-team rewrite.
   await setCase(db, caseId, { status_message: "Applying claim-strength guardrail", progress: 92 });
-  const { enforceStructuredItems, enforceProse } = await import("./intelligence/claim-strength.server");
+  const { enforceStructuredItems, enforceProse } =
+    await import("./intelligence/claim-strength.server");
   const guardOpts = { corpus: reportCorpus, requireSupport: false };
 
   const contradictionsGuarded = enforceStructuredItems(contradictions, guardOpts);
@@ -6924,7 +7323,8 @@ ${paginationTail}`;
           ? "recommendations"
           : "executive_summary";
       if (typeof prose[noteTarget] === "string") {
-        prose[noteTarget] = `${prose[noteTarget]}\n\n${formatGuardrailNote(totalSoftened, totalDropped)}`;
+        prose[noteTarget] =
+          `${prose[noteTarget]}\n\n${formatGuardrailNote(totalSoftened, totalDropped)}`;
       }
     }
   }
@@ -6986,7 +7386,11 @@ ${paginationTail}`;
     // still complete while the audit records the dropped sentences.
     prose[f] =
       validated.text ||
-      capNarrative(v, 900, "Section preserved in abbreviated form after validation removed unsupported expansion.");
+      capNarrative(
+        v,
+        900,
+        "Section preserved in abbreviated form after validation removed unsupported expansion.",
+      );
     validatorAudit[f] = { kept: validated.kept, dropped: validated.dropped };
   }
 
@@ -7023,12 +7427,15 @@ ${paginationTail}`;
         const facts = typeof it.facts === "string" ? it.facts : "";
         const legalStandard = typeof it.legal_standard === "string" ? it.legal_standard : "";
         const likelyOutcome = typeof it.likely_outcome === "string" ? it.likely_outcome : "";
-        const heading = [amendment, right].filter(Boolean).join(" — ") || issue || "Constitutional issue";
+        const heading =
+          [amendment, right].filter(Boolean).join(" — ") || issue || "Constitutional issue";
         const citations = Array.isArray(it.citations) ? it.citations : [];
         const citeTags = citations
           .filter((c): c is { doc_n?: number; page?: number } => !!c && typeof c === "object")
           .map((c) =>
-            typeof c.doc_n === "number" ? `[DOC ${c.doc_n}${typeof c.page === "number" ? ` p.${c.page}` : ""}]` : null,
+            typeof c.doc_n === "number"
+              ? `[DOC ${c.doc_n}${typeof c.page === "number" ? ` p.${c.page}` : ""}]`
+              : null,
           )
           .filter((s): s is string => !!s)
           .join(" ");
@@ -7161,7 +7568,8 @@ ${paginationTail}`;
     typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : null;
   const gatedScore = (v: unknown) => (isLimited ? null : clampScore(v));
   if (ess.insufficientEvidenceNotice) {
-    prose["executive_summary"] = `${ess.insufficientEvidenceNotice}\n\n${prose["executive_summary"] ?? ""}`.trim();
+    prose["executive_summary"] =
+      `${ess.insufficientEvidenceNotice}\n\n${prose["executive_summary"] ?? ""}`.trim();
   }
 
   // Legal-precision sweep: strip unsupported amplifications (e.g. neutral
@@ -7217,7 +7625,10 @@ ${paginationTail}`;
   });
   const motionsSuppressed = ess.allowMotionGeneration ? 0 : motionsGuarded.items.length;
   const motionsAccepted = ess.allowMotionGeneration ? motionsGuarded.items.length : 0;
-  const totalProseDropped = Object.values(validatorAudit).reduce((n, x) => n + (x?.dropped ?? 0), 0);
+  const totalProseDropped = Object.values(validatorAudit).reduce(
+    (n, x) => n + (x?.dropped ?? 0),
+    0,
+  );
   await db.from("pipeline_engine_runs").insert([
     subRow(
       "theory",
@@ -7326,7 +7737,9 @@ ${paginationTail}`;
   // Mechanically verify every extracted finding id appears somewhere in the
   // final report. Uncovered findings are the "we missed the smoking gun"
   // failure mode; surface them explicitly so attorney review catches them.
-  const findingIds = findings.map((f) => f.id).filter((id): id is string => typeof id === "string" && id.length > 0);
+  const findingIds = findings
+    .map((f) => f.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
   const uncoveredFindings = findingIds.filter((id) => !reportJsonForAudit.includes(id));
   if (uncoveredFindings.length) {
     pipelineWarnings.push(`uncovered_findings:${uncoveredFindings.length}`);
@@ -7334,7 +7747,10 @@ ${paginationTail}`;
     (parsed as any)._coverage_gaps = uncoveredFindings.slice(0, 100);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const proseAny = (parsed.prose ?? {}) as Record<string, any>;
-    if (typeof proseAny.coverage_summary !== "string" || proseAny.coverage_summary.trim().length === 0) {
+    if (
+      typeof proseAny.coverage_summary !== "string" ||
+      proseAny.coverage_summary.trim().length === 0
+    ) {
       proseAny.coverage_summary = `Note: ${uncoveredFindings.length} extracted finding(s) were not incorporated into this report and require attorney review: ${uncoveredFindings.slice(0, 10).join(", ")}${uncoveredFindings.length > 10 ? ", …" : ""}.`;
       parsed.prose = proseAny;
     }
@@ -7350,7 +7766,10 @@ ${paginationTail}`;
   // audit accumulator only contributes suppression/reason breakdowns.
   const renderedFindingsCount = findings.length;
   const suppressedCount = Math.max(0, findingsAudit.suppressed);
-  const totalGenerated = Math.max(findingsAudit.total_generated, renderedFindingsCount + suppressedCount);
+  const totalGenerated = Math.max(
+    findingsAudit.total_generated,
+    renderedFindingsCount + suppressedCount,
+  );
   const findingsSummary = {
     total_generated: totalGenerated,
     displayed: renderedFindingsCount,
@@ -7427,11 +7846,9 @@ ${paginationTail}`;
             .map((f) => {
               const cat = String(f.category ?? "").toLowerCase();
               const text = `${f.title ?? ""} ${f.description ?? ""}`.toLowerCase();
-              const sev = (["low", "medium", "high", "critical"].includes(f.severity) ? f.severity : "medium") as
-                | "low"
-                | "medium"
-                | "high"
-                | "critical";
+              const sev = (
+                ["low", "medium", "high", "critical"].includes(f.severity) ? f.severity : "medium"
+              ) as "low" | "medium" | "high" | "critical";
               if (cat === "chain_of_custody") return { tag: "cadena_custodia_rota", severity: sev };
               if (cat === "missing_evidence" || cat === "discovery_gap")
                 return { tag: "descubrimiento_probatorio_incompleto", severity: sev };
@@ -7448,7 +7865,10 @@ ${paginationTail}`;
               }
               return null;
             })
-            .filter((s): s is { tag: string; severity: "low" | "medium" | "high" | "critical" } => s !== null);
+            .filter(
+              (s): s is { tag: string; severity: "low" | "medium" | "high" | "critical" } =>
+                s !== null,
+            );
           return runAlgorithmBundle({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             evidence: (findings as any[]).map((f) => ({
@@ -7461,7 +7881,8 @@ ${paginationTail}`;
             witnesses: ((witnesses ?? []) as any[]).map((w) => ({
               id: w.id,
               name: w.name,
-              internal_consistency: typeof w.consistency_score === "number" ? w.consistency_score : undefined,
+              internal_consistency:
+                typeof w.consistency_score === "number" ? w.consistency_score : undefined,
               contradictions: typeof w.contradiction_count === "number" ? w.contradiction_count : 0,
               bias_indicators: Array.isArray(w.bias_indicators) ? w.bias_indicators.length : 0,
             })),
@@ -7591,7 +8012,10 @@ ${paginationTail}`;
             intelligence: chunkStatus.intelligence.ok,
           },
           chunk_success_rate:
-            (Number(chunkStatus.narrative.ok) + Number(chunkStatus.memo.ok) + Number(chunkStatus.intelligence.ok)) / 3,
+            (Number(chunkStatus.narrative.ok) +
+              Number(chunkStatus.memo.ok) +
+              Number(chunkStatus.intelligence.ok)) /
+            3,
           chunk_errors: {
             narrative: chunkStatus.narrative.error ?? null,
             memo: chunkStatus.memo.error ?? null,
@@ -7790,8 +8214,6 @@ ${paginationTail}`;
     console.warn("[report] objective block failed", e);
   }
 
-
-
   // STEP 2 directive — per-document Evidence Map, OCR coverage, and report
   // quality audit. All deterministic, all reconcilable against the persisted
   // findings + documents tables.
@@ -7801,16 +8223,21 @@ ${paginationTail}`;
     const { buildCanonicalTimeline } = await import("./intelligence/canonical-timeline.server");
     const { buildDocumentGraph } = await import("./intelligence/document-graph.server");
     const { buildCitationAudit } = await import("./intelligence/citation-audit.server");
-    const [evidenceMap, ocrCoverage, qualityAudit, canonicalTimeline, documentGraph, citationAudit] = await Promise.all(
-      [
-        buildEvidenceMap(db, caseId),
-        buildOcrCoverage(db, caseId),
-        buildReportQualityAudit(db, caseId),
-        buildCanonicalTimeline(db, caseId),
-        buildDocumentGraph(db, caseId),
-        buildCitationAudit(db, caseId),
-      ],
-    );
+    const [
+      evidenceMap,
+      ocrCoverage,
+      qualityAudit,
+      canonicalTimeline,
+      documentGraph,
+      citationAudit,
+    ] = await Promise.all([
+      buildEvidenceMap(db, caseId),
+      buildOcrCoverage(db, caseId),
+      buildReportQualityAudit(db, caseId),
+      buildCanonicalTimeline(db, caseId),
+      buildDocumentGraph(db, caseId),
+      buildCitationAudit(db, caseId),
+    ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow.full_report as any).cross_document_graph = documentGraph;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -7889,7 +8316,9 @@ ${paginationTail}`;
       const issues = qualityGate.critical_issues ?? [];
       pipelineWarnings.push(
         `quality_gate: score ${qualityGate.score ?? "?"}/100, below the 70-point readiness threshold` +
-          (issues.length > 0 ? ` — ${issues.join("; ")}` : " — see full_report.quality_gate for detail"),
+          (issues.length > 0
+            ? ` — ${issues.join("; ")}`
+            : " — see full_report.quality_gate for detail"),
       );
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -7897,7 +8326,10 @@ ${paginationTail}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow as any).quality_block_reasons = blockReasons;
   } catch (e) {
-    console.warn("[evidence-map/ocr/quality/citation-audit] failed:", e instanceof Error ? e.message : e);
+    console.warn(
+      "[evidence-map/ocr/quality/citation-audit] failed:",
+      e instanceof Error ? e.message : e,
+    );
   }
 
   // Finalization barrier (Sections 6 & 9): build canonical registry snapshot
@@ -7954,7 +8386,8 @@ ${paginationTail}`;
     // full_report.release_gate; mismatches are appended to pipeline_warnings
     // so the audit trail records any drift between intent and outcome.
     try {
-      const { reconcileManifest, summarizeReleaseGate } = await import("./intelligence/release-gate");
+      const { reconcileManifest, summarizeReleaseGate } =
+        await import("./intelligence/release-gate");
       const [{ data: engineRunsRows }, { data: actRows }, { data: wpRows }] = await Promise.all([
         db
           .from("pipeline_engine_runs")
@@ -8022,7 +8455,10 @@ ${paginationTail}`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const warns = ((reportRow.full_report as any).pipeline_warnings ?? []) as string[];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow.full_report as any).pipeline_warnings = [...warns, ...summarizeReleaseGate(verdict)];
+        (reportRow.full_report as any).pipeline_warnings = [
+          ...warns,
+          ...summarizeReleaseGate(verdict),
+        ];
       }
     } catch {
       // Release-gate reconciliation must never break report generation.
@@ -8065,14 +8501,20 @@ ${paginationTail}`;
     );
   }
 
-  assertDbOk((await db.from("reports").upsert(reportRow, { onConflict: "case_id" })).error, "Failed to save report");
-
+  assertDbOk(
+    (await db.from("reports").upsert(reportRow, { onConflict: "case_id" })).error,
+    "Failed to save report",
+  );
 
   // Immutable version snapshot — directive Phase 1.1.
   // Read back the persisted row so the snapshot reflects exactly what was
   // saved (version, change_log, quality_blocked, etc.).
   try {
-    const { data: saved } = await db.from("reports").select("*").eq("case_id", caseId).maybeSingle();
+    const { data: saved } = await db
+      .from("reports")
+      .select("*")
+      .eq("case_id", caseId)
+      .maybeSingle();
     if (saved) {
       const { snapshotReportVersion } = await import("./intelligence/report-version.server");
       const savedAny = saved as unknown as Record<string, unknown>;
@@ -8088,12 +8530,19 @@ ${paginationTail}`;
         userId,
         version: Number(savedAny.version ?? 1) || 1,
         canonicalVersion:
-          typeof savedAny.canonical_version === "number" ? (savedAny.canonical_version as number) : null,
+          typeof savedAny.canonical_version === "number"
+            ? (savedAny.canonical_version as number)
+            : null,
         report: savedAny,
         changeLog: (savedAny.change_log as Record<string, unknown> | null) ?? null,
         meta: {
           documentCount:
-            (await db.from("documents").select("id", { count: "exact", head: true }).eq("case_id", caseId)).count ?? 0,
+            (
+              await db
+                .from("documents")
+                .select("id", { count: "exact", head: true })
+                .eq("case_id", caseId)
+            ).count ?? 0,
           findingsCount:
             Number((savedAny.findings_count as number | undefined) ?? 0) ||
             ((
@@ -8106,7 +8555,10 @@ ${paginationTail}`;
               0),
           contradictionCount: contradictions,
           ess,
-          score: typeof savedAny.case_strength_score === "number" ? (savedAny.case_strength_score as number) : null,
+          score:
+            typeof savedAny.case_strength_score === "number"
+              ? (savedAny.case_strength_score as number)
+              : null,
         },
       });
     }
@@ -8161,7 +8613,8 @@ ${paginationTail}`;
   // stage. Purely additive and non-fatal — a failure here must never undo a
   // successfully generated and released report.
   try {
-    const { runCompletedCaseAudit } = await import("@/lib/intelligence/completed-case-audit.server");
+    const { runCompletedCaseAudit } =
+      await import("@/lib/intelligence/completed-case-audit.server");
     const audit = await runCompletedCaseAudit(db, caseId, userId, apiKey);
     if (audit) {
       console.info(

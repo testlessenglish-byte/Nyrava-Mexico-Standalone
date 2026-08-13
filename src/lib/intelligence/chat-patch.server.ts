@@ -35,14 +35,25 @@ import { mexicoLock, groundingContract, getReportLocale } from "@/lib/mexico-loc
 import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "@/lib/groq.server";
 import { locateQuoteInText } from "./evidence-provenance.server";
 import { listFindings, addFindings } from "./findings.server";
-import type { NewFinding, Severity } from "./types";
+import type { EvidenceRef, EvidenceRefStatus, NewFinding, Severity } from "./types";
 
 type Db = SupabaseClient<Database>;
 
 const MODEL = GROQ_DEFAULT_MODEL;
 const VALID_SEVERITIES: readonly Severity[] = ["critical", "high", "medium", "low", "info"];
+const VALID_DISPUTE_STATUSES: readonly EvidenceRefStatus[] = [
+  "disputed",
+  "superseded",
+  "withdrawn",
+];
 
-export type FindingPatchAction = "keep" | "amend" | "remove" | "merge" | "create";
+export type FindingPatchAction =
+  | "keep"
+  | "amend"
+  | "remove"
+  | "merge"
+  | "create"
+  | "dispute_evidence";
 
 /** Raw shape the LLM is asked to return — untrusted until grounded. */
 type RawPatch = {
@@ -56,12 +67,14 @@ type RawPatch = {
   new_description?: unknown;
   new_category?: unknown;
   new_severity?: unknown;
+  disputed_doc_id?: unknown;
+  dispute_status?: unknown;
 };
 
 export type FindingPatch = {
   action: FindingPatchAction;
   /** Existing finding ids this patch targets. Empty for "create"; exactly
-   *  one for keep/amend/remove; two or more for "merge". */
+   *  one for keep/amend/remove/dispute_evidence; two or more for "merge". */
   finding_ids: string[];
   reason: string;
   /** Verbatim quote from the chat exchange (or the cited document) that
@@ -73,6 +86,16 @@ export type FindingPatch = {
   new_description?: string;
   new_category?: string;
   new_severity?: Severity;
+  /** dispute_evidence only: the doc_id of the EXISTING evidence_ref inside
+   *  the target finding whose citation is being challenged. The finding
+   *  itself, and any OTHER evidence_ref it carries, is left untouched — a
+   *  document can be wrong for this one proposition while still being good
+   *  evidence elsewhere. */
+  disputed_doc_id?: string;
+  /** dispute_evidence only: active|disputed|superseded|withdrawn — defaults
+   *  to 'disputed' when omitted. 'superseded' additionally records
+   *  source_document_id (if set) as the replacement. */
+  dispute_status?: EvidenceRefStatus;
 };
 
 type CurrentFindingRow = {
@@ -136,6 +159,12 @@ export type PatchApplyOutcome = {
   result_finding_id: string | null;
   applied: boolean;
   skip_reason?: "ungrounded" | "invalid_finding_ids" | "invalid_shape" | "write_failed";
+  /** id of the case_finding_patches audit row this outcome wrote, so the
+   *  caller can backfill report_version once the report's new version
+   *  number is known (see pushCaseChatCorrectionsToReport). NULL when the
+   *  audit insert itself failed — a best-effort write, per the function doc
+   *  comment below. */
+  auditRowId: string | null;
 };
 
 export type FindingPatchSetResult = {
@@ -160,7 +189,61 @@ type ActiveFindingForPrompt = {
   category: string;
   severity: string;
   confidence: number;
+  /** doc_ids this finding currently cites with an active (not already
+   *  disputed/superseded/withdrawn) evidence_ref — the only valid targets
+   *  for a "dispute_evidence" patch's disputed_doc_id. */
+  evidence_doc_ids: string[];
 };
+
+const MAX_MEMORY_ITEMS = 5;
+
+/**
+ * "Correction memory" — not a model-retraining mechanism, a bounded reminder
+ * of past case_finding_patches decisions relevant to what's currently in
+ * view, so this case doesn't repeat a mistake Talk-to-Case already
+ * corrected once. Relevance-scoped (a patch is included only if it touched
+ * a finding currently shown to the LLM, or cited a document attached to
+ * THIS exchange) and hard-capped at MAX_MEMORY_ITEMS — never the case's
+ * full correction history, which would blow the prompt budget and bury the
+ * signal in noise.
+ */
+async function buildCorrectionMemoryBlock(
+  db: Db,
+  caseId: string,
+  visibleFindingIds: Set<string>,
+  attachedDocIds: Set<string>,
+): Promise<string | null> {
+  if (visibleFindingIds.size === 0 && attachedDocIds.size === 0) return null;
+  const { data: rows } = await db
+    .from("case_finding_patches")
+    .select("action,reason,finding_id,result_finding_id,source_document_id,applied_at")
+    .eq("case_id", caseId)
+    .order("applied_at", { ascending: false })
+    .limit(50);
+  const relevant = (
+    (rows ?? []) as Array<{
+      action: string;
+      reason: string;
+      finding_id: string | null;
+      result_finding_id: string | null;
+      source_document_id: string | null;
+      applied_at: string;
+    }>
+  ).filter(
+    (r) =>
+      (r.finding_id && visibleFindingIds.has(r.finding_id)) ||
+      (r.result_finding_id && visibleFindingIds.has(r.result_finding_id)) ||
+      (r.source_document_id && attachedDocIds.has(r.source_document_id)),
+  );
+  if (relevant.length === 0) return null;
+  const lines = relevant
+    .slice(0, MAX_MEMORY_ITEMS)
+    .map(
+      (r) =>
+        `- Previously ${r.action}ed (finding ${r.finding_id ?? r.result_finding_id}): ${r.reason}`,
+    );
+  return `KNOWN PRIOR CORRECTIONS IN THIS CASE — do not repeat a mistake already corrected here:\n${lines.join("\n")}`;
+}
 
 /**
  * Reviews the case's current active findings against a Talk-to-Case
@@ -188,7 +271,18 @@ export async function generateFindingPatchSet(
     category: f.category,
     severity: f.severity,
     confidence: f.confidence,
+    evidence_doc_ids: [
+      ...new Set(
+        (f.evidence_refs ?? [])
+          .filter((e) => !e.status || e.status === "active")
+          .map((e) => e.doc_id)
+          .filter((id): id is string => typeof id === "string"),
+      ),
+    ],
   }));
+  const evidenceDocIdsByFindingId = new Map(
+    findingsForPrompt.map((f) => [f.id, new Set(f.evidence_doc_ids)]),
+  );
 
   const locale = await getReportLocale(db, caseId);
   const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
@@ -200,6 +294,19 @@ export async function generateFindingPatchSet(
       (d) => `=== DOCUMENT ${d.id} (${d.filename}) ===\n${(d.extracted_text ?? "").slice(0, 6000)}`,
     )
     .join("\n\n");
+
+  // Correction memory — NOT a model-retraining mechanism, just a bounded
+  // reminder of past mistakes this exact case already made, so the review
+  // doesn't repeat them. Scoped to what's actually relevant (findings
+  // currently in view, or documents attached to this exchange), never the
+  // full case history — an unbounded dump would blow the prompt budget and
+  // bury the signal.
+  const memoryBlock = await buildCorrectionMemoryBlock(
+    db,
+    caseId,
+    new Set(findingsForPrompt.map((f) => f.id)),
+    new Set(exchange.attachedDocs.map((d) => d.id)),
+  );
 
   let r: Awaited<ReturnType<typeof callGroq>>;
   try {
@@ -216,9 +323,10 @@ You review an attorney's Talk-to-Case exchange against the EXISTING findings alr
 - "amend": the exchange corrects/refines this finding's content but the underlying issue is still real — provide new_title/new_description/new_category/new_severity for the corrected version.
 - "remove": the exchange establishes this finding is simply wrong or no longer applicable.
 - "merge": the exchange shows two or more existing findings are the same underlying issue — list all their ids in finding_ids and provide the consolidated new_title/new_description.
+- "dispute_evidence": the exchange challenges ONE specific document cited by an existing finding, but the finding's underlying issue may still stand (either on its other evidence, or pending review) — do NOT remove or amend the whole finding for this. Set disputed_doc_id to that document's id (it must be a doc_id actually cited by the finding) and dispute_status to "disputed" (the citation is now contested but not resolved), "superseded" (the exchange/attached document establishes a replacement — also set source_document_id to the replacement's id), or "withdrawn" (the citation should no longer be relied on at all). A document can be wrong for ONE finding's proposition while remaining perfectly good evidence elsewhere — this never touches the document's use in any other finding.
 You may also propose "create" for a genuinely new finding the exchange establishes that has no existing counterpart — finding_ids must be empty for this action. Do NOT create a finding merely restating something an existing finding already covers.
 Every patch (except "keep", which you do not need to emit at all) MUST include a "quote" field: a SINGLE verbatim excerpt copied character-for-character from either the chat exchange text or one of the attached documents (never paraphrased, never from the finding itself) that grounds the decision. If citing an attached document, also set source_document_id to that document's id. A patch without a real, exact quote will be discarded. Output JSON only.`,
-      userContent: `CHAT EXCHANGE:\nAttorney: ${exchange.question}\n\nNyrava Intelligence: ${exchange.answer}\n\n${docsBlock ? `ATTACHED DOCUMENTS:\n${docsBlock}\n\n` : ""}EXISTING FINDINGS (id, title, description, category, severity, confidence):\n${JSON.stringify(findingsForPrompt).slice(0, 14_000)}\n\nReturn STRICT JSON: { "patches": [ { "action": "amend"|"remove"|"merge"|"create", "finding_ids": string[] (existing ids this targets — must be from the list above; empty only for "create"), "reason": string, "quote": string (verbatim from the chat exchange or an attached document), "source_document_id": string|null, "confidence": number (0-1), "new_title": string (amend/merge/create only), "new_description": string (amend/merge/create only), "new_category": string (amend/merge/create only), "new_severity": "critical"|"high"|"medium"|"low"|"info" (amend/merge/create only) } ] }. Return an empty array if the exchange doesn't warrant any change.`,
+      userContent: `CHAT EXCHANGE:\nAttorney: ${exchange.question}\n\nNyrava Intelligence: ${exchange.answer}\n\n${docsBlock ? `ATTACHED DOCUMENTS:\n${docsBlock}\n\n` : ""}${memoryBlock ? `${memoryBlock}\n\n` : ""}EXISTING FINDINGS (id, title, description, category, severity, confidence):\n${JSON.stringify(findingsForPrompt).slice(0, 14_000)}\n\nReturn STRICT JSON: { "patches": [ { "action": "amend"|"remove"|"merge"|"create"|"dispute_evidence", "finding_ids": string[] (existing ids this targets — must be from the list above; empty only for "create"), "reason": string, "quote": string (verbatim from the chat exchange or an attached document), "source_document_id": string|null, "confidence": number (0-1), "new_title": string (amend/merge/create only), "new_description": string (amend/merge/create only), "new_category": string (amend/merge/create only), "new_severity": "critical"|"high"|"medium"|"low"|"info" (amend/merge/create only), "disputed_doc_id": string (dispute_evidence only — a doc_id this finding actually cites), "dispute_status": "disputed"|"superseded"|"withdrawn" (dispute_evidence only) } ] }. Return an empty array if the exchange doesn't warrant any change.`,
     });
   } catch (e) {
     console.error("[chat-patch] LLM call failed", e);
@@ -236,7 +344,13 @@ Every patch (except "keep", which you do not need to emit at all) MUST include a
   for (const p of raw) {
     if (!p || typeof p !== "object") continue;
     const action = p.action;
-    if (action !== "amend" && action !== "remove" && action !== "merge" && action !== "create")
+    if (
+      action !== "amend" &&
+      action !== "remove" &&
+      action !== "merge" &&
+      action !== "create" &&
+      action !== "dispute_evidence"
+    )
       continue;
 
     const findingIds = Array.isArray(p.finding_ids)
@@ -246,6 +360,21 @@ Every patch (except "keep", which you do not need to emit at all) MUST include a
     if (action !== "create" && findingIds.length === 0) continue;
     if (action !== "merge" && action !== "create" && findingIds.length !== 1) continue;
     if (action === "merge" && findingIds.length < 2) continue;
+
+    // dispute_evidence must target a doc_id the finding actually cites —
+    // never let the LLM invent a citation to dispute.
+    const disputedDocId = typeof p.disputed_doc_id === "string" ? p.disputed_doc_id : undefined;
+    if (action === "dispute_evidence") {
+      if (!disputedDocId) continue;
+      const validDocIds = evidenceDocIdsByFindingId.get(findingIds[0]);
+      if (!validDocIds?.has(disputedDocId)) continue;
+    }
+    const disputeStatusRaw = typeof p.dispute_status === "string" ? p.dispute_status : null;
+    const disputeStatus: EvidenceRefStatus | undefined = VALID_DISPUTE_STATUSES.includes(
+      disputeStatusRaw as EvidenceRefStatus,
+    )
+      ? (disputeStatusRaw as EvidenceRefStatus)
+      : undefined;
 
     const quote = typeof p.quote === "string" ? p.quote.trim() : "";
     const sourceDocId = typeof p.source_document_id === "string" ? p.source_document_id : null;
@@ -292,10 +421,179 @@ Every patch (except "keep", which you do not need to emit at all) MUST include a
             new_severity: newSeverity,
           }
         : {}),
+      ...(action === "dispute_evidence"
+        ? { disputed_doc_id: disputedDocId, dispute_status: disputeStatus ?? "disputed" }
+        : {}),
     });
   }
 
   return { ran: true, patches, ungrounded };
+}
+
+export type CorrectionImpact = {
+  /** Other active findings that depend on a changed finding — either via
+   *  an explicit related_finding_ids link, or by sharing a
+   *  canonical_finding_id (same real-world claim, per canonical-id.ts). */
+  dependentFindingIds: string[];
+  /** True when the case's current case_scores row was built from at least
+   *  one finding this correction touches (case_scores.source_finding_ids) —
+   *  the signal pushCaseChatCorrectionsToReport uses to decide whether
+   *  scoring needs to re-run at all. */
+  scoreAffected: boolean;
+  /** case_opportunities rows whose source_finding_ids overlaps the changed
+   *  set. */
+  affectedOpportunityIds: string[];
+  /** Count of entries in reports.citations whose finding_id is a changed
+   *  finding — the raw material findStaleCitations (see below) resolves
+   *  into an actual stale-content warning list. */
+  affectedCitationCount: number;
+};
+
+/**
+ * Pure read: resolves what a patch set's finding-level changes would ripple
+ * into, using existing columns rather than a new dependency-graph schema —
+ * case_findings.related_finding_ids / canonical_finding_id for dependent
+ * findings, case_scores.source_finding_ids / case_opportunities.source_finding_ids
+ * for dependent risk-and-score rows, reports.citations[].finding_id for
+ * dependent report content. Never writes anything. Called BOTH by the
+ * preview step (so the attorney sees "Affected items" before approving) and
+ * by pushCaseChatCorrectionsToReport (so scoring only re-runs when this
+ * correction genuinely touches something the score was built from —
+ * targeted re-evaluation instead of always/never rescoring).
+ */
+export async function computeCorrectionImpact(
+  db: Db,
+  caseId: string,
+  patches: FindingPatch[],
+): Promise<CorrectionImpact> {
+  const changedIds = new Set(patches.flatMap((p) => p.finding_ids));
+  if (changedIds.size === 0) {
+    return {
+      dependentFindingIds: [],
+      scoreAffected: false,
+      affectedOpportunityIds: [],
+      affectedCitationCount: 0,
+    };
+  }
+  const changedIdList = [...changedIds];
+
+  const [
+    { data: changedRows },
+    { data: relatedRows },
+    { data: scoreRow },
+    { data: oppRows },
+    { data: reportRow },
+  ] = await Promise.all([
+    db
+      .from("case_findings")
+      .select("id,canonical_finding_id")
+      .eq("case_id", caseId)
+      .in("id", changedIdList),
+    db
+      .from("case_findings")
+      .select("id,related_finding_ids,canonical_finding_id")
+      .eq("case_id", caseId)
+      .is("superseded_at", null),
+    db.from("case_scores").select("source_finding_ids").eq("case_id", caseId).maybeSingle(),
+    db.from("case_opportunities").select("id,source_finding_ids").eq("case_id", caseId),
+    db.from("reports").select("citations").eq("case_id", caseId).maybeSingle(),
+  ]);
+
+  const canonicalIds = new Set(
+    (changedRows ?? [])
+      .map((r) => (r as { canonical_finding_id: string | null }).canonical_finding_id)
+      .filter((v): v is string => !!v),
+  );
+  const dependentFindingIds = (
+    (relatedRows ?? []) as Array<{
+      id: string;
+      related_finding_ids: string[] | null;
+      canonical_finding_id: string | null;
+    }>
+  )
+    .filter(
+      (r) =>
+        !changedIds.has(r.id) &&
+        ((r.related_finding_ids ?? []).some((id) => changedIds.has(id)) ||
+          (!!r.canonical_finding_id && canonicalIds.has(r.canonical_finding_id))),
+    )
+    .map((r) => r.id);
+
+  const scoreSourceIds =
+    (scoreRow as { source_finding_ids: string[] | null } | null)?.source_finding_ids ?? [];
+  const scoreAffected = scoreSourceIds.some((id) => changedIds.has(id));
+
+  const affectedOpportunityIds = (
+    (oppRows ?? []) as Array<{
+      id: string;
+      source_finding_ids: string[] | null;
+    }>
+  )
+    .filter((o) => (o.source_finding_ids ?? []).some((id) => changedIds.has(id)))
+    .map((o) => o.id);
+
+  const citations = Array.isArray((reportRow as { citations: unknown } | null)?.citations)
+    ? (reportRow as { citations: Array<{ finding_id?: string | null }> }).citations
+    : [];
+  const affectedCitationCount = citations.filter(
+    (c) => typeof c.finding_id === "string" && changedIds.has(c.finding_id),
+  ).length;
+
+  return { dependentFindingIds, scoreAffected, affectedOpportunityIds, affectedCitationCount };
+}
+
+export type StaleCitation = {
+  citationId: string | null;
+  quote: string | null;
+  findingId: string;
+  documentId: string | null;
+  page: number | null;
+};
+
+/**
+ * Bounded, safe subset of spec's "revision consistency check": flags
+ * reports.citations entries that still reference a finding this correction
+ * just superseded (a "remove"/"merge" target — NOT "amend"/"dispute_evidence",
+ * which keep the same finding id, so a citation still pointing at it is
+ * correct, not stale). Does NOT auto-rewrite report prose — full automatic
+ * LLM correction of already-generated report text is a separate, larger
+ * piece of work (see the case-revision architecture plan's Phase 2); this
+ * only detects and returns what a human should review. Call AFTER
+ * runReport() has regenerated the report, so it inspects the freshly
+ * rebuilt citations, not the pre-correction ones.
+ */
+export async function findStaleCitations(
+  db: Db,
+  caseId: string,
+  changedFindingIds: string[],
+): Promise<StaleCitation[]> {
+  if (changedFindingIds.length === 0) return [];
+  const { data: supersededRows } = await db
+    .from("case_findings")
+    .select("id")
+    .eq("case_id", caseId)
+    .in("id", changedFindingIds)
+    .not("superseded_at", "is", null);
+  const supersededIds = new Set(((supersededRows ?? []) as Array<{ id: string }>).map((r) => r.id));
+  if (supersededIds.size === 0) return [];
+
+  const { data: reportRow } = await db
+    .from("reports")
+    .select("citations")
+    .eq("case_id", caseId)
+    .maybeSingle();
+  const citations = Array.isArray((reportRow as { citations: unknown } | null)?.citations)
+    ? (reportRow as { citations: Array<Record<string, unknown>> }).citations
+    : [];
+  return citations
+    .filter((c) => typeof c.finding_id === "string" && supersededIds.has(c.finding_id as string))
+    .map((c) => ({
+      citationId: typeof c.id === "string" ? c.id : null,
+      quote: typeof c.quote === "string" ? c.quote : null,
+      findingId: c.finding_id as string,
+      documentId: typeof c.document_id === "string" ? c.document_id : null,
+      page: typeof c.page === "number" ? c.page : null,
+    }));
 }
 
 /**
@@ -416,6 +714,60 @@ export async function applyFindingPatchSet(
           if (error) throw error;
         }
         applied = true;
+      } else if (patch.action === "dispute_evidence") {
+        // Proposition-level correction: mutate ONE evidence_ref entry inside
+        // the finding's own array, in place. The finding row itself (title/
+        // description/severity/other evidence_refs) is untouched, and the
+        // disputed document is never flagged anywhere else it might be
+        // cited — this is deliberately narrower than "amend"/"remove".
+        const findingId = patch.finding_ids[0];
+        const current = await db
+          .from("case_findings")
+          .select("evidence_refs")
+          .eq("id", findingId)
+          .eq("case_id", caseId)
+          .maybeSingle();
+        const currentRefs = Array.isArray(
+          (current.data as { evidence_refs: unknown } | null)?.evidence_refs,
+        )
+          ? ((current.data as { evidence_refs: EvidenceRef[] }).evidence_refs as EvidenceRef[])
+          : [];
+        const targetIdx = currentRefs.findIndex((e) => e.doc_id === patch.disputed_doc_id);
+        if (targetIdx === -1) {
+          throw new Error(
+            `evidence_ref for doc_id ${patch.disputed_doc_id} not found on finding ${findingId}`,
+          );
+        }
+        const status = patch.dispute_status ?? "disputed";
+        const updatedRefs = [...currentRefs];
+        updatedRefs[targetIdx] = {
+          ...updatedRefs[targetIdx],
+          status,
+          status_reason: `${patch.reason} — "${patch.quote}"`,
+          ...(status === "superseded" && patch.source_document_id
+            ? { superseded_by_doc_id: patch.source_document_id }
+            : {}),
+        };
+        // A replacement document, when provided, becomes its own new
+        // (active) evidence_ref rather than overwriting the disputed one in
+        // place — the disputed citation's own history (who cited it, why it
+        // was disputed) stays intact for audit purposes.
+        if (status === "superseded" && patch.source_document_id) {
+          updatedRefs.push({
+            doc_id: patch.source_document_id,
+            quote: patch.quote,
+            status: "active",
+          });
+        }
+        const { error } = await db
+          .from("case_findings")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .update({ evidence_refs: updatedRefs, updated_at: nowIso } as any)
+          .eq("id", findingId)
+          .eq("case_id", caseId);
+        if (error) throw error;
+        resultFindingId = findingId;
+        applied = true;
       } else if (patch.action === "create") {
         const newRow: NewFinding = {
           case_id: caseId,
@@ -451,6 +803,7 @@ export async function applyFindingPatchSet(
         result_finding_id: null,
         applied: false,
         skip_reason: "write_failed",
+        auditRowId: null,
       });
       continue;
     }
@@ -458,20 +811,24 @@ export async function applyFindingPatchSet(
     // Audit row — best-effort; a failure here doesn't roll back the
     // finding-level change above, since the audit table is a supplementary
     // record, not the source of truth (case_findings.superseded_reason is).
-    const { error: auditError } = await db.from("case_finding_patches").insert({
-      case_id: caseId,
-      user_id: userId,
-      finding_id: patch.finding_ids[0] ?? null,
-      result_finding_id: resultFindingId,
-      action: patch.action,
-      reason: patch.reason,
-      source_document_id: patch.source_document_id,
-      source_quote: patch.quote,
-      confidence: patch.confidence,
-      chat_message_id: chatMessageId,
-      applied_at: nowIso,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    const { data: auditRow, error: auditError } = await db
+      .from("case_finding_patches")
+      .insert({
+        case_id: caseId,
+        user_id: userId,
+        finding_id: patch.finding_ids[0] ?? null,
+        result_finding_id: resultFindingId,
+        action: patch.action,
+        reason: patch.reason,
+        source_document_id: patch.source_document_id,
+        source_quote: patch.quote,
+        confidence: patch.confidence,
+        chat_message_id: chatMessageId,
+        applied_at: nowIso,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+      .select("id")
+      .maybeSingle();
     if (auditError) {
       console.error("[chat-patch] failed to write audit row", patch.action, auditError);
     }
@@ -481,6 +838,7 @@ export async function applyFindingPatchSet(
       finding_ids: patch.finding_ids,
       result_finding_id: resultFindingId,
       applied,
+      auditRowId: (auditRow as { id?: string } | null)?.id ?? null,
     });
   }
 

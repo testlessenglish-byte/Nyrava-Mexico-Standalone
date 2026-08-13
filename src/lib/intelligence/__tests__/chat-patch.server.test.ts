@@ -23,6 +23,8 @@ import { addFindings } from "@/lib/intelligence/findings.server";
 import {
   generateFindingPatchSet,
   applyFindingPatchSet,
+  computeCorrectionImpact,
+  findStaleCitations,
 } from "@/lib/intelligence/chat-patch.server";
 
 beforeEach(() => {
@@ -60,7 +62,13 @@ function baseFinding(overrides: Partial<Record<string, unknown>> = {}) {
 // audit insert). Throws on any table this architecture must NOT touch
 // (documents, pipeline_engine_runs, cases-writes, etc.) so a regression that
 // reintroduces a full-pipeline dependency fails loudly.
-function makeFakeDb(opts: { findings: Array<Record<string, unknown>> }) {
+function makeFakeDb(opts: {
+  findings: Array<Record<string, unknown>>;
+  /** Seeds case_finding_patches' SELECT path (correction memory) — separate
+   *  from `patchRows`, which captures newly-INSERTed audit rows. Defaults to
+   *  no prior history. */
+  priorPatches?: Array<Record<string, unknown>>;
+}) {
   const patchRows: Array<Record<string, unknown>> = [];
   const touchedTables = new Set<string>();
 
@@ -131,9 +139,21 @@ function makeFakeDb(opts: { findings: Array<Record<string, unknown>> }) {
       if (table === "case_finding_patches") {
         return {
           insert: (row: Record<string, unknown>) => {
-            patchRows.push(row);
-            return Promise.resolve({ error: null });
+            const id = `patch-audit-${patchRows.length}`;
+            patchRows.push({ ...row, id });
+            return {
+              select: () => ({
+                maybeSingle: () => Promise.resolve({ data: { id }, error: null }),
+              }),
+            };
           },
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => Promise.resolve({ data: opts.priorPatches ?? [], error: null }),
+              }),
+            }),
+          }),
         };
       }
       if (table === "cases") {
@@ -205,6 +225,66 @@ describe("generateFindingPatchSet", () => {
     expect(result.patches[0].action).toBe("remove");
     expect(result.patches[0].finding_ids).toEqual(["finding-1"]);
     expect(result.ungrounded).toBe(0);
+  });
+
+  it("includes relevant correction memory (a prior patch touching a visible finding) in the LLM prompt, bounded to what's relevant", async () => {
+    const finding = baseFinding();
+    const irrelevantFinding = baseFinding({ id: "finding-unrelated" });
+    const { db } = makeFakeDb({
+      findings: [finding, irrelevantFinding],
+      priorPatches: [
+        {
+          action: "amend",
+          reason: "Se corrigió la fecha de notificación tras revisar el expediente físico.",
+          finding_id: "finding-1",
+          result_finding_id: "finding-1",
+          source_document_id: null,
+          applied_at: "2026-08-10T00:00:00.000Z",
+        },
+        // Targets a finding NOT currently visible to this call — must be
+        // excluded, proving the memory query is relevance-scoped, not a
+        // full-history dump.
+        {
+          action: "remove",
+          reason: "Unrelated prior correction on a different finding.",
+          finding_id: "finding-not-shown",
+          result_finding_id: null,
+          source_document_id: null,
+          applied_at: "2026-08-11T00:00:00.000Z",
+        },
+      ],
+    });
+    mockPatchLlmResponse([]);
+
+    await generateFindingPatchSet(db as never, "case-memory", "user-1", EXCHANGE);
+
+    const call = vi.mocked(callGroq).mock.calls[0][0] as { userContent: string };
+    expect(call.userContent).toContain("KNOWN PRIOR CORRECTIONS");
+    expect(call.userContent).toContain("Se corrigió la fecha de notificación");
+    expect(call.userContent).not.toContain("Unrelated prior correction on a different finding");
+  });
+
+  it("omits the correction-memory block entirely when no prior patch is relevant", async () => {
+    const finding = baseFinding();
+    const { db } = makeFakeDb({
+      findings: [finding],
+      priorPatches: [
+        {
+          action: "remove",
+          reason: "Unrelated prior correction.",
+          finding_id: "finding-not-shown",
+          result_finding_id: null,
+          source_document_id: null,
+          applied_at: "2026-08-11T00:00:00.000Z",
+        },
+      ],
+    });
+    mockPatchLlmResponse([]);
+
+    await generateFindingPatchSet(db as never, "case-no-memory", "user-1", EXCHANGE);
+
+    const call = vi.mocked(callGroq).mock.calls[0][0] as { userContent: string };
+    expect(call.userContent).not.toContain("KNOWN PRIOR CORRECTIONS");
   });
 
   it("discards a patch whose quote does not actually appear in the exchange or an attached document", async () => {
@@ -463,5 +543,294 @@ describe("applyFindingPatchSet", () => {
     expect(outcomes[0].skip_reason).toBe("write_failed");
     expect(outcomes[1].applied).toBe(true);
     expect(finding.superseded_at).toBeTruthy();
+  });
+
+  it("'dispute_evidence' marks ONE evidence_ref superseded in place — the finding survives, and the SAME document cited by a different finding is untouched", async () => {
+    const disputedFinding = baseFinding({
+      id: "finding-disputed",
+      evidence_refs: [
+        { doc_id: "doc-bad", quote: "wrong reading of the record" },
+        { doc_id: "doc-other", quote: "unrelated corroborating quote" },
+      ],
+    });
+    // The SAME doc-bad document is also cited (correctly) by a different
+    // finding — disputing it for finding-disputed must never touch this one.
+    const otherFinding = baseFinding({
+      id: "finding-elsewhere",
+      evidence_refs: [{ doc_id: "doc-bad", quote: "a completely different, valid citation" }],
+    });
+    const { db } = makeFakeDb({ findings: [disputedFinding, otherFinding] });
+    const patch = {
+      action: "dispute_evidence" as const,
+      finding_ids: ["finding-disputed"],
+      reason: "El documento no acredita lo que el hallazgo afirma.",
+      quote: "grounding quote",
+      source_document_id: "doc-replacement",
+      confidence: 0.85,
+      disputed_doc_id: "doc-bad",
+      dispute_status: "superseded" as const,
+    };
+
+    const outcomes = await applyFindingPatchSet(db as never, "case-1", "user-1", [patch], "msg-1");
+
+    expect(outcomes[0]).toMatchObject({
+      applied: true,
+      action: "dispute_evidence",
+      result_finding_id: "finding-disputed",
+    });
+    // Finding itself survives, not superseded.
+    expect(disputedFinding.superseded_at).toBeFalsy();
+    const refs = disputedFinding.evidence_refs as Array<Record<string, unknown>>;
+    const disputedRef = refs.find((r) => r.doc_id === "doc-bad");
+    expect(disputedRef?.status).toBe("superseded");
+    expect(disputedRef?.superseded_by_doc_id).toBe("doc-replacement");
+    // The OTHER evidence_ref on the same finding is untouched.
+    const otherRef = refs.find((r) => r.doc_id === "doc-other");
+    expect(otherRef?.status ?? "active").not.toBe("superseded");
+    // A new active ref for the replacement was appended.
+    expect(refs.some((r) => r.doc_id === "doc-replacement" && r.status === "active")).toBe(true);
+    // The SAME document cited by a DIFFERENT finding is completely untouched
+    // — a document can be wrong for one proposition without being globally
+    // discarded.
+    const otherFindingRefs = otherFinding.evidence_refs as Array<Record<string, unknown>>;
+    expect(otherFindingRefs[0].status).toBeUndefined();
+  });
+
+  it("'dispute_evidence' fails closed when the disputed_doc_id isn't actually cited by the target finding", async () => {
+    const finding = baseFinding({ evidence_refs: [{ doc_id: "doc-real", quote: "q" }] });
+    const { db } = makeFakeDb({ findings: [finding] });
+    const patch = {
+      action: "dispute_evidence" as const,
+      finding_ids: ["finding-1"],
+      reason: "reason",
+      quote: "q",
+      source_document_id: null,
+      confidence: 0.5,
+      disputed_doc_id: "doc-never-cited",
+      dispute_status: "disputed" as const,
+    };
+
+    const outcomes = await applyFindingPatchSet(db as never, "case-1", "user-1", [patch], "msg-1");
+    expect(outcomes[0].applied).toBe(false);
+    expect(outcomes[0].skip_reason).toBe("write_failed");
+    expect((finding.evidence_refs as Array<Record<string, unknown>>)[0].status).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeCorrectionImpact / findStaleCitations — dependency-graph raw
+// material reused from existing columns (case_findings.related_finding_ids/
+// canonical_finding_id, case_scores/case_opportunities.source_finding_ids,
+// reports.citations[].finding_id), not a new graph schema. Generic
+// query-builder fake: every case_findings/case_scores/case_opportunities/
+// reports call in these two functions is a plain filtered SELECT (eq/in/is/
+// not, then awaited or .maybeSingle()'d), so one predicate-accumulating
+// builder serves all of them — the real behavior a stricter per-shape mock
+// would have to hand-replicate per call site anyway.
+// ---------------------------------------------------------------------------
+function queryBuilder(rows: Array<Record<string, unknown>>) {
+  let predicate = (_r: Record<string, unknown>) => true;
+  const self: Record<string, unknown> = {
+    select: () => self,
+    eq: (col: string, val: unknown) => {
+      const prev = predicate;
+      predicate = (r) => prev(r) && r[col] === val;
+      return self;
+    },
+    in: (col: string, vals: unknown[]) => {
+      const prev = predicate;
+      predicate = (r) => prev(r) && vals.includes(r[col]);
+      return self;
+    },
+    is: (col: string, val: null) => {
+      const prev = predicate;
+      predicate = (r) => prev(r) && ((r[col] as unknown) ?? null) === val;
+      return self;
+    },
+    not: (col: string, _op: string, val: null) => {
+      const prev = predicate;
+      predicate = (r) => prev(r) && ((r[col] as unknown) ?? null) !== val;
+      return self;
+    },
+    maybeSingle: () => Promise.resolve({ data: rows.filter(predicate)[0] ?? null, error: null }),
+    then: (resolve: (v: unknown) => void) => resolve({ data: rows.filter(predicate), error: null }),
+  };
+  return self;
+}
+
+function makeImpactFakeDb(opts: {
+  findings?: Array<Record<string, unknown>>;
+  scores?: Array<Record<string, unknown>>;
+  opportunities?: Array<Record<string, unknown>>;
+  reports?: Array<Record<string, unknown>>;
+}) {
+  const tables: Record<string, Array<Record<string, unknown>>> = {
+    case_findings: opts.findings ?? [],
+    case_scores: opts.scores ?? [],
+    case_opportunities: opts.opportunities ?? [],
+    reports: opts.reports ?? [],
+  };
+  return {
+    from(table: string) {
+      if (table in tables) return queryBuilder(tables[table]);
+      throw new Error(`unexpected table in impact fake db: ${table}`);
+    },
+  };
+}
+
+describe("computeCorrectionImpact", () => {
+  it("returns all-empty/false when the patch set targets no findings", async () => {
+    const db = makeImpactFakeDb({});
+    const impact = await computeCorrectionImpact(db as never, "case-1", []);
+    expect(impact).toEqual({
+      dependentFindingIds: [],
+      scoreAffected: false,
+      affectedOpportunityIds: [],
+      affectedCitationCount: 0,
+    });
+  });
+
+  it("finds a dependent finding via related_finding_ids, a scoreAffected via case_scores.source_finding_ids, an affected opportunity, and a citation count — while a wholly unrelated finding is never flagged", async () => {
+    const changed = {
+      id: "finding-A",
+      case_id: "case-1",
+      canonical_finding_id: "canon-A",
+      superseded_at: null,
+    };
+    const dependent = {
+      id: "finding-B",
+      case_id: "case-1",
+      related_finding_ids: ["finding-A"],
+      canonical_finding_id: "canon-B",
+      superseded_at: null,
+    };
+    const unrelated = {
+      id: "finding-C",
+      case_id: "case-1",
+      related_finding_ids: [],
+      canonical_finding_id: "canon-C",
+      superseded_at: null,
+    };
+    const db = makeImpactFakeDb({
+      findings: [changed, dependent, unrelated],
+      scores: [{ case_id: "case-1", source_finding_ids: ["finding-A", "finding-C"] }],
+      opportunities: [
+        { id: "opp-1", case_id: "case-1", source_finding_ids: ["finding-A"] },
+        { id: "opp-2", case_id: "case-1", source_finding_ids: ["finding-C"] },
+      ],
+      reports: [
+        {
+          case_id: "case-1",
+          citations: [
+            { id: "c1", finding_id: "finding-A" },
+            { id: "c2", finding_id: "finding-A" },
+            { id: "c3", finding_id: "finding-C" },
+          ],
+        },
+      ],
+    });
+
+    const impact = await computeCorrectionImpact(db as never, "case-1", [
+      {
+        action: "remove",
+        finding_ids: ["finding-A"],
+        reason: "r",
+        quote: "q",
+        source_document_id: null,
+        confidence: 0.9,
+      },
+    ]);
+
+    expect(impact.dependentFindingIds).toEqual(["finding-B"]);
+    expect(impact.dependentFindingIds).not.toContain("finding-C");
+    expect(impact.scoreAffected).toBe(true);
+    expect(impact.affectedOpportunityIds).toEqual(["opp-1"]);
+    expect(impact.affectedOpportunityIds).not.toContain("opp-2");
+    expect(impact.affectedCitationCount).toBe(2);
+  });
+
+  it("finds a dependent finding sharing the SAME canonical_finding_id even with no explicit related_finding_ids link", async () => {
+    const changed = {
+      id: "finding-A",
+      case_id: "case-1",
+      canonical_finding_id: "canon-shared",
+      superseded_at: null,
+    };
+    const sameClaim = {
+      id: "finding-B",
+      case_id: "case-1",
+      related_finding_ids: [],
+      canonical_finding_id: "canon-shared",
+      superseded_at: null,
+    };
+    const db = makeImpactFakeDb({ findings: [changed, sameClaim] });
+
+    const impact = await computeCorrectionImpact(db as never, "case-1", [
+      {
+        action: "remove",
+        finding_ids: ["finding-A"],
+        reason: "r",
+        quote: "q",
+        source_document_id: null,
+        confidence: 0.9,
+      },
+    ]);
+
+    expect(impact.dependentFindingIds).toEqual(["finding-B"]);
+  });
+});
+
+describe("findStaleCitations", () => {
+  it("returns nothing when no changed finding is actually superseded (an amend/dispute keeps the same active id)", async () => {
+    const amended = { id: "finding-A", case_id: "case-1", superseded_at: null };
+    const db = makeImpactFakeDb({
+      findings: [amended],
+      reports: [
+        { case_id: "case-1", citations: [{ id: "c1", finding_id: "finding-A", quote: "q" }] },
+      ],
+    });
+    const stale = await findStaleCitations(db as never, "case-1", ["finding-A"]);
+    expect(stale).toEqual([]);
+  });
+
+  it("flags a report citation still referencing a finding that was just superseded", async () => {
+    const removed = {
+      id: "finding-A",
+      case_id: "case-1",
+      superseded_at: "2026-08-13T00:00:00.000Z",
+    };
+    const db = makeImpactFakeDb({
+      findings: [removed],
+      reports: [
+        {
+          case_id: "case-1",
+          citations: [
+            {
+              id: "c1",
+              finding_id: "finding-A",
+              quote: "stale quote",
+              document_id: "doc-1",
+              page: 4,
+            },
+            { id: "c2", finding_id: "finding-other", quote: "unaffected" },
+          ],
+        },
+      ],
+    });
+    const stale = await findStaleCitations(db as never, "case-1", ["finding-A"]);
+    expect(stale).toHaveLength(1);
+    expect(stale[0]).toMatchObject({
+      citationId: "c1",
+      findingId: "finding-A",
+      quote: "stale quote",
+      documentId: "doc-1",
+      page: 4,
+    });
+  });
+
+  it("returns nothing for an empty changed-findings list", async () => {
+    const db = makeImpactFakeDb({});
+    const stale = await findStaleCitations(db as never, "case-1", []);
+    expect(stale).toEqual([]);
   });
 });
