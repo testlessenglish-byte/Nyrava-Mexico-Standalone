@@ -95,8 +95,14 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "Upload");
     const name = String(data.get("name") ?? "Untitled Case").slice(0, 200);
     const description = String(data.get("description") ?? "").slice(0, 2000) || null;
-    const rawMode = String(data.get("analysis_mode") ?? "balanced").toLowerCase();
-    const analysis_mode = rawMode === "strict" || rawMode === "exploratory" ? rawMode : "balanced";
+    // "Balanced" was removed as a new-case option — only "strict" and
+    // "exploratory" remain selectable, so an invalid/missing value is
+    // rejected outright rather than silently coerced into the retired mode.
+    const rawMode = String(data.get("analysis_mode") ?? "").toLowerCase();
+    if (rawMode !== "strict" && rawMode !== "exploratory") {
+      throw new Error("Invalid analysis_mode: expected 'strict' or 'exploratory'");
+    }
+    const analysis_mode = rawMode;
     const allowedCaseTypes = new Set<string>(CASE_TYPE_VALUES);
     const rawCaseType = String(data.get("case_type") ?? "").toLowerCase();
     const case_type = allowedCaseTypes.has(rawCaseType) ? rawCaseType : null;

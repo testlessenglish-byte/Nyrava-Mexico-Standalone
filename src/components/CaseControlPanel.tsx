@@ -333,12 +333,12 @@ function CollapsedCaseSettings({
   // match an <option>, leaving the browser to silently highlight whichever
   // option happens to be first (Penal) while state stays out of sync.
   const [ct, setCt] = useState<string>(caseType ?? "");
-  const [mode, setMode] = useState<string>(analysisMode || "balanced");
+  const [mode, setMode] = useState<string>(analysisMode ?? "");
   const [juris, setJuris] = useState<string>(jurisdiction ?? "");
   const [caseAnalysis, setCaseAnalysis] = useState<string>(caseAnalysisMode || "ongoing");
   useEffect(() => {
     setCt(caseType ?? "");
-    setMode(analysisMode || "balanced");
+    setMode(analysisMode ?? "");
     setJuris(jurisdiction ?? "");
     setCaseAnalysis(caseAnalysisMode || "ongoing");
   }, [caseType, analysisMode, jurisdiction, caseAnalysisMode]);
@@ -381,7 +381,7 @@ function CollapsedCaseSettings({
 
   const dirty =
     ct !== (caseType ?? "") ||
-    mode !== (analysisMode || "balanced") ||
+    mode !== (analysisMode ?? "") ||
     juris !== (jurisdiction ?? "") ||
     caseAnalysis !== (caseAnalysisMode || "ongoing");
   const disabled = running || m.isPending;
@@ -452,7 +452,6 @@ function CollapsedCaseSettings({
             <div className="grid gap-1.5">
               {[
                 { v: "strict", label: t("caseSettings.mode.strict"), desc: t("caseSettings.mode.strict.desc") },
-                { v: "balanced", label: t("caseSettings.mode.balanced"), desc: t("caseSettings.mode.balanced.desc") },
                 { v: "exploratory", label: t("caseSettings.mode.exploratory"), desc: t("caseSettings.mode.exploratory.desc") },
               ].map((opt) => (
                 <button
@@ -500,7 +499,7 @@ function CollapsedCaseSettings({
             onClick={() =>
               m.mutate({ case_type: ct, analysis_mode: mode, jurisdiction: juris || null, case_analysis_mode: caseAnalysis })
             }
-            disabled={disabled || !dirty || !ct}
+            disabled={disabled || !dirty || !ct || !mode}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
           >
             {m.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
