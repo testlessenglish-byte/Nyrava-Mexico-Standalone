@@ -47,6 +47,69 @@ const VALID_DISPUTE_STATUSES: readonly EvidenceRefStatus[] = [
   "withdrawn",
 ];
 
+/** Continuous Legal Intelligence — see migration 20260813232206_intelligence_lessons.sql.
+ *  Mirrors the Postgres enum intelligence_error_type exactly. */
+export type IntelligenceErrorType =
+  | "unsupported_claim"
+  | "bad_evidence_link"
+  | "wrong_evidence_interpretation"
+  | "duplicate_finding"
+  | "contradiction_misclassification"
+  | "wrong_legal_authority"
+  | "wrong_procedural_rule"
+  | "wrong_severity"
+  | "wrong_confidence"
+  | "missing_finding"
+  | "false_positive"
+  | "false_negative"
+  | "temporal_error"
+  | "source_classification_error"
+  | "report_rendering_error"
+  | "other";
+const VALID_ERROR_TYPES: readonly IntelligenceErrorType[] = [
+  "unsupported_claim",
+  "bad_evidence_link",
+  "wrong_evidence_interpretation",
+  "duplicate_finding",
+  "contradiction_misclassification",
+  "wrong_legal_authority",
+  "wrong_procedural_rule",
+  "wrong_severity",
+  "wrong_confidence",
+  "missing_finding",
+  "false_positive",
+  "false_negative",
+  "temporal_error",
+  "source_classification_error",
+  "report_rendering_error",
+  "other",
+];
+
+/** Mirrors the Postgres check constraint on documents.purpose (see migration
+ *  20260813232500_document_purpose_classification.sql) — why a document was
+ *  uploaded, separate from evidence_scope's corpus-inclusion gate. */
+export type DocumentPurpose =
+  | "case_evidence"
+  | "correction_support"
+  | "finding_correction"
+  | "report_correction"
+  | "context_only"
+  | "user_instruction"
+  | "counter_evidence"
+  | "duplicate"
+  | "irrelevant";
+const VALID_DOCUMENT_PURPOSES: readonly DocumentPurpose[] = [
+  "case_evidence",
+  "correction_support",
+  "finding_correction",
+  "report_correction",
+  "context_only",
+  "user_instruction",
+  "counter_evidence",
+  "duplicate",
+  "irrelevant",
+];
+
 export type FindingPatchAction =
   | "keep"
   | "amend"
@@ -69,6 +132,8 @@ type RawPatch = {
   new_severity?: unknown;
   disputed_doc_id?: unknown;
   dispute_status?: unknown;
+  error_type?: unknown;
+  source_document_purpose?: unknown;
 };
 
 export type FindingPatch = {
@@ -96,6 +161,18 @@ export type FindingPatch = {
    *  to 'disputed' when omitted. 'superseded' additionally records
    *  source_document_id (if set) as the replacement. */
   dispute_status?: EvidenceRefStatus;
+  /** Continuous Legal Intelligence (§6): why the ORIGINAL finding was wrong
+   *  — only meaningful for remove/amend/dispute_evidence (the actions that
+   *  imply the prior state was in some way incorrect; "merge"/"create"
+   *  don't correct an error, they consolidate/add). Feeds recordLesson's
+   *  error-taxonomy tag; never required, never blocks the patch if absent
+   *  or invalid. */
+  error_type?: IntelligenceErrorType;
+  /** Set alongside source_document_id when the exchange includes an
+   *  attachment — classifies WHY that document was uploaded (§2), written
+   *  to documents.purpose only once this patch is approved and applied.
+   *  Never the corpus-inclusion decision (that remains evidence_scope). */
+  source_document_purpose?: DocumentPurpose;
 };
 
 type CurrentFindingRow = {
@@ -103,6 +180,7 @@ type CurrentFindingRow = {
   source_doc_ids: string[] | null;
   metadata: Record<string, unknown> | null;
   category: string;
+  title?: string;
 };
 
 /** Builds the UPDATE payload shared by "amend" (single row) and "merge"
@@ -148,6 +226,15 @@ function buildAmendUpdatePayload(
       ],
     },
     updated_at: nowIso,
+    // Same row, corrected in place — see the "amend"/"merge" doc comments
+    // in applyFindingPatchSet for why this is a lifecycle transition, not a
+    // supersession.
+    lifecycle_status: "corrected",
+    // §15's evidence->finding dependency graph, persisted: a merge's
+    // surviving row is genuinely derived from the ids it absorbed. "amend"
+    // (mergedFromIds undefined) leaves this untouched — the row corrected
+    // itself, it wasn't derived from another finding.
+    ...(mergedFromIds ? { derived_from_finding_ids: mergedFromIds } : {}),
   };
   if (patch.new_severity) payload.severity = patch.new_severity;
   return payload;
@@ -165,6 +252,11 @@ export type PatchApplyOutcome = {
    *  audit insert itself failed — a best-effort write, per the function doc
    *  comment below. */
   auditRowId: string | null;
+  /** The finding's title BEFORE this patch changed it (captured pre-update
+   *  from whichever row-fetch each branch already does) — feeds
+   *  recordLesson's original_claim. Null for "create" (nothing existed
+   *  before) or when the write failed before any row was read. */
+  originalClaim: string | null;
 };
 
 export type FindingPatchSetResult = {
@@ -325,8 +417,10 @@ You review an attorney's Talk-to-Case exchange against the EXISTING findings alr
 - "merge": the exchange shows two or more existing findings are the same underlying issue — list all their ids in finding_ids and provide the consolidated new_title/new_description.
 - "dispute_evidence": the exchange challenges ONE specific document cited by an existing finding, but the finding's underlying issue may still stand (either on its other evidence, or pending review) — do NOT remove or amend the whole finding for this. Set disputed_doc_id to that document's id (it must be a doc_id actually cited by the finding) and dispute_status to "disputed" (the citation is now contested but not resolved), "superseded" (the exchange/attached document establishes a replacement — also set source_document_id to the replacement's id), or "withdrawn" (the citation should no longer be relied on at all). A document can be wrong for ONE finding's proposition while remaining perfectly good evidence elsewhere — this never touches the document's use in any other finding.
 You may also propose "create" for a genuinely new finding the exchange establishes that has no existing counterpart — finding_ids must be empty for this action. Do NOT create a finding merely restating something an existing finding already covers.
-Every patch (except "keep", which you do not need to emit at all) MUST include a "quote" field: a SINGLE verbatim excerpt copied character-for-character from either the chat exchange text or one of the attached documents (never paraphrased, never from the finding itself) that grounds the decision. If citing an attached document, also set source_document_id to that document's id. A patch without a real, exact quote will be discarded. Output JSON only.`,
-      userContent: `CHAT EXCHANGE:\nAttorney: ${exchange.question}\n\nNyrava Intelligence: ${exchange.answer}\n\n${docsBlock ? `ATTACHED DOCUMENTS:\n${docsBlock}\n\n` : ""}${memoryBlock ? `${memoryBlock}\n\n` : ""}EXISTING FINDINGS (id, title, description, category, severity, confidence):\n${JSON.stringify(findingsForPrompt).slice(0, 14_000)}\n\nReturn STRICT JSON: { "patches": [ { "action": "amend"|"remove"|"merge"|"create"|"dispute_evidence", "finding_ids": string[] (existing ids this targets — must be from the list above; empty only for "create"), "reason": string, "quote": string (verbatim from the chat exchange or an attached document), "source_document_id": string|null, "confidence": number (0-1), "new_title": string (amend/merge/create only), "new_description": string (amend/merge/create only), "new_category": string (amend/merge/create only), "new_severity": "critical"|"high"|"medium"|"low"|"info" (amend/merge/create only), "disputed_doc_id": string (dispute_evidence only — a doc_id this finding actually cites), "dispute_status": "disputed"|"superseded"|"withdrawn" (dispute_evidence only) } ] }. Return an empty array if the exchange doesn't warrant any change.`,
+Every patch (except "keep", which you do not need to emit at all) MUST include a "quote" field: a SINGLE verbatim excerpt copied character-for-character from either the chat exchange text or one of the attached documents (never paraphrased, never from the finding itself) that grounds the decision. If citing an attached document, also set source_document_id to that document's id. A patch without a real, exact quote will be discarded.
+For "remove"/"amend"/"dispute_evidence" patches only, also classify WHY the original finding was wrong via "error_type": one of unsupported_claim, bad_evidence_link, wrong_evidence_interpretation, duplicate_finding, contradiction_misclassification, wrong_legal_authority, wrong_procedural_rule, wrong_severity, wrong_confidence, missing_finding, false_positive, false_negative, temporal_error, source_classification_error, report_rendering_error, other. Omit it if genuinely unclear — never guess.
+Whenever you cite an attached document (source_document_id is set), also classify its purpose in THIS exchange via "source_document_purpose": one of case_evidence (genuinely new case evidence, not a correction), correction_support (supports correcting an existing finding), finding_correction (specifically corrects one finding), report_correction (corrects report-level content), context_only (background, not evidentiary), user_instruction (the attorney's instruction, not a document to cite as evidence), counter_evidence (contradicts an existing finding), duplicate (already in the corpus), irrelevant. Output JSON only.`,
+      userContent: `CHAT EXCHANGE:\nAttorney: ${exchange.question}\n\nNyrava Intelligence: ${exchange.answer}\n\n${docsBlock ? `ATTACHED DOCUMENTS:\n${docsBlock}\n\n` : ""}${memoryBlock ? `${memoryBlock}\n\n` : ""}EXISTING FINDINGS (id, title, description, category, severity, confidence):\n${JSON.stringify(findingsForPrompt).slice(0, 14_000)}\n\nReturn STRICT JSON: { "patches": [ { "action": "amend"|"remove"|"merge"|"create"|"dispute_evidence", "finding_ids": string[] (existing ids this targets — must be from the list above; empty only for "create"), "reason": string, "quote": string (verbatim from the chat exchange or an attached document), "source_document_id": string|null, "confidence": number (0-1), "new_title": string (amend/merge/create only), "new_description": string (amend/merge/create only), "new_category": string (amend/merge/create only), "new_severity": "critical"|"high"|"medium"|"low"|"info" (amend/merge/create only), "disputed_doc_id": string (dispute_evidence only — a doc_id this finding actually cites), "dispute_status": "disputed"|"superseded"|"withdrawn" (dispute_evidence only), "error_type": string|omitted (remove/amend/dispute_evidence only, one of the 16 values above), "source_document_purpose": string|omitted (only when source_document_id is set, one of the 9 values above) } ] }. Return an empty array if the exchange doesn't warrant any change.`,
     });
   } catch (e) {
     console.error("[chat-patch] LLM call failed", e);
@@ -405,9 +499,29 @@ Every patch (except "keep", which you do not need to emit at all) MUST include a
       ? (newSeverityRaw as Severity)
       : undefined;
 
+    // Continuous Legal Intelligence (§6/§2) — additive classification only,
+    // never gates whether the patch itself is accepted. error_type only
+    // makes sense where the prior state was actually wrong; source_document_purpose
+    // only where a document is actually cited (groundedInDoc, not just any
+    // sourceDocId the model may have echoed back ungrounded).
+    const errorTypeRaw = typeof p.error_type === "string" ? p.error_type : null;
+    const errorType: IntelligenceErrorType | undefined =
+      (action === "remove" || action === "amend" || action === "dispute_evidence") &&
+      VALID_ERROR_TYPES.includes(errorTypeRaw as IntelligenceErrorType)
+        ? (errorTypeRaw as IntelligenceErrorType)
+        : undefined;
+    const documentPurposeRaw =
+      typeof p.source_document_purpose === "string" ? p.source_document_purpose : null;
+    const documentPurpose: DocumentPurpose | undefined =
+      groundedInDoc && VALID_DOCUMENT_PURPOSES.includes(documentPurposeRaw as DocumentPurpose)
+        ? (documentPurposeRaw as DocumentPurpose)
+        : undefined;
+
     patches.push({
       action,
       finding_ids: findingIds,
+      ...(errorType ? { error_type: errorType } : {}),
+      ...(documentPurpose ? { source_document_purpose: documentPurpose } : {}),
       reason,
       quote,
       source_document_id: groundedInDoc ? sourceDocId : null,
@@ -618,16 +732,30 @@ export async function applyFindingPatchSet(
   for (const patch of patches) {
     let resultFindingId: string | null = null;
     let applied = false;
+    // The finding's title/description BEFORE this patch mutates it —
+    // captured per-branch below, from whatever row-fetch that branch
+    // already does. Feeds recordLesson's original_claim (Continuous Legal
+    // Intelligence, §6): a lesson must record what NYRAVA originally
+    // concluded, not just what it was corrected to. Null for "create"
+    // (nothing existed to have a prior claim).
+    let originalClaim: string | null = null;
 
     try {
       if (patch.action === "remove") {
         const findingId = patch.finding_ids[0];
+        const { data: beforeRemove } = await db
+          .from("case_findings")
+          .select("title")
+          .eq("id", findingId)
+          .eq("case_id", caseId)
+          .maybeSingle();
+        originalClaim = (beforeRemove as { title?: string } | null)?.title ?? null;
         const { error } = await db
           .from("case_findings")
-
           .update({
             superseded_at: nowIso,
             superseded_reason: `${patch.reason} — "${patch.quote}"`,
+            lifecycle_status: "superseded",
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any)
           .eq("id", findingId)
@@ -651,11 +779,12 @@ export async function applyFindingPatchSet(
         const findingId = patch.finding_ids[0];
         const current = await db
           .from("case_findings")
-          .select("evidence_refs,source_doc_ids,metadata,category")
+          .select("title,evidence_refs,source_doc_ids,metadata,category")
           .eq("id", findingId)
           .eq("case_id", caseId)
           .maybeSingle();
         const currentRow = current.data as CurrentFindingRow | null;
+        originalClaim = currentRow?.title ?? null;
         const updatePayload = buildAmendUpdatePayload(patch, currentRow, nowIso);
         const { error } = await db
           .from("case_findings")
@@ -675,11 +804,16 @@ export async function applyFindingPatchSet(
         const otherIds = patch.finding_ids.slice(1);
         const { data: rows } = await db
           .from("case_findings")
-          .select("id,evidence_refs,source_doc_ids,metadata,category")
+          .select("id,title,evidence_refs,source_doc_ids,metadata,category")
           .in("id", patch.finding_ids)
           .eq("case_id", caseId);
         const allRows = (rows ?? []) as Array<CurrentFindingRow & { id: string }>;
         const primaryRow = allRows.find((r) => r.id === primaryId) ?? null;
+        originalClaim =
+          allRows
+            .map((r) => r.title)
+            .filter(Boolean)
+            .join(" | ") || null;
         const mergedRefs = allRows.flatMap((r) =>
           Array.isArray(r.evidence_refs) ? (r.evidence_refs as unknown[]) : [],
         );
@@ -707,6 +841,7 @@ export async function applyFindingPatchSet(
             .update({
               superseded_at: nowIso,
               superseded_reason: `${patch.reason} — merged into finding ${primaryId} — "${patch.quote}"`,
+              lifecycle_status: "superseded",
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any)
             .eq("id", otherId)
@@ -723,10 +858,11 @@ export async function applyFindingPatchSet(
         const findingId = patch.finding_ids[0];
         const current = await db
           .from("case_findings")
-          .select("evidence_refs")
+          .select("title,evidence_refs")
           .eq("id", findingId)
           .eq("case_id", caseId)
           .maybeSingle();
+        originalClaim = (current.data as { title?: string } | null)?.title ?? null;
         const currentRefs = Array.isArray(
           (current.data as { evidence_refs: unknown } | null)?.evidence_refs,
         )
@@ -761,8 +897,12 @@ export async function applyFindingPatchSet(
         }
         const { error } = await db
           .from("case_findings")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .update({ evidence_refs: updatedRefs, updated_at: nowIso } as any)
+          .update({
+            evidence_refs: updatedRefs,
+            updated_at: nowIso,
+            lifecycle_status: "challenged",
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any)
           .eq("id", findingId)
           .eq("case_id", caseId);
         if (error) throw error;
@@ -793,6 +933,23 @@ export async function applyFindingPatchSet(
           Array.isArray(inserted) && inserted.length > 0
             ? ((inserted[0] as { id?: string })?.id ?? null)
             : null;
+        // addFindings()'s insert payload doesn't carry lifecycle_status (it
+        // is not part of NewFinding/Finding — see types.ts), so this is a
+        // best-effort follow-up, same as the audit row below: it must never
+        // block or unwind the finding this branch just created.
+        if (resultFindingId) {
+          const { error: lifecycleError } = await db
+            .from("case_findings")
+            .update({ lifecycle_status: "active" } as never)
+            .eq("id", resultFindingId)
+            .eq("case_id", caseId);
+          if (lifecycleError) {
+            console.error(
+              "[chat-patch] failed to set lifecycle_status on created finding",
+              lifecycleError,
+            );
+          }
+        }
         applied = true;
       }
     } catch (e) {
@@ -804,6 +961,7 @@ export async function applyFindingPatchSet(
         applied: false,
         skip_reason: "write_failed",
         auditRowId: null,
+        originalClaim: null,
       });
       continue;
     }
@@ -833,14 +991,102 @@ export async function applyFindingPatchSet(
       console.error("[chat-patch] failed to write audit row", patch.action, auditError);
     }
 
+    // Document purpose classification (§2) — written only now that the
+    // patch it was classified alongside has actually been approved and
+    // applied, never at generation/preview time. Best-effort, same
+    // reasoning as the audit row above.
+    if (patch.source_document_id && patch.source_document_purpose) {
+      const { error: purposeError } = await db
+        .from("documents")
+        .update({ purpose: patch.source_document_purpose } as never)
+        .eq("id", patch.source_document_id)
+        .eq("case_id", caseId);
+      if (purposeError) {
+        console.error("[chat-patch] failed to write document purpose", purposeError);
+      }
+    }
+
     outcomes.push({
       action: patch.action,
       finding_ids: patch.finding_ids,
       result_finding_id: resultFindingId,
       applied,
       auditRowId: (auditRow as { id?: string } | null)?.id ?? null,
+      originalClaim,
     });
   }
 
   return outcomes;
+}
+
+/**
+ * Continuous Legal Intelligence — the learning ledger (see migration
+ * 20260813232206_intelligence_lessons.sql). Writes one row per applied,
+ * already-approved patch, reshaping the SAME event case_finding_patches
+ * already recorded (never a second source of truth — source_patch_id ties
+ * every lesson back to its audit row). Best-effort: a failure here must
+ * never unwind or block the correction itself, matching the audit-row
+ * write's own "supplementary record" reasoning in applyFindingPatchSet.
+ *
+ * validation_status is ALWAYS written as 'ai_supported' — never
+ * 'human_confirmed'/'multi_source_verified'. Those promotions require
+ * mechanisms this Phase A does not build (cross-case corroboration or an
+ * explicit reviewer action) — a model calling this function is not
+ * grounds to self-promote a lesson's trust level.
+ *
+ * No-ops for "keep" (never reaches this function — generateFindingPatchSet
+ * never emits a "keep" patch) and for any outcome that wasn't actually
+ * applied.
+ */
+export async function recordLesson(
+  db: Db,
+  caseId: string,
+  userId: string,
+  patch: FindingPatch,
+  outcome: PatchApplyOutcome,
+  matterType: string | null,
+  jurisdictionCountry: string,
+): Promise<void> {
+  if (!outcome.applied || !outcome.auditRowId) return;
+
+  const findingId = outcome.result_finding_id ?? patch.finding_ids[0] ?? null;
+  let canonicalFindingId: string | null = null;
+  if (findingId) {
+    const { data: findingRow } = await db
+      .from("case_findings")
+      .select("canonical_finding_id")
+      .eq("id", findingId)
+      .eq("case_id", caseId)
+      .maybeSingle();
+    canonicalFindingId =
+      (findingRow as { canonical_finding_id?: string | null } | null)?.canonical_finding_id ?? null;
+  }
+
+  const evidenceRefs = patch.source_document_id
+    ? [{ document_id: patch.source_document_id, quote: patch.quote }]
+    : [{ quote: patch.quote }];
+
+  const { error } = await db.from("intelligence_lessons").insert({
+    case_id: caseId,
+    user_id: userId,
+    source_patch_id: outcome.auditRowId,
+    finding_id: findingId,
+    canonical_finding_id: canonicalFindingId,
+    matter_type: matterType,
+    jurisdiction_country: jurisdictionCountry,
+    error_type: patch.error_type ?? null,
+    original_claim:
+      outcome.originalClaim ??
+      (patch.action === "create" ? "(no prior finding — newly created)" : patch.reason),
+    corrected_claim: patch.new_title ?? null,
+    reason: patch.reason,
+    evidence_refs: evidenceRefs,
+    authority_refs: [],
+    validation_status: "ai_supported",
+    confidence: patch.confidence,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
+  if (error) {
+    console.error("[chat-patch] failed to record lesson", patch.action, error);
+  }
 }

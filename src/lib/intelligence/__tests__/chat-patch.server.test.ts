@@ -25,6 +25,7 @@ import {
   applyFindingPatchSet,
   computeCorrectionImpact,
   findStaleCitations,
+  recordLesson,
 } from "@/lib/intelligence/chat-patch.server";
 
 beforeEach(() => {
@@ -49,6 +50,9 @@ function baseFinding(overrides: Partial<Record<string, unknown>> = {}) {
     metadata: {},
     superseded_at: null as string | null,
     superseded_reason: null as string | null,
+    lifecycle_status: null as string | null,
+    derived_from_finding_ids: [] as string[],
+    canonical_finding_id: null as string | null,
     created_at: "2026-08-09T14:25:00.000Z",
     updated_at: "2026-08-09T14:25:00.000Z",
     ...overrides,
@@ -68,9 +72,15 @@ function makeFakeDb(opts: {
    *  from `patchRows`, which captures newly-INSERTed audit rows. Defaults to
    *  no prior history. */
   priorPatches?: Array<Record<string, unknown>>;
+  /** Seeds documents rows so a dispute_evidence/amend patch's
+   *  source_document_purpose write has something real to update. */
+  documents?: Array<Record<string, unknown>>;
 }) {
   const patchRows: Array<Record<string, unknown>> = [];
+  const lessonRows: Array<Record<string, unknown>> = [];
+  const documentUpdates: Array<{ id: string; payload: Record<string, unknown> }> = [];
   const touchedTables = new Set<string>();
+  const documents = opts.documents ?? [];
 
   function findingsChain() {
     const self: Record<string, unknown> = {
@@ -165,6 +175,31 @@ function makeFakeDb(opts: {
           }),
         };
       }
+      if (table === "documents") {
+        return {
+          update: (payload: Record<string, unknown>) => ({
+            eq: (col1: string, id: string) => ({
+              eq: () => {
+                if (col1 === "id") {
+                  const row = documents.find((d) => d.id === id);
+                  if (!row) return Promise.resolve({ error: { message: "not found" } });
+                  Object.assign(row, payload);
+                  documentUpdates.push({ id, payload });
+                }
+                return Promise.resolve({ error: null });
+              },
+            }),
+          }),
+        };
+      }
+      if (table === "intelligence_lessons") {
+        return {
+          insert: (row: Record<string, unknown>) => {
+            lessonRows.push(row);
+            return Promise.resolve({ error: null });
+          },
+        };
+      }
       if (table === "user_ai_keys") {
         return {
           select: () => ({
@@ -186,7 +221,7 @@ function makeFakeDb(opts: {
     },
   };
 
-  return { db, patchRows, touchedTables };
+  return { db, patchRows, lessonRows, documentUpdates, documents, touchedTables };
 }
 
 function mockPatchLlmResponse(patches: unknown[]) {
@@ -399,6 +434,7 @@ describe("applyFindingPatchSet", () => {
     expect(String(finding.superseded_reason)).toContain("quote text");
     // The row itself is never deleted — same id, still present.
     expect(finding.id).toBe("finding-1");
+    expect(finding.lifecycle_status).toBe("superseded");
 
     expect(patchRows).toHaveLength(1);
     expect(patchRows[0]).toMatchObject({
@@ -442,6 +478,7 @@ describe("applyFindingPatchSet", () => {
     expect(finding.title).toBe("Notificación defectuosa por domicilio incorrecto");
     expect(finding.severity).toBe("critical");
     expect(finding.superseded_at).toBeFalsy();
+    expect(finding.lifecycle_status).toBe("corrected");
     // Original evidence ref preserved, new one appended (union, not replace).
     expect(finding.evidence_refs as unknown[]).toHaveLength(2);
     expect(vi.mocked(addFindings)).not.toHaveBeenCalled();
@@ -480,11 +517,18 @@ describe("applyFindingPatchSet", () => {
     expect(other.superseded_at).toBeTruthy();
     expect(String(other.superseded_reason)).toContain("finding-A");
     expect(vi.mocked(addFindings)).not.toHaveBeenCalled();
+    // Lifecycle + dependency-graph persistence (§9/§15): the survivor is
+    // "corrected" (absorbed content) and now derived_from the id it
+    // absorbed; the absorbed row is "superseded", not corrected.
+    expect(primary.lifecycle_status).toBe("corrected");
+    expect(primary.derived_from_finding_ids).toEqual(["finding-B"]);
+    expect(other.lifecycle_status).toBe("superseded");
   });
 
   it("'create' inserts a brand-new finding via addFindings and never supersedes anything", async () => {
     const finding = baseFinding();
-    const { db, patchRows } = makeFakeDb({ findings: [finding] });
+    const newFinding = baseFinding({ id: "finding-new", title: "Nuevo hallazgo" });
+    const { db, patchRows } = makeFakeDb({ findings: [finding, newFinding] });
     vi.mocked(addFindings).mockResolvedValue([{ id: "finding-new" }] as never);
     const patch = {
       action: "create" as const,
@@ -512,6 +556,10 @@ describe("applyFindingPatchSet", () => {
       finding_id: null,
       result_finding_id: "finding-new",
     });
+    // A newly-created finding starts life "active" — addFindings()'s own
+    // insert payload can't carry lifecycle_status (not part of
+    // NewFinding), so this is the best-effort follow-up write.
+    expect(newFinding.lifecycle_status).toBe("active");
   });
 
   it("a write failure on one patch does not abort the rest of the set", async () => {
@@ -578,8 +626,9 @@ describe("applyFindingPatchSet", () => {
       action: "dispute_evidence",
       result_finding_id: "finding-disputed",
     });
-    // Finding itself survives, not superseded.
+    // Finding itself survives, not superseded — but IS challenged.
     expect(disputedFinding.superseded_at).toBeFalsy();
+    expect(disputedFinding.lifecycle_status).toBe("challenged");
     const refs = disputedFinding.evidence_refs as Array<Record<string, unknown>>;
     const disputedRef = refs.find((r) => r.doc_id === "doc-bad");
     expect(disputedRef?.status).toBe("superseded");
@@ -832,5 +881,202 @@ describe("findStaleCitations", () => {
     const db = makeImpactFakeDb({});
     const stale = await findStaleCitations(db as never, "case-1", []);
     expect(stale).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// recordLesson — Continuous Legal Intelligence's learning ledger (see
+// migration 20260813232206_intelligence_lessons.sql). Every lesson must
+// trace back to a real applied case_finding_patches row, must never be
+// written for a patch that failed to apply, must always start at
+// 'ai_supported' (never self-promoted), and must never carry legal
+// authority CONTENT — only ids, which Phase A doesn't populate yet, so
+// authority_refs is asserted empty.
+// ---------------------------------------------------------------------------
+describe("recordLesson", () => {
+  it("writes exactly one lesson at 'ai_supported' for an applied, grounded correction", async () => {
+    const finding = baseFinding({ canonical_finding_id: "canon-1" });
+    const { db, lessonRows } = makeFakeDb({ findings: [finding] });
+    const patch = {
+      action: "remove" as const,
+      finding_ids: ["finding-1"],
+      reason: "La notificación sí fue correcta.",
+      quote: "grounding quote",
+      source_document_id: null,
+      confidence: 0.9,
+      error_type: "false_positive" as const,
+    };
+    const [outcome] = await applyFindingPatchSet(db as never, "case-1", "user-1", [patch], "msg-1");
+
+    await recordLesson(db as never, "case-1", "user-1", patch, outcome, "amparo_directo", "MX");
+
+    expect(lessonRows).toHaveLength(1);
+    expect(lessonRows[0]).toMatchObject({
+      case_id: "case-1",
+      user_id: "user-1",
+      source_patch_id: outcome.auditRowId,
+      canonical_finding_id: "canon-1",
+      matter_type: "amparo_directo",
+      jurisdiction_country: "MX",
+      error_type: "false_positive",
+      validation_status: "ai_supported",
+      original_claim: "Notificación defectuosa del auto de radicación",
+    });
+    // Never legal authority content — ids only, and Phase A doesn't
+    // populate even those yet.
+    expect(lessonRows[0].authority_refs).toEqual([]);
+  });
+
+  it("writes nothing for a patch that failed to apply", async () => {
+    const { db, lessonRows } = makeFakeDb({ findings: [] });
+    const patch = {
+      action: "remove" as const,
+      finding_ids: ["finding-does-not-exist"],
+      reason: "reason",
+      quote: "q",
+      source_document_id: null,
+      confidence: 0.5,
+    };
+    const [outcome] = await applyFindingPatchSet(db as never, "case-1", "user-1", [patch], "msg-1");
+    expect(outcome.applied).toBe(false);
+
+    await recordLesson(db as never, "case-1", "user-1", patch, outcome, null, "MX");
+
+    expect(lessonRows).toHaveLength(0);
+  });
+
+  it("records original_claim as the pre-correction title for 'amend', and corrected_claim as the new title", async () => {
+    const finding = baseFinding();
+    const { db, lessonRows } = makeFakeDb({ findings: [finding] });
+    const patch = {
+      action: "amend" as const,
+      finding_ids: ["finding-1"],
+      reason: "El defecto real es distinto.",
+      quote:
+        "la cédula de notificación se fijó en un domicilio distinto al señalado por el quejoso",
+      source_document_id: null,
+      confidence: 0.8,
+      new_title: "Corrected title",
+      new_description: "Corrected description.",
+      error_type: "wrong_evidence_interpretation" as const,
+    };
+    const [outcome] = await applyFindingPatchSet(db as never, "case-1", "user-1", [patch], "msg-1");
+
+    await recordLesson(db as never, "case-1", "user-1", patch, outcome, null, "MX");
+
+    expect(lessonRows[0]).toMatchObject({
+      original_claim: "Notificación defectuosa del auto de radicación",
+      corrected_claim: "Corrected title",
+      error_type: "wrong_evidence_interpretation",
+    });
+  });
+
+  it("uses a placeholder original_claim for 'create' — nothing existed before", async () => {
+    const finding = baseFinding();
+    const newFinding = baseFinding({ id: "finding-new" });
+    const { db, lessonRows } = makeFakeDb({ findings: [finding, newFinding] });
+    vi.mocked(addFindings).mockResolvedValue([{ id: "finding-new" }] as never);
+    const patch = {
+      action: "create" as const,
+      finding_ids: [],
+      reason: "Genuinely new issue the exchange revealed.",
+      quote:
+        "la cédula de notificación se fijó en un domicilio distinto al señalado por el quejoso",
+      source_document_id: null,
+      confidence: 0.7,
+      new_title: "New finding",
+      new_description: "New finding description.",
+    };
+    const [outcome] = await applyFindingPatchSet(db as never, "case-1", "user-1", [patch], "msg-1");
+
+    await recordLesson(db as never, "case-1", "user-1", patch, outcome, null, "MX");
+
+    expect(lessonRows[0]).toMatchObject({
+      original_claim: "(no prior finding — newly created)",
+      corrected_claim: "New finding",
+      // "create" is not a correction of a prior error — error_type was
+      // never asked of the LLM for this action and must stay unset.
+      error_type: null,
+    });
+  });
+
+  it("never emits error_type for a well-formed 'merge' patch — only remove/amend/dispute_evidence correct a prior error", async () => {
+    const findingA = baseFinding({ id: "finding-A" });
+    const findingB = baseFinding({ id: "finding-B" });
+    const { db } = makeFakeDb({ findings: [findingA, findingB] });
+    mockPatchLlmResponse([
+      {
+        action: "merge",
+        finding_ids: ["finding-A", "finding-B"],
+        reason: "Son el mismo defecto de notificación descrito dos veces.",
+        quote:
+          "la cédula de notificación se fijó en un domicilio distinto al señalado por el quejoso",
+        confidence: 0.8,
+        new_title: "Consolidated",
+        new_description: "Consolidated description.",
+        // The model should not be asked to classify error_type for a
+        // merge (it doesn't correct a prior error, it consolidates), but
+        // even if it echoes one back, the parsing loop must strip it.
+        error_type: "false_positive",
+      },
+    ]);
+
+    const result = await generateFindingPatchSet(
+      db as never,
+      "case-error-type-scope",
+      "user-1",
+      EXCHANGE,
+    );
+
+    expect(result.patches).toHaveLength(1);
+    expect(result.patches[0].error_type).toBeUndefined();
+  });
+});
+
+describe("document purpose classification", () => {
+  it("writes documents.purpose only once the patch citing it has been approved and applied", async () => {
+    const finding = baseFinding({
+      evidence_refs: [{ doc_id: "doc-1", quote: "original evidence quote" }],
+    });
+    const doc = { id: "doc-new", case_id: "case-1", purpose: null as string | null };
+    const { db, documentUpdates } = makeFakeDb({ findings: [finding], documents: [doc] });
+    const patch = {
+      action: "amend" as const,
+      finding_ids: ["finding-1"],
+      reason: "El documento adjunto corrige la fecha.",
+      quote:
+        "la cédula de notificación se fijó en un domicilio distinto al señalado por el quejoso",
+      source_document_id: "doc-new",
+      confidence: 0.8,
+      new_title: "Corrected title",
+      new_description: "Corrected description.",
+      source_document_purpose: "correction_support" as const,
+    };
+
+    await applyFindingPatchSet(db as never, "case-1", "user-1", [patch], "msg-1");
+
+    expect(documentUpdates).toHaveLength(1);
+    expect(documentUpdates[0]).toMatchObject({
+      id: "doc-new",
+      payload: { purpose: "correction_support" },
+    });
+    expect(doc.purpose).toBe("correction_support");
+  });
+
+  it("writes nothing to documents when a patch has no source_document_purpose", async () => {
+    const finding = baseFinding();
+    const { db, documentUpdates } = makeFakeDb({ findings: [finding] });
+    const patch = {
+      action: "remove" as const,
+      finding_ids: ["finding-1"],
+      reason: "reason",
+      quote: "q",
+      source_document_id: null,
+      confidence: 0.5,
+    };
+
+    await applyFindingPatchSet(db as never, "case-1", "user-1", [patch], "msg-1");
+
+    expect(documentUpdates).toHaveLength(0);
   });
 });
