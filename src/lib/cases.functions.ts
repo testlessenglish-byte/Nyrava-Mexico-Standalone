@@ -4751,6 +4751,39 @@ const FINDING_PATCH_SCHEMA = z.object({
   new_severity: z.enum(["critical", "high", "medium", "low", "info"]).optional(),
   disputed_doc_id: z.string().uuid().optional(),
   dispute_status: z.enum(["disputed", "superseded", "withdrawn"]).optional(),
+  error_type: z
+    .enum([
+      "unsupported_claim",
+      "bad_evidence_link",
+      "wrong_evidence_interpretation",
+      "duplicate_finding",
+      "contradiction_misclassification",
+      "wrong_legal_authority",
+      "wrong_procedural_rule",
+      "wrong_severity",
+      "wrong_confidence",
+      "missing_finding",
+      "false_positive",
+      "false_negative",
+      "temporal_error",
+      "source_classification_error",
+      "report_rendering_error",
+      "other",
+    ])
+    .optional(),
+  source_document_purpose: z
+    .enum([
+      "case_evidence",
+      "correction_support",
+      "finding_correction",
+      "report_correction",
+      "context_only",
+      "user_instruction",
+      "counter_evidence",
+      "duplicate",
+      "irrelevant",
+    ])
+    .optional(),
 });
 
 // Pure read — reviews the exchange and returns the proposed patch set plus
@@ -4878,6 +4911,38 @@ export const pushCaseChatCorrectionsToReport = createServerFn({ method: "POST" }
       data.patches,
       data.chatMessageId,
     );
+
+    // Continuous Legal Intelligence (§5/§6) — one lesson per applied patch,
+    // scoped by this case's own matter type/jurisdiction (never assumed
+    // Mexican-only — jurisdiction_country defaults to 'MX' only when the
+    // case row itself doesn't say otherwise, keeping this ready for
+    // non-Mexican matters without a schema change). Best-effort: never
+    // blocks the correction that just succeeded.
+    {
+      const { recordLesson } = await import("@/lib/intelligence/chat-patch.server");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: caseRow } = await (supabase as any)
+        .from("cases")
+        .select("case_type,jurisdiction")
+        .eq("id", caseId)
+        .maybeSingle();
+      const matterType = (caseRow as { case_type?: string | null } | null)?.case_type ?? null;
+      for (let i = 0; i < data.patches.length; i++) {
+        try {
+          await recordLesson(
+            supabase,
+            caseId,
+            userId,
+            data.patches[i],
+            outcomes[i],
+            matterType,
+            "MX",
+          );
+        } catch (e) {
+          console.error("[push-chat-corrections] failed to record lesson", e);
+        }
+      }
+    }
 
     if (impact.scoreAffected) {
       const { runScoring } = await import("@/lib/pipeline.server");

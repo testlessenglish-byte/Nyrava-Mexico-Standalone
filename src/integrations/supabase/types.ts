@@ -1231,6 +1231,7 @@ export type Database = {
           id: string
           impact_direction: string | null
           legal_significance: string | null
+          lifecycle_status: string | null
           metadata: Json | null
           potential_impact: string | null
           priority: number | null
@@ -1281,6 +1282,7 @@ export type Database = {
           id?: string
           impact_direction?: string | null
           legal_significance?: string | null
+          lifecycle_status?: string | null
           metadata?: Json | null
           potential_impact?: string | null
           priority?: number | null
@@ -1331,6 +1333,7 @@ export type Database = {
           id?: string
           impact_direction?: string | null
           legal_significance?: string | null
+          lifecycle_status?: string | null
           metadata?: Json | null
           potential_impact?: string | null
           priority?: number | null
@@ -2877,6 +2880,7 @@ export type Database = {
           last_extraction_attempt_at: string | null
           metadata: Json
           mime_type: string | null
+          purpose: string | null
           size_bytes: number | null
           status: Database["public"]["Enums"]["doc_status"]
           storage_path: string | null
@@ -2898,6 +2902,7 @@ export type Database = {
           last_extraction_attempt_at?: string | null
           metadata?: Json
           mime_type?: string | null
+          purpose?: string | null
           size_bytes?: number | null
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path?: string | null
@@ -2919,6 +2924,7 @@ export type Database = {
           last_extraction_attempt_at?: string | null
           metadata?: Json
           mime_type?: string | null
+          purpose?: string | null
           size_bytes?: number | null
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path?: string | null
@@ -3217,6 +3223,103 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intelligence_lessons: {
+        Row: {
+          authority_refs: Json
+          canonical_finding_id: string | null
+          case_id: string
+          confidence: number | null
+          corrected_claim: string | null
+          created_at: string
+          error_type: Database["public"]["Enums"]["intelligence_error_type"] | null
+          evidence_refs: Json
+          finding_id: string | null
+          id: string
+          jurisdiction_country: string
+          jurisdiction_state: string | null
+          matter_type: string | null
+          original_claim: string
+          reason: string
+          source_patch_id: string
+          times_rejected: number
+          times_retrieved: number
+          times_successful: number
+          updated_at: string
+          user_id: string
+          validation_status: Database["public"]["Enums"]["lesson_validation_status"]
+        }
+        Insert: {
+          authority_refs?: Json
+          canonical_finding_id?: string | null
+          case_id: string
+          confidence?: number | null
+          corrected_claim?: string | null
+          created_at?: string
+          error_type?: Database["public"]["Enums"]["intelligence_error_type"] | null
+          evidence_refs?: Json
+          finding_id?: string | null
+          id?: string
+          jurisdiction_country?: string
+          jurisdiction_state?: string | null
+          matter_type?: string | null
+          original_claim: string
+          reason: string
+          source_patch_id: string
+          times_rejected?: number
+          times_retrieved?: number
+          times_successful?: number
+          updated_at?: string
+          user_id: string
+          validation_status?: Database["public"]["Enums"]["lesson_validation_status"]
+        }
+        Update: {
+          authority_refs?: Json
+          canonical_finding_id?: string | null
+          case_id?: string
+          confidence?: number | null
+          corrected_claim?: string | null
+          created_at?: string
+          error_type?: Database["public"]["Enums"]["intelligence_error_type"] | null
+          evidence_refs?: Json
+          finding_id?: string | null
+          id?: string
+          jurisdiction_country?: string
+          jurisdiction_state?: string | null
+          matter_type?: string | null
+          original_claim?: string
+          reason?: string
+          source_patch_id?: string
+          times_rejected?: number
+          times_retrieved?: number
+          times_successful?: number
+          updated_at?: string
+          user_id?: string
+          validation_status?: Database["public"]["Enums"]["lesson_validation_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intelligence_lessons_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intelligence_lessons_finding_id_fkey"
+            columns: ["finding_id"]
+            isOneToOne: false
+            referencedRelation: "case_findings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intelligence_lessons_source_patch_id_fkey"
+            columns: ["source_patch_id"]
+            isOneToOne: false
+            referencedRelation: "case_finding_patches"
             referencedColumns: ["id"]
           },
         ]
@@ -6212,12 +6315,35 @@ export type Database = {
         | "contract"
         | "research"
         | "work_product"
+      intelligence_error_type:
+        | "unsupported_claim"
+        | "bad_evidence_link"
+        | "wrong_evidence_interpretation"
+        | "duplicate_finding"
+        | "contradiction_misclassification"
+        | "wrong_legal_authority"
+        | "wrong_procedural_rule"
+        | "wrong_severity"
+        | "wrong_confidence"
+        | "missing_finding"
+        | "false_positive"
+        | "false_negative"
+        | "temporal_error"
+        | "source_classification_error"
+        | "report_rendering_error"
+        | "other"
       legal_verification_status:
         | "verified"
         | "pending"
         | "deprecated"
         | "superseded"
         | "failed_verification"
+      lesson_validation_status:
+        | "unverified"
+        | "ai_supported"
+        | "evidence_verified"
+        | "multi_source_verified"
+        | "human_confirmed"
       matter_priority: "low" | "normal" | "high" | "urgent"
       matter_status: "intake" | "active" | "on_hold" | "closed" | "archived"
       matter_type:
