@@ -4155,7 +4155,16 @@ export const uploadCaseEvidence = createServerFn({ method: "POST" })
       files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
     );
     const { uploadFiles } = await import("@/lib/pipeline.server");
-    await uploadFiles({ db: supabase, caseId, userId, uploads });
+    // Talk-to-Case attachments are revision evidence, not permanent case
+    // corpus — excluded from every full-pipeline analysis engine's document
+    // read (buildCorpus, the shared brief, evidence_intelligence, the
+    // evidence map) until a user explicitly promotes one via
+    // promoteRevisionDocument below. See migration
+    // 20260813224813_document_evidence_scope for why this matters: before
+    // this column existed, a document dropped into a chat exchange was
+    // indistinguishable from ordinary evidence the moment a full rerun
+    // happened next.
+    await uploadFiles({ db: supabase, caseId, userId, uploads, evidenceScope: "revision_context" });
 
     // Auto-run extraction so the AI can immediately read the new evidence.
     try {
@@ -4196,6 +4205,39 @@ export const listCaseDocuments = createServerFn({ method: "POST" })
       archived_at: r.archived_at,
       has_text: !!(r.extracted_text && r.extracted_text.length > 0),
     }));
+  });
+
+// Explicit escape hatch for a Talk-to-Case attachment (uploaded as
+// evidence_scope: 'revision_context' — see uploadCaseEvidence above): a user
+// who genuinely wants a chat-attached document treated as permanent case
+// evidence, read by every full-pipeline analysis engine, must say so
+// explicitly here rather than have it happen implicitly on the next rerun.
+// Matches the architecture's "Add this to the case and run a complete new
+// analysis" opt-in — promoting the document does NOT itself trigger a
+// rerun; the user still separately runs a full analysis if they want the
+// engines to actually re-derive findings from it.
+export const promoteRevisionDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ caseId: z.string().uuid(), documentId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = await getAuthedContext(context, "PromoteRevisionDoc");
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("id", data.documentId)
+      .eq("case_id", data.caseId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!doc) throw new Error("Document not found");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("documents")
+      .update({ evidence_scope: "case_corpus" })
+      .eq("id", data.documentId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 // Soft-archive / unarchive a single document. Mirrors archiveCase's
@@ -4657,7 +4699,70 @@ export const finalizeReportChangeLog = createServerFn({ method: "POST" })
 // no-ops its own upstream-backfill check because every required engine
 // already has a completed run (see ensureRequiredEngines in
 // pipeline.server.ts).
-export const pushCaseChatCorrectionsToReport = createServerFn({ method: "POST" })
+// Shared by previewCaseChatCorrections and pushCaseChatCorrectionsToReport:
+// resolves the chat exchange (question + answer) a chatMessageId points at,
+// plus every real, permanently-attached case document (never the old flow's
+// synthetic "case-chat-clarification-*.txt" files) so a patch can ground
+// itself in an attachment.
+async function fetchChatExchangeForPatching(supabase: Db, caseId: string, chatMessageId: string) {
+  const { data: msgRows } = await supabase
+    .from("case_chat_messages")
+    .select("id,role,content,created_at")
+    .eq("case_id", caseId)
+    .order("created_at");
+  const rows = (msgRows ?? []) as Array<{
+    id: string;
+    role: string;
+    content: string;
+    created_at: string;
+  }>;
+  const idx = rows.findIndex((m) => m.id === chatMessageId);
+  if (idx === -1) throw new Error("Chat message not found");
+  const answerMsg = rows[idx];
+  const questionMsg = [...rows.slice(0, idx)].reverse().find((m) => m.role === "user");
+
+  const { data: docsRows } = await supabase
+    .from("documents")
+    .select("id,filename,extracted_text")
+    .eq("case_id", caseId)
+    .not("filename", "like", "case-chat-clarification-%");
+
+  return {
+    question: questionMsg?.content ?? "",
+    answer: answerMsg.content,
+    attachedDocs: (docsRows ?? []) as Array<{
+      id: string;
+      filename: string;
+      extracted_text: string | null;
+    }>,
+  };
+}
+
+const FINDING_PATCH_SCHEMA = z.object({
+  action: z.enum(["keep", "amend", "remove", "merge", "create", "dispute_evidence"]),
+  finding_ids: z.array(z.string().uuid()),
+  reason: z.string().min(1),
+  quote: z.string().min(1),
+  source_document_id: z.string().uuid().nullable(),
+  confidence: z.number().min(0).max(1),
+  new_title: z.string().optional(),
+  new_description: z.string().optional(),
+  new_category: z.string().optional(),
+  new_severity: z.enum(["critical", "high", "medium", "low", "info"]).optional(),
+  disputed_doc_id: z.string().uuid().optional(),
+  dispute_status: z.enum(["disputed", "superseded", "withdrawn"]).optional(),
+});
+
+// Pure read — reviews the exchange and returns the proposed patch set plus
+// its dependency impact (which OTHER findings/scores/opportunities/report
+// citations the correction would touch) for the attorney to review. Writes
+// NOTHING. The client round-trips the returned `patches` array back to
+// pushCaseChatCorrectionsToReport's `patches` argument once the attorney
+// clicks Apply — this is the "Proposal -> Validation -> Dependency Analysis
+// -> Revision Plan -> User Approval" chain the case-revision architecture
+// requires; pushCaseChatCorrectionsToReport never (re)generates a patch set
+// on its own.
+export const previewCaseChatCorrections = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
@@ -4668,74 +4773,120 @@ export const pushCaseChatCorrectionsToReport = createServerFn({ method: "POST" }
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = await getAuthedContext(context, "PushChatCorrections");
+    const { supabase, userId } = await getAuthedContext(context, "PreviewChatCorrections");
     await assertCaseOwner(supabase, data.caseId, userId);
     const caseId = data.caseId;
 
-    const { data: msgRows } = await supabase
-      .from("case_chat_messages")
-      .select("id,role,content,created_at")
-      .eq("case_id", caseId)
-      .order("created_at");
-    const rows = (msgRows ?? []) as Array<{
-      id: string;
-      role: string;
-      content: string;
-      created_at: string;
-    }>;
-    const idx = rows.findIndex((m) => m.id === data.chatMessageId);
-    if (idx === -1) throw new Error("Chat message not found");
-    const answerMsg = rows[idx];
-    const questionMsg = [...rows.slice(0, idx)].reverse().find((m) => m.role === "user");
+    const exchange = await fetchChatExchangeForPatching(supabase, caseId, data.chatMessageId);
 
-    // Real, permanently-attached case documents only — never the synthetic
-    // "case-chat-clarification-*.txt" files the OLD flow used to fabricate,
-    // so a patch can never ground itself in a document this new flow itself
-    // wrote a moment earlier.
-    const { data: docsRows } = await supabase
-      .from("documents")
-      .select("id,filename,extracted_text")
-      .eq("case_id", caseId)
-      .not("filename", "like", "case-chat-clarification-%");
-
-    const { generateFindingPatchSet, applyFindingPatchSet } =
+    const { generateFindingPatchSet, computeCorrectionImpact } =
       await import("@/lib/intelligence/chat-patch.server");
     const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
     const { keys } = await resolveProviderKeys(supabase, userId, "groq");
     const apiKey = keys[0] ?? getApiKey();
 
-    const patchSet = await generateFindingPatchSet(
-      supabase,
-      caseId,
-      userId,
-      {
-        question: questionMsg?.content ?? "",
-        answer: answerMsg.content,
-        attachedDocs: (docsRows ?? []) as Array<{
-          id: string;
-          filename: string;
-          extracted_text: string | null;
-        }>,
-      },
-      apiKey,
-    );
-
+    const patchSet = await generateFindingPatchSet(supabase, caseId, userId, exchange, apiKey);
     if (patchSet.patches.length === 0) {
       return {
         ok: true as const,
-        applied: [],
+        patches: [],
         ungrounded: patchSet.ungrounded,
-        nextVersion: null,
+        impact: null,
+        currentFindings: [],
       };
     }
+
+    const impact = await computeCorrectionImpact(supabase, caseId, patchSet.patches);
+
+    // Current title/category/severity for every finding a patch targets, so
+    // the UI can render "current vs. proposed" without a second round trip.
+    const touchedIds = [...new Set(patchSet.patches.flatMap((p) => p.finding_ids))];
+    const { data: currentRows } =
+      touchedIds.length > 0
+        ? await supabase
+            .from("case_findings")
+            .select("id,title,category,severity")
+            .eq("case_id", caseId)
+            .in("id", touchedIds)
+        : { data: [] };
+
+    return {
+      ok: true as const,
+      patches: patchSet.patches,
+      ungrounded: patchSet.ungrounded,
+      impact,
+      currentFindings: currentRows ?? [],
+    };
+  });
+
+export const pushCaseChatCorrectionsToReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        caseId: z.string().uuid(),
+        chatMessageId: z.string().uuid(),
+        // The exact patch set previewCaseChatCorrections returned, echoed
+        // back once the attorney approves it — see that function's doc
+        // comment. Re-validated against this case's OWN active findings
+        // below before anything is written; never trusted as-is.
+        patches: z.array(FINDING_PATCH_SCHEMA).min(1),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = await getAuthedContext(context, "PushChatCorrections");
+    await assertCaseOwner(supabase, data.caseId, userId);
+    const caseId = data.caseId;
+
+    // Deterministic validation (spec: never trust a round-tripped patch set
+    // as-is) — every finding_id a patch targets must be an active finding
+    // that actually belongs to THIS case, or the whole request is rejected
+    // rather than silently no-op-updating zero rows.
+    const { data: activeFindingRows } = await supabase
+      .from("case_findings")
+      .select("id")
+      .eq("case_id", caseId)
+      .is("superseded_at", null);
+    const activeIds = new Set((activeFindingRows ?? []).map((r) => r.id));
+    for (const patch of data.patches) {
+      for (const fid of patch.finding_ids) {
+        if (!activeIds.has(fid)) {
+          throw new Error(
+            `Correction targets finding ${fid}, which is not an active finding in this case — refusing to apply.`,
+          );
+        }
+      }
+    }
+
+    const { applyFindingPatchSet, computeCorrectionImpact } =
+      await import("@/lib/intelligence/chat-patch.server");
+    const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
+    const { keys } = await resolveProviderKeys(supabase, userId, "groq");
+    const apiKey = keys[0] ?? getApiKey();
+
+    // Decide, BEFORE applying, whether the current score is actually built
+    // from any finding this correction touches — targeted re-evaluation
+    // (spec: don't rerun engines nothing depends on) rather than either
+    // always skipping scoring (the prior gap) or always recomputing it.
+    const impact = await computeCorrectionImpact(supabase, caseId, data.patches);
 
     const outcomes = await applyFindingPatchSet(
       supabase,
       caseId,
       userId,
-      patchSet.patches,
+      data.patches,
       data.chatMessageId,
     );
+
+    if (impact.scoreAffected) {
+      const { runScoring } = await import("@/lib/pipeline.server");
+      try {
+        await runScoring({ db: supabase, caseId, userId, apiKey, apiKeys: keys });
+      } catch (e) {
+        console.error("[push-chat-corrections] targeted rescoring failed", e);
+      }
+    }
 
     // Snapshot the pre-patch report + bump the version, same convention
     // addEvidenceAndRerun uses, so finalizeReportChangeLog (called by the
@@ -4793,6 +4944,19 @@ export const pushCaseChatCorrectionsToReport = createServerFn({ method: "POST" }
         .from("reports")
         .update({ version: baselineVersion + 1 })
         .eq("case_id", caseId);
+
+      // Backfill the revision number onto this batch's audit rows now that
+      // it's known — groups them as "what changed in revision N" without a
+      // parallel case_revision table (see migration
+      // 20260813231500_case_finding_patch_revision_version).
+      const auditRowIds = outcomes.map((o) => o.auditRowId).filter((id): id is string => !!id);
+      if (auditRowIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from("case_finding_patches")
+          .update({ report_version: baselineVersion + 1 })
+          .in("id", auditRowIds);
+      }
     }
 
     // Regenerate the report from the now-patched findings state only. This
@@ -4800,16 +4964,29 @@ export const pushCaseChatCorrectionsToReport = createServerFn({ method: "POST" }
     // — it is independently callable and its own pre-flight backfill
     // (ensureRequiredEngines) no-ops here because every required upstream
     // engine already has a completed pipeline_engine_runs row. No analyzer,
-    // agent, discovery, contradiction, evidence-intel, or scoring engine
-    // re-runs.
+    // agent, discovery, contradiction, or evidence-intel engine re-runs;
+    // scoring only re-runs when computeCorrectionImpact found this
+    // correction actually touches a finding the current score is built
+    // from (see above).
     const { runReport } = await import("@/lib/pipeline.server");
     await runReport({ db: supabase, caseId, userId, apiKey, apiKeys: keys });
+
+    // Bounded revision-consistency check on the freshly-regenerated report:
+    // does it still cite a finding this correction just superseded? Flags
+    // for review — does not auto-rewrite prose (see findStaleCitations).
+    const { findStaleCitations } = await import("@/lib/intelligence/chat-patch.server");
+    const staleCitations = await findStaleCitations(
+      supabase,
+      caseId,
+      data.patches.flatMap((p) => p.finding_ids),
+    );
 
     return {
       ok: true as const,
       applied: outcomes,
-      ungrounded: patchSet.ungrounded,
+      rescored: impact.scoreAffected,
       nextVersion: currentReport ? baselineVersion + 1 : null,
+      staleCitations,
     };
   });
 

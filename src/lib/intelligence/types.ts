@@ -11,13 +11,24 @@ export type AffectedParty = "defense" | "prosecution" | "both" | "neutral";
  * for findings the extraction pass never attributed (the overwhelming
  * majority of non-precedent-review findings) — this is additive metadata,
  * never a narrowing of the existing Finding contract. */
-export type JudicialSpeakerRole = "quejoso" | "autoridad" | "tribunal_colegiado" | "tribunal_local" | "scjn";
+export type JudicialSpeakerRole =
+  | "quejoso"
+  | "autoridad"
+  | "tribunal_colegiado"
+  | "tribunal_local"
+  | "scjn";
 /** argument = a party's position; holding = the speaker's own ruling on the
  * point; rejected_holding = a lower instance's ruling a higher instance
  * expressly overturned/superseded; procedural_fact = an undisputed
  * procedural event; evidence = an evidentiary point; issue = a question the
  * resolution frames but does not itself resolve. */
-export type PropositionType = "argument" | "holding" | "rejected_holding" | "procedural_fact" | "evidence" | "issue";
+export type PropositionType =
+  | "argument"
+  | "holding"
+  | "rejected_holding"
+  | "procedural_fact"
+  | "evidence"
+  | "issue";
 /** Whether the highest instance present in the case adopted this
  * proposition as part of its holding. "unresolved" = raised but not ruled
  * on; "historical" = a superseded position kept only for narrative context. */
@@ -74,6 +85,29 @@ export type FindingRationale = {
   unsupported_language_flagged: boolean;
 };
 
+/** Proposition-level dispute status (spec: case-revision architecture). A
+ * document can be genuinely valid while being wrong for ONE finding's
+ * proposition — this lives on the individual evidence_ref, not on the
+ * `documents` row, so disputing E-019 here for Finding F-003 never touches
+ * whether E-019 is still perfectly good evidence inside some other finding.
+ * Undefined/absent = 'active' (every pre-existing evidence_ref, which never
+ * had these fields, keeps working unchanged). */
+export type EvidenceRefStatus = "active" | "disputed" | "superseded" | "withdrawn";
+
+export type EvidenceRef = {
+  label?: string;
+  quote?: string;
+  doc_id?: string;
+  status?: EvidenceRefStatus;
+  /** Set only when status is 'superseded' — the doc_id of the replacement
+   *  evidence, if the correction supplied one. */
+  superseded_by_doc_id?: string;
+  /** Human-readable reason, required whenever status is anything but
+   *  'active'. Mirrors case_findings.superseded_reason's "always explain
+   *  why" convention at the per-citation granularity. */
+  status_reason?: string;
+};
+
 export type Finding = {
   id: string;
   case_id: string;
@@ -103,7 +137,7 @@ export type Finding = {
   superseded_at?: string | null;
   superseded_reason?: string | null;
   source_doc_ids: string[];
-  evidence_refs: Array<{ label?: string; quote?: string; doc_id?: string }>;
+  evidence_refs: EvidenceRef[];
   related_finding_ids: string[];
   tags: string[];
   metadata: Record<string, unknown>;

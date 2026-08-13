@@ -20,7 +20,10 @@ export interface SharedBrief {
   key_entities: Array<{ name: string; type: string; note?: string }>;
   timeline: Array<{ date?: string; event: string; doc_ref?: string }>;
   key_facts: Array<{ fact: string; doc_ref?: string }>;
-  issues: Array<{ issue: string; type: "constitutional" | "evidentiary" | "procedural" | "substantive" | "other" }>;
+  issues: Array<{
+    issue: string;
+    type: "constitutional" | "evidentiary" | "procedural" | "substantive" | "other";
+  }>;
   evidence_inventory: Array<{
     item: string;
     doc_ref?: string;
@@ -47,8 +50,11 @@ export interface SharedBriefArgs {
 async function loadCorpus(db: Db, caseId: string) {
   const { data: docs } = await db
     .from("documents")
-    .select("id,filename,extracted_text,status")
+    .select("id,filename,extracted_text,status,evidence_scope")
     .eq("case_id", caseId)
+    // Analysis corpus only — Talk-to-Case attachments not yet promoted are
+    // excluded (see migration 20260813224813_document_evidence_scope).
+    .neq("evidence_scope", "revision_context")
     // Secondary sort on `id` so document numbering (doc_n = index+1, used
     // as the citation reference every engine's prompt and grounding
     // verification both depend on) is deterministic even when two
@@ -70,13 +76,18 @@ export async function getOrBuildSharedBrief(args: SharedBriefArgs): Promise<Shar
 
   if (!refresh) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: cached } = await (db as any).from("cases").select("shared_brief").eq("id", caseId).maybeSingle();
+    const { data: cached } = await (db as any)
+      .from("cases")
+      .select("shared_brief")
+      .eq("id", caseId)
+      .maybeSingle();
     const brief = cached?.shared_brief as SharedBrief | null | undefined;
     if (brief && Array.isArray(brief.document_index)) {
       // Ensure the document set hasn't changed since the brief was built.
       const current = await loadCorpus(db, caseId);
       const sameSet =
-        current.length === brief.source_doc_ids.length && current.every((d) => brief.source_doc_ids.includes(d.id));
+        current.length === brief.source_doc_ids.length &&
+        current.every((d) => brief.source_doc_ids.includes(d.id));
       if (sameSet) return brief;
     }
   }
@@ -98,9 +109,15 @@ export async function getOrBuildSharedBrief(args: SharedBriefArgs): Promise<Shar
   // budget so every document contributes something, however small, to
   // the brief the whole pipeline is grounded on.
   const CORPUS_CHAR_BUDGET = 70000;
-  const perDocCap = Math.max(400, Math.min(12000, Math.floor(CORPUS_CHAR_BUDGET / Math.max(1, docs.length))));
+  const perDocCap = Math.max(
+    400,
+    Math.min(12000, Math.floor(CORPUS_CHAR_BUDGET / Math.max(1, docs.length))),
+  );
   const corpus = docs
-    .map((d, i) => `=== DOC ${i + 1} (id=${d.id}): ${d.filename} ===\n${(d.extracted_text ?? "").slice(0, perDocCap)}`)
+    .map(
+      (d, i) =>
+        `=== DOC ${i + 1} (id=${d.id}): ${d.filename} ===\n${(d.extracted_text ?? "").slice(0, perDocCap)}`,
+    )
     .join("\n\n")
     .slice(0, CORPUS_CHAR_BUDGET);
 
@@ -108,7 +125,8 @@ export async function getOrBuildSharedBrief(args: SharedBriefArgs): Promise<Shar
     apiKeys,
     model: GROQ_DEFAULT_MODEL,
     systemInstruction:
-      mexicoLock(await getReportLocale(db, caseId)) + "\n\n" +
+      mexicoLock(await getReportLocale(db, caseId)) +
+      "\n\n" +
       "You are the master analyst. Read the full case corpus once and produce a compact, structured brief that downstream agents will reuse. " +
       "Extract entities, parties, timeline, key facts, legal issues, evidence inventory, and contradictions. " +
       "Be precise; ground every item in the documents. Output STRICT JSON only.",
@@ -176,7 +194,10 @@ ${corpus}`,
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (db as any).from("cases").update({ shared_brief: brief, shared_brief_at: brief.generated_at }).eq("id", caseId);
+  await (db as any)
+    .from("cases")
+    .update({ shared_brief: brief, shared_brief_at: brief.generated_at })
+    .eq("id", caseId);
 
   return brief;
 }
