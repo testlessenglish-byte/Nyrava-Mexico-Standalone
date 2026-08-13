@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { createCaseAndUpload, listGroqKeys } from "@/lib/cases.functions";
 import { toast } from "sonner";
-import { Upload, FileText, X, KeyRound, ShieldCheck, Scale, Sparkles } from "lucide-react";
+import { Upload, FileText, X, KeyRound, ShieldCheck, Sparkles } from "lucide-react";
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
 import {
@@ -27,7 +27,12 @@ function NewCasePage() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [mode, setMode] = useState<"strict" | "balanced" | "exploratory">("balanced");
+  // No default: "Balanced" was removed as an option (only Strict and
+  // Exploratory remain), and the two remaining modes produce materially
+  // different results (evidence-gate.server.ts's accept/reject boundary),
+  // so the user must make an explicit choice rather than inherit a
+  // pre-selected one.
+  const [mode, setMode] = useState<"" | "strict" | "exploratory">("");
   // Default "ongoing" — same default the DB column already has, so a user
   // who never touches this picks up byte-for-byte the prior behavior.
   const [caseAnalysisMode, setCaseAnalysisMode] = useState<CaseAnalysisMode>("ongoing");
@@ -72,6 +77,10 @@ function NewCasePage() {
       toast.error(t("new.toast.needCaseType"));
       return;
     }
+    if (!mode) {
+      toast.error(t("new.toast.needMode"));
+      return;
+    }
     setSubmitting(true);
     const fd = new FormData();
     fd.append("name", name);
@@ -96,7 +105,6 @@ function NewCasePage() {
 
   const MODE_KEYS = {
     strict: { label: "new.mode.strict", desc: "new.mode.strict.desc", icon: ShieldCheck },
-    balanced: { label: "new.mode.balanced", desc: "new.mode.balanced.desc", icon: Scale },
     exploratory: {
       label: "new.mode.exploratory",
       desc: "new.mode.exploratory.desc",
@@ -209,7 +217,7 @@ function NewCasePage() {
             <label className="text-sm font-medium">{t("new.field.mode")}</label>
             <p className="mt-0.5 text-xs text-muted-foreground">{t("new.field.mode.hint")}</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {(["strict", "balanced", "exploratory"] as const).map((m) => {
+              {(["strict", "exploratory"] as const).map((m) => {
                 const Icon = MODE_KEYS[m].icon;
                 const active = mode === m;
                 return (
