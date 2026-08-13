@@ -1117,6 +1117,93 @@ export type Database = {
           },
         ]
       }
+      case_finding_patches: {
+        Row: {
+          action: string
+          applied_at: string
+          case_id: string
+          chat_message_id: string | null
+          confidence: number | null
+          created_at: string
+          finding_id: string | null
+          id: string
+          reason: string
+          result_finding_id: string | null
+          source_document_id: string | null
+          source_page: number | null
+          source_quote: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          applied_at?: string
+          case_id: string
+          chat_message_id?: string | null
+          confidence?: number | null
+          created_at?: string
+          finding_id?: string | null
+          id?: string
+          reason: string
+          result_finding_id?: string | null
+          source_document_id?: string | null
+          source_page?: number | null
+          source_quote?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          applied_at?: string
+          case_id?: string
+          chat_message_id?: string | null
+          confidence?: number | null
+          created_at?: string
+          finding_id?: string | null
+          id?: string
+          reason?: string
+          result_finding_id?: string | null
+          source_document_id?: string | null
+          source_page?: number | null
+          source_quote?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_finding_patches_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_finding_patches_finding_id_fkey"
+            columns: ["finding_id"]
+            isOneToOne: false
+            referencedRelation: "case_findings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_finding_patches_result_finding_id_fkey"
+            columns: ["result_finding_id"]
+            isOneToOne: false
+            referencedRelation: "case_findings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_finding_patches_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_finding_patches_chat_message_id_fkey"
+            columns: ["chat_message_id"]
+            isOneToOne: false
+            referencedRelation: "case_chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_findings: {
         Row: {
           adoption_status: string | null

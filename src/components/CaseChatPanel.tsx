@@ -11,7 +11,7 @@ import {
   deleteCaseDocument,
   getDocumentDownloadUrl,
 } from "@/lib/cases.functions";
-import { useAddEvidenceAndRerun } from "@/hooks/useAddEvidenceAndRerun";
+import { usePushChatCorrectionsToReport } from "@/hooks/usePushChatCorrectionsToReport";
 import { ChatMarkdown } from "@/lib/chat-markdown";
 import { useI18n } from "@/i18n";
 import {
@@ -50,7 +50,8 @@ type Doc = {
   has_text: boolean;
 };
 
-const ACCEPTED = ".pdf,.zip,.docx,.doc,.txt,.rtf,.md,.csv,.xlsx,.xls,.jpg,.jpeg,.png,.webp,.heic,.tif,.tiff,.gif";
+const ACCEPTED =
+  ".pdf,.zip,.docx,.doc,.txt,.rtf,.md,.csv,.xlsx,.xls,.jpg,.jpeg,.png,.webp,.heic,.tif,.tiff,.gif";
 
 function fmtBytes(n: number | null): string {
   if (!n) return "—";
@@ -78,7 +79,7 @@ export function CaseChatPanel({
   const listDocs = useServerFn(listCaseDocuments);
   const deleteDoc = useServerFn(deleteCaseDocument);
   const signDoc = useServerFn(getDocumentDownloadUrl);
-  const regen = useAddEvidenceAndRerun(caseId);
+  const regen = usePushChatCorrectionsToReport(caseId);
 
   const { data: history = [] } = useQuery<ChatMsg[]>({
     queryKey: ["chat", caseId],
@@ -248,66 +249,41 @@ export function CaseChatPanel({
     }
   };
 
-  // Packages a resolved chat exchange as a small clarification document and
-  // runs it through the same versioned, audited rerun the Evidence tab uses
-  // (addEvidenceAndRerun -> queue -> drive -> finalize change log). This is
-  // deliberately a click, not an automatic side effect of the AI's answer —
-  // see the "REPORT UPDATE SIGNAL" rule in chat.server.ts for why.
-  // FIX: this used to await the ENTIRE rerun (upload, queue, the full
-  // multi-agent pipeline drive-tick loop, report finalize — routinely
-  // minutes) before navigating, so the attorney sat on Talk to Case the
-  // whole time watching only this panel's own small inline spinner. The
-  // actual pipeline run is navigation-independent (drivePipeline, module
-  // state — see pipeline-driver.ts; useAddEvidenceAndRerun already calls
-  // it), and the case workspace has its own live progress UI (the
-  // "Analysis in progress" banner, the Pipeline Ledger). Kick the rerun off
-  // and navigate back to the workspace immediately so the attorney watches
-  // it happen there instead of sitting on Talk to Case; the rest of the
-  // rerun (invalidation, success/error toast) resolves in the background
-  // and still fires even after this component unmounts.
-  const handleRegenerate = (
-    msg: ChatMsg,
-    precedingQuestion: string | null,
-    manualReason?: string,
-  ) => {
+  // Reviews this chat exchange against the EXISTING findings and applies the
+  // resulting patch set (keep/amend/remove/merge/create) directly to
+  // case_findings, then regenerates only the report — see
+  // usePushChatCorrectionsToReport / chat-patch.server.ts. This does NOT
+  // re-run the full pipeline: no new evidence document is fabricated from
+  // the exchange, no analyzer/agent/engine stage re-executes, and a finding
+  // the AI just corrected cannot simply reappear from the unchanged corpus,
+  // which is exactly what the old addEvidenceAndRerun-based flow risked.
+  const handleRegenerate = (msg: ChatMsg) => {
     setRegeneratingId(msg.id);
-    const reason = manualReason ?? msg.metadata?.rerun_reason ?? "Resolves a report-flagged item.";
-    const body = [
-      "ATTORNEY CLARIFICATION — Case Chat",
-      caseName ? `Case: ${caseName}` : null,
-      `Date: ${new Date().toISOString()}`,
-      "",
-      "Attorney note / question:",
-      precedingQuestion || "(not captured)",
-      "",
-      "Nyrava Intelligence response:",
-      msg.content,
-      "",
-      `Reason flagged for report update: ${reason}`,
-    ]
-      .filter((l): l is string => l !== null)
-      .join("\n");
-    const file = new File([body], `case-chat-clarification-${Date.now()}.txt`, {
-      type: "text/plain",
-    });
-
     regen
-      .run([file])
+      .run(msg.id)
       .then(async (res) => {
         await qc.invalidateQueries({ queryKey: ["case", caseId] });
-        await qc.invalidateQueries({ queryKey: ["case-docs", caseId] });
-        toast.success(res.nextVersion ? `Report updated to v${res.nextVersion}` : "Report updated");
+        if (res.patchCount === 0) {
+          toast(
+            res.ungrounded > 0
+              ? "No groundable report changes found in this exchange."
+              : "This exchange doesn't change any existing finding.",
+          );
+          return;
+        }
+        toast.success(
+          res.nextVersion
+            ? `Report updated to v${res.nextVersion} (${res.patchCount} finding change${res.patchCount === 1 ? "" : "s"})`
+            : "Report updated",
+        );
+        navigate({ to: "/cases/$caseId", params: { caseId } });
       })
       .catch((e) => {
-        toast.error(e instanceof Error ? e.message : "Regenerate failed");
+        toast.error(e instanceof Error ? e.message : "Report update failed");
       })
       .finally(() => {
         setRegeneratingId(null);
       });
-
-    // No tab handoff needed — the workspace's default tab is already
-    // "dashboard", which is exactly where the live rerun progress is visible.
-    navigate({ to: "/cases/$caseId", params: { caseId } });
   };
 
   const suggestions = [
@@ -399,9 +375,7 @@ export function CaseChatPanel({
         {showEvidence && (
           <div className="max-h-56 overflow-y-auto border-b border-border bg-background/40 px-3 py-2">
             {docs.length === 0 ? (
-              <p className="px-1 py-3 text-xs text-muted-foreground">
-                {t("chat.evidence.none")}
-              </p>
+              <p className="px-1 py-3 text-xs text-muted-foreground">{t("chat.evidence.none")}</p>
             ) : (
               <ul className="space-y-1">
                 {docs.map((d) => (
@@ -452,9 +426,7 @@ export function CaseChatPanel({
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
           {history.length === 0 && (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {t("chat.empty")}
-              </p>
+              <p className="text-sm text-muted-foreground">{t("chat.empty")}</p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => (
                   <button
@@ -471,15 +443,12 @@ export function CaseChatPanel({
               </div>
             </div>
           )}
-          {history.map((m, idx) => {
-            const precedingQuestion =
-              m.role === "assistant"
-                ? ([...history.slice(0, idx)].reverse().find((h) => h.role === "user")?.content ?? null)
-                : null;
+          {history.map((m) => {
             // A provider-failure notice is not an answer — it must never offer
             // to be pushed into the report.
             const isErrorNotice = m.role === "assistant" && !!m.metadata?.error;
-            const suggestsRerun = m.role === "assistant" && !isErrorNotice && !!m.metadata?.suggests_rerun;
+            const suggestsRerun =
+              m.role === "assistant" && !isErrorNotice && !!m.metadata?.suggests_rerun;
             const isRegeneratingThis = regeneratingId === m.id;
 
             return (
@@ -507,7 +476,7 @@ export function CaseChatPanel({
                         {m.metadata?.rerun_reason || t("chat.report.flagged")}
                       </p>
                       <button
-                        onClick={() => handleRegenerate(m, precedingQuestion)}
+                        onClick={() => handleRegenerate(m)}
                         disabled={regen.busy}
                         className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
                       >
@@ -516,7 +485,9 @@ export function CaseChatPanel({
                         ) : (
                           <RotateCw className="h-3 w-3" />
                         )}
-                        {isRegeneratingThis ? regen.progress || t("chat.report.regenerating") : t("chat.report.regenerate")}
+                        {isRegeneratingThis
+                          ? regen.progress || t("chat.report.regenerating")
+                          : t("chat.report.regenerate")}
                       </button>
                     </div>
                   )}
@@ -528,13 +499,7 @@ export function CaseChatPanel({
                   {m.role === "assistant" && !suggestsRerun && !isErrorNotice && (
                     <div className="mt-2">
                       <button
-                        onClick={() =>
-                          handleRegenerate(
-                            m,
-                            precedingQuestion,
-                            "Attorney manually pushed this chat answer into the report.",
-                          )
-                        }
+                        onClick={() => handleRegenerate(m)}
                         disabled={regen.busy}
                         className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary/60 hover:text-foreground disabled:opacity-50"
                         title={t("chat.report.manualTitle")}
@@ -544,7 +509,9 @@ export function CaseChatPanel({
                         ) : (
                           <FilePenLine className="h-3 w-3" />
                         )}
-                        {isRegeneratingThis ? regen.progress || t("chat.report.updatingShort") : t("chat.report.update")}
+                        {isRegeneratingThis
+                          ? regen.progress || t("chat.report.updatingShort")
+                          : t("chat.report.update")}
                       </button>
                     </div>
                   )}
