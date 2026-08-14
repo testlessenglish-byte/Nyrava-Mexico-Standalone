@@ -2108,6 +2108,28 @@ class PdfBuilder {
 
 // ===== Section renderers ==============================================
 
+/**
+ * Tallies findings by finding_type (DIRECT_EVIDENCE / EVIDENCE_BASED_INFERENCE
+ * / AI_THEORY) for the Executive Dashboard's findings breakdown — see the
+ * report-quality audit §4 comment where this is called. Pure and exported
+ * for direct testing; never re-derives finding_type, only counts the value
+ * already assigned at generation/gate time.
+ */
+export function computeFindingTypeCounts(
+  findings: ReadonlyArray<Record<string, unknown>>,
+): { direct: number; inference: number; theory: number } {
+  return findings.reduce(
+    (acc: { direct: number; inference: number; theory: number }, f) => {
+      const t = asStr(f.finding_type);
+      if (t === "DIRECT_EVIDENCE") acc.direct += 1;
+      else if (t === "EVIDENCE_BASED_INFERENCE") acc.inference += 1;
+      else if (t === "AI_THEORY") acc.theory += 1;
+      return acc;
+    },
+    { direct: 0, inference: 0, theory: 0 },
+  );
+}
+
 function renderCover(
   b: PdfBuilder,
   data: CaseExportData,
@@ -2208,7 +2230,22 @@ function renderCover(
     cards.push({ label: "Recommendations", value: "Suppressed", color: MUTED });
   }
   cards.push({ label: "Documents Analyzed", value: String(data.documents.length) });
-  cards.push({ label: "Findings", value: String(counters.rendered) });
+  cards.push({ label: "Findings (Total)", value: String(counters.rendered) });
+  // Report-quality audit §4: a single "Findings: N" number previously read
+  // as if every finding carried the same evidentiary weight — the same
+  // failure class as calling all of them "verified" regardless of whether
+  // they're a directly-cited fact/holding, an inference drawn from cited
+  // evidence, or an unsupported AI theory. Break the total down by
+  // finding_type (already computed at generation/gate time — see
+  // evidence-gate.server.ts's classifyFindingType — never re-derived here)
+  // so the dashboard cannot imply a stronger evidentiary basis than what
+  // was actually established.
+  const findingTypeCounts = computeFindingTypeCounts(data.findings ?? []);
+  if (findingTypeCounts.direct + findingTypeCounts.inference + findingTypeCounts.theory > 0) {
+    cards.push({ label: "Direct Evidence", value: String(findingTypeCounts.direct), color: SUCCESS });
+    cards.push({ label: "Evidence-Based Inference", value: String(findingTypeCounts.inference) });
+    cards.push({ label: "AI Theory (Unverified)", value: String(findingTypeCounts.theory), color: MUTED });
+  }
   const constitutionalCount = asArr(r.constitutional_issues_struct).length;
   if (constitutionalCount > 0)
     cards.push({
@@ -2441,10 +2478,10 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     b.text(
       execLocale === "en"
         ? "This case was analyzed in LIMITED mode because the available corpus did not meet the platform's Evidence Sufficiency Score (ESS) threshold required to support quantitative scoring or formal motion recommendations. " +
-            `The intake included ${docCount} source document${docCount === 1 ? "" : "s"} and produced ${findingCount} verified finding${findingCount === 1 ? "" : "s"}. ` +
+            `The intake included ${docCount} source document${docCount === 1 ? "" : "s"} and produced ${findingCount} finding${findingCount === 1 ? "" : "s"} of varying evidentiary strength — see each finding's own classification below rather than treating this count as a uniform "verified" total. ` +
             "An evidence-grounded narrative is rendered below for every section in which the corpus supplied sufficient verbatim material. Sections that would otherwise rely on inferred legal theories — quantitative scorecards, motion drafting, theory selection, and prioritized recommendations — have been withheld so that no claim in this report rests on speculation."
         : "Este expediente se analizó en modo LIMITADO porque el corpus disponible no alcanzó el umbral de Suficiencia Probatoria (ESS) requerido para sustentar puntajes cuantitativos o recomendaciones formales de promociones. " +
-            `La ingesta incluyó ${docCount} documento(s) fuente y produjo ${findingCount} hallazgo(s) verificado(s). ` +
+            `La ingesta incluyó ${docCount} documento(s) fuente y produjo ${findingCount} hallazgo(s) de fortaleza probatoria variable — consulte la clasificación de cada hallazgo en particular en lugar de interpretar esta cifra como un total "verificado" uniforme. ` +
             "A continuación se presenta una narrativa sustentada en evidencia para cada sección en la que el corpus aportó material textual suficiente. Las secciones que dependerían de teorías jurídicas inferidas — puntajes cuantitativos, redacción de promociones, selección de teoría del caso y recomendaciones priorizadas — se retuvieron para que ninguna afirmación de este reporte descanse en especulación.",
       { size: 11, gap: 8 },
     );
