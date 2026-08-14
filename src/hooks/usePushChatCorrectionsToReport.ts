@@ -80,7 +80,7 @@ export type CorrectionPreview = {
   selfAuditNotices: SelfAuditNotice[];
 };
 
-export type ApplyResult = {
+export type ApplySuccessResult = {
   ok: true;
   nextVersion: number | null;
   patchCount: number;
@@ -90,6 +90,21 @@ export type ApplyResult = {
    *  chat-patch.server.ts's findStaleCitations. */
   staleCitationCount: number;
 };
+
+/** A patch's target finding was superseded by something else (an earlier
+ *  correction, a rerun) between when this proposal was previewed and when
+ *  the attorney clicked Apply — nothing was written. The server already
+ *  regenerated a fresh proposal against the case's CURRENT findings (the
+ *  same thing clicking "Review correction" again would produce); the
+ *  caller should show that instead of failing with nothing to act on. */
+export type ApplyStaleResult = {
+  ok: false;
+  reason: "stale_target";
+  staleFindingIds: string[];
+  refreshedPreview: CorrectionPreview;
+};
+
+export type ApplyResult = ApplySuccessResult | ApplyStaleResult;
 
 export function usePushChatCorrectionsToReport(caseId: string) {
   const previewFn = useServerFn(previewCaseChatCorrections);
@@ -135,6 +150,26 @@ export function usePushChatCorrectionsToReport(caseId: string) {
       try {
         setProgress("Applying the approved correction…");
         const res = await pushFn({ data: { caseId, chatMessageId, patches } });
+
+        if (!res.ok) {
+          // A target finding was superseded since this proposal was
+          // previewed — nothing was written. The server already
+          // regenerated a fresh proposal against the case's current
+          // findings; hand it back so the caller can show it instead of
+          // failing with no next step.
+          return {
+            ok: false,
+            reason: "stale_target",
+            staleFindingIds: res.staleFindingIds,
+            refreshedPreview: {
+              patches: res.refreshedPreview.patches as CorrectionPatch[],
+              ungrounded: res.refreshedPreview.ungrounded,
+              impact: res.refreshedPreview.impact,
+              currentFindings: res.refreshedPreview.currentFindings,
+              selfAuditNotices: res.refreshedPreview.selfAuditNotices as SelfAuditNotice[],
+            },
+          };
+        }
 
         if (res.nextVersion != null) {
           setProgress("Computing What's Changed…");

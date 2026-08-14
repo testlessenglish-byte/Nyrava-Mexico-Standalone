@@ -11,6 +11,7 @@ export function SiteHeader() {
 
   const NAV = [
     { label: t("nav.product"), to: "/platform" as const },
+    { label: t("nav.about"), to: "/about" as const },
     { label: t("nav.legalSources"), to: "/modules" as const },
     { label: t("nav.security"), to: "/security" as const },
     { label: t("nav.transparency"), to: "/ai-transparency" as const },

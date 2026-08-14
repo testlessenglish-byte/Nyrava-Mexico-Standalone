@@ -86,6 +86,7 @@ export const Route = createFileRoute("/")({
 
 const NAV = [
   { key: "home.nav.product", href: "#product" },
+  { key: "home.nav.about", to: "/about" },
   { key: "home.nav.legalSources", to: "/modules" },
   { key: "home.nav.security", to: "/security" },
   { key: "home.nav.transparency", to: "/ai-transparency" },
