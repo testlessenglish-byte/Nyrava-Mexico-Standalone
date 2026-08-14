@@ -3324,6 +3324,72 @@ export type Database = {
           },
         ]
       }
+      intelligence_patterns: {
+        Row: {
+          category_samples: string[]
+          confidence: number | null
+          created_at: string
+          error_type: Database["public"]["Enums"]["intelligence_error_type"]
+          id: string
+          jurisdiction_country: string
+          jurisdiction_state: string | null
+          last_recomputed_at: string
+          matter_type: string | null
+          pattern_description: string
+          rejected_count: number
+          sample_size: number
+          status: Database["public"]["Enums"]["intelligence_pattern_status"]
+          success_count: number
+          supporting_lesson_ids: string[]
+          tier: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          updated_at: string
+          user_id: string
+          verified_count: number
+        }
+        Insert: {
+          category_samples?: string[]
+          confidence?: number | null
+          created_at?: string
+          error_type: Database["public"]["Enums"]["intelligence_error_type"]
+          id?: string
+          jurisdiction_country?: string
+          jurisdiction_state?: string | null
+          last_recomputed_at?: string
+          matter_type?: string | null
+          pattern_description: string
+          rejected_count?: number
+          sample_size?: number
+          status?: Database["public"]["Enums"]["intelligence_pattern_status"]
+          success_count?: number
+          supporting_lesson_ids?: string[]
+          tier?: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          updated_at?: string
+          user_id: string
+          verified_count?: number
+        }
+        Update: {
+          category_samples?: string[]
+          confidence?: number | null
+          created_at?: string
+          error_type?: Database["public"]["Enums"]["intelligence_error_type"]
+          id?: string
+          jurisdiction_country?: string
+          jurisdiction_state?: string | null
+          last_recomputed_at?: string
+          matter_type?: string | null
+          pattern_description?: string
+          rejected_count?: number
+          sample_size?: number
+          status?: Database["public"]["Enums"]["intelligence_pattern_status"]
+          success_count?: number
+          supporting_lesson_ids?: string[]
+          tier?: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          updated_at?: string
+          user_id?: string
+          verified_count?: number
+        }
+        Relationships: []
+      }
       intelligence_runs: {
         Row: {
           completed_at: string | null
@@ -6332,6 +6398,13 @@ export type Database = {
         | "source_classification_error"
         | "report_rendering_error"
         | "other"
+      intelligence_pattern_status: "active" | "monitoring" | "retired"
+      intelligence_pattern_tier:
+        | "insufficient_sample"
+        | "emerging"
+        | "candidate"
+        | "strong"
+        | "significant"
       legal_verification_status:
         | "verified"
         | "pending"

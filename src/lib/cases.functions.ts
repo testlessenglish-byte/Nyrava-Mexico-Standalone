@@ -4826,6 +4826,10 @@ export const previewCaseChatCorrections = createServerFn({ method: "POST" })
         ungrounded: patchSet.ungrounded,
         impact: null,
         currentFindings: [],
+        // Self-audit (Phase B) covers every active finding, not just ones
+        // this exchange proposes correcting — surfaced even when there's
+        // nothing to approve.
+        selfAuditNotices: patchSet.selfAuditNotices,
       };
     }
 
@@ -4849,6 +4853,7 @@ export const previewCaseChatCorrections = createServerFn({ method: "POST" })
       ungrounded: patchSet.ungrounded,
       impact,
       currentFindings: currentRows ?? [],
+      selfAuditNotices: patchSet.selfAuditNotices,
     };
   });
 

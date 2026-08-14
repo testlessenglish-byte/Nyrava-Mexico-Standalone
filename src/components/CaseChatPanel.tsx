@@ -271,6 +271,13 @@ export function CaseChatPanel({
       .preview(msg.id)
       .then((data) => {
         if (data.patches.length === 0) {
+          // Self-audit notices (Phase B) cover every active finding, not
+          // just ones this exchange proposes correcting — still worth
+          // showing even when there's nothing to approve.
+          if (data.selfAuditNotices.length > 0) {
+            setCorrectionReview({ messageId: msg.id, data });
+            return;
+          }
           toast(
             data.ungrounded > 0
               ? "No groundable report changes found in this exchange."
@@ -623,6 +630,18 @@ export function CaseChatPanel({
               </p>
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-3">
+              {correctionReview.data.selfAuditNotices.length > 0 && (
+                <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+                  <p className="text-xs font-medium text-foreground">
+                    {t("chat.correction.selfAuditTitle")}
+                  </p>
+                  {correctionReview.data.selfAuditNotices.map((n, i) => (
+                    <div key={i} className="mt-1.5 text-xs text-foreground/80">
+                      <span className="font-medium">{n.findingTitle}</span> — {n.reason}
+                    </div>
+                  ))}
+                </div>
+              )}
               {correctionReview.data.patches.map((p, i) => {
                 const current = p.finding_ids
                   .map((id) => correctionReview.data.currentFindings.find((f) => f.id === id))
@@ -699,18 +718,22 @@ export function CaseChatPanel({
                 disabled={applying}
                 className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary disabled:opacity-50"
               >
-                {t("chat.correction.cancel")}
+                {correctionReview.data.patches.length === 0
+                  ? t("chat.correction.close")
+                  : t("chat.correction.cancel")}
               </button>
-              <button
-                onClick={handleApplyCorrection}
-                disabled={applying}
-                className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
-              >
-                {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {applying
-                  ? regen.progress || t("chat.correction.applying")
-                  : t("chat.correction.apply")}
-              </button>
+              {correctionReview.data.patches.length > 0 && (
+                <button
+                  onClick={handleApplyCorrection}
+                  disabled={applying}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {applying && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {applying
+                    ? regen.progress || t("chat.correction.applying")
+                    : t("chat.correction.apply")}
+                </button>
+              )}
             </div>
           </div>
         </div>

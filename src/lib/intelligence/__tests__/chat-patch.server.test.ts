@@ -78,6 +78,7 @@ function makeFakeDb(opts: {
 }) {
   const patchRows: Array<Record<string, unknown>> = [];
   const lessonRows: Array<Record<string, unknown>> = [];
+  const patternRows: Array<Record<string, unknown>> = [];
   const documentUpdates: Array<{ id: string; payload: Record<string, unknown> }> = [];
   const touchedTables = new Set<string>();
   const documents = opts.documents ?? [];
@@ -124,13 +125,15 @@ function makeFakeDb(opts: {
               // case_id — continue the listFindings() chain semantics.
               return findingsChain();
             },
-            in: (_col: string, vals: string[]) => ({
-              eq: () =>
-                Promise.resolve({
-                  data: opts.findings.filter((f) => vals.includes(f.id as string)),
-                  error: null,
-                }),
-            }),
+            in: (_col: string, vals: string[]) => {
+              const filtered = opts.findings.filter((f) => vals.includes(f.id as string));
+              return {
+                eq: () => Promise.resolve({ data: filtered, error: null }),
+                // aggregateIntelligencePatterns awaits .in(...) directly
+                // (no further .eq()) to resolve category_samples.
+                then: (resolve: (v: unknown) => void) => resolve({ data: filtered, error: null }),
+              };
+            },
           }),
           update: (payload: Record<string, unknown>) => ({
             eq: (col1: string, id: string) => ({
@@ -195,7 +198,26 @@ function makeFakeDb(opts: {
       if (table === "intelligence_lessons") {
         return {
           insert: (row: Record<string, unknown>) => {
-            lessonRows.push(row);
+            const id = `lesson-${lessonRows.length}`;
+            lessonRows.push({ ...row, id });
+            return Promise.resolve({ error: null });
+          },
+          select: () => queryBuilder(lessonRows),
+        };
+      }
+      if (table === "intelligence_patterns") {
+        return {
+          select: () => queryBuilder(patternRows),
+          upsert: (
+            row: Record<string, unknown>,
+            opts: { onConflict: string },
+          ) => {
+            const keyCols = opts.onConflict.split(",");
+            const existing = patternRows.find((p) =>
+              keyCols.every((c) => p[c] === row[c]),
+            );
+            if (existing) Object.assign(existing, row);
+            else patternRows.push({ ...row });
             return Promise.resolve({ error: null });
           },
         };
@@ -221,7 +243,7 @@ function makeFakeDb(opts: {
     },
   };
 
-  return { db, patchRows, lessonRows, documentUpdates, documents, touchedTables };
+  return { db, patchRows, lessonRows, patternRows, documentUpdates, documents, touchedTables };
 }
 
 function mockPatchLlmResponse(patches: unknown[]) {
@@ -699,6 +721,11 @@ function queryBuilder(rows: Array<Record<string, unknown>>) {
     not: (col: string, _op: string, val: null) => {
       const prev = predicate;
       predicate = (r) => prev(r) && ((r[col] as unknown) ?? null) !== val;
+      return self;
+    },
+    neq: (col: string, val: unknown) => {
+      const prev = predicate;
+      predicate = (r) => prev(r) && r[col] !== val;
       return self;
     },
     maybeSingle: () => Promise.resolve({ data: rows.filter(predicate)[0] ?? null, error: null }),
