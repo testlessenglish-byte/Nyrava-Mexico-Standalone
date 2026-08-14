@@ -3390,6 +3390,29 @@ export function sanitizeBlockedReport<T extends Record<string, unknown> | null |
   return sanitized as T;
 }
 
+// BUG FIXED (confirmed on two real, independently-audited released cases —
+// ADR-4321-2017-180507 and ADR-4640-2017-180212, both "concluded_audit"
+// cases that completed and released normally): every released case's
+// EXPORTED report came back with full_report/executive_summary/facts/
+// case_strength_score/risk_score/findings_count all null, stale:true, even
+// though the case had genuinely finished (status: "released", "Final
+// review passed"). Two blocking-tier stages — jurisdiction_intel and
+// legal_qa — have no dedicated `cases.<x>_at` timestamp column, so their
+// completion is knowable only via their `pipeline_engine_runs` row. Report
+// generation begins as soon as its own in-memory dependency check sees
+// legal_qa/jurisdiction_intel as done; nothing forces that stage's OWN
+// ledger-row UPDATE to have already committed and be read-consistent
+// before the report's row is written a moment later. That ordinary
+// async write-ordering jitter (observed on both real cases as ~1-2 seconds
+// on a comparable ledger column) was enough to flip isReportStale() to
+// true on effectively every completed case — a systemic false positive on
+// the "normal completion" path, not the genuine resume/retry-minutes-or-
+// hours-later scenario this check exists to catch (see the doc comment
+// below). A small grace period absorbs that jitter while a real resume —
+// which requires re-queueing, a worker cold start, and re-executing a
+// whole stage — still lands far outside it.
+const STALE_GRACE_MS = 60_000;
+
 /**
  * Whether the case's single `reports` row (see the UNIQUE constraint on
  * reports.case_id — there is never more than one, so "which version is
@@ -3403,6 +3426,10 @@ export function sanitizeBlockedReport<T extends Record<string, unknown> | null |
  * report stage itself doesn't re-run afterward, the old reports row keeps
  * describing a superseded analysis with no signal to the reader that it's
  * out of date.
+ *
+ * A blocking engine's timestamp must exceed the report's by more than
+ * STALE_GRACE_MS to count — see the BUG FIXED note above for why a bare
+ * `t > reportTime` false-flagged nearly every normally-completed case.
  *
  * Deliberately fail-closed on missing timestamps: if the report has no
  * updated_at/created_at, or a blocking engine's latest row has no
@@ -3426,7 +3453,7 @@ export function isReportStale(
     if (t > prev) latestByEngine.set(row.engine, t);
   }
   for (const t of latestByEngine.values()) {
-    if (t > reportTime) return true;
+    if (t > reportTime + STALE_GRACE_MS) return true;
   }
   return false;
 }
