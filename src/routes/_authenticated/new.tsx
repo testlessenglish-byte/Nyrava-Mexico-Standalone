@@ -42,6 +42,16 @@ function NewCasePage() {
   // silently skipped every criminal-only engine (Attack Surface, Chain of
   // Custody, Constitutional, Procedural Violations). Force an explicit pick.
   const [caseType, setCaseType] = useState<string>("");
+  // Optional, explicit signal for the three amparo subtypes — case_type
+  // itself stays "amparo" for all three (they share the same base materia
+  // policy: applicable perspectives, base engines, scoring dimensions).
+  // Selecting "directo_en_revision" appends a canonical marker to the
+  // description on submit so effectiveMxProfile (mx-pipeline.ts) and
+  // matter-subtype.ts route this case to the SCJN-review checklist and
+  // skip the first-instance-only investigator agents (standing/procedencia,
+  // suspensión, informe justificado) — the same detection Nyrava already
+  // runs automatically from the uploaded document(s) if this is left unset.
+  const [amparoSubtype, setAmparoSubtype] = useState<"" | "indirecto" | "directo" | "directo_en_revision">("");
   // Not required, unlike case type: leaving it unset just means case-law
   // lookups search nationwide instead of scoping to one state's courts.
   const [jurisdiction, setJurisdiction] = useState<string>("");
@@ -84,7 +94,16 @@ function NewCasePage() {
     setSubmitting(true);
     const fd = new FormData();
     fd.append("name", name);
-    fd.append("description", desc);
+    // Not shown back to the user in the description textarea itself — a
+    // canonical marker appended only to the SUBMITTED value, so the
+    // ADR-detection text signal (mx-pipeline.ts/matter-subtype.ts) fires
+    // deterministically even if the attorney's own free-text name/description
+    // never happens to say "amparo directo en revisión".
+    const descToSubmit =
+      caseType === "amparo" && amparoSubtype === "directo_en_revision"
+        ? `${desc}\n\n(Amparo Directo en Revisión ante la SCJN)`
+        : desc;
+    fd.append("description", descToSubmit);
     fd.append("analysis_mode", mode);
     fd.append("case_type", caseType);
     fd.append("case_analysis_mode", caseAnalysisMode);
@@ -183,6 +202,27 @@ function NewCasePage() {
               ))}
             </select>
           </div>
+
+          {caseType === "amparo" && (
+            <div>
+              <label className="text-sm font-medium">{t("new.field.amparoSubtype")}</label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t("new.field.amparoSubtype.hint")}
+              </p>
+              <select
+                value={amparoSubtype}
+                onChange={(e) => setAmparoSubtype(e.target.value as typeof amparoSubtype)}
+                className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">{t("new.field.amparoSubtype.placeholder")}</option>
+                <option value="indirecto">{t("new.field.amparoSubtype.indirecto")}</option>
+                <option value="directo">{t("new.field.amparoSubtype.directo")}</option>
+                <option value="directo_en_revision">
+                  {t("new.field.amparoSubtype.directoEnRevision")}
+                </option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="text-sm font-medium">

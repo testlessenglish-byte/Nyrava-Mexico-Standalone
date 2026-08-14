@@ -56,6 +56,33 @@ export const MATTER_SUBTYPE_RULES: Record<string, readonly SubtypeRule[]> = {
       ],
     },
   ],
+  // Real case: a 1-document corpus consisting of "AMPARO DIRECTO EN
+  // REVISIÓN 4640/2017" (an SCJN constitutional-analysis resolution, not a
+  // full first-instance expediente) still ran the standing/procedencia,
+  // suspensión, and authority-notification/informe-justificado investigator
+  // agents — all of which examine facts of the ORIGINAL amparo trial
+  // (interés jurídico, definitividad, suspensión granted/denied, informe
+  // justificado filed) that an SCJN review opinion has no reason to restate.
+  // See effectiveMxProfile's AMPARO_REVISION_TEXT_SIGNAL (mx-pipeline.ts)
+  // for the companion fix that also routes the deterministic
+  // procedural_compliance checklist away from the base amparo checklist for
+  // the same subtype. conventionality_pro_persona, constitutional_rights_
+  // mapping, international_human_rights_analysis, and
+  // constitutional_controversy_analysis are deliberately NOT excluded — an
+  // SCJN review opinion is exactly what those agents are for.
+  amparo: [
+    {
+      key: "directo_en_revision",
+      label: "Amparo Directo en Revisión (SCJN)",
+      signals:
+        /\b(amparo directo en revision|amparo indirecto en revision|adr\s+\d+\s*\/\s*\d+|amparo en revision ante la (scjn|suprema corte))\b/,
+      excludedEngines: [
+        "agent:standing_procedencia",
+        "agent:suspension_analysis",
+        "agent:authority_notification_validation",
+      ],
+    },
+  ],
 };
 
 /**

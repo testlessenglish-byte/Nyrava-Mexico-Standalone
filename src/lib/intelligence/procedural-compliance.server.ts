@@ -38,22 +38,38 @@ export async function runProceduralCompliance(args: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: caseRow } = await (db as any)
     .from("cases")
-    .select("case_type,name")
+    .select("case_type,name,description")
     .eq("id", caseId)
     .maybeSingle();
-  // effectiveMxProfile (not the base resolveMxProfile) so a case name that
-  // signals a genuine CNDH/human-rights-commission complaint — or a real
-  // second-instance apelación — still resolves to its own checklist instead
-  // of unconditionally defaulting to the base materia's. Previously this
-  // read only case_type, so neither override could ever apply here even
-  // though mx-pipeline.ts already modeled both.
-  const caseRowTyped = caseRow as { case_type?: string | null; name?: string | null } | null;
-  const materia = effectiveMxProfile(caseRowTyped?.case_type ?? null, caseRowTyped?.name ?? null);
+  const caseRowTyped = caseRow as
+    | { case_type?: string | null; name?: string | null; description?: string | null }
+    | null;
 
   // Compliance matching must scan the WHOLE corpus — a required procedural
   // act argued deep in an Amparo file (page 40+) was previously invisible
-  // because the default corpus window truncated the text.
+  // because the default corpus window truncated the text. Loaded BEFORE
+  // resolving the profile (not after, as before) so its head can also feed
+  // effectiveMxProfile's text-signal override below — a document whose OWN
+  // title/first page announces "AMPARO DIRECTO EN REVISIÓN 4640/2017" must
+  // be caught even when the case's own name field never says so.
   const corpusText = await loadCaseCorpusText(db, caseId, FULL_CORPUS_SCAN_LIMIT);
+
+  // effectiveMxProfile (not the base resolveMxProfile) so a case name/corpus
+  // that signals a genuine CNDH/human-rights-commission complaint, a real
+  // second-instance apelación, or an amparo directo en revisión before the
+  // SCJN still resolves to its own checklist instead of unconditionally
+  // defaulting to the base materia's. Previously this read only case_type,
+  // so none of these overrides could ever apply here even though
+  // mx-pipeline.ts already modeled them. Corpus signal is bounded to the
+  // first page-ish slice — a proceeding announces what it is up front; a
+  // deep-corpus false match ("amparo directo en revisión" quoted once on
+  // page 40 of an otherwise ordinary amparo file) is exactly the kind of
+  // over-trigger a wider scan would risk.
+  const materia = effectiveMxProfile(
+    caseRowTyped?.case_type ?? null,
+    caseRowTyped?.name ?? null,
+    `${caseRowTyped?.description ?? ""} ${corpusText.slice(0, 3000)}`,
+  );
   const report = evaluateProceduralCompliance(materia, corpusText);
   const stage_map = resolveProceduralStage(materia, corpusText);
   const missing_documents = resolveMissingDocuments(materia, corpusText);
