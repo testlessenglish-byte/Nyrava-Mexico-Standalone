@@ -571,6 +571,36 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
       patterns: ["titulo de concesion", "concesion de agua"],
     },
   ],
+  responsabilidad_medica: [
+    {
+      id: "expediente_clinico",
+      label_es: "Expediente clínico completo",
+      label_en: "Complete clinical file",
+      authority: "NOM-004-SSA3-2012",
+      patterns: ["expediente clinico", "historia clinica", "nota de evolucion", "nota medica"],
+    },
+    {
+      id: "consentimiento_informado",
+      label_es: "Consentimiento informado",
+      label_en: "Informed consent",
+      authority: "NOM-004-SSA3-2012; Ley General de Salud Art. 51 Bis 2",
+      patterns: ["consentimiento informado", "carta de consentimiento"],
+    },
+    {
+      id: "dictamen_pericial_medico",
+      label_es: "Dictamen pericial médico",
+      label_en: "Medical expert opinion",
+      authority: "CNPCyF Art. 341-360",
+      patterns: ["dictamen pericial medico", "perito medico", "dictamen medico"],
+    },
+    {
+      id: "estudios_diagnosticos",
+      label_es: "Estudios de laboratorio e imagen",
+      label_en: "Laboratory and imaging studies",
+      authority: "NOM-004-SSA3-2012",
+      patterns: ["resultado de laboratorio", "estudio de imagen", "radiografia", "tomografia", "resonancia"],
+    },
+  ],
 };
 
 export function requiredDocuments(materia: MxPipelineProfile): readonly RequiredDocument[] {

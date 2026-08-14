@@ -64,6 +64,7 @@ export const PARTY_ROLES_BY_PROFILE: Record<MxPipelineProfile, readonly string[]
   agrario: ["parte actora", "parte demandada", "núcleo agrario", "ejidatario", "comunero", "comisariado ejidal"],
   electoral: ["actor", "autoridad responsable", "tercero interesado", "partido político", "candidato"],
   ambiental: ["particular", "autoridad", "comunidad afectada", "PROFEPA", "ASEA", "CONAGUA"],
+  responsabilidad_medica: ["paciente", "médico", "institución de salud", "parte actora", "parte demandada"],
 };
 
 /** Materia-appropriate substitution for each US party-role label. */
@@ -174,6 +175,13 @@ const PARTY_ROLE_SUBSTITUTIONS: Record<MxPipelineProfile, Record<string, string>
     "district attorney": "autoridad",
     plaintiff: "comunidad afectada",
     defendant: "particular",
+  },
+  responsabilidad_medica: {
+    prosecution: "paciente",
+    prosecutor: "paciente",
+    "district attorney": "paciente",
+    plaintiff: "paciente",
+    defendant: "médico",
   },
 };
 

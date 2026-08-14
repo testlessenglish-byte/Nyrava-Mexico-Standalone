@@ -883,6 +883,88 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
       patterns: ["titulo de concesion", "permiso de descarga", "conagua"],
     },
   ],
+  // 2026-08-14: new profile (report-quality audit §14). Previously a
+  // responsabilidad médica claim evaluated against the generic "civil"
+  // checklist, which has no concept of informed consent, clinical-history
+  // completeness, standard-of-care (lex artis) expert evidence, or the
+  // causal link between the alleged medical act and the injury — the exact
+  // elements a malpractice claim actually turns on. See
+  // effectiveMxProfile's MEDICAL_MALPRACTICE_TEXT_SIGNAL (mx-pipeline.ts)
+  // for how a civil/administrativo case routes here.
+  responsabilidad_medica: [
+    {
+      id: "relacion_medico_paciente",
+      label_es: "Relación médico-paciente (deber de cuidado) acreditada",
+      label_en: "Physician-patient relationship (duty of care) established",
+      authority: "Ley General de Salud Art. 51",
+      requirement: "required",
+      patterns: ["relacion medico paciente", "atencion medica prestada", "medico tratante"],
+    },
+    {
+      id: "consentimiento_informado_resp_medica",
+      label_es: "Consentimiento informado documentado",
+      label_en: "Informed consent documented",
+      authority: "NOM-004-SSA3-2012; Ley General de Salud Art. 51 Bis 2",
+      requirement: "required",
+      patterns: ["consentimiento informado", "carta de consentimiento", "consintio el procedimiento"],
+    },
+    {
+      id: "expediente_clinico_completo",
+      label_es: "Expediente clínico completo e integrado",
+      label_en: "Complete, integrated clinical file",
+      authority: "NOM-004-SSA3-2012",
+      requirement: "required",
+      patterns: ["expediente clinico", "historia clinica", "nota de evolucion", "nota medica"],
+    },
+    {
+      id: "estandar_de_cuidado",
+      label_es: "Estándar de cuidado aplicable (lex artis) identificado",
+      label_en: "Applicable standard of care (lex artis) identified",
+      authority: "NOM-004-SSA3-2012; guías de práctica clínica aplicables",
+      requirement: "required",
+      patterns: ["lex artis", "estandar de cuidado", "practica medica habitual", "guia de practica clinica"],
+    },
+    {
+      id: "conducta_medica_cuestionada",
+      label_es: "Conducta médica cuestionada (acción u omisión) precisada",
+      label_en: "Challenged medical act or omission clearly identified",
+      authority: "Código Civil aplicable (responsabilidad civil, hecho ilícito)",
+      requirement: "required",
+      patterns: ["negligencia medica", "impericia", "mala praxis", "omision medica", "error de diagnostico"],
+    },
+    {
+      id: "nexo_causal",
+      label_es: "Nexo causal entre la conducta médica y el daño acreditado",
+      label_en: "Causal link between the medical act and the injury established",
+      authority: "Código Civil aplicable (nexo causal, responsabilidad civil)",
+      requirement: "required",
+      patterns: ["nexo causal", "relacion de causalidad", "causa directa del dano"],
+    },
+    {
+      id: "dictamen_pericial_medico_resp",
+      label_es: "Dictamen pericial médico sobre el estándar de cuidado y/o el nexo causal",
+      label_en: "Medical expert opinion on the standard of care and/or causation",
+      authority: "CNPCyF Art. 341-360",
+      requirement: "required",
+      patterns: ["dictamen pericial medico", "perito medico", "dictamen medico"],
+    },
+    {
+      id: "dano_acreditado",
+      label_es: "Daño (material, moral o corporal) acreditado",
+      label_en: "Injury (material, moral, or bodily) established",
+      authority: "Código Civil aplicable Art. 1916 (daño moral) y responsabilidad civil",
+      requirement: "required",
+      patterns: ["dano moral", "dano material", "lesion corporal", "secuela", "incapacidad"],
+    },
+    {
+      id: "arbitraje_medico_previo",
+      label_es: "Queja o arbitraje médico ante CONAMED/CAMEC (vía alterna, si se agotó)",
+      label_en: "CONAMED/CAMEC medical-arbitration complaint (alternate route, if pursued)",
+      authority: "Reglamento de Procedimientos para la Atención de Quejas Médicas CONAMED",
+      requirement: "recommended",
+      patterns: ["conamed", "camec", "arbitraje medico", "queja medica"],
+    },
+  ],
 };
 
 function normalize(s: string): string {

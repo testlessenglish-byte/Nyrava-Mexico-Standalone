@@ -441,6 +441,15 @@ const RULES: Record<MxPipelineProfile, readonly DeadlineRule[]> = {
   // juicio de nulidad's 30-día term (LFPCA) are real but need per-act
   // verification before being asserted as a fact-computing rule.
   ambiental: [],
+  // 2026-08-14: new profile (report-quality audit §14). The general civil
+  // liability prescription term (CCF Art. 1934: 2 years from the date the
+  // damage occurred) is a real, well-known figure, but responsabilidad
+  // médica specifically varies by whether the claim is framed as
+  // extracontractual vs. contractual and by state civil code — encoding one
+  // figure risks asserting the wrong one for the specific claim actually in
+  // the corpus. Same conservative call as agrario/electoral/ambiental
+  // above: left empty for a follow-up pass with per-state verification.
+  responsabilidad_medica: [],
 };
 
 export function deadlineRules(materia: MxPipelineProfile): readonly DeadlineRule[] {
