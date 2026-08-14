@@ -367,6 +367,55 @@ describe("generateFindingPatchSet", () => {
     expect(result.ungrounded).toBe(1);
   });
 
+  it("real reported bug: a quote spanning a line break in a multi-line, bulleted answer still grounds (not 'always ungrounded')", async () => {
+    // Reproduces the live symptom: a typical "Nyrava Intelligence" answer is
+    // multi-paragraph/bulleted, and the correction model's own quote joins a
+    // wrapped line with an ordinary space where the SOURCE answer has a real
+    // newline. Before this fix, locateQuoteInText's strict (non-whitespace-
+    // collapsing) match rejected every such quote, so any correction against
+    // a normal multi-line answer came back "ungrounded" with no recourse.
+    const multiLineExchange = {
+      question: "¿Cuál es tu análisis del caso?",
+      answer:
+        "1. Resumen:\n" +
+        "- El argumento sobre la violación al debido proceso fue declarado inoperante porque fue\n" +
+        "planteado como un argumento novedoso no formulado en la demanda de amparo.\n" +
+        "- El tribunal confirmó que el artículo 83 no viola la seguridad jurídica.",
+      attachedDocs: [],
+    };
+    const finding = baseFinding();
+    const { db } = makeFakeDb({ findings: [finding] });
+    mockPatchLlmResponse([
+      {
+        action: "amend",
+        finding_ids: ["finding-1"],
+        reason: "El argumento fue declarado inoperante por ser novedoso.",
+        // The model reproduces the wrapped source line joined by a plain
+        // space instead of the real "\n" that appears between "fue" and
+        // "planteado" in the stored answer above.
+        quote:
+          "El argumento sobre la violación al debido proceso fue declarado inoperante porque fue planteado como un argumento novedoso no formulado en la demanda de amparo.",
+        confidence: 0.85,
+        new_title: "Argumento de debido proceso declarado inoperante por ser novedoso",
+        new_description:
+          "El tribunal declaró inoperante el argumento de debido proceso por haberse planteado como novedoso.",
+        new_category: "standing",
+        new_severity: "high",
+      },
+    ]);
+
+    const result = await generateFindingPatchSet(
+      db as never,
+      "case-multiline",
+      "user-1",
+      multiLineExchange,
+    );
+
+    expect(result.ungrounded).toBe(0);
+    expect(result.patches).toHaveLength(1);
+    expect(result.patches[0].action).toBe("amend");
+  });
+
   it("discards a patch that targets a finding id the model invented", async () => {
     const finding = baseFinding();
     const { db } = makeFakeDb({ findings: [finding] });

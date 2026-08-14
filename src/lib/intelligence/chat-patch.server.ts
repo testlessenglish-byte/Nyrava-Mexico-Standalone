@@ -33,7 +33,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { mexicoLock, groundingContract, getReportLocale } from "@/lib/mexico-lock";
 import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "@/lib/groq.server";
-import { locateQuoteInText } from "./evidence-provenance.server";
+import { lightNormalize } from "./evidence-provenance.server";
 import { listFindings, addFindings } from "./findings.server";
 import type { EvidenceRef, EvidenceRefStatus, NewFinding, Severity } from "./types";
 import type { SelfAuditNotice } from "./patterns.server";
@@ -345,6 +345,36 @@ async function buildCorrectionMemoryBlock(
 }
 
 /**
+ * Grounding check for a correction quote against chat-exchange text (or an
+ * attached document's extracted text) — same case/accent-insensitive exact-
+ * substring requirement as locateQuoteInText (evidence-provenance.server.ts),
+ * PLUS collapsing runs of whitespace (including line breaks) before
+ * comparing.
+ *
+ * Real reported bug: an attorney's "Nyrava Intelligence" answer is routinely
+ * multi-paragraph and bulleted (numbered findings, "- " bullet items). When
+ * the patch-generation model is asked to copy a verbatim quote out of that
+ * answer, it reliably reproduces wrapped text joined by an ordinary space —
+ * "...quejoso, particularly focusing..." — while the SOURCE text has a real
+ * newline or bullet marker at that exact point. locateQuoteInText does not
+ * collapse whitespace (deliberately — it also computes a character OFFSET
+ * into the raw text for document-citation provenance elsewhere, where a
+ * whitespace-collapsed match would no longer correspond to a real
+ * contiguous span). That made nearly every correction proposed against a
+ * normal multi-line answer come back "ungrounded" with no way to recover —
+ * the exact "always fails" symptom reported from a live case. This file
+ * never reads locateQuoteInText's offset, only whether the quote re-locates
+ * at all, so it's safe to relax whitespace here without touching the
+ * stricter shared function other callers depend on for real offsets.
+ */
+function isGroundedLoosely(quote: string, text: string | null | undefined): boolean {
+  if (!quote || !text) return false;
+  const collapse = (s: string) => lightNormalize(s).replace(/\s+/g, " ").trim();
+  const normQuote = collapse(quote);
+  return normQuote.length >= 8 && collapse(text).includes(normQuote);
+}
+
+/**
  * Reviews the case's current active findings against a Talk-to-Case
  * exchange and produces a grounded patch set. Pure generation — does not
  * write anything to case_findings (or any other table). Runs even when
@@ -560,11 +590,10 @@ Whenever you cite an attached document (source_document_id is set), also classif
     const quote = typeof p.quote === "string" ? p.quote.trim() : "";
     const sourceDocId = typeof p.source_document_id === "string" ? p.source_document_id : null;
     const sourceDoc = sourceDocId ? docsById.get(sourceDocId) : undefined;
-    const groundedInQuestion = !!quote && !!locateQuoteInText(quote, exchange.question);
-    const groundedInAnswer = !!quote && !!locateQuoteInText(quote, exchange.answer);
+    const groundedInQuestion = isGroundedLoosely(quote, exchange.question);
+    const groundedInAnswer = isGroundedLoosely(quote, exchange.answer);
     const groundedInExchange = groundedInQuestion || groundedInAnswer;
-    const groundedInDoc =
-      !!quote && !!sourceDoc?.extracted_text && !!locateQuoteInText(quote, sourceDoc.extracted_text);
+    const groundedInDoc = isGroundedLoosely(quote, sourceDoc?.extracted_text ?? null);
     if (!quote || (!groundedInExchange && !groundedInDoc)) {
       // The single most important trace point for "chat proposed a
       // correction, but no report patch resulted": the model's OWN quote
