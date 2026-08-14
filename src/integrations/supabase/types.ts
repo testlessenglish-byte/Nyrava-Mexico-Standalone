@@ -1120,6 +1120,7 @@ export type Database = {
           derived_from_finding_ids: string[]
           description: string
           evidence_refs: Json | null
+          evidence_relationship: string | null
           evidence_strength: number | null
           evidence_type: string | null
           finding_status: string
@@ -1169,6 +1170,7 @@ export type Database = {
           derived_from_finding_ids?: string[]
           description: string
           evidence_refs?: Json | null
+          evidence_relationship?: string | null
           evidence_strength?: number | null
           evidence_type?: string | null
           finding_status?: string
@@ -1218,6 +1220,7 @@ export type Database = {
           derived_from_finding_ids?: string[]
           description?: string
           evidence_refs?: Json | null
+          evidence_relationship?: string | null
           evidence_strength?: number | null
           evidence_type?: string | null
           finding_status?: string
