@@ -469,7 +469,8 @@ ${corpusText}`,
   reconstruction.applicable_legal_authorities = authorities;
   reconstruction.cited_precedent = precedent;
 
-  const { error } = await db.from("case_decision_reconstructions").insert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (db as any).from("case_decision_reconstructions").insert({
     case_id: caseId,
     user_id: userId,
     reconstruction: reconstruction as unknown as Record<string, unknown>,
