@@ -950,6 +950,11 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       tags: [...new Set([...(r.tags ?? []), ...computeDimensionTags(r)])],
       metadata: (r.metadata ?? {}) as J,
       finding_type,
+      // Set by addGatedFindings' path (classifyEvidenceRelationship, see
+      // evidence-gate.server.ts); null for the few call sites that persist
+      // findings directly through addFindings without routing through the
+      // gate — never fabricated after the fact.
+      evidence_relationship: (extra.evidence_relationship as string | undefined) ?? null,
       canonical_finding_id,
       source_document_id: resolvedDocId,
       source_page: resolvedPage,
@@ -996,6 +1001,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
         proposition_type: _pt,
         adoption_status: _as,
         audit_classification: _ac,
+        evidence_relationship: _er,
         ...rest
       } = row;
       return rest;
@@ -1081,6 +1087,7 @@ export async function addGatedFindings(
 
         ...({
           finding_type: g.finding_type,
+          evidence_relationship: g.evidence_relationship,
           source_document_id: g.source_document_id,
           source_page: g.source_page,
           source_quote: g.source_quote,

@@ -2452,8 +2452,8 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     b.text(checklistText, { size: 11, gap: 8 });
     b.text(
       execLocale === "en"
-        ? "Every finding rendered in this report has been validated against the source corpus and is safe to rely on. The suppressions below are conservative by design — they protect the work product from hallucinated legal conclusions while preserving the verified factual record."
-        : "Todo hallazgo incluido en este reporte fue validado contra el corpus fuente y puede sustentarse. Las supresiones siguientes son conservadoras por diseño: protegen el producto de trabajo frente a conclusiones jurídicas alucinadas y preservan el registro fáctico verificado.",
+        ? "Every finding rendered below carries a quote independently verified against the source corpus, but a corpus this limited constrains what any individual finding can establish — confidence and severity have been capped accordingly, and no finding here should be treated as a confirmed determination without independent verification against the complete official record. The suppressions below are conservative by design — they protect the work product from hallucinated legal conclusions while preserving the verified factual record."
+        : "Todo hallazgo presentado a continuación cita un pasaje verificado de forma independiente contra el corpus fuente, pero un corpus tan limitado condiciona lo que cualquier hallazgo individual puede establecer — la confianza y la severidad se han limitado en consecuencia, y ningún hallazgo de este reporte debe tratarse como una determinación confirmada sin verificación independiente contra el expediente oficial completo. Las supresiones siguientes son conservadoras por diseño: protegen el producto de trabajo frente a conclusiones jurídicas alucinadas y preservan el registro fáctico verificado.",
       { size: 11, gap: 8 },
     );
     return;

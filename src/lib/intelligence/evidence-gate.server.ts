@@ -101,6 +101,10 @@ export type GatedItem<T> = T & {
    * the title+description lookup key callers use to reunite a gate result
    * with its input row stays stable. See the comment where this is set. */
   not_established_rewrite: { title: string; description: string } | null;
+  /** See classifyEvidenceRelationship below (Rule 6, report-quality audit,
+   * 2026-08-14) — what KIND of relationship this finding has to its
+   * evidence, distinct from finding_type's evidentiary-strength axis. */
+  evidence_relationship: EvidenceRelationship;
 };
 
 export type GateAudit = {
@@ -418,6 +422,25 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
       }
     }
 
+    // Rule 6 (report-quality audit, 2026-08-14): only SOURCE_HOLDING /
+    // SOURCE_FACT may back a DIRECT_EVIDENCE finding. A quote that is on-
+    // topic and verified but is a PARTY'S OWN allegation (SOURCE_ARGUMENT)
+    // is evidence of what was claimed, not of what is true — presenting it
+    // as DIRECT_EVIDENCE would let the audit's exact failure back in
+    // (treating an allegation as an established determination). Computed
+    // BEFORE the mode-policy filtering below so a downgraded item is
+    // subject to the same strict/balanced rules as any other inference.
+    const relationship = classifyEvidenceRelationship({
+      findingType: type,
+      notEstablishedTopic,
+      text,
+      verifiedQuotes: verified.map((c) => c.quote as string),
+    });
+    if (type === "DIRECT_EVIDENCE" && relationship === "SOURCE_ARGUMENT") {
+      type = "EVIDENCE_BASED_INFERENCE";
+      audit.downgraded_inference += 1;
+    }
+
     // Mode policy:
     //   strict       → only DIRECT_EVIDENCE
     //   balanced     → DIRECT_EVIDENCE + EVIDENCE_BASED_INFERENCE
@@ -472,6 +495,7 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
       gated: {
         ...item,
         finding_type: type,
+        evidence_relationship: relationship,
         not_established_rewrite: notEstablishedRewrite,
         source_document_id: primary?.document_id ?? null,
         source_page: primary?.page ?? null,
@@ -494,12 +518,227 @@ export function classifyFindingType(opts: { hasVerifiedCitation: boolean; text: 
   return "DIRECT_EVIDENCE";
 }
 
+// =========================================================================
+// EVIDENCE RELATIONSHIP TAXONOMY (Rule 6)
+//
+// Report-quality audit (2026-08-14, ADR-2239-2018-180906): a finding's
+// finding_type (DIRECT_EVIDENCE / EVIDENCE_BASED_INFERENCE / AI_THEORY)
+// answers "how strong is the citation floor" but not "what KIND of thing
+// does the evidence actually establish" — a verbatim, verified quote of a
+// party's own allegation passes the citation floor exactly like a verbatim
+// quote of the tribunal's own ruling, yet the audit is explicit that NYRAVA
+// must never present one as if it were the other ("Never label NYRAVA's own
+// inference as a tribunal determination"). This taxonomy is the missing
+// axis, computed as a byproduct of the same verified-quote data
+// diagnoseEvidenceGate already has — not a new subsystem, not an LLM call.
+// =========================================================================
+
+export type EvidenceRelationship =
+  | "SOURCE_HOLDING"
+  | "SOURCE_FACT"
+  | "SOURCE_ARGUMENT"
+  | "DERIVED_INFERENCE"
+  | "UNPROVEN_ABSENCE"
+  | "MISSING_EVIDENCE";
+
+/** Dispositive/resolutive language a Mexican judicial or administrative
+ *  resolution uses for ITS OWN ruling — "se resuelve", "puntos
+ *  resolutivos", "se declara fundado/infundado" — as opposed to reciting a
+ *  party's position or a bare fact. A quote carrying one of these markers
+ *  is the decision-maker's own determination on the point. Deliberately
+ *  requires an explicit dispositive marker rather than inferring holding
+ *  status from "no other marker fired" — false negatives (missing a real
+ *  holding, leaving it at SOURCE_FACT) are far cheaper here than a false
+ *  positive that lets an ordinary fact masquerade as a ruling. */
+const HOLDING_MARKERS =
+  /\b(se resuelve\b|puntos resolutivos|resolutivos?:|se declara (fundado|infundado|procedente|improcedente|inoperante|inatendible)|esta (autoridad|sala|tribunal|junta)\s+(resuelve|determina|declara)|se (confirma|revoca|modifica)\s+la\s+(resoluci[oó]n|sentencia|determinaci[oó]n)|por lo (anteriormente\s+)?expuesto[^.]{0,80}se resuelve)/i;
+
+/** A party's own allegation/argument, quoted verbatim — real and on-topic,
+ *  but a statement of what someone CLAIMED, not an established fact or a
+ *  ruling on it. A finding grounded only in this kind of quote must never
+ *  be presented as DIRECT_EVIDENCE of the underlying proposition — see the
+ *  downgrade applied where this is consulted in diagnoseEvidenceGate. */
+const ARGUMENT_MARKERS =
+  /\b(manifiesta que|alega que|aduce que|argumenta que|sostiene que|se[ñn]ala que|expone que|refiere que|arguye que|el (quejoso|actor|demandado|recurrente|apelante)\s+(manifiesta|alega|aduce|argumenta|sostiene|expone|refiere)|la parte (actora|demandada)\s+(manifiesta|alega|aduce|argumenta|sostiene|expone|refiere))\b/i;
+
+/** The finding's OWN text (not its quote) asserting that something is
+ *  missing from the record — "no se identificó", "no consta", "no obra en
+ *  autos". These findings, by nature, usually have no quote to verify
+ *  against (there is nothing to quote for an absence). Companion to
+ *  rewriteAbsenceWording above, which fixes the same failure family's
+ *  overclaiming *phrasing* rather than its classification. */
+// No trailing \b: JS regex treats accented vowels (e.g. the "ó" in
+// "identificó"/"encontró") as non-word characters, so a boundary placed
+// right after one never matches — a real bug caught by this module's own
+// test suite. The leading \b is enough to anchor these phrases.
+const ABSENCE_CLAIM_RE =
+  /\b(no se (identific[oó]|encontr[oó]|advierte|observa)|no consta|no obra en (autos|el expediente)|ausencia de|no existe (constancia|evidencia)|sin evidencia de)/i;
+
+/**
+ * Classifies what KIND of relationship a finding has to its evidence — the
+ * 6-value taxonomy from the module header above. Deterministic and lexical,
+ * matching this module's existing style (see
+ * procedural-defect-grounding.server.ts's bare-legal-rule heuristic) rather
+ * than a semantic/LLM judgment call. Per Rule 6, only SOURCE_HOLDING and
+ * SOURCE_FACT are ever eligible to back a DIRECT_EVIDENCE finding_type —
+ * enforced where this is called in diagnoseEvidenceGate, not here (this
+ * function only classifies; it never mutates finding_type itself).
+ */
+export function classifyEvidenceRelationship(args: {
+  findingType: FindingType;
+  notEstablishedTopic: boolean;
+  text: string;
+  verifiedQuotes: string[];
+}): EvidenceRelationship {
+  const { findingType, notEstablishedTopic, text, verifiedQuotes } = args;
+
+  // The bare-legal-rule downgrade (assessProceduralDefectGrounding) already
+  // determined the only verified quote is the LAW's own text, not a
+  // case-specific fact — there is no case-specific evidence to classify.
+  if (notEstablishedTopic) return "MISSING_EVIDENCE";
+
+  if (findingType === "AI_THEORY") {
+    if (verifiedQuotes.length === 0 && ABSENCE_CLAIM_RE.test(text)) return "UNPROVEN_ABSENCE";
+    return "DERIVED_INFERENCE";
+  }
+
+  if (findingType === "EVIDENCE_BASED_INFERENCE") return "DERIVED_INFERENCE";
+
+  // DIRECT_EVIDENCE: a verified, on-topic quote with no inference verbs.
+  if (verifiedQuotes.some((q) => HOLDING_MARKERS.test(q))) return "SOURCE_HOLDING";
+  if (verifiedQuotes.some((q) => ARGUMENT_MARKERS.test(q))) return "SOURCE_ARGUMENT";
+  return "SOURCE_FACT";
+}
+
 export function applyEvidenceGate<T extends EvidenceItem>(
   items: T[],
   opts: GateOptions,
 ): { items: GatedItem<T>[]; audit: GateAudit } {
   const result = diagnoseEvidenceGate(items, opts);
   return { items: result.accepted.map((x) => x.gated), audit: result.audit };
+}
+
+// =========================================================================
+// ESS (Evidence Sufficiency Score) FINDING CONSTRAINT
+//
+// Report-quality audit (2026-08-14, ADR-2239-2018-180906): "modo LIMITADO"
+// / a thin corpus correctly suppresses the CASE-LEVEL score, recommendations,
+// and motion generation (see pipeline.server.ts's reportMode/isLimited), but
+// that suppression never reached individual findings — a finding could still
+// carry DIRECT_EVIDENCE status and a 90%+ confidence badge from a corpus too
+// thin to actually support that certainty. This is the fix: a pure,
+// deterministic downgrade applied per-finding whenever the case-wide ESS
+// bin is 'minimal'/'low', generalizing the single-finding-type precedent
+// already in procedural-compliance.server.ts ("a zero-citation absence
+// finding is 'medium' not 'high'") to every finding via the case-wide
+// signal, exactly as that fix's own comment predicted this would eventually
+// need to happen.
+//
+// ess.bin's fuller inputs (verified-finding count, contradiction count) are
+// only known once findings already exist for the case, so this can't run
+// inside the per-item generation gate above (diagnoseEvidenceGate) — it's
+// applied afterward, once per report-generation pass, to the real
+// case_findings rows that pass (see pipeline.server.ts where `ess` is
+// computed) — and PERSISTED (not just displayed-capped), so every consumer
+// (report export, the live case UI, Talk-to-Case) reads the same
+// constrained values without needing its own separate ESS-awareness.
+// =========================================================================
+
+/** Mirrors sufficiency.server.ts's ESSResult.bin — duplicated here (not
+ *  imported) because evidence-gate.server.ts must stay a pure, dependency-
+ *  light module; the type is trivial enough that re-declaring it costs
+ *  nothing and avoids a new cross-module dependency for one string union. */
+export type EssBin = "minimal" | "low" | "medium" | "high";
+
+const SEVERITY_DOWNGRADE: Record<string, string> = {
+  critical: "high",
+  high: "medium",
+  medium: "low",
+  low: "info",
+  info: "info",
+};
+
+export type EssConstraintInput = {
+  finding_type: FindingType | null;
+  confidence: number | null;
+  severity: string | null;
+};
+
+export type EssConstraintResult = EssConstraintInput & { downgraded: boolean };
+
+/**
+ * A thin corpus (ess.bin 'minimal'/'low') means a DIRECT_EVIDENCE
+ * classification, a high-90s confidence, and an unmoderated severity are
+ * all claims the underlying evidence base is too sparse to actually
+ * support — this caps them. 'medium'/'high' bins are untouched (no-op).
+ *
+ * Deliberately does NOT downgrade EVIDENCE_BASED_INFERENCE/AI_THEORY
+ * further, and does NOT touch findings already exempted from severity
+ * inflation elsewhere (a finding already at 'info' stays 'info') — this is
+ * a ceiling, never a blanket punitive downgrade of every finding in a
+ * LIMITED case.
+ */
+export function applyEssConstraint(
+  finding: EssConstraintInput,
+  essBin: EssBin,
+): EssConstraintResult {
+  if (essBin !== "minimal" && essBin !== "low") {
+    return { ...finding, downgraded: false };
+  }
+  const confidenceCeiling = essBin === "minimal" ? 0.5 : 0.6;
+  let downgraded = false;
+
+  let finding_type = finding.finding_type;
+  if (finding_type === "DIRECT_EVIDENCE") {
+    finding_type = "EVIDENCE_BASED_INFERENCE";
+    downgraded = true;
+  }
+
+  let confidence = finding.confidence;
+  if (confidence != null && confidence > confidenceCeiling) {
+    confidence = confidenceCeiling;
+    downgraded = true;
+  }
+
+  let severity = finding.severity;
+  if (severity && SEVERITY_DOWNGRADE[severity] && SEVERITY_DOWNGRADE[severity] !== severity) {
+    severity = SEVERITY_DOWNGRADE[severity];
+    downgraded = true;
+  }
+
+  return { finding_type, confidence, severity, downgraded };
+}
+
+/** Matches the "the complete expediente was reviewed and doesn't contain
+ *  X" phrasing this codebase's generation prompts are now instructed to
+ *  avoid under a thin corpus (see the matching prompt instruction added
+ *  alongside this function in pipeline.server.ts) — a defense-in-depth
+ *  rewrite for whatever the model emits anyway, LLM prompt compliance
+ *  never being guaranteed. Deliberately narrow (the exact audited phrase
+ *  pattern, not a general absence-language rewriter) so it can't
+ *  accidentally rewrite unrelated prose. */
+const ABSENCE_OVERCLAIM_RE = /no se observa en el expediente/gi;
+const ABSENCE_SAFE_PHRASING = "no se identificó en el/los documento(s) proporcionado(s)";
+
+/**
+ * Rewrites an "absence of evidence" overclaim to the corpus-scoped
+ * phrasing when the case-wide ESS bin is 'minimal'/'low' — a partial
+ * corpus (1-2 documents) cannot support the stronger claim that the
+ * complete official expediente was reviewed and found silent on a topic.
+ * A no-op (returns the input unchanged) for 'medium'/'high' bins or text
+ * that doesn't contain the overclaiming phrase.
+ */
+export function rewriteAbsenceWording(text: string | null | undefined, essBin: EssBin): string | null {
+  if (!text) return text ?? null;
+  if (essBin !== "minimal" && essBin !== "low") return text;
+  return text.replace(ABSENCE_OVERCLAIM_RE, (match) => {
+    // Preserve sentence-initial capitalization ("No se observa..." at the
+    // start of a sentence must stay capitalized after rewriting).
+    if (match[0] === match[0].toUpperCase() && match[0] !== match[0].toLowerCase()) {
+      return ABSENCE_SAFE_PHRASING[0].toUpperCase() + ABSENCE_SAFE_PHRASING.slice(1);
+    }
+    return ABSENCE_SAFE_PHRASING;
+  });
 }
 
 export type MxPerspective =

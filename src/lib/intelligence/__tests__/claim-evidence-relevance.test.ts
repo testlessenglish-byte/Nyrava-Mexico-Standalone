@@ -66,3 +66,44 @@ describe("checkClaimEvidenceRelevance", () => {
     expect(r.reason).toBe("quote_too_vacuous");
   });
 });
+
+// Second real-report audit (2026-08-14, ADR-2239-2018-180906, a 1-document/
+// minimal-corpus case) found the SAME failure class this module already
+// names as a known limitation: a claim and quote sharing only GENERIC legal
+// boilerplate ("autoridad", "artículo", "garantía", "resolución") clear the
+// plain Jaccard threshold without sharing the actual legal concept asserted.
+// The exact source document from that audit wasn't available to reproduce
+// verbatim (unlike the ADR 4640/2017 cases above, calibrated directly
+// against the real export) — these cases are representative reconstructions
+// of the described failure SHAPE ("incompetencia" grounded in an appeal-
+// filing-requirements quote; "garantía de audiencia" grounded in an
+// appeal-rights quote), built to prove the new distinctive-overlap
+// requirement actually closes this class of gap, not to claim they are the
+// literal audited text.
+describe("checkClaimEvidenceRelevance — generic-legal-overlap-only rejection", () => {
+  it("rejects an 'incompetencia de la autoridad' claim grounded only in a quote about appeal-filing requirements", () => {
+    const r = checkClaimEvidenceRelevance(
+      "Incompetencia de la autoridad responsable para emitir la resolución impugnada, al carecer de facultades territoriales y materiales para conocer del asunto.",
+      "El recurso de apelación deberá interponerse por escrito ante la autoridad que emitió la resolución, dentro del plazo señalado, cumpliendo los requisitos previstos en el artículo correspondiente.",
+    );
+    expect(r.relevant).toBe(false);
+    expect(r.reason).toBe("only_generic_legal_overlap");
+  });
+
+  it("rejects a 'garantía de audiencia' claim grounded only in a quote about the separate right to appeal", () => {
+    const r = checkClaimEvidenceRelevance(
+      "Vulneración a la garantía de audiencia, al no haberse otorgado al quejoso la oportunidad de ser oído previamente a la emisión del acto de autoridad.",
+      "Se establece como garantía procesal la posibilidad de apelar o impugnar la decisión adoptada en una primera instancia ante un tribunal superior.",
+    );
+    expect(r.relevant).toBe(false);
+    expect(r.reason).toBe("only_generic_legal_overlap");
+  });
+
+  it("still accepts a claim and quote sharing distinctive, non-generic vocabulary even alongside generic legal terms", () => {
+    const r = checkClaimEvidenceRelevance(
+      "Vulneración a la garantía de audiencia, al no haberse notificado al quejoso previamente a la emisión del acto de autoridad.",
+      "La autoridad omitió notificar personalmente al interesado antes de dictar la resolución, impidiéndole ser oído en el procedimiento.",
+    );
+    expect(r.relevant).toBe(true);
+  });
+});
