@@ -185,24 +185,46 @@ const CNDH_COMPLAINT_NAME_SIGNAL =
   /\b(queja ante la cndh|queja ante la comision (nacional|estatal) de derechos humanos|comision nacional de los derechos humanos|comision estatal de derechos humanos|recomendacion cndh)\b/;
 
 /**
- * The pipeline profile actually in effect for this case: its materia's base
- * profile, unless the case name signals this specific proceeding is an
- * appeal (→ "apelacion") or, for "constitucional", a genuine CNDH/human-
- * rights-commission complaint (→ "derechos_humanos"). Same
- * text-narrows-never-widens pattern as detectMatterSubtype() in
- * matter-subtype.ts (familiar → sucesorio) — not a second case-type
- * taxonomy, just a materia-scoped override for a proceeding shape the base
- * materia's profile doesn't fit.
+ * Signal that a case filed under the "amparo" materia is actually an amparo
+ * DIRECTO EN REVISIÓN before the SCJN (or a comparable SCJN-level review of
+ * a norm/amparo ruling) — not a first-instance amparo trial. Real case: a
+ * 1-document corpus consisting of "AMPARO DIRECTO EN REVISIÓN 4640/2017"
+ * (an SCJN constitutional-analysis resolution, not a full expediente) was
+ * evaluated against the base "amparo" checklist (acto reclamado, suspensión,
+ * informe justificado, principio de definitividad — all first-instance-trial
+ * concepts an SCJN review opinion has no reason to restate), producing a
+ * misleadingly low procedural-compliance coverage number. The "constitucional"
+ * profile's checklist (added by the 2239/2018 fix below) already models what
+ * an SCJN-level review actually requires — this signal routes an "amparo"
+ * case to that checklist instead of inventing a third one. Deliberately
+ * narrow (the proceeding's own name for itself), same false-positive
+ * discipline as APELACION_NAME_SIGNAL/CNDH_COMPLAINT_NAME_SIGNAL above.
  */
-export function effectiveMxProfile(caseType: unknown, caseName?: string | null): MxPipelineProfile {
+const AMPARO_REVISION_TEXT_SIGNAL =
+  /\b(amparo directo en revision|amparo indirecto en revision|adr\s+\d+\s*\/\s*\d+|amparo en revision ante la (scjn|suprema corte))\b/;
+
+/**
+ * The pipeline profile actually in effect for this case: its materia's base
+ * profile, unless the case name (or, when supplied, a bounded slice of the
+ * case's own text — description / corpus head) signals this specific
+ * proceeding is an appeal (→ "apelacion"), a genuine CNDH/human-rights-
+ * commission complaint (→ "derechos_humanos"), or an amparo directo en
+ * revisión before the SCJN (→ "constitucional"). Same text-narrows-never-
+ * widens pattern as detectMatterSubtype() in matter-subtype.ts
+ * (familiar → sucesorio) — not a second case-type taxonomy, just a
+ * materia-scoped override for a proceeding shape the base materia's profile
+ * doesn't fit. `extraSignalText` is optional and additive — every existing
+ * caller that only ever passed `caseName` keeps working unchanged.
+ */
+export function effectiveMxProfile(
+  caseType: unknown,
+  caseName?: string | null,
+  extraSignalText?: string | null,
+): MxPipelineProfile {
   const profile = requireMxProfile(caseType);
   const materia = normalizeMexicanCaseType(caseType);
-  if (
-    materia &&
-    APELACION_ELIGIBLE_MATERIAS.has(materia) &&
-    caseName &&
-    APELACION_NAME_SIGNAL.test(foldCaseNameSignal(caseName))
-  ) {
+  const signalText = foldCaseNameSignal(`${caseName ?? ""} ${extraSignalText ?? ""}`);
+  if (materia && APELACION_ELIGIBLE_MATERIAS.has(materia) && caseName && APELACION_NAME_SIGNAL.test(foldCaseNameSignal(caseName))) {
     return "apelacion";
   }
   if (
@@ -211,6 +233,9 @@ export function effectiveMxProfile(caseType: unknown, caseName?: string | null):
     CNDH_COMPLAINT_NAME_SIGNAL.test(foldCaseNameSignal(caseName))
   ) {
     return "derechos_humanos";
+  }
+  if (materia === "amparo" && AMPARO_REVISION_TEXT_SIGNAL.test(signalText)) {
+    return "constitucional";
   }
   return profile;
 }
