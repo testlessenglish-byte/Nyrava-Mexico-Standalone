@@ -5,11 +5,20 @@
 // outputFile, errors }.
 //
 // Release rule: the final report is only marked "released" if QA, Judge, and
-// Hallucination all PASS. Anything else leaves the case in "needs_revision".
+// Hallucination all PASS, AND every required pipeline engine (per
+// canGenerateReport — the same single source of truth report generation's
+// own pre-flight gate uses) is still in a good terminal state. Anything else
+// leaves the case in "needs_revision". The engine check was added
+// 2026-08-14 (report-quality audit §19): the original release decision only
+// ever consulted the 4 gate agents, so a report could legitimately say
+// "Final review passed" while a required engine (procedural_compliance,
+// contradictions, etc.) had failed — those engines are never re-run or
+// re-checked by report/QA/Judge/Hallucination, which only inspect the
+// report's own prose and citations, not the pipeline's execution history.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { ENGINE } from "@/lib/execution/canonical";
+import { ENGINE, canGenerateReport, REPORT_REQUIRED_ENGINES } from "@/lib/execution/canonical";
 import { AGENT_DEFINITIONS, type AgentResult, type AgentDefinition } from "./types";
 import { attachAgentStats, buildAgentStatistics } from "./statistics.server";
 import { isCheckpointError } from "@/lib/pipeline-checkpoint.server";
@@ -829,6 +838,11 @@ export type FinalReleaseReview = {
   released: boolean;
   status: "released" | "needs_revision" | "failed";
   gates: { report: boolean; qa: boolean; judge: boolean; hallucination: boolean };
+  /** Required pipeline engines (canGenerateReport's REPORT_BLOCKING_ENGINES)
+   *  that were NOT in a good terminal state when the release decision was
+   *  made — empty when every required engine succeeded. A non-empty list
+   *  here means "needs_revision" even if every gate agent above passed. */
+  missingRequiredEngines: string[];
   errors: string[];
 };
 
@@ -858,6 +872,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
       released: false,
       status: "failed",
       gates: { report: false, qa: false, judge: false, hallucination: false },
+      missingRequiredEngines: [],
       errors: ["No completed report to review."],
     };
   }
@@ -881,8 +896,36 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     if (withStats.status !== "success") errors.push(...(withStats.errors ?? []));
   }
 
-  const released = Boolean(outcomes.report && outcomes.qa && outcomes.judge && outcomes.hallucination);
+  const gatesPassed = Boolean(outcomes.report && outcomes.qa && outcomes.judge && outcomes.hallucination);
+
+  // Re-check every REQUIRED pipeline engine's CURRENT state — the same
+  // canGenerateReport() single source of truth report generation's own
+  // pre-flight gate already uses, consulted again here because none of the
+  // 4 gate agents above re-runs or re-inspects procedural_compliance,
+  // contradictions, or any other required engine; they only read the
+  // report's own prose and citations. A required engine that failed (or
+  // regressed to a bad state) after report generation but before this
+  // review must still block release.
+  const { data: engineRuns } = await args.db
+    .from("pipeline_engine_runs")
+    .select("id,engine,status,started_at,ended_at,created_at")
+    .eq("case_id", args.caseId)
+    .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
+    .order("created_at", { ascending: false });
+  const engineGate = canGenerateReport((engineRuns ?? []) as never);
+  if (!engineGate.ok) {
+    errors.push(
+      `Required engine(s) not in a completed state: ${engineGate.missingBlocking.join(", ")}.`,
+    );
+  }
+
+  const released = gatesPassed && engineGate.ok;
   const status: FinalReleaseReview["status"] = released ? "released" : "needs_revision";
+  const statusMessage = released
+    ? "Final review passed — report released."
+    : !engineGate.ok
+      ? `Final review blocked — required engine(s) did not complete: ${engineGate.missingBlocking.join(", ")}.`
+      : "Final review requires revision — see QA/Judge/Hallucination logs.";
 
   // Single, final status write.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -892,9 +935,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       status: status as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      status_message: (released
-        ? "Final review passed — report released."
-        : "Final review requires revision — see QA/Judge/Hallucination logs.") as any,
+      status_message: statusMessage as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
     .eq("id", args.caseId);
@@ -904,6 +945,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
       case_id: args.caseId,
       status,
       gates: outcomes,
+      missing_required_engines: engineGate.missingBlocking,
     })}`,
   );
 
@@ -917,6 +959,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
       judge: Boolean(outcomes.judge),
       hallucination: Boolean(outcomes.hallucination),
     },
+    missingRequiredEngines: engineGate.missingBlocking,
     errors,
   };
 }
