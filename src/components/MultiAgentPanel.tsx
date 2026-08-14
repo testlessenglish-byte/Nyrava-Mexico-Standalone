@@ -129,7 +129,23 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
     suppressedFindings: logs.reduce((sum, r) => sum + Number(r.findings_suppressed ?? 0), 0),
     visibleFindings: logs.reduce((sum, r) => sum + Number(r.findings_produced ?? 0), 0),
   };
-  const summary: AgentSummary = canonical.executed > 0 ? canonical : derived;
+  // Field-wise max, not an all-or-nothing switch: `canonical` (the report's
+  // persisted agent_statistics snapshot) and `derived` (live agent_logs) can
+  // each independently lag the other by a render or two around the report-
+  // completion transition — e.g. `report` hasn't refetched yet right when
+  // the pipeline flips to "complete". Taking the max per field means a
+  // momentarily-stale source can never make the panel regress below what
+  // the OTHER source already confirms happened, which is the exact symptom
+  // reported (13/13 agents executed mid-run → 4/13 once the report finished
+  // rendering, as if agents' own completed work had been erased).
+  const summary: AgentSummary = {
+    loaded: Math.max(canonical.loaded, derived.loaded),
+    executed: Math.max(canonical.executed, derived.executed),
+    producingOutput: Math.max(canonical.producingOutput, derived.producingOutput),
+    producingFindings: Math.max(canonical.producingFindings, derived.producingFindings),
+    suppressedFindings: Math.max(canonical.suppressedFindings, derived.suppressedFindings),
+    visibleFindings: Math.max(canonical.visibleFindings, derived.visibleFindings),
+  };
 
   return (
     <Card className="border-primary/15 bg-background/60">
