@@ -3227,6 +3227,77 @@ export type Database = {
           },
         ]
       }
+      intelligence_improvement_proposals: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          deployed_version: number | null
+          error_type: Database["public"]["Enums"]["intelligence_error_type"]
+          historical_replay: Json | null
+          id: string
+          jurisdiction_country: string
+          matter_type: string | null
+          observed_failure: string
+          problem: string
+          proposed_escalate_at_tier: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          proposed_recommended_action: Database["public"]["Enums"]["intelligence_recommended_action"]
+          regression_check: Json | null
+          status: Database["public"]["Enums"]["intelligence_proposal_status"]
+          supporting_pattern_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          deployed_version?: number | null
+          error_type: Database["public"]["Enums"]["intelligence_error_type"]
+          historical_replay?: Json | null
+          id?: string
+          jurisdiction_country?: string
+          matter_type?: string | null
+          observed_failure: string
+          problem: string
+          proposed_escalate_at_tier: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          proposed_recommended_action: Database["public"]["Enums"]["intelligence_recommended_action"]
+          regression_check?: Json | null
+          status?: Database["public"]["Enums"]["intelligence_proposal_status"]
+          supporting_pattern_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          deployed_version?: number | null
+          error_type?: Database["public"]["Enums"]["intelligence_error_type"]
+          historical_replay?: Json | null
+          id?: string
+          jurisdiction_country?: string
+          matter_type?: string | null
+          observed_failure?: string
+          problem?: string
+          proposed_escalate_at_tier?: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          proposed_recommended_action?: Database["public"]["Enums"]["intelligence_recommended_action"]
+          regression_check?: Json | null
+          status?: Database["public"]["Enums"]["intelligence_proposal_status"]
+          supporting_pattern_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intelligence_improvement_proposals_supporting_pattern_id_fkey"
+            columns: ["supporting_pattern_id"]
+            isOneToOne: false
+            referencedRelation: "intelligence_patterns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       intelligence_lessons: {
         Row: {
           authority_refs: Json
@@ -3458,6 +3529,122 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intelligence_validation_rules: {
+        Row: {
+          created_at: string
+          error_type: Database["public"]["Enums"]["intelligence_error_type"]
+          escalate_at_tier: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          id: string
+          is_active: boolean
+          jurisdiction_country: string
+          matter_type: string | null
+          recommended_action: Database["public"]["Enums"]["intelligence_recommended_action"]
+          source_proposal_id: string | null
+          superseded_by_rule_id: string | null
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          error_type: Database["public"]["Enums"]["intelligence_error_type"]
+          escalate_at_tier: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          id?: string
+          is_active?: boolean
+          jurisdiction_country?: string
+          matter_type?: string | null
+          recommended_action: Database["public"]["Enums"]["intelligence_recommended_action"]
+          source_proposal_id?: string | null
+          superseded_by_rule_id?: string | null
+          updated_at?: string
+          user_id: string
+          version: number
+        }
+        Update: {
+          created_at?: string
+          error_type?: Database["public"]["Enums"]["intelligence_error_type"]
+          escalate_at_tier?: Database["public"]["Enums"]["intelligence_pattern_tier"]
+          id?: string
+          is_active?: boolean
+          jurisdiction_country?: string
+          matter_type?: string | null
+          recommended_action?: Database["public"]["Enums"]["intelligence_recommended_action"]
+          source_proposal_id?: string | null
+          superseded_by_rule_id?: string | null
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intelligence_validation_rules_superseded_by_rule_id_fkey"
+            columns: ["superseded_by_rule_id"]
+            isOneToOne: false
+            referencedRelation: "intelligence_validation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intelligence_versions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          changes: Json
+          created_at: string
+          deployment_status: Database["public"]["Enums"]["intelligence_version_deployment_status"]
+          id: string
+          proposal_id: string | null
+          rollback_reference: string | null
+          supporting_lesson_ids: string[]
+          supporting_pattern_ids: string[]
+          user_id: string
+          version: number
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          changes: Json
+          created_at?: string
+          deployment_status?: Database["public"]["Enums"]["intelligence_version_deployment_status"]
+          id?: string
+          proposal_id?: string | null
+          rollback_reference?: string | null
+          supporting_lesson_ids?: string[]
+          supporting_pattern_ids?: string[]
+          user_id: string
+          version: number
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          changes?: Json
+          created_at?: string
+          deployment_status?: Database["public"]["Enums"]["intelligence_version_deployment_status"]
+          id?: string
+          proposal_id?: string | null
+          rollback_reference?: string | null
+          supporting_lesson_ids?: string[]
+          supporting_pattern_ids?: string[]
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intelligence_versions_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "intelligence_improvement_proposals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intelligence_versions_rollback_reference_fkey"
+            columns: ["rollback_reference"]
+            isOneToOne: false
+            referencedRelation: "intelligence_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -5323,6 +5510,7 @@ export type Database = {
       }
       reports: {
         Row: {
+          adaptive_intelligence_version: number | null
           alternative_theory_report: string | null
           appendix_sources: string | null
           attorney_summary: string | null
@@ -5377,6 +5565,7 @@ export type Database = {
           witness_analysis: string | null
         }
         Insert: {
+          adaptive_intelligence_version?: number | null
           alternative_theory_report?: string | null
           appendix_sources?: string | null
           attorney_summary?: string | null
@@ -5431,6 +5620,7 @@ export type Database = {
           witness_analysis?: string | null
         }
         Update: {
+          adaptive_intelligence_version?: number | null
           alternative_theory_report?: string | null
           appendix_sources?: string | null
           attorney_summary?: string | null
@@ -6405,6 +6595,23 @@ export type Database = {
         | "candidate"
         | "strong"
         | "significant"
+      intelligence_proposal_status:
+        | "proposed"
+        | "testing"
+        | "passed"
+        | "failed"
+        | "approved"
+        | "deployed"
+        | "rolled_back"
+      intelligence_recommended_action:
+        | "require_additional_evidence"
+        | "require_second_source"
+        | "require_authority_verification"
+        | "require_procedural_posture_verification"
+        | "lower_confidence"
+        | "send_to_critic"
+        | "require_human_review"
+      intelligence_version_deployment_status: "deployed" | "rolled_back"
       legal_verification_status:
         | "verified"
         | "pending"

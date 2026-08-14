@@ -8178,6 +8178,15 @@ ${paginationTail}`;
     // Phase 4: which canonical_analysis.version this report was rendered
     // from. NULL when the flag is off or the raw-table fallback ran.
     canonical_version: canonicalVersion,
+    // Continuous Legal Intelligence Phase C (§15): the latest DEPLOYED
+    // intelligence_versions.version for this user at generation time, or
+    // null if none has ever been deployed — distinct from
+    // intelligence_version above (the pipeline/engine tag). Forensic
+    // reproducibility: this report's validation-rule behavior stays
+    // pinned to this number even after a later version deploys.
+    adaptive_intelligence_version: await (
+      await import("./intelligence/validation-rules.server")
+    ).getCurrentIntelligenceVersion(db, userId),
   };
 
   // Stash disputed-issues inside full_report (no dedicated column).

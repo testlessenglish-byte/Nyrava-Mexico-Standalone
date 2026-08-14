@@ -40,8 +40,33 @@ export function sha256Hex(input: string): string {
  * character where the original had exactly one — so index N in the
  * light-normalized string is always index N in the raw string.
  */
+// Typographic-punctuation fold: an LLM asked to reproduce a quote
+// "character-for-character" routinely still normalizes its OWN output
+// typography \u2014 straight quotes become curly ones, a hyphen becomes an
+// en/em dash, a regular space becomes a non-breaking one \u2014 while the
+// underlying proposition is unchanged. Without this fold,
+// locateQuoteInText's exact-contiguous-match requirement rejects a
+// genuinely real, correctly-sourced quote purely over a typographic
+// character substitution, which is a false negative in the grounding
+// gate, not a legitimate refusal. Every substitution here is strictly
+// one-codepoint-for-one-codepoint (never expanding, e.g. never an
+// ellipsis char into "..."), preserving lightNormalize's length-
+// invariant. This does NOT weaken the gate: the quote must still be a
+// real, contiguous match of the PROPOSITION \u2014 only the specific glyph
+// used for a quote mark, dash, or space is now tolerated as equivalent
+// to its ASCII counterpart.
+function foldTypographicPunctuation(s: string): string {
+  return s
+    .replace(/[\u2018\u2019\u2032]/g, "'")
+    .replace(/[\u201c\u201d\u2033]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u00a0/g, " ");
+}
+
 export function lightNormalize(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return foldTypographicPunctuation(
+    s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(),
+  );
 }
 
 export type QuoteLocation = { start: number; end: number };

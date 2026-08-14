@@ -16,10 +16,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { IntelligenceErrorType } from "./chat-patch.server";
+import {
+  AUDIT_ELIGIBLE_TIERS,
+  DEFAULT_TIER_ESCALATION,
+  TIER_RANK,
+  getActiveRuleAction,
+  type AuditEligibleTier,
+  type PatternTier,
+  type SelfAuditRecommendedAction,
+} from "./validation-rules.server";
+
+export type { PatternTier, SelfAuditRecommendedAction } from "./validation-rules.server";
 
 type Db = SupabaseClient<Database>;
-
-export type PatternTier = "insufficient_sample" | "emerging" | "candidate" | "strong" | "significant";
 
 const VERIFIED_STATUSES: readonly string[] = [
   "evidence_verified",
@@ -48,13 +57,6 @@ export function computeTier(verifiedCount: number): PatternTier {
   if (verifiedCount <= TIER_THRESHOLDS.strongMax) return "strong";
   return "significant";
 }
-
-/** Only these tiers are strong enough to change live validation behavior
- *  via self-audit — 'insufficient_sample'/'emerging' remain visible in the
- *  data (queryable, informative) but must never escalate a live finding
- *  review on their own, per §6's "never create a supposedly reliable
- *  pattern from one correction." */
-const AUDIT_ELIGIBLE_TIERS: readonly PatternTier[] = ["candidate", "strong", "significant"];
 
 export type PatternBucketKey = {
   matterType: string | null;
@@ -185,15 +187,6 @@ export async function upsertIntelligencePattern(
   }
 }
 
-export type SelfAuditRecommendedAction =
-  | "require_additional_evidence"
-  | "require_second_source"
-  | "require_authority_verification"
-  | "require_procedural_posture_verification"
-  | "lower_confidence"
-  | "send_to_critic"
-  | "require_human_review";
-
 export type SelfAuditNotice = {
   patternId: string;
   errorType: IntelligenceErrorType;
@@ -207,22 +200,19 @@ export type SelfAuditNotice = {
   reason: string;
 };
 
-/** Escalation intensity scales with tier — a deterministic, auditable
- *  policy, not a model's own judgment call. §7's explicit distinction:
- *  this is INCREASED SCRUTINY, never an automatic reject/remove — no
- *  action in this map ever suppresses or deletes a finding. */
-const TIER_ESCALATION: Record<"candidate" | "strong" | "significant", SelfAuditRecommendedAction> = {
-  candidate: "require_additional_evidence",
-  strong: "require_second_source",
-  significant: "require_human_review",
-};
-
 /**
  * Self-auditing (§7): "have we historically made this type of mistake?"
  * Checks whether an existing, non-retired pattern at tier >= candidate
  * shares a category with the finding under review. Returns null (no
  * historical concern) or a single escalation notice for the
  * highest-tier match — never more than one, and never a rejection.
+ *
+ * The recommended action is DEFAULT_TIER_ESCALATION (Phase B's original
+ * tier->action map) unless a deployed intelligence_validation_rules row
+ * overrides it for this exact bucket (Phase C — getActiveRuleAction is
+ * best-effort and falls back to the same default on any lookup issue, so
+ * this call's behavior is unchanged from Phase B until a rule is actually
+ * deployed for this bucket).
  */
 export async function auditFindingAgainstPatterns(
   db: Db,
@@ -252,22 +242,23 @@ export async function auditFindingAgainstPatterns(
   }>).filter((p) => p.category_samples.includes(args.findingCategory));
   if (candidates.length === 0) return null;
 
-  const tierRank: Record<PatternTier, number> = {
-    insufficient_sample: 0,
-    emerging: 1,
-    candidate: 2,
-    strong: 3,
-    significant: 4,
-  };
-  candidates.sort((a, b) => tierRank[b.tier] - tierRank[a.tier]);
+  candidates.sort((a, b) => TIER_RANK[b.tier] - TIER_RANK[a.tier]);
   const best = candidates[0];
+  const bestTier = best.tier as AuditEligibleTier;
+
+  const ruleAction = await getActiveRuleAction(
+    db,
+    args.userId,
+    { matterType: args.matterType, jurisdictionCountry: args.jurisdictionCountry, errorType: best.error_type },
+    best.tier,
+  );
 
   return {
     patternId: best.id,
     errorType: best.error_type,
     tier: best.tier,
     similarityBasis: "category_match",
-    recommendedAction: TIER_ESCALATION[best.tier as "candidate" | "strong" | "significant"],
+    recommendedAction: ruleAction ?? DEFAULT_TIER_ESCALATION[bestTier],
     reason: best.pattern_description,
   };
 }
