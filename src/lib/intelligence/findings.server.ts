@@ -987,39 +987,90 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   if (error) {
     console.error("addFindings failed", error);
     // Schema-drift resilience: speaker_role/proposition_type/adoption_status
-    // (migration 20260808201119_finding_judicial_attribution.sql) and
-    // audit_classification (migration 20260809041757_case_analysis_mode.sql)
-    // are additive columns that may not have propagated to every environment
-    // yet. A batch INSERT referencing a column Postgres doesn't recognize
-    // fails ATOMICALLY for the whole batch — silently zeroing out an
-    // entire, otherwise-valid set of findings with no per-row signal of
-    // why. Retry once with just those optional columns stripped so a
-    // pending migration can never take down finding persistence entirely.
-    const strippedPayload = (payload as Array<Record<string, unknown>>).map((row) => {
-      const {
-        speaker_role: _sr,
-        proposition_type: _pt,
-        adoption_status: _as,
-        audit_classification: _ac,
-        evidence_relationship: _er,
-        ...rest
-      } = row;
-      return rest;
-    });
+    // (migration 20260808201119_finding_judicial_attribution.sql),
+    // audit_classification (migration 20260809041757_case_analysis_mode.sql),
+    // and evidence_relationship (migration
+    // 20260814150000_case_findings_evidence_relationship.sql — the newest of
+    // the five, added days after the other four) are additive columns that
+    // may not have propagated to every environment yet, independently of one
+    // another. A batch INSERT referencing a column Postgres doesn't
+    // recognize fails ATOMICALLY for the whole batch.
+    //
+    // BUG FIXED (confirmed via a real, just-generated case export): the
+    // original fallback here stripped all five columns together on ANY
+    // insert error, so an environment where only evidence_relationship's
+    // migration hadn't landed yet — the other four already had — still lost
+    // speaker_role/proposition_type/adoption_status/audit_classification on
+    // every finding, even though those columns existed and would have
+    // inserted fine on their own. 5 of 6 judicial-hierarchy-eligible
+    // findings on that case came back with audit_classification: null at
+    // the persisted top level despite the LLM having correctly classified
+    // them (visible in metadata.raw) — exactly this collateral-strip bug.
+    // The unknown-column error names the specific column, in one of two
+    // observed shapes: Postgrest's wrapped "Could not find the '<col>'
+    // column of '<table>' in the schema cache" (see
+    // updateCaseWithSchemaDriftRetry in cases.functions.ts for the same
+    // shape on a different table), or a raw Postgres 42703 error, `column
+    // "<col>" of relation "<table>" does not exist`. Parse either and strip
+    // ONLY that one column when identifiable, so sibling columns from
+    // already-applied migrations are never collaterally dropped. Falls back
+    // to the full known-optional bundle when the error doesn't name a
+    // column in that set (e.g. a different kind of failure entirely).
+    const OPTIONAL_COLUMNS = [
+      "speaker_role",
+      "proposition_type",
+      "adoption_status",
+      "audit_classification",
+      "evidence_relationship",
+    ] as const;
+    const unknownColumn =
+      /Could not find the '([^']+)' column/.exec(error.message ?? "")?.[1] ??
+      /column "([^"]+)" of relation "[^"]+" does not exist/.exec(error.message ?? "")?.[1];
+    const columnsToStrip: readonly string[] =
+      unknownColumn && (OPTIONAL_COLUMNS as readonly string[]).includes(unknownColumn)
+        ? [unknownColumn]
+        : OPTIONAL_COLUMNS;
+    const stripColumns = (columns: readonly string[]) =>
+      (payload as Array<Record<string, unknown>>).map((row) => {
+        const rest = { ...row };
+        for (const c of columns) delete rest[c];
+        return rest;
+      });
+
     const retry = await db
       .from("case_findings")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .insert(strippedPayload as any)
+      .insert(stripColumns(columnsToStrip) as any)
       .select("id");
     if (!retry.error) {
       console.error(
-        "addFindings: recovered by inserting without judicial-hierarchy attribution / audit-classification columns — a pending migration needs to be applied to this environment",
+        `addFindings: recovered by inserting without ${columnsToStrip.join(", ")} — a pending migration needs to be applied to this environment`,
         { originalError: error },
       );
       return retry.data ?? [];
     }
+    // The targeted single-column strip wasn't enough (or we couldn't
+    // identify a specific column) — fall back to stripping the full
+    // known-optional bundle as a last resort, same as the original
+    // behavior, before giving up entirely.
+    if (columnsToStrip.length < OPTIONAL_COLUMNS.length) {
+      const bundleRetry = await db
+        .from("case_findings")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .insert(stripColumns(OPTIONAL_COLUMNS) as any)
+        .select("id");
+      if (!bundleRetry.error) {
+        console.error(
+          `addFindings: recovered by inserting without ${OPTIONAL_COLUMNS.join(", ")} — more than one pending migration needs to be applied to this environment`,
+          { originalError: error, singleColumnRetryError: retry.error },
+        );
+        return bundleRetry.data ?? [];
+      }
+      console.error("addFindings bundle retry (without all optional columns) also failed", bundleRetry.error);
+      return [];
+    }
     console.error(
-      "addFindings retry (without judicial-hierarchy columns) also failed",
+      "addFindings retry (without judicial-hierarchy/audit-classification columns) also failed",
       retry.error,
     );
     return [];
