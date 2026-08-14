@@ -428,6 +428,36 @@ const BY_PROFILE: Record<MxPipelineProfile, MxWorkProductVehicle[]> = {
       when: "para impugnar la resolución definitiva de PROFEPA/ASEA/CONAGUA ante el TFJA",
     },
   ],
+  responsabilidad_medica: [
+    {
+      id: "demanda_resp_civil_medica",
+      es: "Demanda de responsabilidad civil por negligencia médica",
+      en: "Medical malpractice civil complaint",
+      basis: "Código Civil aplicable (responsabilidad civil / daño moral) y código procesal civil de la entidad",
+      when: "cuando la parte representada sea la parte actora (paciente o derechohabientes)",
+    },
+    {
+      id: "contestacion_resp_civil_medica",
+      es: "Contestación de demanda y excepciones",
+      en: "Answer and defenses",
+      basis: "Excepciones dilatorias y perentorias del código procesal civil aplicable",
+      when: "cuando la parte representada sea la parte demandada (médico o institución de salud)",
+    },
+    {
+      id: "oferta_pericial_medica",
+      es: "Oferta de prueba pericial médica",
+      en: "Medical expert-evidence offer",
+      basis: "CNPCyF Art. 341-360",
+      when: "cuando se requiera acreditar o controvertir el estándar de cuidado (lex artis) o el nexo causal",
+    },
+    {
+      id: "solicitud_arbitraje_medico",
+      es: "Solicitud de queja o arbitraje médico ante CONAMED/CAMEC",
+      en: "Medical-arbitration complaint (CONAMED/CAMEC)",
+      basis: "Reglamento de Procedimientos para la Atención de Quejas Médicas CONAMED",
+      when: "cuando exista una vía alterna de arbitraje médico no vinculante disponible antes de o junto con la vía civil",
+    },
+  ],
 };
 
 export function mxWorkProductVehicles(profile: MxPipelineProfile): MxWorkProductVehicle[] {

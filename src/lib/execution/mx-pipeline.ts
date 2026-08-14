@@ -46,7 +46,16 @@ export type MxPipelineProfile =
   | "inmobiliario"
   | "agrario"
   | "electoral"
-  | "ambiental";
+  | "ambiental"
+  // Responsabilidad médica / mala praxis — a civil liability claim (or, when
+  // brought against a public institution — IMSS, ISSSTE, hospital estatal —
+  // an administrativo one) that the base civil/administrativo checklists
+  // structurally cannot represent: they have no way to require informed
+  // consent, clinical-history completeness, or a medical-standard-of-care
+  // (lex artis) expert opinion, and no reason to. See effectiveMxProfile's
+  // MEDICAL_MALPRACTICE_TEXT_SIGNAL below for how a civil/administrativo
+  // case routes here.
+  | "responsabilidad_medica";
 
 export const MX_JURISDICTION = "MX" as const;
 
@@ -204,17 +213,34 @@ const AMPARO_REVISION_TEXT_SIGNAL =
   /\b(amparo directo en revision|amparo indirecto en revision|adr\s+\d+\s*\/\s*\d+|amparo en revision ante la (scjn|suprema corte))\b/;
 
 /**
+ * Signal that a case filed under the "civil" materia is actually a
+ * responsabilidad médica / mala praxis claim — report-quality audit §14: the
+ * base "civil" checklist has no concept of informed consent, clinical-
+ * history completeness, standard-of-care (lex artis) expert evidence, or the
+ * causal link between a medical act and an injury, which is what the claim
+ * actually turns on. Deliberately scoped to "civil" only, not
+ * "administrativo" — a claim against a PUBLIC institution (IMSS, ISSSTE,
+ * hospital estatal) is correctly a state-liability matter under
+ * administrativo law, a different framework this override does not attempt
+ * to model (see responsabilidad_medica's MateriaLaw entry, which assumes the
+ * private-practice/comun-fuero case as the default this profile covers).
+ */
+const MEDICAL_MALPRACTICE_TEXT_SIGNAL =
+  /\b(negligencia medica|mala praxis|mala practica medica|impericia medica|responsabilidad civil medica|error medico|error de diagnostico)\b/;
+
+/**
  * The pipeline profile actually in effect for this case: its materia's base
  * profile, unless the case name (or, when supplied, a bounded slice of the
  * case's own text — description / corpus head) signals this specific
  * proceeding is an appeal (→ "apelacion"), a genuine CNDH/human-rights-
- * commission complaint (→ "derechos_humanos"), or an amparo directo en
- * revisión before the SCJN (→ "constitucional"). Same text-narrows-never-
- * widens pattern as detectMatterSubtype() in matter-subtype.ts
- * (familiar → sucesorio) — not a second case-type taxonomy, just a
- * materia-scoped override for a proceeding shape the base materia's profile
- * doesn't fit. `extraSignalText` is optional and additive — every existing
- * caller that only ever passed `caseName` keeps working unchanged.
+ * commission complaint (→ "derechos_humanos"), an amparo directo en revisión
+ * before the SCJN (→ "constitucional"), or a medical-malpractice claim
+ * (→ "responsabilidad_medica"). Same text-narrows-never-widens pattern as
+ * detectMatterSubtype() in matter-subtype.ts (familiar → sucesorio) — not a
+ * second case-type taxonomy, just a materia-scoped override for a
+ * proceeding shape the base materia's profile doesn't fit. `extraSignalText`
+ * is optional and additive — every existing caller that only ever passed
+ * `caseName` keeps working unchanged.
  */
 export function effectiveMxProfile(
   caseType: unknown,
@@ -236,6 +262,9 @@ export function effectiveMxProfile(
   }
   if (materia === "amparo" && AMPARO_REVISION_TEXT_SIGNAL.test(signalText)) {
     return "constitucional";
+  }
+  if (materia === "civil" && MEDICAL_MALPRACTICE_TEXT_SIGNAL.test(signalText)) {
+    return "responsabilidad_medica";
   }
   return profile;
 }
@@ -311,6 +340,12 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   administrativo: ["constitutional", "witness"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
   apelacion: ["constitutional", "witness"],
+  // Responsabilidad médica: same shape as civil (no control constitucional
+  // directo), but witness testimony stays ACTIVE and unexcluded — expert
+  // medical testimony (perito médico) on standard of care and causation is
+  // frequently the central evidence in a malpractice claim, unlike a
+  // document-resolved proceeding like amparo/apelacion.
+  responsabilidad_medica: ["constitutional"],
   // Cierre inmobiliario: transaccional, no contencioso. Sin partes
   // adversas, sin audiencia, sin juicio — se excluyen todas las etapas de
   // litigio. `strategy` and `work_product` are ALSO excluded here, not just
@@ -463,6 +498,10 @@ export const MX_PARTY_ROLES: Record<
   // denounce — a distinct role from the regulated particular being
   // sanctioned by PROFEPA/ASEA/CONAGUA.
   ambiental: { a: "particular", b: "autoridad", c: "comunidad_afectada", neutral: "ambas" },
+  // Paciente (o sus familiares/derechohabientes) vs. médico/institución de
+  // salud — distinct from generic parte_actora/parte_demandada so prompts
+  // can address the actual roles a malpractice claim turns on.
+  responsabilidad_medica: { a: "paciente", b: "medico_institucion", neutral: "ambas" },
 };
 
 /** JSON-schema-ready enum string, e.g. `"parte_actora"|"parte_demandada"|"ambas"`, for a given case type. */

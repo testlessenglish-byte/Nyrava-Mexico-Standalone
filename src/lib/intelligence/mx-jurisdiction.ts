@@ -193,6 +193,22 @@ const MATERIA_LAW: Record<MxPipelineProfile, MateriaLaw> = {
     substantive: ["LGEEPA", "Ley General de Vida Silvestre", "Ley de Aguas Nacionales", "CPEUM Art. 4"],
     procedural: ["LGEEPA (procedimiento administrativo sancionador)", "Ley Federal de Procedimiento Contencioso Administrativo"],
   },
+  responsabilidad_medica: {
+    // "comun" is the default (a private-practice claim against a médico
+    // particular or hospital privado); a claim against a public institution
+    // (IMSS, ISSSTE, hospital estatal) properly routes through
+    // administrativo instead — see effectiveMxProfile's
+    // MEDICAL_MALPRACTICE_TEXT_SIGNAL, which only overrides civil, not
+    // administrativo, for exactly this reason.
+    fuero: "comun",
+    courts: [
+      "Juzgado Civil de Primera Instancia",
+      "Sala Civil del Tribunal Superior de Justicia",
+      "Comisión de Arbitraje Médico de %STATE% (CAMEC/arbitraje médico, vía alterna no vinculante)",
+    ],
+    substantive: ["Código Civil Federal", "Código Civil de %STATE%", "Ley General de Salud", "NOM-004-SSA3 (expediente clínico)"],
+    procedural: ["Código Nacional de Procedimientos Civiles y Familiares", "Código de Procedimientos Civiles de %STATE%"],
+  },
 };
 
 const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
@@ -211,6 +227,7 @@ const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
   agrario: ["CPEUM Art. 27", "Art. 2º (pueblos y comunidades indígenas)"],
   electoral: ["CPEUM Art. 35", "Art. 41", "Art. 116 fracción IV"],
   ambiental: ["CPEUM Art. 4 (derecho a un medio ambiente sano)"],
+  responsabilidad_medica: ["CPEUM Art. 4º (derecho a la protección de la salud)", "Art. 14", "Art. 16", "Art. 17"],
 };
 
 const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
@@ -229,6 +246,7 @@ const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
   agrario: "agraria",
   electoral: "electoral",
   ambiental: "ambiental",
+  responsabilidad_medica: "responsabilidad médica",
 };
 
 function normalize(s: string): string {

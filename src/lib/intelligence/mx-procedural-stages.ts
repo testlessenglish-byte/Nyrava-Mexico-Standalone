@@ -724,6 +724,67 @@ const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
       patterns: ["resolucion administrativa", "resolutivo"],
     },
   ],
+  // Responsabilidad médica (private-practice claim) is procedurally an
+  // ordinary civil action — same demanda/emplazamiento/contestación/
+  // pruebas/alegatos/sentencia sequence under the CNPCyF, no distinct
+  // procedural stages of its own. What differs is the CHECKLIST content
+  // (procedural-compliance.ts) and required-documents list
+  // (mx-missing-documents.ts), not this stage sequence — duplicated here
+  // deliberately rather than aliased, so a future change to civil's stage
+  // list doesn't silently also change this profile's list should the two
+  // ever need to diverge (e.g. once a public-institution/administrativo
+  // variant is modeled).
+  responsabilidad_medica: [
+    {
+      id: "demanda_resp_medica",
+      label_es: "Presentación de la demanda",
+      label_en: "Complaint filed",
+      authority: "CNPCyF Art. 267",
+      patterns: ["escrito de demanda", "demanda civil"],
+    },
+    {
+      id: "emplazamiento_resp_medica",
+      label_es: "Emplazamiento a la parte demandada",
+      label_en: "Service of process on the defendant",
+      authority: "CNPCyF Art. 128-137",
+      patterns: ["emplazamiento", "cedula de notificacion", "razon actuarial"],
+    },
+    {
+      id: "contestacion_resp_medica",
+      label_es: "Contestación de demanda",
+      label_en: "Answer filed",
+      authority: "CNPCyF Art. 279",
+      patterns: ["contestacion de demanda"],
+    },
+    {
+      id: "ofrecimiento_pruebas_resp_medica",
+      label_es: "Ofrecimiento y admisión de pruebas, incluido el dictamen pericial médico",
+      label_en: "Evidence offered and admitted, including the medical expert opinion",
+      authority: "CNPCyF Art. 293-300, 341-360",
+      patterns: ["ofrecimiento de pruebas", "auto admisorio de pruebas", "dictamen pericial medico"],
+    },
+    {
+      id: "desahogo_pruebas_resp_medica",
+      label_es: "Desahogo de pruebas",
+      label_en: "Evidence taken",
+      authority: "CNPCyF Art. 301-330",
+      patterns: ["desahogo de pruebas", "audiencia de pruebas"],
+    },
+    {
+      id: "alegatos_resp_medica",
+      label_es: "Formulación de alegatos",
+      label_en: "Closing arguments filed",
+      authority: "CNPCyF Art. 348",
+      patterns: ["alegatos"],
+    },
+    {
+      id: "sentencia_resp_medica",
+      label_es: "Sentencia definitiva",
+      label_en: "Final judgment",
+      authority: "CNPCyF Art. 350-360",
+      patterns: ["sentencia definitiva"],
+    },
+  ],
 };
 
 export function proceduralStageMap(materia: MxPipelineProfile): readonly ProceduralStageDef[] {

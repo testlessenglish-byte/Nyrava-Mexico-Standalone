@@ -110,7 +110,7 @@ const NEVER_CONFUSE_ES = `NUNCA CONFUNDIR (regla obligatoria):
 - Posible error ≠ error confirmado. Usa "POTENTIAL_ISSUE" hasta que el expediente lo establezca.
 - Argumento de una parte ≠ hecho establecido. Identifica los argumentos como argumentos.
 - Alegación ≠ hecho. Hallazgo ≠ conclusión. Posibilidad legal ≠ remedio disponible.
-- "No se identificó en el corpus" (p. ej. interés jurídico, legitimación) NUNCA prueba que el elemento falte o que el asunto sea improcedente — solo que la búsqueda en los documentos disponibles no lo localizó. Clasifícalo como INSUFFICIENT_DATA / NOT_FOUND, nunca como un defecto procesal confirmado, salvo que el expediente mismo declare expresamente el defecto (p. ej. una resolución que sobresee por falta de interés jurídico).
+- "No se identificó en el corpus" (p. ej. interés jurídico, legitimación) NUNCA prueba que el elemento falte o que el asunto sea improcedente — solo que la búsqueda en los documentos disponibles no lo localizó. Clasifícalo como EVIDENCE_GAP / NOT_FOUND, nunca como un defecto procesal confirmado, salvo que el expediente mismo declare expresamente el defecto (p. ej. una resolución que sobresee por falta de interés jurídico).
 - Regla jurídica verificada ≠ hecho del caso verificado. Que un artículo/regla esté correctamente citado no dice nada sobre si ese artículo aplica a los hechos de ESTE caso — nunca combines ambas conclusiones bajo una sola etiqueta.`;
 
 const NEVER_CONFUSE_EN = `NEVER CONFUSE (mandatory rule):
@@ -120,7 +120,7 @@ const NEVER_CONFUSE_EN = `NEVER CONFUSE (mandatory rule):
 - Potential error ≠ confirmed error. Use "POTENTIAL_ISSUE" until the record establishes it.
 - A party's argument ≠ an established fact. Identify arguments as arguments.
 - Allegation ≠ fact. Finding ≠ conclusion. Legal possibility ≠ available remedy.
-- "Not identified in the corpus" (e.g. standing/interés jurídico) NEVER proves the element is missing or that the case is inadmissible — only that the search over the available documents did not locate it. Classify as INSUFFICIENT_DATA / NOT_FOUND, never a confirmed procedural defect, unless the record itself expressly states the defect (e.g. a ruling dismissing for lack of standing).
+- "Not identified in the corpus" (e.g. standing/interés jurídico) NEVER proves the element is missing or that the case is inadmissible — only that the search over the available documents did not locate it. Classify as EVIDENCE_GAP / NOT_FOUND, never a confirmed procedural defect, unless the record itself expressly states the defect (e.g. a ruling dismissing for lack of standing).
 - A verified legal rule ≠ a verified case fact. A correctly-cited article says nothing about whether it applies to THIS case's facts — never combine both conclusions under a single label.`;
 
 const CLASSIFICATION_TAXONOMY_ES = `CLASIFICACIÓN OBLIGATORIA de cada hallazgo — usa "audit_classification" con EXACTAMENTE uno de estos valores, nunca los mezcles:
@@ -142,9 +142,40 @@ const CLASSIFICATION_TAXONOMY_EN = `MANDATORY CLASSIFICATION of every finding �
 - NOT_FOUND: Nyrava searched for the issue and found no supporting evidence.`;
 
 /**
+ * The six-state audit_classification taxonomy + NEVER CONFUSE guardrails,
+ * standalone and mode-independent. Report-quality audit §3: the
+ * "audit_classification" JSON-schema field (auditClassificationSchemaFragment
+ * in finding-taxonomy.ts) is already spliced into EVERY agent's output
+ * schema unconditionally, and attorney-workproduct.ts's groupForFinding()
+ * already reads it for every report regardless of case_analysis_mode — but
+ * until this function existed, the instructions explaining what each of the
+ * six values MEANS only shipped inside getCaseAnalysisObjective(), which is
+ * `null` for "ongoing" (the default mode almost every case is actually in).
+ * That left ordinary cases with a schema slot for the classification and no
+ * guidance on how to fill it, so it came back null or unreliable on the vast
+ * majority of findings this pipeline produces. This function is the single
+ * source of that instructional text so both getCaseAnalysisObjective()
+ * (completed-case modes) and the "ongoing" prompt sites (pipeline.server.ts)
+ * can inject it without duplicating the taxonomy definitions a second time.
+ */
+export function getAuditClassificationInstructions(locale: "es" | "en"): string {
+  const es = locale !== "en";
+  return [
+    es
+      ? "=== CLASIFICACIÓN DE HALLAZGOS (aplica a todo hallazgo, en cualquier tipo de caso) ==="
+      : "=== FINDING CLASSIFICATION (applies to every finding, in any case) ===",
+    es ? CLASSIFICATION_TAXONOMY_ES : CLASSIFICATION_TAXONOMY_EN,
+    es ? NEVER_CONFUSE_ES : NEVER_CONFUSE_EN,
+  ].join("\n");
+}
+
+/**
  * The objective block injected into analyzerPreamble/areaPreamble.
  * `null` for "ongoing" so every existing case's prompt is byte-for-byte
  * unchanged — this is additive only for the three completed-case modes.
+ * (The finding-classification instructions themselves are no longer
+ * exclusive to this function — see getAuditClassificationInstructions()
+ * above, injected separately for "ongoing" cases.)
  */
 export function getCaseAnalysisObjective(mode: CaseAnalysisMode, locale: "es" | "en"): string | null {
   if (mode === "ongoing") return null;
@@ -173,8 +204,7 @@ export function getCaseAnalysisObjective(mode: CaseAnalysisMode, locale: "es" | 
     es
       ? "PRINCIPIO RECTOR: investigación agresiva, conclusiones conservadoras. Busca profundamente, cruza referencias entre todas las etapas del expediente, cuestiona el razonamiento, busca contradicciones, argumentos omitidos, evidencia ignorada, errores procesales y jurisprudencia aplicable — pero sé extremadamente conservador sobre lo que AFIRMAS haber encontrado."
       : "GUIDING PRINCIPLE: aggressive investigation, conservative conclusions. Search deeply, cross-reference every stage of the record, challenge the reasoning, look for contradictions, missed arguments, ignored evidence, procedural errors, and applicable jurisprudence — but be extremely conservative about what you CLAIM to have found.",
-    es ? CLASSIFICATION_TAXONOMY_ES : CLASSIFICATION_TAXONOMY_EN,
-    es ? NEVER_CONFUSE_ES : NEVER_CONFUSE_EN,
+    getAuditClassificationInstructions(locale),
     es
       ? 'Para cada posible error PROCESAL, establece la cadena: Regla → Acción requerida → Evento real del caso → Evidencia → Posible error. Si el evento real no puede establecerse con el corpus: "NO DETERMINABLE CON EL CORPUS DISPONIBLE" — nunca inventes el evento.'
       : "For every potential PROCEDURAL error, establish the chain: Rule → Required action → Actual case event → Evidence → Potential error. If the actual event cannot be established from the corpus: \"NOT DETERMINABLE WITH THE AVAILABLE CORPUS\" — never invent the event.",
