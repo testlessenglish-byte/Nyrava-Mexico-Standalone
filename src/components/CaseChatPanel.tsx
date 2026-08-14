@@ -280,7 +280,7 @@ export function CaseChatPanel({
           }
           toast(
             data.ungrounded > 0
-              ? "No groundable report changes found in this exchange."
+              ? "NYRAVA proposed a correction here, but it could not be verified against the case record with the precision required — no report change was made. This is a safeguard, not an error: an unverifiable correction is never applied automatically."
               : "This exchange doesn't change any existing finding.",
           );
           return;

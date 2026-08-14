@@ -385,6 +385,95 @@ describe("generateFindingPatchSet", () => {
     expect(result.patches).toHaveLength(0);
   });
 
+  it("logs a structured diagnostic distinguishing a finding-id-resolution failure ('Finding #2' is not a stable id) from a genuine quote-grounding failure", async () => {
+    const finding = baseFinding();
+    const { db } = makeFakeDb({ findings: [finding] });
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    mockPatchLlmResponse([
+      {
+        action: "remove",
+        finding_ids: ["finding-does-not-exist"],
+        reason: "Hallucinated id.",
+        quote:
+          "la cédula de notificación se fijó en un domicilio distinto al señalado por el quejoso",
+        confidence: 0.9,
+      },
+    ]);
+
+    await generateFindingPatchSet(db as never, "case-diagnostic-id", "user-1", EXCHANGE);
+
+    const logged = infoSpy.mock.calls.find((c) => String(c[0]).includes("chat_patch_review"));
+    expect(logged).toBeTruthy();
+    const payload = JSON.parse(logged![0] as string);
+    expect(payload.case_id).toBe("case-diagnostic-id");
+    expect(payload.discarded.some((d: Record<string, unknown>) => d.stage === "finding_id_resolution")).toBe(
+      true,
+    );
+    infoSpy.mockRestore();
+  });
+
+  it("logs a structured diagnostic for a genuine grounding failure, including which of question/answer/doc were checked", async () => {
+    const finding = baseFinding();
+    const { db } = makeFakeDb({ findings: [finding] });
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    mockPatchLlmResponse([
+      {
+        action: "remove",
+        finding_ids: ["finding-1"],
+        reason: "Invented justification.",
+        quote: "This sentence was never said in the exchange and was invented by the model.",
+        confidence: 0.9,
+      },
+    ]);
+
+    await generateFindingPatchSet(db as never, "case-diagnostic-grounding", "user-1", EXCHANGE);
+
+    const logged = infoSpy.mock.calls.find((c) => String(c[0]).includes("chat_patch_review"));
+    const payload = JSON.parse(logged![0] as string);
+    const groundingEntry = payload.discarded.find((d: Record<string, unknown>) => d.stage === "grounding");
+    expect(groundingEntry).toMatchObject({
+      grounded_in_question: false,
+      grounded_in_answer: false,
+      grounded_in_doc: false,
+    });
+    infoSpy.mockRestore();
+  });
+
+  it("grounds a quote that differs only by typographic punctuation (curly quotes/dashes) from the exchange text — a real quote, not a fabricated match", async () => {
+    const finding = baseFinding();
+    const { db } = makeFakeDb({ findings: [finding] });
+    // The exchange uses straight quotes/regular hyphens; the model echoes
+    // back a typographically "cleaned up" version of the SAME real quote —
+    // a common LLM output-fidelity quirk this fix tolerates without
+    // weakening the exact-contiguous-match requirement.
+    const typographicExchange = {
+      question: EXCHANGE.question,
+      answer:
+        'Confirmado en el expediente: "la notificación se practicó en un domicilio distinto al señalado" — esto vicia el procedimiento.',
+      attachedDocs: [],
+    };
+    mockPatchLlmResponse([
+      {
+        action: "remove",
+        finding_ids: ["finding-1"],
+        reason: "La notificación fue defectuosa.",
+        // Curly quotes and an em dash instead of the source's straight
+        // quotes/hyphen — same underlying text.
+        quote: "“la notificación se practicó en un domicilio distinto al señalado”",
+        confidence: 0.9,
+      },
+    ]);
+
+    const result = await generateFindingPatchSet(
+      db as never,
+      "case-typographic-quote",
+      "user-1",
+      typographicExchange,
+    );
+    expect(result.patches).toHaveLength(1);
+    expect(result.ungrounded).toBe(0);
+  });
+
   it("discards an amend patch missing new_title/new_description", async () => {
     const finding = baseFinding();
     const { db } = makeFakeDb({ findings: [finding] });

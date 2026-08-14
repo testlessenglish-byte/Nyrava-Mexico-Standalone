@@ -49,6 +49,13 @@ describe("lightNormalize", () => {
     expect(lightNormalize("bilingüe")).toBe("bilingue");
     expect(lightNormalize("bilingüe").length).toBe("bilingüe".length);
   });
+
+  it("folds curly quotes, en/em dashes, and non-breaking spaces to their ASCII equivalents without changing length", () => {
+    const s = "‘smart single’ “smart double” en–dash em—dash non breaking";
+    const out = lightNormalize(s);
+    expect(out.length).toBe(s.length);
+    expect(out).toBe("'smart single' \"smart double\" en-dash em-dash non breaking");
+  });
 });
 
 describe("locateQuoteInText", () => {

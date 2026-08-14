@@ -468,7 +468,8 @@ You review an attorney's Talk-to-Case exchange against the EXISTING findings alr
 - "merge": the exchange shows two or more existing findings are the same underlying issue — list all their ids in finding_ids and provide the consolidated new_title/new_description.
 - "dispute_evidence": the exchange challenges ONE specific document cited by an existing finding, but the finding's underlying issue may still stand (either on its other evidence, or pending review) — do NOT remove or amend the whole finding for this. Set disputed_doc_id to that document's id (it must be a doc_id actually cited by the finding) and dispute_status to "disputed" (the citation is now contested but not resolved), "superseded" (the exchange/attached document establishes a replacement — also set source_document_id to the replacement's id), or "withdrawn" (the citation should no longer be relied on at all). A document can be wrong for ONE finding's proposition while remaining perfectly good evidence elsewhere — this never touches the document's use in any other finding.
 You may also propose "create" for a genuinely new finding the exchange establishes that has no existing counterpart — finding_ids must be empty for this action. Do NOT create a finding merely restating something an existing finding already covers.
-Every patch (except "keep", which you do not need to emit at all) MUST include a "quote" field: a SINGLE verbatim excerpt copied character-for-character from either the chat exchange text or one of the attached documents (never paraphrased, never from the finding itself) that grounds the decision. If citing an attached document, also set source_document_id to that document's id. A patch without a real, exact quote will be discarded.
+Every patch (except "keep", which you do not need to emit at all) MUST include a "quote" field: a SINGLE verbatim excerpt copied character-for-character from either the chat exchange text or one of the attached documents (never paraphrased, never from the finding itself) that grounds the decision. If citing an attached document, also set source_document_id to that document's id. A patch without a real, exact quote will be discarded. If the "Nyrava Intelligence" turn in the chat exchange already contains an explicit "Quote:" line, that IS the evidentiary quote — copy it EXACTLY as written there (do not re-type it from memory, do not copy the "Correction:"/"Revised Finding:" text instead, do not shorten or "clean up" its punctuation). Never invent a finding-target from a number like "Finding #2" mentioned in conversation — that is display numbering, not an id; every entry in finding_ids MUST be one of the real ids listed in EXISTING FINDINGS below.
+GROUNDING DISCIPLINE FOR CORRECTIONS TO AN "ABSENCE" FINDING: when the finding being corrected states that something was NOT found/identified/argued in the corpus, the corrected claim may only assert what the quote ITSELF literally states happened in this case — never a stronger affirmative conclusion the quote merely makes possible in the abstract. A quote of the applicable legal rule or general doctrine (e.g. what a judge is empowered or permitted to do) does not, by itself, establish that anything was actually argued or done in this case; do not amend "no se identificó una argumentación expresa" into "se identificó una argumentación implícita" (or any similarly stronger claim) unless the quote is a case-specific fact that plainly says so. If the only available quote is rule/doctrine text with no case-specific fact, do not emit a patch for that finding at all.
 For "remove"/"amend"/"dispute_evidence" patches only, also classify WHY the original finding was wrong via "error_type": one of unsupported_claim, bad_evidence_link, wrong_evidence_interpretation, duplicate_finding, contradiction_misclassification, wrong_legal_authority, wrong_procedural_rule, wrong_severity, wrong_confidence, missing_finding, false_positive, false_negative, temporal_error, source_classification_error, report_rendering_error, other. Omit it if genuinely unclear — never guess.
 Whenever you cite an attached document (source_document_id is set), also classify its purpose in THIS exchange via "source_document_purpose": one of case_evidence (genuinely new case evidence, not a correction), correction_support (supports correcting an existing finding), finding_correction (specifically corrects one finding), report_correction (corrects report-level content), context_only (background, not evidentiary), user_instruction (the attorney's instruction, not a document to cite as evidence), counter_evidence (contradicts an existing finding), duplicate (already in the corpus), irrelevant. Output JSON only.`,
       userContent: `CHAT EXCHANGE:\nAttorney: ${exchange.question}\n\nNyrava Intelligence: ${exchange.answer}\n\n${docsBlock ? `ATTACHED DOCUMENTS:\n${docsBlock}\n\n` : ""}${memoryBlock ? `${memoryBlock}\n\n` : ""}EXISTING FINDINGS (id, title, description, category, severity, confidence):\n${JSON.stringify(findingsForPrompt).slice(0, 14_000)}\n\nReturn STRICT JSON: { "patches": [ { "action": "amend"|"remove"|"merge"|"create"|"dispute_evidence", "finding_ids": string[] (existing ids this targets — must be from the list above; empty only for "create"), "reason": string, "quote": string (verbatim from the chat exchange or an attached document), "source_document_id": string|null, "confidence": number (0-1), "new_title": string (amend/merge/create only), "new_description": string (amend/merge/create only), "new_category": string (amend/merge/create only), "new_severity": "critical"|"high"|"medium"|"low"|"info" (amend/merge/create only), "disputed_doc_id": string (dispute_evidence only — a doc_id this finding actually cites), "dispute_status": "disputed"|"superseded"|"withdrawn" (dispute_evidence only), "error_type": string|omitted (remove/amend/dispute_evidence only, one of the 16 values above), "source_document_purpose": string|omitted (only when source_document_id is set, one of the 9 values above) } ] }. Return an empty array if the exchange doesn't warrant any change.`,
@@ -486,6 +487,18 @@ Whenever you cite an attached document (source_document_id is set), also classif
   const patches: FindingPatch[] = [];
   let ungrounded = 0;
 
+  // Diagnostics (§ correction-mapping investigation): trace exactly why a
+  // patch the LLM proposed never became an applyable correction — never
+  // fabricate a match, never weaken the grounding gate, but make its
+  // decision legible. "Finding #2" in a chat answer is presentation
+  // numbering, not identity; this logs the RAW finding_ids the model
+  // actually returned in the SECOND (patch-generation) call, so a
+  // resolution failure (model referenced something that isn't a real
+  // case_findings.id from the list it was given) is distinguishable from a
+  // genuine quote-grounding failure. Truncated previews only — never logs
+  // full case/document text.
+  const discardLog: Array<Record<string, unknown>> = [];
+
   for (const p of raw) {
     if (!p || typeof p !== "object") continue;
     const action = p.action;
@@ -498,11 +511,34 @@ Whenever you cite an attached document (source_document_id is set), also classif
     )
       continue;
 
-    const findingIds = Array.isArray(p.finding_ids)
-      ? p.finding_ids.filter((id): id is string => typeof id === "string" && validIds.has(id))
-      : [];
+    const rawFindingIds = Array.isArray(p.finding_ids) ? p.finding_ids : [];
+    const findingIds = rawFindingIds.filter(
+      (id): id is string => typeof id === "string" && validIds.has(id),
+    );
+    if (action !== "create" && rawFindingIds.length > 0 && findingIds.length !== rawFindingIds.length) {
+      // The model referenced at least one id that isn't in the real active-
+      // findings list it was given — the exact "Finding #2 is not a stable
+      // identity" failure mode. Logged even when other valid ids still let
+      // the patch proceed, since a partial miss on a merge/dispute target
+      // is still a real resolution defect worth seeing.
+      discardLog.push({
+        stage: "finding_id_resolution",
+        action,
+        raw_finding_ids: rawFindingIds,
+        resolved_finding_ids: findingIds,
+        unresolved: rawFindingIds.filter((id) => !findingIds.includes(id as string)),
+      });
+    }
     if (action === "create" && findingIds.length !== 0) continue;
-    if (action !== "create" && findingIds.length === 0) continue;
+    if (action !== "create" && findingIds.length === 0) {
+      discardLog.push({
+        stage: "finding_id_resolution",
+        skip_reason: "no_finding_ids_resolved",
+        action,
+        raw_finding_ids: rawFindingIds,
+      });
+      continue;
+    }
     if (action !== "merge" && action !== "create" && findingIds.length !== 1) continue;
     if (action === "merge" && findingIds.length < 2) continue;
 
@@ -524,12 +560,30 @@ Whenever you cite an attached document (source_document_id is set), also classif
     const quote = typeof p.quote === "string" ? p.quote.trim() : "";
     const sourceDocId = typeof p.source_document_id === "string" ? p.source_document_id : null;
     const sourceDoc = sourceDocId ? docsById.get(sourceDocId) : undefined;
-    const groundedInExchange =
-      !!quote &&
-      (locateQuoteInText(quote, exchange.question) || locateQuoteInText(quote, exchange.answer));
+    const groundedInQuestion = !!quote && !!locateQuoteInText(quote, exchange.question);
+    const groundedInAnswer = !!quote && !!locateQuoteInText(quote, exchange.answer);
+    const groundedInExchange = groundedInQuestion || groundedInAnswer;
     const groundedInDoc =
-      !!quote && !!sourceDoc?.extracted_text && locateQuoteInText(quote, sourceDoc.extracted_text);
+      !!quote && !!sourceDoc?.extracted_text && !!locateQuoteInText(quote, sourceDoc.extracted_text);
     if (!quote || (!groundedInExchange && !groundedInDoc)) {
+      // The single most important trace point for "chat proposed a
+      // correction, but no report patch resulted": the model's OWN quote
+      // failed to re-locate, character-for-character (accent/typography-
+      // insensitive), in either half of the exchange or the cited
+      // document. Truncated preview only.
+      discardLog.push({
+        stage: "grounding",
+        action,
+        finding_ids: findingIds,
+        quote_preview: quote.slice(0, 160),
+        quote_length: quote.length,
+        source_document_id: sourceDocId,
+        source_document_attached: !!sourceDoc,
+        source_document_has_text: !!sourceDoc?.extracted_text,
+        grounded_in_question: groundedInQuestion,
+        grounded_in_answer: groundedInAnswer,
+        grounded_in_doc: groundedInDoc,
+      });
       ungrounded += 1;
       continue;
     }
@@ -543,7 +597,17 @@ Whenever you cite an attached document (source_document_id is set), also classif
     const needsNewContent = action === "amend" || action === "merge" || action === "create";
     const newTitle = typeof p.new_title === "string" ? p.new_title.trim() : "";
     const newDescription = typeof p.new_description === "string" ? p.new_description.trim() : "";
-    if (needsNewContent && (!newTitle || !newDescription)) continue;
+    if (needsNewContent && (!newTitle || !newDescription)) {
+      discardLog.push({
+        stage: "content_shape",
+        skip_reason: "missing_new_title_or_description",
+        action,
+        finding_ids: findingIds,
+        has_new_title: !!newTitle,
+        has_new_description: !!newDescription,
+      });
+      continue;
+    }
 
     const newSeverityRaw = typeof p.new_severity === "string" ? p.new_severity : null;
     const newSeverity: Severity | undefined = VALID_SEVERITIES.includes(newSeverityRaw as Severity)
@@ -591,6 +655,22 @@ Whenever you cite an attached document (source_document_id is set), also classif
         : {}),
     });
   }
+
+  // Always emitted (not just on failure) so the happy path is equally
+  // traceable — "how many patches did the model propose, how many actually
+  // survived, and exactly where did the rest fall out" for every Talk-to-
+  // Case correction review, not only ones a developer happens to reproduce
+  // live. Truncated/count-only — never logs full case or document text.
+  console.info(
+    JSON.stringify({
+      event: "chat_patch_review",
+      case_id: caseId,
+      raw_patches_proposed: raw.length,
+      patches_applied_grounded: patches.length,
+      ungrounded_count: ungrounded,
+      discarded: discardLog,
+    }),
+  );
 
   return { ran: true, patches, ungrounded, selfAuditNotices };
 }
