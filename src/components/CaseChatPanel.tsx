@@ -298,9 +298,25 @@ export function CaseChatPanel({
   const handleApplyCorrection = () => {
     if (!correctionReview) return;
     setApplying(true);
+    const messageId = correctionReview.messageId;
     regen
-      .apply(correctionReview.messageId, correctionReview.data.patches)
+      .apply(messageId, correctionReview.data.patches)
       .then(async (res) => {
+        if (!res.ok) {
+          // The finding(s) this proposal targeted were superseded by
+          // something else (e.g. an earlier correction on this case) since
+          // it was previewed — nothing was written. The server already
+          // regenerated a fresh proposal against the case's current
+          // findings; show that instead of leaving the attorney stuck with
+          // a dead modal and a bare error.
+          setCorrectionReview({ messageId, data: res.refreshedPreview });
+          toast(
+            res.refreshedPreview.patches.length > 0
+              ? "This proposal's target changed since you opened it (another correction was applied in the meantime) — showing an updated proposal against the current findings. Please review again."
+              : "This proposal's target changed since you opened it (another correction was applied in the meantime), and the exchange no longer warrants any change to the current findings.",
+          );
+          return;
+        }
         await qc.invalidateQueries({ queryKey: ["case", caseId] });
         setCorrectionReview(null);
         toast.success(

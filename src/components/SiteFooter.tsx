@@ -21,6 +21,7 @@ export function SiteFooter() {
             {t("footer.section.platform")}
           </h4>
           <ul className="mt-4 space-y-2 text-sm text-foreground/80">
+            <li><Link to="/about" className="hover:text-primary">{t("footer.link.about")}</Link></li>
             <li><Link to="/platform" className="hover:text-primary">{t("footer.link.platform")}</Link></li>
             <li><Link to="/modules" className="hover:text-primary">{t("footer.link.modules")}</Link></li>
             <li><Link to="/security" className="hover:text-primary">{t("footer.link.security")}</Link></li>

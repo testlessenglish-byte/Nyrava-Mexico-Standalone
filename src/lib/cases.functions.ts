@@ -4887,14 +4887,63 @@ export const pushCaseChatCorrectionsToReport = createServerFn({ method: "POST" }
       .eq("case_id", caseId)
       .is("superseded_at", null);
     const activeIds = new Set((activeFindingRows ?? []).map((r) => r.id));
+    const staleFindingIds = new Set<string>();
     for (const patch of data.patches) {
       for (const fid of patch.finding_ids) {
-        if (!activeIds.has(fid)) {
-          throw new Error(
-            `Correction targets finding ${fid}, which is not an active finding in this case — refusing to apply.`,
-          );
-        }
+        if (!activeIds.has(fid)) staleFindingIds.add(fid);
       }
+    }
+    if (staleFindingIds.size > 0) {
+      // A target finding was superseded by something else since this patch
+      // set was generated (an earlier merge/remove correction on the same
+      // case, a rerun — anything that can set superseded_at). Previously
+      // this threw a bare error and stranded the attorney with a dead modal
+      // and no next step. The correct recovery is exactly what clicking
+      // "Review correction" again would do: regenerate the proposal from
+      // the CURRENT findings and hand it back so the client can show what
+      // changed instead of failing closed with nothing to act on. This is
+      // still "never trust a round-tripped patch set as-is" — the stale
+      // one is discarded outright, never partially applied.
+      const exchange = await fetchChatExchangeForPatching(supabase, caseId, data.chatMessageId);
+      const { generateFindingPatchSet, computeCorrectionImpact } =
+        await import("@/lib/intelligence/chat-patch.server");
+      const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
+      const { keys: refreshKeys } = await resolveProviderKeys(supabase, userId, "groq");
+      const refreshApiKey = refreshKeys[0] ?? getApiKey();
+      const refreshedSet = await generateFindingPatchSet(
+        supabase,
+        caseId,
+        userId,
+        exchange,
+        refreshApiKey,
+      );
+      const refreshedImpact =
+        refreshedSet.patches.length > 0
+          ? await computeCorrectionImpact(supabase, caseId, refreshedSet.patches)
+          : null;
+      const refreshedTouchedIds = [
+        ...new Set(refreshedSet.patches.flatMap((p) => p.finding_ids)),
+      ];
+      const { data: refreshedCurrentRows } =
+        refreshedTouchedIds.length > 0
+          ? await supabase
+              .from("case_findings")
+              .select("id,title,category,severity")
+              .eq("case_id", caseId)
+              .in("id", refreshedTouchedIds)
+          : { data: [] };
+      return {
+        ok: false as const,
+        reason: "stale_target" as const,
+        staleFindingIds: [...staleFindingIds],
+        refreshedPreview: {
+          patches: refreshedSet.patches,
+          ungrounded: refreshedSet.ungrounded,
+          impact: refreshedImpact,
+          currentFindings: refreshedCurrentRows ?? [],
+          selfAuditNotices: refreshedSet.selfAuditNotices,
+        },
+      };
     }
 
     const { applyFindingPatchSet, computeCorrectionImpact } =

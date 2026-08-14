@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { NyravaLogo } from "./NyravaLogo";
 import { SiteFooter } from "./SiteFooter";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { useI18n } from "@/i18n";
 
 type Props = {
   eyebrow?: string;
@@ -16,6 +18,7 @@ type Props = {
  * Uses the same dark visual language as the landing page.
  */
 export function LegalPage({ eyebrow, title, updated, intro, children }: Props) {
+  const { t } = useI18n();
   return (
     <div className="min-h-screen text-foreground">
       <header className="border-b border-border/60">
@@ -24,11 +27,12 @@ export function LegalPage({ eyebrow, title, updated, intro, children }: Props) {
             <NyravaLogo size={36} withWordmark />
           </Link>
           <nav className="flex items-center gap-2">
+            <LanguageSwitcher />
             <Link
               to="/auth"
               className="rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground hover:bg-card"
             >
-              SIGN IN
+              {t("nav.signIn")}
             </Link>
           </nav>
         </div>
@@ -44,7 +48,7 @@ export function LegalPage({ eyebrow, title, updated, intro, children }: Props) {
           {title}
         </h1>
         {updated && (
-          <div className="mt-2 text-[12px] text-muted-foreground">Last updated: {updated}</div>
+          <div className="mt-2 text-[12px] text-muted-foreground">{t("legal.lastUpdated")} {updated}</div>
         )}
         {intro && (
           <div className="mt-6 text-[14px] leading-relaxed text-muted-foreground">{intro}</div>
