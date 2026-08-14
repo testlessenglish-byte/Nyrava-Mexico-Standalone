@@ -860,66 +860,6 @@ export type Database = {
           },
         ]
       }
-      case_classification_evidence: {
-        Row: {
-          case_id: string
-          confidence: number | null
-          conflicting_values: Json
-          detected_at: string
-          field: string
-          id: string
-          source_document_id: string | null
-          source_page: number | null
-          source_quote: string | null
-          status: string
-          user_id: string
-          value: string | null
-        }
-        Insert: {
-          case_id: string
-          confidence?: number | null
-          conflicting_values?: Json
-          detected_at?: string
-          field: string
-          id?: string
-          source_document_id?: string | null
-          source_page?: number | null
-          source_quote?: string | null
-          status: string
-          user_id: string
-          value?: string | null
-        }
-        Update: {
-          case_id?: string
-          confidence?: number | null
-          conflicting_values?: Json
-          detected_at?: string
-          field?: string
-          id?: string
-          source_document_id?: string | null
-          source_page?: number | null
-          source_quote?: string | null
-          status?: string
-          user_id?: string
-          value?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "case_classification_evidence_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_classification_evidence_source_document_id_fkey"
-            columns: ["source_document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       case_communications: {
         Row: {
           approved_at: string | null
@@ -966,50 +906,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "case_communications_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      case_decision_reconstructions: {
-        Row: {
-          case_id: string
-          court_status: string | null
-          created_at: string
-          disposition_remedy_status: string | null
-          id: string
-          matter_identity_status: string | null
-          raw_model_output: Json | null
-          reconstruction: Json
-          user_id: string
-        }
-        Insert: {
-          case_id: string
-          court_status?: string | null
-          created_at?: string
-          disposition_remedy_status?: string | null
-          id?: string
-          matter_identity_status?: string | null
-          raw_model_output?: Json | null
-          reconstruction: Json
-          user_id: string
-        }
-        Update: {
-          case_id?: string
-          court_status?: string | null
-          created_at?: string
-          disposition_remedy_status?: string | null
-          id?: string
-          matter_identity_status?: string | null
-          raw_model_output?: Json | null
-          reconstruction?: Json
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "case_decision_reconstructions_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
@@ -1178,6 +1074,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "case_finding_patches_chat_message_id_fkey"
+            columns: ["chat_message_id"]
+            isOneToOne: false
+            referencedRelation: "case_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "case_finding_patches_finding_id_fkey"
             columns: ["finding_id"]
             isOneToOne: false
@@ -1196,13 +1099,6 @@ export type Database = {
             columns: ["source_document_id"]
             isOneToOne: false
             referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_finding_patches_chat_message_id_fkey"
-            columns: ["chat_message_id"]
-            isOneToOne: false
-            referencedRelation: "case_chat_messages"
             referencedColumns: ["id"]
           },
         ]
@@ -1224,7 +1120,6 @@ export type Database = {
           derived_from_finding_ids: string[]
           description: string
           evidence_refs: Json | null
-          evidence_relationship: string | null
           evidence_strength: number | null
           evidence_type: string | null
           finding_status: string
@@ -1249,8 +1144,6 @@ export type Database = {
           source_quote: string | null
           speaker_role: string | null
           strategic_significance: string | null
-          superseded_at: string | null
-          superseded_reason: string | null
           supporting_engines: string[]
           tags: string[] | null
           title: string
@@ -1276,7 +1169,6 @@ export type Database = {
           derived_from_finding_ids?: string[]
           description: string
           evidence_refs?: Json | null
-          evidence_relationship?: string | null
           evidence_strength?: number | null
           evidence_type?: string | null
           finding_status?: string
@@ -1301,8 +1193,6 @@ export type Database = {
           source_quote?: string | null
           speaker_role?: string | null
           strategic_significance?: string | null
-          superseded_at?: string | null
-          superseded_reason?: string | null
           supporting_engines?: string[]
           tags?: string[] | null
           title: string
@@ -1328,7 +1218,6 @@ export type Database = {
           derived_from_finding_ids?: string[]
           description?: string
           evidence_refs?: Json | null
-          evidence_relationship?: string | null
           evidence_strength?: number | null
           evidence_type?: string | null
           finding_status?: string
@@ -1353,8 +1242,6 @@ export type Database = {
           source_quote?: string | null
           speaker_role?: string | null
           strategic_significance?: string | null
-          superseded_at?: string | null
-          superseded_reason?: string | null
           supporting_engines?: string[]
           tags?: string[] | null
           title?: string
@@ -1488,86 +1375,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "case_opportunities_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      case_outcome_assessments: {
-        Row: {
-          biggest_risk: string | null
-          both_sides: Json
-          case_analysis_mode: string
-          case_id: string
-          citation_reviews: Json
-          confidence: string
-          created_at: string
-          factors: Json
-          favorable_pct: number
-          finding_reviews: Json
-          id: string
-          most_important_missing_evidence: string | null
-          no_material_error_identified: boolean
-          outcome_status: string
-          overall_position: string
-          principal_strength: string | null
-          principal_weakness: string | null
-          raw_model_output: Json | null
-          unfavorable_pct: number
-          user_id: string
-          what_could_change: Json
-        }
-        Insert: {
-          biggest_risk?: string | null
-          both_sides?: Json
-          case_analysis_mode: string
-          case_id: string
-          citation_reviews?: Json
-          confidence: string
-          created_at?: string
-          factors?: Json
-          favorable_pct: number
-          finding_reviews?: Json
-          id?: string
-          most_important_missing_evidence?: string | null
-          no_material_error_identified?: boolean
-          outcome_status?: string
-          overall_position: string
-          principal_strength?: string | null
-          principal_weakness?: string | null
-          raw_model_output?: Json | null
-          unfavorable_pct: number
-          user_id: string
-          what_could_change?: Json
-        }
-        Update: {
-          biggest_risk?: string | null
-          both_sides?: Json
-          case_analysis_mode?: string
-          case_id?: string
-          citation_reviews?: Json
-          confidence?: string
-          created_at?: string
-          factors?: Json
-          favorable_pct?: number
-          finding_reviews?: Json
-          id?: string
-          most_important_missing_evidence?: string | null
-          no_material_error_identified?: boolean
-          outcome_status?: string
-          overall_position?: string
-          principal_strength?: string | null
-          principal_weakness?: string | null
-          raw_model_output?: Json | null
-          unfavorable_pct?: number
-          user_id?: string
-          what_could_change?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "case_outcome_assessments_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
@@ -2304,8 +2111,6 @@ export type Database = {
           case_analysis_mode: string
           case_language: string | null
           case_type: string | null
-          case_type_source: string | null
-          case_type_verification_status: string | null
           completed_at: string | null
           contradiction_at: string | null
           created_at: string
@@ -2364,8 +2169,6 @@ export type Database = {
           case_analysis_mode?: string
           case_language?: string | null
           case_type?: string | null
-          case_type_source?: string | null
-          case_type_verification_status?: string | null
           completed_at?: string | null
           contradiction_at?: string | null
           created_at?: string
@@ -2424,8 +2227,6 @@ export type Database = {
           case_analysis_mode?: string
           case_language?: string | null
           case_type?: string | null
-          case_type_source?: string | null
-          case_type_verification_status?: string | null
           completed_at?: string | null
           contradiction_at?: string | null
           created_at?: string
@@ -3309,7 +3110,9 @@ export type Database = {
           confidence: number | null
           corrected_claim: string | null
           created_at: string
-          error_type: Database["public"]["Enums"]["intelligence_error_type"] | null
+          error_type:
+            | Database["public"]["Enums"]["intelligence_error_type"]
+            | null
           evidence_refs: Json
           finding_id: string | null
           id: string
@@ -3333,7 +3136,9 @@ export type Database = {
           confidence?: number | null
           corrected_claim?: string | null
           created_at?: string
-          error_type?: Database["public"]["Enums"]["intelligence_error_type"] | null
+          error_type?:
+            | Database["public"]["Enums"]["intelligence_error_type"]
+            | null
           evidence_refs?: Json
           finding_id?: string | null
           id?: string
@@ -3357,7 +3162,9 @@ export type Database = {
           confidence?: number | null
           corrected_claim?: string | null
           created_at?: string
-          error_type?: Database["public"]["Enums"]["intelligence_error_type"] | null
+          error_type?:
+            | Database["public"]["Enums"]["intelligence_error_type"]
+            | null
           evidence_refs?: Json
           finding_id?: string | null
           id?: string
@@ -6862,12 +6669,64 @@ export const Constants = {
         "research",
         "work_product",
       ],
+      intelligence_error_type: [
+        "unsupported_claim",
+        "bad_evidence_link",
+        "wrong_evidence_interpretation",
+        "duplicate_finding",
+        "contradiction_misclassification",
+        "wrong_legal_authority",
+        "wrong_procedural_rule",
+        "wrong_severity",
+        "wrong_confidence",
+        "missing_finding",
+        "false_positive",
+        "false_negative",
+        "temporal_error",
+        "source_classification_error",
+        "report_rendering_error",
+        "other",
+      ],
+      intelligence_pattern_status: ["active", "monitoring", "retired"],
+      intelligence_pattern_tier: [
+        "insufficient_sample",
+        "emerging",
+        "candidate",
+        "strong",
+        "significant",
+      ],
+      intelligence_proposal_status: [
+        "proposed",
+        "testing",
+        "passed",
+        "failed",
+        "approved",
+        "deployed",
+        "rolled_back",
+      ],
+      intelligence_recommended_action: [
+        "require_additional_evidence",
+        "require_second_source",
+        "require_authority_verification",
+        "require_procedural_posture_verification",
+        "lower_confidence",
+        "send_to_critic",
+        "require_human_review",
+      ],
+      intelligence_version_deployment_status: ["deployed", "rolled_back"],
       legal_verification_status: [
         "verified",
         "pending",
         "deprecated",
         "superseded",
         "failed_verification",
+      ],
+      lesson_validation_status: [
+        "unverified",
+        "ai_supported",
+        "evidence_verified",
+        "multi_source_verified",
+        "human_confirmed",
       ],
       matter_priority: ["low", "normal", "high", "urgent"],
       matter_status: ["intake", "active", "on_hold", "closed", "archived"],
