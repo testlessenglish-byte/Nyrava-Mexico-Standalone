@@ -43,8 +43,59 @@
 // behaves identically for penal, civil, laboral, amparo, etc. — same
 // principle as finding-dedupe.ts, which this module reuses tokenization
 // from directly (one tokenizer, not two that could drift apart).
+//
+// EXTENDED (2026-08-14) after a second real-report audit (ADR-2239-2018-
+// 180906, a 1-document/minimal-corpus case) found the SAME failure class
+// the module header above already names as a known limitation: a claim and
+// its cited quote can share enough generic legal-boilerplate vocabulary —
+// "autoridad", "resolución", "artículo", "garantía", "procesal" — to clear
+// the plain Jaccard threshold while NOT actually sharing the specific legal
+// concept the claim asserts (an "incompetencia de la autoridad" finding
+// grounded in a quote about appeal-filing requirements; a "garantía de
+// audiencia" finding grounded in a quote about the separate right to
+// appeal). Note: the exact source text from that audit wasn't available to
+// re-run the calibration this file's original threshold was tuned against
+// (see CLAIM_EVIDENCE_RELEVANCE_THRESHOLD below, which is therefore left
+// untouched rather than blindly raised) — this fix is a distinct,
+// independently-reasoned safety net: it requires that whatever tokens the
+// claim and quote share include at least one that ISN'T one of these
+// generic legal terms. Two passages sharing ONLY generic legal vocabulary
+// no longer counts as relevant, regardless of the raw Jaccard score.
 
 import { normalizeText, tokens, jaccard } from "./finding-dedupe";
+
+/** Legal-domain terms common enough to appear in almost any quote from a
+ *  legal document, independent of subject matter — a match on ONLY these
+ *  terms is not genuine topical relevance. Stemmed to the same 6-character
+ *  truncation tokens() itself applies, so these compare directly against
+ *  claimTokens/quoteTokens without re-tokenizing. Deliberately NOT added to
+ *  finding-dedupe.ts's own STOPWORDS: that set drives duplicate-finding
+ *  clustering, a different calibration this module must not disturb — see
+ *  this file's tokenizer-reuse comment above.
+ */
+const GENERIC_LEGAL_TERMS = new Set([
+  "garant", // garantía(s), garante, garantizar
+  "proces", // procesal, proceso
+  "articu", // artículo(s)
+  "derech", // derecho(s)
+  "autori", // autoridad(es)
+  "resolu", // resolución, resolutivo
+  "decisi", // decisión
+  "recurs", // recurso(s)
+  "instan", // instancia
+  "materi", // materia
+  "tribun", // tribunal
+  "juzgad", // juzgado
+  "codigo", // código
+  "norma", // norma(s)
+  "dispos", // disposición
+  "impugn", // impugnar, impugnación
+  "resolv", // resolver, resuelve
+  "expedi", // expediente
+  "consti", // constitución, constitucional
+  "legal", // legal(es)
+  "juridi", // jurídico
+]);
 
 /** Below the lowest real GOOD score observed in calibration (0.04) — see
  *  module header. Deliberately conservative: false negatives (a genuinely
@@ -62,18 +113,26 @@ const MIN_SUBSTANTIVE_QUOTE_TOKENS = 3;
 export type ClaimEvidenceRelevance = {
   relevant: boolean;
   score: number;
-  reason: "ok" | "no_shared_vocabulary" | "quote_too_vacuous" | "no_quote";
+  reason:
+    | "ok"
+    | "no_shared_vocabulary"
+    | "only_generic_legal_overlap"
+    | "quote_too_vacuous"
+    | "no_quote";
 };
 
 /**
  * Checks whether a finding's claim (its title + description — what it
  * asserts) shares any real topical vocabulary with the quote cited to
- * support it. Returns `relevant: false` when the quote is either
- * off-topic (zero meaningful token overlap) or too vacuous to substantively
- * support any claim (too few non-stopword tokens of its own) — the two real
- * failure modes found in production. Never asserts relevance for an empty
- * quote — that's the citation floor's job (findings.server.ts), not this
- * gate's.
+ * support it. Returns `relevant: false` when the quote is off-topic (zero
+ * meaningful token overlap), too vacuous to substantively support any claim
+ * (too few non-stopword tokens of its own), or shares vocabulary with the
+ * claim that consists ENTIRELY of generic legal boilerplate (see
+ * GENERIC_LEGAL_TERMS above — the 2026-08-14 audit's failure mode: a real
+ * proposition mismatch hiding behind shared words like "autoridad"/
+ * "artículo"/"garantía" that say nothing about the SPECIFIC legal concept
+ * asserted). Never asserts relevance for an empty quote — that's the
+ * citation floor's job (findings.server.ts), not this gate's.
  */
 export function checkClaimEvidenceRelevance(
   claimText: string,
@@ -92,6 +151,13 @@ export function checkClaimEvidenceRelevance(
   if (score < CLAIM_EVIDENCE_RELEVANCE_THRESHOLD) {
     return { relevant: false, score, reason: "no_shared_vocabulary" };
   }
+
+  const sharedTokens = [...claimTokens].filter((t) => quoteTokens.has(t));
+  const hasDistinctiveOverlap = sharedTokens.some((t) => !GENERIC_LEGAL_TERMS.has(t));
+  if (!hasDistinctiveOverlap) {
+    return { relevant: false, score, reason: "only_generic_legal_overlap" };
+  }
+
   return { relevant: true, score, reason: "ok" };
 }
 

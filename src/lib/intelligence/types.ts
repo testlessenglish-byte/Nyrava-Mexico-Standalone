@@ -94,6 +94,20 @@ export type FindingRationale = {
  * had these fields, keeps working unchanged). */
 export type EvidenceRefStatus = "active" | "disputed" | "superseded" | "withdrawn";
 
+/** See evidence-gate.server.ts's classifyEvidenceRelationship (Rule 6,
+ *  report-quality audit, 2026-08-14) — what KIND of relationship a finding
+ *  has to its evidence, distinct from finding_type's evidentiary-strength
+ *  axis. Only SOURCE_HOLDING/SOURCE_FACT are ever eligible to back a
+ *  DIRECT_EVIDENCE finding_type. Null for findings generated before this
+ *  taxonomy existed. */
+export type EvidenceRelationship =
+  | "SOURCE_HOLDING"
+  | "SOURCE_FACT"
+  | "SOURCE_ARGUMENT"
+  | "DERIVED_INFERENCE"
+  | "UNPROVEN_ABSENCE"
+  | "MISSING_EVIDENCE";
+
 export type EvidenceRef = {
   label?: string;
   quote?: string;
@@ -131,6 +145,7 @@ export type Finding = {
   proposition_type?: PropositionType | null;
   adoption_status?: AdoptionStatus | null;
   audit_classification?: AuditClassification | null;
+  evidence_relationship?: EvidenceRelationship | null;
   /** Set when a verified case-state update (currently: a Talk-to-Case
    *  clarification) established this finding no longer reflects the case
    *  record. NULL = still active. See case-state-reconciliation.server.ts. */
