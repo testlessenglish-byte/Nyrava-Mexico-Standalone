@@ -49,6 +49,7 @@ function queryBuilder(rows: Array<Record<string, unknown>>) {
       predicate = (r) => prev(r) && r[col] !== val;
       return self;
     },
+    maybeSingle: () => Promise.resolve({ data: rows.filter(predicate)[0] ?? null, error: null }),
     then: (resolve: (v: unknown) => void) => resolve({ data: rows.filter(predicate), error: null }),
   };
   return self;
@@ -58,14 +59,20 @@ function makeFakeDb(opts: {
   lessons?: Array<Record<string, unknown>>;
   findings?: Array<Record<string, unknown>>;
   patterns?: Array<Record<string, unknown>>;
+  rules?: Array<Record<string, unknown>>;
 }) {
   const lessonRows = opts.lessons ?? [];
   const findingRows = opts.findings ?? [];
   const patternRows = opts.patterns ?? [];
+  // Defaults to no rows — every existing Phase B test exercises today's
+  // hardcoded default escalation with zero deployed rules, so this table
+  // starting empty must leave their behavior byte-for-byte unchanged.
+  const ruleRows = opts.rules ?? [];
   const db = {
     from(table: string) {
       if (table === "intelligence_lessons") return { select: () => queryBuilder(lessonRows) };
       if (table === "case_findings") return { select: () => queryBuilder(findingRows) };
+      if (table === "intelligence_validation_rules") return { select: () => queryBuilder(ruleRows) };
       if (table === "intelligence_patterns") {
         return {
           select: () => queryBuilder(patternRows),
@@ -81,7 +88,7 @@ function makeFakeDb(opts: {
       throw new Error(`unexpected table in patterns fake db: ${table}`);
     },
   };
-  return { db, lessonRows, findingRows, patternRows };
+  return { db, lessonRows, findingRows, patternRows, ruleRows };
 }
 
 function lesson(overrides: Partial<Record<string, unknown>> = {}) {
@@ -346,5 +353,80 @@ describe("auditFindingAgainstPatterns", () => {
       findingCategory: "standing",
     });
     expect(notice).toBeNull();
+  });
+
+  // Phase C: a deployed intelligence_validation_rules row can override the
+  // hardcoded default for one specific bucket. These prove the override
+  // actually takes effect, and that it stays inert everywhere it shouldn't.
+  function rule(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      id: "rule-1",
+      user_id: "user-1",
+      matter_type: "amparo_directo",
+      jurisdiction_country: "MX",
+      error_type: "false_positive",
+      escalate_at_tier: "strong",
+      recommended_action: "require_human_review",
+      is_active: true,
+      ...overrides,
+    };
+  }
+
+  it("uses a deployed rule's action instead of the default once the pattern reaches the rule's escalate_at_tier", async () => {
+    const { db } = makeFakeDb({
+      patterns: [pattern({ tier: "strong" })],
+      rules: [rule()],
+    });
+    const notice = await auditFindingAgainstPatterns(db as never, {
+      userId: "user-1",
+      matterType: "amparo_directo",
+      jurisdictionCountry: "MX",
+      findingCategory: "standing",
+    });
+    // Default for 'strong' is require_second_source — the rule overrides it.
+    expect(notice?.recommendedAction).toBe("require_human_review");
+  });
+
+  it("does not apply a rule whose escalate_at_tier the pattern hasn't reached yet", async () => {
+    const { db } = makeFakeDb({
+      patterns: [pattern({ tier: "candidate" })],
+      rules: [rule({ escalate_at_tier: "strong" })],
+    });
+    const notice = await auditFindingAgainstPatterns(db as never, {
+      userId: "user-1",
+      matterType: "amparo_directo",
+      jurisdictionCountry: "MX",
+      findingCategory: "standing",
+    });
+    // Falls back to the unmodified default for 'candidate'.
+    expect(notice?.recommendedAction).toBe("require_additional_evidence");
+  });
+
+  it("ignores an inactive (superseded) rule and falls back to the default", async () => {
+    const { db } = makeFakeDb({
+      patterns: [pattern({ tier: "strong" })],
+      rules: [rule({ is_active: false })],
+    });
+    const notice = await auditFindingAgainstPatterns(db as never, {
+      userId: "user-1",
+      matterType: "amparo_directo",
+      jurisdictionCountry: "MX",
+      findingCategory: "standing",
+    });
+    expect(notice?.recommendedAction).toBe("require_second_source");
+  });
+
+  it("never applies a rule from a different bucket (matter_type)", async () => {
+    const { db } = makeFakeDb({
+      patterns: [pattern({ tier: "strong" })],
+      rules: [rule({ matter_type: "civil_mercantil" })],
+    });
+    const notice = await auditFindingAgainstPatterns(db as never, {
+      userId: "user-1",
+      matterType: "amparo_directo",
+      jurisdictionCountry: "MX",
+      findingCategory: "standing",
+    });
+    expect(notice?.recommendedAction).toBe("require_second_source");
   });
 });
