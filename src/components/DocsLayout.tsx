@@ -5,6 +5,7 @@ import { ChevronRight, ArrowRight, ArrowUp, Info, ShieldCheck, AlertTriangle, Li
 import { NyravaLogo } from "./NyravaLogo";
 import { SiteFooter } from "./SiteFooter";
 import { DocsSidebar } from "./docs/DocsSidebar";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 export type Crumb = { label: string; to?: string };
 export type TocItem = { id: string; label: string };
@@ -89,6 +90,7 @@ export function DocsLayout({
           <nav className="flex items-center gap-2">
             <Link to="/trust" className="hidden text-[12px] font-medium text-muted-foreground hover:text-foreground md:inline">Trust Center</Link>
             <Link to="/help" className="hidden text-[12px] font-medium text-muted-foreground hover:text-foreground md:inline">Help</Link>
+            <LanguageSwitcher variant="header" />
             <Link
               to="/auth"
               className="rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground hover:bg-card"
