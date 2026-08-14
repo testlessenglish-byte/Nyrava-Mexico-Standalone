@@ -51,11 +51,33 @@ export type CorrectionImpact = {
   affectedCitationCount: number;
 };
 
+/** Self-audit (Phase B, §7): NYRAVA recognizing a finding resembles a
+ *  category it has a verified recurring weakness in. Informational only —
+ *  covers EXISTING active findings, not just ones this exchange proposes
+ *  correcting, and never implies the finding is wrong. */
+export type SelfAuditNotice = {
+  findingId: string;
+  findingTitle: string;
+  patternId: string;
+  errorType: string;
+  tier: "candidate" | "strong" | "significant";
+  recommendedAction:
+    | "require_additional_evidence"
+    | "require_second_source"
+    | "require_authority_verification"
+    | "require_procedural_posture_verification"
+    | "lower_confidence"
+    | "send_to_critic"
+    | "require_human_review";
+  reason: string;
+};
+
 export type CorrectionPreview = {
   patches: CorrectionPatch[];
   ungrounded: number;
   impact: CorrectionImpact | null;
   currentFindings: Array<{ id: string; title: string; category: string; severity: string }>;
+  selfAuditNotices: SelfAuditNotice[];
 };
 
 export type ApplyResult = {
@@ -92,6 +114,7 @@ export function usePushChatCorrectionsToReport(caseId: string) {
           ungrounded: res.ungrounded,
           impact: res.impact,
           currentFindings: res.currentFindings,
+          selfAuditNotices: res.selfAuditNotices as SelfAuditNotice[],
         };
       } finally {
         runningRef.current = false;

@@ -36,6 +36,7 @@ import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "@/lib/groq.server"
 import { locateQuoteInText } from "./evidence-provenance.server";
 import { listFindings, addFindings } from "./findings.server";
 import type { EvidenceRef, EvidenceRefStatus, NewFinding, Severity } from "./types";
+import type { SelfAuditNotice } from "./patterns.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -263,6 +264,12 @@ export type FindingPatchSetResult = {
   ran: boolean;
   patches: FindingPatch[];
   ungrounded: number;
+  /** Self-audit (Phase B, §7): findings NOT touched by this patch set that
+   *  historically resemble a category NYRAVA has demonstrated a verified
+   *  recurring weakness in. Informational only — never applied, never
+   *  blocks anything; the attorney sees it in the correction preview and
+   *  decides whether to look closer. */
+  selfAuditNotices: Array<{ findingId: string; findingTitle: string } & SelfAuditNotice>;
 };
 
 type ChatExchange = {
@@ -376,6 +383,50 @@ export async function generateFindingPatchSet(
     findingsForPrompt.map((f) => [f.id, new Set(f.evidence_doc_ids)]),
   );
 
+  // Self-audit (Phase B, §7) — informational only, computed independently
+  // of whatever the LLM proposes below. Never blocks/modifies anything;
+  // just tells the attorney which of the EXISTING findings resemble a
+  // category NYRAVA has a verified recurring weakness in, so the preview
+  // can flag it for extra scrutiny.
+  const selfAuditNotices: FindingPatchSetResult["selfAuditNotices"] = [];
+  if (activeFindings.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: caseRow } = await (db as any)
+      .from("cases")
+      .select("case_type,jurisdiction")
+      .eq("id", caseId)
+      .maybeSingle();
+    const matterType = (caseRow as { case_type?: string | null } | null)?.case_type ?? null;
+    const { auditFindingAgainstPatterns } = await import("./patterns.server");
+    const seenCategories = new Map<string, ActiveFindingForPrompt>();
+    for (const f of findingsForPrompt) {
+      if (!seenCategories.has(f.category)) seenCategories.set(f.category, f);
+    }
+    // One audit query per DISTINCT category among the active findings, not
+    // per finding — a case with 40 findings across 6 categories issues 6
+    // queries, not 40, while still covering every finding via the map
+    // below.
+    const noticeByCategory = new Map<
+      string,
+      Awaited<ReturnType<typeof auditFindingAgainstPatterns>>
+    >();
+    for (const category of seenCategories.keys()) {
+      noticeByCategory.set(
+        category,
+        await auditFindingAgainstPatterns(db, {
+          userId,
+          matterType,
+          jurisdictionCountry: "MX",
+          findingCategory: category,
+        }),
+      );
+    }
+    for (const f of findingsForPrompt) {
+      const notice = noticeByCategory.get(f.category);
+      if (notice) selfAuditNotices.push({ findingId: f.id, findingTitle: f.title, ...notice });
+    }
+  }
+
   const locale = await getReportLocale(db, caseId);
   const { resolveProviderKeys } = await import("@/lib/ai-key-router.server");
   const { keys } = await resolveProviderKeys(db, userId, "groq");
@@ -424,7 +475,7 @@ Whenever you cite an attached document (source_document_id is set), also classif
     });
   } catch (e) {
     console.error("[chat-patch] LLM call failed", e);
-    return { ran: true, patches: [], ungrounded: 0 };
+    return { ran: true, patches: [], ungrounded: 0, selfAuditNotices };
   }
 
   const parsed = parseJsonLoose<{ patches?: RawPatch[] }>(r.text);
@@ -541,7 +592,7 @@ Whenever you cite an attached document (source_document_id is set), also classif
     });
   }
 
-  return { ran: true, patches, ungrounded };
+  return { ran: true, patches, ungrounded, selfAuditNotices };
 }
 
 export type CorrectionImpact = {
@@ -1088,5 +1139,22 @@ export async function recordLesson(
   } as any);
   if (error) {
     console.error("[chat-patch] failed to record lesson", patch.action, error);
+    return;
+  }
+
+  // Phase B — refresh this lesson's pattern bucket now that it has a new
+  // member. Only buckets with a real error_type exist (patterns are keyed
+  // on it, NOT NULL) — a "create"/"merge" lesson with no error_type
+  // contributes to intelligence_lessons but not to cross-case pattern
+  // aggregation, which is correct: those actions don't correct a prior
+  // error, so there is no error category to aggregate into.
+  if (patch.error_type) {
+    const { upsertIntelligencePattern } = await import("./patterns.server");
+    await upsertIntelligencePattern(db, userId, {
+      matterType,
+      jurisdictionCountry,
+      jurisdictionState: null,
+      errorType: patch.error_type,
+    });
   }
 }
