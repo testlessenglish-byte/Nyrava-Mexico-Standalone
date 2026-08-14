@@ -2176,13 +2176,20 @@ async function _runAnalyzersInner(args: {
   const analyzerDomains = await getActiveDomains(db, caseId);
   const analyzerAreaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(analyzerArea)];
   const analyzerLocaleForPreamble = await getReportLocale(db, caseId);
-  const { getCaseAnalysisMode, getCaseAnalysisObjective, getProceduralTypeLock } =
+  const { getCaseAnalysisMode, getCaseAnalysisObjective, getAuditClassificationInstructions, getProceduralTypeLock } =
     await import("./intelligence/case-analysis-mode");
   const analyzerCaseAnalysisMode = await getCaseAnalysisMode(db, caseId);
   const analyzerCaseAnalysisObjective = getCaseAnalysisObjective(
     analyzerCaseAnalysisMode,
     analyzerLocaleForPreamble,
   );
+  // §3 (report-quality audit): the six-state audit_classification taxonomy
+  // is already in every agent's schema unconditionally — getCaseAnalysisObjective
+  // already carries these instructions for completed-case modes, so this is
+  // only needed standalone when it returned null (ongoing mode).
+  const analyzerAuditClassificationInstructions = analyzerCaseAnalysisObjective
+    ? null
+    : getAuditClassificationInstructions(analyzerLocaleForPreamble);
   const { resolveVerifiedProceedingType: resolveVerifiedProceedingTypeForAnalyzer } =
     await import("./intelligence/case-classification.server");
   const analyzerVerifiedProceedingType = await resolveVerifiedProceedingTypeForAnalyzer(db, caseId);
@@ -2209,6 +2216,7 @@ async function _runAnalyzersInner(args: {
     (analyzerProceduralTypeLock ? `${analyzerProceduralTypeLock}\n` : "") +
     (analyzerCaseStateUpdateNotice ? `${analyzerCaseStateUpdateNotice}\n` : "") +
     (analyzerCaseAnalysisObjective ? `${analyzerCaseAnalysisObjective}\n` : "") +
+    (analyzerAuditClassificationInstructions ? `${analyzerAuditClassificationInstructions}\n` : "") +
     `CASE TYPE: ${analyzerAreaLabel} (${analyzerArea}). ` +
     `Only surface findings whose legal theory applies to a ${analyzerAreaLabel} matter. ` +
     `Do NOT generate findings framed around sistema penal acusatorio concepts (vinculación a proceso, ` +
@@ -3883,12 +3891,18 @@ export async function runAgents(args: {
     const areaPreambleLocale = await getReportLocale(db, caseId);
     // Reuse caseAnalysisMode fetched above for the AUDIT_ONLY_AGENT_TYPES
     // gate — same case, no need to refetch.
-    const { getCaseAnalysisObjective, getProceduralTypeLock } =
+    const { getCaseAnalysisObjective, getAuditClassificationInstructions, getProceduralTypeLock } =
       await import("./intelligence/case-analysis-mode");
     const areaCaseAnalysisObjective = getCaseAnalysisObjective(
       caseAnalysisMode,
       areaPreambleLocale,
     );
+    // §3: same standalone injection as the analyzers stage above — only
+    // needed when getCaseAnalysisObjective returned null (ongoing mode),
+    // since completed-case modes already carry these instructions inline.
+    const areaAuditClassificationInstructions = areaCaseAnalysisObjective
+      ? null
+      : getAuditClassificationInstructions(areaPreambleLocale);
     // Procedural type lock (source-confirmed proceeding caption, e.g. "AMPARO
     // DIRECTO EN REVISIÓN") — a hard constraint on remedies/deadlines/
     // suspension analysis/document requests, narrower than materia alone.
@@ -3921,6 +3935,7 @@ export async function runAgents(args: {
       (proceduralTypeLock ? `${proceduralTypeLock}\n` : "") +
       (areaCaseStateUpdateNotice ? `${areaCaseStateUpdateNotice}\n` : "") +
       (areaCaseAnalysisObjective ? `${areaCaseAnalysisObjective}\n` : "") +
+      (areaAuditClassificationInstructions ? `${areaAuditClassificationInstructions}\n` : "") +
       `CASE TYPE: ${areaLabel} (${area}). ` +
       `Only surface findings whose legal theory is applicable to a ${areaLabel} matter. ` +
       `Do NOT manufacture findings from other practice areas. ` +
