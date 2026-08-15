@@ -90,6 +90,50 @@ export const CASE_RESET_FIELDS = {
   cancel_requested: false,
 } as const;
 
+/** Narrower reset for an automatic materia CORRECTION (see
+ *  case-classification.server.ts's stale-artifact invalidation) — every
+ *  legal-reasoning-derived stage timestamp/cached artifact goes back to
+ *  "never ran," but extraction is deliberately preserved: OCR/text
+ *  extraction has no dependency on the case's materia, so invalidating it
+ *  serves no purpose. CONFIRMED LIVE (ADR-4640-2017-180212): reusing the
+ *  full CASE_RESET_FIELDS (which includes extracted_at/extraction_report)
+ *  here made a correction that fires whenever the deterministic classifier
+ *  disagrees with an unlocked declared value bounce the whole case back to
+ *  the "extraction" stage — for a materia-ambiguous document this can fire
+ *  on every run, which looks to the attorney like a case that "keeps
+ *  getting stuck then going back to extraction and never completes." */
+export const CASE_TYPE_CORRECTION_RESET_FIELDS = {
+  analysis_at: null,
+  agents_at: null,
+  scored_at: null,
+  report_at: null,
+  theories_at: null,
+  opportunities_at: null,
+  trial_prep_at: null,
+  witnesses_at: null,
+  perspectives_at: null,
+  evidence_intel_at: null,
+  strategy_at: null,
+  strategy_center_at: null,
+  contradiction_at: null,
+  discovery_at: null,
+  hallucination_at: null,
+  work_product_at: null,
+  completed_at: null,
+  shared_brief: null,
+  shared_brief_at: null,
+  hallucination_report: null,
+  legal_qa_report: null,
+  procedural_compliance: null,
+  attack_surface: {},
+  error: null,
+  stall_reason: null,
+  status_message: null,
+  progress: 0,
+  report_checkpoint_count: 0,
+  cancel_requested: false,
+} as const;
+
 /** Deletes every derived row produced by previous runs of this case. */
 export async function clearCaseDerivedData(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

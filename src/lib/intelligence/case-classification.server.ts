@@ -593,16 +593,26 @@ export async function runCaseClassification(
   // artifact (findings, agent output, procedural-compliance checklist,
   // recommendations) generated under a wrong/stale materia stayed in place
   // and resume/rerun treated it as "already done." Reuses
-  // clearCaseDerivedData/CASE_RESET_FIELDS — the exact same reset list — so
-  // this can never drift from the manual-edit path's invalidation surface.
+  // clearCaseDerivedData — the exact same table-deletion list as the
+  // manual-edit path — so this can never drift from it for DERIVED rows.
+  //
+  // DELIBERATELY NARROWER than the manual-edit path for cases.* column
+  // resets: uses CASE_TYPE_CORRECTION_RESET_FIELDS, not CASE_RESET_FIELDS —
+  // extraction is materia-independent, so this must never invalidate
+  // extracted_at/extraction_report. CONFIRMED LIVE (ADR-4640-2017-180212):
+  // reusing the full CASE_RESET_FIELDS here sent a case back to the
+  // "extraction" stage on every automatic reclassification that disagreed
+  // with an unlocked declared value — for a materia-ambiguous document that
+  // can fire on every run, producing exactly the "keeps getting stuck then
+  // going back to extraction and never completes" symptom.
   if (caseTypeActuallyChanged) {
     try {
-      const { clearCaseDerivedData, CASE_RESET_FIELDS } = await import("../pipeline-reset");
+      const { clearCaseDerivedData, CASE_TYPE_CORRECTION_RESET_FIELDS } = await import("../pipeline-reset");
       await clearCaseDerivedData(db, caseId);
       await db
         .from("cases")
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update(CASE_RESET_FIELDS as any)
+        .update(CASE_TYPE_CORRECTION_RESET_FIELDS as any)
         .eq("id", caseId);
     } catch (e) {
       console.error("[case-classification] stale-artifact invalidation failed", { caseId, error: e });
