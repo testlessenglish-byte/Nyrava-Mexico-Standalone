@@ -2185,7 +2185,24 @@ async function _runAnalyzersInner(args: {
   const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
   const analyzerIdentity = await resolveCaseIdentity(db, caseId);
   const analyzerIdentityVerified = isUsableForLegalReasoning(analyzerIdentity);
-  const analyzerArea = String(analyzerIdentity.caseType ?? "general_civil");
+  // "civil" is a real, valid Mexican materia — used only as the last-resort
+  // schema fallback so the analyzer's JSON schema (party-role enum,
+  // practice-area label below) can still be built when identity resolution
+  // found nothing at all. The prior fallback here, "general_civil", is a
+  // scoring-dimension dictionary key from a different module, never a
+  // recognized materia — normalizePracticeArea/mxPartyRoleEnum throw for
+  // any unrecognized value, which crashed this stage outright for every
+  // case with no declared/confirmed/locked materia yet (confirmed live on
+  // ADR-4640-2017-180212: "Materia desconocida en normalizePracticeArea:
+  // 'general_civil'"). unverified_classification below still honestly
+  // flags every run that took this fallback.
+  const analyzerArea = String(analyzerIdentity.caseType ?? "civil");
+  // Kept separate from analyzerArea: the practice-area POLICY filter further
+  // below (isFindingAllowed) must never treat this schema-generation
+  // fallback as if it were a real classification — an unverified/unknown
+  // identity must keep degrading to universal-only findings here, exactly
+  // like every other Tier 1 policy consumer (see findings.server.ts).
+  const analyzerPolicyArea = analyzerIdentity.caseType ?? null;
   const analyzerDomains = await getActiveDomains(db, caseId);
   const analyzerAreaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(analyzerArea)];
   const analyzerLocaleForPreamble = await getReportLocale(db, caseId);
@@ -2836,7 +2853,7 @@ ${digestText}`;
   // case). source_module wrappers like "analyzer:*" carry no domain, so we
   // re-key the gate on the category token.
   const analyzerRows = analyzerRowsRaw.filter((row) =>
-    isFindingAllowed(analyzerArea, `analyzer:${String(row.category ?? "")}`, analyzerDomains),
+    isFindingAllowed(analyzerPolicyArea, `analyzer:${String(row.category ?? "")}`, analyzerDomains),
   );
   // FIX (2026-07-29): missing_evidence findings are absence-of-evidence
   // claims by nature ("this document should exist in the corpus but
@@ -5185,7 +5202,14 @@ async function ensureRequiredEngines(args: {
 
   // Emit the Case-Type Manifest — what the engine INTENDS to run, before any
   // engine actually executes. Persisted to pipeline_events for the audit trail.
-  const manifest = buildCaseTypeManifest(area, activeDomains);
+  // buildCaseTypeManifest calls the STRICT normalizePracticeArea internally
+  // (it throws for any unrecognized materia, including the fail-closed
+  // "unverified" sentinel `area` deliberately carries above) — feed it a
+  // real materia ("civil") purely so the manifest label can render; the
+  // actual engine-gating decisions below keep using `area` unchanged, so an
+  // unknown/unverified identity still fails closed via isAnalyzerAllowed's
+  // tolerant resolution, exactly as designed.
+  const manifest = buildCaseTypeManifest(ensureIdentity.caseType ?? "civil", activeDomains);
   await emitEvent(db, caseId, "manifest", `Case-Type Manifest: ${manifest.case_type_label}`, {
     meta: {
       ...manifest,
