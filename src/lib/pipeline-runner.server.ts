@@ -1057,6 +1057,15 @@ async function _runPipelineForCase(
   }
   const alreadyDone = (k: PipelineStageKey) =>
     DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
+  // For resume clamping only: a stage that already ran and FAILED has been
+  // attempted in this execution. Treating it as "incomplete" made the clamp
+  // rewind the pipeline to that stage on every tick, so the run replayed the
+  // same failure forever and never reached scoring/report. Clamping exists to
+  // fill in stages that never ran at all, not to retry failures in a loop.
+  const TERMINAL_STATUSES = new Set([...DONE_STATUSES, "failed", "error"]);
+  const alreadyAttempted = (k: PipelineStageKey) =>
+    TERMINAL_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
+
 
   // Resume point. `startFrom` names the stage that checkpointed, but stages do
   // NOT always execute in index order: a parallel batch is driven by its
@@ -1071,7 +1080,7 @@ async function _runPipelineForCase(
   if (startFrom) {
     const idx = stages.findIndex((s) => s.key === startFrom);
     if (idx > 0) {
-      const firstIncomplete = stages.findIndex((s) => !alreadyDone(s.key as PipelineStageKey));
+      const firstIncomplete = stages.findIndex((s) => !alreadyAttempted(s.key as PipelineStageKey));
       const sliceIdx = firstIncomplete >= 0 ? Math.min(idx, firstIncomplete) : idx;
       if (sliceIdx !== idx) {
         trace("pipeline.resume_clamped", {
@@ -1079,8 +1088,9 @@ async function _runPipelineForCase(
           clamped_to: stages[sliceIdx].key,
           skipped_incomplete: stages
             .slice(sliceIdx, idx)
-            .filter((s) => !alreadyDone(s.key as PipelineStageKey))
+            .filter((s) => !alreadyAttempted(s.key as PipelineStageKey))
             .map((s) => s.key),
+
         });
       }
       effectiveStartFrom = stages[sliceIdx].key;
