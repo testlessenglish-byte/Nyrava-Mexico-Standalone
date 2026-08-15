@@ -81,6 +81,13 @@ export const CASE_RESET_FIELDS = {
   legal_qa_report: null,
   procedural_compliance: null,
   extraction_report: null,
+  // CONFIRMED LIVE (ADR-4640-2017-180212): jurisdiction_profile is written
+  // unconditionally by jurisdiction-intel.server.ts whenever that stage
+  // runs, but was never part of ANY reset — a profile computed once under a
+  // bad/unresolved materia (e.g. this session's "civil" schema fallback)
+  // could survive every subsequent rerun forever, since nothing ever forced
+  // the stage to recompute it against corrected data.
+  jurisdiction_profile: null,
   attack_surface: {},
   error: null,
   stall_reason: null,
@@ -125,6 +132,11 @@ export const CASE_TYPE_CORRECTION_RESET_FIELDS = {
   hallucination_report: null,
   legal_qa_report: null,
   procedural_compliance: null,
+  // Same rationale as CASE_RESET_FIELDS above: a jurisdiction_profile
+  // computed under the OLD/wrong materia must not survive a correction —
+  // it is never touched by the pipeline again once set, unless a reset
+  // forces jurisdiction-intel.server.ts to recompute it.
+  jurisdiction_profile: null,
   attack_surface: {},
   error: null,
   stall_reason: null,
