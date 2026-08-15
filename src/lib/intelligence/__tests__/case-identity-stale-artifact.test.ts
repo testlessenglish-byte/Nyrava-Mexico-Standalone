@@ -5,11 +5,19 @@
 // case that was first analyzed as "administrativo" and later corrected to
 // "amparo" keeps serving stale administrativo-era findings/report forever.
 // Exercises the REAL runCaseClassification() (which internally calls the
-// REAL clearCaseDerivedData()/CASE_RESET_FIELDS from pipeline-reset.ts) with
-// a fake db, following this codebase's established mocking convention.
+// REAL clearCaseDerivedData()/CASE_TYPE_CORRECTION_RESET_FIELDS from
+// pipeline-reset.ts) with a fake db, following this codebase's established
+// mocking convention.
+//
+// Uses the NARROWER CASE_TYPE_CORRECTION_RESET_FIELDS, not the full
+// CASE_RESET_FIELDS — a real production bug on ADR-4640-2017-180212 showed
+// that reusing the full reset (which includes extracted_at/extraction_report)
+// sent the case back to the "extraction" stage on every automatic
+// reclassification, since extraction has no dependency on materia. See
+// pipeline-reset.ts's own doc comment on CASE_TYPE_CORRECTION_RESET_FIELDS.
 import { describe, it, expect } from "vitest";
 import { runCaseClassification } from "@/lib/intelligence/case-classification.server";
-import { CASE_DERIVED_TABLES, CASE_RESET_FIELDS } from "@/lib/pipeline-reset";
+import { CASE_DERIVED_TABLES, CASE_TYPE_CORRECTION_RESET_FIELDS } from "@/lib/pipeline-reset";
 
 const AMPARO_TEXT = `
   AMPARO DIRECTO EN REVISIÓN 4640/2017
@@ -106,10 +114,15 @@ describe("case-identity-stale-artifact: correcting case_type invalidates prior d
     // The reset-fields patch (progress/status/timestamps back to their
     // fresh-run defaults) was applied, not just the case_type write.
     const resetPatch = state.updatePatches.find(
-      (p) => p.progress === CASE_RESET_FIELDS.progress && p.status_message === CASE_RESET_FIELDS.status_message,
+      (p) => p.progress === CASE_TYPE_CORRECTION_RESET_FIELDS.progress && p.status_message === CASE_TYPE_CORRECTION_RESET_FIELDS.status_message,
     );
     expect(resetPatch).toBeTruthy();
-    expect(resetPatch).toMatchObject(CASE_RESET_FIELDS);
+    expect(resetPatch).toMatchObject(CASE_TYPE_CORRECTION_RESET_FIELDS);
+    // The specific production regression this reset was narrowed to avoid:
+    // extraction is materia-independent, so a materia correction must never
+    // send the case back to the "extraction" stage.
+    expect(resetPatch).not.toHaveProperty("extracted_at");
+    expect(resetPatch).not.toHaveProperty("extraction_report");
   });
 
   it("a re-run that only RE-CONFIRMS the same case_type does not re-invalidate derived data", async () => {
@@ -123,7 +136,7 @@ describe("case-identity-stale-artifact: correcting case_type invalidates prior d
 
     expect(state.caseRow.case_type).toBe("amparo");
     expect(state.deletedTables).toHaveLength(0);
-    const resetPatch = state.updatePatches.find((p) => p.progress === CASE_RESET_FIELDS.progress);
+    const resetPatch = state.updatePatches.find((p) => p.progress === CASE_TYPE_CORRECTION_RESET_FIELDS.progress);
     expect(resetPatch).toBeUndefined();
   });
 
