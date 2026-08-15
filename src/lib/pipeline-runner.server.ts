@@ -1080,7 +1080,7 @@ async function _runPipelineForCase(
   if (startFrom) {
     const idx = stages.findIndex((s) => s.key === startFrom);
     if (idx > 0) {
-      const firstIncomplete = stages.findIndex((s) => !alreadyDone(s.key as PipelineStageKey));
+      const firstIncomplete = stages.findIndex((s) => !alreadyAttempted(s.key as PipelineStageKey));
       const sliceIdx = firstIncomplete >= 0 ? Math.min(idx, firstIncomplete) : idx;
       if (sliceIdx !== idx) {
         trace("pipeline.resume_clamped", {
@@ -1088,8 +1088,9 @@ async function _runPipelineForCase(
           clamped_to: stages[sliceIdx].key,
           skipped_incomplete: stages
             .slice(sliceIdx, idx)
-            .filter((s) => !alreadyDone(s.key as PipelineStageKey))
+            .filter((s) => !alreadyAttempted(s.key as PipelineStageKey))
             .map((s) => s.key),
+
         });
       }
       effectiveStartFrom = stages[sliceIdx].key;
