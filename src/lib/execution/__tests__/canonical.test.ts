@@ -11,6 +11,8 @@ import {
   canGenerateReport,
   latestRowsByEngine,
   deriveStageState,
+  ENGINE_TIMESTAMP_FALLBACK,
+  isStageTimestampSet,
   type ExecutionRow,
 } from "../canonical";
 
@@ -162,5 +164,49 @@ describe("canonical execution architecture", () => {
     const newer = row("extraction", "completed", { created_at: "2026-06-01T00:00:00Z" });
     const map = latestRowsByEngine([older, newer]);
     expect(map.get("extraction")?.status).toBe("completed");
+  });
+});
+
+// Regression tests for a real production bug: pipeline-runner.server.ts's
+// resume-clamp decided "extraction" had never been attempted — based
+// solely on a pipeline_engine_runs read — even though it had genuinely
+// completed (cases.extracted_at was set) earlier in the same run, clamping
+// the resume point all the way back to extraction and silently replaying
+// the whole pipeline. isStageTimestampSet is the independent cross-check
+// added to close that gap: a stage is never considered "not yet attempted"
+// if its own dedicated cases.*_at column is already set, regardless of
+// what the ledger read found.
+describe("isStageTimestampSet: independent cross-check against cases.*_at columns", () => {
+  it("is true when the engine's dedicated timestamp column is set on the case row", () => {
+    expect(isStageTimestampSet({ extracted_at: "2026-08-15T23:27:25.000Z" }, "extraction")).toBe(true);
+    expect(isStageTimestampSet({ analysis_at: "2026-08-15T23:27:26.000Z" }, "analyzers")).toBe(true);
+    expect(isStageTimestampSet({ scored_at: "2026-08-15T23:28:43.000Z" }, "scoring")).toBe(true);
+  });
+
+  it("is false when the column is null, missing, or the engine has no dedicated column at all", () => {
+    expect(isStageTimestampSet({ extracted_at: null }, "extraction")).toBe(false);
+    expect(isStageTimestampSet({}, "extraction")).toBe(false);
+    // "timeline" has no timestampColumn in CANONICAL_STAGES — the ledger
+    // read remains the sole signal for it, this must never throw or
+    // default true just because an unrelated column happens to be set.
+    expect(isStageTimestampSet({ extracted_at: "2026-08-15T23:27:25.000Z" }, "timeline")).toBe(false);
+  });
+
+  it("never cross-wires one engine's column with another's — only the exact mapped column counts", () => {
+    // A case with extracted_at set but analysis_at null must confirm
+    // extraction is done without ever implying analyzers is too.
+    const caseRow = { extracted_at: "2026-08-15T23:27:25.000Z", analysis_at: null };
+    expect(isStageTimestampSet(caseRow, "extraction")).toBe(true);
+    expect(isStageTimestampSet(caseRow, "analyzers")).toBe(false);
+  });
+
+  it("ENGINE_TIMESTAMP_FALLBACK covers every blocking-tier engine that has a real completion column", () => {
+    const mustHaveColumn = ["extraction", "analyzers", "agents", "scoring", "report_generator"];
+    for (const engine of mustHaveColumn) {
+      expect(
+        ENGINE_TIMESTAMP_FALLBACK[engine],
+        `expected ${engine} to have a dedicated timestamp column`,
+      ).toBeTruthy();
+    }
   });
 });
