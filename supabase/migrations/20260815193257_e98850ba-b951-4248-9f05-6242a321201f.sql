@@ -1,0 +1,1 @@
+ALTER TABLE public.cases ADD COLUMN IF NOT EXISTS stall_auto_retry_count integer NOT NULL DEFAULT 0;

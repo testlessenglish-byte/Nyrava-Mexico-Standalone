@@ -2145,6 +2145,7 @@ export type Database = {
           scored_at: string | null
           shared_brief: Json | null
           shared_brief_at: string | null
+          stall_auto_retry_count: number
           stall_reason: string | null
           status: Database["public"]["Enums"]["case_status"]
           status_message: string | null
@@ -2203,6 +2204,7 @@ export type Database = {
           scored_at?: string | null
           shared_brief?: Json | null
           shared_brief_at?: string | null
+          stall_auto_retry_count?: number
           stall_reason?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           status_message?: string | null
@@ -2261,6 +2263,7 @@ export type Database = {
           scored_at?: string | null
           shared_brief?: Json | null
           shared_brief_at?: string | null
+          stall_auto_retry_count?: number
           stall_reason?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           status_message?: string | null
