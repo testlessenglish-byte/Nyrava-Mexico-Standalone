@@ -1472,8 +1472,17 @@ export async function runExtraction(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  /**
+   * Wipe the engine-run ledger before this pass. TRUE only for a genuinely
+   * fresh execution. On a checkpoint RESUME this must stay false: clearing
+   * the ledger erases every terminal row the resume clamp reads, so the
+   * runner concludes nothing has completed, clamps the resume point back to
+   * `extraction`, re-runs the whole pipeline, checkpoints again, and loops
+   * forever without ever finishing scoring/report.
+   */
+  clearPriorRuns?: boolean;
 }) {
-  const { db, caseId, userId, apiKey, apiKeys } = args;
+  const { db, caseId, userId, apiKey, apiKeys, clearPriorRuns = true } = args;
   await setCase(db, caseId, {
     status: "extracting",
     status_message: "Extracting evidence",
@@ -1482,11 +1491,12 @@ export async function runExtraction(args: {
   });
   // Fresh pipeline pass — clear prior engine audit so the dashboard reflects
   // this run only.
-  await clearEngineRuns(db, caseId);
+  if (clearPriorRuns) await clearEngineRuns(db, caseId);
   return runEngine(db, { caseId, userId, engine: ENGINE.extraction }, async () => {
     return _runExtractionInner({ db, caseId, userId, apiKey, apiKeys });
   });
 }
+
 
 async function _runExtractionInner(args: {
   db: Db;

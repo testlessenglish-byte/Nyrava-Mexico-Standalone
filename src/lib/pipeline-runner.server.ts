@@ -335,7 +335,10 @@ async function _runPipelineForCase(
       engine?: string;
     }
   > = {
-    extraction: { run: () => pipe.runExtraction(baseArgs) },
+    extraction: {
+      run: () => pipe.runExtraction({ ...baseArgs, clearPriorRuns: isFreshExecution }),
+    },
+
     agents: { run: () => pipe.runAgents(baseArgs) },
     analyzers: { run: () => pipe.runAnalyzers(baseArgs) },
     scoring: { run: () => pipe.runScoring(baseArgs), engine: ENGINE.scoring },
