@@ -467,7 +467,13 @@ export const REPORT_REQUIRED_ENGINES: readonly string[] = Array.from(
 /** Subset the Command Center dashboard summarizes. Same list — kept for API compat. */
 export const COMMAND_CENTER_ENGINES: readonly string[] = REPORT_REQUIRED_ENGINES;
 
-/** Legacy timestamp column → engine map used ONLY by the backfill migration. */
+/** Engine id → the case's own dedicated completion-timestamp column
+ *  (extracted_at, analysis_at, agents_at, scored_at, ...). Originally built
+ *  for the backfill migration; also used by pipeline-runner.server.ts's
+ *  resume-clamp as an independent cross-check against pipeline_engine_runs
+ *  — see isStageTimestampSet below. Engines with no dedicated column
+ *  (sub-engines, stages whose completion isn't tracked this way) are
+ *  simply absent from this map. */
 export const ENGINE_TIMESTAMP_FALLBACK: Readonly<Record<string, string>> = Object.freeze(
   Object.fromEntries(
     (CANONICAL_STAGES as readonly StageDef[])
@@ -476,6 +482,24 @@ export const ENGINE_TIMESTAMP_FALLBACK: Readonly<Record<string, string>> = Objec
 
   ),
 );
+
+/** True when the case's own dedicated timestamp column for this engine is
+ *  set — an independent signal from pipeline_engine_runs. CONFIRMED LIVE: a
+ *  resume tick's "has this stage already run" check, based solely on a
+ *  pipeline_engine_runs read, found "extraction" not yet attempted even
+ *  though it had genuinely completed (extracted_at was set) earlier in the
+ *  same run — clamping the resume point all the way back to extraction and
+ *  silently replaying the whole pipeline. These columns are written
+ *  directly by each stage on success and are never touched by anything
+ *  except a genuine full-rerun/materia-correction reset, so using this as a
+ *  second signal (OR'd with the ledger read, never instead of it) means a
+ *  gap in the ledger read can never again cause an already-completed stage
+ *  to be silently re-run from scratch. Engines with no timestampColumn
+ *  always return false — the ledger read remains the sole signal there. */
+export function isStageTimestampSet(caseRow: Record<string, unknown>, engine: string): boolean {
+  const col = ENGINE_TIMESTAMP_FALLBACK[engine];
+  return !!col && !!caseRow[col];
+}
 
 // -----------------------------------------------------------------------------
 // Row selection — most-recent row per engine wins.

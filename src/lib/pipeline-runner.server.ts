@@ -1055,8 +1055,23 @@ async function _runPipelineForCase(
       }
     }
   }
+  // Independent cross-check against the cases table's own per-stage
+  // timestamp columns — see isStageTimestampSet's doc comment in
+  // execution/canonical.ts for the exact bug this closes.
+  const { ENGINE_TIMESTAMP_FALLBACK, isStageTimestampSet } = await import("./execution/canonical");
+  const timestampColumns = [...new Set(Object.values(ENGINE_TIMESTAMP_FALLBACK))];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: caseTimestampsRow } = await (supabase as any)
+    .from("cases")
+    .select(timestampColumns.join(","))
+    .eq("id", caseId)
+    .maybeSingle();
+  const caseTimestamps = (caseTimestampsRow ?? {}) as Record<string, string | null>;
+  const stageTimestampSet = (k: PipelineStageKey): boolean =>
+    isStageTimestampSet(caseTimestamps, engineForStage(k));
+
   const alreadyDone = (k: PipelineStageKey) =>
-    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
+    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "") || stageTimestampSet(k);
   // For resume clamping only: a stage that already ran and FAILED has been
   // attempted in this execution. Treating it as "incomplete" made the clamp
   // rewind the pipeline to that stage on every tick, so the run replayed the
@@ -1064,7 +1079,7 @@ async function _runPipelineForCase(
   // fill in stages that never ran at all, not to retry failures in a loop.
   const TERMINAL_STATUSES = new Set([...DONE_STATUSES, "failed", "error"]);
   const alreadyAttempted = (k: PipelineStageKey) =>
-    TERMINAL_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
+    TERMINAL_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "") || stageTimestampSet(k);
 
 
   // Resume point. `startFrom` names the stage that checkpointed, but stages do
