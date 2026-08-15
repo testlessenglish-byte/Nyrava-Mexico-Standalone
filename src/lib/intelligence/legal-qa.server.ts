@@ -268,12 +268,18 @@ export async function runLegalQaGate(args: {
     .maybeSingle();
   const row = (caseRow ?? {}) as { case_type?: string | null; report_language?: string | null };
   // VERIFIED CASE IDENTITY — the legal QA gate remediates/audits materia-
-  // specific terminology; never a raw cases.case_type read. resolveMxProfile
-  // already accepts null gracefully, so a genuinely unknown identity flows
-  // through as-is rather than substituting a guessed materia.
+  // specific terminology; never a raw cases.case_type read. CORRECTION:
+  // resolveMxProfile is the STRICT variant (an alias for requireMxProfile)
+  // — it throws for null/unrecognized input, it does NOT accept null
+  // gracefully as this comment previously and incorrectly claimed.
+  // Confirmed live in production: a genuinely unusable identity
+  // (unverified-with-nothing, or a real attorney-lock-vs-evidence conflict)
+  // crashed this stage outright with "Materia desconocida en
+  // requireMxProfile". "civil" is used here only as that last-resort
+  // structural fallback so the QA gate can still run.
   const { resolveCaseIdentity } = await import("./case-classification.server");
   const legalQaIdentity = await resolveCaseIdentity(db, caseId);
-  const materia = resolveMxProfile(legalQaIdentity.caseType);
+  const materia = resolveMxProfile(legalQaIdentity.caseType ?? "civil");
   const locale: "es" | "en" = row.report_language === "en" ? "en" : "es";
 
   // Party-role gender: read once from the case's own document text (never
