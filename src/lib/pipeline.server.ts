@@ -614,14 +614,19 @@ async function _runPipelineForCase(
           await import("./intelligence/practice-areas");
         const { getActiveDomains } = await import("./intelligence/cross-domain.server");
         const { recordSkipped } = await import("./intelligence/engine-audit.server");
+        const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+        const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
 
-        const { data: caseRow } = await supabase
-          .from("cases")
-          .select("case_type" as any)
-          .eq("id", caseId)
-          .maybeSingle();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const area = String((caseRow as any)?.case_type ?? "general_civil");
+        const identity = await resolveCaseIdentity(supabase, caseId);
+        if (!isUsableForLegalReasoning(identity) && !identity.caseType) {
+          // No verified/attorney-locked/declared materia at all — never
+          // guess "general_civil" (see the Verified Case Identity fix).
+          const reason =
+            identity.status === "conflict" ? "case_identity_conflict" : "case_identity_unverified";
+          await recordSkipped(supabase, { caseId, userId, engine: ENGINE.constitutional as never, reason });
+          return { skipped: true, reason };
+        }
+        const area = String(identity.caseType);
         const activeDomains = await getActiveDomains(supabase, caseId);
 
         if (!isAnalyzerAllowed(area, "constitutional_compliance", activeDomains)) {
@@ -2166,13 +2171,21 @@ async function _runAnalyzersInner(args: {
     await import("./intelligence/practice-areas");
   const { getActiveDomains } = await import("./intelligence/cross-domain.server");
 
-  const { data: caseRowForArea } = await db
-    .from("cases")
-    .select("case_type" as any)
-    .eq("id", caseId)
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const analyzerArea = String((caseRowForArea as any)?.case_type ?? "general_civil");
+  // VERIFIED CASE IDENTITY — never a raw cases.case_type read here. The
+  // analyzer stage is not an optional practice-area gate (unlike e.g. the
+  // constitutional_compliance stage above), so an unverified classification
+  // must not skip it outright — that would break analysis for the many
+  // cases that simply haven't been through a CONFIRMED classification pass
+  // yet. Instead: verified/attorney-locked identities are used normally;
+  // an unverified-but-declared value is used as before (no regression) but
+  // the run is flagged so the report renderer can surface the uncertainty;
+  // only a genuinely unknown identity (no value at all) falls back to a
+  // neutral, explicitly-flagged default — never a silently guessed materia.
+  const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+  const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
+  const analyzerIdentity = await resolveCaseIdentity(db, caseId);
+  const analyzerIdentityVerified = isUsableForLegalReasoning(analyzerIdentity);
+  const analyzerArea = String(analyzerIdentity.caseType ?? "general_civil");
   const analyzerDomains = await getActiveDomains(db, caseId);
   const analyzerAreaLabel = PRACTICE_AREA_LABELS[normalizePracticeArea(analyzerArea)];
   const analyzerLocaleForPreamble = await getReportLocale(db, caseId);
@@ -2914,6 +2927,14 @@ ${digestText}`;
           audit: analyzerGate.audit,
           corpus: analyzerGate.corpus,
           practice_area_filtered: analyzerRowsRaw.length - analyzerRows.length,
+        },
+        // VERIFIED CASE IDENTITY — surfaced on the ledger row (not silently
+        // swallowed) whenever this run proceeded on an unverified/declared
+        // materia rather than a source-confirmed or attorney-locked one.
+        case_identity: {
+          case_type: analyzerArea,
+          status: analyzerIdentity.status,
+          unverified_classification: !analyzerIdentityVerified,
         },
       },
     },
@@ -3790,14 +3811,28 @@ export async function runAgents(args: {
       await import("./intelligence/practice-areas");
     const { getActiveDomains } = await import("./intelligence/cross-domain.server");
     const { recordSkipped } = await import("./intelligence/engine-audit.server");
+    const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+    const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
 
     const { data: caseRow } = await db
       .from("cases")
       .select("case_type,name,description" as any)
       .eq("id", caseId)
       .maybeSingle();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const area = String((caseRow as any)?.case_type ?? "general_civil");
+    // VERIFIED CASE IDENTITY — same precedence as the analyzer stage above.
+    // The agents stage is also core (not an optional practice-area gate),
+    // so an unverified identity does not skip the whole stage — only a
+    // truly unknown identity (no caseType at all) does, via recordSkipped,
+    // never a silently guessed "general_civil".
+    const agentsIdentity = await resolveCaseIdentity(db, caseId);
+    if (!isUsableForLegalReasoning(agentsIdentity) && !agentsIdentity.caseType) {
+      const reason =
+        agentsIdentity.status === "conflict" ? "case_identity_conflict" : "case_identity_unverified";
+      await recordSkipped(db, { caseId, userId, engine: ENGINE.agents as never, reason });
+      return { value: undefined, stats: { generated: 0, accepted: 0, meta: { skipped: reason } } };
+    }
+    const area = String(agentsIdentity.caseType);
+    const agentsIdentityVerified = isUsableForLegalReasoning(agentsIdentity);
     const activeDomains = await getActiveDomains(db, caseId);
 
     // MATTER-SUBTYPE LOCK: a materia can bundle divergent legal domains
@@ -4571,7 +4606,20 @@ export async function runAgents(args: {
       progress: 100,
       agents_at: new Date().toISOString(),
     });
-    return { value: undefined, stats: { generated: totalGenerated, accepted: totalAccepted } };
+    return {
+      value: undefined,
+      stats: {
+        generated: totalGenerated,
+        accepted: totalAccepted,
+        meta: {
+          case_identity: {
+            case_type: area,
+            status: agentsIdentity.status,
+            unverified_classification: !agentsIdentityVerified,
+          },
+        },
+      },
+    };
   });
 }
 
@@ -5120,21 +5168,30 @@ async function ensureRequiredEngines(args: {
   const { getActiveDomains } = await import("./intelligence/cross-domain.server");
   const { recordSkipped } = await import("./intelligence/engine-audit.server");
   const { emitEvent } = await import("./intelligence/progress.server");
+  const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+  const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
 
-  const { data: caseRow } = await db
-    .from("cases")
-    .select("case_type" as any)
-    .eq("id", caseId)
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const area = String((caseRow as any)?.case_type ?? "general_civil");
+  // VERIFIED CASE IDENTITY — never a raw cases.case_type read. Verified/
+  // attorney-locked/declared values are used as before; a genuinely unknown
+  // identity gets an explicit, non-guessed sentinel ("unverified") rather
+  // than the real materia value "general_civil" — that sentinel naturally
+  // fails PRACTICE_GATED_ENGINES's allow-list below, so materia-restricted
+  // engines correctly stay skipped under an unknown materia instead of
+  // silently running general-civil behavior.
+  const ensureIdentity = await resolveCaseIdentity(db, caseId);
+  const ensureIdentityVerified = isUsableForLegalReasoning(ensureIdentity);
+  const area = String(ensureIdentity.caseType ?? "unverified");
   const activeDomains = await getActiveDomains(db, caseId);
 
   // Emit the Case-Type Manifest — what the engine INTENDS to run, before any
   // engine actually executes. Persisted to pipeline_events for the audit trail.
   const manifest = buildCaseTypeManifest(area, activeDomains);
   await emitEvent(db, caseId, "manifest", `Case-Type Manifest: ${manifest.case_type_label}`, {
-    meta: manifest as unknown as Record<string, unknown>,
+    meta: {
+      ...manifest,
+      case_identity_status: ensureIdentity.status,
+      unverified_classification: !ensureIdentityVerified,
+    } as unknown as Record<string, unknown>,
   });
 
   const ordered = (REPORT_REQUIRED_ENGINES as readonly string[]).filter((e) => missing.includes(e));

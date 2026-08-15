@@ -122,7 +122,21 @@ export async function projectCanonical(
     pipelineVersion: PIPELINE_VERSION,
     reportMode,
   });
-  analysis.ExecutiveSummary.case_type = caseRow?.case_type ?? caseRow?.practice_area ?? null;
+  // VERIFIED CASE IDENTITY — this is the write path that bakes case_type
+  // into the stored report artifact (ExecutiveSummary.case_type), read back
+  // by export.ts/prerender-validate.server.ts/etc. downstream. If identity
+  // is unusable, write null + case_type_unverified: true rather than a
+  // guessed value — the whole point of this fix is that a stale/wrong
+  // materia must never propagate silently into the final report.
+  const { resolveCaseIdentity } = await import("../intelligence/case-classification.server");
+  const { isUsableForLegalReasoning } = await import("../intelligence/case-identity");
+  const writerIdentity = await resolveCaseIdentity(db, caseId);
+  if (isUsableForLegalReasoning(writerIdentity)) {
+    analysis.ExecutiveSummary.case_type = writerIdentity.caseType;
+  } else {
+    analysis.ExecutiveSummary.case_type = null;
+    analysis.ExecutiveSummary.case_type_unverified = true;
+  }
 
   // Findings
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

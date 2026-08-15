@@ -550,6 +550,16 @@ export async function runCaseClassification(
     current.case_type_source === "manual_override_conflicting";
 
   const patch: Record<string, unknown> = {};
+  // STALE-ARTIFACT INVALIDATION (Fix instructions Step 5): true only when
+  // this run is about to WRITE a case_type value that actually DIFFERS from
+  // what was there before — not merely re-confirming the same value. The
+  // "Day 1 generated as administrativo, Day 2 corpus-corrected to amparo,
+  // stale report still served" scenario this closes.
+  const caseTypeActuallyChanged =
+    !isManuallyLocked &&
+    caseTypeField?.status === "CONFIRMED" &&
+    !!caseTypeField.value &&
+    caseTypeField.value !== current.case_type;
   if (caseTypeField) {
     patch.case_type_verification_status = caseTypeField.status;
     if (!isManuallyLocked && caseTypeField.status === "CONFIRMED" && caseTypeField.value) {
@@ -575,7 +585,254 @@ export async function runCaseClassification(
       .eq("id", caseId);
   }
 
+  // Generalizes updateCaseSettings' caseTypeChanged reset (cases.functions.ts)
+  // — a manual case_type edit already triggers a full derived-data reset so
+  // stale findings/reports generated under the old materia never survive.
+  // This is the SAME invalidation, fired from the AUTOMATIC classification
+  // write path above, which previously had none at all: every downstream
+  // artifact (findings, agent output, procedural-compliance checklist,
+  // recommendations) generated under a wrong/stale materia stayed in place
+  // and resume/rerun treated it as "already done." Reuses
+  // clearCaseDerivedData/CASE_RESET_FIELDS — the exact same reset list — so
+  // this can never drift from the manual-edit path's invalidation surface.
+  if (caseTypeActuallyChanged) {
+    try {
+      const { clearCaseDerivedData, CASE_RESET_FIELDS } = await import("../pipeline-reset");
+      await clearCaseDerivedData(db, caseId);
+      await db
+        .from("cases")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(CASE_RESET_FIELDS as any)
+        .eq("id", caseId);
+    } catch (e) {
+      console.error("[case-classification] stale-artifact invalidation failed", { caseId, error: e });
+    }
+  }
+
   return result;
+}
+
+// -----------------------------------------------------------------------------
+// resolveCaseIdentity — THE single authoritative case-identity resolver.
+//
+// Fixes two bugs at once (see case-identity.ts's header comment and the
+// "Fix the Verified Case Identity Architecture" instructions doc for the
+// full diagnosis):
+//
+// 1. INTEGRATION BYPASS: the old resolveVerifiedCaseType() below was
+//    correct in principle but had ~0 real callers — ~9 legal-reasoning call
+//    sites (analyzer stage, scoring, jurisdiction intel, legal QA, case-law
+//    attachment, cross-domain activation, the report writer) all read raw
+//    cases.case_type directly instead. A stale/wrong value in that column
+//    propagated unchecked through the entire pipeline.
+// 2. PRECEDENCE BUG: even if wired in, the old function checked CONFIRMED
+//    evidence BEFORE checking whether the attorney had manually locked
+//    case_type to something else — wiring it in as-is would have silently
+//    overridden an attorney's deliberate choice, a new bug replacing the
+//    old one. This version checks the manual lock first.
+//
+// Precedence (first match wins, no fallthrough past a match):
+//   1. Manual lock (case_type_source is manual_override/
+//      manual_override_conflicting) AND CONFIRMED evidence disagrees with
+//      it -> "conflict". caseType is null — a conflicted identity is never
+//      usable for legal reasoning (see isUsableForLegalReasoning). Neither
+//      value is silently picked.
+//   2. Manual lock, no disagreeing CONFIRMED evidence -> "attorney_locked".
+//      Treated as authoritative — the attorney's choice always wins over a
+//      merely-absent or agreeing classification.
+//   3. CONFIRMED evidence (not manually locked) -> "verified".
+//   4. A declared cases.case_type with no CONFIRMED evidence yet ->
+//      "unverified" (still returned so a caller that only wants "is
+//      anything declared" can still see it, but the status tells legal-
+//      reasoning consumers not to trust it — see isUsableForLegalReasoning).
+//   5. Nothing at all -> "unverified", caseType null.
+//   Any thrown error anywhere in resolution -> "failed", caseType null,
+//   logged via console.error (never swallowed silently).
+//
+// proceedingType and jurisdiction are folded into the same returned object.
+// proceedingType has no declared/manual fallback (cases.case_type is a
+// materia field, not a proceeding-type field — nothing to fall back to,
+// same as the original resolveVerifiedProceedingType). jurisdiction has a
+// declared/confirmed precedence like case_type, but no attorney-lock
+// concept — there is no jurisdiction_source column.
+// -----------------------------------------------------------------------------
+import type { VerifiedCaseIdentity, CaseIdentityEvidence } from "./case-identity";
+
+type EvidenceRow = {
+  field: string;
+  status: string;
+  value: string | null;
+  confidence: number | null;
+  source_document_id: string | null;
+  source_page: number | null;
+  source_quote: string | null;
+};
+
+async function toCaseIdentityEvidence(
+  db: Db,
+  row: EvidenceRow | undefined,
+): Promise<CaseIdentityEvidence | null> {
+  if (!row || row.status !== "CONFIRMED" || !row.value) return null;
+  if (!row.source_document_id || row.source_page == null || !row.source_quote) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: doc } = await (db as any)
+    .from("documents")
+    .select("filename")
+    .eq("id", row.source_document_id)
+    .maybeSingle();
+  return {
+    document_id: row.source_document_id,
+    filename: (doc as { filename?: string | null } | null)?.filename ?? "unknown",
+    page: row.source_page,
+    quote: row.source_quote,
+  };
+}
+
+function emptyIdentity(caseId: string): VerifiedCaseIdentity {
+  return {
+    caseId,
+    caseType: null,
+    proceedingType: null,
+    jurisdiction: null,
+    status: "unverified",
+    confidence: null,
+    source: "default",
+    evidence: null,
+    conflict: null,
+  };
+}
+
+/** The uncached resolution logic — see resolveCaseIdentity() below for the
+ *  memoized, public entry point every caller should actually use. */
+export async function resolveCaseIdentityUncached(
+  db: Db,
+  caseId: string,
+): Promise<VerifiedCaseIdentity> {
+  const base = emptyIdentity(caseId);
+  try {
+    const { data: caseRowRaw, error: caseErr } = await db
+      .from("cases")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .select("case_type,case_type_source,jurisdiction" as any)
+      .eq("id", caseId)
+      .maybeSingle();
+    if (caseErr) throw new Error(caseErr.message);
+    const caseRow = (caseRowRaw ?? {}) as {
+      case_type?: string | null;
+      case_type_source?: string | null;
+      jurisdiction?: string | null;
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: evidenceRowsRaw, error: evErr } = await (db as any)
+      .from("case_classification_evidence")
+      .select("field,status,value,confidence,source_document_id,source_page,source_quote")
+      .eq("case_id", caseId)
+      .in("field", ["case_type", "proceeding_type", "jurisdiction"]);
+    if (evErr) throw new Error(evErr.message);
+    const evidenceRows = (evidenceRowsRaw ?? []) as EvidenceRow[];
+    const caseTypeEvidence = evidenceRows.find((r) => r.field === "case_type");
+    const proceedingEvidence = evidenceRows.find((r) => r.field === "proceeding_type");
+    const jurisdictionEvidence = evidenceRows.find((r) => r.field === "jurisdiction");
+
+    const isManualLock =
+      caseRow.case_type_source === "manual_override" ||
+      caseRow.case_type_source === "manual_override_conflicting";
+    const caseTypeConfirmed = caseTypeEvidence?.status === "CONFIRMED" && !!caseTypeEvidence.value;
+    const disagreesWithLock =
+      caseTypeConfirmed && caseTypeEvidence!.value !== (caseRow.case_type ?? null);
+
+    let result: VerifiedCaseIdentity;
+    if (isManualLock && disagreesWithLock) {
+      const sourceEvidence = await toCaseIdentityEvidence(db, caseTypeEvidence);
+      result = {
+        ...base,
+        status: "conflict",
+        source: "attorney",
+        conflict: sourceEvidence
+          ? {
+              attorneyValue: String(caseRow.case_type ?? ""),
+              sourceValue: caseTypeEvidence!.value as string,
+              sourceEvidence,
+            }
+          : null,
+      };
+    } else if (isManualLock) {
+      result = {
+        ...base,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        caseType: (caseRow.case_type as any) ?? null,
+        status: "attorney_locked",
+        source: "attorney",
+      };
+    } else if (caseTypeConfirmed) {
+      const evidence = await toCaseIdentityEvidence(db, caseTypeEvidence);
+      result = {
+        ...base,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        caseType: caseTypeEvidence!.value as any,
+        status: "verified",
+        source: "source_confirmed",
+        confidence: caseTypeEvidence!.confidence ?? null,
+        evidence,
+      };
+    } else if (caseRow.case_type) {
+      result = {
+        ...base,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        caseType: caseRow.case_type as any,
+        status: "unverified",
+        source: "declared",
+      };
+    } else {
+      result = { ...base };
+    }
+
+    if (proceedingEvidence?.status === "CONFIRMED" && proceedingEvidence.value) {
+      result.proceedingType = proceedingEvidence.value;
+    }
+
+    if (jurisdictionEvidence?.status === "CONFIRMED" && jurisdictionEvidence.value) {
+      result.jurisdiction = jurisdictionEvidence.value;
+    } else if (caseRow.jurisdiction) {
+      result.jurisdiction = caseRow.jurisdiction;
+    }
+
+    return result;
+  } catch (e) {
+    console.error("[case-classification] resolveCaseIdentity failed", { caseId, error: e });
+    return { ...base, status: "failed", source: "error" };
+  }
+}
+
+// Memoized per (db instance, caseId) for the lifetime of a single pipeline
+// run/request — "resolved once, consumed everywhere" without threading a
+// context object through every function signature in the codebase.
+// Concurrent calls for the same case within one run share the same
+// in-flight promise instead of hitting the DB N times.
+const identityCache = new WeakMap<Db, Map<string, Promise<VerifiedCaseIdentity>>>();
+
+/** THE canonical entry point every legal-reasoning consumer must use —
+ *  see case-identity.ts and isUsableForLegalReasoning(). */
+export async function resolveCaseIdentity(db: Db, caseId: string): Promise<VerifiedCaseIdentity> {
+  let perDb = identityCache.get(db);
+  if (!perDb) {
+    perDb = new Map();
+    identityCache.set(db, perDb);
+  }
+  let pending = perDb.get(caseId);
+  if (!pending) {
+    pending = resolveCaseIdentityUncached(db, caseId);
+    perDb.set(caseId, pending);
+  }
+  return pending;
+}
+
+/** Test-only: clears the memoization cache so tests aren't polluted by
+ *  stale cached identities across test cases sharing a mock db. Guarded by
+ *  name — only ever call this from a __tests__ file. */
+export function __clearCaseIdentityCacheForTests(db: Db): void {
+  identityCache.delete(db);
 }
 
 /**
@@ -584,25 +841,14 @@ export async function runCaseClassification(
  * override that conflicts with a CONFIRMED classification). Falls back to
  * cases.case_type in every other case — including when there is no
  * evidence yet, so this is always safe to call unconditionally.
+ *
+ * Thin backward-compatible wrapper over resolveCaseIdentity() — kept for
+ * any caller not yet migrated to the richer identity object. New callers
+ * must use resolveCaseIdentity() directly, never this.
  */
 export async function resolveVerifiedCaseType(db: Db, caseId: string): Promise<string | null> {
-  const { data: caseRow } = await db
-    .from("cases")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .select("case_type" as any)
-    .eq("id", caseId)
-    .maybeSingle();
-  const declared = (caseRow as { case_type?: string | null } | null)?.case_type ?? null;
-
-  const { data: evidenceRow } = await (db as any)
-    .from("case_classification_evidence")
-    .select("status,value")
-    .eq("case_id", caseId)
-    .eq("field", "case_type")
-    .maybeSingle();
-  const evidence = evidenceRow as { status?: string; value?: string | null } | null;
-  if (evidence?.status === "CONFIRMED" && evidence.value) return evidence.value;
-  return declared;
+  const identity = await resolveCaseIdentity(db, caseId);
+  return identity.caseType;
 }
 
 /**
@@ -617,17 +863,15 @@ export async function resolveVerifiedCaseType(db: Db, caseId: string): Promise<s
  * See getProceduralTypeLock() in case-analysis-mode.ts, which turns this
  * into the hard-constraint preamble injected into every analyzer/agent/chat
  * prompt.
+ *
+ * Thin backward-compatible wrapper over resolveCaseIdentity() — kept for
+ * any caller not yet migrated. New callers must use resolveCaseIdentity()
+ * directly, never this.
  */
 export async function resolveVerifiedProceedingType(
   db: Db,
   caseId: string,
 ): Promise<string | null> {
-  const { data: evidenceRow } = await (db as any)
-    .from("case_classification_evidence")
-    .select("status,value")
-    .eq("case_id", caseId)
-    .eq("field", "proceeding_type")
-    .maybeSingle();
-  const evidence = evidenceRow as { status?: string; value?: string | null } | null;
-  return evidence?.status === "CONFIRMED" && evidence.value ? evidence.value : null;
+  const identity = await resolveCaseIdentity(db, caseId);
+  return identity.proceedingType;
 }

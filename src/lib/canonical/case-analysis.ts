@@ -128,6 +128,12 @@ export type ExecutiveSummary = {
   narrative: string;
   top_findings: string[];
   case_type?: string | null;
+  /** True when case_type could not be resolved to a verified/attorney-
+   *  locked/declared value (see resolveCaseIdentity in
+   *  case-classification.server.ts) — case_type is null in that case
+   *  rather than a guessed materia. The report renderer should surface
+   *  this rather than presenting an unknown materia as if it were known. */
+  case_type_unverified?: boolean;
 };
 
 export type Facts = {

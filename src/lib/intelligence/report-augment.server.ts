@@ -398,7 +398,14 @@ export async function buildLegalIssuesWithCaseLaw(db: Db, caseId: string): Promi
       .eq("id", caseId)
       .maybeSingle();
     const row = (caseRow ?? {}) as { case_type?: string | null; jurisdiction?: string | null };
-    const materia = row.case_type ?? undefined;
+    // VERIFIED CASE IDENTITY — case-law attachment narrows (never excludes,
+    // per case-law.server.ts's own doc comment) by materia; never a raw
+    // cases.case_type read. undefined when nothing is known, which
+    // attachCaseLaw already treats as "no materia narrowing" rather than a
+    // guessed one.
+    const { resolveCaseIdentity } = await import("./case-classification.server");
+    const caseLawIdentity = await resolveCaseIdentity(db, caseId);
+    const materia = caseLawIdentity.caseType ?? undefined;
     return await attachCaseLaw(db, issues, materia, {
       federalOnly: isFederalJurisdiction(row.jurisdiction ?? null),
     });

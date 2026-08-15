@@ -23,6 +23,11 @@ function makeFakeDb(insertedRows: { payload: unknown }[]) {
       like: () => c,
       order: () => c,
       limit: () => c,
+      // resolveCaseIdentity's case_classification_evidence lookup ends in
+      // .in(...) rather than .maybeSingle() — no evidence rows by default,
+      // so identity resolution falls through to the declared cases.case_type
+      // above ("amparo"), matching this fake db's simulated case row.
+      in: async () => ({ data: [], error: null }),
       maybeSingle: async () => ({ data: resolveValue, error: null }),
       then: (resolve: (v: unknown) => void) => resolve({ data: resolveValue, error: null }),
     };
@@ -32,7 +37,13 @@ function makeFakeDb(insertedRows: { payload: unknown }[]) {
     from(table: string) {
       return {
         select() {
-          if (table === "cases") return chain({ case_type: "amparo", analysis_mode: "exploratory" });
+          if (table === "cases")
+            return chain({
+              case_type: "amparo",
+              case_type_source: null,
+              jurisdiction: null,
+              analysis_mode: "exploratory",
+            });
           if (table === "documents")
             return chain([{ id: "doc-1", filename: "doc-1.txt", extracted_text: RULE_QUOTE, status: "extracted" }]);
           if (table === "case_domain_activations") return chain([]);

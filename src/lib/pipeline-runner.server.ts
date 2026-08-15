@@ -550,14 +550,17 @@ async function _runPipelineForCase(
           await import("./intelligence/practice-areas");
         const { getActiveDomains } = await import("./intelligence/cross-domain.server");
         const { recordSkipped } = await import("./intelligence/engine-audit.server");
+        const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+        const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
 
-        const { data: caseRow } = await supabase
-          .from("cases")
-          .select("case_type" as any)
-          .eq("id", caseId)
-          .maybeSingle();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const area = String((caseRow as any)?.case_type ?? "general_civil");
+        const identity = await resolveCaseIdentity(supabase, caseId);
+        if (!isUsableForLegalReasoning(identity) && !identity.caseType) {
+          const reason =
+            identity.status === "conflict" ? "case_identity_conflict" : "case_identity_unverified";
+          await recordSkipped(supabase, { caseId, userId, engine: ENGINE.constitutional as never, reason });
+          return { skipped: true, reason };
+        }
+        const area = String(identity.caseType);
         const activeDomains = await getActiveDomains(supabase, caseId);
 
         if (!isAnalyzerAllowed(area, "constitutional_compliance", activeDomains)) {
@@ -860,6 +863,53 @@ async function _runPipelineForCase(
     }
   }
 
+  // DECISION RECONSTRUCTION — additive, strict/completed-case-audit mode
+  // only (see "Fix the Verified Case Identity Architecture" instructions,
+  // Step 4). Runs BEFORE the findings/contradiction-producing stages below
+  // so an independent, corpus-grounded reconstruction of what the case
+  // actually establishes exists ahead of any ordinary-engine analysis, for
+  // that mode's audit to eventually draw on. Only builds/persists the
+  // reconstruction here — it does NOT change what runCompletedCaseAudit
+  // reads (that consumption switch is explicitly a separate, later
+  // increment per buildDecisionReconstruction's own doc comment). Gated to
+  // run at most once per case (checked via an existing
+  // case_decision_reconstructions row) so a real AI-calling pass never
+  // re-fires on every resume tick. Never fatal — a failure here must not
+  // block the pipeline, same convention as auto-detect/case-classification
+  // above.
+  {
+    const { data: caseModeRow } = await (supabase as any)
+      .from("cases")
+      .select("analysis_mode,case_analysis_mode" as any)
+      .eq("id", caseId)
+      .maybeSingle();
+    const evidenceMode = (caseModeRow as { analysis_mode?: string | null } | null)?.analysis_mode ?? null;
+    const rawCaseAnalysisMode = (caseModeRow as { case_analysis_mode?: string | null } | null)
+      ?.case_analysis_mode;
+    const { normalizeCaseAnalysisMode, isCompletedCaseMode } = await import(
+      "./intelligence/case-analysis-mode"
+    );
+    const caseAnalysisMode = normalizeCaseAnalysisMode(rawCaseAnalysisMode);
+    if (evidenceMode === "strict" || isCompletedCaseMode(caseAnalysisMode)) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { count: existingReconstructions } = await (supabase as any)
+          .from("case_decision_reconstructions")
+          .select("id", { count: "exact", head: true })
+          .eq("case_id", caseId);
+        if (!existingReconstructions) {
+          const { buildDecisionReconstruction } = await import(
+            "./intelligence/decision-reconstruction-extractor.server"
+          );
+          const reconstruction = await buildDecisionReconstruction(supabase, caseId, userId);
+          trace("case.decision_reconstruction_built", { built: !!reconstruction });
+        }
+      } catch (e) {
+        console.warn("[decision-reconstruction] failed", e);
+      }
+    }
+  }
+
   // Jurisdiction-aware sequence. Mexican practice doesn't run every engine for
   // every materia (e.g. no jury simulation in an ordinary penal case, no
   // witness intelligence in an amparo). Resolve the case's materia and drop the
@@ -875,7 +925,19 @@ async function _runPipelineForCase(
       .select("case_type,report_language,name")
       .eq("id", caseId)
       .maybeSingle();
-    const mxCaseType = (mxCaseRow as { case_type?: string | null } | null)?.case_type ?? null;
+    // VERIFIED CASE IDENTITY — an UNVERIFIED materia must not exclude any
+    // stage (isStageRelevantForCaseType(null, ...) is the deliberately
+    // permissive "exclude nothing" input — see exclusionsFor() in
+    // mx-pipeline.ts). Excluding a stage on an unconfirmed guess risks
+    // permanently starving a legitimately-relevant stage; including one
+    // extra stage that turns out not to apply is comparatively harmless
+    // (it already has its own downstream practice-area gates). Only a
+    // verified or attorney-locked materia is trusted enough to narrow the
+    // stage list.
+    const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+    const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
+    const mxIdentity = await resolveCaseIdentity(supabase, caseId);
+    const mxCaseType = isUsableForLegalReasoning(mxIdentity) ? mxIdentity.caseType : null;
     // Case name is the only signal used to detect a segunda instancia
     // (apelación) proceeding — see effectiveMxProfile in mx-pipeline.ts.
     const mxCaseName = (mxCaseRow as { name?: string | null } | null)?.name ?? null;
@@ -1612,7 +1674,18 @@ async function _runPipelineForCase(
 
   try {
     const { isStageRelevantForCaseType } = await import("./execution/mx-pipeline");
-    const finalCaseType = (postRun as { case_type?: string | null } | null)?.case_type ?? null;
+    // VERIFIED CASE IDENTITY — same "unverified materia excludes nothing"
+    // reasoning as the stage-selection site above: a false "gap" flag from
+    // an unconfirmed materia guess is worse than occasionally checking one
+    // extra optional-output table that turns out not to apply.
+    const { resolveCaseIdentity: resolveFinalCaseIdentity } = await import(
+      "./intelligence/case-classification.server"
+    );
+    const { isUsableForLegalReasoning: isFinalIdentityUsable } = await import(
+      "./intelligence/case-identity"
+    );
+    const finalIdentity = await resolveFinalCaseIdentity(supabase, caseId);
+    const finalCaseType = isFinalIdentityUsable(finalIdentity) ? finalIdentity.caseType : null;
     const finalCaseName = (postRun as { name?: string | null } | null)?.name ?? null;
     for (const [key, table] of Object.entries(OPTIONAL_OUTPUT_TABLES) as [PipelineStageKey, string][]) {
       if (!isStageRelevantForCaseType(finalCaseType, key, finalCaseName)) continue; // excluded for this materia — not a gap
