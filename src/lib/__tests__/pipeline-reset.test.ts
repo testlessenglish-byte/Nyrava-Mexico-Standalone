@@ -65,6 +65,7 @@ describe("CASE_TYPE_CORRECTION_RESET_FIELDS", () => {
       "hallucination_report",
       "legal_qa_report",
       "procedural_compliance",
+      "jurisdiction_profile",
       "error",
       "status_message",
     ] as const;

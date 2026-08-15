@@ -619,6 +619,14 @@ export async function runCaseClassification(
     }
   }
 
+  // Unconditional (not just when caseTypeActuallyChanged): case_classification_evidence
+  // is delete+re-inserted on every call, so even a same-value reconfirmation
+  // changes what resolveCaseIdentity would compute (e.g. declared/unverified
+  // -> verified/source_confirmed) — any earlier-cached identity for this
+  // case within the current db instance's lifetime must not survive this.
+  // See invalidateCaseIdentity's doc comment for the exact bug this closes.
+  invalidateCaseIdentity(db, caseId);
+
   return result;
 }
 
@@ -838,9 +846,25 @@ export async function resolveCaseIdentity(db: Db, caseId: string): Promise<Verif
   return pending;
 }
 
-/** Test-only: clears the memoization cache so tests aren't polluted by
- *  stale cached identities across test cases sharing a mock db. Guarded by
- *  name — only ever call this from a __tests__ file. */
+/** Invalidates the cached identity for a single case — must be called
+ *  whenever code writes fresh case_type/case_classification_evidence data
+ *  for a case, since resolveCaseIdentity's memoization has no way to detect
+ *  that the underlying data it already resolved has since changed. See
+ *  runCaseClassification's call below — the bug this closes: a caller
+ *  earlier in the SAME pipeline run/request (e.g. a practice-area gate that
+ *  runs before autoDetectCaseContext) resolves and caches an unverified/
+ *  unknown identity before classification has written its evidence;
+ *  without this, every LATER caller sharing the same db instance within
+ *  that same run keeps reusing that stale cached result even after
+ *  classification confirms a real materia moments later. */
+export function invalidateCaseIdentity(db: Db, caseId: string): void {
+  identityCache.get(db)?.delete(caseId);
+}
+
+/** Test-only: clears every cached identity for a db instance (broader than
+ *  invalidateCaseIdentity) so tests aren't polluted by stale cached
+ *  identities across test cases sharing a mock db. Guarded by name — only
+ *  ever call this from a __tests__ file. */
 export function __clearCaseIdentityCacheForTests(db: Db): void {
   identityCache.delete(db);
 }
