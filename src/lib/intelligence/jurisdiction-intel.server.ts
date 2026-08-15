@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { buildJurisdictionProfile, type JurisdictionProfile } from "./mx-jurisdiction";
+import { resolveCaseIdentity } from "./case-classification.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -41,9 +42,18 @@ export async function runJurisdictionIntelligence(args: {
     .maybeSingle();
   const row = (caseRow ?? {}) as { case_type?: string | null; jurisdiction?: string | null };
 
+  // VERIFIED CASE IDENTITY — jurisdiction/materia law selection is legal
+  // reasoning; never a raw cases.case_type read. Verified/attorney-locked/
+  // declared value is used (buildJurisdictionProfile also cross-checks
+  // against corpusText itself); a genuinely unknown identity passes null,
+  // which buildJurisdictionProfile is already designed to accept rather
+  // than a guessed materia.
+  const jurisdictionIdentity = await resolveCaseIdentity(db, caseId);
+  const resolvedCaseType = jurisdictionIdentity.caseType;
+
   const corpusText = await loadCaseCorpusText(db, caseId);
   const profile = buildJurisdictionProfile({
-    caseType: row.case_type ?? null,
+    caseType: resolvedCaseType,
     jurisdictionField: row.jurisdiction ?? null,
     corpusText,
   });

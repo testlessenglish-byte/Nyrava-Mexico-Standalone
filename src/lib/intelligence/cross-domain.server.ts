@@ -211,11 +211,15 @@ export async function resolveActivations(
     .select("case_type,additional_domains" as any)
     .eq("id", caseId)
     .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // No silent default: si la materia no está resuelta todavía, no se derivan
-  // activaciones (el runner la determina con mx-auto-detect antes de ejecutar).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const resolvedCt = resolvePracticeAreaOrNull((caseRow as any)?.case_type);
+  // VERIFIED CASE IDENTITY — never a raw cases.case_type read. This
+  // function already had "no silent default" behavior (returns empty
+  // activations when materia is unresolved) — that principle is preserved,
+  // just fed from the verified/attorney-locked/declared identity instead
+  // of the raw column so the two "no default" checks never fall out of
+  // sync with each other.
+  const { resolveCaseIdentity } = await import("./case-classification.server");
+  const activationsIdentity = await resolveCaseIdentity(db, caseId);
+  const resolvedCt = resolvePracticeAreaOrNull(activationsIdentity.caseType);
   if (!resolvedCt) return { activeDomains: new Set<string>(), activations: [] };
   const ct = resolvedCt;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -300,15 +304,14 @@ export function isCriminalEffective(caseType: string | undefined | null, activeD
 
 /** Lightweight read: union of base case_type + persisted activation domains. */
 export async function getActiveDomains(db: Db, caseId: string): Promise<Set<string>> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: caseRow } = await db
-    .from("cases")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .select("case_type" as any)
-    .eq("id", caseId)
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const base = resolvePracticeAreaOrNull((caseRow as any)?.case_type);
+  // VERIFIED CASE IDENTITY — never a raw cases.case_type read. High-traffic
+  // (called from nearly every pipeline stage), so this benefits directly
+  // from resolveCaseIdentity's per-(db,caseId) memoization — many callers
+  // within one pipeline run share the same resolved identity instead of
+  // each re-querying cases.
+  const { resolveCaseIdentity } = await import("./case-classification.server");
+  const domainsIdentity = await resolveCaseIdentity(db, caseId);
+  const base = resolvePracticeAreaOrNull(domainsIdentity.caseType);
   const out = new Set<string>(base ? [base] : []);
   const { data: rows } = await db.from("case_domain_activations").select("domain").eq("case_id", caseId);
   for (const r of rows ?? []) {

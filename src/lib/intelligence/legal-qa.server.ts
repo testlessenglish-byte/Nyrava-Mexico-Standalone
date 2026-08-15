@@ -267,7 +267,13 @@ export async function runLegalQaGate(args: {
     .eq("id", caseId)
     .maybeSingle();
   const row = (caseRow ?? {}) as { case_type?: string | null; report_language?: string | null };
-  const materia = resolveMxProfile(row.case_type ?? null);
+  // VERIFIED CASE IDENTITY — the legal QA gate remediates/audits materia-
+  // specific terminology; never a raw cases.case_type read. resolveMxProfile
+  // already accepts null gracefully, so a genuinely unknown identity flows
+  // through as-is rather than substituting a guessed materia.
+  const { resolveCaseIdentity } = await import("./case-classification.server");
+  const legalQaIdentity = await resolveCaseIdentity(db, caseId);
+  const materia = resolveMxProfile(legalQaIdentity.caseType);
   const locale: "es" | "en" = row.report_language === "en" ? "en" : "es";
 
   // Party-role gender: read once from the case's own document text (never

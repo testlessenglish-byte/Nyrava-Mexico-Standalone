@@ -259,16 +259,39 @@ describe("runCaseClassification: manual override cannot be silently replaced by 
   });
 });
 
+// resolveVerifiedProceedingType now goes through the combined
+// resolveCaseIdentity() (see the "Fix the Verified Case Identity
+// Architecture" instructions), which legitimately reads `cases` first (for
+// the manual-lock precedence) before `case_classification_evidence` — the
+// old single-table mock is widened accordingly. These tests exercise
+// proceeding-type resolution only, so `cases` returns a benign, unlocked
+// row (no case_type set, no manual override) that never affects the
+// proceeding_type assertions below.
 function makeEvidenceOnlyFakeDb(row: { status?: string; value?: string | null } | null) {
   return {
     from(table: string) {
+      if (table === "cases") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: { case_type: null, case_type_source: null, jurisdiction: null },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
       if (table !== "case_classification_evidence") throw new Error(`unexpected table: ${table}`);
       return {
         select: () => ({
           eq: () => ({
-            eq: () => ({
-              maybeSingle: () => Promise.resolve({ data: row, error: null }),
-            }),
+            in: () =>
+              Promise.resolve({
+                data: row ? [{ field: "proceeding_type", ...row }] : [],
+                error: null,
+              }),
           }),
         }),
       };

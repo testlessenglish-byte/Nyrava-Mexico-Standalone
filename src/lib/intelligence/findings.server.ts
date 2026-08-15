@@ -56,7 +56,7 @@ import {
   AUDIT_CLASSIFICATIONS,
 } from "./finding-taxonomy";
 import { clusterBySameIssue } from "./finding-dedupe";
-import { validateFindingClassification } from "./finding-classification-gate";
+import { validateFindingClassification, validateFindingCategory } from "./finding-classification-gate";
 
 type Db = SupabaseClient<Database>;
 type J = import("@/integrations/supabase/types").Json;
@@ -622,16 +622,20 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   // even when the upstream engine was already skipped.
   const { isFindingAllowed } = await import("./practice-areas");
   const { getActiveDomains } = await import("./cross-domain.server");
+  const { resolveCaseIdentity } = await import("./case-classification.server");
   const validated: NewFinding[] = [];
   for (const [caseId, group] of byCase) {
-    const { data: caseRow } = await db
-      .from("cases")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .select("case_type" as any)
-      .eq("id", caseId)
-      .maybeSingle();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const area = String((caseRow as any)?.case_type ?? "general_civil");
+    // VERIFIED CASE IDENTITY — this is a belt-and-braces BACKSTOP over
+    // findings the generating engine already produced under its own
+    // resolved materia; it must use the SAME precedence (verified/
+    // attorney-locked/declared) as the generator, not a stricter or looser
+    // one, or it will inconsistently drop findings the generator correctly
+    // allowed. When nothing at all is known, pass null rather than the
+    // real materia "general_civil" — isFindingAllowed(null, ...) correctly
+    // degrades to the universal-only module set instead of silently
+    // applying one specific materia's allow-list to an unknown case.
+    const identity = await resolveCaseIdentity(db, caseId);
+    const area = identity.caseType ?? null;
     const activeDomains = await getActiveDomains(db, caseId);
     const policyKept: NewFinding[] = [];
     let policyDropped = 0;
@@ -652,9 +656,27 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     // No-op for the overwhelming majority of findings, which set neither
     // field. See finding-classification-gate.ts.
     for (const r of kept) {
-      const { finding, downgrades } = validateFindingClassification(r);
+      const { finding: classificationFinding, downgrades } = validateFindingClassification(r);
       if (downgrades.length > 0) {
         console.warn(`[classification-gate] case=${caseId} downgraded`, downgrades);
+      }
+      // Materia-vocabulary gate for `category` — same reuse-the-downgrade-
+      // pattern as validateFindingClassification above, not a drop. See
+      // validateFindingCategory's own doc comment in
+      // finding-classification-gate.ts for why "general_finding" is the
+      // fallback (matches its existing test convention): an engine-declared
+      // category incompatible with this case's resolved materia is
+      // relabeled to a safe, always-allowed bucket rather than corrupting
+      // materia-specific report groupings under a category that doesn't
+      // belong there.
+      const { finding, downgrades: categoryDowngrades } = validateFindingCategory(
+        classificationFinding,
+        area,
+        "general_finding",
+        activeDomains,
+      );
+      if (categoryDowngrades.length > 0) {
+        console.warn(`[classification-gate] case=${caseId} category downgraded`, categoryDowngrades);
       }
       validated.push(finding);
     }
@@ -798,14 +820,15 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   // every call site's signature.
   let classifyMateria: string | undefined;
   if (classifyCaseId) {
-    const { data: classifyCaseRow } = await db
-      .from("cases")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .select("case_type" as any)
-      .eq("id", classifyCaseId)
-      .maybeSingle();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    classifyMateria = (classifyCaseRow as any)?.case_type ?? undefined;
+    // VERIFIED CASE IDENTITY — same precedence as the practice-area
+    // backstop above (verified/attorney-locked/declared); undefined when
+    // nothing is known at all, which rankAndClassify already treats as
+    // "use the universal fallback layer" rather than guessing a materia.
+    const { resolveCaseIdentity: resolveClassifyIdentity } = await import(
+      "./case-classification.server"
+    );
+    const classifyIdentity = await resolveClassifyIdentity(db, classifyCaseId);
+    classifyMateria = classifyIdentity.caseType ?? undefined;
   }
   const classified = rankAndClassify(finalized, classifyLocale, classifyMateria);
 
