@@ -237,6 +237,43 @@ async function deriveCitations(
  * regression pass this sandbox cannot run (no live AI/DB access here to
  * validate real reconstruction quality across the materia matrix).
  */
+// CONFIRMED LIVE: pipeline-runner.server.ts's caller gates this on "does a
+// case_decision_reconstructions row already exist" — a real, unbounded AI
+// call over the full corpus (up to 20k chars/doc) with no client-side
+// timeout. If it ever fails to persist a row (a slow/hanging provider
+// response, or the whole tick getting killed by a platform-level wall-clock
+// limit before this function can return), that check stays false forever
+// and this expensive call re-fires on EVERY subsequent resume tick — for a
+// strict/completed-case-audit case, on every single tick, competing with
+// every other pipeline stage for that tick's time budget. Bounding the call
+// with our own timeout (well under any platform kill timeout) means a slow
+// call fails fast and predictably instead of hanging the whole tick, and
+// recordFailedAttempt (below) stops the retry-every-tick loop by leaving a
+// row behind either way.
+const DECISION_RECONSTRUCTION_TIMEOUT_MS = 25_000;
+
+/** Leaves a minimal marker row behind on failure so the "does a
+ *  reconstruction already exist" gate in pipeline-runner.server.ts stops
+ *  retrying this case on every single resume tick. Best-effort — a failure
+ *  here must never throw, it would just mean the retry protection didn't
+ *  take for this one attempt. */
+async function recordFailedAttempt(db: Db, caseId: string, userId: string): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any).from("case_decision_reconstructions").insert({
+      case_id: caseId,
+      user_id: userId,
+      reconstruction: {},
+      matter_identity_status: "extraction_failed",
+      court_status: "extraction_failed",
+      disposition_remedy_status: "extraction_failed",
+      raw_model_output: null,
+    });
+  } catch (e) {
+    console.error("[decision-reconstruction] failed to record failed-attempt marker", e);
+  }
+}
+
 export async function buildDecisionReconstruction(
   db: Db,
   caseId: string,
@@ -273,12 +310,18 @@ export async function buildDecisionReconstruction(
 
   const t0 = Date.now();
   let r: Awaited<ReturnType<typeof callGroq>>;
+  const timeoutController = new AbortController();
+  const timeoutHandle = setTimeout(
+    () => timeoutController.abort(),
+    DECISION_RECONSTRUCTION_TIMEOUT_MS,
+  );
   try {
     r = await callGroq({
       apiKeys,
       model: MODEL,
       temperature: 0.1,
       json: true,
+      signal: timeoutController.signal,
       systemInstruction: `${mexicoLock(locale)}
 
 ${groundingContract(locale)}
@@ -314,6 +357,7 @@ CASE CORPUS:
 ${corpusText}`,
     });
   } catch (e) {
+    clearTimeout(timeoutHandle);
     console.error("[decision-reconstruction] extraction failed", e);
     await db.from("ai_usage").insert({
       user_id: userId,
@@ -324,8 +368,10 @@ ${corpusText}`,
       latency_ms: Date.now() - t0,
       error: e instanceof Error ? e.message : String(e),
     });
+    await recordFailedAttempt(db, caseId, userId);
     return null;
   }
+  clearTimeout(timeoutHandle);
   await db.from("ai_usage").insert({
     user_id: userId,
     case_id: caseId,
@@ -337,7 +383,10 @@ ${corpusText}`,
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parsed = parseJsonLoose<Record<string, any>>(r.text);
-  if (!parsed) return null;
+  if (!parsed) {
+    await recordFailedAttempt(db, caseId, userId);
+    return null;
+  }
 
   const reconstruction = emptyReconstruction(caseId, new Date().toISOString());
 

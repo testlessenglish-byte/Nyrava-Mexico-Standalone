@@ -170,6 +170,53 @@ describe("buildDecisionReconstruction", () => {
     expect(result!.applicable_legal_authorities[0].value?.article_number).toBe("14");
   });
 
+  // Regression test for a real production bug on ADR-4640-2017-180212:
+  // pipeline-runner.server.ts's caller gates buildDecisionReconstruction on
+  // "does a case_decision_reconstructions row already exist for this
+  // case" — with no client-side timeout and no failure marker, a call that
+  // fails (or hangs past a platform-level kill timeout) never persists
+  // anything, so the check stays false forever and this expensive AI call
+  // re-fires on EVERY subsequent resume tick for a strict/completed-case
+  // audit case, competing with the rest of that tick's time budget. Fixed
+  // by recordFailedAttempt: a failed call must still leave a row behind so
+  // the gate stops retrying on every tick.
+  it("leaves a failed-attempt marker row behind when the AI call itself fails, so the caller's existence-check stops retrying on every tick", async () => {
+    vi.mocked(callGroq).mockRejectedValue(new Error("simulated timeout"));
+
+    const inserts: { table: string; row: Record<string, unknown> }[] = [];
+    const { buildDecisionReconstruction } =
+      await import("@/lib/intelligence/decision-reconstruction-extractor.server");
+    const result = await buildDecisionReconstruction(makeFakeDb(inserts) as never, "case-1", "user-1");
+
+    expect(result).toBeNull();
+    const marker = inserts.find((i) => i.table === "case_decision_reconstructions");
+    expect(marker).toBeDefined();
+    expect(marker!.row.matter_identity_status).toBe("extraction_failed");
+    expect(marker!.row.reconstruction).toEqual({});
+
+    // The call is bounded by our own timeout signal — a slow/hanging
+    // provider response can never block a resume tick indefinitely.
+    const callArgs = vi.mocked(callGroq).mock.calls[0]?.[0] as { signal?: AbortSignal } | undefined;
+    expect(callArgs?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("leaves a failed-attempt marker row behind when the model's JSON cannot be parsed", async () => {
+    vi.mocked(callGroq).mockResolvedValue({
+      text: "not valid json at all {{{",
+      model: "test-model",
+    } as never);
+
+    const inserts: { table: string; row: Record<string, unknown> }[] = [];
+    const { buildDecisionReconstruction } =
+      await import("@/lib/intelligence/decision-reconstruction-extractor.server");
+    const result = await buildDecisionReconstruction(makeFakeDb(inserts) as never, "case-1", "user-1");
+
+    expect(result).toBeNull();
+    const marker = inserts.find((i) => i.table === "case_decision_reconstructions");
+    expect(marker).toBeDefined();
+    expect(marker!.row.matter_identity_status).toBe("extraction_failed");
+  });
+
   it("returns null when the case has no documents", async () => {
     const emptyDb = {
       from(table: string) {
