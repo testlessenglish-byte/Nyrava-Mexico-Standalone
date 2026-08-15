@@ -21,7 +21,8 @@
 // into filtering decisions.
 import { describe, it, expect } from "vitest";
 import { normalizePracticeArea, isFindingAllowed } from "@/lib/intelligence/practice-areas";
-import { mxPartyRoleEnum, isStageRelevantForCaseType } from "@/lib/execution/mx-pipeline";
+import { mxPartyRoleEnum, isStageRelevantForCaseType, resolveMxProfile } from "@/lib/execution/mx-pipeline";
+import { buildJurisdictionProfile } from "@/lib/intelligence/mx-jurisdiction";
 
 describe("case-identity-fallback-materia: the exact production crash on ADR-4640-2017-180212", () => {
   it("reproduces why the old fallback sentinels crashed the strict validators", () => {
@@ -58,5 +59,38 @@ describe("case-identity-fallback-materia: the exact production crash on ADR-4640
   it("an unverified identity (null) also stays permissive for stage-selection, unaffected by the schema fallback", () => {
     expect(isStageRelevantForCaseType(null, "constitutional")).toBe(true);
     expect(isStageRelevantForCaseType(null, "witness")).toBe(true);
+  });
+});
+
+// A second, related production crash on the SAME case immediately after the
+// first fix shipped: jurisdiction-intel.server.ts and legal-qa.server.ts
+// both fed a possibly-null identity.caseType straight into resolveMxProfile
+// under the mistaken belief (documented in their own now-corrected code
+// comments) that it "accepts null gracefully." resolveMxProfile is actually
+// just an alias for requireMxProfile — strict, throws for null/unrecognized
+// input — so a genuinely unusable identity (unverified-with-nothing, or an
+// attorney-lock-vs-evidence conflict) crashed both stages outright with
+// "Materia desconocida en requireMxProfile", which then blocked
+// procedural_compliance and report downstream. This reproduced on
+// ADR-4640-2017-180212 after the user manually locked case_type to "amparo"
+// while the deterministic classifier's own reading of the corpus (heavy
+// with civil-procedure vocabulary, since the amparo's underlying dispute is
+// a civil appeal) plausibly disagreed — a real conflict, not a bug in the
+// conflict detection itself; the bug was crashing instead of degrading.
+describe("case-identity-fallback-materia: jurisdiction_intel / legal_qa crash on a null/conflicted identity", () => {
+  it("resolveMxProfile (used directly by legal-qa.server.ts) throws for null, confirming the prior 'accepts null gracefully' comment was wrong", () => {
+    expect(() => resolveMxProfile(null)).toThrow();
+    expect(() => resolveMxProfile(undefined)).toThrow();
+  });
+
+  it("buildJurisdictionProfile (used by jurisdiction-intel.server.ts) also throws for a null caseType — it calls resolveMxProfile internally", () => {
+    expect(() => buildJurisdictionProfile({ caseType: null })).toThrow();
+  });
+
+  it("both now get a real fallback ('civil') instead of null and no longer throw", () => {
+    expect(() => resolveMxProfile("civil")).not.toThrow();
+    expect(() => buildJurisdictionProfile({ caseType: "civil" })).not.toThrow();
+    const profile = buildJurisdictionProfile({ caseType: "civil" });
+    expect(profile).toBeTruthy();
   });
 });

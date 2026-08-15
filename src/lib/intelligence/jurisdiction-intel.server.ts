@@ -45,11 +45,18 @@ export async function runJurisdictionIntelligence(args: {
   // VERIFIED CASE IDENTITY — jurisdiction/materia law selection is legal
   // reasoning; never a raw cases.case_type read. Verified/attorney-locked/
   // declared value is used (buildJurisdictionProfile also cross-checks
-  // against corpusText itself); a genuinely unknown identity passes null,
-  // which buildJurisdictionProfile is already designed to accept rather
-  // than a guessed materia.
+  // against corpusText itself). CORRECTION: buildJurisdictionProfile calls
+  // resolveMxProfile() internally, which is the STRICT variant (an alias
+  // for requireMxProfile) — it throws for null/unrecognized input, it does
+  // NOT accept null gracefully as this comment previously and incorrectly
+  // claimed. Confirmed live in production: a genuinely unusable identity
+  // (unverified-with-nothing, or a real attorney-lock-vs-evidence conflict)
+  // crashed this stage outright with "Materia desconocida en
+  // requireMxProfile". "civil" is used here only as that last-resort
+  // structural fallback — see mxProfileOrNull for the tolerant variant, not
+  // used here because buildJurisdictionProfile requires a real profile.
   const jurisdictionIdentity = await resolveCaseIdentity(db, caseId);
-  const resolvedCaseType = jurisdictionIdentity.caseType;
+  const resolvedCaseType = jurisdictionIdentity.caseType ?? "civil";
 
   const corpusText = await loadCaseCorpusText(db, caseId);
   const profile = buildJurisdictionProfile({
