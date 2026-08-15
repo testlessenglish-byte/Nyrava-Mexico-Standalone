@@ -119,6 +119,42 @@ describe("isReportStale", () => {
     expect(isReportStale(report, runs, BLOCKING)).toBe(false);
   });
 
+  // BUG FIXED (confirmed on two real, independently-audited released cases,
+  // ADR-4321-2017-180507 and ADR-4640-2017-180212): a completed, released
+  // case's exported report came back with every substantive field null and
+  // stale:true, even though nothing was ever actually resumed or retried.
+  // jurisdiction_intel and legal_qa (both blocking-tier) have no dedicated
+  // `cases.<x>_at` column — their completion is knowable only via their
+  // pipeline_engine_runs row — and report generation begins as soon as its
+  // own in-memory dependency check sees them done, with nothing forcing
+  // their ledger-row UPDATE to have already committed before the report's
+  // own row is written a moment later. A bare `t > reportTime` comparison
+  // flagged that ordinary few-second write-ordering jitter as "a blocking
+  // stage re-ran after the report" on effectively every normal completion.
+  it("a blocking engine landing a couple seconds after the report (normal write-ordering jitter) is NOT flagged stale", () => {
+    const report = { updated_at: "2026-01-01T00:00:00.000Z" };
+    const runs = [
+      { engine: "extraction", ended_at: "2026-01-01T00:00:00.000Z" },
+      { engine: "analyzers", ended_at: "2025-12-31T23:59:00.000Z" },
+      // legal_qa's own ledger write lands ~2s after the report row — the
+      // exact race observed on both real cases (hallucination_at landed
+      // ~1.7s after report_at on one of them).
+      { engine: "scoring", ended_at: "2026-01-01T00:00:02.000Z" },
+    ];
+    expect(isReportStale(report, runs, BLOCKING)).toBe(false);
+  });
+
+  it("still flags a genuine resume/retry minutes later — the grace period does not swallow real staleness", () => {
+    const report = { updated_at: "2026-01-01T00:00:00.000Z" };
+    const runs = [
+      { engine: "extraction", ended_at: "2026-01-01T00:00:00.000Z" },
+      // A real resume: re-queued, worker cold start, full stage re-run —
+      // minutes later, far outside any plausible write-ordering jitter.
+      { engine: "analyzers", ended_at: "2026-01-01T00:05:00.000Z" },
+    ];
+    expect(isReportStale(report, runs, BLOCKING)).toBe(true);
+  });
+
   it("fails closed on a missing/unparseable report timestamp — never asserts staleness it can't support", () => {
     expect(isReportStale({ updated_at: null, created_at: null }, [], BLOCKING)).toBe(false);
     expect(isReportStale(null, [], BLOCKING)).toBe(false);
