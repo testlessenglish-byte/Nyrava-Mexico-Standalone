@@ -167,16 +167,17 @@ describe("canonical execution architecture", () => {
   });
 });
 
-// Regression tests for a real production bug: pipeline-runner.server.ts's
-// resume-clamp decided "extraction" had never been attempted — based
-// solely on a pipeline_engine_runs read — even though it had genuinely
-// completed (cases.extracted_at was set) earlier in the same run, clamping
-// the resume point all the way back to extraction and silently replaying
-// the whole pipeline. isStageTimestampSet is the independent cross-check
-// added to close that gap: a stage is never considered "not yet attempted"
-// if its own dedicated cases.*_at column is already set, regardless of
-// what the ledger read found.
-describe("isStageTimestampSet: independent cross-check against cases.*_at columns", () => {
+// isStageTimestampSet is a correct, tested pure function — these tests just
+// prove its own logic. It is deliberately NOT wired into
+// pipeline-runner.server.ts's resume-clamp (alreadyDone/alreadyAttempted)
+// anymore: it briefly was, to close a suspected pipeline_engine_runs
+// read-consistency gap, but that made the resume-clamp trust a
+// cases.<engine>_at column that can go stale independently of its ledger
+// row (see isStageTimestampSet's own doc comment above for the confirmed
+// live incident — ADR-4321-2017-180507 — where this silently skipped
+// analyzers/agents/etc. instead of re-running them). pipeline_engine_runs
+// stays the sole source of truth for "has this stage run".
+describe("isStageTimestampSet: pure-function behavior (not wired into the live resume-clamp)", () => {
   it("is true when the engine's dedicated timestamp column is set on the case row", () => {
     expect(isStageTimestampSet({ extracted_at: "2026-08-15T23:27:25.000Z" }, "extraction")).toBe(true);
     expect(isStageTimestampSet({ analysis_at: "2026-08-15T23:27:26.000Z" }, "analyzers")).toBe(true);

@@ -975,7 +975,20 @@ async function _runPipelineForCase(
   // re-executing stages that already reached a terminal success/skipped state
   // on an earlier tick (no redundant re-evaluation, no re-billed AI calls).
   const latestStatusByEngine = new Map<string, string>();
-  const DONE_STATUSES = new Set(["success", "succeeded", "complete", "completed", "skipped"]);
+  // "completed_negative" is a genuine terminal success (engine ran, reached a
+  // legitimate no-result outcome — see EngineStats.outcome in
+  // engine-audit.server.ts) and must count as done, exactly like
+  // resumeFullPipelineStep's own `completed` set (cases.functions.ts)
+  // already treats it. Omitting it here made this loop treat a real,
+  // successful "negative" completion as "never attempted".
+  const DONE_STATUSES = new Set([
+    "success",
+    "succeeded",
+    "complete",
+    "completed",
+    "completed_negative",
+    "skipped",
+  ]);
   if (!reset) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: priorRuns, error: priorErr } = await (supabase as any)
@@ -1055,23 +1068,30 @@ async function _runPipelineForCase(
       }
     }
   }
-  // Independent cross-check against the cases table's own per-stage
-  // timestamp columns — see isStageTimestampSet's doc comment in
-  // execution/canonical.ts for the exact bug this closes.
-  const { ENGINE_TIMESTAMP_FALLBACK, isStageTimestampSet } = await import("./execution/canonical");
-  const timestampColumns = [...new Set(Object.values(ENGINE_TIMESTAMP_FALLBACK))];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: caseTimestampsRow } = await (supabase as any)
-    .from("cases")
-    .select(timestampColumns.join(","))
-    .eq("id", caseId)
-    .maybeSingle();
-  const caseTimestamps = (caseTimestampsRow ?? {}) as Record<string, string | null>;
-  const stageTimestampSet = (k: PipelineStageKey): boolean =>
-    isStageTimestampSet(caseTimestamps, engineForStage(k));
-
+  // REVERTED (confirmed live, ADR-4321-2017-180507, ced2b054-108f-4a24-8872-
+  // dec4503ab47a): alreadyDone()/alreadyAttempted() used to also OR in
+  // isStageTimestampSet() (execution/canonical.ts) — trusting a case's own
+  // cases.<engine>_at column whenever the ledger read found nothing. That
+  // column is written independently of pipeline_engine_runs (each runXxx
+  // sets it via a plain setCase() call, not inside the same transaction as
+  // the ledger row), so a stage whose ledger row was deleted mid-flight by a
+  // concurrent reset (e.g. updateCaseSettings's caseAnalysisModeChanged/
+  // caseTypeChanged branch, which wipes pipeline_engine_runs + every
+  // cases.*_at column with no guard against an in-flight run) can still have
+  // its timestamp silently rewritten moments later by that stale run's own
+  // completion write, with no ledger row behind it. Trusting that timestamp
+  // then made this loop treat analyzers/agents/etc. as "already done" and
+  // skip them outright — never calling their runner, never writing a fresh
+  // ledger row — while report generation's own gate (ledger-only, correctly)
+  // saw them as never having run and hard-failed with "core engines failed
+  // to complete even after auto-backfill" for every one of them. This is
+  // exactly the "next_stage=trial_prep while analyzers never completed"
+  // bug class resumeFullPipelineStep (cases.functions.ts) already documents
+  // and guards against — "must never be trusted to skip past a blocking-tier
+  // stage that the ledger shows incomplete." pipeline_engine_runs remains the
+  // sole source of truth here; a stage with no ledger row is never "done".
   const alreadyDone = (k: PipelineStageKey) =>
-    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "") || stageTimestampSet(k);
+    DONE_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
   // For resume clamping only: a stage that already ran and FAILED has been
   // attempted in this execution. Treating it as "incomplete" made the clamp
   // rewind the pipeline to that stage on every tick, so the run replayed the
@@ -1079,7 +1099,7 @@ async function _runPipelineForCase(
   // fill in stages that never ran at all, not to retry failures in a loop.
   const TERMINAL_STATUSES = new Set([...DONE_STATUSES, "failed", "error"]);
   const alreadyAttempted = (k: PipelineStageKey) =>
-    TERMINAL_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "") || stageTimestampSet(k);
+    TERMINAL_STATUSES.has(latestStatusByEngine.get(engineForStage(k)) ?? "");
 
 
   // Resume point. `startFrom` names the stage that checkpointed, but stages do
