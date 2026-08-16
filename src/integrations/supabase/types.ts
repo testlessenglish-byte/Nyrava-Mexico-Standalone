@@ -5159,6 +5159,7 @@ export type Database = {
           is_blocked: boolean
           locale: string
           preferred_language: string
+          starter_cases_seeded_at: string | null
           updated_at: string
         }
         Insert: {
@@ -5173,6 +5174,7 @@ export type Database = {
           is_blocked?: boolean
           locale?: string
           preferred_language?: string
+          starter_cases_seeded_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -5187,6 +5189,7 @@ export type Database = {
           is_blocked?: boolean
           locale?: string
           preferred_language?: string
+          starter_cases_seeded_at?: string | null
           updated_at?: string
         }
         Relationships: []
