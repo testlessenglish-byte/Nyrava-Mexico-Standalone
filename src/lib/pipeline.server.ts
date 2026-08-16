@@ -6146,7 +6146,29 @@ PAGINATION RULES:
 CORPUS (paginated):
 ${corpus.slice(0, 14000)}`;
 
-  const narrativeShape = `Return STRICT JSON with this exact shape. Every prose field is a substantive narrative with inline \`[DOC N p.M]\` citations for every concrete claim — length per the LENGTH TARGETS already given above (scaled to this case's evidence volume; do not pad past what the evidence supports).
+  // Canonical Reconciliation Design (2026-08-16), P2 §10 — the field NAMES
+  // below ("prosecution_theory_report"/"defense_theory_report") are the
+  // ONLY signal the model gets about what these 3 fields mean; nothing else
+  // in this prompt explains them. That silently biases every non-criminal
+  // materia toward a criminal prosecution/defense framing that doesn't
+  // exist in Mexican civil/administrativo/amparo procedure (e.g. quejoso/
+  // autoridad_responsable, particular/autoridad, parte_actora/parte_
+  // demandada) — the exact class of hardcoded-English/hardcoded-binary bug
+  // already fixed elsewhere in this pipeline (P0-4/P0-5, mx-work-product.ts).
+  // The theory ENGINE (engines.server.ts's runTheoryEngine) was already
+  // fixed to use the real materia-aware role vocabulary, including a THIRD
+  // role (tercero_interesado) for materias that have one — this narrative
+  // chunk never got the same fix, so its report prose could name the wrong
+  // parties, or have no slot at all for a tercero interesado theory that
+  // case_theories (addFindings-routed, visible in the findings tab) already
+  // correctly identified.
+  const { MX_PARTY_ROLES: narrativePartyRolesMap, resolveMxProfile: resolveNarrativeMxProfile } =
+    await import("./execution/mx-pipeline");
+  const narrativePartyRoles = narrativePartyRolesMap[resolveNarrativeMxProfile(caseType)];
+  const theoryRoleInstruction = narrativePartyRoles.c
+    ? `prosecution_theory_report is the theory for "${narrativePartyRoles.a}", defense_theory_report is the theory for "${narrativePartyRoles.b}", and alternative_theory_report is the theory for the third party "${narrativePartyRoles.c}" (tercero interesado) when the corpus supports one — these are Mexican procedural role names for this materia, not literal "prosecution"/"defense" (this is not necessarily a criminal case).`
+    : `prosecution_theory_report is the theory for "${narrativePartyRoles.a}", defense_theory_report is the theory for "${narrativePartyRoles.b}", and alternative_theory_report is any genuinely alternative narrative the corpus supports — these are Mexican procedural role names for this materia, not literal "prosecution"/"defense" (this is not necessarily a criminal case).`;
+  const narrativeShape = `Return STRICT JSON with this exact shape. Every prose field is a substantive narrative with inline \`[DOC N p.M]\` citations for every concrete claim — length per the LENGTH TARGETS already given above (scaled to this case's evidence volume; do not pad past what the evidence supports). ${theoryRoleInstruction}
 
 {
   "prose": {
@@ -7030,6 +7052,12 @@ ${paginationTail}`;
       apelante: { es: "Apelante", en: "Appellant" },
       apelado: { es: "Apelado", en: "Appellee" },
       ambas: { es: "Ambas Partes", en: "Both Parties" },
+      // P2 (2026-08-16): were missing entirely — every materia whose
+      // MX_PARTY_ROLES includes a `.c` role (mx-pipeline.ts) uses one of
+      // these three slugs for it.
+      tercero_interesado: { es: "Tercero Interesado", en: "Third-Party Interested Person" },
+      nucleo_agrario: { es: "Núcleo Agrario", en: "Agrarian Community" },
+      comunidad_afectada: { es: "Comunidad Afectada", en: "Affected Community" },
     };
     const roleLabel = (key: string) => ROLE_LABELS[key]?.[locale] ?? key;
 
@@ -7152,11 +7180,24 @@ ${paginationTail}`;
         ? `${roleLabel(partyRoles.b)} Theory\nFindings that may support ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`
         : `Teoría de la ${roleLabel(partyRoles.b)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`);
 
+    // P2 (2026-08-16): when this materia has a real third procedural role
+    // (tercero_interesado — amparo/administrativo/electoral), the fallback
+    // now renders that party's theory the SAME way the .a/.b fallbacks
+    // above already do, instead of a generic "insufficient evidence"
+    // placeholder that gave a real tercero-interesado theory (already
+    // computed by case_theories/runTheoryEngine, addFindings-routed, visible
+    // in the findings tab) no slot in the report at all. Materias with no
+    // third role keep the original placeholder — there's genuinely nothing
+    // else "alternative" means for them without inventing content.
     prose.alternative_theory_report =
       prose.alternative_theory_report ||
-      (locale === "en"
-        ? "Alternative Theory\nInsufficient verified evidence for alternative theory generation. Upload additional documents and re-run."
-        : "Teoría Alternativa\nEvidencia verificada insuficiente para generar una teoría alternativa. Suba documentos adicionales y vuelva a ejecutar.");
+      (partyRoles.c
+        ? locale === "en"
+          ? `${roleLabel(partyRoles.c)} Theory\nFindings that may support ${roleLabel(partyRoles.c)}:\n\n${byParty(partyRoles.c) || noContent}`
+          : `Teoría de la ${roleLabel(partyRoles.c)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.c)}:\n\n${byParty(partyRoles.c) || noContent}`
+        : locale === "en"
+          ? "Alternative Theory\nInsufficient verified evidence for alternative theory generation. Upload additional documents and re-run."
+          : "Teoría Alternativa\nEvidencia verificada insuficiente para generar una teoría alternativa. Suba documentos adicionales y vuelva a ejecutar.");
 
     prose.risk_analysis =
       prose.risk_analysis ||
