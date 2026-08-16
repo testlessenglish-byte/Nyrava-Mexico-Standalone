@@ -266,6 +266,114 @@ export function mergeConfidence(current: number, other: number, corroborated: bo
 }
 
 // ----------------------------------------------------------------------------
+// RECONCILIATION STATE — Canonical Reconciliation Design (2026-08-16).
+//
+// Five of these already existed implicitly (new/duplicate/supporting/
+// amended/rejected) as behavior with no explicit label. `conflicting` and
+// `unresolved` are the two genuinely new states: a canonical-id collision
+// between findings from DIFFERENT producers is today silently merged
+// (severity-winner-takes-all) even when the two findings assert opposite
+// conclusions about the same claim. That's correct for true duplicates
+// (same fact, different wording) and wrong for a real disagreement, which
+// silently discards one side with no record a disagreement ever happened.
+//
+// `case_findings.reconciliation_state` is additive/nullable — only ever
+// stamped "conflicting"/"unresolved" by the logic below; every other row
+// (the overwhelming majority) stays null, meaning "ordinary path, no
+// cross-producer disagreement detected" — exactly today's implicit behavior.
+// ----------------------------------------------------------------------------
+export type ReconciliationState =
+  | "new"
+  | "duplicate"
+  | "supporting"
+  | "conflicting"
+  | "unresolved"
+  | "amended"
+  | "rejected";
+
+export type ConflictClaim = {
+  source_module: string;
+  title: string;
+  description: string;
+  evidence_refs: unknown;
+};
+
+export type ConflictRecord = {
+  claim_a: ConflictClaim;
+  claim_b: ConflictClaim;
+  detected_at: string;
+};
+
+// A deliberately narrow, deterministic heuristic — NOT semantic/legal
+// understanding. It is a negation-marker scan, and it is the one piece of
+// genuinely new logic finalizeFindings/dedupSemantically need to tell a real
+// cross-producer disagreement from ordinary duplicate restatement. A real
+// LLM-based claim-comparison step is explicitly NOT built here (see the
+// Canonical Reconciliation Design, §04 — evidence verification and claim
+// comparison are two different kinds of verification, and this function
+// only ever performs the former). This can miss double-negatives, sarcasm,
+// or a conclusion phrased without an explicit marker — it is conservative
+// by construction: it only ever returns a polarity when it finds an
+// explicit marker, and "unknown" (never treated as a conflict) otherwise.
+const NEGATION_MARKERS =
+  /\b(no\s+(existe|hay|se\s+advierte|se\s+observa|contradice|constituye|acredita|configura)|sin\s+contradicci[oó]n|not\s+contradict|does\s+not\s+conflict|no\s+conflict|inexistente)\b/i;
+const AFFIRMATION_MARKERS =
+  /\b(s[ií]\s+(existe|hay|contradice|se\s+advierte|configura)|contradice\s+(directamente|expresamente)?|contradicts?|conflicts?\s+with|is\s+inconsistent\s+with)\b/i;
+
+export function detectAssertionPolarity(text: string): "affirmative" | "negative" | "unknown" {
+  const t = String(text ?? "");
+  const neg = NEGATION_MARKERS.test(t);
+  const aff = AFFIRMATION_MARKERS.test(t);
+  if (neg && !aff) return "negative";
+  if (aff && !neg) return "affirmative";
+  return "unknown";
+}
+
+/** The part of source_module before the first ":" — "analyzer", "engine",
+ *  "report_writer", "agent", etc. Two findings from the same family are
+ *  never treated as a cross-producer disagreement, even if their polarity
+ *  markers differ (that's the same producer restating itself, not two
+ *  independent producers reaching different conclusions). */
+function producerFamily(sourceModule: unknown): string {
+  const s = String(sourceModule ?? "");
+  const colon = s.indexOf(":");
+  return colon === -1 ? s : s.slice(0, colon);
+}
+
+/**
+ * Detect a genuine cross-producer disagreement between two findings that
+ * collided on the same canonical claim. Returns null (no conflict — proceed
+ * with the existing merge behavior) unless ALL of:
+ *   1. The two findings come from different producer families.
+ *   2. Each has an explicit, opposite assertion polarity.
+ * Per the design's governing rule: one producer simply not finding
+ * something is never a conflict (that producer never reaches this
+ * function at all — there's no collision to compare). This only fires on
+ * an actual collision where both sides affirmatively said something.
+ */
+export function detectProducerConflict(a: NewFinding, b: NewFinding): ConflictRecord | null {
+  if (producerFamily(a.source_module) === producerFamily(b.source_module)) return null;
+  const pa = detectAssertionPolarity(`${a.title} ${a.description}`);
+  const pb = detectAssertionPolarity(`${b.title} ${b.description}`);
+  if (pa === "unknown" || pb === "unknown" || pa === pb) return null;
+  return {
+    claim_a: {
+      source_module: String(a.source_module),
+      title: a.title,
+      description: a.description,
+      evidence_refs: a.evidence_refs ?? [],
+    },
+    claim_b: {
+      source_module: String(b.source_module),
+      title: b.title,
+      description: b.description,
+      evidence_refs: b.evidence_refs ?? [],
+    },
+    detected_at: new Date().toISOString(),
+  };
+}
+
+// ----------------------------------------------------------------------------
 // FINALIZATION PIPELINE — runs the strict ID order on a batch of findings.
 // ----------------------------------------------------------------------------
 
@@ -372,6 +480,27 @@ export function finalizeFindings(rows: NewFinding[]): FinalizationResult {
       continue;
     }
     stats.canonical_merged += 1;
+    const conflict = detectProducerConflict(prev, base);
+    if (conflict) {
+      // Genuine cross-producer disagreement, not a duplicate restatement.
+      // Both sides' evidence is unioned (still additive, still auditable)
+      // but neither side's conclusion is discarded via merged_from — that
+      // field means "accepted as the same fact"; this is the opposite.
+      const prevMeta = (prev.metadata ?? {}) as Record<string, unknown>;
+      byCanonical.set(canonical, {
+        ...prev,
+        evidence_refs: [
+          ...((prev.evidence_refs ?? []) as unknown[]),
+          ...((base.evidence_refs ?? []) as unknown[]),
+        ] as NewFinding["evidence_refs"],
+        metadata: {
+          ...prevMeta,
+          reconciliation_state: "unresolved" as ReconciliationState,
+          conflict,
+        },
+      });
+      continue;
+    }
     // Winner = higher severity; loser metadata is appended.
     const prevSev = sevRank[String(prev.severity)] ?? 9;
     const newSev = sevRank[String(base.severity)] ?? 9;
