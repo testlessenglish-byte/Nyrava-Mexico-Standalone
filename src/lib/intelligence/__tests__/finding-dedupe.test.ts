@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { consolidateFindings, jaccard, normalizeText } from "../finding-dedupe";
+import {
+  consolidateFindings,
+  jaccard,
+  normalizeText,
+  isGroundedByTextOverlap,
+  SOFT_GROUNDING_THRESHOLD,
+} from "../finding-dedupe";
 
 const f = (o: Record<string, unknown>) => ({ severity: "medium", confidence: 0.5, ...o });
 
@@ -350,5 +356,43 @@ describe("finding dedupe — cross-engine (cross-category) duplication", () => {
       }),
     ]);
     expect(out).toHaveLength(1);
+  });
+});
+
+// Canonical Reconciliation Design (2026-08-16), P2 §10 — isGroundedByTextOverlap
+// is the soft-grounding check used by litigation.server.ts's Litigation
+// Strategy Center to flag (never silently drop) a synthesis-engine claim
+// that shares no textual relationship to what a DIFFERENT, addFindings-
+// routed producer already knows about the same case.
+describe("isGroundedByTextOverlap", () => {
+  it("returns true when the text meaningfully overlaps a candidate", () => {
+    const result = isGroundedByTextOverlap(
+      "Falta el acta de notificación personal al quejoso",
+      ["No obra en el expediente el acta de notificación personal", "Otro hallazgo sin relación"],
+    );
+    expect(result).toBe(true);
+  });
+
+  it("returns false when there is no meaningful overlap with any candidate", () => {
+    const result = isGroundedByTextOverlap("Falta el peritaje en criminalística de campo", [
+      "El testigo declaró sobre el color del vehículo",
+    ]);
+    expect(result).toBe(false);
+  });
+
+  it("returns null (not false) when there are no candidates to compare against — absence of data is not evidence of a mismatch", () => {
+    expect(isGroundedByTextOverlap("Falta el acta de notificación", [])).toBeNull();
+  });
+
+  it("returns null for empty/whitespace-only text", () => {
+    expect(isGroundedByTextOverlap("   ", ["algo relevante aquí"])).toBeNull();
+  });
+
+  it("respects a custom threshold", () => {
+    const text = "Falta el acta de notificación personal";
+    const candidate = "Acta de notificación no localizada en el expediente";
+    // A very strict threshold should reject what the default threshold accepts.
+    expect(isGroundedByTextOverlap(text, [candidate], 0.9)).toBe(false);
+    expect(isGroundedByTextOverlap(text, [candidate], SOFT_GROUNDING_THRESHOLD)).toBe(true);
   });
 });
