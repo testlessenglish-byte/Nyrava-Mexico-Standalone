@@ -7845,15 +7845,33 @@ ${paginationTail}`;
     // across two runs could silently accumulate as a near-duplicate row
     // instead of being cleanly replaced.
     await clearFindingsByModule(db, caseId, "report_writer:");
-    const { contradictionRows, missingEvidenceRows, constitutionalRows } =
-      normalizeReportWriterFindings({
-        caseId,
-        userId,
-        contradictions: allContradictions,
-        missingEvidence: missingGuarded.items,
-        constitutionalIssues: constGuarded.items,
-        docNToId,
-      });
+    const {
+      contradictionRows,
+      missingEvidenceRows,
+      constitutionalRows,
+      motionOpportunityRows,
+      strategyRecommendationRows,
+      nextActionRows,
+      crossExaminationRows,
+    } = normalizeReportWriterFindings({
+      caseId,
+      userId,
+      contradictions: allContradictions,
+      missingEvidence: missingGuarded.items,
+      constitutionalIssues: constGuarded.items,
+      // P2 (2026-08-16): the same intelShape chunk's remaining 4 fields —
+      // P0 only routed the first 3. `isLimited`/`motionsFinal` are already
+      // resolved above this point (reportMode gating, ~line 7716) so these
+      // respect the exact same LIMITED-mode suppression the report body
+      // itself uses — a suppressed motion/strategy/next-action must not
+      // reappear as a findings-tab row just because it was cleared from the
+      // report prose.
+      motionOpportunities: isLimited ? [] : motionsFinal,
+      strategyRecommendations: isLimited ? [] : strategy,
+      nextActions: isLimited ? [] : nextActions,
+      crossExamination: isLimited ? [] : crossExam,
+      docNToId,
+    });
     if (contradictionRows.length) {
       await addGatedFindings(db, caseId, contradictionRows);
     }
@@ -7864,6 +7882,23 @@ ${paginationTail}`;
       // Absence-of-evidence claims structurally cannot carry a citation —
       // same exemption analyzer's own "analyzer:missing" findings use.
       await addGatedFindings(db, caseId, missingEvidenceRows, { exemptCitation: true });
+    }
+    // Motion/strategy/next-action/cross-examination content is advisory —
+    // recommendations, not factual claims — so it structurally cannot carry
+    // the same kind of verbatim-quote citation a contradiction can. Only
+    // motion_opportunity items sometimes carry real citations (routed
+    // normally when they do); the other three exempt unconditionally.
+    if (motionOpportunityRows.length) {
+      await addGatedFindings(db, caseId, motionOpportunityRows, { exemptCitation: true });
+    }
+    if (strategyRecommendationRows.length) {
+      await addGatedFindings(db, caseId, strategyRecommendationRows, { exemptCitation: true });
+    }
+    if (nextActionRows.length) {
+      await addGatedFindings(db, caseId, nextActionRows, { exemptCitation: true });
+    }
+    if (crossExaminationRows.length) {
+      await addGatedFindings(db, caseId, crossExaminationRows, { exemptCitation: true });
     }
   } catch (err) {
     console.error("[report:reconciliation] failed to route intelligence-chunk output through addGatedFindings", {

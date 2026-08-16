@@ -24,10 +24,13 @@
 //   src/lib/intelligence/engines.server.ts:733     trial      → addGatedFindings(exemptCitation)
 //   src/lib/pipeline.server.ts (report-writer "intelligence" chunk, after
 //     verifyAndLabel/enforceStructuredItems) → normalizeReportWriterFindings
-//     then addGatedFindings (exemptCitation for missing_evidence only).
-//     Closes the one real bypass identified in the Canonical Reconciliation
-//     Design (2026-08-16) — this chunk used to write straight into
-//     reports.full_report and never reached this file at all.
+//     then addGatedFindings — contradictions/constitutional_issues normally
+//     gated, exemptCitation for missing_evidence/motion_opportunity/
+//     strategy_recommendation/next_action/cross_examination (all advisory,
+//     not factual claims). Closes the report-writer bypass identified in the
+//     Canonical Reconciliation Design (2026-08-16, P0 + P2) — this chunk
+//     used to write straight into reports.full_report and never reached
+//     this file at all.
 //
 // If you add a new engine that writes findings, add it here and route through
 // `addGatedFindings` (with `exemptCitation` only for absence-of-evidence
@@ -1681,11 +1684,23 @@ export function normalizeReportWriterFindings(args: {
   missingEvidence: Array<Record<string, any>>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constitutionalIssues: Array<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  motionOpportunities?: Array<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  strategyRecommendations?: Array<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  nextActions?: Array<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  crossExamination?: Array<Record<string, any>>;
   docNToId: Map<number, string | null | undefined>;
 }): {
   contradictionRows: NewFinding[];
   missingEvidenceRows: NewFinding[];
   constitutionalRows: NewFinding[];
+  motionOpportunityRows: NewFinding[];
+  strategyRecommendationRows: NewFinding[];
+  nextActionRows: NewFinding[];
+  crossExaminationRows: NewFinding[];
 } {
   const { caseId, userId, docNToId } = args;
 
@@ -1780,5 +1795,113 @@ export function normalizeReportWriterFindings(args: {
     } as NewFinding;
   });
 
-  return { contradictionRows, missingEvidenceRows, constitutionalRows };
+  // Canonical Reconciliation Design (2026-08-16), P2 §10 — the SAME
+  // intelShape LLM call P0 routed contradictions/missing_evidence/
+  // constitutional_issues from also produces these 4 fields, and P0 left
+  // them untouched: they still had no addFindings route at all before this.
+  // All four are advisory/recommendation-shaped rather than factual claims —
+  // exemptCitation is the correct treatment for all of them (mirrors
+  // missing_evidence above and the analyzer's own discovery-gap/trial-risk
+  // findings), not a citation-floor downgrade.
+  const motionOpportunityRows: NewFinding[] = (args.motionOpportunities ?? []).map((mo) => {
+    const citations = Array.isArray(mo.citations) ? mo.citations : [];
+    const evidence_refs = citationEvidenceRefs(citations, docNToId);
+    const likelihood = String(mo.likelihood_of_success ?? "").toLowerCase();
+    return {
+      case_id: caseId,
+      user_id: userId,
+      source_module: "report_writer:motion_opportunity",
+      category: "motion_opportunity",
+      title: String(mo.motion ?? "Oportunidad de moción").slice(0, 400),
+      description: String(mo.legal_rationale ?? mo.basis ?? "").slice(0, 8000),
+      severity: likelihood === "high" ? "high" : likelihood === "low" ? "low" : "medium",
+      confidence: 0.6,
+      legal_significance: typeof mo.basis === "string" ? mo.basis : null,
+      potential_impact: typeof mo.anticipated_opposing_response === "string"
+        ? mo.anticipated_opposing_response
+        : null,
+      affected_party: null,
+      evidence_refs,
+      source_doc_ids: sourceDocIdsFromRefs(evidence_refs),
+      tags: [],
+      metadata: { raw: mo },
+    } as NewFinding;
+  });
+
+  const strategyRecommendationRows: NewFinding[] = (args.strategyRecommendations ?? []).map(
+    (sr) =>
+      ({
+        case_id: caseId,
+        user_id: userId,
+        source_module: "report_writer:strategy_recommendation",
+        category: "strategy_recommendation",
+        title: String(sr.title ?? "Recomendación estratégica").slice(0, 400),
+        description: String(sr.rationale ?? sr.title ?? "").slice(0, 8000),
+        severity: normSeverity(sr.priority),
+        confidence: 0.6,
+        legal_significance: null,
+        potential_impact: typeof sr.expected_impact === "string" ? sr.expected_impact : null,
+        affected_party: null,
+        evidence_refs: [],
+        source_doc_ids: [],
+        tags: [],
+        metadata: { raw: sr },
+      }) as NewFinding,
+  );
+
+  const nextActionRows: NewFinding[] = (args.nextActions ?? []).map(
+    (na) =>
+      ({
+        case_id: caseId,
+        user_id: userId,
+        source_module: "report_writer:next_action",
+        category: "next_action",
+        title: String(na.action ?? "Siguiente acción").slice(0, 400),
+        description: String(na.why ?? na.action ?? "").slice(0, 8000),
+        severity: "medium",
+        confidence: 0.6,
+        legal_significance: null,
+        potential_impact: null,
+        affected_party: null,
+        evidence_refs: [],
+        source_doc_ids: [],
+        tags: [],
+        metadata: { raw: na },
+      }) as NewFinding,
+  );
+
+  const crossExaminationRows: NewFinding[] = (args.crossExamination ?? []).map((ce) => {
+    const lines = Array.isArray(ce.lines) ? ce.lines : [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const citations = lines.map((l: any) => l?.citation).filter(Boolean);
+    const evidence_refs = citationEvidenceRefs(citations, docNToId);
+    const witness = typeof ce.witness === "string" ? ce.witness : "testigo";
+    return {
+      case_id: caseId,
+      user_id: userId,
+      source_module: "report_writer:cross_examination",
+      category: "cross_examination",
+      title: `Contrainterrogatorio: ${witness}`.slice(0, 400),
+      description: String(ce.objective ?? "").slice(0, 8000),
+      severity: "medium",
+      confidence: 0.6,
+      legal_significance: null,
+      potential_impact: null,
+      affected_party: null,
+      evidence_refs,
+      source_doc_ids: sourceDocIdsFromRefs(evidence_refs),
+      tags: [],
+      metadata: { raw: ce },
+    } as NewFinding;
+  });
+
+  return {
+    contradictionRows,
+    missingEvidenceRows,
+    constitutionalRows,
+    motionOpportunityRows,
+    strategyRecommendationRows,
+    nextActionRows,
+    crossExaminationRows,
+  };
 }
