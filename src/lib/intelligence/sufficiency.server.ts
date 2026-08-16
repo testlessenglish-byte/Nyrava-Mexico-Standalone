@@ -29,6 +29,18 @@ export type ESSInputs = {
   hasChargingDocument?: boolean;
   highWeightDocTypeCount?: number;
   distinctDocTypeCount?: number;
+  /**
+   * Report locale, for insufficientEvidenceNotice's language only — nothing
+   * else in this function is locale-aware. Defaults to "en" for the
+   * work-product gating call site (computeWorkProductEss below), which never
+   * reads the notice text, only the boolean gates. CONFIRMED LIVE
+   * (ADR5829/2025, es report): the report stage's own call (pipeline.server.ts)
+   * omitted this, so a "minimal" bin unconditionally prepended this English
+   * notice onto a Spanish executive_summary — QA's language-drift check
+   * correctly caught it ("Report language drift (es): Evidence.") and forced
+   * the case to needs_revision.
+   */
+  locale?: "en" | "es";
 };
 
 export type ESSResult = {
@@ -198,6 +210,7 @@ export function computeESS(inputs: ESSInputs): ESSResult {
     hasChargingDocument = false,
     highWeightDocTypeCount = 0,
     distinctDocTypeCount = 0,
+    locale = "en",
   } = inputs;
   const reasons: string[] = [];
 
@@ -283,7 +296,9 @@ export function computeESS(inputs: ESSInputs): ESSResult {
 
   const insufficientEvidenceNotice =
     !overrideTriggered && bin === "minimal"
-      ? "Insufficient evidence for full legal intelligence. This report is limited to verified facts and missing-evidence notices. Generating theories, motions, or quantitative scores from this corpus does not meet this platform's current bar for full analysis."
+      ? locale === "es"
+        ? "Evidencia insuficiente para un análisis legal completo. Este reporte se limita a hechos verificados y avisos de evidencia faltante. Generar teorías, promociones o puntuaciones cuantitativas a partir de este acervo no cumple con el estándar actual de la plataforma para un análisis completo."
+        : "Insufficient evidence for full legal intelligence. This report is limited to verified facts and missing-evidence notices. Generating theories, motions, or quantitative scores from this corpus does not meet this platform's current bar for full analysis."
       : null;
 
   return {

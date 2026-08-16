@@ -32,6 +32,35 @@ type CitationCandidate = {
   source_quote?: string | null;
 };
 
+/**
+ * Source modules that findings.server.ts's addGatedFindings() inserts with
+ * `{ exemptCitation: true }` — absence-of-evidence / whole-corpus-inference
+ * findings that structurally cannot carry a verbatim quote by design (a
+ * "this required element was not found in the corpus" marker has nothing to
+ * quote). These are tagged finding_type "AI_THEORY" like any other uncited
+ * finding, so that alone can't distinguish them from a genuinely
+ * unsupported/speculative claim that only survived because analysis_mode
+ * was permissive — but source_module can, since this is the exact fixed set
+ * of callers that pass exemptCitation. CONFIRMED LIVE (ADR5829/2025, strict
+ * mode): the only two findings this run produced were one substantive,
+ * fully-cited key finding and one procedural_compliance absence marker —
+ * counting the absence marker against citation density dragged the ratio to
+ * 50%, below strict's 70% approval floor, and Judge returned
+ * needs_revision on a report that was otherwise fully grounded. These
+ * findings are excluded entirely (not counted as cited OR uncited) rather
+ * than counted as an automatic pass, so a case that's ALL absence markers
+ * still correctly falls through to the "No findings to evaluate" reject
+ * path below.
+ */
+const CITATION_EXEMPT_SOURCE_MODULES = new Set([
+  "engine:procedural_compliance",
+  "engine:discovery:missing",
+  "engine:discovery:violation",
+  "engine:trial:risk",
+  "engine:trial:strength",
+  "analyzer:missing",
+]);
+
 function hasTraceableCitation(f: CitationCandidate): boolean {
   const hasDoc =
     typeof f.source_document_id === "string" && f.source_document_id.trim().length > 0
@@ -519,21 +548,31 @@ const HALLUCINATION_THRESHOLDS: Record<AnalysisMode, number> = {
   exploratory: 0.5,
 };
 
-async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
-  const t = JUDGE_THRESHOLDS[ctx.analysisMode];
+export type JudgeFinding = {
+  source_document_id: string | null;
+  source_doc_ids: string[] | null;
+  source_quote: string | null;
+  source_module: string | null;
+};
+
+export type JudgeVerdictResult = {
+  verdict: "approve" | "needs_revision" | "reject";
+  notes: string[];
+  totals: { findings: number; cited: number; cited_ratio: number };
+};
+
+/** Pure decision, extracted so the citation-exemption behavior is directly
+ *  unit-testable without a fake-db harness for the whole agent. */
+export function computeJudgeVerdict(
+  allFindings: JudgeFinding[],
+  mode: AnalysisMode,
+): JudgeVerdictResult {
+  const t = JUDGE_THRESHOLDS[mode];
   let verdict: "approve" | "needs_revision" | "reject" = "approve";
   const notes: string[] = [];
-  const { data: allFindings } = await ctx.db
-    .from("case_findings")
-    .select("id,source_document_id,source_doc_ids,source_quote,source_module")
-    .eq("case_id", ctx.caseId)
-    .not("source_module", "like", PROJECTION_LIKE);
-  const findings = (allFindings ?? []) as Array<{
-    source_document_id: string | null;
-    source_doc_ids: string[] | null;
-    source_quote: string | null;
-    source_module: string | null;
-  }>;
+  const findings = allFindings.filter(
+    (f) => !CITATION_EXEMPT_SOURCE_MODULES.has(String(f.source_module ?? "")),
+  );
   const totalN = findings.length;
   const cited = findings.filter((f) => hasTraceableCitation(f)).length;
   const citedRatio = totalN > 0 ? cited / totalN : 1;
@@ -543,21 +582,34 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
   } else if (citedRatio < t.reject) {
     verdict = "reject";
     notes.push(
-      `Citation density ${(citedRatio * 100).toFixed(0)}% below ${ctx.analysisMode} reject threshold (${(t.reject * 100).toFixed(0)}%).`,
+      `Citation density ${(citedRatio * 100).toFixed(0)}% below ${mode} reject threshold (${(t.reject * 100).toFixed(0)}%).`,
     );
   } else if (citedRatio < t.needsRevision) {
     verdict = "needs_revision";
     notes.push(
-      `Citation density ${(citedRatio * 100).toFixed(0)}% below ${ctx.analysisMode} approval threshold (${(t.needsRevision * 100).toFixed(0)}%).`,
+      `Citation density ${(citedRatio * 100).toFixed(0)}% below ${mode} approval threshold (${(t.needsRevision * 100).toFixed(0)}%).`,
     );
   } else {
-    notes.push(`Citation density ${(citedRatio * 100).toFixed(0)}% passes ${ctx.analysisMode} approval threshold.`);
+    notes.push(`Citation density ${(citedRatio * 100).toFixed(0)}% passes ${mode} approval threshold.`);
   }
   const contraCount = findings.filter((f) => f.source_module === "contradictions").length;
   if (contraCount > 50 && verdict === "approve") {
     verdict = "needs_revision";
     notes.push(`High contradiction count (${contraCount}) warrants revision.`);
   }
+  return { verdict, notes, totals: { findings: totalN, cited, cited_ratio: citedRatio } };
+}
+
+async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
+  const { data: allFindings } = await ctx.db
+    .from("case_findings")
+    .select("id,source_document_id,source_doc_ids,source_quote,source_module")
+    .eq("case_id", ctx.caseId)
+    .not("source_module", "like", PROJECTION_LIKE);
+  const { verdict, notes, totals } = computeJudgeVerdict(
+    (allFindings ?? []) as JudgeFinding[],
+    ctx.analysisMode,
+  );
   const pass = verdict === "approve";
   return {
     status: pass ? "success" : "failed",
@@ -570,8 +622,8 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
       verdict,
       notes,
       mode: ctx.analysisMode,
-      thresholds: t,
-      totals: { findings: totalN, cited, cited_ratio: citedRatio },
+      thresholds: JUDGE_THRESHOLDS[ctx.analysisMode],
+      totals,
     },
   };
 }
