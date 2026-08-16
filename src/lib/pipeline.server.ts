@@ -36,6 +36,7 @@ import {
   runEngine,
   clearEngineRuns,
   buildEnginesSummary,
+  finalizeEnginesSummaryForEmbed,
 } from "./intelligence/engine-audit.server";
 import {
   classifyContradiction,
@@ -8058,16 +8059,20 @@ ${paginationTail}`;
     subRow("report_contradictions", contradictionsRaw.length, factualContradictions.length),
   ]);
 
-  // NOTE: we intentionally do NOT flip the report_generator row to
-  // "completed" here. The runEngine wrapper does that as the very last
-  // step, AFTER reports.upsert has been confirmed. Marking it complete
-  // early creates a window where the ledger says "done" but the report
-  // row hasn't been written yet — and if the process is killed in that
-  // window, the run appears successful while artifacts are missing.
-  // buildEnginesSummary below will show report_generator as "running"
-  // in the embedded snapshot, which is correct — the run isn't done
-  // until this function returns.
-  const enginesSummary = await buildEnginesSummary(db, caseId);
+  // NOTE: we intentionally do NOT flip the REAL pipeline_engine_runs
+  // report_generator row to "completed" here — see below. The runEngine
+  // wrapper does that as the very last step, AFTER reports.upsert has been
+  // confirmed. Marking the real ledger row complete early would create a
+  // window where the ledger says "done" but the report row hasn't been
+  // written yet — and if the process is killed in that window, the run
+  // appears successful while artifacts are missing. That's correct and
+  // untouched below.
+  // finalizeEnginesSummaryForEmbed patches ONLY this embedded display copy's
+  // report_generator entry to "completed" — the real ledger row's deferred
+  // flip above is untouched. See that function's doc comment for why this
+  // half is safe and why leaving it unpatched was showing every completed
+  // report as still "generating" on the Reports page forever.
+  const enginesSummary = finalizeEnginesSummaryForEmbed(await buildEnginesSummary(db, caseId));
 
   const { buildAgentStatistics } = await import("./agents/statistics.server");
   const agentStatistics = await buildAgentStatistics(db, caseId);

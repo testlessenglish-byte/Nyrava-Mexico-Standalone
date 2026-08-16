@@ -378,3 +378,37 @@ export async function buildEnginesSummary(db: Db, caseId: string) {
   }
   return out;
 }
+
+/**
+ * FIX (2026-08-16): pipeline.server.ts deliberately does NOT flip the REAL
+ * report_generator row in pipeline_engine_runs to "completed" until after
+ * runEngine's outer wrapper confirms reports.upsert succeeded — a real
+ * crash-safety property (see that file's comment at the buildEnginesSummary
+ * call site). But the SNAPSHOT this function returns gets embedded verbatim
+ * into reports.full_report.engines_summary, which is a frozen copy, never
+ * revisited after the report row is written — and reports.tsx's engine-status
+ * chip row renders exactly that frozen copy (`report?.engines_summary`), not
+ * a live query. Left alone, EVERY successfully completed report shows
+ * "report_generator: running" forever, on a report an attorney can already
+ * see and download — reported live as "it told me the report was done" next
+ * to a status list claiming otherwise. By the time a caller has this
+ * function's result in hand to embed it, the report row it's about to become
+ * part of is moments from being durably written, so — for THIS display copy
+ * only — report_generator is safe to mark completed. The real ledger row's
+ * deferred flip (the actual crash-safety mechanism, used by resume/checkpoint
+ * logic elsewhere) is untouched.
+ */
+export function finalizeEnginesSummaryForEmbed(
+  summary: Record<string, unknown>,
+): Record<string, unknown> {
+  const reportGenerator = summary.report_generator;
+  if (!reportGenerator || typeof reportGenerator !== "object") return summary;
+  return {
+    ...summary,
+    report_generator: {
+      ...(reportGenerator as Record<string, unknown>),
+      status: "completed",
+      ended_at: new Date().toISOString(),
+    },
+  };
+}
