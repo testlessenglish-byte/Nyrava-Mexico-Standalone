@@ -469,11 +469,12 @@ export const COMMAND_CENTER_ENGINES: readonly string[] = REPORT_REQUIRED_ENGINES
 
 /** Engine id → the case's own dedicated completion-timestamp column
  *  (extracted_at, analysis_at, agents_at, scored_at, ...). Originally built
- *  for the backfill migration; also used by pipeline-runner.server.ts's
- *  resume-clamp as an independent cross-check against pipeline_engine_runs
- *  — see isStageTimestampSet below. Engines with no dedicated column
+ *  for the one-time backfill migration. Engines with no dedicated column
  *  (sub-engines, stages whose completion isn't tracked this way) are
- *  simply absent from this map. */
+ *  simply absent from this map.
+ *
+ *  NOT used by pipeline-runner.server.ts's resume-clamp — see
+ *  isStageTimestampSet's doc comment for why that was tried and reverted. */
 export const ENGINE_TIMESTAMP_FALLBACK: Readonly<Record<string, string>> = Object.freeze(
   Object.fromEntries(
     (CANONICAL_STAGES as readonly StageDef[])
@@ -484,18 +485,29 @@ export const ENGINE_TIMESTAMP_FALLBACK: Readonly<Record<string, string>> = Objec
 );
 
 /** True when the case's own dedicated timestamp column for this engine is
- *  set — an independent signal from pipeline_engine_runs. CONFIRMED LIVE: a
- *  resume tick's "has this stage already run" check, based solely on a
- *  pipeline_engine_runs read, found "extraction" not yet attempted even
- *  though it had genuinely completed (extracted_at was set) earlier in the
- *  same run — clamping the resume point all the way back to extraction and
- *  silently replaying the whole pipeline. These columns are written
- *  directly by each stage on success and are never touched by anything
- *  except a genuine full-rerun/materia-correction reset, so using this as a
- *  second signal (OR'd with the ledger read, never instead of it) means a
- *  gap in the ledger read can never again cause an already-completed stage
- *  to be silently re-run from scratch. Engines with no timestampColumn
- *  always return false — the ledger read remains the sole signal there. */
+ *  set. Pure function, correctly implemented and tested below — but do NOT
+ *  wire this into any "has this stage already run" decision that can cause a
+ *  stage to be SKIPPED (not re-executed). It was briefly used that way, OR'd
+ *  into pipeline-runner.server.ts's alreadyDone()/alreadyAttempted(), to
+ *  close a suspected read-consistency gap in the ledger check. REVERTED
+ *  (confirmed live, ADR-4321-2017-180507): these columns are written by a
+ *  plain setCase() call independent of the pipeline_engine_runs row for the
+ *  same stage — NOT in the same transaction, NOT atomically together. A
+ *  reset that fires while a stage is still mid-flight (e.g.
+ *  updateCaseSettings's caseAnalysisModeChanged/caseTypeChanged branch,
+ *  which deletes every pipeline_engine_runs row and nulls every cases.*_at
+ *  column with no guard against an in-flight run — unlike
+ *  queueCaseForPipeline's cooperative-cancellation reset path) can delete
+ *  the stage's ledger row while that stale in-flight run is still executing;
+ *  when it finishes moments later its own completion write silently
+ *  restores the timestamp with no ledger row behind it. Trusting that
+ *  timestamp then made the resume-clamp treat analyzers/agents/etc. as
+ *  "already done" and skip them outright, while report generation's
+ *  ledger-only gate correctly saw them as never run and hard-failed
+ *  ("core engines failed to complete even after auto-backfill") for all of
+ *  them. pipeline_engine_runs is the sole source of truth for whether a
+ *  stage has run — see resumeFullPipelineStep's own doc comment
+ *  (cases.functions.ts) for the same rule stated independently. */
 export function isStageTimestampSet(caseRow: Record<string, unknown>, engine: string): boolean {
   const col = ENGINE_TIMESTAMP_FALLBACK[engine];
   return !!col && !!caseRow[col];
