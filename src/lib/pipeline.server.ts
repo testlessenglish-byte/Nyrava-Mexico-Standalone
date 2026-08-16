@@ -8136,6 +8136,37 @@ ${paginationTail}`;
     });
   }
 
+  // Canonical Reconciliation Design (2026-08-16), P2 §10 — the per-dimension
+  // scoring stage (above, ~line 4918) already reconciles the LLM's own
+  // dimension_breakdowns against computeDeterministicScorecard: deterministic
+  // is authoritative, the LLM value is comparison-only, and a MODEL_DISAGREEMENT
+  // flag fires when they diverge by more than SCORE_DISAGREEMENT_THRESHOLD.
+  // The report-writer's own top-level case_strength_score (a SEPARATE, LATER
+  // LLM call, self-reported with no grounding beyond "sound plausible") never
+  // got the same treatment — both numbers render in the same report with
+  // nothing ever comparing them. Deliberately narrow: only case_strength_score
+  // gets a deterministic counterpart here (the mean of this same scorecard's
+  // per-dimension scores, already computed just below) — risk_score has no
+  // clean deterministic equivalent anywhere in this codebase, so this does
+  // NOT fabricate one for it.
+  const reportDeterministicScorecard = computeDeterministicScorecard(
+    findings as unknown as Parameters<typeof computeDeterministicScorecard>[0],
+    caseType,
+  );
+  const reportDimScores = Object.values(reportDeterministicScorecard.dimensions)
+    .map((d) => d.score)
+    .filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+  const reportCaseStrengthScore = gatedScore(parsed.case_strength_score);
+  const {
+    computeCaseStrengthDisagreement,
+    SCORE_DISAGREEMENT_THRESHOLD: reportScoreDisagreementThreshold,
+  } = await import("./intelligence/case-state.server");
+  const {
+    deterministic: reportDeterministicStrength,
+    delta: reportCaseStrengthDelta,
+    disagreement: reportCaseStrengthDisagreement,
+  } = computeCaseStrengthDisagreement(reportCaseStrengthScore, reportDimScores);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportRow: any = {
     case_id: caseId,
@@ -8171,10 +8202,7 @@ ${paginationTail}`;
       case_type: caseType,
       findings_summary: findingsSummary,
       coverage_report: await computeCoverage(db, caseId),
-      deterministic_scorecard: computeDeterministicScorecard(
-        findings as unknown as Parameters<typeof computeDeterministicScorecard>[0],
-        caseType,
-      ),
+      deterministic_scorecard: reportDeterministicScorecard,
       // Layer 2 — deterministic legal intelligence algorithms. Pure functions,
       // no LLM. The AI layer interprets these signals; it does not invent them.
       deterministic_algorithms: await (async () => {
@@ -8498,6 +8526,26 @@ ${paginationTail}`;
             ? "The attorney-locked case type disagreed with CONFIRMED classification evidence from the corpus. This report was generated using the corpus-detected materia instead of the locked value — review the case type before relying on materia-specific sections (constitutional analysis, motion catalogue, scoring dimensions)."
             : "No classification conflict detected.",
         },
+        // Canonical Reconciliation Design (2026-08-16), P2 — mirrors the
+        // per-dimension MODEL_DISAGREEMENT mechanism (case_scores stage,
+        // ~line 4918) for the single top-level case_strength_score, which
+        // never had an equivalent check: deterministic_scorecard above is
+        // authoritative for every dimension; case_strength_score is a
+        // separate, later, self-reported LLM number. score_deterministic is
+        // the mean of this same scorecard's per-dimension scores — the same
+        // 0-100 scale case_strength_score claims to be on. risk_score has no
+        // deterministic counterpart anywhere in this codebase, so it is NOT
+        // compared here rather than inventing one.
+        score_consistency: {
+          case_strength_score: reportCaseStrengthScore,
+          case_strength_score_deterministic:
+            typeof reportDeterministicStrength === "number"
+              ? Math.round(reportDeterministicStrength)
+              : null,
+          delta: typeof reportCaseStrengthDelta === "number" ? Math.round(reportCaseStrengthDelta) : null,
+          disagreement_threshold: reportScoreDisagreementThreshold,
+          flags: reportCaseStrengthDisagreement ? ["MODEL_DISAGREEMENT"] : [],
+        },
         // Single authoritative report state — used by every consumer.
         report_mode: reportMode,
         // Three explicit counters used by every UI surface and export.
@@ -8522,7 +8570,7 @@ ${paginationTail}`;
     cross_examination: isLimited ? ([] as unknown as J) : (crossExam as J),
     strategy_recommendations: isLimited ? ([] as unknown as J) : (strategy as J),
     next_actions: isLimited ? ([] as unknown as J) : (nextActions as J),
-    case_strength_score: gatedScore(parsed.case_strength_score),
+    case_strength_score: reportCaseStrengthScore,
     risk_score: gatedScore(parsed.risk_score),
     scores_suppressed: isLimited,
     motions_suppressed: isLimited,

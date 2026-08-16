@@ -225,3 +225,25 @@ export function computeScoreDelta(
   }
   return { deltas, disagreement: max >= SCORE_DISAGREEMENT_THRESHOLD, max_delta: max };
 }
+
+/**
+ * Canonical Reconciliation Design (2026-08-16), P2 §10 — same mechanism as
+ * computeScoreDelta above (deterministic-authoritative, LLM-comparison-only,
+ * SCORE_DISAGREEMENT_THRESHOLD-gated), applied to the report-writer's
+ * top-level case_strength_score instead of a per-dimension breakdown. Pulled
+ * out as its own pure function (rather than inlined in pipeline.server.ts)
+ * so the threshold math is unit-testable without the surrounding runReport
+ * machinery.
+ */
+export function computeCaseStrengthDisagreement(
+  llmScore: number | null | undefined,
+  deterministicDimensionScores: ReadonlyArray<number>,
+): { deterministic: number | null; delta: number | null; disagreement: boolean } {
+  if (deterministicDimensionScores.length === 0 || typeof llmScore !== "number" || !Number.isFinite(llmScore)) {
+    return { deterministic: null, delta: null, disagreement: false };
+  }
+  const deterministic =
+    deterministicDimensionScores.reduce((a, b) => a + b, 0) / deterministicDimensionScores.length;
+  const delta = Math.abs(llmScore - deterministic);
+  return { deterministic, delta, disagreement: delta >= SCORE_DISAGREEMENT_THRESHOLD };
+}
