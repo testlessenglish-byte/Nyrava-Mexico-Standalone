@@ -7977,19 +7977,39 @@ ${paginationTail}`;
     (n, x) => n + (x?.dropped ?? 0),
     0,
   );
+  // FIX (2026-08-16): these three used to write under "theory"/"strategy"/
+  // "opportunity" — the SAME engine keys engines.server.ts's
+  // runTheoryEngine/runStrategyEngine/runOpportunityEngine already write to
+  // (via runCatalogedEngine, canonical.ts's CANONICAL_STAGES). Report
+  // generation runs AFTER those real engines, so buildEnginesSummary's
+  // documented last-wins-by-created_at behavior meant this row always
+  // silently overwrote the real engine's row — including its real
+  // runtime_ms and generated/rejected counts — with this local, unrelated
+  // "did the report-writer's own intelligence chunk carry theories/
+  // strategy/opportunities" count. Confirmed live on a real case
+  // (ADR-4640-2017): engines_summary.theory/opportunity showed
+  // status="completed", runtime_ms=0, generated=0 with no error — indistinguishable
+  // from "never ran" — while the real engines had already run
+  // (case_theories/case_opportunities correctly reflect the real,
+  // separately-gated 0-theory outcome, not this ledger artifact). Exact same
+  // bug class already fixed once in this file for "contradictions" vs
+  // "report_contradictions" below — renamed the same way instead of
+  // reusing the real engine's key. AGENT_ENGINE_MAP.legal (statistics.
+  // server.ts) updated alongside so the "legal" 13-agent panel still counts
+  // these rows as executed.
   await db.from("pipeline_engine_runs").insert([
     subRow(
-      "theory",
+      "report_theory",
       Array.isArray(theories) ? (theories as unknown[]).length : 0,
       Array.isArray(theories) ? (theories as unknown[]).length : 0,
     ),
     subRow(
-      "strategy",
+      "report_strategy",
       Array.isArray(strategyRows) ? (strategyRows as unknown[]).length : 0,
       Array.isArray(strategyRows) ? (strategyRows as unknown[]).length : 0,
     ),
     subRow(
-      "opportunity",
+      "report_opportunity",
       Array.isArray(opps) ? (opps as unknown[]).length : 0,
       Array.isArray(opps) ? (opps as unknown[]).length : 0,
     ),
