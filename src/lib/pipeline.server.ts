@@ -7475,6 +7475,13 @@ ${paginationTail}`;
     hasChargingDocument: docTypeSignals.hasChargingDocument,
     highWeightDocTypeCount: docTypeSignals.highWeightDocTypeCount,
     distinctDocTypeCount: docTypeSignals.distinctDocTypeCount,
+    // CONFIRMED LIVE (ADR5829/2025): omitting this made a "minimal" bin
+    // unconditionally prepend the English insufficientEvidenceNotice onto a
+    // Spanish executive_summary, tripping QA's language-drift check ("Report
+    // language drift (es): Evidence.") and forcing the case to
+    // needs_revision on every "strict"/completed-case run whose corpus
+    // landed in the minimal bin.
+    locale: reportLocaleForNotice,
   });
 
   // ESS-driven per-finding constraint (report-quality audit, 2026-08-14,
