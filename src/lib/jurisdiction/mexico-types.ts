@@ -40,9 +40,12 @@ export const MX_CASE_TYPE_LABELS: Record<MexicanCaseType, { es: string; en: stri
   amparo: { es: "Juicio de Amparo", en: "Amparo Proceeding" },
   electoral: { es: "Derecho Electoral", en: "Electoral Law" },
   agrario: { es: "Derecho Agrario", en: "Agrarian Law" },
-  constitucional: { es: "Derecho Constitucional / Derechos Humanos", en: "Constitutional Law / Human Rights" },
+  constitucional: { es: "Derecho Constitucional y Derechos Humanos", en: "Constitutional Law and Human Rights" },
   ambiental: { es: "Derecho Ambiental", en: "Environmental Law" },
-  inmobiliario: { es: "Bienes Raíces (Transacción Inmobiliaria)", en: "Real Estate (Property Transaction)" },
+  // FIX (2026-08-16): was "Bienes Raíces" — a commercial term, not the legal
+  // classification. The internal slug ("inmobiliario") already used the
+  // correct legal term; only the display label lagged behind it.
+  inmobiliario: { es: "Derecho Inmobiliario", en: "Real Estate Law" },
 };
 
 export function isMexicanCaseType(v: unknown): v is MexicanCaseType {

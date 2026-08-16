@@ -528,24 +528,42 @@ export interface CaseTypeSelectGroup {
   options: CaseTypeSelectOption[];
 }
 
+// Wording audit (2026-08-16): verified against current Mexican judicial
+// terminology and INEGI's national judicial classification. Every value
+// below stays as the existing MX_CASE_TYPES slug (mexico-types.ts) — this
+// pass only corrects the DISPLAY label/example text; it does not add, split,
+// or rename any of the 13 materias themselves. See that file's own header:
+// this vocabulary routes UI, DB, pipeline stages, and agents identically —
+// splitting a materia (e.g. a standalone "Sucesiones" or "Propiedad
+// Intelectual" category) is a deep, cross-cutting change, not a label fix,
+// and is intentionally out of scope here.
 export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
   {
     group: "Penal",
-    options: [{ value: "penal", label: "Derecho Penal (sistema acusatorio, CNPP)" }],
+    options: [{ value: "penal", label: "Derecho Penal (Sistema Acusatorio, CNPP)" }],
   },
   {
     group: "Civil y Familiar",
     options: [
       { value: "civil", label: "Derecho Civil (contratos, daño moral, responsabilidad civil, arrendamiento)" },
-      { value: "familiar", label: "Derecho Familiar (divorcio, custodia, alimentos, sucesiones)" },
+      // "sucesiones" (testamentaria/intestamentaria) is its own body of
+      // procedure, not a Familiar example — dropped in favor of real
+      // Familiar-only matters.
+      {
+        value: "familiar",
+        label: "Derecho Familiar (divorcio, guarda y custodia, alimentos, patria potestad, violencia familiar)",
+      },
     ],
   },
   {
     group: "Mercantil",
     options: [
+      // "propiedad intelectual" removed — IMPI/copyright/patent matters are
+      // not mercantil litigation and don't belong in this example list.
       {
         value: "mercantil",
-        label: "Derecho Mercantil (títulos de crédito, societario, concursos, propiedad intelectual)",
+        label:
+          "Derecho Mercantil (títulos de crédito, sociedades mercantiles, contratos mercantiles, concursos mercantiles)",
       },
     ],
   },
@@ -556,21 +574,28 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
   {
     group: "Administrativo y Fiscal",
     options: [
-      { value: "administrativo", label: "Derecho Administrativo (juicio de nulidad, responsabilidades)" },
+      {
+        value: "administrativo",
+        label: "Derecho Administrativo (juicio contencioso administrativo, nulidad, responsabilidad administrativa)",
+      },
       { value: "fiscal", label: "Derecho Fiscal (CFF, facultades de comprobación, TFJA)" },
     ],
   },
   {
     group: "Constitucional",
     options: [
+      // Reworded: the SCJN treats recurso de revisión en amparo directo as
+      // an extraordinary remedy, not a third TYPE of amparo alongside
+      // directo/indirecto — the prior wording read as if it were.
       {
         value: "amparo",
-        label: "Juicio de Amparo (directo e indirecto — incluye amparo directo en revisión ante la SCJN)",
+        label:
+          "Juicio de Amparo (directo e indirecto; el recurso de revisión en amparo directo ante la SCJN es un medio extraordinario, no un tercer tipo de amparo)",
       },
       {
         value: "constitucional",
         label:
-          "Constitucional / Derechos Humanos (controversias constitucionales, acciones de inconstitucionalidad — NO amparo, aun cuando el amparo plantee cuestiones constitucionales)",
+          "Derecho Constitucional y Derechos Humanos (controversias constitucionales, acciones de inconstitucionalidad — NO amparo, aun cuando el amparo plantee cuestiones constitucionales)",
       },
     ],
   },
@@ -578,16 +603,21 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
     group: "Materias especializadas",
     options: [
       { value: "electoral", label: "Derecho Electoral (medios de impugnación, TEPJF)" },
-      { value: "agrario", label: "Derecho Agrario (tribunales unitarios agrarios)" },
+      // Avoid hard-coding a specific tribunal name (agrarian judicial
+      // structure has changed before) — describe the subject matter instead.
+      { value: "agrario", label: "Derecho Agrario (núcleos agrarios, ejidos, comunidades, tierras ejidales)" },
       { value: "ambiental", label: "Derecho Ambiental (LGEEPA, PROFEPA, impacto ambiental)" },
     ],
   },
   {
-    group: "Bienes Raíces",
+    // "Bienes Raíces" is a commercial term; "Derecho Inmobiliario" is the
+    // correct legal classification — the internal slug already agreed.
+    group: "Derecho Inmobiliario",
     options: [
       {
         value: "inmobiliario",
-        label: "Bienes Raíces (compraventa, cierre, due diligence de título — transaccional, no litigio)",
+        label:
+          "Derecho Inmobiliario (compraventa, arrendamiento, propiedad, condominios, registro público — transaccional, no litigio)",
       },
     ],
   },
