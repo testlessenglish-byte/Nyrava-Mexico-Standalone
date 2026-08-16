@@ -8742,6 +8742,46 @@ ${paginationTail}`;
             : " — see full_report.quality_gate for detail"),
       );
     }
+    // Canonical Reconciliation Design (2026-08-16), P3 §10 — the same prose-
+    // walking case-type-leak scan that already exists (prerender-
+    // validate.server.ts's validateBeforeRender) only ever ran against
+    // canonical_analysis, an additive shadow projection that is NOT what
+    // this report row's own content — reportRow/full_report, what
+    // export.ts/the report UI actually render — gets checked against.
+    // validateRenderedReport is the same approach pointed at the real
+    // content, plus a Spanish criminal-institution denylist. Same non-
+    // blocking pattern as quality_gate immediately above: this is real,
+    // valuable visibility; promoting specific leak types to blocking is a
+    // separate, later decision.
+    try {
+      const { validateRenderedReport } = await import("@/lib/canonical/prerender-validate.server");
+      const renderedQaIssues = validateRenderedReport(
+        reportRow as unknown as Record<string, unknown>,
+        caseType,
+      );
+      const renderedQaCritical = renderedQaIssues.filter((i) => i.severity === "critical");
+      if (renderedQaCritical.length > 0) {
+        pipelineWarnings.push(
+          `rendered_report_qa: ${renderedQaCritical.length} critical issue(s) — ${renderedQaCritical
+            .slice(0, 5)
+            .map((i) => `${i.code} at ${i.section}`)
+            .join("; ")}` + (renderedQaCritical.length > 5 ? "; …" : ""),
+        );
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (reportRow.full_report as any).rendered_qa = {
+        policy:
+          "Scans the actual rendered report content (not the separate canonical_analysis projection) for unresolved template tokens and case-type-inappropriate terminology, including a Spanish criminal-institution denylist. Informational — does not block report generation.",
+        issue_count: renderedQaIssues.length,
+        critical_count: renderedQaCritical.length,
+        issues: renderedQaIssues.slice(0, 50),
+      };
+    } catch (e) {
+      console.warn(
+        "[rendered-report-qa] failed:",
+        e instanceof Error ? e.message : e,
+      );
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow as any).quality_blocked = blockReasons.length > 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

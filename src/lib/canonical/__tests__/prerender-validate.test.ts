@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateBeforeRender, partitionIssues } from "../prerender-validate.server";
+import { validateBeforeRender, validateRenderedReport, partitionIssues } from "../prerender-validate.server";
 import { emptyCaseAnalysis } from "../case-analysis";
 
 function base() {
@@ -84,5 +84,76 @@ describe("prerender-validate", () => {
     ]);
     expect(critical.length).toBe(1);
     expect(warnings.length).toBe(1);
+  });
+});
+
+// Canonical Reconciliation Design (2026-08-16), P3 §10 — validateRenderedReport
+// is the same prose-walking approach as validateBeforeRender, pointed at the
+// actual reports.full_report shape (a plain object, not the 17-section
+// CaseAnalysis) instead of the separate, unused-by-the-real-report
+// canonical_analysis projection, plus a Spanish criminal-institution
+// denylist.
+describe("validateRenderedReport", () => {
+  it("flags unresolved template tokens in a plain report-shaped object", () => {
+    const issues = validateRenderedReport(
+      { attorney_summary: "Damages total {{amount}}." },
+      "civil",
+    );
+    expect(issues.some((i) => i.code === "TOKEN_MUSTACHE")).toBe(true);
+  });
+
+  it("flags English criminal-doctrine leakage into a civil report", () => {
+    const issues = validateRenderedReport(
+      { risk_analysis: "A Franks hearing may be warranted here." },
+      "civil",
+    );
+    expect(issues.some((i) => i.code === "CASE_TYPE_LEAK")).toBe(true);
+  });
+
+  it("does not flag English criminal-doctrine terms in an actual criminal report", () => {
+    const issues = validateRenderedReport(
+      { risk_analysis: "A Franks hearing may be warranted here." },
+      "criminal",
+    );
+    expect(issues.some((i) => i.code === "CASE_TYPE_LEAK")).toBe(false);
+  });
+
+  it("flags a Spanish penal-only institution leaking into a civil report — the real ADR 4640/2017-shaped failure", () => {
+    const issues = validateRenderedReport(
+      {
+        full_report: {
+          prose: {
+            witness_analysis:
+              "La resolución del Tribunal de Enjuiciamiento desestimó un argumento novedoso.",
+          },
+        },
+      },
+      "civil",
+    );
+    expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(true);
+  });
+
+  it("does not flag Spanish penal-only institutions in an actual penal report", () => {
+    const issues = validateRenderedReport(
+      { procedural_issues_report: "El Ministerio Público presentó la carpeta de investigación." },
+      "penal",
+    );
+    expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(false);
+  });
+
+  it("flags U.S. procedural terms regardless of case type, walking nested full_report content", () => {
+    const issues = validateRenderedReport(
+      { full_report: { prose: { recommendations: "Counsel should file a Motion to Dismiss." } } },
+      "civil",
+    );
+    expect(issues.some((i) => i.code === "US_PROCEDURE_LEAK")).toBe(true);
+  });
+
+  it("returns no issues for clean, on-materia content", () => {
+    const issues = validateRenderedReport(
+      { attorney_summary: "El demandado incumplió el contrato de compraventa." },
+      "civil",
+    );
+    expect(issues).toHaveLength(0);
   });
 });
