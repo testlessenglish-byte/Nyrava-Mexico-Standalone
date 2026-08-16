@@ -12,9 +12,17 @@
 // The gate treats CRITICAL issues as blocking (report is written with
 // status="validated" instead of "completed") and WARNINGS as informational.
 //
+// validateBeforeRender's target is exclusively the 17-section CaseAnalysis
+// (canonical_analysis, an additive shadow projection — see gate.server.ts).
+// validateRenderedReport (below) is the SAME prose-walking approach, plus a
+// Spanish criminal-institution denylist, pointed at reports.full_report —
+// the actual content export.ts/the report UI renders for the attorney,
+// independent of whether the canonical-projection pipeline ran at all.
+//
 // Pure module — no I/O.
 
 import type { CaseAnalysis } from "./case-analysis";
+import { checkDomainVocabulary } from "@/lib/intelligence/domain-vocabulary-gate";
 
 export type QaSeverity = "critical" | "warning";
 
@@ -208,4 +216,85 @@ export function partitionIssues(issues: QaIssue[]): { critical: QaIssue[]; warni
     critical: issues.filter((i) => i.severity === "critical"),
     warnings: issues.filter((i) => i.severity === "warning"),
   };
+}
+
+// ----------------------------------------------------------------------------
+// Canonical Reconciliation Design (2026-08-16), P3 §10 — validateBeforeRender
+// above only ever validates canonical_analysis (see gate.server.ts's
+// runCanonicalGate), an additive shadow projection pipeline.server.ts's own
+// header comment describes as "never blocks legacy path" — it is NOT the
+// reports.full_report content export.ts/the report UI actually renders for
+// the attorney. This is the same prose-walking approach, pointed at the real
+// content instead, plus a Spanish criminal-institution denylist
+// (checkDomainVocabulary, reused from domain-vocabulary-gate.ts — the exact
+// terms already trusted as penal-only elsewhere in this codebase) alongside
+// the existing English/U.S.-doctrine terms. Takes a plain object rather than
+// the 17-section CaseAnalysis shape, since reports.full_report has an
+// entirely different structure. Deliberately does NOT port
+// validateScores/SUPPRESSION_NO_REASON from validateBeforeRender — those are
+// CaseAnalysis.Scores-shaped and not this function's concern; callers that
+// want the placeholder/case-type-leak scan on real content use this, the
+// existing Scores-shaped checks stay on the canonical_analysis path.
+// ----------------------------------------------------------------------------
+export function validateRenderedReport(
+  reportContent: Record<string, unknown>,
+  caseType: string | null | undefined,
+): QaIssue[] {
+  const issues: QaIssue[] = [];
+  const criminal = isCriminal(caseType);
+
+  for (const { path, value } of walkStrings(reportContent, "")) {
+    for (const p of PLACEHOLDER_PATTERNS) {
+      const sample = firstMatch(value, p.rx);
+      if (sample) {
+        issues.push({
+          code: p.code,
+          severity: p.severity,
+          section: path.split(".")[0] || "Report",
+          message: `Unresolved token in ${path}: "${sample}"`,
+          sample,
+        });
+      }
+    }
+    if (!criminal) {
+      for (const rx of CRIMINAL_ONLY_TERMS) {
+        const sample = firstMatch(value, rx);
+        if (sample) {
+          issues.push({
+            code: "CASE_TYPE_LEAK",
+            severity: "critical",
+            section: path.split(".")[0] || "Report",
+            message: `Criminal-doctrine term "${sample}" appeared in a ${caseType ?? "non-criminal"} report at ${path}.`,
+            sample,
+          });
+        }
+      }
+      const domainCheck = checkDomainVocabulary(value, caseType ?? undefined);
+      if (!domainCheck.clean) {
+        for (const label of domainCheck.violations) {
+          issues.push({
+            code: "SPANISH_CASE_TYPE_LEAK",
+            severity: "critical",
+            section: path.split(".")[0] || "Report",
+            message: `Penal-only institution "${label}" appeared in a ${caseType ?? "non-penal"} report at ${path}.`,
+            sample: label,
+          });
+        }
+      }
+    }
+    for (const rx of US_PROCEDURE_TERMS_ALWAYS_WRONG) {
+      const sample = firstMatch(value, rx);
+      if (sample) {
+        issues.push({
+          code: "US_PROCEDURE_LEAK",
+          severity: "critical",
+          section: path.split(".")[0] || "Report",
+          message: `U.S. procedural term "${sample}" has no Mexican-law equivalent and must not appear in a Mexican report (${path}).`,
+          sample,
+        });
+      }
+    }
+  }
+
+  return issues;
 }

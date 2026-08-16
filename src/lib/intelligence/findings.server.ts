@@ -261,7 +261,16 @@ type RejectionReason =
   | "criminal_terminology_in_civil_case"
   | "violation_claim_without_proof"
   | "missing_citation_for_strict_claim"
-  | "tautology_or_trivial";
+  | "tautology_or_trivial"
+  // Canonical Reconciliation Design (2026-08-16), P3 §10 F-7 — these two
+  // gates (below, near payload construction) always computed a real
+  // rejection list and logged it via console.warn, but never counted it
+  // into findings_summary.suppression_reasons the way every other rejection
+  // reason above already does. An attorney reading the report's "Findings
+  // Summary" section had no way to see that content was ever suppressed
+  // here — only a server log no one reads.
+  | "domain_vocabulary_violation"
+  | "claim_evidence_irrelevant";
 
 export type ValidationAudit = {
   input: number;
@@ -417,6 +426,8 @@ function emptySummary(): FindingsAuditSummary {
       violation_claim_without_proof: 0,
       missing_citation_for_strict_claim: 0,
       tautology_or_trivial: 0,
+      domain_vocabulary_violation: 0,
+      claim_evidence_irrelevant: 0,
       duplicate: 0,
     },
   };
@@ -438,6 +449,19 @@ function recordDuplicatesMerged(caseId: string, count: number): void {
   const s = _findingsAudit.get(caseId) ?? emptySummary();
   s.duplicates_merged += count;
   s.suppression_reasons.duplicate = (s.suppression_reasons.duplicate ?? 0) + count;
+  s.suppressed += count;
+  _findingsAudit.set(caseId, s);
+}
+
+/** Generic counterpart to recordDuplicatesMerged for any other post-
+ *  validateFindingsForCase gate that rejects findings outside the main
+ *  ValidationAudit pipeline (domain-vocabulary, claim-evidence-relevance) —
+ *  same "always counted, never just logged" contract as every other
+ *  rejection reason. */
+function recordGateRejection(caseId: string, reason: RejectionReason, count: number): void {
+  if (count <= 0) return;
+  const s = _findingsAudit.get(caseId) ?? emptySummary();
+  s.suppression_reasons[reason] = (s.suppression_reasons[reason] ?? 0) + count;
   s.suppressed += count;
   _findingsAudit.set(caseId, s);
 }
@@ -1077,12 +1101,26 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       "[findings] claim-evidence relevance gate rejected findings whose only cited quote(s) were irrelevant",
       relevanceRejected,
     );
+    // P3 §10 F-7 — counted, not just logged (see recordGateRejection's doc
+    // comment). Grouped by case_id since this function processes rows for
+    // potentially more than one case per the TRUST CONTRACT header, even
+    // though in practice callers always pass a single case's rows.
+    const byCaseRelevance = new Map<string, number>();
+    for (const r of relevanceRejected) byCaseRelevance.set(r.case_id, (byCaseRelevance.get(r.case_id) ?? 0) + 1);
+    for (const [rejCaseId, count] of byCaseRelevance) {
+      recordGateRejection(rejCaseId, "claim_evidence_irrelevant", count);
+    }
   }
   if (domainVocabularyRejected.length > 0) {
     console.warn(
       "[findings] domain vocabulary gate rejected findings asserting a materia-inappropriate institution",
       domainVocabularyRejected,
     );
+    const byCaseDomain = new Map<string, number>();
+    for (const r of domainVocabularyRejected) byCaseDomain.set(r.case_id, (byCaseDomain.get(r.case_id) ?? 0) + 1);
+    for (const [rejCaseId, count] of byCaseDomain) {
+      recordGateRejection(rejCaseId, "domain_vocabulary_violation", count);
+    }
   }
   if (payload.length === 0) return [];
 
