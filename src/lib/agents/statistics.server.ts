@@ -77,6 +77,14 @@ const AGENT_ENGINE_MAP: Record<string, string[]> = {
     "strategy",
     "opportunity",
     "motion",
+    // report_theory/report_strategy/report_opportunity: the report-writer's
+    // own per-sub-engine audit rows (pipeline.server.ts), renamed off the
+    // real engine keys above to stop clobbering their ledger rows — see
+    // that file's 2026-08-16 fix comment. Listed here too so this "executed"
+    // check still matches, same as report_contradictions above.
+    "report_theory",
+    "report_strategy",
+    "report_opportunity",
   ],
   risk: ["scoring", "ess_validator"],
   report: ["report_generator"],
