@@ -4768,7 +4768,7 @@ async function _runScoringInner(args: {
   }
 
   // Case type drives which dimensions are scored at all.
-  const caseTypeForScore = await resolveCaseType(
+  const { caseType: caseTypeForScore } = await resolveReportCaseType(
     db,
     caseId,
     findings
@@ -5078,6 +5078,53 @@ export async function resolveCaseType(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row = data as any;
   return detectCaseType(`${row?.name ?? ""} ${row?.description ?? ""} ${fallbackText ?? ""}`);
+}
+
+/**
+ * Canonical Reconciliation Design (2026-08-16), P2 — the real, safety-
+ * relevant gap `resolveCaseType` above has: `resolveCaseIdentity`
+ * (case-classification.server.ts) already detects when an attorney's
+ * manually-locked case_type actively DISAGREES with CONFIRMED classification
+ * evidence (status: "conflict") and correctly refuses to hand that value out
+ * to legal-reasoning consumers elsewhere in the pipeline (the analyzer stage,
+ * scoring dimension selection, isFindingAllowed's policy gate — see the
+ * "VERIFIED CASE IDENTITY" comments throughout this file). But report
+ * generation itself never asked that resolver — every call site below used
+ * the raw `resolveCaseType`, which returns the locked value with NO conflict
+ * awareness at all. That meant a case already internally flagged "don't
+ * trust materia-specific reasoning here" could still get a full report
+ * rendered under the wrong materia: wrong report sections
+ * (isCriminalOrCivilRights gating), wrong motion catalogue
+ * (mxWorkProductPromptCatalogue), wrong scoring dimensions.
+ *
+ * Deliberately narrow: this does NOT require full "verified"/
+ * "attorney_locked" status (isUsableForLegalReasoning) — that would regress
+ * the common, legitimate case of a merely-declared-but-not-yet-evidence-
+ * confirmed case_type, exactly the regression the analyzer stage's own
+ * comment above (`analyzerArea`) was written to avoid. It ONLY refuses the
+ * locked value in the specific "conflict" state — attorney lock actively
+ * disagreeing with CONFIRMED evidence — where `resolveCaseType` would
+ * otherwise silently hand out a value the platform itself no longer trusts.
+ * Every other status (verified/attorney_locked/unverified/failed) falls
+ * through to the exact same behavior `resolveCaseType` already provided.
+ */
+export async function resolveReportCaseType(
+  db: Db,
+  caseId: string,
+  fallbackText?: string,
+): Promise<{ caseType: string; identityConflict: boolean }> {
+  const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+  const identity = await resolveCaseIdentity(db, caseId);
+  if (identity.status !== "conflict") {
+    return { caseType: await resolveCaseType(db, caseId, fallbackText), identityConflict: false };
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await db.from("cases").select("name,description" as any).eq("id", caseId).maybeSingle();
+  const row = data as { name?: string | null; description?: string | null } | null;
+  return {
+    caseType: detectCaseType(`${row?.name ?? ""} ${row?.description ?? ""} ${fallbackText ?? ""}`),
+    identityConflict: true,
+  };
 }
 
 // Auto-run any REPORT_REQUIRED_ENGINES that are missing or failed. This
@@ -5683,7 +5730,7 @@ async function _runReportInner(args: {
   // Applicable marker instead of running the regex categorizer and
   // surfacing an indistinguishable empty result.
   try {
-    const caseTypeForAS = await resolveCaseType(
+    const { caseType: caseTypeForAS } = await resolveReportCaseType(
       db,
       caseId,
       String(JSON.stringify(analysis ?? {})).slice(0, 4000),
@@ -5714,8 +5761,10 @@ async function _runReportInner(args: {
   const { corpus, docIndex } = await buildPaginatedCorpus(db, caseId);
   if (!corpus) throw new Error("No extracted documents. Run Extraction first.");
 
-  // User-locked case type — never overridden by document content
-  const caseType = await resolveCaseType(
+  // User-locked case type wins — UNLESS it actively conflicts with CONFIRMED
+  // classification evidence (see resolveReportCaseType's doc comment). Never
+  // overridden by ordinary document content otherwise.
+  const { caseType, identityConflict: reportMateriaConflict } = await resolveReportCaseType(
     db,
     caseId,
     String(JSON.stringify(analysis ?? {})).slice(0, 4000),
@@ -7783,6 +7832,19 @@ ${paginationTail}`;
   // non-throwing, since a routing failure must never block the attorney
   // from receiving the report itself.
   try {
+    // Canonical Reconciliation Design (2026-08-16), P2 — every OTHER
+    // producer that routes through this choke point clears its own prior
+    // findings before writing fresh ones on each pipeline run (see
+    // `clearFindingsByModule(db, caseId, "analyzer:")` above and
+    // `agent:${t}` in the agents stage) — the report-writer routing added in
+    // P0 never got the same treatment. Without it, a report regenerated
+    // after new evidence (a very normal workflow) re-derives fresh, non-
+    // deterministic LLM prose on each run; dedupSemantically only merges a
+    // new row into an old one when they cross its title-similarity bar, so a
+    // rephrased contradiction/missing-evidence/constitutional-issue item
+    // across two runs could silently accumulate as a near-duplicate row
+    // instead of being cleanly replaced.
+    await clearFindingsByModule(db, caseId, "report_writer:");
     const { contradictionRows, missingEvidenceRows, constitutionalRows } =
       normalizeReportWriterFindings({
         caseId,
@@ -8343,6 +8405,22 @@ ${paginationTail}`;
           ...ess,
           secondary_validator: validatorAudit,
           motions_suppressed_by_gate: ess.allowMotionGeneration ? 0 : motionsGuarded.items.length,
+        },
+        // Canonical Reconciliation Design (2026-08-16), P2 — visibility for
+        // resolveReportCaseType's conflict override: when true, the report's
+        // materia (`case_type` above) was NOT the attorney's manually-locked
+        // value, because that locked value actively disagreed with CONFIRMED
+        // classification evidence (see case-classification.server.ts's
+        // resolveCaseIdentity, status "conflict"). The report instead used
+        // the same neutral-detection fallback resolveCaseType uses when
+        // nothing is locked at all — an attorney reviewing this report
+        // should re-confirm the case type given the underlying conflict.
+        materia_classification: {
+          case_type: caseType,
+          identity_conflict: reportMateriaConflict,
+          policy: reportMateriaConflict
+            ? "The attorney-locked case type disagreed with CONFIRMED classification evidence from the corpus. This report was generated using the corpus-detected materia instead of the locked value — review the case type before relying on materia-specific sections (constitutional analysis, motion catalogue, scoring dimensions)."
+            : "No classification conflict detected.",
         },
         // Single authoritative report state — used by every consumer.
         report_mode: reportMode,
