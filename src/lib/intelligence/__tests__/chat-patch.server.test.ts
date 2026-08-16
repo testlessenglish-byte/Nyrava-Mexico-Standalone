@@ -571,6 +571,80 @@ describe("generateFindingPatchSet", () => {
     );
     expect(result.patches).toHaveLength(0);
   });
+
+  // Canonical Reconciliation Design (2026-08-16), P1 §06 F-5: "create"
+  // introduces a brand-new finding with no prior evidentiary basis of its
+  // own — unlike amend/remove/merge/dispute_evidence, which all challenge a
+  // finding that already has one. Grounding "create" in the chat exchange
+  // ALONE (the model's own prior answer, talking to itself) previously let
+  // an AI claim become a persisted case finding, and later — via
+  // recordLesson — a cross-case learning signal, on nothing but self-
+  // consistency. A real document match is now required specifically for
+  // "create"; every other action's grounding is unchanged (see the
+  // "includes a patch whose quote is grounded in the chat exchange" test
+  // above, an "amend"/"remove"-shaped patch, which still passes on
+  // exchange-only grounding).
+  it("discards a 'create' patch whose quote is grounded ONLY in the chat exchange, not any attached document", async () => {
+    const { db } = makeFakeDb({ findings: [] });
+    mockPatchLlmResponse([
+      {
+        action: "create",
+        finding_ids: [],
+        reason: "New issue raised in the exchange.",
+        quote:
+          "la cédula de notificación se fijó en un domicilio distinto al señalado por el quejoso",
+        confidence: 0.8,
+        new_title: "New finding",
+        new_description: "New finding description.",
+      },
+    ]);
+
+    const result = await generateFindingPatchSet(
+      db as never,
+      "case-create-exchange-only",
+      "user-1",
+      EXCHANGE,
+    );
+    expect(result.patches).toHaveLength(0);
+    expect(result.ungrounded).toBe(1);
+  });
+
+  it("accepts a 'create' patch whose quote is grounded in a real attached document", async () => {
+    const { db } = makeFakeDb({ findings: [] });
+    const exchangeWithDoc = {
+      ...EXCHANGE,
+      attachedDocs: [
+        {
+          id: "doc-real-1",
+          filename: "acta.txt",
+          extracted_text:
+            "El testigo declaró que el vehículo era de color rojo y placas ABC-123.",
+        },
+      ],
+    };
+    mockPatchLlmResponse([
+      {
+        action: "create",
+        finding_ids: [],
+        reason: "New issue supported by the attached document.",
+        quote: "El testigo declaró que el vehículo era de color rojo y placas ABC-123.",
+        source_document_id: "doc-real-1",
+        confidence: 0.8,
+        new_title: "New finding",
+        new_description: "New finding description.",
+      },
+    ]);
+
+    const result = await generateFindingPatchSet(
+      db as never,
+      "case-create-doc-grounded",
+      "user-1",
+      exchangeWithDoc,
+    );
+    expect(result.patches).toHaveLength(1);
+    expect(result.patches[0].action).toBe("create");
+    expect(result.ungrounded).toBe(0);
+  });
 });
 
 describe("applyFindingPatchSet", () => {

@@ -594,7 +594,19 @@ Whenever you cite an attached document (source_document_id is set), also classif
     const groundedInAnswer = isGroundedLoosely(quote, exchange.answer);
     const groundedInExchange = groundedInQuestion || groundedInAnswer;
     const groundedInDoc = isGroundedLoosely(quote, sourceDoc?.extracted_text ?? null);
-    if (!quote || (!groundedInExchange && !groundedInDoc)) {
+    // Canonical Reconciliation Design (2026-08-16), P1 §06 F-5: "create"
+    // introduces a BRAND NEW finding into the case — unlike amend/remove/
+    // merge/dispute_evidence, which all challenge an EXISTING finding that
+    // already carries its own evidentiary basis, a "create" patch has none
+    // yet. Grounding it in the chat exchange alone (the model's own prior
+    // answer, or the user's own question) lets an AI claim become a
+    // persisted case finding — and later, via recordLesson, a cross-case
+    // learning signal — on nothing but self-consistency with itself. A real
+    // document match (groundedInDoc) is required for "create" specifically;
+    // every other action keeps the existing, unchanged either/or grounding.
+    const requiresDocGrounding = action === "create";
+    const grounded = requiresDocGrounding ? groundedInDoc : groundedInExchange || groundedInDoc;
+    if (!quote || !grounded) {
       // The single most important trace point for "chat proposed a
       // correction, but no report patch resulted": the model's OWN quote
       // failed to re-locate, character-for-character (accent/typography-
