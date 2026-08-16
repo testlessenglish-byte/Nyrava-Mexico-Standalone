@@ -6111,6 +6111,26 @@ ${corpus.slice(0, s(160000))}`;
   //      until the checkpoint loop-breaker killed the run.
   // Trimmed to ~9-10k input tokens the chunk fits Groq's request budget, so
   // the fast provider takes it first and Gemini is only a fallback.
+  //
+  // FIX (2026-08-16): the corpus slice below was a FLAT 14,000-char cap,
+  // applied identically regardless of how large the actual corpus is —
+  // confirmed live on a real case (ADR-2239-2018, 1 doc / 18 pages /
+  // 38,784 extracted chars): only ~36% of the document (the first ~5 of 13
+  // synthetic pages) ever reached the narrative/memo/intelligence stages
+  // below, the rest silently dropped with no warning. The empirical failure
+  // threshold this file's own 2026-07-27 comment documents is ~19.6k input
+  // TOKENS (~78,000 chars) — well above what this section actually uses
+  // even with a larger corpus allowance. Raising the corpus share alone
+  // (findings/analysis/agent/score/engine caps below are untouched — they
+  // were not the reported problem) to 40,000 chars covers this real case in
+  // full and stays comfortably under that documented ceiling: the other
+  // fixed-size blocks below total ~19,000 chars, so worst case this section
+  // is now ~59,000 chars (~14.75k tokens), still short of the ~78,000-char
+  // point where Groq stopped taking the request and Gemini's 26s ceiling
+  // started failing runs. Not a full fix for documents beyond that — a
+  // proportional/chunked corpus budget is the further-out improvement if
+  // 40,000 still isn't enough for a longer document; out of scope here.
+  const REPORT_STAGE_CORPUS_CHARS = 40000;
   const sharedContext = `DOCUMENT LEGEND:
 ${docLegend}
 
@@ -6145,7 +6165,7 @@ PAGINATION RULES:
 - Do NOT fabricate page numbers, quotes, or document ids.
 
 CORPUS (paginated):
-${corpus.slice(0, 14000)}`;
+${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}`;
 
   // Canonical Reconciliation Design (2026-08-16), P2 §10 — the field NAMES
   // below ("prosecution_theory_report"/"defense_theory_report") are the
