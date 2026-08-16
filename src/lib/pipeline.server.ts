@@ -19,6 +19,7 @@ import {
   addGatedFindings,
   clearFindingsByModule,
   normalizeLlmFindings,
+  normalizeReportWriterFindings,
   enforceRemedyLegalAuthorityGate,
   listFindings,
 } from "./intelligence/findings.server";
@@ -7766,6 +7767,48 @@ ${paginationTail}`;
   }
   const factualContradictions = allContradictions.filter((c) => c.kind !== "disputed_issue");
   const disputedIssues = allContradictions.filter((c) => c.kind === "disputed_issue");
+
+  // CANONICAL RECONCILIATION — Design §02/§10 P0: close the one real bypass.
+  // Everything above this line (contradictions/missing_evidence/
+  // constitutional_issues) is already quote-verified (verifyAndLabel) and
+  // claim-strength-guarded (enforceStructuredItems) — the same content that
+  // is about to be written into reports.full_report below. Until now, that
+  // was the ONLY thing that happened to it: it never became a case_findings
+  // row, so nothing that trusts addFindings()'s TRUST CONTRACT choke point
+  // (the findings tab, the hallucination pass, Talk-to-Case, canonical-id's
+  // own dedup/reconciliation) could see this content existed — confirmed as
+  // the root cause of a real case (ADR 5829/2025) where the report showed a
+  // contradiction the findings tab had no record of. Routed through
+  // addGatedFindings exactly like every other producer; best-effort and
+  // non-throwing, since a routing failure must never block the attorney
+  // from receiving the report itself.
+  try {
+    const { contradictionRows, missingEvidenceRows, constitutionalRows } =
+      normalizeReportWriterFindings({
+        caseId,
+        userId,
+        contradictions: allContradictions,
+        missingEvidence: missingGuarded.items,
+        constitutionalIssues: constGuarded.items,
+        docNToId,
+      });
+    if (contradictionRows.length) {
+      await addGatedFindings(db, caseId, contradictionRows);
+    }
+    if (constitutionalRows.length) {
+      await addGatedFindings(db, caseId, constitutionalRows);
+    }
+    if (missingEvidenceRows.length) {
+      // Absence-of-evidence claims structurally cannot carry a citation —
+      // same exemption analyzer's own "analyzer:missing" findings use.
+      await addGatedFindings(db, caseId, missingEvidenceRows, { exemptCitation: true });
+    }
+  } catch (err) {
+    console.error("[report:reconciliation] failed to route intelligence-chunk output through addGatedFindings", {
+      caseId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   // Per-sub-engine audit rows so the dashboard can prove each engine ran.
   const now = new Date().toISOString();

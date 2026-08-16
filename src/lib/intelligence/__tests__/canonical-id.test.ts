@@ -8,6 +8,8 @@ import {
   buildRegistrySnapshot,
   assertFinalized,
   isValidClaimType,
+  detectAssertionPolarity,
+  detectProducerConflict,
 } from "../canonical-id";
 import type { NewFinding } from "../types";
 
@@ -181,5 +183,122 @@ describe("finalization barrier", () => {
     expect(snap.invariants.taxonomy_violations).toBe(3);
     expect(snap.pipeline_warnings).toContain("x_failed");
     expect(() => assertFinalized(snap, "test")).toThrow();
+  });
+});
+
+// ============================================================================
+// Canonical Reconciliation Design (2026-08-16) — cross-producer conflict
+// detection. Real-shape regression: the analyzer's own contradiction pass
+// affirmatively concludes "no existe contradicción" for a claim, while the
+// report-writer's independent intelligence chunk affirmatively concludes
+// "sí existe contradicción" about the same claim. Before this fix,
+// finalizeFindings would have silently merged the two (severity-winner
+// takes all), discarding whichever side lost with no record a disagreement
+// ever happened.
+// ============================================================================
+describe("detectAssertionPolarity", () => {
+  it("reads an explicit negation marker as negative", () => {
+    expect(detectAssertionPolarity("El tribunal concluyó que no existe contradicción alguna.")).toBe(
+      "negative",
+    );
+  });
+  it("reads an explicit affirmation marker as affirmative", () => {
+    expect(detectAssertionPolarity("La declaración contradice directamente el testimonio previo.")).toBe(
+      "affirmative",
+    );
+  });
+  it("returns unknown when no explicit marker is present", () => {
+    expect(detectAssertionPolarity("El testigo declaró sobre los hechos del caso.")).toBe("unknown");
+  });
+});
+
+describe("detectProducerConflict", () => {
+  it("returns null when both findings come from the same producer family", () => {
+    const a = f({
+      source_module: "analyzer:contradiction",
+      title: "Fechas de notificación",
+      description: "No existe contradicción entre los documentos.",
+    });
+    const b = f({
+      source_module: "analyzer:key",
+      title: "Fechas de notificación",
+      description: "La declaración contradice directamente el acta previa.",
+    });
+    expect(detectProducerConflict(a, b)).toBeNull();
+  });
+
+  it("returns null when neither side carries an explicit polarity marker", () => {
+    const a = f({ source_module: "analyzer:contradiction", title: "x", description: "y" });
+    const b = f({ source_module: "report_writer:contradiction", title: "x", description: "z" });
+    expect(detectProducerConflict(a, b)).toBeNull();
+  });
+
+  it("detects a genuine cross-producer disagreement (real ADR-5829-shaped case)", () => {
+    const analyzerFinding = f({
+      source_module: "analyzer:contradiction",
+      title: "Art. 230 LISSSTE",
+      description: "No se advierte contradicción entre el acuerdo y la resolución impugnada.",
+    });
+    const reportWriterFinding = f({
+      source_module: "report_writer:contradiction",
+      title: "Art. 230 LISSSTE",
+      description: "La resolución contradice expresamente el acuerdo previamente notificado.",
+    });
+    const conflict = detectProducerConflict(analyzerFinding, reportWriterFinding);
+    expect(conflict).not.toBeNull();
+    expect(conflict?.claim_a.source_module).toBe("analyzer:contradiction");
+    expect(conflict?.claim_b.source_module).toBe("report_writer:contradiction");
+  });
+});
+
+describe("finalizeFindings — conflict routing", () => {
+  it("routes a real cross-producer disagreement to unresolved instead of silently merging", () => {
+    const analyzerFinding = f({
+      source_module: "analyzer:contradiction",
+      title: "Art. 230 LISSSTE",
+      description: "No se advierte contradicción entre el acuerdo y la resolución impugnada.",
+      severity: "low",
+      source_doc_ids: ["d1"],
+    });
+    const reportWriterFinding = f({
+      source_module: "report_writer:contradiction",
+      title: "Art. 230 LISSSTE",
+      description: "La resolución contradice expresamente el acuerdo previamente notificado.",
+      severity: "high",
+      source_doc_ids: ["d1"],
+    });
+    const { finalized, stats } = finalizeFindings([analyzerFinding, reportWriterFinding]);
+    expect(finalized).toHaveLength(1);
+    expect(stats.canonical_merged).toBe(1);
+    const meta = finalized[0].metadata as Record<string, unknown>;
+    expect(meta.reconciliation_state).toBe("unresolved");
+    expect(meta.merged_from).toBeUndefined();
+    const conflict = meta.conflict as { claim_a: { source_module: string }; claim_b: { source_module: string } };
+    expect(conflict.claim_a.source_module).toBe("analyzer:contradiction");
+    expect(conflict.claim_b.source_module).toBe("report_writer:contradiction");
+  });
+
+  it("still merges ordinary duplicate restatements from different producers (no polarity marker)", () => {
+    // Different wording (so exact_match_id does NOT collapse them before the
+    // canonical-merge collision loop even runs — see the identical-wording
+    // case just above, which exercises that earlier exact-dedup step
+    // instead) but no explicit negation/affirmation marker in either.
+    const a = f({
+      source_module: "analyzer:contradiction",
+      title: "Height conflict A",
+      description: "5 ten vs 6 two",
+      severity: "low",
+    });
+    const b = f({
+      source_module: "report_writer:contradiction",
+      title: "Height conflict B",
+      description: "wholly different wording but same height issue",
+      severity: "high",
+    });
+    const { finalized } = finalizeFindings([a, b]);
+    expect(finalized).toHaveLength(1);
+    const meta = finalized[0].metadata as Record<string, unknown>;
+    expect(meta.reconciliation_state).toBeUndefined();
+    expect(Array.isArray(meta.merged_from)).toBe(true);
   });
 });

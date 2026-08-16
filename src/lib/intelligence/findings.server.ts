@@ -22,6 +22,12 @@
 //   src/lib/intelligence/engines.server.ts:441     discovery  → addGatedFindings(exemptCitation)
 //   src/lib/intelligence/engines.server.ts:579     witness    → addFindings (pre-gated at engine)
 //   src/lib/intelligence/engines.server.ts:733     trial      → addGatedFindings(exemptCitation)
+//   src/lib/pipeline.server.ts (report-writer "intelligence" chunk, after
+//     verifyAndLabel/enforceStructuredItems) → normalizeReportWriterFindings
+//     then addGatedFindings (exemptCitation for missing_evidence only).
+//     Closes the one real bypass identified in the Canonical Reconciliation
+//     Design (2026-08-16) — this chunk used to write straight into
+//     reports.full_report and never reached this file at all.
 //
 // If you add a new engine that writes findings, add it here and route through
 // `addGatedFindings` (with `exemptCitation` only for absence-of-evidence
@@ -47,7 +53,7 @@ import {
   type EvidenceItem,
 } from "./evidence-gate.server";
 import { buildGroundingCorpus, type GroundingCorpus } from "./grounding.server";
-import { mergeConfidence } from "./canonical-id";
+import { mergeConfidence, detectProducerConflict, type ReconciliationState } from "./canonical-id";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import {
   PROPOSITION_TYPES,
@@ -504,7 +510,17 @@ function dedupSemantically(rows: NewFinding[]): NewFinding[] {
             overlap = true;
             break;
           }
-        if (overlap || (baseEv.size === 0 && otherEv.size === 0)) {
+        // A genuine cross-producer disagreement (see detectProducerConflict)
+        // must ALSO force grouping even with zero evidence overlap — the
+        // realistic shape of a real disagreement is exactly two producers
+        // citing DIFFERENT supporting passages about the same disputed claim
+        // (if they cited the identical quote, they likely wouldn't disagree
+        // about it). Without this, the "distinct factual bases" heuristic
+        // below — correctly protective for ordinary same-title-different-
+        // facts findings — would silently prevent a real conflict from ever
+        // reaching the merge step where it gets recorded.
+        const conflict = detectProducerConflict(base, arr[j]);
+        if (overlap || (baseEv.size === 0 && otherEv.size === 0) || conflict) {
           cluster.push(arr[j]);
           used.add(j);
           for (const k of otherEv) baseEv.add(k);
@@ -538,6 +554,28 @@ function dedupSemantically(rows: NewFinding[]): NewFinding[] {
         (k) => sevRank[k] === mostSevereRank,
       ) as NewFinding["severity"];
 
+      // CONFLICT DETECTION — Canonical Reconciliation Design §04. A loser
+      // that a genuine different producer (see detectProducerConflict)
+      // affirmatively asserts the OPPOSITE conclusion about is not a
+      // duplicate to fold into merged_from ("accepted as the same fact") —
+      // it's a disagreement that must stay visible. Only the FIRST detected
+      // conflict is recorded in metadata.conflict (the common real shape is
+      // a two-member cluster — one already-persisted finding, one fresh
+      // one); any additional conflicting losers still contribute their
+      // evidence but don't get a second conflict record.
+      const conflictingLosers: NewFinding[] = [];
+      const normalLosers: NewFinding[] = [];
+      let firstConflict: ReturnType<typeof detectProducerConflict> = null;
+      for (const l of losers) {
+        const c = detectProducerConflict(winner, l);
+        if (c) {
+          conflictingLosers.push(l);
+          if (!firstConflict) firstConflict = c;
+        } else {
+          normalLosers.push(l);
+        }
+      }
+
       const winnerEvKeys = new Set(evidenceKeys(winner.evidence_refs));
       const newEvidence = losers
         .flatMap((l) => (l.evidence_refs ?? []) as unknown[])
@@ -552,11 +590,14 @@ function dedupSemantically(rows: NewFinding[]): NewFinding[] {
           ...losers.flatMap((l) => l.source_doc_ids ?? []),
         ]),
       ];
-      const mergedConfidence = losers.reduce(
+      const mergedConfidence = normalLosers.reduce(
         (conf, l) => mergeConfidence(conf, Number(l.confidence), newEvidence.length > 0),
         Number(winner.confidence),
       );
-      const mergedFrom = losers.map((c) => ({
+      // Only non-conflicting losers count as "the same fact restated" —
+      // a conflicting loser's differing conclusion must never be folded in
+      // here as if it had been accepted.
+      const mergedFrom = normalLosers.map((c) => ({
         title: c.title,
         source_module: c.source_module,
         confidence: c.confidence,
@@ -596,6 +637,17 @@ function dedupSemantically(rows: NewFinding[]): NewFinding[] {
             ...(Array.isArray(w.metadata?.merged_from) ? w.metadata.merged_from : []),
             ...mergedFrom,
           ],
+          // Genuine cross-producer disagreement (see detectProducerConflict
+          // above) — surfaced explicitly rather than silently resolved.
+          // Deterministic, derived from `winner`/`firstConflict` alone, so
+          // re-running this same batch (checkpoint resume, retry) recomputes
+          // the identical record rather than accumulating duplicates.
+          ...(firstConflict
+            ? {
+                reconciliation_state: "unresolved" as ReconciliationState,
+                conflict: firstConflict,
+              }
+            : {}),
           // Only set when a real merge happened (losers.length > 0) — lets
           // the caller distinguish "existing row, unchanged" (skip) from
           // "existing row, needs a DB update" without re-deriving it.
@@ -702,7 +754,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     if (groupRows.length === 0) continue;
     const { data: existing } = await db
       .from("case_findings")
-      .select("id,category,title,evidence_refs,confidence,source_doc_ids,metadata")
+      .select("id,category,title,description,evidence_refs,confidence,source_doc_ids,metadata,source_module")
       .eq("case_id", caseId)
       .not("source_module", "like", PROJECTION_LIKE);
 
@@ -712,10 +764,21 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
         ({
           case_id: caseId,
           user_id: groupRows[0].user_id,
-          source_module: "existing",
+          // Real producer identity (not the literal string "existing") is
+          // required for detectProducerConflict's cross-producer check below
+          // — an already-persisted analyzer finding colliding with a fresh
+          // report-writer finding must be recognized as two DIFFERENT
+          // producers, not silently exempted because the shim erased who
+          // wrote it.
+          source_module: e.source_module ?? "existing",
           category: e.category,
           title: e.title,
-          description: "",
+          // Real description (not "") so detectProducerConflict's polarity
+          // scan has something to scan on the existing-row side too — a
+          // blank description could never carry an explicit negation/
+          // affirmation marker, silently disabling conflict detection for
+          // every already-persisted row.
+          description: e.description ?? "",
           severity: "info",
           confidence: typeof e.confidence === "number" ? e.confidence : 0,
           source_doc_ids: e.source_doc_ids ?? [],
@@ -762,6 +825,16 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
             proposition_type: normPropositionType(entry.proposition_type),
             adoption_status: normAdoptionStatus(entry.adoption_status),
             audit_classification: normAuditClassification(entry.audit_classification),
+            // Lifted out of metadata onto the top-level column so the
+            // conflicting/unresolved state is queryable without walking
+            // JSON — same "metadata → top-level" pattern already used for
+            // canonical_finding_id in the INSERT path below. Only ever
+            // "unresolved" today (see detectProducerConflict); null for
+            // every ordinary merge, matching this column's additive default.
+            reconciliation_state:
+              typeof restMeta.reconciliation_state === "string"
+                ? (restMeta.reconciliation_state as string)
+                : null,
           } as never)
           .eq("id", existingId);
         if (error) {
@@ -941,6 +1014,13 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     const meta = (r.metadata ?? {}) as Record<string, unknown>;
     const canonical_finding_id =
       typeof meta.canonical_finding_id === "string" ? (meta.canonical_finding_id as string) : null;
+    // Same lift, for the reconciliation_state finalizeFindings/
+    // dedupSemantically stamp on a genuine cross-producer conflict (see
+    // canonical-id.ts's detectProducerConflict). Null for every ordinary
+    // row — additive column, no behavior change for the rows that don't
+    // hit this path.
+    const reconciliation_state =
+      typeof meta.reconciliation_state === "string" ? (meta.reconciliation_state as string) : null;
     payload.push({
       case_id: r.case_id,
       user_id: r.user_id,
@@ -979,6 +1059,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       // gate — never fabricated after the fact.
       evidence_relationship: (extra.evidence_relationship as string | undefined) ?? null,
       canonical_finding_id,
+      reconciliation_state,
       source_document_id: resolvedDocId,
       source_page: resolvedPage,
       source_quote: resolvedQuote,
@@ -1045,6 +1126,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       "adoption_status",
       "audit_classification",
       "evidence_relationship",
+      "reconciliation_state",
     ] as const;
     const unknownColumn =
       /Could not find the '([^']+)' column/.exec(error.message ?? "")?.[1] ??
@@ -1531,4 +1613,172 @@ export function normalizeLlmFindings(args: {
       metadata: { raw: i },
     } satisfies NewFinding;
   });
+}
+
+// ============================================================================
+// REPORT-WRITER INTELLIGENCE-CHUNK BRIDGE — Canonical Reconciliation Design
+// (2026-08-16), §02/§10 P0: the report-writer's own "intelligence" chunk
+// (contradictions/missing_evidence/constitutional_issues — see intelShape in
+// pipeline.server.ts) previously wrote straight into reports.full_report and
+// never called addFindings(), the one insert choke point every other
+// producer already routes through. Nothing downstream that trusts that
+// choke point — the findings tab, the hallucination pass, Talk-to-Case's
+// read path, canonical-id.ts's dedup/reconciliation — could see this
+// content existed, which is exactly how a real case (ADR 5829/2025) showed
+// a contradiction in its report that the findings tab and agent cards had
+// no record of.
+//
+// Call this AFTER the report pipeline's own quote-verification
+// (verifyAndLabel) and claim-strength guardrail (enforceStructuredItems)
+// have already run on these arrays — every item passed in here already has
+// at least one quote confirmed to exist verbatim in the corpus. That
+// satisfies the design's "evidence verification" pipeline stage using
+// infrastructure that already exists; this function is pure, does no I/O,
+// and performs no verification of its own.
+//
+// source_module uses a NEW "report_writer:" family (not "analyzer:") so
+// canonical-id.ts's detectProducerConflict correctly recognizes these as a
+// genuinely different producer from the analyzer's own "analyzer:
+// contradiction" findings — required for real cross-producer reconciliation
+// (vs. silent same-producer restatement) to ever fire. category stays the
+// SAME token the analyzer already uses ("contradiction" / "missing_evidence")
+// so a true duplicate between the two producers still collapses via the
+// existing canonical_finding_id / clusterBySameIssue machinery instead of
+// silently double-counting.
+// ============================================================================
+function citationEvidenceRefs(
+  entries: Array<{ doc_n?: unknown; page?: unknown; quote?: unknown } | undefined>,
+  docNToId: Map<number, string | null | undefined>,
+): Array<Record<string, unknown>> {
+  return entries
+    .filter(
+      (c): c is { doc_n?: unknown; page?: unknown; quote?: unknown } =>
+        !!c && typeof c.quote === "string" && c.quote.trim().length > 0,
+    )
+    .map((c) => ({
+      quote: String(c.quote),
+      doc_id: typeof c.doc_n === "number" ? (docNToId.get(c.doc_n) ?? undefined) : undefined,
+      page: typeof c.page === "number" ? c.page : undefined,
+    }));
+}
+
+function sourceDocIdsFromRefs(refs: Array<Record<string, unknown>>): string[] {
+  return [
+    ...new Set(
+      refs
+        .map((r) => r.doc_id)
+        .filter((x): x is string => typeof x === "string" && x.length > 0),
+    ),
+  ];
+}
+
+export function normalizeReportWriterFindings(args: {
+  caseId: string;
+  userId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  contradictions: Array<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  missingEvidence: Array<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constitutionalIssues: Array<Record<string, any>>;
+  docNToId: Map<number, string | null | undefined>;
+}): {
+  contradictionRows: NewFinding[];
+  missingEvidenceRows: NewFinding[];
+  constitutionalRows: NewFinding[];
+} {
+  const { caseId, userId, docNToId } = args;
+
+  const contradictionRows: NewFinding[] = args.contradictions.map((c) => {
+    const citations = Array.isArray(c.citations) ? c.citations : [];
+    const evidence_refs = citationEvidenceRefs([c.document_a, c.document_b, ...citations], docNToId);
+    return {
+      case_id: caseId,
+      user_id: userId,
+      source_module: "report_writer:contradiction",
+      category: "contradiction",
+      title: String(c.title ?? "Contradicción detectada").slice(0, 400),
+      description: String(c.description ?? c.nature ?? c.title ?? "").slice(0, 8000),
+      severity: normSeverity(c.severity),
+      confidence: 0.7,
+      legal_significance: typeof c.legal_impact === "string" ? c.legal_impact : null,
+      potential_impact: null,
+      affected_party: normParty(c.side_helped),
+      evidence_refs,
+      source_doc_ids: sourceDocIdsFromRefs(evidence_refs),
+      tags: [],
+      metadata: { raw: c },
+    } as NewFinding;
+  });
+
+  // Missing-evidence items are absence-of-evidence claims by nature — they
+  // structurally cannot carry a verbatim quote (mirrors the analyzer's own
+  // "analyzer:missing" findings, which the caller must route through
+  // addGatedFindings' exemptCitation option the same way).
+  const missingEvidenceRows: NewFinding[] = args.missingEvidence.map(
+    (m) =>
+      ({
+        case_id: caseId,
+        user_id: userId,
+        // Full "missing_evidence" (not the abbreviated "missing" the
+        // analyzer's own source_module uses) — isFindingAllowed's backstop
+        // check (findings.server.ts's addFindings) matches this row's own
+        // source_module domain token literally against
+        // UNIVERSAL_FINDING_MODULES, which lists "missing_evidence", not
+        // "missing". Using the full token here avoids relying on whatever
+        // makes the analyzer's shorter form work today.
+        source_module: "report_writer:missing_evidence",
+        category: "missing_evidence",
+        title: String(m.item ?? "Evidencia faltante").slice(0, 400),
+        description: String(m.why_critical ?? m.item ?? "").slice(0, 8000),
+        severity: normSeverity(m.severity),
+        confidence: 0.6,
+        legal_significance: null,
+        potential_impact: typeof m.side_harmed === "string" ? m.side_harmed : null,
+        affected_party: null,
+        evidence_refs: [],
+        source_doc_ids: [],
+        tags: [],
+        metadata: { raw: m },
+      }) as NewFinding,
+  );
+
+  const constitutionalRows: NewFinding[] = args.constitutionalIssues.map((ci) => {
+    const citations = Array.isArray(ci.citations) ? ci.citations : [];
+    const evidence_refs = citationEvidenceRefs(citations, docNToId);
+    const legalSig =
+      typeof ci.right === "string" || typeof ci.articulo_cpeum === "string"
+        ? `${ci.right ?? ""} ${ci.articulo_cpeum ?? ""}`.trim()
+        : null;
+    return {
+      case_id: caseId,
+      user_id: userId,
+      // Full "constitutional_issue" (matches the category exactly) — the
+      // isFindingAllowed backstop in addFindings checks this row's own
+      // source_module domain token literally, not just the category field.
+      source_module: "report_writer:constitutional_issue",
+      // Generation is already gated upstream by isCriminalOrCivilRights
+      // (pipeline.server.ts) — this category is added to
+      // UNIVERSAL_FINDING_MODULES in practice-areas.ts for the same reason
+      // missing_evidence/procedural/strength were promoted there: it's a
+      // structural pipeline-output token, not materia-specific doctrine, and
+      // no single materia's finding-module allow-list (MX_FINDING_MODULES)
+      // covers every materia constitutional issues can legitimately surface
+      // for (confirmed: penal's list has no "constitutional*" token at all).
+      category: "constitutional_issue",
+      title: String(ci.issue ?? ci.right ?? "Cuestión constitucional").slice(0, 400),
+      description: String(ci.facts ?? ci.issue ?? "").slice(0, 8000),
+      severity: "high",
+      confidence: 0.7,
+      legal_significance: legalSig || null,
+      potential_impact: typeof ci.likely_outcome === "string" ? ci.likely_outcome : null,
+      affected_party: null,
+      evidence_refs,
+      source_doc_ids: sourceDocIdsFromRefs(evidence_refs),
+      tags: [],
+      metadata: { raw: ci },
+    } as NewFinding;
+  });
+
+  return { contradictionRows, missingEvidenceRows, constitutionalRows };
 }

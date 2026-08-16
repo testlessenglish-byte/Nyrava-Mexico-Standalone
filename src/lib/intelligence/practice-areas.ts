@@ -238,6 +238,7 @@ const UNIVERSAL_FINDING_MODULES = [
   "dispute",
   "discovery_gap",
   "missing_evidence",
+  "constitutional_issue",
   "procedural",
   "strength",
   "chain_of_custody",
@@ -266,6 +267,14 @@ const MODULE_NOISE_TOKENS = new Set<string>([
   "intelligence",
   "report",
   "reports",
+  // "report_writer:contradiction" etc — the report-writer intelligence-chunk
+  // bridge (normalizeReportWriterFindings, Canonical Reconciliation Design
+  // P0). Underscore doesn't split tokens (see the regex below), so this
+  // compound wrapper needs its own entry — without it, isFindingAllowed()
+  // reads "report_writer" itself as the domain signal instead of the
+  // category token that follows the colon, and every report-writer-routed
+  // finding is silently dropped by this gate regardless of case type.
+  "report_writer",
   "general",
   "module",
   "modules",
