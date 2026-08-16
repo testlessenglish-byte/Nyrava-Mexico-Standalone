@@ -26,6 +26,44 @@ const WITNESS_TITLE_RE =
   /\b(?:Policía de Investigación|Agente del Ministerio Público|Ministerio Público|Fiscal|Perito|Dr\.|Doctor|Doctora|Dra\.|Profesor|Profesora|Prof\.|Custodio)\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’.-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’.-]+)?\b/g;
 const PROPER_NAME_RE = /\b([A-Z][a-z]{2,}\s+[A-Z][a-z]{2,})\b/g;
 
+// FIX (2026-08-16): PROPER_NAME_RE has no way to tell a person's name apart
+// from any other two-capitalized-word phrase, so an amparo/constitutional
+// case's own institutional and citation vocabulary — "Amparo Directo",
+// "Primera Sala", "Semanario Judicial" — matched it and got listed as
+// cross-examination "witnesses" with fabricated prior-statement questions.
+// Confirmed live on a real case (ADR-2239-2018, attorney_work_product.
+// cross_examination_outlines). This is a targeted denylist of common
+// Mexican court/institution/publication phrases, not an attempt at general
+// NER — a real person sharing one of these exact phrases is the acceptable
+// tradeoff for not fabricating cross-examination scripts against a court.
+const NON_PERSON_NAME_PHRASES = new Set(
+  [
+    "Amparo Directo",
+    "Amparo Indirecto",
+    "Primera Sala",
+    "Segunda Sala",
+    "Pleno de",
+    "Tribunal Colegiado",
+    "Tribunal Unitario",
+    "Tribunal Electoral",
+    "Tribunal de",
+    "Juzgado de",
+    "Suprema Corte",
+    "Poder Judicial",
+    "Semanario Judicial",
+    "Diario Oficial",
+    "Ministerio Público",
+    "Código Civil",
+    "Código Penal",
+    "Ley Federal",
+    "Ley General",
+  ].map((s) => s.toLowerCase()),
+);
+
+function isLikelyPersonName(name: string): boolean {
+  return !NON_PERSON_NAME_PHRASES.has(name.toLowerCase());
+}
+
 function roleFor(name: string, text: string): string {
   const n = name.toLowerCase();
   const t = text.toLowerCase();
@@ -80,6 +118,7 @@ export async function buildWitnessProfiles(db: Db, caseId: string): Promise<Witn
   for (const m of allText.matchAll(WITNESS_TITLE_RE)) nameSet.add(m[0]);
   const properHits = new Map<string, number>();
   for (const m of allText.matchAll(PROPER_NAME_RE)) {
+    if (!isLikelyPersonName(m[1])) continue;
     properHits.set(m[1], (properHits.get(m[1]) ?? 0) + 1);
   }
   for (const [n, c] of properHits) if (c >= 3) nameSet.add(n);
@@ -713,6 +752,27 @@ const MOTION_MAP: Record<string, string> = {
   "Impugnación Pericial": "Impugnación de Dictamen Pericial",
 };
 
+// FIX (2026-08-16): every string this function generates — case_strategy,
+// jury_themes, trial_themes — was hardcoded around a penal prosecution-vs-
+// defense adversarial-trial framing ("Ministerio Público", "in dubio pro
+// reo... imputado") with NO materia check anywhere, so it fired
+// unconditionally regardless of the case's actual classification. Confirmed
+// live on a real Amparo Directo en Revisión case (ADR-2239-2018, about the
+// constitutionality of Ley de Amparo art. 75 — no Ministerio Público, no
+// imputado, no jury/trial of any kind involved): attorney_work_product.
+// case_strategy read "...directly controverting the Ministerio Público's
+// theory" and jury_themes read "...toda duda razonable debe favorecer al
+// imputado" — the exact penal-only-vocabulary leak this platform's own
+// domain-vocabulary-gate.ts already denylists elsewhere, just never reached
+// by this deterministic (non-LLM) generator. The affected_party === "prosecution"/"defense"
+// checks below were ALSO already dead on every materia including penal —
+// MX_PARTY_ROLES (mx-pipeline.ts, wired into finding generation since the
+// theory-engine fix earlier this session) writes real role slugs
+// ("ministerio_publico"/"defensa", "quejoso"/"autoridad_responsable", etc.),
+// never the literal strings "prosecution"/"defense" — removed rather than
+// remapped, since which party is "our side" isn't something this platform
+// tracks for any materia and guessing it per-materia risks fabricating
+// confidently-wrong strategic framing, worse than the leak itself.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function buildWorkProduct(
   db: Db,
@@ -721,8 +781,12 @@ export async function buildWorkProduct(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     legalIssues?: any[];
     witnessProfiles?: WitnessProfile[];
+    caseType?: string | null;
   } = {},
 ): Promise<WorkProduct> {
+  const { resolveMxProfile } = await import("../execution/mx-pipeline");
+  const isPenal = resolveMxProfile(ctx.caseType) === "penal";
+
   const { data: findings } = await db
     .from("case_findings")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -732,10 +796,8 @@ export async function buildWorkProduct(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (findings ?? []) as any[];
-  const defenseFav = rows.filter(
-    (f) => f.affected_party === "prosecution" || f.evidence_type === "exculpatory" || f.evidence_type === "impeachment",
-  );
-  const prosFav = rows.filter((f) => f.affected_party === "defense" || f.evidence_type === "inculpatory");
+  const defenseFav = rows.filter((f) => f.evidence_type === "exculpatory" || f.evidence_type === "impeachment");
+  const prosFav = rows.filter((f) => f.evidence_type === "inculpatory");
 
   const strongest = [...defenseFav].sort((a, b) => {
     const sev = (s: string) =>
@@ -744,10 +806,14 @@ export async function buildWorkProduct(
   })[0];
 
   const case_strategy = strongest
-    ? `The strongest defense theory is grounded in ${String(strongest.category ?? "the record")
-        .toString()
-        .toLowerCase()}: ${String(strongest.title ?? "").trim()}. This should anchor the defense's theoría del caso and cross-examination while directly controverting the Ministerio Público's theory.`
-    : "Insufficient defense-favorable findings to state a single dominant theory. Prioritize further investigation and expert review before committing to a strategy.";
+    ? isPenal
+      ? `The strongest defense theory is grounded in ${String(strongest.category ?? "the record")
+          .toString()
+          .toLowerCase()}: ${String(strongest.title ?? "").trim()}. This should anchor the defense's theoría del caso and cross-examination while directly controverting the Ministerio Público's theory.`
+      : `El elemento más sólido identificado se sustenta en ${String(strongest.category ?? "el expediente")
+          .toString()
+          .toLowerCase()}: ${String(strongest.title ?? "").trim()}. Debe anclar la argumentación y confrontarse contra la posición de la contraparte, sujeto a corroboración adicional.`
+    : "Insufficient favorable findings to state a single dominant theory. Prioritize further investigation and expert review before committing to a strategy.";
 
   const strengths = defenseFav.slice(0, 8).map((f) => ({
     text: String(f.title ?? "Defense-favorable finding"),
@@ -778,7 +844,9 @@ export async function buildWorkProduct(
     .map((f) => `${String(f.title ?? "").trim()} — ${String(f.category ?? "").toLowerCase()}.`);
   const trial_themes = themeSeeds.length
     ? themeSeeds
-    : ["In dubio pro reo, anclado en los vacíos e inconsistencias de la prueba del Ministerio Público."];
+    : isPenal
+      ? ["In dubio pro reo, anclado en los vacíos e inconsistencias de la prueba del Ministerio Público."]
+      : ["Elementos insuficientes en el expediente para identificar un tema dominante; se recomienda revisión adicional."];
 
   const cross_examination_outlines: CrossOutline[] = (ctx.witnessProfiles ?? [])
     .filter((w) => w.impeachment_opportunities.length > 0 || w.cross_questions.length > 0)
@@ -806,9 +874,16 @@ export async function buildWorkProduct(
   const jury_themes: string[] = [];
   if (defenseFav.some((f) => /credibility|impeach|bias|cooperat/i.test(`${f.title} ${f.category}`))) {
     jury_themes.push(
-      "La teoría del Ministerio Público descansa en testigos con un incentivo documentado para matizar su declaración.",
+      isPenal
+        ? "La teoría del Ministerio Público descansa en testigos con un incentivo documentado para matizar su declaración."
+        : "La posición de la contraparte descansa en elementos con un incentivo documentado para matizar su versión.",
     );
   }
+  // These two conditions only ever match issue keys buildLegalIssues()
+  // (ISSUE_RULES, CNPP-grounded) generates — effectively already penal-only
+  // in practice — but the content itself is materia-neutral (evidence
+  // chain-of-custody / withheld-evidence concerns apply outside penal
+  // procedure too), so left ungated rather than forced isPenal.
   if (issues.some((i) => i.issue === "Cadena de Custodia" || i.issue === "Fundamentación Probatoria")) {
     jury_themes.push(
       "La prueba confiable cuenta con una cadena de custodia documentada y sin interrupciones. Esta prueba no la tiene.",
@@ -826,7 +901,9 @@ export async function buildWorkProduct(
   }
   if (!jury_themes.length) {
     jury_themes.push(
-      "Las suposiciones no son prueba — bajo el principio in dubio pro reo, toda duda razonable debe favorecer al imputado.",
+      isPenal
+        ? "Las suposiciones no son prueba — bajo el principio in dubio pro reo, toda duda razonable debe favorecer al imputado."
+        : "Elementos insuficientes en el expediente para identificar un tema dominante; se recomienda revisión adicional.",
     );
   }
 

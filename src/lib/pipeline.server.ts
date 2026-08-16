@@ -8408,6 +8408,7 @@ ${paginationTail}`;
           return await m.buildWorkProduct(db, caseId, {
             legalIssues: issues,
             witnessProfiles: profiles,
+            caseType,
           });
         } catch {
           return null;
