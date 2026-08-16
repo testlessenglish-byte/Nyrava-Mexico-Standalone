@@ -107,6 +107,33 @@ export function jaccard(a: Set<string>, b: Set<string>): number {
   return inter / (a.size + b.size - inter);
 }
 
+/**
+ * Canonical Reconciliation Design (2026-08-16), P2 §10 — a deliberately soft
+ * "is this text at all grounded in something already known" check, distinct
+ * from clusterBySameIssue's much stricter near-duplicate thresholds
+ * (titleThreshold 0.55 / titleFallbackThreshold 0.4) above. Used where a
+ * synthesis-style engine (litigation.server.ts's Litigation Strategy Center)
+ * independently characterizes something a DIFFERENT, addFindings-routed
+ * producer already computed for the same case — this is informational
+ * visibility ("does this share any meaningful text with known content"),
+ * never a hard reject: the synthesis engine is legitimately allowed to add
+ * real insight beyond what's already known. Returns null (not false) when
+ * there is nothing to compare against at all — absence of candidates is not
+ * evidence of a mismatch.
+ */
+export const SOFT_GROUNDING_THRESHOLD = 0.12;
+
+export function isGroundedByTextOverlap(
+  text: string,
+  candidates: ReadonlyArray<string>,
+  threshold: number = SOFT_GROUNDING_THRESHOLD,
+): boolean | null {
+  if (!text.trim() || candidates.length === 0) return null;
+  const textTokens = tokens(text);
+  const best = candidates.reduce((max, c) => Math.max(max, jaccard(textTokens, tokens(c))), 0);
+  return best >= threshold;
+}
+
 export type DedupableFinding = Record<string, unknown>;
 
 export type DedupeOptions = {

@@ -9,6 +9,7 @@ import { getOrBuildSharedBrief, briefToPrompt } from "./shared-brief.server";
 import { resolveProviderKeys } from "../ai-key-router.server";
 import { addFindings, addGatedFindings, clearFindingsByModule } from "./findings.server";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
+import { isGroundedByTextOverlap } from "./finding-dedupe";
 
 const MODEL = GROQ_DEFAULT_MODEL;
 type Db = SupabaseClient<Database>;
@@ -194,8 +195,12 @@ export async function runPerspectivesEngine(args: {
   // Evidence-first: only run perspectives that actually apply to this case
   // type (e.g. don't run "prosecution" or "jury" for a medical-malpractice).
   const { determineApplicablePerspectives } = await import("./evidence-gate.server");
-  const { resolveCaseType } = await import("../pipeline.server");
-  const caseType = await resolveCaseType(db, caseId, briefText.slice(0, 6000));
+  // Canonical Reconciliation Design (2026-08-16), P2 §10 — same fix as
+  // pipeline.server.ts's report body (P2-1): resolveCaseType alone has no
+  // awareness of a manually-locked case_type actively conflicting with
+  // CONFIRMED classification evidence.
+  const { resolveReportCaseType } = await import("../pipeline.server");
+  const { caseType } = await resolveReportCaseType(db, caseId, briefText.slice(0, 6000));
   const PERSPECTIVES = determineApplicablePerspectives(caseType) as readonly Perspective[];
 
   let done = 0;
@@ -938,8 +943,10 @@ export async function runStrategyEngine(args: {
       .limit(200),
   ]);
 
-  const { resolveCaseType, isCriminalCaseType } = await import("../pipeline.server");
-  const caseType = await resolveCaseType(db, caseId, briefText.slice(0, 4000));
+  // Canonical Reconciliation Design (2026-08-16), P2 §10 — same fix as
+  // pipeline.server.ts's report body (P2-1).
+  const { resolveReportCaseType, isCriminalCaseType } = await import("../pipeline.server");
+  const { caseType } = await resolveReportCaseType(db, caseId, briefText.slice(0, 4000));
   const civil = !isCriminalCaseType(caseType);
   const caseFrame = civil
     ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology ONLY — liability, damages, comparative fault, settlement, discovery, credibility. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy). NEVER recommend criminal motions (motion to suppress, Brady motion).`
@@ -1310,9 +1317,11 @@ export async function runLitigationStrategyCenterEngine(args: {
   }
 
   const apiKeys = await getKeys(db, userId, args.apiKey);
-  const { resolveCaseType, isCriminalCaseType } = await import("../pipeline.server");
+  // Canonical Reconciliation Design (2026-08-16), P2 §10 — same fix as
+  // pipeline.server.ts's report body (P2-1).
+  const { resolveReportCaseType, isCriminalCaseType } = await import("../pipeline.server");
   const seedText = JSON.stringify({ theories: (theories ?? []).slice(0, 3) }).slice(0, 4000);
-  const caseType = await resolveCaseType(db, caseId, seedText);
+  const { caseType } = await resolveReportCaseType(db, caseId, seedText);
   const civil = !isCriminalCaseType(caseType);
   // Audit P0-5: "discovery" used to be listed as an ALLOWED civil term here
   // — Mexican civil procedure has no discovery phase; the equivalent is
@@ -1457,14 +1466,45 @@ ${JSON.stringify(slimStrategy)}`,
           .toLowerCase() === mdw.name.trim().toLowerCase(),
     );
     if (match) {
+      const reasons: string[] = Array.isArray(mdw.reasons) ? mdw.reasons : [];
+      // Canonical Reconciliation Design (2026-08-16), P2 §10 — the witness's
+      // NAME is grounded (matched against case_witnesses above), but the
+      // TEXT explaining why they're dangerous was, until now, taken verbatim
+      // from this LLM call with no relation checked to that same witness's
+      // OWN rationale/credibility factors already computed by the witness
+      // engine (engines.server.ts's runWitnessEngine, addFindings-routed,
+      // visible in the findings tab). A soft signal, not a hard reject gate
+      // — this synthesis engine is explicitly allowed to add real strategic
+      // framing beyond the raw rationale text — but a strategy-center
+      // characterization with NO textual relationship at all to the
+      // engine's own stated reasons for that witness's risk is worth
+      // knowing about, the same "surface disagreement, don't silently drop
+      // it" principle already applied to report-writer contradictions.
+      const rationaleRaw = (match as { rationale?: unknown }).rationale;
+      const rationaleText =
+        rationaleRaw && typeof rationaleRaw === "object"
+          ? Object.values(rationaleRaw as Record<string, unknown>)
+              .filter((v): v is string => typeof v === "string")
+              .join(" ")
+          : "";
+      const groundedInEngineRationale = isGroundedByTextOverlap(
+        reasons.join(" "),
+        rationaleText ? [rationaleText] : [],
+      );
       dangerousWitness = {
         witness_id: (match as { id?: unknown }).id ?? null,
         name: (match as { name?: unknown }).name,
-        reasons: Array.isArray(mdw.reasons) ? mdw.reasons : [],
+        reasons,
         recommended_approach: Array.isArray(mdw.recommended_approach)
           ? mdw.recommended_approach
           : [],
+        grounded_in_engine_rationale: groundedInEngineRationale,
       };
+      if (groundedInEngineRationale === false) {
+        console.info(
+          `[engine:litigation_strategy_center] case=${caseId} most_dangerous_witness reasons for "${mdw.name}" share no meaningful text overlap with that witness's own engine-computed rationale`,
+        );
+      }
     } else {
       console.info(
         `[engine:litigation_strategy_center] case=${caseId} dropped ungrounded witness name="${mdw.name}" — not in case_witnesses`,
@@ -1480,7 +1520,36 @@ ${JSON.stringify(slimStrategy)}`,
   )
     ? parsed.settlement_leverage
     : [];
-  const gap = parsed.biggest_evidentiary_gap ?? {};
+  // Canonical Reconciliation Design (2026-08-16), P2 §10 — biggest_evidentiary_gap
+  // had ZERO grounding of any kind: unlike most_dangerous_witness (at least
+  // name-checked above), this field was persisted verbatim from the LLM with
+  // no relation to the analyzer's own "missing_evidence"/"discovery_gap"
+  // findings (addFindings-routed, visible in the findings tab) that this
+  // exact same signal is already independently computed for elsewhere in
+  // the pipeline. Same soft "surface, don't silently drop" treatment as the
+  // witness reasons above — this synthesis engine can legitimately name a
+  // real gap the analyzer missed, so a low overlap score is informational,
+  // not a rejection.
+  const gapRaw = parsed.biggest_evidentiary_gap ?? {};
+  let gapGroundedInFindings: boolean | null = null;
+  if (typeof gapRaw.item === "string" && gapRaw.item.trim()) {
+    const { data: gapFindings } = await db
+      .from("case_findings")
+      .select("title")
+      .eq("case_id", caseId)
+      .in("category", ["missing_evidence", "discovery_gap"])
+      .not("source_module", "like", PROJECTION_LIKE);
+    gapGroundedInFindings = isGroundedByTextOverlap(
+      gapRaw.item,
+      (gapFindings ?? []).map((f) => String((f as { title?: unknown }).title ?? "")),
+    );
+    if (gapGroundedInFindings === false) {
+      console.info(
+        `[engine:litigation_strategy_center] case=${caseId} biggest_evidentiary_gap "${gapRaw.item}" shares no meaningful text overlap with any existing missing_evidence/discovery_gap finding`,
+      );
+    }
+  }
+  const gap = { ...gapRaw, grounded_in_findings: gapGroundedInFindings };
   const defense = parsed.expected_defense ?? {};
   const counter =
     typeof parsed.recommended_counter_strategy === "string"
