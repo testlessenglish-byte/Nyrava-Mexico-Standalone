@@ -199,10 +199,32 @@ export async function seedCorpusForUser(opts: {
   };
 }
 
+/** Pure decision: has this account's one-time starter-case seeding already
+ *  been attempted? ensureStarterCasesForUser is a ONE-TIME backfill for
+ *  accounts that signed up before seeding existed (see its own doc comment)
+ *  — not a "keep the account topped up with demo cases forever" feature.
+ *  Callers (dashboard.tsx's onboarding effect, profile-setup) previously
+ *  re-derived "has this ever run" from "does the user currently have zero
+ *  cases", which is indistinguishable from "the user deliberately deleted
+ *  every case" — CONFIRMED LIVE: deleting all cases on the Cases page made
+ *  the two starter amparo matters silently reappear on the next Dashboard
+ *  visit, because dashboard.tsx's effect saw an empty case list and called
+ *  ensureStarterCasesForUser again, which re-seeded both corpora since
+ *  neither currently existed. This flag makes "already seeded" a persisted,
+ *  one-time fact instead of something re-derived from current case count. */
+export function starterSeedAlreadyRan(
+  profile: { starter_cases_seeded_at?: string | null } | null | undefined,
+): boolean {
+  return !!profile?.starter_cases_seeded_at;
+}
+
 /**
- * Idempotently give `userId` the two starter amparo matters. Safe to call on
- * every sign-in / profile completion: it checks for an existing seeded case per
- * corpus first and never throws — a seeding hiccup must not block onboarding.
+ * ONE-TIME backfill: give `userId` the two starter amparo matters, exactly
+ * once ever, tracked via profiles.starter_cases_seeded_at — never re-run
+ * just because the account currently has zero cases (see
+ * starterSeedAlreadyRan's doc comment for the bug this closes). Safe to call
+ * on every sign-in / profile completion; never throws — a seeding hiccup
+ * must not block onboarding.
  */
 export async function ensureStarterCasesForUser(userId: string): Promise<{
   created: string[];
@@ -211,6 +233,16 @@ export async function ensureStarterCasesForUser(userId: string): Promise<{
   const created: string[] = [];
   const skipped: string[] = [];
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile } = await (supabaseAdmin as any)
+    .from("profiles")
+    .select("starter_cases_seeded_at")
+    .eq("id", userId)
+    .maybeSingle();
+  if (starterSeedAlreadyRan(profile)) {
+    return { created, skipped: [...BETA_STARTER_CORPORA] };
+  }
 
   for (const area of BETA_STARTER_CORPORA) {
     try {
@@ -234,6 +266,20 @@ export async function ensureStarterCasesForUser(userId: string): Promise<{
     } catch (e) {
       console.error("[starter-cases] failed to seed", area, e);
     }
+  }
+
+  // Mark this account's one-time backfill done regardless of what actually
+  // got created above (0, 1, or 2) — a partial/failed attempt should not
+  // keep retrying forever on every dashboard load either; that already has
+  // its own console.error trail above for diagnosis.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabaseAdmin as any)
+      .from("profiles")
+      .update({ starter_cases_seeded_at: new Date().toISOString() })
+      .eq("id", userId);
+  } catch (e) {
+    console.error("[starter-cases] failed to record starter_cases_seeded_at", e);
   }
 
   return { created, skipped };
