@@ -7427,7 +7427,9 @@ ${paginationTail}`;
   // Every structured claim must cite a quote that actually exists in the
   // extracted corpus. Items whose quotes cannot be verified are dropped.
   await setCase(db, caseId, { status_message: "Validating evidence citations", progress: 90 });
-  const { buildGroundingCorpus, verifyQuote } = await import("./intelligence/grounding.server");
+  const { buildGroundingCorpus, verifyQuote, verifyEvidenceRefs } = await import(
+    "./intelligence/grounding.server"
+  );
   const { confidenceLabel } = await import("./intelligence/scoring.server");
   const { data: docsForReportGround } = await db
     .from("documents")
@@ -7441,6 +7443,29 @@ ${paginationTail}`;
       extracted_text: d.extracted_text,
     })),
   );
+  // FIX (2026-08-17, pipeline-wide sweep): `citations` — the report's own
+  // "Anexo: Citas de Fuentes" appendix, explicitly captioned "use these to
+  // verify any claim in the report" — was itself never verified. It only
+  // ever got document_id backfilled from doc_n (resolveCites, above); the
+  // findings-derived entries merged in when the LLM's own array was thin
+  // (findingsCitations) are already trustworthy (their evidence_refs went
+  // through this same grounding earlier, when the finding was created), but
+  // the LLM's own citations entries — quote and all — never were.
+  // verifyEvidenceRefs is the exact existing function built for this (it
+  // already backstops findings' own evidence_refs elsewhere in this
+  // codebase); reused here rather than duplicating its quote/re-attribution
+  // logic. evidence_index is a per-DOCUMENT summary (doc_n/role/summary/
+  // supports/undermines), not a per-quote citation — it has no quote field
+  // to verify, so it is deliberately left untouched here; it is already
+  // anchored to a real document via doc_n/document_id, unlike a free-floating
+  // claim.
+  const citationsBeforeGrounding = citations.length;
+  citations = verifyEvidenceRefs(citations, reportCorpus);
+  if (citationsBeforeGrounding > citations.length) {
+    pipelineWarnings.push(
+      `citation_index_grounding: ${citationsBeforeGrounding - citations.length} citation(s) dropped from the citation appendix — quote did not verify against the real corpus.`,
+    );
+  }
   const verifyAndLabel = <T extends Record<string, unknown>>(
     arr: T[],
     quoteFields: Array<string | string[]>,
