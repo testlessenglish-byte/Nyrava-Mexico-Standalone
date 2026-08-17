@@ -198,3 +198,92 @@ export function gateRecommendedMotions(
   }
   return { items: kept, droppedCount };
 }
+
+/**
+ * Gates legal_memorandum.evidence_appendix — the last legal_memorandum
+ * section a pipeline-wide sweep (2026-08-17) found had zero verification.
+ * Unlike recommended_motions/legal_analysis, this schema has no doc_n field
+ * to pin a page-specific check to (just a free-text "page" string) — so this
+ * checks key_quote against the real corpus as a whole, the same standard
+ * gateRecommendedMotions' factual_basis check uses. proves/admissibility_risk
+ * are legal conclusions that depend entirely on key_quote being real; if the
+ * quote doesn't exist, the whole entry is dropped.
+ */
+export function gateEvidenceAppendix(
+  items: Array<Record<string, unknown>>,
+  verifyQuote: (quote: string, corpus: GroundingCorpus) => boolean,
+  corpus: GroundingCorpus,
+): { items: Array<Record<string, unknown>>; droppedCount: number } {
+  const kept: Array<Record<string, unknown>> = [];
+  let droppedCount = 0;
+  for (const item of items) {
+    const quote = item.key_quote;
+    if (typeof quote === "string" && quote.trim().length > 0 && verifyQuote(quote, corpus)) {
+      kept.push(item);
+    } else {
+      droppedCount++;
+    }
+  }
+  return { items: kept, droppedCount };
+}
+
+/**
+ * Gates legal_memorandum.statement_of_facts.{undisputed,disputed,chronology}
+ * — plain string arrays (unlike recommended_motions/legal_analysis, which
+ * have dedicated citation fields), each sentence expected to embed its own
+ * inline [DOC N p.M] marker per the prompt instruction ("Every fact in
+ * statement_of_facts... MUST use the same [DOC N p.M] pinpoint-citation
+ * format"). These are the attorney's OWN paraphrased restatement of a fact,
+ * not verbatim quotes — checking them against the corpus with verifyQuote
+ * (exact/near-exact substring matching) would reject legitimate paraphrases
+ * wholesale. checkClaimEvidenceRelevance (claim-evidence-relevance.ts) is
+ * the right tool here instead: a topical-overlap check between the claim and
+ * the cited page's real text, deliberately calibrated to accept genuine
+ * paraphrases while catching a fact with NO relationship to what the cited
+ * page actually discusses. This is a DIFFERENT use of that module than the
+ * one deliberately rejected in gateLegalAnalysis's header comment — that
+ * case needed to catch a SPECIFIC fabricated detail (an article number)
+ * hiding inside an otherwise-topically-relevant sentence, which topical
+ * overlap structurally cannot do; this case only needs to confirm the fact
+ * is even about the same subject as its citation, which is exactly what
+ * topical overlap is calibrated for.
+ * A sentence with no [DOC N p.M] marker at all, or whose cited page has no
+ * text available, is left untouched — nothing to check, so nothing is
+ * penalized, matching every other gate in this file.
+ */
+export function gateStatementOfFacts(
+  statementOfFacts: Record<string, unknown> | null | undefined,
+  pageTextByKey: Map<string, string>,
+  checkRelevance: (claimText: string, quoteText: string | null | undefined) => { relevant: boolean },
+): { statementOfFacts: Record<string, unknown> | null | undefined; droppedCount: number } {
+  if (!statementOfFacts || typeof statementOfFacts !== "object") {
+    return { statementOfFacts, droppedCount: 0 };
+  }
+  let droppedCount = 0;
+  const gateList = (arr: unknown): unknown[] => {
+    if (!Array.isArray(arr)) return arr as unknown[];
+    return arr.filter((entry) => {
+      if (typeof entry !== "string" || !entry.trim()) return true;
+      const matches = [...entry.matchAll(CITATION_RE)];
+      if (matches.length === 0) return true;
+      for (const m of matches) {
+        const docN = Number(m[1]);
+        const page = Number(m[2]);
+        const pageText = pageTextByKey.get(`${docN}:${page}`);
+        if (!pageText) continue;
+        if (!checkRelevance(entry, pageText).relevant) {
+          droppedCount++;
+          return false;
+        }
+      }
+      return true;
+    });
+  };
+  const out = {
+    ...statementOfFacts,
+    undisputed: gateList(statementOfFacts.undisputed),
+    disputed: gateList(statementOfFacts.disputed),
+    chronology: gateList(statementOfFacts.chronology),
+  };
+  return { statementOfFacts: out, droppedCount };
+}

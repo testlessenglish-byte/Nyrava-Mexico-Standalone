@@ -8910,9 +8910,34 @@ ${paginationTail}`;
     // (legal-memorandum-grounding.ts) for the two checks it applies.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recommendedMotionsArr = (reportRow.full_report as any).legal_memorandum?.recommended_motions;
+    // FIX (2026-08-17): evidence_appendix/statement_of_facts are the last two
+    // legal_memorandum sections the same sweep found ungated. evidence_appendix
+    // has a key_quote field (checked against the whole corpus, same standard
+    // as recommended_motions' factual_basis — its schema has no doc_n to pin a
+    // page-specific check to). statement_of_facts entries are the attorney's
+    // own paraphrased restatement of a fact, not verbatim quotes — see
+    // gateStatementOfFacts's doc comment for why checkClaimEvidenceRelevance
+    // (topical overlap) is the right tool there instead of verifyQuote.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const evidenceAppendixArr = (reportRow.full_report as any).legal_memorandum?.evidence_appendix;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const statementOfFactsObj = (reportRow.full_report as any).legal_memorandum?.statement_of_facts;
     const hasLegalAnalysis = Array.isArray(legalAnalysisArr) && legalAnalysisArr.length > 0;
     const hasRecommendedMotions = Array.isArray(recommendedMotionsArr) && recommendedMotionsArr.length > 0;
-    if (hasLegalAnalysis || hasRecommendedMotions) {
+    const hasEvidenceAppendix = Array.isArray(evidenceAppendixArr) && evidenceAppendixArr.length > 0;
+    const hasStatementOfFacts = statementOfFactsObj && typeof statementOfFactsObj === "object";
+    if (hasEvidenceAppendix) {
+      const { gateEvidenceAppendix } = await import("./intelligence/legal-memorandum-grounding");
+      const { items, droppedCount } = gateEvidenceAppendix(evidenceAppendixArr, verifyQuote, reportCorpus);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (reportRow.full_report as any).legal_memorandum.evidence_appendix = items;
+      if (droppedCount > 0) {
+        pipelineWarnings.push(
+          `legal_memorandum_grounding: ${droppedCount} evidence_appendix entr${droppedCount === 1 ? "y" : "ies"} dropped — key_quote does not exist in the real corpus.`,
+        );
+      }
+    }
+    if (hasLegalAnalysis || hasRecommendedMotions || hasStatementOfFacts) {
       const { data: pageRows } = await db
         .from("document_pages")
         .select("document_id,page,text")
@@ -8926,7 +8951,7 @@ ${paginationTail}`;
         }
       }
       if (pageTextByKey.size > 0) {
-        const { gateLegalAnalysis, gateRecommendedMotions } = await import(
+        const { gateLegalAnalysis, gateRecommendedMotions, gateStatementOfFacts } = await import(
           "./intelligence/legal-memorandum-grounding"
         );
         if (hasLegalAnalysis) {
@@ -8951,6 +8976,21 @@ ${paginationTail}`;
           if (droppedCount > 0) {
             pipelineWarnings.push(
               `legal_memorandum_grounding: ${droppedCount} recommended_motion(s) dropped — no verified factual_basis or an ungrounded citation.`,
+            );
+          }
+        }
+        if (hasStatementOfFacts) {
+          const { checkClaimEvidenceRelevance } = await import("./intelligence/claim-evidence-relevance");
+          const { statementOfFacts, droppedCount } = gateStatementOfFacts(
+            statementOfFactsObj,
+            pageTextByKey,
+            checkClaimEvidenceRelevance,
+          );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (reportRow.full_report as any).legal_memorandum.statement_of_facts = statementOfFacts;
+          if (droppedCount > 0) {
+            pipelineWarnings.push(
+              `legal_memorandum_grounding: ${droppedCount} statement_of_facts entr${droppedCount === 1 ? "y" : "ies"} dropped — cited page has no topical relationship to the claim.`,
             );
           }
         }
