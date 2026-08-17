@@ -48,6 +48,24 @@ async function getSharedBriefResilient(args: {
   }
 }
 
+// FIX (2026-08-17, pipeline-wide sweep): key_evidence explicitly claims to
+// describe real evidence in the case ("item"/"why_it_matters") — unlike
+// recommended_actions (a suggested next step, not a factual claim, correctly
+// left uncited, matching next_actions elsewhere in this codebase),
+// key_evidence needs real citation verification. Pulled out as a
+// dependency-injected pure function (verifyQuote passed in rather than
+// imported, matching gateRecommendedMotions/gateCrossExaminationImpeachment)
+// so it's directly unit-testable without the surrounding LLM/DB call.
+export function keyEvidenceIsGrounded(
+  item: unknown,
+  verifyQuote: (quote: string, corpus: import("./grounding.server").GroundingCorpus) => boolean,
+  corpus: import("./grounding.server").GroundingCorpus,
+): boolean {
+  if (!item || typeof item !== "object") return false;
+  const quote = (item as { citation?: { quote?: unknown } }).citation?.quote;
+  return typeof quote === "string" && quote.trim().length > 0 && verifyQuote(quote, corpus);
+}
+
 const ALL_PERSPECTIVES = [
   "ministerio_publico",
   "defensa",
@@ -231,6 +249,26 @@ export async function runPerspectivesEngine(args: {
     batches.push(PERSPECTIVES.slice(i, i + PERSPECTIVE_CONCURRENCY));
   }
 
+  // FIX (2026-08-17, pipeline-wide sweep): key_evidence explicitly claims to
+  // describe real evidence in the case ("item"/"why_it_matters") but had no
+  // citation field at all — unlike recommended_actions (a suggested next
+  // step, not a factual claim, correctly left uncited, matching the rest of
+  // this codebase's next_actions fields). Fetched once, outside the
+  // per-perspective loop below, and reused across every perspective call —
+  // same real-document grounding runStrategyEngine now uses.
+  const { buildGroundingCorpus, verifyQuote } = await import("./grounding.server");
+  const { data: docsForPerspectiveGrounding } = await db
+    .from("documents")
+    .select("id,filename,extracted_text")
+    .eq("case_id", caseId);
+  const perspectiveGroundingCorpus = buildGroundingCorpus(
+    (docsForPerspectiveGrounding ?? []).map((d) => ({
+      id: d.id as string,
+      filename: d.filename,
+      extracted_text: d.extracted_text,
+    })),
+  );
+
   const runOnePerspective = async (perspective: Perspective) => {
     const t0 = Date.now();
     try {
@@ -260,9 +298,11 @@ export async function runPerspectivesEngine(args: {
   "weaknesses": [ { "title": string, "detail": string, "confidence_label": "confirmed"|"likely"|"possible"|"unknown" } ],
   "opposing_arguments": [ { "argument": string, "strength": "high"|"medium"|"low" } ],
   "counter_arguments": [ { "argument": string, "rationale": string } ],
-  "key_evidence": [ { "item": string, "why_it_matters": string } ],
+  "key_evidence": [ { "item": string, "why_it_matters": string, "citation": { "doc_n": number, "page": number, "quote": string }|null } ],
   "recommended_actions": [ { "action": string, "priority": "high"|"medium"|"low" } ]
 }
+
+Every "key_evidence" entry MUST include a "citation" with a verbatim quote (<=200 chars) copied character-for-character from the shared case brief's underlying documents — if you cannot cite it, set "citation" to null rather than inventing one.
 
 PERSPECTIVE: ${perspective}
 
@@ -331,6 +371,19 @@ ${briefText}`,
           `"${perspective}" output used non-Mexican legal terminology and was rejected before persisting`,
         );
       }
+
+      // FIX (2026-08-17, pipeline-wide sweep): key_evidence explicitly
+      // claims to describe real evidence in the case — unlike
+      // recommended_actions (a suggested next step, not a factual claim),
+      // it needs the same real-corpus quote verification runStrategyEngine's
+      // motion_rankings/factual_basis already gets. Drops any entry whose
+      // citation quote doesn't verify against the case's real document text
+      // (perspectiveGroundingCorpus, fetched once above) — an entry with no
+      // citation at all is dropped too, same "no verified fact, no publish"
+      // policy used everywhere else in this codebase.
+      p.key_evidence = (Array.isArray(p.key_evidence) ? p.key_evidence : []).filter((item: unknown) =>
+        keyEvidenceIsGrounded(item, verifyQuote, perspectiveGroundingCorpus),
+      );
 
       // supabase-js does NOT throw on a rejected insert — it returns { error }.
       // Swallowing it made a constraint/RLS rejection look like a successful
