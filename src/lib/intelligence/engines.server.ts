@@ -1318,6 +1318,29 @@ ${ctx.corpus}`,
 // =========================================================================
 // TRIAL PREPARATION + JURY SIMULATION ENGINE
 // =========================================================================
+
+// No jury exists anywhere in Mexican procedure (civil or the sistema penal
+// acusatorio) — this platform serves Mexican attorneys exclusively. The
+// trial-prep prompt below explicitly instructs the model never to mention
+// "jurado"/"jury" on a criminal case (guilt is decided by a Tribunal de
+// Enjuiciamiento, not a jury), but that instruction was never deterministically
+// enforced. Pulled out as a standalone, dependency-injected pure function
+// (textMatchesCaseType passed in rather than imported, since this file's
+// engines dynamically import evidence-gate.server.ts inside each function
+// body) so it's directly unit-testable without the surrounding LLM/DB call.
+const JURY_LEAK_RE = /\b(jury|jurado|jurados|voir dire|jury selection|conviction by jury)\b/i;
+
+export function trialPrepTextAllowed(
+  text: unknown,
+  isCriminal: boolean,
+  caseType: string,
+  textMatchesCaseType: (text: string, caseType: string | null | undefined) => boolean,
+): boolean {
+  if (typeof text !== "string" || !text.trim()) return true;
+  if (isCriminal && JURY_LEAK_RE.test(text)) return false;
+  return textMatchesCaseType(text, caseType);
+}
+
 export async function runTrialPrepEngine(args: {
   db: Db;
   caseId: string;
@@ -1437,6 +1460,45 @@ ${JSON.stringify(ctx.findingsLite).slice(0, 15000)}`,
   console.info(
     `[engine:trial_prep] case=${caseId} llm_text_chars=${r.text?.length ?? 0} opening=${(p.opening_themes ?? []).length} closing=${(p.closing_themes ?? []).length} risks=${(p.trial_risks ?? []).length} strengths=${(p.trial_strengths ?? []).length} witness_order=${(p.witness_order ?? []).length} exhibit_order=${(p.exhibit_order ?? []).length} llm_preview=${JSON.stringify((r.text ?? "").slice(0, 240))}`,
   );
+
+  // FIX (2026-08-17, pipeline-wide sweep): unlike every other engine in this
+  // file (runTheoryEngine/runOpportunityEngine call textMatchesCaseType;
+  // runWitnessEngine/runWorkProductEngine call applyEvidenceGate), trial_risks/
+  // trial_strengths/witness_order/exhibit_order/likely_objections/jury_concerns
+  // had NO terminology check of any kind before this — despite the prompt
+  // above containing an explicit, repeated "jamás menciones jurado" / "PROHIBIDO
+  // ABSOLUTAMENTE: jurado, jury..." instruction for Mexican penal cases (no
+  // jury exists in the sistema penal acusatorio; guilt is decided by a
+  // Tribunal de Enjuiciamiento). Prompt instructions are not enforcement — the
+  // same lesson this exact codebase already learned for U.S.-terminology
+  // leaks elsewhere (evidence-gate.server.ts's textMatchesCaseType). This does
+  // NOT address the file's own acknowledged, deliberately-deferred calibration
+  // gap (see the file-header TODO — the *_pct numbers need a real
+  // outcomes-tracking table this pass does not invent) — it only catches
+  // qualitative-content leaks the schema was never designed to carry a
+  // citation for in the first place.
+  {
+    const { textMatchesCaseType } = await import("./evidence-gate.server");
+    const textAllowed = (s: unknown): boolean =>
+      trialPrepTextAllowed(s, isCriminal, caseType, textMatchesCaseType);
+    const filterStrList = (arr: unknown): string[] =>
+      (Array.isArray(arr) ? arr : []).filter((s): s is string => typeof s === "string" && textAllowed(s));
+    p.trial_risks = filterStrList(p.trial_risks) as never;
+    p.trial_strengths = filterStrList(p.trial_strengths) as never;
+    p.jury_concerns = filterStrList(p.jury_concerns) as never;
+    p.likely_objections = (Array.isArray(p.likely_objections) ? p.likely_objections : []).filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (o: any) => textAllowed(`${o?.objection ?? ""} ${o?.counter ?? ""}`),
+    ) as never;
+    p.witness_order = (Array.isArray(p.witness_order) ? p.witness_order : []).filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (w: any) => textAllowed(w?.reason),
+    ) as never;
+    p.exhibit_order = (Array.isArray(p.exhibit_order) ? p.exhibit_order : []).filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (e: any) => textAllowed(e?.reason),
+    ) as never;
+  }
 
   // MEXICO PENAL: the legacy columns are reused as storage slots for the
   // acusatorio outcome estimates (there is no jury, so no jury metric is ever
