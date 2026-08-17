@@ -7514,7 +7514,17 @@ ${paginationTail}`;
   }
   const constIssues = isCriminalOrCivilRights ? verifyAndLabel(constIssuesRaw, ["facts"]) : [];
   const motions = verifyAndLabel(motionsRaw, ["supporting_facts"]);
-  const crossExam = crossExamRaw; // questions don't need quote-verification
+  // Questions themselves need no quote-verification, but FIX (2026-08-17,
+  // pipeline-wide sweep): impeachment_with is a specific factual claim about
+  // the record, not a question — verifyAndLabel's generic .citations[]/
+  // .evidence_refs[] sweep never reaches it (it's nested two levels deep,
+  // item.lines[].citation, not on the top-level item), so it was the one
+  // unverified factual assertion left in cross_examination. Nulls the claim
+  // (never drops the line/topic) when its citation doesn't verify.
+  const { gateCrossExaminationImpeachment } = await import(
+    "./intelligence/cross-examination-grounding"
+  );
+  const crossExam = gateCrossExaminationImpeachment(crossExamRaw, verifyQuote, reportCorpus).items;
   // Missing evidence is about *absence* — no corpus quote required, but flag confidence.
   const missingEvidence = (missingEvidenceRaw as Record<string, unknown>[]).map((m) => ({
     ...m,
