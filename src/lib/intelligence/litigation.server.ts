@@ -948,6 +948,37 @@ export async function runStrategyEngine(args: {
   const { resolveReportCaseType, isCriminalCaseType } = await import("../pipeline.server");
   const { caseType } = await resolveReportCaseType(db, caseId, briefText.slice(0, 4000));
   const civil = !isCriminalCaseType(caseType);
+
+  // FIX (2026-08-17): this engine never consulted the AGENTS-stage
+  // matter-subtype lock (matter-subtype.ts) or verified its own motion
+  // citations against the real corpus — both gaps confirmed live on the
+  // same Amparo Directo en Revisión case: a "Solicitar la suspensión..."
+  // motion recommended despite the case's own subtype excluding
+  // agent:suspension_analysis (an SCJN review opinion has no reason to
+  // relitigate the original trial's suspensión), and a fabricated "Amparo
+  // indirecto" motion whose "supporting_evidence" string only had to look
+  // plausible (length > 5 chars) — never actually appear in a real
+  // document. See isTextAllowedForSubtype's doc comment (matter-subtype.ts)
+  // and verifyQuote (grounding.server.ts) for each gate's own rationale.
+  const [{ data: caseRowForSubtype }, { data: docsForGrounding }] = await Promise.all([
+    db.from("cases").select("name,description").eq("id", caseId).maybeSingle(),
+    db.from("documents").select("id,filename,extracted_text").eq("case_id", caseId),
+  ]);
+  const { detectMatterSubtype, isTextAllowedForSubtype } = await import("../jurisdiction/matter-subtype");
+  const subtypeSignalText = [
+    String(caseRowForSubtype?.name ?? ""),
+    String(caseRowForSubtype?.description ?? ""),
+    briefText,
+  ].join("\n");
+  const matterSubtype = detectMatterSubtype(caseType, subtypeSignalText);
+  const { buildGroundingCorpus, verifyQuote } = await import("./grounding.server");
+  const strategyGroundingCorpus = buildGroundingCorpus(
+    (docsForGrounding ?? []).map((d) => ({
+      id: d.id as string,
+      filename: d.filename,
+      extracted_text: d.extracted_text,
+    })),
+  );
   const caseFrame = civil
     ? `This is a CIVIL matter (case_type=${caseType}). Use civil terminology ONLY — liability, damages, comparative fault, settlement, discovery, credibility. NEVER use criminal terms (conviction, acquittal, Miranda, Brady, suppression, search and seizure, reasonable doubt, prosecution strategy). NEVER recommend criminal motions (motion to suppress, Brady motion).`
     : `This is a MEXICAN PENAL matter under the CNPP (case_type=${caseType}). Use Mexican penal terminology ONLY — Ministerio Público, imputado, víctima u ofendido, auto de vinculación a proceso, sentencia condenatoria/absolutoria, Juez de Control, Tribunal de Enjuiciamiento. NEVER use U.S. criminal-system terms (jury, plea bargain, indictment, felony, misdemeanor, grand jury, Miranda, Brady, prosecutor as a role title).`;
@@ -1027,26 +1058,46 @@ ${briefText}`,
   const s = parseJsonLoose<any>(r.text) ?? {};
 
   const { textMatchesCaseType } = await import("./evidence-gate.server");
-  // Drop motions/counters that have no supporting verbatim quote, or use
-  // criminal terminology in a civil case.
+  // Drop motions/counters that (a) have no supporting quote that actually
+  // verifies against the real corpus text — FIX (2026-08-17): previously
+  // only checked the string existed and was >5 chars, which a fabricated
+  // "quote" passes just as easily as a real one — (b) use criminal
+  // terminology in a civil case, or (c) touch a topic this case's subtype
+  // lock excludes (e.g. a suspensión motion on an Amparo Directo en
+  // Revisión).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filterMotions = (arr: any[]) =>
     (Array.isArray(arr) ? arr : []).filter((m) => {
       const quotes = Array.isArray(m?.supporting_evidence)
-        ? m.supporting_evidence.filter((q: unknown) => typeof q === "string" && q.trim().length > 5)
+        ? m.supporting_evidence.filter(
+            (q: unknown) => typeof q === "string" && verifyQuote(q, strategyGroundingCorpus),
+          )
         : [];
       if (quotes.length === 0) return false;
-      return textMatchesCaseType(`${m.motion ?? ""} ${m.rationale ?? ""}`, caseType);
+      const text = `${m.motion ?? ""} ${m.rationale ?? ""}`;
+      return textMatchesCaseType(text, caseType) && isTextAllowedForSubtype(matterSubtype, text);
     });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filterCounters = (arr: any[]) =>
     (Array.isArray(arr) ? arr : []).filter((c) => {
       const quotes = Array.isArray(c?.supporting_evidence)
-        ? c.supporting_evidence.filter((q: unknown) => typeof q === "string" && q.trim().length > 5)
+        ? c.supporting_evidence.filter(
+            (q: unknown) => typeof q === "string" && verifyQuote(q, strategyGroundingCorpus),
+          )
         : [];
       if (quotes.length === 0) return false;
-      return textMatchesCaseType(`${c.for_argument ?? ""} ${c.counter ?? ""}`, caseType);
+      const text = `${c.for_argument ?? ""} ${c.counter ?? ""}`;
+      return textMatchesCaseType(text, caseType) && isTextAllowedForSubtype(matterSubtype, text);
     });
+  // next_actions carries no supporting_evidence field in this engine's own
+  // JSON schema (above) — quote-verification isn't structurally possible
+  // here without a schema change, so this is subtype-topic-only, same as
+  // the motion/counter filters' second gate.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filterNextActions = (arr: any[]) =>
+    (Array.isArray(arr) ? arr : []).filter((a) =>
+      isTextAllowedForSubtype(matterSubtype, String(a?.action ?? "")),
+    );
 
   const { error: strategyWriteError } = await db.from("case_strategy").upsert(
     {
@@ -1060,7 +1111,7 @@ ${briefText}`,
       motion_rankings: (filterMotions(s.motion_rankings) ?? []) as J,
       anticipated_opposing: (s.anticipated_opposing ?? []) as J,
       counter_arguments: (filterCounters(s.counter_arguments) ?? []) as J,
-      next_actions: (s.next_actions ?? []) as J,
+      next_actions: (filterNextActions(s.next_actions) ?? []) as J,
     },
     { onConflict: "case_id,perspective" },
   );
