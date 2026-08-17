@@ -8733,6 +8733,104 @@ ${paginationTail}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow.full_report as any).validation = valBlock;
 
+    // FIX (2026-08-16, "quarantine/rendering disconnect"): citationAudit just
+    // above is computed from case_findings — a completely different, LATER
+    // pass than the one that built canonical_recommendations/next_actions/
+    // strategy_recommendations near the top of this function (~6800 lines
+    // earlier) directly from raw, ungated LLM chunk output. Those lists have
+    // no way to know a title they contain was just quarantined for having
+    // ZERO supporting citation. Confirmed live on two consecutive real cases
+    // (ADR-4640-2017, ADR-2239-2018): "Preparar recurso de revisión ante la
+    // SCJN." was quarantined here (reason: missing_all) yet still rendered as
+    // a High/Critical-priority action item, because nothing downstream of
+    // this point ever consulted citationAudit's decision. Filtering happens
+    // HERE — the first point in the function where citationAudit actually
+    // exists — rather than trying to move citation_audit earlier, since it
+    // itself depends on case_findings rows the report-writer routing step
+    // (normalizeReportWriterFindings/addGatedFindings) only finishes writing
+    // moments before this. motion_opportunities is NOT included here — it
+    // already goes through verifyAndLabel + enforceStructuredItems
+    // (motionsGuarded) earlier and is quote-verified, a stronger guarantee
+    // than this title-match check.
+    if (citationAudit.quarantined > 0) {
+      const { filterQuarantinedRecommendations } = await import("./intelligence/report-recommendations");
+      const quarantinedTitles = citationAudit.quarantined_findings.map((f) => f.title).filter(Boolean);
+      const fr = reportRow.full_report as Record<string, unknown>;
+      let removedCount = 0;
+      if (Array.isArray(fr.canonical_recommendations)) {
+        const { items, removed } = filterQuarantinedRecommendations(
+          fr.canonical_recommendations as Array<{ title?: unknown }>,
+          quarantinedTitles,
+          (i) => String(i?.title ?? ""),
+        );
+        fr.canonical_recommendations = items;
+        removedCount += removed.length;
+      }
+      if (Array.isArray(fr.next_actions)) {
+        const { items, removed } = filterQuarantinedRecommendations(
+          fr.next_actions as Array<{ action?: unknown }>,
+          quarantinedTitles,
+          (i) => String(i?.action ?? ""),
+        );
+        fr.next_actions = items;
+        removedCount += removed.length;
+      }
+      if (Array.isArray(fr.strategy_recommendations)) {
+        const { items, removed } = filterQuarantinedRecommendations(
+          fr.strategy_recommendations as Array<{ title?: unknown }>,
+          quarantinedTitles,
+          (i) => String(i?.title ?? ""),
+        );
+        fr.strategy_recommendations = items;
+        removedCount += removed.length;
+      }
+      if (removedCount > 0) {
+        pipelineWarnings.push(
+          `quarantine_propagation: ${removedCount} recommendation(s)/action(s) removed — matched a citation_audit-quarantined finding (zero supporting citation).`,
+        );
+      }
+    }
+
+    // FIX (2026-08-16, "quarantine/rendering disconnect" bug report, item 3):
+    // legal_memorandum.legal_analysis is the one major structured section
+    // that never passed through ANY citation/claim verification (see
+    // legal-memorandum-grounding.ts's header for the full trace of why).
+    // Confirmed live: a legal_analysis entry cited "[DOC 1 p.12]" for a
+    // specific statute number ("artículo 61 de la Ley de Amparo") that does
+    // not appear anywhere in the source, on page 12 or otherwise. Checked
+    // here against the REAL per-page text (document_pages), reusing
+    // checkClaimEvidenceRelevance — already calibrated against two real
+    // failure cases from this exact case family — rather than the coarser
+    // whole-document orphaned-citations scan below, which only checks that
+    // the (doc, page) pair exists, not that the page supports the claim.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const legalAnalysisArr = (reportRow.full_report as any).legal_memorandum?.legal_analysis;
+    if (Array.isArray(legalAnalysisArr) && legalAnalysisArr.length > 0) {
+      const { data: pageRows } = await db
+        .from("document_pages")
+        .select("document_id,page,text")
+        .eq("case_id", caseId);
+      const idToDocN = new Map([...docNToId.entries()].map(([n, id]) => [id, n]));
+      const pageTextByKey = new Map<string, string>();
+      for (const row of pageRows ?? []) {
+        const docN = idToDocN.get(row.document_id as string);
+        if (docN != null && typeof row.text === "string") {
+          pageTextByKey.set(`${docN}:${row.page}`, row.text);
+        }
+      }
+      if (pageTextByKey.size > 0) {
+        const { gateLegalAnalysis } = await import("./intelligence/legal-memorandum-grounding");
+        const { items, droppedCount } = gateLegalAnalysis(legalAnalysisArr, pageTextByKey);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (reportRow.full_report as any).legal_memorandum.legal_analysis = items;
+        if (droppedCount > 0) {
+          pipelineWarnings.push(
+            `legal_memorandum_grounding: ${droppedCount} legal_analysis entr${droppedCount === 1 ? "y" : "ies"} dropped — cited a real (doc, page) pair whose actual text does not support the claim.`,
+          );
+        }
+      }
+    }
+
     // Priority 0/3/4 — incomplete citations QUARANTINE, they do NOT block.
     // Supported findings render normally; unsupported ones are surfaced in
     // the Citation Audit appendix. Only genuinely broken pipeline states

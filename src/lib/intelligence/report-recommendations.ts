@@ -166,7 +166,7 @@ function similarity(a: string, b: string): number {
  * regardless of the Jaccard score, which can undershoot on short titles
  * purely because the union is small.
  */
-function isDuplicateTitle(a: string, b: string): boolean {
+export function isDuplicateTitle(a: string, b: string): boolean {
   if (similarity(a, b) >= DUPLICATE_THRESHOLD) return true;
   const ta = significantTokens(a);
   const tb = significantTokens(b);
@@ -361,4 +361,49 @@ export function mergeCanonicalRecommendations(args: {
   }
 
   return clusters.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
+}
+
+// ============================================================================
+// QUARANTINE PROPAGATION
+//
+// Bug (2026-08-16, reported as "quarantine/rendering disconnect"): the citation
+// audit (citation-audit.server.ts's buildCitationAudit) correctly identifies
+// zero-citation content and quarantines it — but it runs against case_findings
+// rows LATE in runReport (~2000 lines after this module's mergeCanonicalRecommendations
+// already ran on the raw LLM chunk output). The quarantine decision never
+// propagated back to canonical_recommendations/next_actions/
+// strategy_recommendations, so a recommendation the system had already
+// determined has ZERO supporting citation ("Preparar recurso de revisión ante
+// la SCJN.", reason: "missing_all") still rendered as a High/Critical-priority
+// action item in the final report — reproduced identically across two
+// consecutive real test cases (ADR-4640-2017, ADR-2239-2018).
+//
+// This is the same "same text is judged by two independent, disagreeing
+// systems" defect class as the report_theory/report_opportunity engine-
+// ledger collision fixed earlier this session — here the fix is to make the
+// LATER-computed, authoritative judgment (citation_audit) override the
+// EARLIER, ungated one, once it exists.
+// ============================================================================
+
+/**
+ * Removes any item whose title/action text matches (by the same duplicate-
+ * detection logic used for merge-dedup above) a citation-audit-quarantined
+ * finding's title. Call this AFTER citationAudit is computed, on every list
+ * that was built from the same raw, pre-quarantine LLM output —
+ * canonical_recommendations, next_actions, strategy_recommendations.
+ */
+export function filterQuarantinedRecommendations<T>(
+  items: T[],
+  quarantinedTitles: string[],
+  getTitle: (item: T) => string,
+): { items: T[]; removed: T[] } {
+  const kept: T[] = [];
+  const removed: T[] = [];
+  for (const item of items) {
+    const title = getTitle(item).trim();
+    const isQuarantined = title.length > 0 && quarantinedTitles.some((qt) => isDuplicateTitle(title, qt));
+    if (isQuarantined) removed.push(item);
+    else kept.push(item);
+  }
+  return { items: kept, removed };
 }
