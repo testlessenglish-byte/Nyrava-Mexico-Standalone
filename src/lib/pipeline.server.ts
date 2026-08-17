@@ -7427,7 +7427,9 @@ ${paginationTail}`;
   // Every structured claim must cite a quote that actually exists in the
   // extracted corpus. Items whose quotes cannot be verified are dropped.
   await setCase(db, caseId, { status_message: "Validating evidence citations", progress: 90 });
-  const { buildGroundingCorpus, verifyQuote } = await import("./intelligence/grounding.server");
+  const { buildGroundingCorpus, verifyQuote, verifyEvidenceRefs } = await import(
+    "./intelligence/grounding.server"
+  );
   const { confidenceLabel } = await import("./intelligence/scoring.server");
   const { data: docsForReportGround } = await db
     .from("documents")
@@ -7441,6 +7443,29 @@ ${paginationTail}`;
       extracted_text: d.extracted_text,
     })),
   );
+  // FIX (2026-08-17, pipeline-wide sweep): `citations` — the report's own
+  // "Anexo: Citas de Fuentes" appendix, explicitly captioned "use these to
+  // verify any claim in the report" — was itself never verified. It only
+  // ever got document_id backfilled from doc_n (resolveCites, above); the
+  // findings-derived entries merged in when the LLM's own array was thin
+  // (findingsCitations) are already trustworthy (their evidence_refs went
+  // through this same grounding earlier, when the finding was created), but
+  // the LLM's own citations entries — quote and all — never were.
+  // verifyEvidenceRefs is the exact existing function built for this (it
+  // already backstops findings' own evidence_refs elsewhere in this
+  // codebase); reused here rather than duplicating its quote/re-attribution
+  // logic. evidence_index is a per-DOCUMENT summary (doc_n/role/summary/
+  // supports/undermines), not a per-quote citation — it has no quote field
+  // to verify, so it is deliberately left untouched here; it is already
+  // anchored to a real document via doc_n/document_id, unlike a free-floating
+  // claim.
+  const citationsBeforeGrounding = citations.length;
+  citations = verifyEvidenceRefs(citations, reportCorpus);
+  if (citationsBeforeGrounding > citations.length) {
+    pipelineWarnings.push(
+      `citation_index_grounding: ${citationsBeforeGrounding - citations.length} citation(s) dropped from the citation appendix — quote did not verify against the real corpus.`,
+    );
+  }
   const verifyAndLabel = <T extends Record<string, unknown>>(
     arr: T[],
     quoteFields: Array<string | string[]>,
@@ -7514,7 +7539,17 @@ ${paginationTail}`;
   }
   const constIssues = isCriminalOrCivilRights ? verifyAndLabel(constIssuesRaw, ["facts"]) : [];
   const motions = verifyAndLabel(motionsRaw, ["supporting_facts"]);
-  const crossExam = crossExamRaw; // questions don't need quote-verification
+  // Questions themselves need no quote-verification, but FIX (2026-08-17,
+  // pipeline-wide sweep): impeachment_with is a specific factual claim about
+  // the record, not a question — verifyAndLabel's generic .citations[]/
+  // .evidence_refs[] sweep never reaches it (it's nested two levels deep,
+  // item.lines[].citation, not on the top-level item), so it was the one
+  // unverified factual assertion left in cross_examination. Nulls the claim
+  // (never drops the line/topic) when its citation doesn't verify.
+  const { gateCrossExaminationImpeachment } = await import(
+    "./intelligence/cross-examination-grounding"
+  );
+  const crossExam = gateCrossExaminationImpeachment(crossExamRaw, verifyQuote, reportCorpus).items;
   // Missing evidence is about *absence* — no corpus quote required, but flag confidence.
   const missingEvidence = (missingEvidenceRaw as Record<string, unknown>[]).map((m) => ({
     ...m,
@@ -8644,7 +8679,18 @@ ${paginationTail}`;
         // deterministic counterpart anywhere in this codebase, so it is NOT
         // compared here rather than inventing one.
         score_consistency: {
+          // FIX (2026-08-17): case_strength_score here used to be the
+          // ALREADY-RECONCILED value (reconcileCaseStrengthScore overrides
+          // it to match case_strength_score_deterministic whenever both
+          // exist) — so a real disagreement showed as "65, deterministic 65,
+          // delta 10," internally contradictory to anyone reading this
+          // diagnostic object directly. case_strength_score_llm_raw is the
+          // actual pre-reconciliation self-reported number the delta was
+          // computed against; case_strength_score is what was actually
+          // persisted (post-reconciliation, i.e. always == the deterministic
+          // value when both exist).
           case_strength_score: reportCaseStrengthScore,
+          case_strength_score_llm_raw: reportCaseStrengthScoreRaw,
           case_strength_score_deterministic:
             typeof reportDeterministicStrength === "number"
               ? Math.round(reportDeterministicStrength)
@@ -8827,22 +8873,56 @@ ${paginationTail}`;
         fr.canonical_recommendations = items;
         removedCount += removed.length;
       }
-      if (Array.isArray(fr.next_actions)) {
+      // FIX (2026-08-17): reports.next_actions/strategy_recommendations are
+      // SEPARATE top-level columns (line ~8713-8714), assigned directly from
+      // the same raw pre-quarantine `nextActions`/`strategy` variables — not
+      // derived from full_report.next_actions/full_report.strategy_recommendations.
+      // The nested full_report copies below were correctly filtered, but the
+      // top-level columns — what reports.tsx's PDF/DOCX/UI actually render —
+      // were never touched, so a quarantined item filtered out of the nested
+      // copy still rendered via its top-level sibling. Confirmed live: on a
+      // real ADR-4640-2017 run, "Presentar recurso de revisión" (quarantined,
+      // reason: missing_all) was correctly absent from full_report.strategy_recommendations
+      // but still rendered in the PDF's "Recomendaciones Estratégicas" table,
+      // sourced from the unfiltered top-level column. Same fix, both places.
+      if (Array.isArray(fr.next_actions) || Array.isArray(reportRow.next_actions)) {
         const { items, removed } = filterQuarantinedRecommendations(
-          fr.next_actions as Array<{ action?: unknown }>,
+          (Array.isArray(fr.next_actions) ? fr.next_actions : reportRow.next_actions ?? []) as Array<{
+            action?: unknown;
+          }>,
           quarantinedTitles,
           (i) => String(i?.action ?? ""),
         );
         fr.next_actions = items;
+        reportRow.next_actions = items;
         removedCount += removed.length;
       }
-      if (Array.isArray(fr.strategy_recommendations)) {
+      if (Array.isArray(fr.strategy_recommendations) || Array.isArray(reportRow.strategy_recommendations)) {
         const { items, removed } = filterQuarantinedRecommendations(
-          fr.strategy_recommendations as Array<{ title?: unknown }>,
+          (Array.isArray(fr.strategy_recommendations)
+            ? fr.strategy_recommendations
+            : reportRow.strategy_recommendations ?? []) as Array<{ title?: unknown }>,
           quarantinedTitles,
           (i) => String(i?.title ?? ""),
         );
         fr.strategy_recommendations = items;
+        reportRow.strategy_recommendations = items;
+        removedCount += removed.length;
+      }
+      // FIX (2026-08-17): legal_memorandum.next_actions is a THIRD, separate
+      // "action items" array (schema: {action, owner, deadline, priority} —
+      // no citation field of its own) sourced from the same raw report-writer
+      // output, also never consulted citationAudit. Confirmed live on the
+      // same case: "Preparar y presentar el recurso de revisión." (matching
+      // the same quarantined finding) rendered here too.
+      const memoNextActions = (fr.legal_memorandum as Record<string, unknown> | undefined)?.next_actions;
+      if (Array.isArray(memoNextActions)) {
+        const { items, removed } = filterQuarantinedRecommendations(
+          memoNextActions as Array<{ action?: unknown }>,
+          quarantinedTitles,
+          (i) => String(i?.action ?? ""),
+        );
+        (fr.legal_memorandum as Record<string, unknown>).next_actions = items;
         removedCount += removed.length;
       }
       if (removedCount > 0) {
@@ -8875,9 +8955,34 @@ ${paginationTail}`;
     // (legal-memorandum-grounding.ts) for the two checks it applies.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recommendedMotionsArr = (reportRow.full_report as any).legal_memorandum?.recommended_motions;
+    // FIX (2026-08-17): evidence_appendix/statement_of_facts are the last two
+    // legal_memorandum sections the same sweep found ungated. evidence_appendix
+    // has a key_quote field (checked against the whole corpus, same standard
+    // as recommended_motions' factual_basis — its schema has no doc_n to pin a
+    // page-specific check to). statement_of_facts entries are the attorney's
+    // own paraphrased restatement of a fact, not verbatim quotes — see
+    // gateStatementOfFacts's doc comment for why checkClaimEvidenceRelevance
+    // (topical overlap) is the right tool there instead of verifyQuote.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const evidenceAppendixArr = (reportRow.full_report as any).legal_memorandum?.evidence_appendix;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const statementOfFactsObj = (reportRow.full_report as any).legal_memorandum?.statement_of_facts;
     const hasLegalAnalysis = Array.isArray(legalAnalysisArr) && legalAnalysisArr.length > 0;
     const hasRecommendedMotions = Array.isArray(recommendedMotionsArr) && recommendedMotionsArr.length > 0;
-    if (hasLegalAnalysis || hasRecommendedMotions) {
+    const hasEvidenceAppendix = Array.isArray(evidenceAppendixArr) && evidenceAppendixArr.length > 0;
+    const hasStatementOfFacts = statementOfFactsObj && typeof statementOfFactsObj === "object";
+    if (hasEvidenceAppendix) {
+      const { gateEvidenceAppendix } = await import("./intelligence/legal-memorandum-grounding");
+      const { items, droppedCount } = gateEvidenceAppendix(evidenceAppendixArr, verifyQuote, reportCorpus);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (reportRow.full_report as any).legal_memorandum.evidence_appendix = items;
+      if (droppedCount > 0) {
+        pipelineWarnings.push(
+          `legal_memorandum_grounding: ${droppedCount} evidence_appendix entr${droppedCount === 1 ? "y" : "ies"} dropped — key_quote does not exist in the real corpus.`,
+        );
+      }
+    }
+    if (hasLegalAnalysis || hasRecommendedMotions || hasStatementOfFacts) {
       const { data: pageRows } = await db
         .from("document_pages")
         .select("document_id,page,text")
@@ -8891,7 +8996,7 @@ ${paginationTail}`;
         }
       }
       if (pageTextByKey.size > 0) {
-        const { gateLegalAnalysis, gateRecommendedMotions } = await import(
+        const { gateLegalAnalysis, gateRecommendedMotions, gateStatementOfFacts } = await import(
           "./intelligence/legal-memorandum-grounding"
         );
         if (hasLegalAnalysis) {
@@ -8916,6 +9021,21 @@ ${paginationTail}`;
           if (droppedCount > 0) {
             pipelineWarnings.push(
               `legal_memorandum_grounding: ${droppedCount} recommended_motion(s) dropped — no verified factual_basis or an ungrounded citation.`,
+            );
+          }
+        }
+        if (hasStatementOfFacts) {
+          const { checkClaimEvidenceRelevance } = await import("./intelligence/claim-evidence-relevance");
+          const { statementOfFacts, droppedCount } = gateStatementOfFacts(
+            statementOfFactsObj,
+            pageTextByKey,
+            checkClaimEvidenceRelevance,
+          );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (reportRow.full_report as any).legal_memorandum.statement_of_facts = statementOfFacts;
+          if (droppedCount > 0) {
+            pipelineWarnings.push(
+              `legal_memorandum_grounding: ${droppedCount} statement_of_facts entr${droppedCount === 1 ? "y" : "ies"} dropped — cited page has no topical relationship to the claim.`,
             );
           }
         }

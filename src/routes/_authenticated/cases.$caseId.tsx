@@ -2088,6 +2088,10 @@ function TrialPrepTab({ t, ranAt }: { t: any; ranAt?: string | null }) {
             penal acusatorio mexicano no existe jurado: la culpabilidad la determina el Tribunal de Enjuiciamiento.
           </p>
         )}
+        <p className="mt-2 text-xs italic text-muted-foreground">
+          Estimación del modelo de IA a partir del expediente actual — no calibrada contra resultados reales de
+          casos. Trátese como un punto de referencia, no como una probabilidad estadística validada.
+        </p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">

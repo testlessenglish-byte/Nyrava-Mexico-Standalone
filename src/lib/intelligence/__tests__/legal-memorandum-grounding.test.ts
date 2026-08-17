@@ -19,8 +19,11 @@ import {
   checkLegalMemorandumFieldGrounding,
   gateLegalAnalysis,
   gateRecommendedMotions,
+  gateEvidenceAppendix,
+  gateStatementOfFacts,
 } from "@/lib/intelligence/legal-memorandum-grounding";
 import { buildGroundingCorpus, verifyQuote } from "@/lib/intelligence/grounding.server";
+import { checkClaimEvidenceRelevance } from "@/lib/intelligence/claim-evidence-relevance";
 
 // Real page 12 text (paraphrased-length excerpt matching real document_pages
 // storage) — discusses legitimación del promovente, same topic as the
@@ -179,5 +182,135 @@ describe("gateRecommendedMotions", () => {
     const { items: kept, droppedCount } = gateRecommendedMotions(items, pageTextByKey, verifyQuote, corpus);
     expect(droppedCount).toBe(1);
     expect(kept).toHaveLength(0);
+  });
+});
+
+// Pipeline-wide sweep (2026-08-17): legal_memorandum.evidence_appendix had a
+// key_quote field but no verification of any kind — the schema has no doc_n
+// (just a free-text "page" string), so this checks the quote against the
+// whole real corpus, the same standard gateRecommendedMotions' factual_basis
+// check uses.
+describe("gateEvidenceAppendix", () => {
+  const corpus = buildGroundingCorpus([
+    { id: "doc-1", filename: "resolucion.pdf", extracted_text: REAL_PAGE_12_TEXT },
+  ]);
+
+  it("drops an entry whose key_quote is fabricated — never appears in the real corpus", () => {
+    const items = [
+      {
+        exhibit: "Anexo 1",
+        description: "Constancia de notificación",
+        page: "12",
+        key_quote: "Esta frase no existe en ningún documento real del expediente.",
+        proves: "Que la notificación fue defectuosa",
+        admissibility_risk: "Low",
+      },
+    ];
+    const { items: kept, droppedCount } = gateEvidenceAppendix(items, verifyQuote, corpus);
+    expect(droppedCount).toBe(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("keeps an entry whose key_quote genuinely verifies against the real corpus", () => {
+    const items = [
+      {
+        exhibit: "Anexo 1",
+        description: "Resolución de amparo",
+        page: "12",
+        key_quote: REAL_PAGE_12_TEXT.slice(0, 60),
+        proves: "El principio de congruencia y exhaustividad",
+        admissibility_risk: "Low",
+      },
+    ];
+    const { items: kept, droppedCount } = gateEvidenceAppendix(items, verifyQuote, corpus);
+    expect(droppedCount).toBe(0);
+    expect(kept).toHaveLength(1);
+  });
+
+  it("drops an entry with no key_quote at all", () => {
+    const items = [{ exhibit: "x", description: "y", page: "1", proves: "z", admissibility_risk: "Low" }];
+    const { items: kept, droppedCount } = gateEvidenceAppendix(items, verifyQuote, corpus);
+    expect(droppedCount).toBe(1);
+    expect(kept).toHaveLength(0);
+  });
+});
+
+// Pipeline-wide sweep (2026-08-17): legal_memorandum.statement_of_facts
+// entries are the attorney's own paraphrased restatement of a fact (not
+// verbatim quotes), each expected to embed an inline [DOC N p.M] marker per
+// the prompt instruction. checkClaimEvidenceRelevance (topical overlap) is
+// the right check here — verifyQuote would reject legitimate paraphrases.
+describe("gateStatementOfFacts", () => {
+  const pageTextByKey = new Map([["1:12", REAL_PAGE_12_TEXT]]);
+
+  it("drops a fact entirely unrelated to its cited page's real topic", () => {
+    const statementOfFacts = {
+      undisputed: [
+        "Las partes acordaron una pensión alimenticia mensual de $5,000 pesos para los menores [DOC 1 p.12].",
+      ],
+      disputed: [],
+      chronology: [],
+    };
+    const { statementOfFacts: out, droppedCount } = gateStatementOfFacts(
+      statementOfFacts,
+      pageTextByKey,
+      checkClaimEvidenceRelevance,
+    );
+    expect(droppedCount).toBe(1);
+    expect(out?.undisputed).toHaveLength(0);
+  });
+
+  it("keeps a fact genuinely on-topic with its cited page", () => {
+    const statementOfFacts = {
+      undisputed: [
+        "El tribunal debe atender el principio de congruencia y exhaustividad respecto a la legitimación del promovente [DOC 1 p.12].",
+      ],
+      disputed: [],
+      chronology: [],
+    };
+    const { statementOfFacts: out, droppedCount } = gateStatementOfFacts(
+      statementOfFacts,
+      pageTextByKey,
+      checkClaimEvidenceRelevance,
+    );
+    expect(droppedCount).toBe(0);
+    expect(out?.undisputed).toHaveLength(1);
+  });
+
+  it("leaves a fact with no citation marker untouched — nothing to check", () => {
+    const statementOfFacts = {
+      undisputed: ["Un hecho sin ninguna cita adjunta."],
+      disputed: [],
+      chronology: [],
+    };
+    const { statementOfFacts: out, droppedCount } = gateStatementOfFacts(
+      statementOfFacts,
+      pageTextByKey,
+      checkClaimEvidenceRelevance,
+    );
+    expect(droppedCount).toBe(0);
+    expect(out?.undisputed).toEqual(["Un hecho sin ninguna cita adjunta."]);
+  });
+
+  it("leaves a fact whose cited page has no text available untouched — can't verify, don't penalize", () => {
+    const statementOfFacts = {
+      undisputed: ["Un hecho cualquiera con una cita a una página sin texto [DOC 9 p.99]."],
+      disputed: [],
+      chronology: [],
+    };
+    const { statementOfFacts: out, droppedCount } = gateStatementOfFacts(
+      statementOfFacts,
+      pageTextByKey,
+      checkClaimEvidenceRelevance,
+    );
+    expect(droppedCount).toBe(0);
+    expect(out?.undisputed).toHaveLength(1);
+  });
+
+  it("returns null/undefined statement_of_facts unchanged", () => {
+    expect(gateStatementOfFacts(null, pageTextByKey, checkClaimEvidenceRelevance)).toEqual({
+      statementOfFacts: null,
+      droppedCount: 0,
+    });
   });
 });
