@@ -247,3 +247,27 @@ export function computeCaseStrengthDisagreement(
   const delta = Math.abs(llmScore - deterministic);
   return { deterministic, delta, disagreement: delta >= SCORE_DISAGREEMENT_THRESHOLD };
 }
+
+/**
+ * FIX (2026-08-17): computeCaseStrengthDisagreement's flag was informational
+ * only — pipeline.server.ts kept persisting the raw, self-reported LLM
+ * case_strength_score regardless, so score_consistency's MODEL_DISAGREEMENT
+ * flag (never read by any UI/export renderer) caught the exact disagreement
+ * this fixes but nothing acted on it. Confirmed live: the same report's
+ * case_strength_score (70), case_scores.case_quality (76), and
+ * case_scores.overall_confidence (86) all disagreed with each other with no
+ * reconciliation. This makes the deterministic mean authoritative — the
+ * same "deterministic overrides LLM" rule every other scorecard number in
+ * this codebase already follows — falling back to the raw LLM value only
+ * when there is no deterministic score to compare against at all (e.g. zero
+ * findings), and passing through `null` unchanged so modo LIMITADO's score
+ * suppression (gatedScore in pipeline.server.ts) is never overridden.
+ */
+export function reconcileCaseStrengthScore(
+  llmScoreOrNull: number | null,
+  deterministic: number | null,
+): number | null {
+  if (llmScoreOrNull === null) return null;
+  if (typeof deterministic !== "number" || !Number.isFinite(deterministic)) return llmScoreOrNull;
+  return Math.round(deterministic);
+}
