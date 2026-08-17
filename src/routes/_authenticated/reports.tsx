@@ -284,6 +284,83 @@ function ReportsPage() {
                   );
                 })()}
 
+                {(() => {
+                  // FIX (2026-08-17, bug report "quarantined/unverified
+                  // findings render as authoritative content" — item 4, the
+                  // report's own authors named this "the highest-leverage
+                  // fix even before the deeper root cause is resolved"):
+                  // citation_audit already computes, on every report, which
+                  // findings lack a complete supporting citation and were
+                  // excluded from recommendations/legal_memorandum — this
+                  // just surfaces that existing data instead of leaving it
+                  // invisible.
+                  const audit = (report?.full_report as any)?.citation_audit as
+                    | {
+                        total?: number;
+                        supported?: number;
+                        quarantined?: number;
+                        supported_pct?: number;
+                        quarantined_findings?: Array<{
+                          finding_id: string;
+                          title: string;
+                          reason?: string;
+                        }>;
+                      }
+                    | undefined;
+                  const items = audit?.quarantined_findings ?? [];
+                  if (!audit || items.length === 0) return null;
+                  const REASON_KEYS: Record<string, string> = {
+                    missing_document: "reports.citationAudit.reason.missingDocument",
+                    missing_quote: "reports.citationAudit.reason.missingQuote",
+                    missing_page_and_refs: "reports.citationAudit.reason.missingPageAndRefs",
+                    missing_all: "reports.citationAudit.reason.missingAll",
+                  };
+                  return (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        {t("reports.citationAudit.title")}
+                      </p>
+                      <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                        <div>
+                          <div className="text-2xl font-semibold text-primary">
+                            {audit.supported ?? 0}
+                            {typeof audit.supported_pct === "number" ? ` (${audit.supported_pct}%)` : ""}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {t("reports.citationAudit.supported")}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                            {audit.quarantined ?? items.length}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {t("reports.citationAudit.quarantined")}
+                          </div>
+                        </div>
+                      </div>
+                      <details className="mt-3 border-t border-border pt-3">
+                        <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                          {t("reports.citationAudit.quarantined")} ({items.length})
+                        </summary>
+                        <p className="mt-2 text-xs italic text-muted-foreground">
+                          {t("reports.citationAudit.disclaimer")}
+                        </p>
+                        <ul className="mt-2 space-y-1 text-xs">
+                          {items.map((it) => (
+                            <li key={it.finding_id} className="flex items-start justify-between gap-2">
+                              <span>{it.title}</span>
+                              <span className="shrink-0 text-muted-foreground">
+                                {it.reason && REASON_KEYS[it.reason] ? t(REASON_KEYS[it.reason]) : it.reason}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </div>
+                  );
+                })()}
+
                 {report.executive_summary ? (
                   <div className="rounded-xl border border-border bg-card/60 p-4">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">

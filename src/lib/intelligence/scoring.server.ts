@@ -443,6 +443,36 @@ export function applicableDimensionsFor(caseType: string | undefined): string[] 
 }
 
 /**
+ * Gates a scalar dimension value (case_scores column) by applicability to
+ * this case's materia. A dimension not in `applicable` must never persist a
+ * value at all — including a raw, ungated LLM-invented number — the same
+ * way chain_of_custody/constitutional_compliance are already suppressed to
+ * null on non-criminal cases.
+ *
+ * FIX (2026-08-17): witness_reliability, timeline_integrity, and
+ * investigation_completeness were being persisted unconditionally via
+ * `detNum(key)` (pipeline.server.ts), which falls back to the raw LLM
+ * reading whenever computeDeterministicScorecard has no entry for that
+ * dimension — i.e. exactly when the dimension is NOT applicable to this
+ * materia (applicableDimensionsFor omits it). Confirmed live: a pure-law
+ * amparo directo en revisión case with zero witnesses still persisted
+ * witness_reliability: 70, an arbitrary LLM number for a dimension that
+ * "amparo" doesn't even include (witness_reliability is absent from several
+ * materias' applicable sets — amparo, fiscal, administrativo, electoral,
+ * inmobiliario, ambiental, apelacion; timeline_integrity is likewise absent
+ * from constitucional/laboral/fiscal/administrativo/electoral/agrario/
+ * ambiental/inmobiliario; investigation_completeness is applicable only to
+ * penal/constitucional).
+ */
+export function gateDimensionForCaseType(
+  key: string,
+  applicable: ReadonlySet<string>,
+  value: number | null,
+): number | null {
+  return applicable.has(key) ? value : null;
+}
+
+/**
  * Filters a raw LLM positive_contributors/negative_contributors array before
  * it can be persisted on case_scores. Two independent gates:
  *   1. off-domain label scrub (e.g. "Conviction Risk" on a civil case) —

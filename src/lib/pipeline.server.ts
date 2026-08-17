@@ -4883,6 +4883,18 @@ ${JSON.stringify(findingsForLlm)}`,
     }));
   const flatPos = Object.keys(det.dimensions).flatMap((k) => detContrib(k, "positives"));
   const flatNeg = Object.keys(det.dimensions).flatMap((k) => detContrib(k, "negatives"));
+  // Mean of this case's own applicable per-dimension scores — the same
+  // "case quality"/"case strength" concept the report-writer stage's
+  // case_strength_score deterministic counterpart computes later from its
+  // own (slightly later-stage) scorecard. See the case_quality upsert field
+  // comment below for why this needs its own formula distinct from
+  // det.overall_confidence (avg finding confidence — a different metric).
+  const detDimScoresForQuality = Object.values(det.dimensions)
+    .map((d) => d.score)
+    .filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+  const caseQualityDeterministic = detDimScoresForQuality.length
+    ? Math.round(detDimScoresForQuality.reduce((a, b) => a + b, 0) / detDimScoresForQuality.length)
+    : null;
 
   const { getActiveDomains, isCriminalEffective } =
     await import("./intelligence/cross-domain.server");
@@ -4892,7 +4904,7 @@ ${JSON.stringify(findingsForLlm)}`,
   // Strip non-applicable dimensions from the LLM payload BEFORE persistence
   // so renderers (PDF, DOCX, dashboard) cannot show off-domain dimensions
   // like "Conviction Risk" or "Chain of Custody" on a civil case.
-  const { applicableDimensionsFor, scrubScoringContributors } =
+  const { applicableDimensionsFor, scrubScoringContributors, gateDimensionForCaseType } =
     await import("./intelligence/scoring.server");
   const applicableSet = new Set(applicableDimensionsFor(caseTypeForScore));
   // Cross-domain escalation (e.g. a tax_law case where a charging document
@@ -4932,16 +4944,47 @@ ${JSON.stringify(findingsForLlm)}`,
         {
           case_id: caseId,
           user_id: userId,
+          // evidence_strength is the one dimension present in every
+          // CASE_TYPE_DIMENSIONS entry (scoring.server.ts) — safe unconditional.
           evidence_strength: detNum("evidence_strength"),
-          witness_reliability: detNum("witness_reliability"),
-          timeline_integrity: detNum("timeline_integrity"),
+          // gateDimensionForCaseType (scoring.server.ts): witness_reliability
+          // and timeline_integrity are NOT universal across materias — see
+          // that function's doc comment for the confirmed live bug this fixes
+          // (witness_reliability: 70 persisted on a pure-law, zero-witness
+          // amparo directo en revisión case).
+          witness_reliability: gateDimensionForCaseType(
+            "witness_reliability",
+            applicableSet,
+            detNum("witness_reliability"),
+          ),
+          timeline_integrity: gateDimensionForCaseType("timeline_integrity", applicableSet, detNum("timeline_integrity")),
           // Criminal-only dimensions: suppress entirely for civil matters so the
           // report can't display "Chain of Custody: 0" or "Constitutional
           // Compliance: 0" on a medical-malpractice or employment case.
           chain_of_custody: criminalLike ? detNum("chain_of_custody") : null,
           constitutional_compliance: criminalLike ? detNum("constitutional_compliance") : null,
-          investigation_completeness: detNum("investigation_completeness"),
-          case_quality: num("case_quality"),
+          investigation_completeness: gateDimensionForCaseType(
+            "investigation_completeness",
+            applicableSet,
+            detNum("investigation_completeness"),
+          ),
+          // FIX (2026-08-17): case_quality was persisted straight from the
+          // LLM's raw self-report (`num("case_quality")`) with zero
+          // deterministic backing — unlike every other field on this same
+          // upsert. It shares no defined distinction from overall_confidence
+          // in the prompt above, but overall_confidence already has a real
+          // formula (avg finding confidence, computed by
+          // computeDeterministicScorecard) while case_quality had none, so
+          // the two independently-invented LLM numbers routinely disagreed
+          // on the same dashboard card row — confirmed live (e.g. 70 vs 76
+          // for the same report). "Case quality" is conceptually the mean of
+          // this case's own scored dimensions (the same quantity
+          // case_strength_score's own deterministic counterpart uses at the
+          // report-writer stage, below) — a distinct, well-defined metric
+          // from overall_confidence's avg-finding-confidence formula, not a
+          // duplicate of it. Falls back to the raw LLM number only when this
+          // case type has zero applicable dimensions at all.
+          case_quality: caseQualityDeterministic ?? num("case_quality"),
           conviction_risk: criminalLike ? num("conviction_risk") : null,
           appeal_risk: criminalLike ? num("appeal_risk") : null,
           overall_confidence: Math.round(det.overall_confidence * 100),
@@ -8201,16 +8244,34 @@ ${paginationTail}`;
   const reportDimScores = Object.values(reportDeterministicScorecard.dimensions)
     .map((d) => d.score)
     .filter((n): n is number => typeof n === "number" && Number.isFinite(n));
-  const reportCaseStrengthScore = gatedScore(parsed.case_strength_score);
+  const reportCaseStrengthScoreRaw = gatedScore(parsed.case_strength_score);
   const {
     computeCaseStrengthDisagreement,
+    reconcileCaseStrengthScore,
     SCORE_DISAGREEMENT_THRESHOLD: reportScoreDisagreementThreshold,
   } = await import("./intelligence/case-state.server");
   const {
     deterministic: reportDeterministicStrength,
     delta: reportCaseStrengthDelta,
     disagreement: reportCaseStrengthDisagreement,
-  } = computeCaseStrengthDisagreement(reportCaseStrengthScore, reportDimScores);
+  } = computeCaseStrengthDisagreement(reportCaseStrengthScoreRaw, reportDimScores);
+  // FIX (2026-08-17): case_strength_score was persisted as the raw,
+  // self-reported LLM number even though a deterministic counterpart (the
+  // mean of this report's own per-dimension scorecard, computed just above)
+  // was available. The MODEL_DISAGREEMENT flag this same call computes was
+  // informational only — score_consistency is never read by any UI/export
+  // renderer — so a case_strength_score that disagreed with
+  // case_scores.overall_confidence by 16+ points rendered right alongside
+  // it, both looking equally authoritative, with nothing actually
+  // reconciling them. Confirmed live across three case runs (dashboard
+  // "Overall confidence"/"Case quality" cards and case_strength_score all
+  // showing different numbers for the same report). reconcileCaseStrengthScore
+  // (case-state.server.ts) applies the same "deterministic overrides LLM"
+  // rule case_scores' own dimensions already enforce.
+  const reportCaseStrengthScore = reconcileCaseStrengthScore(
+    reportCaseStrengthScoreRaw,
+    reportDeterministicStrength,
+  );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportRow: any = {
@@ -8805,7 +8866,18 @@ ${paginationTail}`;
     // the (doc, page) pair exists, not that the page supports the claim.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const legalAnalysisArr = (reportRow.full_report as any).legal_memorandum?.legal_analysis;
-    if (Array.isArray(legalAnalysisArr) && legalAnalysisArr.length > 0) {
+    // FIX (2026-08-17): recommended_motions is the sibling section a
+    // pipeline-wide sweep found had ZERO verification of any kind — unlike
+    // motion_opportunities (verifyAndLabel + claim-strength guardrail),
+    // draft_paragraph is explicitly prompted as "a ready-to-file paragraph,"
+    // the single most directly exploitable field in the whole
+    // legal_memorandum. See gateRecommendedMotions's doc comment
+    // (legal-memorandum-grounding.ts) for the two checks it applies.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recommendedMotionsArr = (reportRow.full_report as any).legal_memorandum?.recommended_motions;
+    const hasLegalAnalysis = Array.isArray(legalAnalysisArr) && legalAnalysisArr.length > 0;
+    const hasRecommendedMotions = Array.isArray(recommendedMotionsArr) && recommendedMotionsArr.length > 0;
+    if (hasLegalAnalysis || hasRecommendedMotions) {
       const { data: pageRows } = await db
         .from("document_pages")
         .select("document_id,page,text")
@@ -8819,14 +8891,33 @@ ${paginationTail}`;
         }
       }
       if (pageTextByKey.size > 0) {
-        const { gateLegalAnalysis } = await import("./intelligence/legal-memorandum-grounding");
-        const { items, droppedCount } = gateLegalAnalysis(legalAnalysisArr, pageTextByKey);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow.full_report as any).legal_memorandum.legal_analysis = items;
-        if (droppedCount > 0) {
-          pipelineWarnings.push(
-            `legal_memorandum_grounding: ${droppedCount} legal_analysis entr${droppedCount === 1 ? "y" : "ies"} dropped — cited a real (doc, page) pair whose actual text does not support the claim.`,
+        const { gateLegalAnalysis, gateRecommendedMotions } = await import(
+          "./intelligence/legal-memorandum-grounding"
+        );
+        if (hasLegalAnalysis) {
+          const { items, droppedCount } = gateLegalAnalysis(legalAnalysisArr, pageTextByKey);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (reportRow.full_report as any).legal_memorandum.legal_analysis = items;
+          if (droppedCount > 0) {
+            pipelineWarnings.push(
+              `legal_memorandum_grounding: ${droppedCount} legal_analysis entr${droppedCount === 1 ? "y" : "ies"} dropped — cited a real (doc, page) pair whose actual text does not support the claim.`,
+            );
+          }
+        }
+        if (hasRecommendedMotions) {
+          const { items, droppedCount } = gateRecommendedMotions(
+            recommendedMotionsArr,
+            pageTextByKey,
+            verifyQuote,
+            reportCorpus,
           );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (reportRow.full_report as any).legal_memorandum.recommended_motions = items;
+          if (droppedCount > 0) {
+            pipelineWarnings.push(
+              `legal_memorandum_grounding: ${droppedCount} recommended_motion(s) dropped — no verified factual_basis or an ungrounded citation.`,
+            );
+          }
         }
       }
     }

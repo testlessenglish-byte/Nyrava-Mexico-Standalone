@@ -45,6 +45,8 @@
 // useful, future work (already named as deferred elsewhere in this codebase)
 // — this is the bounded, low-false-positive slice of it that's buildable
 // deterministically today.
+import type { GroundingCorpus } from "./grounding.server";
+
 const CITATION_RE = /\[DOC\s+(\d+)\s+p\.(\d+)\]/g;
 const ARTICLE_REF_RE = /\bart(?:[íi]culo)?s?\.?\s+(\d+)\b/gi;
 
@@ -124,6 +126,62 @@ export function gateLegalAnalysis(
   for (const item of items) {
     let hasUngroundedCitation = false;
     for (const f of fields) {
+      const v = item[f];
+      if (typeof v !== "string" || !v.trim()) continue;
+      const check = checkLegalMemorandumFieldGrounding(v, pageTextByKey);
+      if (check.checkedCitations > 0 && !check.grounded) {
+        hasUngroundedCitation = true;
+        break;
+      }
+    }
+    if (hasUngroundedCitation) {
+      droppedCount++;
+      continue;
+    }
+    kept.push(item);
+  }
+  return { items: kept, droppedCount };
+}
+
+/**
+ * Gates legal_memorandum.recommended_motions — a section survey (2026-08-17)
+ * found had ZERO verification of any kind, unlike its sibling
+ * motion_opportunities (pipeline.server.ts's verifyAndLabel + claim-strength
+ * guardrail). Each motion's `draft_paragraph` is explicitly prompted as
+ * "a ready-to-file paragraph" with inline citations — the most directly
+ * exploitable field in the whole legal_memorandum, since an attorney could
+ * file it as-is. Two checks:
+ *   1. `factual_basis` (an array of quote strings, unlike legal_analysis's
+ *      single-string fields) must contain at least one entry that actually
+ *      verifies against the real corpus (`verifyQuote`) — motions whose
+ *      every factual_basis entry is unverifiable are dropped entirely, the
+ *      same "drop, don't publish" policy pipeline.server.ts's verifyAndLabel
+ *      already applies to motion_opportunities/contradictions/
+ *      constitutional_issues.
+ *   2. `legal_standard`/`draft_paragraph` are checked with the same
+ *      fabricated-article-number gate legal_analysis already uses — a
+ *      draft_paragraph is exactly where a fabricated "artículo NN" citation
+ *      would do the most damage if filed.
+ */
+export function gateRecommendedMotions(
+  items: Array<Record<string, unknown>>,
+  pageTextByKey: Map<string, string>,
+  verifyQuote: (quote: string, corpus: GroundingCorpus) => boolean,
+  corpus: GroundingCorpus,
+): { items: Array<Record<string, unknown>>; droppedCount: number } {
+  const kept: Array<Record<string, unknown>> = [];
+  let droppedCount = 0;
+  for (const item of items) {
+    const factualBasis = Array.isArray(item.factual_basis)
+      ? (item.factual_basis as unknown[]).filter((q): q is string => typeof q === "string" && q.trim().length > 0)
+      : [];
+    const hasVerifiedFact = factualBasis.length > 0 && factualBasis.some((q) => verifyQuote(q, corpus));
+    if (!hasVerifiedFact) {
+      droppedCount++;
+      continue;
+    }
+    let hasUngroundedCitation = false;
+    for (const f of ["legal_standard", "draft_paragraph"]) {
       const v = item[f];
       if (typeof v !== "string" || !v.trim()) continue;
       const check = checkLegalMemorandumFieldGrounding(v, pageTextByKey);
