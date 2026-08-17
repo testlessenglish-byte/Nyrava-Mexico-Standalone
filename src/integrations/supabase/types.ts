@@ -860,6 +860,66 @@ export type Database = {
           },
         ]
       }
+      case_classification_evidence: {
+        Row: {
+          case_id: string
+          confidence: number | null
+          conflicting_values: Json
+          detected_at: string
+          field: string
+          id: string
+          source_document_id: string | null
+          source_page: number | null
+          source_quote: string | null
+          status: string
+          user_id: string
+          value: string | null
+        }
+        Insert: {
+          case_id: string
+          confidence?: number | null
+          conflicting_values?: Json
+          detected_at?: string
+          field: string
+          id?: string
+          source_document_id?: string | null
+          source_page?: number | null
+          source_quote?: string | null
+          status: string
+          user_id: string
+          value?: string | null
+        }
+        Update: {
+          case_id?: string
+          confidence?: number | null
+          conflicting_values?: Json
+          detected_at?: string
+          field?: string
+          id?: string
+          source_document_id?: string | null
+          source_page?: number | null
+          source_quote?: string | null
+          status?: string
+          user_id?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_classification_evidence_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_classification_evidence_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_communications: {
         Row: {
           approved_at: string | null
@@ -906,6 +966,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "case_communications_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_decision_reconstructions: {
+        Row: {
+          case_id: string
+          court_status: string | null
+          created_at: string
+          disposition_remedy_status: string | null
+          id: string
+          matter_identity_status: string | null
+          raw_model_output: Json | null
+          reconstruction: Json
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          court_status?: string | null
+          created_at?: string
+          disposition_remedy_status?: string | null
+          id?: string
+          matter_identity_status?: string | null
+          raw_model_output?: Json | null
+          reconstruction: Json
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          court_status?: string | null
+          created_at?: string
+          disposition_remedy_status?: string | null
+          id?: string
+          matter_identity_status?: string | null
+          raw_model_output?: Json | null
+          reconstruction?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_decision_reconstructions_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
@@ -1120,7 +1224,6 @@ export type Database = {
           derived_from_finding_ids: string[]
           description: string
           evidence_refs: Json | null
-          evidence_relationship: string | null
           evidence_strength: number | null
           evidence_type: string | null
           finding_status: string
@@ -1171,7 +1274,6 @@ export type Database = {
           derived_from_finding_ids?: string[]
           description: string
           evidence_refs?: Json | null
-          evidence_relationship?: string | null
           evidence_strength?: number | null
           evidence_type?: string | null
           finding_status?: string
@@ -1222,7 +1324,6 @@ export type Database = {
           derived_from_finding_ids?: string[]
           description?: string
           evidence_refs?: Json | null
-          evidence_relationship?: string | null
           evidence_strength?: number | null
           evidence_type?: string | null
           finding_status?: string
@@ -1381,6 +1482,86 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "case_opportunities_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_outcome_assessments: {
+        Row: {
+          biggest_risk: string | null
+          both_sides: Json
+          case_analysis_mode: string
+          case_id: string
+          citation_reviews: Json
+          confidence: string
+          created_at: string
+          factors: Json
+          favorable_pct: number
+          finding_reviews: Json
+          id: string
+          most_important_missing_evidence: string | null
+          no_material_error_identified: boolean
+          outcome_status: string
+          overall_position: string
+          principal_strength: string | null
+          principal_weakness: string | null
+          raw_model_output: Json | null
+          unfavorable_pct: number
+          user_id: string
+          what_could_change: Json
+        }
+        Insert: {
+          biggest_risk?: string | null
+          both_sides?: Json
+          case_analysis_mode: string
+          case_id: string
+          citation_reviews?: Json
+          confidence: string
+          created_at?: string
+          factors?: Json
+          favorable_pct: number
+          finding_reviews?: Json
+          id?: string
+          most_important_missing_evidence?: string | null
+          no_material_error_identified?: boolean
+          outcome_status?: string
+          overall_position: string
+          principal_strength?: string | null
+          principal_weakness?: string | null
+          raw_model_output?: Json | null
+          unfavorable_pct: number
+          user_id: string
+          what_could_change?: Json
+        }
+        Update: {
+          biggest_risk?: string | null
+          both_sides?: Json
+          case_analysis_mode?: string
+          case_id?: string
+          citation_reviews?: Json
+          confidence?: string
+          created_at?: string
+          factors?: Json
+          favorable_pct?: number
+          finding_reviews?: Json
+          id?: string
+          most_important_missing_evidence?: string | null
+          no_material_error_identified?: boolean
+          outcome_status?: string
+          overall_position?: string
+          principal_strength?: string | null
+          principal_weakness?: string | null
+          raw_model_output?: Json | null
+          unfavorable_pct?: number
+          user_id?: string
+          what_could_change?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_outcome_assessments_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
@@ -2117,6 +2298,8 @@ export type Database = {
           case_analysis_mode: string
           case_language: string | null
           case_type: string | null
+          case_type_source: string | null
+          case_type_verification_status: string | null
           completed_at: string | null
           contradiction_at: string | null
           created_at: string
@@ -2176,6 +2359,8 @@ export type Database = {
           case_analysis_mode?: string
           case_language?: string | null
           case_type?: string | null
+          case_type_source?: string | null
+          case_type_verification_status?: string | null
           completed_at?: string | null
           contradiction_at?: string | null
           created_at?: string
@@ -2235,6 +2420,8 @@ export type Database = {
           case_analysis_mode?: string
           case_language?: string | null
           case_type?: string | null
+          case_type_source?: string | null
+          case_type_verification_status?: string | null
           completed_at?: string | null
           contradiction_at?: string | null
           created_at?: string
@@ -5165,7 +5352,6 @@ export type Database = {
           is_blocked: boolean
           locale: string
           preferred_language: string
-          starter_cases_seeded_at: string | null
           updated_at: string
         }
         Insert: {
@@ -5180,7 +5366,6 @@ export type Database = {
           is_blocked?: boolean
           locale?: string
           preferred_language?: string
-          starter_cases_seeded_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -5195,7 +5380,6 @@ export type Database = {
           is_blocked?: boolean
           locale?: string
           preferred_language?: string
-          starter_cases_seeded_at?: string | null
           updated_at?: string
         }
         Relationships: []
