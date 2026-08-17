@@ -8866,7 +8866,18 @@ ${paginationTail}`;
     // the (doc, page) pair exists, not that the page supports the claim.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const legalAnalysisArr = (reportRow.full_report as any).legal_memorandum?.legal_analysis;
-    if (Array.isArray(legalAnalysisArr) && legalAnalysisArr.length > 0) {
+    // FIX (2026-08-17): recommended_motions is the sibling section a
+    // pipeline-wide sweep found had ZERO verification of any kind — unlike
+    // motion_opportunities (verifyAndLabel + claim-strength guardrail),
+    // draft_paragraph is explicitly prompted as "a ready-to-file paragraph,"
+    // the single most directly exploitable field in the whole
+    // legal_memorandum. See gateRecommendedMotions's doc comment
+    // (legal-memorandum-grounding.ts) for the two checks it applies.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recommendedMotionsArr = (reportRow.full_report as any).legal_memorandum?.recommended_motions;
+    const hasLegalAnalysis = Array.isArray(legalAnalysisArr) && legalAnalysisArr.length > 0;
+    const hasRecommendedMotions = Array.isArray(recommendedMotionsArr) && recommendedMotionsArr.length > 0;
+    if (hasLegalAnalysis || hasRecommendedMotions) {
       const { data: pageRows } = await db
         .from("document_pages")
         .select("document_id,page,text")
@@ -8880,14 +8891,33 @@ ${paginationTail}`;
         }
       }
       if (pageTextByKey.size > 0) {
-        const { gateLegalAnalysis } = await import("./intelligence/legal-memorandum-grounding");
-        const { items, droppedCount } = gateLegalAnalysis(legalAnalysisArr, pageTextByKey);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (reportRow.full_report as any).legal_memorandum.legal_analysis = items;
-        if (droppedCount > 0) {
-          pipelineWarnings.push(
-            `legal_memorandum_grounding: ${droppedCount} legal_analysis entr${droppedCount === 1 ? "y" : "ies"} dropped — cited a real (doc, page) pair whose actual text does not support the claim.`,
+        const { gateLegalAnalysis, gateRecommendedMotions } = await import(
+          "./intelligence/legal-memorandum-grounding"
+        );
+        if (hasLegalAnalysis) {
+          const { items, droppedCount } = gateLegalAnalysis(legalAnalysisArr, pageTextByKey);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (reportRow.full_report as any).legal_memorandum.legal_analysis = items;
+          if (droppedCount > 0) {
+            pipelineWarnings.push(
+              `legal_memorandum_grounding: ${droppedCount} legal_analysis entr${droppedCount === 1 ? "y" : "ies"} dropped — cited a real (doc, page) pair whose actual text does not support the claim.`,
+            );
+          }
+        }
+        if (hasRecommendedMotions) {
+          const { items, droppedCount } = gateRecommendedMotions(
+            recommendedMotionsArr,
+            pageTextByKey,
+            verifyQuote,
+            reportCorpus,
           );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (reportRow.full_report as any).legal_memorandum.recommended_motions = items;
+          if (droppedCount > 0) {
+            pipelineWarnings.push(
+              `legal_memorandum_grounding: ${droppedCount} recommended_motion(s) dropped — no verified factual_basis or an ungrounded citation.`,
+            );
+          }
         }
       }
     }

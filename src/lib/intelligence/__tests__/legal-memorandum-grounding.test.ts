@@ -18,7 +18,9 @@ import { describe, it, expect } from "vitest";
 import {
   checkLegalMemorandumFieldGrounding,
   gateLegalAnalysis,
+  gateRecommendedMotions,
 } from "@/lib/intelligence/legal-memorandum-grounding";
+import { buildGroundingCorpus, verifyQuote } from "@/lib/intelligence/grounding.server";
 
 // Real page 12 text (paraphrased-length excerpt matching real document_pages
 // storage) — discusses legitimación del promovente, same topic as the
@@ -114,5 +116,68 @@ describe("gateLegalAnalysis", () => {
     const { items: kept, droppedCount } = gateLegalAnalysis(items, new Map());
     expect(droppedCount).toBe(0);
     expect(kept).toHaveLength(1);
+  });
+});
+
+// Pipeline-wide sweep (2026-08-17) found legal_memorandum.recommended_motions
+// had ZERO verification of any kind — unlike its sibling motion_opportunities.
+// draft_paragraph is explicitly prompted as "a ready-to-file paragraph," the
+// single most directly exploitable field in the whole legal_memorandum.
+describe("gateRecommendedMotions", () => {
+  const corpus = buildGroundingCorpus([
+    { id: "doc-1", filename: "resolucion.pdf", extracted_text: REAL_PAGE_12_TEXT },
+  ]);
+  const pageTextByKey = new Map([["1:12", REAL_PAGE_12_TEXT]]);
+
+  it("drops a motion whose factual_basis is entirely fabricated — no entry verifies against the real corpus", () => {
+    const items = [
+      {
+        motion: "Amparo indirecto",
+        legal_standard: "Procede conforme al artículo 107 de la Ley de Amparo.",
+        factual_basis: [
+          "El quejoso presentó pruebas irrefutables el 5 de mayo de 2020 ante el juzgado de distrito.",
+        ],
+        draft_paragraph: "Por lo anteriormente expuesto, se solicita...",
+      },
+    ];
+    const { items: kept, droppedCount } = gateRecommendedMotions(items, pageTextByKey, verifyQuote, corpus);
+    expect(droppedCount).toBe(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("keeps a motion whose factual_basis genuinely verifies against the real corpus", () => {
+    const items = [
+      {
+        motion: "Recurso de revisión",
+        legal_standard: "Sin cita de artículo específico.",
+        factual_basis: [REAL_PAGE_12_TEXT.slice(0, 60)],
+        draft_paragraph: "Por lo anteriormente expuesto...",
+      },
+    ];
+    const { items: kept, droppedCount } = gateRecommendedMotions(items, pageTextByKey, verifyQuote, corpus);
+    expect(droppedCount).toBe(0);
+    expect(kept).toHaveLength(1);
+  });
+
+  it("drops a motion with a verified fact but a fabricated article-number citation in draft_paragraph — the exact real-case reproduction, applied to the sibling field", () => {
+    const items = [
+      {
+        motion: "Recurso de revisión",
+        legal_standard: "Procede.",
+        factual_basis: [REAL_PAGE_12_TEXT.slice(0, 60)],
+        draft_paragraph:
+          "Conforme al artículo 61 de la Ley de Amparo [DOC 1 p.12], se solicita la revocación del acto reclamado.",
+      },
+    ];
+    const { items: kept, droppedCount } = gateRecommendedMotions(items, pageTextByKey, verifyQuote, corpus);
+    expect(droppedCount).toBe(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("drops a motion with no factual_basis array at all", () => {
+    const items = [{ motion: "x", legal_standard: "y", draft_paragraph: "z" }];
+    const { items: kept, droppedCount } = gateRecommendedMotions(items, pageTextByKey, verifyQuote, corpus);
+    expect(droppedCount).toBe(1);
+    expect(kept).toHaveLength(0);
   });
 });
