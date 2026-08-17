@@ -8679,7 +8679,18 @@ ${paginationTail}`;
         // deterministic counterpart anywhere in this codebase, so it is NOT
         // compared here rather than inventing one.
         score_consistency: {
+          // FIX (2026-08-17): case_strength_score here used to be the
+          // ALREADY-RECONCILED value (reconcileCaseStrengthScore overrides
+          // it to match case_strength_score_deterministic whenever both
+          // exist) — so a real disagreement showed as "65, deterministic 65,
+          // delta 10," internally contradictory to anyone reading this
+          // diagnostic object directly. case_strength_score_llm_raw is the
+          // actual pre-reconciliation self-reported number the delta was
+          // computed against; case_strength_score is what was actually
+          // persisted (post-reconciliation, i.e. always == the deterministic
+          // value when both exist).
           case_strength_score: reportCaseStrengthScore,
+          case_strength_score_llm_raw: reportCaseStrengthScoreRaw,
           case_strength_score_deterministic:
             typeof reportDeterministicStrength === "number"
               ? Math.round(reportDeterministicStrength)
@@ -8862,22 +8873,56 @@ ${paginationTail}`;
         fr.canonical_recommendations = items;
         removedCount += removed.length;
       }
-      if (Array.isArray(fr.next_actions)) {
+      // FIX (2026-08-17): reports.next_actions/strategy_recommendations are
+      // SEPARATE top-level columns (line ~8713-8714), assigned directly from
+      // the same raw pre-quarantine `nextActions`/`strategy` variables — not
+      // derived from full_report.next_actions/full_report.strategy_recommendations.
+      // The nested full_report copies below were correctly filtered, but the
+      // top-level columns — what reports.tsx's PDF/DOCX/UI actually render —
+      // were never touched, so a quarantined item filtered out of the nested
+      // copy still rendered via its top-level sibling. Confirmed live: on a
+      // real ADR-4640-2017 run, "Presentar recurso de revisión" (quarantined,
+      // reason: missing_all) was correctly absent from full_report.strategy_recommendations
+      // but still rendered in the PDF's "Recomendaciones Estratégicas" table,
+      // sourced from the unfiltered top-level column. Same fix, both places.
+      if (Array.isArray(fr.next_actions) || Array.isArray(reportRow.next_actions)) {
         const { items, removed } = filterQuarantinedRecommendations(
-          fr.next_actions as Array<{ action?: unknown }>,
+          (Array.isArray(fr.next_actions) ? fr.next_actions : reportRow.next_actions ?? []) as Array<{
+            action?: unknown;
+          }>,
           quarantinedTitles,
           (i) => String(i?.action ?? ""),
         );
         fr.next_actions = items;
+        reportRow.next_actions = items;
         removedCount += removed.length;
       }
-      if (Array.isArray(fr.strategy_recommendations)) {
+      if (Array.isArray(fr.strategy_recommendations) || Array.isArray(reportRow.strategy_recommendations)) {
         const { items, removed } = filterQuarantinedRecommendations(
-          fr.strategy_recommendations as Array<{ title?: unknown }>,
+          (Array.isArray(fr.strategy_recommendations)
+            ? fr.strategy_recommendations
+            : reportRow.strategy_recommendations ?? []) as Array<{ title?: unknown }>,
           quarantinedTitles,
           (i) => String(i?.title ?? ""),
         );
         fr.strategy_recommendations = items;
+        reportRow.strategy_recommendations = items;
+        removedCount += removed.length;
+      }
+      // FIX (2026-08-17): legal_memorandum.next_actions is a THIRD, separate
+      // "action items" array (schema: {action, owner, deadline, priority} —
+      // no citation field of its own) sourced from the same raw report-writer
+      // output, also never consulted citationAudit. Confirmed live on the
+      // same case: "Preparar y presentar el recurso de revisión." (matching
+      // the same quarantined finding) rendered here too.
+      const memoNextActions = (fr.legal_memorandum as Record<string, unknown> | undefined)?.next_actions;
+      if (Array.isArray(memoNextActions)) {
+        const { items, removed } = filterQuarantinedRecommendations(
+          memoNextActions as Array<{ action?: unknown }>,
+          quarantinedTitles,
+          (i) => String(i?.action ?? ""),
+        );
+        (fr.legal_memorandum as Record<string, unknown>).next_actions = items;
         removedCount += removed.length;
       }
       if (removedCount > 0) {
