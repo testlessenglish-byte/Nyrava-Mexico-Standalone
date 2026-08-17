@@ -4835,6 +4835,93 @@ function renderAppendix(b: PdfBuilder, data: CaseExportData) {
   );
 }
 
+// FIX (2026-08-17, bug report "quarantined/unverified findings render as
+// authoritative content" — item 4, named by the report's own authors as
+// "the highest-leverage fix even before the deeper root cause is
+// resolved"): citation_audit (citation-audit.server.ts) already computes,
+// on every report, exactly which findings lack a complete supporting
+// citation and were therefore excluded from recommendations/legal_memorandum
+// (see filterQuarantinedRecommendations/gateLegalAnalysis in
+// pipeline.server.ts) — but until this section existed, that determination
+// was invisible: a reader had no way to see that content had been withheld,
+// or why. This renders the existing citation_audit.quarantined_findings list
+// directly — no new computation, just surfacing data the pipeline already
+// produces.
+const CITATION_AUDIT_REASON_LABELS: Record<string, string> = {
+  missing_document: "Sin documento fuente",
+  missing_quote: "Sin cita textual",
+  missing_page_and_refs: "Sin número de página ni referencia",
+  missing_all: "Sin ningún respaldo documental",
+};
+
+function renderCitationAudit(b: PdfBuilder, data: CaseExportData) {
+  const full = asObj(asObj(data.report).full_report);
+  const audit = asObj(full.citation_audit);
+  const quarantined = asArr(audit.quarantined_findings);
+  if (!quarantined.length) return;
+  b.h1("Auditoría de Citas — Contenido No Verificado");
+  b.text(
+    rt(
+      `${quarantined.length} de ${asStr(audit.total, "0")} hallazgo(s) generado(s) para este caso carecen de una cita de respaldo completa (documento, página y cita textual verificable) y fueron EXCLUIDOS de las recomendaciones, el memorando legal y el resto del contenido del reporte. Se listan aquí únicamente para fines de auditoría y seguimiento — no deben tratarse como conclusiones respaldadas ni citarse como tales.`,
+    ),
+    { size: 10, color: MUTED, gap: 8 },
+  );
+  b.table(
+    [["#", "Hallazgo", "Motivo", "Documento", "Página"]],
+    quarantined.map((q, i) => [
+      i + 1,
+      asStr(q.title).slice(0, 60),
+      CITATION_AUDIT_REASON_LABELS[asStr(q.reason)] ?? asStr(q.reason, "—"),
+      resolveDocTitleByUuid(q.source_document_id) ?? "—",
+      asStr(q.source_page, "—"),
+    ]),
+    {
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 170 },
+        2: { cellWidth: 110 },
+      },
+      mutedColIdx: 2,
+    },
+  );
+}
+
+function citationAuditDocxParas(data: CaseExportData): Paragraph[] {
+  const full = asObj(asObj(data.report).full_report);
+  const audit = asObj(full.citation_audit);
+  const quarantined = asArr(audit.quarantined_findings);
+  if (!quarantined.length) return [];
+  return [
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun("Auditoría de Citas — Contenido No Verificado")],
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `${quarantined.length} de ${asStr(audit.total, "0")} hallazgo(s) generado(s) para este caso carecen de una cita de respaldo completa y fueron excluidos de las recomendaciones, el memorando legal y el resto del contenido del reporte. Se listan aquí únicamente para fines de auditoría y seguimiento.`,
+          italics: true,
+        }),
+      ],
+    }),
+    ...quarantined.map(
+      (q) =>
+        new Paragraph({
+          children: [
+            new TextRun({ text: `• ${asStr(q.title)} — `, bold: true }),
+            new TextRun(
+              `${CITATION_AUDIT_REASON_LABELS[asStr(q.reason)] ?? asStr(q.reason, "sin respaldo")}${
+                resolveDocTitleByUuid(q.source_document_id)
+                  ? ` (${resolveDocTitleByUuid(q.source_document_id)})`
+                  : ""
+              }`,
+            ),
+          ],
+        }),
+    ),
+  ];
+}
+
 function renderEvidenceSources(b: PdfBuilder) {
   if (!_footnotes.length) return;
   b.h1("Fuentes de Evidencia");
@@ -5381,6 +5468,18 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       available: (d) => asArr(asObj(d.report).citations).length > 0,
       renderPdf: (b, d) => renderAppendix(b, d),
       renderDocx: () => [],
+    },
+    {
+      id: "citation_audit",
+      title: "Auditoría de Citas — Contenido No Verificado",
+      // Not gated in LIMITED mode: this section's whole purpose is
+      // transparency about what was withheld, so it must render even when
+      // (especially when) the case has a thin corpus.
+      gatedInLimited: false,
+      available: (d) =>
+        asArr(asObj(asObj(asObj(d.report).full_report).citation_audit).quarantined_findings).length > 0,
+      renderPdf: (b, d) => renderCitationAudit(b, d),
+      renderDocx: (d) => citationAuditDocxParas(d),
     },
     {
       id: "priority_action_center",
