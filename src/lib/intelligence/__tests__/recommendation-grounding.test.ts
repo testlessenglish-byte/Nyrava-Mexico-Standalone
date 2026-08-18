@@ -12,6 +12,8 @@ import {
 import { mergeCanonicalRecommendations } from "../report-recommendations";
 
 describe("legal filing recommendation grounding", () => {
+  const findingId = "0d8f4a4c-5e4f-4d0b-8a19-8ecf2d41d0c7";
+
   it("recognizes filing/remedy advice", () => {
     expect(isLegalFilingRecommendation("Se recomienda presentar un recurso de revisión ante el Tribunal Colegiado de Circuito.")).toBe(true);
     expect(isLegalFilingRecommendation("Verificar el engrose y los puntos resolutivos.")).toBe(false);
@@ -27,46 +29,45 @@ describe("legal filing recommendation grounding", () => {
 
   it("drops an unsupported filing recommendation", () => {
     const result = filterUnsupportedLegalFilingRecommendations([
-      {
-        title: "Presentar recurso de revisión",
-        supportingFindingIds: [],
-        supportingEvidence: [],
-      },
-      {
-        title: "Verificar el engrose",
-        supportingFindingIds: [],
-        supportingEvidence: [],
-      },
+      { title: "Presentar recurso de revisión", supportingFindingIds: [], supportingEvidence: [] },
+      { title: "Verificar el engrose", supportingFindingIds: [], supportingEvidence: [] },
     ]);
     expect(result.items).toHaveLength(1);
     expect(result.removed).toHaveLength(1);
     expect(result.items[0].title).toBe("Verificar el engrose");
   });
 
-  it("keeps ordinary filing advice when a real canonical finding id supports it", () => {
-    const result = filterUnsupportedLegalFilingRecommendations([
-      {
+  it("does not allow a finding id alone to authorize a filing", () => {
+    expect(
+      hasStructuredRecommendationSupport({
         title: "Interponer recurso de revisión",
-        supportingFindingIds: ["0d8f4a4c-5e4f-4d0b-8a19-8ecf2d41d0c7"],
+        supportingFindingIds: [findingId],
         supportingEvidence: [],
-      },
-    ]);
-    expect(result.items).toHaveLength(1);
+      }),
+    ).toBe(false);
   });
 
-  it("keeps ordinary filing advice when pinpoint evidence supports it", () => {
-    const result = filterUnsupportedLegalFilingRecommendations([
-      {
+  it("does not allow a pinpoint quote alone to authorize a filing", () => {
+    expect(
+      hasStructuredRecommendationSupport({
         title: "Interponer recurso de revisión",
         supportingFindingIds: [],
         supportingEvidence: ["[DOC 1 p.4] La resolución fue notificada el..."],
-      },
-    ]);
-    expect(result.items).toHaveLength(1);
+      }),
+    ).toBe(false);
   });
 
-  it("requires both a canonical finding and pinpoint posture support for a new act in a concluded case", () => {
-    const findingId = "0d8f4a4c-5e4f-4d0b-8a19-8ecf2d41d0c7";
+  it("keeps filing advice only when canonical finding and pinpoint evidence both support it", () => {
+    expect(
+      hasStructuredRecommendationSupport({
+        title: "Interponer recurso de revisión",
+        supportingFindingIds: [findingId],
+        supportingEvidence: ["[DOC 1 p.4] La resolución deja a salvo el derecho de recurrir..."],
+      }),
+    ).toBe(true);
+  });
+
+  it("requires the same verified support for a new act in a concluded case", () => {
     expect(hasConcludedPostureSupport({ supportingFindingIds: [findingId], supportingEvidence: [] })).toBe(false);
     expect(hasConcludedPostureSupport({ supportingFindingIds: [], supportingEvidence: ["[DOC 1 p.4] plazo abierto"] })).toBe(false);
     expect(
@@ -77,7 +78,7 @@ describe("legal filing recommendation grounding", () => {
     ).toBe(true);
   });
 
-  it("removes concluded-case suspension/nulidad/ampliacion advice that has only generic generated support", () => {
+  it("removes concluded-case suspension/nulidad actions lacking posture-linked findings", () => {
     const result = filterConcludedCaseProspectiveRecommendations([
       {
         title: "Presentar solicitud de suspensión del acto reclamado ante el Juez de control",
@@ -100,12 +101,7 @@ describe("legal filing recommendation grounding", () => {
   });
 
   it("does not treat workflow dependencies as evidentiary support", () => {
-    expect(
-      hasStructuredRecommendationSupport({
-        title: "Interponer recurso de revisión",
-        depends_on: ["revisar engrose"],
-      }),
-    ).toBe(false);
+    expect(hasStructuredRecommendationSupport({ title: "Interponer recurso de revisión", depends_on: ["revisar engrose"] })).toBe(false);
   });
 
   it("does not treat uncited generated factual-basis prose as support", () => {
@@ -133,11 +129,7 @@ describe("legal filing recommendation grounding", () => {
     const merged = mergeCanonicalRecommendations({
       intelParsed: {
         next_actions: [
-          {
-            action: "Interponer recurso de revisión",
-            why: "Para impugnar la resolución",
-            depends_on: ["revisar engrose"],
-          },
+          { action: "Interponer recurso de revisión", why: "Para impugnar la resolución", depends_on: ["revisar engrose"] },
         ],
       },
     });
@@ -160,6 +152,19 @@ describe("legal filing recommendation grounding", () => {
       },
     });
     expect(merged).toHaveLength(0);
+  });
+
+  it("drops the exact strict-mode ADR filing leak: pinpoint holding but no supporting finding id", () => {
+    const result = filterUnsupportedLegalFilingRecommendations([
+      {
+        title: "Demanda de amparo directo",
+        reason: "El amparo directo es procedente ante actos que violan derechos humanos reconocidos.",
+        supportingFindingIds: [],
+        supportingEvidence: ["[DOC 1 p.1] resulta inconstitucional la fracción IV del artículo 470"],
+      },
+    ]);
+    expect(result.items).toHaveLength(0);
+    expect(result.removed).toHaveLength(1);
   });
 
   it("scrubs unsupported filing sentences from free prose without inventing replacement advice", () => {
