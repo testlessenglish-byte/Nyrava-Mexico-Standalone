@@ -29,7 +29,11 @@
 // hallucinate an article number.
 // =============================================================================
 
-import type { MxPipelineProfile } from "../execution/mx-pipeline";
+import {
+  type MxPipelineProfile,
+  type ConstitucionalReviewSubtype,
+  resolveConstitucionalReviewSubtype,
+} from "../execution/mx-pipeline";
 
 export type ComplianceRequirement = "required" | "recommended";
 
@@ -974,8 +978,65 @@ function normalize(s: string): string {
     .toLowerCase();
 }
 
-export function complianceChecklist(materia: MxPipelineProfile): readonly ComplianceItem[] {
-  return CHECKLISTS[materia];
+/**
+ * Per-subtype authority override for the "constitucional" checklist's items
+ * whose `authority` field (above) combines multiple proceedings' governing
+ * law into one string. Every value here is a VERBATIM substring already
+ * present in that item's combined citation \u2014 this table only SELECTS which
+ * already-present component applies to the detected subtype, it never
+ * introduces a new article number. Items not listed here (e.g.
+ * suspension_constitucional, cuestion_constitucionalidad) either already
+ * cite one specific vehicle or have no verified per-subtype alternative on
+ * record \u2014 left untouched rather than guessed at. See
+ * resolveConstitucionalReviewSubtype (mx-pipeline.ts) for why this only
+ * fires when the corpus clearly signals one specific proceeding.
+ */
+const CONSTITUCIONAL_AUTHORITY_OVERRIDES: Partial<
+  Record<string, Partial<Record<ConstitucionalReviewSubtype, string>>>
+> = {
+  norma_o_acto_impugnado: {
+    controversia_constitucional: "Ley Reglamentaria del Art. 105 CPEUM Art. 22 fr. III",
+    accion_inconstitucionalidad: "Ley Reglamentaria del Art. 105 CPEUM Art. 61 fr. III",
+    amparo_en_revision: "Ley de Amparo Art. 88",
+  },
+  legitimacion_constitucional: {
+    controversia_constitucional: "CPEUM Art. 105 fr. I",
+    accion_inconstitucionalidad: "CPEUM Art. 105 fr. II",
+    amparo_en_revision: "Ley de Amparo Art. 81 fr. II",
+  },
+  plazo_impugnacion_constitucional: {
+    controversia_constitucional: "Ley Reglamentaria del Art. 105 CPEUM Art. 21",
+    accion_inconstitucionalidad: "Ley Reglamentaria del Art. 105 CPEUM Art. 60",
+    amparo_en_revision: "Ley de Amparo Art. 86",
+  },
+  concepto_invalidez_o_agravios: {
+    controversia_constitucional: "Ley Reglamentaria del Art. 105 CPEUM Art. 22 fr. VII",
+    accion_inconstitucionalidad: "Ley Reglamentaria del Art. 105 CPEUM Art. 61 fr. V",
+    amparo_en_revision: "Ley de Amparo Art. 88",
+  },
+};
+
+/**
+ * Checklist for a materia, with the "constitucional" profile's per-item
+ * authority citations narrowed to the specific proceeding the corpus text
+ * signals (controversia constitucional / acci\u00f3n de inconstitucionalidad /
+ * amparo en revisi\u00f3n) \u2014 see CONSTITUCIONAL_AUTHORITY_OVERRIDES above. Every
+ * other materia's checklist is returned unchanged; a "constitucional" case
+ * with no clear subtype signal also keeps its original combined citation,
+ * same discipline as the module header's "never assert past the evidence."
+ */
+export function complianceChecklist(
+  materia: MxPipelineProfile,
+  corpusText?: string,
+): readonly ComplianceItem[] {
+  const base = CHECKLISTS[materia];
+  if (materia !== "constitucional" || !corpusText) return base;
+  const subtype = resolveConstitucionalReviewSubtype(corpusText);
+  if (!subtype) return base;
+  return base.map((item) => {
+    const override = CONSTITUCIONAL_AUTHORITY_OVERRIDES[item.id]?.[subtype];
+    return override ? { ...item, authority: override } : item;
+  });
 }
 
 /**
@@ -988,7 +1049,7 @@ export function evaluateProceduralCompliance(
 ): ComplianceReport {
   const hay = normalize(corpusText ?? "");
   const hasCorpus = hay.trim().length > 0;
-  const items: ComplianceItemResult[] = complianceChecklist(materia).map((item) => {
+  const items: ComplianceItemResult[] = complianceChecklist(materia, corpusText).map((item) => {
     if (!hasCorpus) return { ...item, status: "no_documentado", evidence: null };
     let evidence: string | null = null;
     for (const p of item.patterns) {

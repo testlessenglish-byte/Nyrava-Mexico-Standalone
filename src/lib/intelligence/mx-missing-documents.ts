@@ -8,7 +8,11 @@
 // calls.
 // =============================================================================
 
-import type { MxPipelineProfile } from "../execution/mx-pipeline";
+import {
+  type MxPipelineProfile,
+  type ConstitucionalReviewSubtype,
+  resolveConstitucionalReviewSubtype,
+} from "../execution/mx-pipeline";
 
 export type RequiredDocument = {
   id: string;
@@ -603,8 +607,45 @@ const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
   ],
 };
 
-export function requiredDocuments(materia: MxPipelineProfile): readonly RequiredDocument[] {
-  return CHECKLISTS[materia];
+/**
+ * Per-subtype authority override for the "constitucional" checklist's items
+ * whose `authority` field (above) combines multiple proceedings' governing
+ * law into one string — same bug/fix as procedural-compliance.ts's
+ * CONSTITUCIONAL_AUTHORITY_OVERRIDES (see that file's comment for the full
+ * rationale and the real-case reproduction). Every value here is a VERBATIM
+ * substring already present in that item's combined citation.
+ */
+const CONSTITUCIONAL_AUTHORITY_OVERRIDES: Partial<
+  Record<string, Partial<Record<ConstitucionalReviewSubtype, string>>>
+> = {
+  norma_o_acto_impugnado_doc: {
+    controversia_constitucional: "Ley Reglamentaria del Art. 105 Art. 22 fr. III",
+    accion_inconstitucionalidad: "Ley Reglamentaria del Art. 105 Art. 61 fr. III",
+    amparo_en_revision: "Ley de Amparo Art. 88",
+  },
+  acreditacion_legitimacion_doc: {
+    controversia_constitucional: "CPEUM Art. 105 fr. I",
+    accion_inconstitucionalidad: "CPEUM Art. 105 fr. II",
+    amparo_en_revision: "Ley de Amparo Art. 81",
+  },
+  sentencia_o_norma_publicada: {
+    accion_inconstitucionalidad: "Ley Reglamentaria del Art. 105 Art. 60",
+    amparo_en_revision: "Ley de Amparo Art. 86",
+  },
+};
+
+export function requiredDocuments(
+  materia: MxPipelineProfile,
+  corpusText?: string,
+): readonly RequiredDocument[] {
+  const base = CHECKLISTS[materia];
+  if (materia !== "constitucional" || !corpusText) return base;
+  const subtype = resolveConstitucionalReviewSubtype(corpusText);
+  if (!subtype) return base;
+  return base.map((doc) => {
+    const override = CONSTITUCIONAL_AUTHORITY_OVERRIDES[doc.id]?.[subtype];
+    return override ? { ...doc, authority: override } : doc;
+  });
 }
 
 /**
@@ -612,7 +653,7 @@ export function requiredDocuments(materia: MxPipelineProfile): readonly Required
  * per-materia checklist into present / missing.
  */
 export function resolveMissingDocuments(materia: MxPipelineProfile, corpusText: string): MissingDocumentsReport {
-  const required = requiredDocuments(materia);
+  const required = requiredDocuments(materia, corpusText);
   const hay = normalize(corpusText ?? "");
   const hasCorpus = hay.trim().length > 0;
 

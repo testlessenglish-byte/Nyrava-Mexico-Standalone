@@ -15,7 +15,11 @@
 // procedural history that isn't in the record.
 // =============================================================================
 
-import type { MxPipelineProfile } from "../execution/mx-pipeline";
+import {
+  type MxPipelineProfile,
+  type ConstitucionalReviewSubtype,
+  resolveConstitucionalReviewSubtype,
+} from "../execution/mx-pipeline";
 
 export type ProceduralStageDef = {
   id: string;
@@ -787,8 +791,52 @@ const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
   ],
 };
 
-export function proceduralStageMap(materia: MxPipelineProfile): readonly ProceduralStageDef[] {
-  return STAGE_MAPS[materia];
+/**
+ * Per-subtype authority override for the "constitucional" stage map's items
+ * whose `authority` field (above) combines multiple proceedings' governing
+ * law into one string — same bug/fix as procedural-compliance.ts's
+ * CONSTITUCIONAL_AUTHORITY_OVERRIDES (see that file's comment for the full
+ * rationale and the real-case reproduction). Every value here is a VERBATIM
+ * substring already present in that item's combined citation; items with no
+ * verified per-subtype alternative on record (admision_constitucional's
+ * "Art. 25" component, sentencia_constitucional) are left untouched rather
+ * than guessed at.
+ */
+const CONSTITUCIONAL_AUTHORITY_OVERRIDES: Partial<
+  Record<string, Partial<Record<ConstitucionalReviewSubtype, string>>>
+> = {
+  norma_o_acto_impugnado: {
+    controversia_constitucional: "Ley Reglamentaria del Art. 105 Art. 22",
+    accion_inconstitucionalidad: "Ley Reglamentaria del Art. 105 Art. 61",
+    amparo_en_revision: "Ley de Amparo Art. 88",
+  },
+  presentacion_demanda_constitucional: {
+    controversia_constitucional: "Ley Reglamentaria del Art. 105 Art. 21",
+    accion_inconstitucionalidad: "Ley Reglamentaria del Art. 105 Art. 60",
+    amparo_en_revision: "Ley de Amparo Art. 86",
+  },
+  admision_constitucional: {
+    amparo_en_revision: "Ley de Amparo Art. 92",
+  },
+  conceptos_de_invalidez_o_agravios: {
+    controversia_constitucional: "Ley Reglamentaria del Art. 105 Art. 22 fr. VII",
+    accion_inconstitucionalidad: "Ley Reglamentaria del Art. 105 Art. 61 fr. V",
+    amparo_en_revision: "Ley de Amparo Art. 88",
+  },
+};
+
+export function proceduralStageMap(
+  materia: MxPipelineProfile,
+  corpusText?: string,
+): readonly ProceduralStageDef[] {
+  const base = STAGE_MAPS[materia];
+  if (materia !== "constitucional" || !corpusText) return base;
+  const subtype = resolveConstitucionalReviewSubtype(corpusText);
+  if (!subtype) return base;
+  return base.map((def) => {
+    const override = CONSTITUCIONAL_AUTHORITY_OVERRIDES[def.id]?.[subtype];
+    return override ? { ...def, authority: override } : def;
+  });
 }
 
 /**
@@ -803,7 +851,7 @@ export function resolveProceduralStage(
   materia: MxPipelineProfile,
   corpusText: string,
 ): ProceduralStageResolution {
-  const defs = proceduralStageMap(materia);
+  const defs = proceduralStageMap(materia, corpusText);
   const hay = normalize(corpusText ?? "");
   const hasCorpus = hay.trim().length > 0;
 

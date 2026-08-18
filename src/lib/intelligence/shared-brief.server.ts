@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { mexicoLock, getReportLocale } from "@/lib/mexico-lock";
 import type { Database } from "@/integrations/supabase/types";
 import { callGroq, parseJsonLoose, GROQ_DEFAULT_MODEL } from "../groq.server";
+import { parseResolutivos } from "./resolutivo-parser";
 
 type Db = SupabaseClient<Database>;
 
@@ -36,6 +37,28 @@ export interface SharedBrief {
   generated_at: string;
   model: string;
   source_doc_ids: string[];
+  /**
+   * Verbatim RESUELVE/SE RESUELVE dispositive text, extracted
+   * deterministically (resolutivo-parser.ts, no AI) from each document's
+   * FULL (un-truncated) extracted_text — never from the length-capped
+   * `corpus` string this brief's own summary was generated from. One or
+   * more dispositions, labeled by source document, joined into a single
+   * block; null when no document in the corpus contains a RESUELVE header.
+   *
+   * WHY: every downstream engine (perspectives, strategy synthesis, report
+   * writer) reads ONLY this brief, never the raw corpus — so if the
+   * summary LLM call above ever inverts or garbles the case's actual
+   * holding (a truncated corpus cutting off the dispositive section, which
+   * usually sits at the very end of a Mexican judgment, is one concrete
+   * way that happens), every downstream consumer inherits the same error
+   * simultaneously. Real case: Amparo Directo en Revisión 5829/2025 —
+   * multi-agent perspectives AND strategy synthesis both asserted the
+   * opposite of what the sentencia's own resolutivo SEGUNDO actually
+   * granted. This field gives every downstream prompt (via briefToPrompt)
+   * a literal, un-truncatable anchor to the court's own words, with
+   * explicit instructions that it overrides any conflicting inference.
+   */
+  resolutivo_verbatim: string | null;
 }
 
 export interface SharedBriefArgs {
@@ -99,6 +122,28 @@ export async function getOrBuildSharedBrief(args: SharedBriefArgs): Promise<Shar
 
   const docIndex = docs.map((d, i) => ({ n: i + 1, id: d.id, filename: d.filename }));
 
+  // Extracted from each document's FULL, un-truncated text — deliberately
+  // BEFORE the per-doc/total budget caps below, since a Mexican judgment's
+  // RESUELVE section usually sits at the very end of the document and would
+  // otherwise be the first thing silently cut off. Every document that has
+  // its own RESUELVE header contributes its own labeled block — a case
+  // with both a first-instance ruling and a later SCJN revisión ruling in
+  // the same corpus keeps both dispositions distinct rather than the brief
+  // conflating them into one. Capped to a small budget of its own: this is
+  // meant to be a short, literal anchor, not a second copy of the corpus.
+  const RESOLUTIVO_CHAR_BUDGET = 6000;
+  const resolutivoBlocks: string[] = [];
+  for (const d of docs) {
+    const parsed = parseResolutivos(d.extracted_text ?? "");
+    if (!parsed.found || parsed.dispositions.length === 0) continue;
+    const items = parsed.dispositions
+      .map((disp) => `${disp.ordinal ? disp.ordinal + ". " : ""}${disp.text}`)
+      .join("\n");
+    resolutivoBlocks.push(`--- ${d.filename} ---\n${items}`);
+  }
+  const resolutivoVerbatim =
+    resolutivoBlocks.length > 0 ? resolutivoBlocks.join("\n\n").slice(0, RESOLUTIVO_CHAR_BUDGET) : null;
+
   // Total payload budget for the single Groq call that builds this brief.
   // 160,000 chars (~40K tokens) was tripping Groq's HTTP 413 on larger
   // corpora — and worse, because the old code capped each doc at 12,000
@@ -130,7 +175,11 @@ export async function getOrBuildSharedBrief(args: SharedBriefArgs): Promise<Shar
       "You are the master analyst. Read the full case corpus once and produce a compact, structured brief that downstream agents will reuse. " +
       "Extract entities, parties, timeline, key facts, legal issues, evidence inventory, and contradictions. " +
       "Be precise; ground every item in the documents. Output STRICT JSON only.",
-    userContent: `Return STRICT JSON only with this shape:
+    userContent: `${
+      resolutivoVerbatim
+        ? `RESOLUTIVO_VERBATIM (extraído literalmente del expediente por un analizador determinístico, no por ti — es la fuente de verdad sobre el resultado del caso; "case_summary", "key_facts" e "issues" DEBEN ser consistentes con este texto, nunca contradecirlo ni invertirlo):\n${resolutivoVerbatim}\n\n`
+        : ""
+    }Return STRICT JSON only with this shape:
 {
   "case_summary": string (4-7 sentences neutral overview),
   "jurisdiction_guess": string|null,
@@ -173,6 +222,7 @@ ${corpus}`,
     generated_at: new Date().toISOString(),
     model: r.model,
     source_doc_ids: docs.map((d) => d.id),
+    resolutivo_verbatim: resolutivoVerbatim,
   };
 
   // Log usage and persist to cases row
@@ -219,5 +269,21 @@ export function briefToPrompt(brief: SharedBrief, maxChars = 16000): string {
     contradictions: brief.contradictions,
     open_questions: brief.open_questions,
   };
-  return JSON.stringify(compact).slice(0, maxChars);
+  const compactJson = JSON.stringify(compact);
+  if (!brief.resolutivo_verbatim) return compactJson.slice(0, maxChars);
+
+  // The court's own verbatim dispositive text (see resolutivo_verbatim's
+  // doc comment on SharedBrief) must never be silently dropped by a blind
+  // end-of-string slice the way the rest of the brief can be — every
+  // downstream engine that reads this prompt (perspectives, strategy
+  // synthesis, report writer) needs it present to avoid inheriting a
+  // holding inversion from the compact summary above. Budget the compact
+  // JSON around it instead.
+  const anchor =
+    "\n\nRESOLUTIVO_VERBATIM (extracción literal y determinística del expediente, no generada por IA — " +
+    "AUTORIDAD MÁXIMA sobre el resultado del caso: si cualquier otro campo anterior entra en conflicto " +
+    "con este texto, este texto es el correcto):\n" +
+    brief.resolutivo_verbatim;
+  const budgetForCompact = Math.max(0, maxChars - anchor.length);
+  return compactJson.slice(0, budgetForCompact) + anchor;
 }
