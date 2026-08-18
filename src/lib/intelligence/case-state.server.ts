@@ -1,17 +1,19 @@
 // ============================================================================
 // CASE_STATE — Single source of truth for ALL downstream rendering & analysis.
 //
-// Per the 3-Mode Architecture spec:
-//   PIPELINE FLOW: INGEST → NORMALIZE → ANALYZE → COMMIT TO CASE_STATE → RENDER
+// PIPELINE FLOW: INGEST → NORMALIZE → ANALYZE → COMMIT TO CASE_STATE → RENDER
 //
 // Nothing downstream (renderer, scoring view, reports, exports) is allowed to
 // infer or compute. They MUST read from this object and format it. This file
-// owns the assembly + the citation resolver + the mode policy.
+// owns the assembly + the citation resolver + the legacy mode compatibility
+// policy.
 // ============================================================================
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
+// Legacy persisted values. The product now has one verified-analysis pipeline;
+// these strings remain accepted only so existing rows/migrations do not break.
 export type AnalysisMode = "strict" | "balanced" | "exploratory";
 
 export type EngineKey =
@@ -31,54 +33,44 @@ export type EngineKey =
   | "evidence_intel"
   | "litigation_strategy_center";
 
-// Mode policy — which engines may write to CASE_STATE in each mode.
-// STRICT: extraction + validation only (no interpretive layers).
-// BALANCED: full pipeline.
-// EXPLORATORY: full pipeline, outputs flagged UNVERIFIED.
+/**
+ * ONE VERIFIED PIPELINE.
+ *
+ * Historical strict/balanced/exploratory values must NEVER decide which
+ * intelligence engines run. That old policy created a systemic UI failure:
+ * cases persisted as `strict` could complete successfully while Strategy,
+ * Perspectives, Theories, Opportunities, Trial Prep, Work Product, Evidence
+ * Intel and the Strategy Center were deliberately prevented from writing,
+ * leaving visible workspace tabs empty and making a complete case appear
+ * broken.
+ *
+ * Evidence reliability is enforced by evidence-gate.server.ts, citation
+ * verification, hallucination review and the final release gates. Engine
+ * availability is not an evidentiary-strength control. All legacy values are
+ * therefore compatibility aliases for the same complete engine set.
+ */
+const VERIFIED_ENGINE_SET: readonly EngineKey[] = [
+  "extraction",
+  "analyzers",
+  "agents",
+  "scoring",
+  "contradictions",
+  "discovery",
+  "witness",
+  "theory",
+  "opportunity",
+  "trial_prep",
+  "work_product",
+  "strategy",
+  "perspectives",
+  "evidence_intel",
+  "litigation_strategy_center",
+] as const;
+
 const ALLOWED: Record<AnalysisMode, Set<EngineKey>> = {
-  strict: new Set<EngineKey>([
-    "extraction",
-    "analyzers",
-    "agents",
-    "scoring",
-    "contradictions",
-    "discovery",
-    "witness",
-  ]),
-  balanced: new Set<EngineKey>([
-    "extraction",
-    "analyzers",
-    "agents",
-    "scoring",
-    "contradictions",
-    "discovery",
-    "witness",
-    "theory",
-    "opportunity",
-    "trial_prep",
-    "work_product",
-    "strategy",
-    "perspectives",
-    "evidence_intel",
-    "litigation_strategy_center",
-  ]),
-  exploratory: new Set<EngineKey>([
-    "extraction",
-    "analyzers",
-    "agents",
-    "scoring",
-    "contradictions",
-    "discovery",
-    "witness",
-    "theory",
-    "opportunity",
-    "trial_prep",
-    "work_product",
-    "strategy",
-    "perspectives",
-    "evidence_intel",
-    "litigation_strategy_center",
-  ]),
+  strict: new Set(VERIFIED_ENGINE_SET),
+  balanced: new Set(VERIFIED_ENGINE_SET),
+  exploratory: new Set(VERIFIED_ENGINE_SET),
 };
 
 export function engineAllowedInMode(engine: EngineKey, mode: AnalysisMode): boolean {
@@ -86,8 +78,9 @@ export function engineAllowedInMode(engine: EngineKey, mode: AnalysisMode): bool
 }
 
 /**
- * Raise a deterministic skip-signal so callers can record a stage as SKIPPED
- * (not failed, not silently complete).
+ * Retained for backward-compatible callers. With the one-pipeline policy this
+ * should only fire for an actually unknown engine/mode combination, never for
+ * a normal intelligence stage merely because an old case row says "strict".
  */
 export class StageSkippedError extends Error {
   readonly engine: EngineKey;
@@ -128,7 +121,7 @@ export type CaseState = {
     balanced_complete: boolean;
     exploratory_complete: boolean;
   };
-  citation_resolver: Record<string, string>; // doc_id → filename
+  citation_resolver: Record<string, string>;
 };
 
 export async function buildCaseState(db: SupabaseClient<Database>, caseId: string): Promise<CaseState> {
@@ -177,18 +170,15 @@ export async function buildCaseState(db: SupabaseClient<Database>, caseId: strin
     pipeline_status: {
       ingestion_complete: !!caseRow.extracted_at || !!caseRow.uploaded_at,
       analysis_complete: !!caseRow.analyzed_at,
-      strict_complete: mode === "strict" && !!caseRow.scored_at,
-      balanced_complete: mode === "balanced" && !!caseRow.work_product_at,
-      exploratory_complete: mode === "exploratory" && !!caseRow.work_product_at,
+      strict_complete: !!caseRow.scored_at,
+      balanced_complete: !!caseRow.scored_at,
+      exploratory_complete: !!caseRow.scored_at,
     },
     citation_resolver: resolver,
   };
 }
 
-/**
- * Canonical citation resolver. Replaces raw UUIDs in any text/object with the
- * filename of the document. Renderer MUST use this — never raw UUIDs.
- */
+/** Canonical citation resolver. Renderer MUST use this — never raw UUIDs. */
 export function resolveCitation(state: CaseState, docId: string | null | undefined): string | null {
   if (!docId) return null;
   return state.citation_resolver[docId] ?? null;
@@ -196,17 +186,13 @@ export function resolveCitation(state: CaseState, docId: string | null | undefin
 
 export function resolveCitationsInText(state: CaseState, text: string): string {
   if (!text) return text;
-  // UUID v4-ish pattern
   return text.replace(
     /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
     (m) => state.citation_resolver[m.toLowerCase()] ?? state.citation_resolver[m] ?? m,
   );
 }
 
-// ----------------------------------------------------------------------------
-// Score-delta / MODEL_DISAGREEMENT helper
-// ----------------------------------------------------------------------------
-export const SCORE_DISAGREEMENT_THRESHOLD = 20; // points (0..100 scale)
+export const SCORE_DISAGREEMENT_THRESHOLD = 20;
 
 export function computeScoreDelta(
   deterministic: Record<string, { score?: number | null } | undefined>,
@@ -226,15 +212,6 @@ export function computeScoreDelta(
   return { deltas, disagreement: max >= SCORE_DISAGREEMENT_THRESHOLD, max_delta: max };
 }
 
-/**
- * Canonical Reconciliation Design (2026-08-16), P2 §10 — same mechanism as
- * computeScoreDelta above (deterministic-authoritative, LLM-comparison-only,
- * SCORE_DISAGREEMENT_THRESHOLD-gated), applied to the report-writer's
- * top-level case_strength_score instead of a per-dimension breakdown. Pulled
- * out as its own pure function (rather than inlined in pipeline.server.ts)
- * so the threshold math is unit-testable without the surrounding runReport
- * machinery.
- */
 export function computeCaseStrengthDisagreement(
   llmScore: number | null | undefined,
   deterministicDimensionScores: ReadonlyArray<number>,
@@ -248,21 +225,6 @@ export function computeCaseStrengthDisagreement(
   return { deterministic, delta, disagreement: delta >= SCORE_DISAGREEMENT_THRESHOLD };
 }
 
-/**
- * FIX (2026-08-17): computeCaseStrengthDisagreement's flag was informational
- * only — pipeline.server.ts kept persisting the raw, self-reported LLM
- * case_strength_score regardless, so score_consistency's MODEL_DISAGREEMENT
- * flag (never read by any UI/export renderer) caught the exact disagreement
- * this fixes but nothing acted on it. Confirmed live: the same report's
- * case_strength_score (70), case_scores.case_quality (76), and
- * case_scores.overall_confidence (86) all disagreed with each other with no
- * reconciliation. This makes the deterministic mean authoritative — the
- * same "deterministic overrides LLM" rule every other scorecard number in
- * this codebase already follows — falling back to the raw LLM value only
- * when there is no deterministic score to compare against at all (e.g. zero
- * findings), and passing through `null` unchanged so modo LIMITADO's score
- * suppression (gatedScore in pipeline.server.ts) is never overridden.
- */
 export function reconcileCaseStrengthScore(
   llmScoreOrNull: number | null,
   deterministic: number | null,
