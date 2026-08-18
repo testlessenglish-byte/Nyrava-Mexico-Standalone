@@ -71,9 +71,9 @@ function normalizeAmparoReviewCompliance(report: ComplianceReport): ComplianceRe
   const summary =
     missingRequired.length === 0
       ? `Los elementos procesales evaluados para el recurso de revisión en amparo se encuentran documentados en el corpus (${satisfied}/${items.length}).`
-      : `No se identificaron en el corpus constancias o referencias suficientes para confirmar ${missingRequired.length} elemento(s) procesal(es) del recurso de revisión en amparo: ${missingRequired
+      : `Cobertura documental del fallo cargado: ${satisfied}/${items.length} elemento(s) del checklist aparecen expresamente en el corpus. No se identificaron referencias suficientes para confirmar ${missingRequired.length} elemento(s): ${missingRequired
           .map((item) => `${item.label_es} (${item.authority})`)
-          .join("; ")}. Esto no demuestra por sí mismo que dichos elementos estén ausentes del expediente oficial — verifique contra el expediente antes de asumir un defecto procesal.`;
+          .join("; ")}. En una ejecutoria concluida de la SCJN este porcentaje mide únicamente qué tanto del trámite previo está reproducido en el documento cargado; NO es una calificación de validez procesal ni demuestra que esos actos hayan faltado en el expediente oficial.`;
   return {
     ...report,
     materia: "amparo",
@@ -167,6 +167,28 @@ function normalizeAmparoReviewStageMap(
   };
 }
 
+/**
+ * A concluded SCJN judgment is not a substitute for the historical lower-
+ * court docket. Therefore a deterministic checklist scanning only that
+ * judgment must never publish earlier pleadings as "missing documents".
+ * Keep documents actually detected for audit provenance, but clear the
+ * negative missing list when the final SCJN decision is itself present.
+ */
+function normalizeAmparoReviewMissingDocuments(
+  report: MissingDocumentsReport,
+  corpusText: string,
+  concludedAudit: boolean,
+): MissingDocumentsReport {
+  if (!concludedAudit || !hasScjnAmparoReviewDecision(corpusText)) {
+    return { ...report, materia: "amparo" };
+  }
+  return {
+    ...report,
+    materia: "amparo",
+    missing: [],
+  };
+}
+
 export async function runProceduralCompliance(args: {
   db: Db;
   caseId: string;
@@ -214,7 +236,7 @@ export async function runProceduralCompliance(args: {
     ? normalizeAmparoReviewStageMap(stageMapBase, corpusText, concludedAudit)
     : stageMapBase;
   const missing_documents: MissingDocumentsReport = isAmparoReview
-    ? { ...missingDocumentsBase, materia: "amparo" }
+    ? normalizeAmparoReviewMissingDocuments(missingDocumentsBase, corpusText, concludedAudit)
     : missingDocumentsBase;
 
   const fullReport: ProceduralComplianceReport = {
@@ -236,7 +258,6 @@ export async function runProceduralCompliance(args: {
     (i) => i.requirement === "required" && i.status === "no_identificado_en_corpus",
   );
   let findings_written = 0;
-
   // In a concluded audit, an uploaded judgment is not expected to reproduce
   // every earlier filing. "Not identified in this corpus" remains visible in
   // procedural_compliance as an evidence gap, but it must not become a risk
