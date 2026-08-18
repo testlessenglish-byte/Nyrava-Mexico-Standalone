@@ -34,6 +34,23 @@ const SEV_RANK: Record<string, number> = {
   info: 4,
 };
 
+// Epistemic status outranks severity when choosing the survivor INSIDE an
+// already-established duplicate cluster. A verified court holding must never
+// lose to a high-severity "possible" restatement of that same proposition.
+// This is exactly the ADR failure where "Inconstitucionalidad del artículo
+// 470" (the SCJN's holding) coexisted with "Posible inconstitucionalidad..."
+// and the speculative version could win simply because severity/confidence
+// were numerically higher. Severity describes impact, not truth status.
+const EPISTEMIC_RANK: Record<string, number> = {
+  VERIFIED_COURT_HOLDING: 0,
+  VERIFIED_FACT: 1,
+  VERIFIED_LEGAL_RULE: 2,
+  SUPPORTED_INFERENCE: 3,
+  POTENTIAL_ISSUE: 4,
+  EVIDENCE_GAP: 5,
+  NOT_FOUND: 6,
+};
+
 const STOPWORDS = new Set([
   "de",
   "la",
@@ -284,7 +301,25 @@ function sharesQuoteEvidence(a: Prepared, b: Prepared): boolean {
   return false;
 }
 
+function auditClass(f: DedupableFinding): string {
+  return String(f.audit_classification ?? "").toUpperCase();
+}
+
+function isCourtHoldingPotentialPair(a: Prepared, b: Prepared): boolean {
+  const classes = new Set([auditClass(a.row), auditClass(b.row)]);
+  if (!classes.has("VERIFIED_COURT_HOLDING") || !classes.has("POTENTIAL_ISSUE")) return false;
+  // Do not merge unrelated holdings/theories merely because they come from
+  // the same judgment. Require strong subject overlap plus a shared concrete
+  // evidence anchor (or literal quote). This catches "Inconstitucionalidad..."
+  // vs "Posible inconstitucionalidad..." without collapsing independent
+  // holdings in the same resolution.
+  const titleOverlap = jaccard(a.titleTokens, b.titleTokens);
+  return titleOverlap >= 0.5 && (sharesEvidence(a, b) || sharesQuoteEvidence(a, b));
+}
+
 export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptions>): boolean {
+  if (isCourtHoldingPotentialPair(a, b)) return true;
+
   if (a.category !== b.category) {
     // CROSS-ENGINE DUPLICATION. Two engines/perspectives routinely emit the
     // same canonical issue under their own category label ("Deterioro
@@ -325,21 +360,27 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
   return false;
 }
 
-function strength(f: DedupableFinding): [number, number, number] {
+function epistemicRank(f: DedupableFinding): number {
+  return EPISTEMIC_RANK[auditClass(f)] ?? 3;
+}
+
+function strength(f: DedupableFinding): [number, number, number, number] {
+  const epistemic = epistemicRank(f);
   const sev = SEV_RANK[String(f.severity ?? "info").toLowerCase()] ?? 9;
   const rawConf = Number(f.confidence ?? 0);
   const conf = Number.isFinite(rawConf) ? (rawConf > 1 ? rawConf / 100 : rawConf) : 0;
   const detail = textOf(f, "description").length;
-  return [sev, -conf, -detail];
+  return [epistemic, sev, -conf, -detail];
 }
 
 /** Lower tuple wins. */
 function isStronger(a: DedupableFinding, b: DedupableFinding): boolean {
-  const [as_, ac, ad] = strength(a);
-  const [bs, bc, bd] = strength(b);
-  if (as_ !== bs) return as_ < bs;
-  if (ac !== bc) return ac < bc;
-  return ad < bd;
+  const ar = strength(a);
+  const br = strength(b);
+  for (let i = 0; i < ar.length; i++) {
+    if (ar[i] !== br[i]) return ar[i] < br[i];
+  }
+  return false;
 }
 
 const ARRAY_UNION_KEYS = [
