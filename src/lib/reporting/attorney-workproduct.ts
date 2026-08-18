@@ -92,6 +92,9 @@ export type WorkProductContext = {
   documentLabels: string[];
   caseType?: string | null;
   jurisdiction?: string | null;
+  /** Missing-document statements already established by the dedicated
+   * missing-evidence/document stage. The work-product layer must never infer
+   * document absence merely from filenames. */
   missingDocuments?: string[];
   graph?: DocumentGraph;
 };
@@ -161,24 +164,22 @@ export function groupForFinding(f: AnyFinding): AttorneyGroupKey {
   return "revision";
 }
 
-const PENDING_RULES: Array<{ mention: RegExp; corpus: RegExp; text: string }> = [
-  { mention: /(contrato|convenio|clausul)/, corpus: /(contrato|convenio)/, text: "No se localizó en el expediente un contrato o convenio firmado que documente la relación referida." },
-  { mention: /(cfdi|factura|pago|nomina|honorario)/, corpus: /(cfdi|factura|nomina|recibo|estado de cuenta)/, text: "No se localizaron CFDI, recibos o registros contables que respalden los movimientos referidos." },
-  { mention: /(notificacion|emplazamiento|acuse)/, corpus: /(acuse|notificacion|emplazamiento|cedula)/, text: "No se localizó el acuse de notificación correspondiente." },
-  { mention: /(pericial|dictamen|peritaje)/, corpus: /(dictamen|pericial|peritaje)/, text: "No se localizó dictamen pericial relacionado con el punto analizado." },
-  { mention: /(avaluo|valor comercial|inmueble)/, corpus: /(avaluo)/, text: "No se localizó avalúo del bien referido." },
-  { mention: /(certificad|original|cotejo)/, corpus: /(copia certificada|certificad|notarial)/, text: "No se localizó copia certificada del documento referido; el corpus solo contiene versiones simples." },
-  { mention: /(autoridad|administrativ|sat|imss|infonavit|impi|inm|profeco|comar)/, corpus: /(expediente administrativo)/, text: "No consta el expediente administrativo completo remitido por la autoridad." },
-];
-
+/**
+ * Missing evidence is an upstream fact, not something this renderer may infer
+ * from a document filename. A generic name such as ADR-4640-2017.pdf tells us
+ * nothing about whether an acuse, CFDI, dictamen, contrato or other document
+ * is reproduced inside it. Only explicit missingDocuments signals are allowed
+ * to populate the pending list here.
+ */
 function buildPending(f: AnyFinding, ctx: WorkProductContext): string[] {
   const text = findingText(f);
-  const corpus = norm(ctx.documentLabels.join(" | "));
   const out: string[] = [];
-  for (const rule of PENDING_RULES) if (rule.mention.test(text) && !rule.corpus.test(corpus)) out.push(rule.text);
   for (const m of ctx.missingDocuments ?? []) {
-    const key = norm(m).split(/\s+/).filter((w) => w.length > 5)[0];
-    if (key && text.includes(key)) out.push(`No obra en el expediente: ${m}.`);
+    const folded = norm(m);
+    const meaningful = folded.split(/\s+/).filter((w) => w.length > 4 && !["documento", "documentos", "expediente", "constancia", "constancias"].includes(w));
+    if (meaningful.length === 0 || meaningful.some((key) => text.includes(key))) {
+      out.push(`No obra en el expediente: ${m}.`);
+    }
   }
   return Array.from(new Set(out)).slice(0, 5);
 }
@@ -277,7 +278,7 @@ export function buildCaseSnapshot(findings: AnyFinding[], ctx: WorkProductContex
   const judicialSourceNames = new Set(findings.filter(isVerifiedCourtHolding).flatMap((f) => findingSourceDocs(f, ctx).map((doc) => doc.name)));
   const docWeights = ctx.documentLabels.map((name) => ({ name, w: judicialSourceNames.has(name) ? JUDICIAL_RESOLUTION_WEIGHT : classifyEvidenceWeight(name) })).sort((a, b) => b.w.stars - a.w.stars);
   const criticalEvidence = docWeights.filter((d) => d.w.stars >= 4).slice(0, 6).map((d) => `${d.w.glyphs} ${d.w.label} — ${d.name}`);
-  const missingEvidence = Array.from(new Set([...(ctx.missingDocuments ?? []), ...enriched.flatMap(({ wp }) => wp.pending)])).slice(0, 8);
+  const missingEvidence = Array.from(new Set(ctx.missingDocuments ?? [])).slice(0, 8);
   const proceduralConcerns = enriched.filter(({ wp }) => wp.group === "procesales").slice(0, 5).map(({ f }) => title(f));
   const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
   const priorityReview = [...enriched].sort((a, b) => (sevOrder[norm(a.f.severity ?? "")] ?? 9) - (sevOrder[norm(b.f.severity ?? "")] ?? 9)).slice(0, 5).map(({ f }) => `${title(f)} (gravedad ${SEVERITY_ES[norm(f.severity ?? "")] ?? "media"}).`);
@@ -293,7 +294,7 @@ export function buildExecutiveQuestions(findings: AnyFinding[], ctx: WorkProduct
     { question: "¿De qué trata el asunto?", answer: `Expediente${materia ? ` en materia ${materia}` : ""} integrado por ${docCount} documento(s) analizados, de los cuales se derivaron ${n} hallazgo(s) verificado(s) contra el corpus.` },
     { question: "¿Cuál es la evidencia más sólida?", answer: snapshot.criticalEvidence.length ? "Los documentos de mayor valor probatorio localizados en el expediente son:" : "El inventario disponible no contiene una clasificación documental suficientemente específica para asignar, de forma determinística, una categoría de alto valor probatorio. Esto no significa que no existan resoluciones judiciales u otros documentos de alto valor; requiere confirmar la clasificación documental.", bullets: snapshot.criticalEvidence },
     { question: "¿Cuáles son las áreas más débiles?", answer: snapshot.weaknesses.length ? "Los siguientes hallazgos descansan en fuente única o en soporte documental de menor confiabilidad:" : "No se identificaron hallazgos sustentados en fuente única dentro del corpus analizado.", bullets: snapshot.weaknesses },
-    { question: "¿Qué evidencia relevante parece faltar?", answer: snapshot.missingEvidence.length ? "Con base en el inventario documental actual, no se localizó lo siguiente:" : "Con base en el inventario documental actual no se detectó documentación faltante relevante.", bullets: snapshot.missingEvidence },
+    { question: "¿Qué evidencia relevante parece faltar?", answer: snapshot.missingEvidence.length ? "Con base en la verificación específica de documentación faltante, se identificó lo siguiente:" : "No existe una señal verificada de documentación faltante relevante en este resumen.", bullets: snapshot.missingEvidence },
     { question: "¿Qué debe revisar primero el abogado?", answer: snapshot.priorityReview.length ? "Orden de revisión sugerido conforme a la gravedad de los hallazgos:" : "No hay hallazgos priorizados pendientes de revisión.", bullets: snapshot.priorityReview },
   ];
 }
