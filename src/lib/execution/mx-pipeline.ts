@@ -213,6 +213,57 @@ const AMPARO_REVISION_TEXT_SIGNAL =
   /\b(amparo directo en revision|amparo indirecto en revision|adr\s+\d+\s*\/\s*\d+|amparo en revision ante la (scjn|suprema corte))\b/;
 
 /**
+ * Signal that a "constitucional"-profile case IS a controversia
+ * constitucional (as opposed to an acción de inconstitucionalidad or an
+ * amparo en revisión — see resolveConstitucionalReviewSubtype below).
+ */
+const CONTROVERSIA_CONSTITUCIONAL_TEXT_SIGNAL = /\bcontroversia(s)? constitucional(es)?\b/;
+
+/** Signal that a "constitucional"-profile case IS an acción de inconstitucionalidad. */
+const ACCION_INCONSTITUCIONALIDAD_TEXT_SIGNAL = /\baccion(es)? de inconstitucionalidad\b/;
+
+export type ConstitucionalReviewSubtype =
+  | "controversia_constitucional"
+  | "accion_inconstitucionalidad"
+  | "amparo_en_revision";
+
+/**
+ * Which of the three proceedings the "constitucional" profile's shared
+ * checklist covers (see the FIX (2239/2018) comment on PROFILE_BY_MATERIA
+ * above) this specific case actually is. The three proceedings share a
+ * checklist/stage profile because they share a procedural SHAPE (SCJN-level,
+ * document-resolved, no witness stage) — they do NOT share governing law:
+ * controversia constitucional and acción de inconstitucionalidad are
+ * governed by the Ley Reglamentaria del Art. 105 CPEUM (Títulos II and III
+ * respectively — see mx-work-product.ts's already-correct three-way split),
+ * amparo directo/indirecto en revisión by the Ley de Amparo. Any consumer
+ * rendering a statutory citation for a "constitucional"-profile checklist
+ * item must pick the citation for the ACTUAL subtype in play, never a
+ * combined string naming a law that has nothing to do with this specific
+ * case.
+ *
+ * Real case: Amparo Directo en Revisión 5829/2025 (case_type "amparo",
+ * routed to the "constitucional" profile by AMPARO_REVISION_TEXT_SIGNAL
+ * above) showed "Ley Reglamentaria del Art. 105 CPEUM" — a law with nothing
+ * to do with an amparo en revisión — as the authority for a missing
+ * checklist element, because procedural-compliance.ts, mx-missing-
+ * documents.ts and mx-procedural-stages.ts each hardcoded one combined
+ * citation string per item instead of selecting per-subtype.
+ *
+ * Returns null when the corpus doesn't clearly signal one specific
+ * proceeding — callers must keep their existing combined/hedged citation in
+ * that case, same never-assert-past-the-evidence discipline as the rest of
+ * this module (see procedural-compliance.ts's own module header).
+ */
+export function resolveConstitucionalReviewSubtype(text: string): ConstitucionalReviewSubtype | null {
+  const folded = foldCaseNameSignal(text);
+  if (CONTROVERSIA_CONSTITUCIONAL_TEXT_SIGNAL.test(folded)) return "controversia_constitucional";
+  if (ACCION_INCONSTITUCIONALIDAD_TEXT_SIGNAL.test(folded)) return "accion_inconstitucionalidad";
+  if (AMPARO_REVISION_TEXT_SIGNAL.test(folded)) return "amparo_en_revision";
+  return null;
+}
+
+/**
  * Signal that a case filed under the "civil" materia is actually a
  * responsabilidad médica / mala praxis claim — report-quality audit §14: the
  * base "civil" checklist has no concept of informed consent, clinical-
