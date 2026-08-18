@@ -31,6 +31,7 @@ import {
   extractPlainText,
 } from "./intelligence/extract.server";
 import { computeDeterministicScorecard } from "./intelligence/scoring.server";
+import { parseResolutivos } from "./intelligence/resolutivo-parser";
 import { computeCoverage } from "./intelligence/coverage.server";
 import {
   runEngine,
@@ -5051,6 +5052,37 @@ function paginate(text: string): string[] {
   return pages;
 }
 
+// FIX (2026-08-18, ADR-5829/2025 audit — second run): shared-brief.server.ts
+// already gained a resolutivo_verbatim anchor (parseResolutivos, extracted
+// from each document's FULL text before any truncation) reaching the
+// litigation.server.ts engines (perspectives, strategy, work_product) that
+// read the shared brief. But THIS report-writer's own narrative call
+// (buildUserContent/sharedContext below) never goes through
+// shared-brief.server.ts at all — it builds its own corpus directly from
+// buildPaginatedCorpus, with its own SEPARATE truncation budget. A second
+// live run confirmed exactly the gap that leaves: "Producto de Trabajo del
+// Abogado" (runWorkProductEngine, benefits from the shared-brief anchor)
+// correctly stated the SCJN revoked and remanded, while this function's
+// own "Hechos" prose — a few pages later in the SAME report — said the
+// opposite ("fue confirmado por la Suprema Corte de Justicia de la
+// Nación"), contradicting the report's own other section. Computing the
+// same anchor here, independently, closes that gap for this call site too.
+function extractResolutivoVerbatim(
+  docs: Array<{ filename: string; extracted_text: string | null }>,
+): string | null {
+  const RESOLUTIVO_CHAR_BUDGET = 6000;
+  const blocks: string[] = [];
+  for (const d of docs) {
+    const parsed = parseResolutivos(d.extracted_text ?? "");
+    if (!parsed.found || parsed.dispositions.length === 0) continue;
+    const items = parsed.dispositions
+      .map((disp) => `${disp.ordinal ? disp.ordinal + ". " : ""}${disp.text}`)
+      .join("\n");
+    blocks.push(`--- ${d.filename} ---\n${items}`);
+  }
+  return blocks.length > 0 ? blocks.join("\n\n").slice(0, RESOLUTIVO_CHAR_BUDGET) : null;
+}
+
 async function buildPaginatedCorpus(db: Db, caseId: string) {
   const { data: docs } = await db
     .from("documents")
@@ -5074,7 +5106,10 @@ async function buildPaginatedCorpus(db: Db, caseId: string) {
       blocks.push(`--- DOC ${docN} p.${j + 1} ---\n${p}`);
     });
   });
-  return { corpus: blocks.join("\n"), docIndex };
+  const resolutivoVerbatim = extractResolutivoVerbatim(
+    extracted.map((d) => ({ filename: d.filename, extracted_text: d.extracted_text })),
+  );
+  return { corpus: blocks.join("\n"), docIndex, resolutivoVerbatim };
 }
 
 // Cluster near-duplicate findings so the report sees one consolidated row per
@@ -5802,7 +5837,15 @@ async function _runReportInner(args: {
   }
 
   await setCase(db, caseId, { status_message: "Indexing evidence pages", progress: 45 });
-  const { corpus, docIndex } = await buildPaginatedCorpus(db, caseId);
+  const { corpus, docIndex, resolutivoVerbatim } = await buildPaginatedCorpus(db, caseId);
+  // See extractResolutivoVerbatim's doc comment above buildPaginatedCorpus
+  // for why this exists as its own block, appended after the corpus in
+  // every prompt that includes it: it must never be silently truncated
+  // away by the corpus's own budget slice below, the same failure mode
+  // already fixed for shared-brief.server.ts's briefToPrompt().
+  const resolutivoAnchorBlock = resolutivoVerbatim
+    ? `\n\nRESOLUTIVO_VERBATIM (extracción literal y determinística del expediente, no generada por IA — AUTORIDAD MÁXIMA sobre el resultado del caso: si "facts"/"case_overview"/"timeline_summary" o cualquier otro campo narrativo entra en conflicto con este texto sobre quién ganó, qué se revocó/confirmó, o qué ordenó el tribunal, este texto es el correcto, no tu propia lectura del expediente):\n${resolutivoVerbatim}`
+    : "";
   if (!corpus) throw new Error("No extracted documents. Run Extraction first.");
 
   // User-locked case type wins — UNLESS it actively conflicts with CONFIRMED
@@ -6084,7 +6127,7 @@ ${JSON.stringify({
 }).slice(0, s(35000))}
 
 CORPUS (paginated):
-${corpus.slice(0, s(160000))}`;
+${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}`;
   };
 
   const { hasCaseStateUpdateDocs, getCaseStateUpdateNotice } =
@@ -6229,7 +6272,7 @@ PAGINATION RULES:
 - Do NOT fabricate page numbers, quotes, or document ids.
 
 CORPUS (paginated):
-${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}`;
+${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}`;
 
   // Canonical Reconciliation Design (2026-08-16), P2 §10 — the field NAMES
   // below ("prosecution_theory_report"/"defense_theory_report") are the

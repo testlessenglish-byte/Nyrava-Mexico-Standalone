@@ -25,8 +25,13 @@ export type RawCitation = {
   label?: string;
 };
 
-export type VerifiedCitation = RawCitation & {
+export type VerifiedCitation = Omit<RawCitation, "doc_n"> & {
   verified: true;
+  /** Corrected to the document the quote was actually located in — see
+   *  the doc comment at this field's assignment site in
+   *  verifyEvidenceRefs for why this can differ from the raw, possibly
+   *  null/wrong value an LLM originally supplied. */
+  doc_n: number | null;
   document_id: string | null;
   filename: string | null;
   /** Character offsets into the source document's raw extracted text. Null when only a fuzzy/soft match was possible — see evidence-provenance.server.ts. */
@@ -224,6 +229,20 @@ export function verifyEvidenceRefs(
       ...r,
       quote,
       verified: true,
+      // FIX (2026-08-18, ADR-5829/2025 second audit): document_id/filename
+      // below were already corrected to the document the quote was ACTUALLY
+      // located in (claimedDoc's doc_n can be wrong, or absent entirely —
+      // the `if (!loc)` re-attribution search above exists for exactly
+      // that) — but doc_n itself was left untouched from the raw spread,
+      // so a citation whose original doc_n was null/wrong stayed null/wrong
+      // in the rendered output even after successful re-attribution. Real
+      // case: citation "F2-3" verified and re-attributed correctly
+      // internally (document_id set), but rendered with an empty
+      // "Documento" column in the PDF's citation appendix because doc_n
+      // was never patched to match. Every renderer keys off doc_n
+      // (citeLabel, resolveDocTitle), not document_id, so this silently
+      // broke the exact information the appendix exists to provide.
+      doc_n: locatedDoc?.doc_n ?? docN ?? null,
       document_id: documentId,
       filename: locatedDoc?.filename ?? claimedDoc?.filename ?? null,
       start_offset: loc?.start ?? null,
@@ -253,7 +272,7 @@ export type GroundedItem<T extends GroundableItem> = T & {
       filename: string | null;
       quote: string;
       page?: number;
-      doc_n?: number;
+      doc_n: number | null;
       start_offset: number | null;
       end_offset: number | null;
       page_located: number | null;

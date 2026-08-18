@@ -27,6 +27,7 @@ describe("verifyEvidenceRefs — character-offset location", () => {
     const [v] = verifyEvidenceRefs([{ doc_n: 1, quote: "El arrendador José Pérez entrega en arrendamiento" }], corpus);
     expect(v).toBeDefined();
     expect(v.document_id).toBe("doc-A");
+    expect(v.doc_n).toBe(1);
     expect(v.start_offset).not.toBeNull();
     expect(v.end_offset).not.toBeNull();
     expect(v.source_reattributed).toBe(false);
@@ -48,6 +49,12 @@ describe("verifyEvidenceRefs — character-offset location", () => {
     expect(v).toBeDefined();
     expect(v.document_id).toBe("doc-B");
     expect(v.source_reattributed).toBe(true);
+    // FIX (2026-08-18): document_id was already corrected here, but doc_n
+    // itself used to stay stuck at the wrong original value (1) — every
+    // renderer (citeLabel, resolveDocTitle in export.ts) keys off doc_n,
+    // not document_id, so the rendered citation table showed the wrong
+    // document even though internal re-attribution had succeeded.
+    expect(v.doc_n).toBe(2);
   });
 
   it("does not flag source_reattributed for a citation with no doc_n at all that resolves via corpus-wide search", () => {
@@ -56,6 +63,20 @@ describe("verifyEvidenceRefs — character-offset location", () => {
     // No doc_n/document_id was ever claimed, so there is nothing to have
     // been "wrong" about — this is a first attribution, not a correction.
     expect(v.source_reattributed).toBe(false);
+    expect(v.doc_n).toBe(1);
+  });
+
+  it("the real reported bug: a citation with doc_n explicitly null gets patched to the located document (ADR-5829/2025's malformed 'F2-3' citation)", () => {
+    // Exact shape from the live report's citations array: doc_n: null,
+    // page set, quote real and locatable via corpus-wide search. Rendered
+    // with an empty "Documento" column in the PDF appendix before this fix.
+    const [v] = verifyEvidenceRefs(
+      [{ doc_n: null as unknown as number, page: 5, quote: "el incumplimiento contractual se produjo el 15 de marzo de 2026" }],
+      corpus,
+    );
+    expect(v).toBeDefined();
+    expect(v.document_id).toBe("doc-B");
+    expect(v.doc_n).toBe(2);
   });
 
   it("leaves offsets null (never fabricated) for a citation that only verifies via the soft/shingle fuzzy path", () => {
