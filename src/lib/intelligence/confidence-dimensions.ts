@@ -3,10 +3,7 @@
 // Every function here is pure and deterministic — no DB, no AI provider
 // calls. It only reshapes/derives from data an engine's existing prompt
 // already returns (or, when a model didn't happen to supply a given
-// signal, falls back to a conservative heuristic default). This is the
-// intentional design choice for this whole addendum: none of it requires
-// enlarging or restructuring any existing prompt, so it cannot change the
-// size, count, or chunking of any AI call.
+// signal, falls back to a conservative heuristic default).
 import type {
   ConfidenceDimension,
   ConfidenceDimensions,
@@ -14,14 +11,6 @@ import type {
   FindingRationale,
 } from "./types";
 
-// ----------------------------------------------------------------------------
-// Banned unsupported-conclusion language (addendum §23)
-// ----------------------------------------------------------------------------
-// Pattern-level, not a verbatim script — matches the small set of stock
-// Spanish hedge phrases the addendum calls out by name. A hit doesn't block
-// anything; it flags the finding as needing an accompanying evidence/
-// authority reference (checked separately below), so a reviewer can see at
-// a glance which conclusions still read as unsupported assertions.
 const BANNED_UNSUPPORTED_PHRASES = [
   /\bse considera\b/i,
   /\bes probable\b/i,
@@ -36,9 +25,6 @@ export function containsUnsupportedLanguage(text: string): boolean {
   return BANNED_UNSUPPORTED_PHRASES.some((re) => re.test(text));
 }
 
-// ----------------------------------------------------------------------------
-// Confidence dimensions
-// ----------------------------------------------------------------------------
 function levelFromScore(score: number): ConfidenceLevel {
   if (score >= 0.75) return "high";
   if (score >= 0.45) return "moderate";
@@ -50,29 +36,40 @@ function dim(level: ConfidenceLevel, reason: string): ConfidenceDimension {
   return { level, reason };
 }
 
-/** Reads a raw model item for any dimension hints it happens to include
- * (some prompts already return richer per-finding detail than others), and
- * falls back to a deterministic heuristic derived from data already on hand
- * — document/extraction stats, evidence_refs, source_module — for anything
- * the model didn't supply. Never issues a new call to fill a gap. */
+/**
+ * A quoted, adopted judicial holding is authoritative evidence of what that
+ * court held. It may still need separate authority/current-law analysis for
+ * what follows from the holding, but it does NOT need a second independent
+ * document merely to corroborate the fact that the court made the ruling.
+ */
+function isVerifiedJudicialHolding(raw: Record<string, unknown>): boolean {
+  const audit = String(raw.audit_classification ?? "").toUpperCase();
+  const proposition = String(raw.proposition_type ?? "").toLowerCase();
+  const adoption = String(raw.adoption_status ?? "").toLowerCase();
+  const verified = String(raw.verification_status ?? "").toLowerCase();
+  return (
+    audit === "VERIFIED_COURT_HOLDING" ||
+    (proposition === "holding" && adoption === "adopted" && verified !== "unverified")
+  );
+}
+
 export function deriveConfidenceDimensions(args: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   raw: any;
   overallConfidence: number;
   evidenceRefCount: number;
   sourceDocCount: number;
-  /** True when this finding's source module already ran through
-   * doc-extraction success checks (nearly always true — kept optional so
-   * this never becomes a hard dependency on any one caller passing it). */
   hasExtractionSignal?: boolean;
 }): ConfidenceDimensions {
   const { raw, overallConfidence, evidenceRefCount, sourceDocCount } = args;
-  const r = raw ?? {};
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const judicialHolding = isVerifiedJudicialHolding(r);
 
   const readHint = (key: string): ConfidenceDimension | null => {
     const v = r[key];
-    if (v && typeof v === "object" && typeof v.level === "string") {
-      return dim(v.level as ConfidenceLevel, String(v.reason ?? ""));
+    if (v && typeof v === "object" && typeof (v as Record<string, unknown>).level === "string") {
+      const row = v as Record<string, unknown>;
+      return dim(row.level as ConfidenceLevel, String(row.reason ?? ""));
     }
     if (typeof v === "number") return dim(levelFromScore(v), "Derived from model-reported score.");
     return null;
@@ -95,14 +92,19 @@ export function deriveConfidenceDimensions(args: {
       ),
     evidence_quality:
       readHint("evidence_quality") ??
-      dim(
-        evidenceRefCount >= 2 ? "high" : evidenceRefCount === 1 ? "moderate" : "low",
-        evidenceRefCount >= 2
-          ? `${evidenceRefCount} independent evidence references cited.`
-          : evidenceRefCount === 1
-            ? "Only one evidence reference cited — no independent corroboration."
-            : "No evidence reference cited.",
-      ),
+      (judicialHolding && evidenceRefCount >= 1
+        ? dim(
+            "high",
+            "Verified quotation from the judicial resolution is authoritative evidence of what the court held; independent corroboration is not required merely to establish the holding itself.",
+          )
+        : dim(
+            evidenceRefCount >= 2 ? "high" : evidenceRefCount === 1 ? "moderate" : "low",
+            evidenceRefCount >= 2
+              ? `${evidenceRefCount} independent evidence references cited.`
+              : evidenceRefCount === 1
+                ? "One evidence reference cited; additional corroboration may be needed for disputed facts or inferences."
+                : "No evidence reference cited.",
+          )),
     legal:
       readHint("legal_confidence") ??
       dim(
@@ -120,43 +122,24 @@ export function deriveConfidenceDimensions(args: {
     corpus_completeness:
       readHint("corpus_completeness") ??
       dim(
-        sourceDocCount >= 2 ? "moderate" : "low",
-        sourceDocCount >= 2
-          ? "Multiple documents in the corpus touch this finding."
-          : "Only a single document in the corpus touches this finding — the official expediente may contain more.",
+        judicialHolding && sourceDocCount >= 1 ? "moderate" : sourceDocCount >= 2 ? "moderate" : "low",
+        judicialHolding && sourceDocCount >= 1
+          ? "The judicial resolution is sufficient to establish its own quoted holding; the complete official expediente may still contain additional context."
+          : sourceDocCount >= 2
+            ? "Multiple documents in the corpus touch this finding."
+            : "Only a single document in the corpus touches this finding — the official expediente may contain more.",
       ),
     classification:
       readHint("classification_confidence") ??
       dim(
-        "moderate",
-        "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification.",
+        judicialHolding ? "high" : "moderate",
+        judicialHolding
+          ? "Finding is classified as a verified, adopted court holding."
+          : "Category/materia classification not independently re-verified for this finding — inherited from the source engine's own classification.",
       ),
   };
 }
 
-// ----------------------------------------------------------------------------
-// Evidence strength — case_findings.evidence_strength (numeric)
-// ----------------------------------------------------------------------------
-// Root cause (real completed-case audit, ADR 4640/2017): this column has
-// existed since the "Intelligence Aggregation Refactor" migration
-// (20260730052549) — added specifically so a finding's EVIDENCE strength
-// could be tracked separately from its legal SEVERITY (exactly the
-// distinction the user's spec item #9 asks for: "HIGH importance / LIMITED
-// evidence" must never collapse into "HIGH CONFIRMED"). But nothing in the
-// codebase ever wrote to it — findings.server.ts's single insert choke
-// point never set it, so every finding in every case has always persisted
-// this column as SQL NULL, and no report or export ever showed it.
-//
-// The signal this needs already exists, one JSON field over:
-// deriveConfidenceDimensions() above already computes evidence_quality
-// (from real corroboration signals — evidence_refs count — not the model's
-// self-report) for every finding. This maps that same, already-computed
-// level onto the flat numeric column the schema provisioned for it, so the
-// data that already exists in confidence_dimensions.evidence_quality
-// finally reaches the column named for it. "indeterminate" deliberately
-// maps to null rather than a guessed number — the whole point of this
-// column is to let a report say "we don't know" instead of asserting a
-// number the evidence doesn't support.
 export function evidenceStrengthFromDimensions(
   dims: ConfidenceDimensions | null | undefined,
 ): number | null {
@@ -173,21 +156,12 @@ export function evidenceStrengthFromDimensions(
   }
 }
 
-// ----------------------------------------------------------------------------
-// Rationale
-// ----------------------------------------------------------------------------
 function toStringArray(v: unknown): string[] {
   if (Array.isArray(v))
     return v.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
   if (typeof v === "string" && v.trim()) return [v.trim()];
   return [];
 }
-
-/** Extracts whatever rationale detail a raw model item already provides
- * (contrary evidence, assumptions, authority, etc. — several existing
- * prompts already ask for some of these under different key names) and
- * fills in the unsupported-language flag deterministically. Never invents
- * evidence or authority that wasn't present in the raw item. */
 
 export function deriveRationale(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,8 +179,6 @@ export function deriveRationale(
 
   const flaggedText = `${args.title} ${args.description}`;
   const unsupported_language_flagged = containsUnsupportedLanguage(flaggedText);
-  // A hedge phrase is fine IF it's backed by evidence or authority; it's
-  // only flagged for attorney review when it appears with nothing behind it.
   const needsReview =
     unsupported_language_flagged &&
     supporting_evidence.length === 0 &&
