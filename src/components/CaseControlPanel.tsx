@@ -1,10 +1,9 @@
 // Single-source execution surface: Run Case + Rerun Case + collapsed settings.
-// Pipeline order is locked internally by runFullPipelineStep.
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Loader2, Play, RotateCw, Settings as SettingsIcon, ChevronDown, ChevronUp, FilePlus2 } from "lucide-react";
+import { Loader2, Play, RotateCw, Settings as SettingsIcon, ChevronDown, ChevronUp, FilePlus2, ShieldCheck } from "lucide-react";
 import {
   queueCaseForPipeline,
   updateCaseSettings,
@@ -37,7 +36,7 @@ export function CaseControlPanel({
   caseId,
   caseStatus,
   caseType,
-  analysisMode,
+  analysisMode: _analysisMode,
   jurisdiction,
   caseAnalysisMode,
   documentsCount,
@@ -65,46 +64,15 @@ export function CaseControlPanel({
   const [addProgress, setAddProgress] = useState("");
   const [awaitingCancel, setAwaitingCancel] = useState(false);
 
-  // Self-driving fallback: while this case is queued/running, keep calling
-  // driveCasePipelineTick from this open tab every couple seconds. This does
-  // NOT depend on pg_cron or pg_net delivering their HTTP calls — if that
-  // relay is broken (wrong URL, dead request queue, etc.) the case would
-  // otherwise sit at "queued" forever with no visible error. If the real
-  // background worker IS healthy, driveCasePipelineTick just no-ops whenever
-  // it sees the worker already holds an active lease, so running both is
-  // safe. Stops automatically once the case reaches a terminal status.
-  //
-  // 2026-07 audit: a single failed tick (a transient network blip, a
-  // momentary RLS/auth hiccup, etc.) used to `break` out of this loop
-  // permanently. Since `running` stays true for as long as the case sits at
-  // "queued", the effect's own dependency array never changes, so nothing
-  // ever restarted the loop — the tab silently stopped driving the case
-  // with no visible error, which is exactly the "Rerun just sits there"
-  // symptom. Now a failed tick is retried with backoff instead of killing
-  // the loop; only after several CONSECUTIVE failures do we stop and
-  // surface a toast, since at that point it's more likely a real, durable
-  // problem than a blip.
   useEffect(() => {
     if (!running) return;
-    // Delegate to the module-level driver so the loop survives unmount /
-    // navigation and runs independently per case_id. Intentionally no
-    // cleanup: leaving this page must NOT stop the run.
     drivePipeline(caseId);
   }, [running, caseId]);
 
-  // Run and Rerun both enqueue the case for the background worker. The
-  // worker leases one case at a time, runs the full pipeline under an admin
-  // client (no HTTP timeout tied to the user's tab), and yields between
-  // stages via the wall-clock checkpoint. The user's tab observes progress
-  // via realtime — see useCaseExecution.
   const runM = useMutation({
-    mutationFn: async (reset: boolean) => {
-      return await queueFn({ data: { caseId, reset } });
-    },
+    mutationFn: async (reset: boolean) => await queueFn({ data: { caseId, reset } }),
     onMutate: (reset) =>
-      toast.info(
-        reset ? "Rerun queued — worker will pick this up shortly…" : "Run queued — worker will pick this up shortly…",
-      ),
+      toast.info(reset ? "Rerun queued — worker will pick this up shortly…" : "Run queued — worker will pick this up shortly…"),
     onSuccess: (
       res:
         | { ok?: boolean; queued?: boolean; alreadyRunning?: boolean; cancelling?: boolean; billingRequired?: boolean }
@@ -115,13 +83,6 @@ export function CaseControlPanel({
       } else if (res?.alreadyRunning) {
         toast.warning("This case is already running — ignoring duplicate Run request.");
       } else if (res?.cancelling) {
-        // Previously this just told the user to notice when the run had
-        // stopped and click Rerun again themselves — in practice that
-        // manual second step was easy to miss, and if the in-flight stage
-        // was truly stuck, cancellation could take a while, making Rerun
-        // look like it "did nothing." Now we auto-poll and auto-chain into
-        // the real reset+requeue the moment cancellation lands, so Rerun is
-        // a single action from the user's perspective.
         toast.info("Cancelling current run — will restart automatically once it stops…");
         waitForCancelThenRequeue();
       } else {
@@ -137,36 +98,20 @@ export function CaseControlPanel({
     },
   });
 
-  // Polls case status after a cooperative-cancel request until the in-flight
-  // run actually reaches `cancelled`, then automatically fires the real
-  // reset+requeue — so "Rerun" while a case is running is one click, not
-  // two. Capped at ~90s; if cancellation hasn't landed by then (e.g. a
-  // stage genuinely wedged outside any checkpoint/cancel check), we stop
-  // polling and tell the user to try again rather than looping forever.
   function waitForCancelThenRequeue() {
     if (cancelWaitRef.current) return;
     cancelWaitRef.current = true;
     setAwaitingCancel(true);
     let attempts = 0;
-    const maxAttempts = 60; // 60 * 1500ms = ~90s
+    const maxAttempts = 60;
     const poll = async () => {
       attempts += 1;
       try {
         const state = await runStateFn({ data: { caseId } });
-        if (state?.status === "cancelled") {
+        if (state?.status === "cancelled" || !RUNNING_STATUSES.has(String(state?.status ?? ""))) {
           cancelWaitRef.current = false;
           setAwaitingCancel(false);
           toast.info("Previous run stopped — restarting with current settings…");
-          runM.mutate(true);
-          invalidate();
-          qc.invalidateQueries({ queryKey: ["case", caseId] });
-          return;
-        }
-        if (!RUNNING_STATUSES.has(String(state?.status ?? ""))) {
-          // Landed on some other terminal status (e.g. failed) instead of
-          // "cancelled" — safe to requeue rather than poll forever.
-          cancelWaitRef.current = false;
-          setAwaitingCancel(false);
           runM.mutate(true);
           invalidate();
           qc.invalidateQueries({ queryKey: ["case", caseId] });
@@ -226,14 +171,9 @@ export function CaseControlPanel({
     <div className="space-y-4">
       <div className="rounded-2xl border border-primary/20 bg-background/60 p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-primary">{t("caseControl.title")}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("caseControl.subtitle")}
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("caseControl.subtitle")}</p>
         <p className="mt-2 text-[11px] leading-snug text-muted-foreground/70">
-          {t("caseControl.stagesNote", {
-            stages: PIPELINE_STAGES.length,
-            agents: AGENT_DEFINITIONS.length,
-          })}
+          {t("caseControl.stagesNote", { stages: PIPELINE_STAGES.length, agents: AGENT_DEFINITIONS.length })}
         </p>
 
         <button
@@ -241,30 +181,16 @@ export function CaseControlPanel({
           disabled={disabled}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/15 px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/25 disabled:opacity-50"
         >
-          {runM.isPending && !runM.variables ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
+          {runM.isPending && !runM.variables ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
           {t("caseControl.run")}
         </button>
 
         <button
-          onClick={() => {
-            if (
-              confirm(t("caseControl.rerun.confirm"))
-            ) {
-              runM.mutate(true);
-            }
-          }}
+          onClick={() => confirm(t("caseControl.rerun.confirm")) && runM.mutate(true)}
           disabled={disabled}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
         >
-          {(runM.isPending && runM.variables) || awaitingCancel ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RotateCw className="h-4 w-4" />
-          )}
+          {(runM.isPending && runM.variables) || awaitingCancel ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
           {awaitingCancel ? t("caseControl.rerun.stopping") : t("caseControl.rerun")}
         </button>
 
@@ -285,19 +211,13 @@ export function CaseControlPanel({
           {addBusy ? t("caseControl.working") : t("caseControl.addEvidence")}
         </button>
         {addBusy && addProgress && <p className="mt-2 text-xs text-emerald-300">{addProgress}</p>}
-
-        {documentsCount === 0 && (
-          <p className="mt-3 text-xs text-amber-300">{t("caseControl.needDocument")}</p>
-        )}
-        {running && (
-          <p className="mt-3 text-xs text-amber-300">{t("caseControl.inProgress")}</p>
-        )}
+        {documentsCount === 0 && <p className="mt-3 text-xs text-amber-300">{t("caseControl.needDocument")}</p>}
+        {running && <p className="mt-3 text-xs text-amber-300">{t("caseControl.inProgress")}</p>}
       </div>
 
       <CollapsedCaseSettings
         caseId={caseId}
         caseType={caseType}
-        analysisMode={analysisMode}
         jurisdiction={jurisdiction}
         caseAnalysisMode={caseAnalysisMode}
         running={running}
@@ -310,7 +230,6 @@ export function CaseControlPanel({
 function CollapsedCaseSettings({
   caseId,
   caseType,
-  analysisMode,
   jurisdiction,
   caseAnalysisMode,
   running,
@@ -318,7 +237,6 @@ function CollapsedCaseSettings({
 }: {
   caseId: string;
   caseType: string | null;
-  analysisMode: string | null;
   jurisdiction: string | null;
   caseAnalysisMode: string | null;
   running: boolean;
@@ -327,61 +245,41 @@ function CollapsedCaseSettings({
   const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const updateFn = useServerFn(updateCaseSettings);
-  // "" (not a stale English default like "general_civil") means the case
-  // carries no recognized Mexican materia yet — CASE_TYPE_SELECT_OPTIONS
-  // only lists the 13 real materias, so any other fallback value would not
-  // match an <option>, leaving the browser to silently highlight whichever
-  // option happens to be first (Penal) while state stays out of sync.
   const [ct, setCt] = useState<string>(caseType ?? "");
-  const [mode, setMode] = useState<string>(analysisMode ?? "");
   const [juris, setJuris] = useState<string>(jurisdiction ?? "");
   const [caseAnalysis, setCaseAnalysis] = useState<string>(caseAnalysisMode || "ongoing");
+
   useEffect(() => {
     setCt(caseType ?? "");
-    setMode(analysisMode ?? "");
     setJuris(jurisdiction ?? "");
     setCaseAnalysis(caseAnalysisMode || "ongoing");
-  }, [caseType, analysisMode, jurisdiction, caseAnalysisMode]);
+  }, [caseType, jurisdiction, caseAnalysisMode]);
 
   const m = useMutation({
-    mutationFn: (patch: {
-      case_type?: string;
-      analysis_mode?: string;
-      jurisdiction?: string | null;
-      case_analysis_mode?: string;
-    }) =>
+    mutationFn: (patch: { case_type?: string; jurisdiction?: string | null; case_analysis_mode?: string }) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       updateFn({ data: { caseId, ...(patch as any) } }),
     onSuccess: (
       res:
         | {
-            modeChanged?: boolean;
             caseAnalysisModeChanged?: boolean;
             sourceConflict?: { field: string; sourceValue: string; requestedValue: string } | null;
           }
         | undefined,
     ) => {
       toast.success(t("caseSettings.toast.saved"));
-      if (res?.modeChanged) toast.info(t("caseSettings.toast.modeChanged"));
       if (res?.caseAnalysisModeChanged) toast.info(t("caseSettings.toast.caseAnalysisModeChanged"));
       if (res?.sourceConflict) {
-        toast.warning(
-          t("caseSettings.toast.sourceConflict", {
-            source: res.sourceConflict.sourceValue,
-            chosen: res.sourceConflict.requestedValue,
-          }),
-        );
+        toast.warning(t("caseSettings.toast.sourceConflict", { source: res.sourceConflict.sourceValue, chosen: res.sourceConflict.requestedValue }));
       }
       setOpen(false);
       invalidate();
     },
-
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("caseSettings.toast.saveFailed")),
   });
 
   const dirty =
     ct !== (caseType ?? "") ||
-    mode !== (analysisMode ?? "") ||
     juris !== (jurisdiction ?? "") ||
     caseAnalysis !== (caseAnalysisMode || "ongoing");
   const disabled = running || m.isPending;
@@ -395,12 +293,9 @@ function CollapsedCaseSettings({
         <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <SettingsIcon className="h-3.5 w-3.5" /> {t("caseSettings.title")}
         </span>
-        {open ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        )}
+        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
       </button>
+
       {open && (
         <div className="border-t border-border p-4">
           <div className="space-y-1.5">
@@ -411,16 +306,8 @@ function CollapsedCaseSettings({
               disabled={disabled}
               className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm disabled:opacity-50"
             >
-              {!ct && (
-                <option value="" disabled>
-                  {t("caseSettings.caseType.unclassified")}
-                </option>
-              )}
-              {CASE_TYPE_SELECT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
+              {!ct && <option value="" disabled>{t("caseSettings.caseType.unclassified")}</option>}
+              {CASE_TYPE_SELECT_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </div>
 
@@ -436,37 +323,25 @@ function CollapsedCaseSettings({
               <option value="">{t("caseSettings.jurisdiction.auto")}</option>
               {JURISDICTION_GROUPS.map((g) => (
                 <optgroup key={g.level} label={g.label}>
-                  {g.options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
+                  {g.options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </optgroup>
               ))}
-
             </select>
           </div>
 
-          <div className="mt-4 space-y-1.5">
-            <label className="text-xs font-medium text-foreground/80">{t("caseSettings.analysisMode")}</label>
-            <div className="grid gap-1.5">
-              {[
-                { v: "strict", label: t("caseSettings.mode.strict"), desc: t("caseSettings.mode.strict.desc") },
-                { v: "exploratory", label: t("caseSettings.mode.exploratory"), desc: t("caseSettings.mode.exploratory.desc") },
-              ].map((opt) => (
-                <button
-                  key={opt.v}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setMode(opt.v)}
-                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${
-                    mode === opt.v ? "border-accent bg-accent/10" : "border-border bg-background hover:bg-secondary"
-                  }`}
-                >
-                  <div className="font-medium">{opt.label}</div>
-                  <div className="text-xs text-muted-foreground">{opt.desc}</div>
-                </button>
-              ))}
+          <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div>
+                <div className="text-xs font-semibold text-foreground">
+                  {locale === "en" ? "Nyrava Verified Legal Intelligence" : "Nyrava — Inteligencia Jurídica Verificada"}
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                  {locale === "en"
+                    ? "One evidence-grounded standard. Verified findings drive conclusions and scores; inferences, missing evidence and investigative leads remain separately labeled."
+                    : "Un solo estándar sustentado en evidencia. Los hallazgos verificados determinan conclusiones y puntuaciones; inferencias, evidencia faltante y líneas de investigación permanecen separadas y etiquetadas."}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -481,25 +356,19 @@ function CollapsedCaseSettings({
                   disabled={disabled}
                   onClick={() => setCaseAnalysis(opt.value)}
                   className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${
-                    caseAnalysis === opt.value
-                      ? "border-accent bg-accent/10"
-                      : "border-border bg-background hover:bg-secondary"
+                    caseAnalysis === opt.value ? "border-accent bg-accent/10" : "border-border bg-background hover:bg-secondary"
                   }`}
                 >
                   <div className="font-medium">{locale === "en" ? opt.label_en : opt.label_es}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {locale === "en" ? opt.description_en : opt.description_es}
-                  </div>
+                  <div className="text-xs text-muted-foreground">{locale === "en" ? opt.description_en : opt.description_es}</div>
                 </button>
               ))}
             </div>
           </div>
 
           <button
-            onClick={() =>
-              m.mutate({ case_type: ct, analysis_mode: mode, jurisdiction: juris || null, case_analysis_mode: caseAnalysis })
-            }
-            disabled={disabled || !dirty || !ct || !mode}
+            onClick={() => m.mutate({ case_type: ct, jurisdiction: juris || null, case_analysis_mode: caseAnalysis })}
+            disabled={disabled || !dirty || !ct}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
           >
             {m.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
