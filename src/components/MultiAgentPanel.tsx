@@ -181,15 +181,15 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
             return (
               <div
                 key={def.key}
-                className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card/40 p-3"
+                className="flex min-w-0 items-start gap-2.5 overflow-hidden rounded-lg border border-border/60 bg-card/40 p-3"
               >
                 <div className="mt-0.5 shrink-0">{statusIcon(status)}</div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-[10px] text-muted-foreground/70">#{def.index}</span>
-                    <span className="truncate text-sm font-medium text-foreground">{t(`agent.${def.key}.name`)}</span>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground/70">#{def.index}</span>
+                    <span className="min-w-0 truncate text-sm font-medium text-foreground">{t(`agent.${def.key}.name`)}</span>
                   </div>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">{t(`agent.${def.key}.desc`)}</p>
+                  <p className="mt-0.5 break-words text-[11px] text-muted-foreground">{t(`agent.${def.key}.desc`)}</p>
                   {row && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
                       <span className="rounded bg-background/60 px-1.5 py-0.5">
@@ -206,10 +206,14 @@ export function MultiAgentPanel({ caseId, report }: { caseId: string; report?: u
                     </div>
                   )}
                   {row?.no_output_reason && (
-                    <p className="mt-1 text-[11px] text-warning">{t("agents.noOutput", { reason: row.no_output_reason })}</p>
+                    <p className="mt-1 max-h-24 max-w-full overflow-y-auto whitespace-pre-wrap break-all text-[11px] leading-4 text-warning">
+                      {t("agents.noOutput", { reason: row.no_output_reason })}
+                    </p>
                   )}
                   {errs.length > 0 && (
-                    <p className="mt-1 text-[11px] text-destructive">{errs[0]}</p>
+                    <p className="mt-1 max-h-24 max-w-full overflow-y-auto whitespace-pre-wrap break-all text-[11px] leading-4 text-destructive">
+                      {errs[0]}
+                    </p>
                   )}
                   {isAdmin && (row?.no_output_reason || errs.length > 0) && (
                     <button

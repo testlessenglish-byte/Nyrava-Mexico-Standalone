@@ -31,6 +31,30 @@ export type ProceduralComplianceReport = ComplianceReport & {
   deadlines: MxDeadline[];
 };
 
+function fold(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * A concluded ADR often arrives as the SCJN ejecutoria itself, not as a full
+ * copy of every filing in the lower record. The final-decision signal is
+ * therefore established from the document's own identity, not from whether
+ * every earlier procedural document was uploaded.
+ */
+function hasScjnAmparoReviewDecision(corpusText: string): boolean {
+  const text = fold(corpusText);
+  const hasCourt =
+    /suprema corte de justicia de la nacion|primera sala|segunda sala|tribunal pleno/.test(text);
+  const hasReview =
+    /amparo directo en revision|recurso de revision en amparo|amparo en revision/.test(text);
+  const hasDecisionLanguage =
+    /resuelve|resolucion|sentencia|ejecutoria|considerando|puntos resolutivos|se confirma|se revoca|se desecha|se niega|se concede/.test(text);
+  return hasCourt && hasReview && hasDecisionLanguage;
+}
+
 /**
  * The generic `constitucional` profile covers controversias, acciones and
  * amparo review. For an ADR the shared checklist is useful only after removing
@@ -64,14 +88,23 @@ function normalizeAmparoReviewCompliance(report: ComplianceReport): ComplianceRe
 
 function normalizeAmparoReviewStageMap(
   stageMap: ProceduralStageResolution,
+  corpusText: string,
+  concludedAudit: boolean,
 ): ProceduralStageResolution {
-  const normalizeStage = <T extends { id: string; authority: string; label_es?: string; label_en?: string; patterns?: readonly string[] }>(item: T): T => {
+  const decisionDetected = hasScjnAmparoReviewDecision(corpusText);
+  const normalizeStage = <T extends { id: string; authority: string; label_es?: string; label_en?: string; patterns?: readonly string[]; detected?: boolean; evidence?: string | null }>(item: T): T => {
     if (item.id === "sentencia_constitucional") {
       return {
         ...item,
         authority: "Ley de Amparo Art. 93",
         label_es: "Resolución de la SCJN sobre el recurso de revisión",
         label_en: "SCJN resolution of the amparo review",
+        ...(decisionDetected
+          ? {
+              detected: true,
+              evidence: "El corpus contiene una resolución de la SCJN identificada como revisión en amparo.",
+            }
+          : {}),
       };
     }
     if (item.id === "presentacion_demanda_constitucional") {
@@ -93,11 +126,35 @@ function normalizeAmparoReviewStageMap(
     }
     return item;
   };
+
   const stages = stageMap.stages.map(normalizeStage);
-  const current = stageMap.current ? normalizeStage(stageMap.current) : null;
-  const completed = stageMap.completed.map(normalizeStage);
-  const next = stageMap.next ? normalizeStage(stageMap.next) : null;
-  const missing_requirements = stageMap.missing_requirements.map(normalizeStage);
+  const decisionStage = stages.find((item) => item.id === "sentencia_constitucional") ?? null;
+  const normalizedCompleted = stageMap.completed.map(normalizeStage);
+  const completed =
+    decisionDetected && decisionStage && !normalizedCompleted.some((item) => item.id === decisionStage.id)
+      ? [...normalizedCompleted, decisionStage]
+      : normalizedCompleted;
+  const current = decisionDetected && decisionStage ? decisionStage : stageMap.current ? normalizeStage(stageMap.current) : null;
+  const next = decisionDetected ? null : stageMap.next ? normalizeStage(stageMap.next) : null;
+
+  // A concluded decision corpus is not a complete docket inventory. Earlier
+  // filings not reproduced in the uploaded judgment are evidence gaps, not
+  // proof that the proceeding skipped those stages. Do not manufacture a
+  // reposición risk from that absence.
+  const missing_requirements =
+    decisionDetected && concludedAudit ? [] : stageMap.missing_requirements.map(normalizeStage);
+  const procedural_risks =
+    decisionDetected && concludedAudit
+      ? []
+      : stageMap.procedural_risks
+          .map((risk) =>
+            risk
+              .replace(/Ley Reglamentaria del Art\. 105 Arts\. 41-45 y 72-73/g, "Ley de Amparo Art. 93")
+              .replace(/Presentación de la demanda o recurso/g, "Interposición del recurso de revisión")
+              .replace(/materia constitucional/gi, "recurso de revisión en amparo"),
+          )
+          .filter((risk) => !/controversia constitucional|accion de inconstitucionalidad/i.test(risk));
+
   return {
     ...stageMap,
     materia: "amparo",
@@ -106,14 +163,7 @@ function normalizeAmparoReviewStageMap(
     completed,
     next,
     missing_requirements,
-    procedural_risks: stageMap.procedural_risks
-      .map((risk) =>
-        risk
-          .replace(/Ley Reglamentaria del Art\. 105 Arts\. 41-45 y 72-73/g, "Ley de Amparo Art. 93")
-          .replace(/Presentación de la demanda o recurso/g, "Interposición del recurso de revisión")
-          .replace(/materia constitucional/gi, "recurso de revisión en amparo"),
-      )
-      .filter((risk) => !/controversia constitucional|accion de inconstitucionalidad/i.test(risk)),
+    procedural_risks,
   };
 }
 
@@ -127,11 +177,11 @@ export async function runProceduralCompliance(args: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: caseRow } = await (db as any)
     .from("cases")
-    .select("case_type,name,description")
+    .select("case_type,name,description,case_analysis_mode")
     .eq("id", caseId)
     .maybeSingle();
   const caseRowTyped = caseRow as
-    | { case_type?: string | null; name?: string | null; description?: string | null }
+    | { case_type?: string | null; name?: string | null; description?: string | null; case_analysis_mode?: string | null }
     | null;
 
   const corpusText = await loadCaseCorpusText(db, caseId, FULL_CORPUS_SCAN_LIMIT);
@@ -148,6 +198,7 @@ export async function runProceduralCompliance(args: {
     executionProfile === "constitucional" ? resolveConstitucionalReviewSubtype(signalText) : null;
   const isAmparoReview =
     caseRowTyped?.case_type === "amparo" && reviewSubtype === "amparo_en_revision";
+  const concludedAudit = caseRowTyped?.case_analysis_mode === "concluded_audit";
   const reportedMateria = isAmparoReview ? "amparo" : executionProfile;
 
   const reportBase = evaluateProceduralCompliance(executionProfile, corpusText);
@@ -160,7 +211,7 @@ export async function runProceduralCompliance(args: {
     ? normalizeAmparoReviewCompliance(reportBase)
     : reportBase;
   const stage_map = isAmparoReview
-    ? normalizeAmparoReviewStageMap(stageMapBase)
+    ? normalizeAmparoReviewStageMap(stageMapBase, corpusText, concludedAudit)
     : stageMapBase;
   const missing_documents: MissingDocumentsReport = isAmparoReview
     ? { ...missingDocumentsBase, materia: "amparo" }
@@ -185,7 +236,14 @@ export async function runProceduralCompliance(args: {
     (i) => i.requirement === "required" && i.status === "no_identificado_en_corpus",
   );
   let findings_written = 0;
-  if (missing.length > 0) {
+
+  // In a concluded audit, an uploaded judgment is not expected to reproduce
+  // every earlier filing. "Not identified in this corpus" remains visible in
+  // procedural_compliance as an evidence gap, but it must not become a risk
+  // finding unless the record itself establishes a defect. This enforces the
+  // platform's own absence-of-evidence rule at the write boundary.
+  const mayWriteMissingAsFinding = !concludedAudit;
+  if (missing.length > 0 && mayWriteMissingAsFinding) {
     const rows = missing.map((i) => ({
       case_id: caseId,
       user_id: userId,

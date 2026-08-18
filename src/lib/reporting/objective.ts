@@ -1,35 +1,23 @@
 // =============================================================================
 // Goal-first reporting layer.
-//
-// Every Nyrava report must open by answering the attorney's PRIMARY question
-// for that materia — not by summarising the documents. This module is the
-// deterministic registry + builder behind that behaviour.
-//
-// Hard rules:
-//   - Pure, client-safe, no AI, no DB. Every sentence it emits is assembled
-//     from signals the pipeline already verified.
-//   - Never speculates. When the evidence is insufficient, it says so and
-//     names what is missing instead of guessing an answer.
-//   - It does NOT add a report section (the 17-section canonical contract is
-//     frozen); it enriches ExecutiveSummary / Recommendations rendering.
+// Pure/deterministic: every sentence emitted here is assembled from signals
+// already present in the verified report state. No legal route is invented.
 // =============================================================================
 
-import { MX_CASE_TYPE_LABELS, isMexicanCaseType, type MexicanCaseType } from "@/lib/jurisdiction/mexico-types";
+import {
+  MX_CASE_TYPE_LABELS,
+  isMexicanCaseType,
+  type MexicanCaseType,
+} from "@/lib/jurisdiction/mexico-types";
 
 export type ObjectiveLocale = "es" | "en";
-
 export type Bilingual = { es: string; en: string };
 
 export type MateriaObjective = {
-  /** The single question the attorney opened this matter to answer. */
   question: Bilingual;
-  /** How a positive / supported answer is phrased for this materia. */
   favorable: Bilingual;
-  /** How an adverse / weak posture is phrased for this materia. */
   adverse: Bilingual;
-  /** Mixed posture phrasing. */
   mixed: Bilingual;
-  /** What the attorney is expected to DO next in this materia. */
   actionFrame: Bilingual;
 };
 
@@ -50,10 +38,7 @@ const DEFAULT_OBJECTIVE: MateriaObjective = {
     es: "El expediente sostiene parcialmente la posición del cliente y deja frentes abiertos.",
     en: "The file partially supports the client's position and leaves open exposure.",
   },
-  actionFrame: {
-    es: "Siguiente actuación procesal",
-    en: "Next procedural step",
-  },
+  actionFrame: { es: "Siguiente actuación procesal", en: "Next procedural step" },
 };
 
 export const MATERIA_OBJECTIVES: Record<MexicanCaseType, MateriaObjective> = {
@@ -306,6 +291,29 @@ export const MATERIA_OBJECTIVES: Record<MexicanCaseType, MateriaObjective> = {
   },
 };
 
+const AMPARO_DECISION_OBJECTIVE: MateriaObjective = {
+  question: {
+    es: "¿Qué resolvió el órgano jurisdiccional en el amparo y qué cuestiones posteriores están realmente sustentadas por el expediente?",
+    en: "What did the court decide in the amparo matter, and which later issues are actually supported by the record?",
+  },
+  favorable: {
+    es: "El expediente contiene determinaciones judiciales verificadas que permiten identificar con precisión lo resuelto.",
+    en: "The record contains verified judicial holdings that establish what was decided.",
+  },
+  adverse: {
+    es: "El expediente permite identificar lo resuelto, pero no sustenta por sí solo una nueva vía de impugnación o actuación procesal.",
+    en: "The record establishes what was decided but does not, by itself, support a new challenge or procedural filing.",
+  },
+  mixed: {
+    es: "El expediente contiene determinaciones judiciales verificadas y cuestiones que requieren revisión adicional; ninguna vía posterior se presume sin sustento específico.",
+    en: "The record contains verified judicial holdings and issues requiring further review; no later remedy is presumed without specific support.",
+  },
+  actionFrame: {
+    es: "Revisión de la resolución",
+    en: "Decision review",
+  },
+};
+
 export function objectiveFor(caseType: string | null | undefined): MateriaObjective {
   return isMexicanCaseType(caseType) ? MATERIA_OBJECTIVES[caseType] : DEFAULT_OBJECTIVE;
 }
@@ -314,18 +322,11 @@ export function materiaLabel(caseType: string | null | undefined, locale: Object
   return isMexicanCaseType(caseType) ? MX_CASE_TYPE_LABELS[caseType][locale] : null;
 }
 
-// ---------------------------------------------------------------------------
-// Decision support
-// ---------------------------------------------------------------------------
-
 export type DecisionPoint = {
   id: string;
   issue: string;
-  /** Why this matters, in one line. */
   why: string;
-  /** What it impacts (posture, exposure, admissibility, closing…). */
   impact: string;
-  /** The next logical action the attorney should take. */
   next_action: string;
   severity: string;
 };
@@ -334,17 +335,11 @@ export type ObjectiveBlock = {
   materia: string | null;
   materia_label: string | null;
   locale: ObjectiveLocale;
-  /** The attorney's primary question for this materia. */
   question: string;
-  /** Conclusion-first answer, assembled only from verified signals. */
   answer: string;
-  /** alta | media | baja (es) — high | medium | low (en). */
   confidence: string;
-  /** Whether the record is too thin to answer. */
   insufficient: boolean;
-  /** Titles of the verified findings the answer rests on. */
   basis: string[];
-  /** Verified gaps that limit the answer. */
   blockers: string[];
   decision_points: DecisionPoint[];
 };
@@ -360,6 +355,9 @@ export type ObjectiveInput = {
     legal_significance?: string | null;
     potential_impact?: string | null;
     affected_party?: string | null;
+    audit_classification?: string | null;
+    proposition_type?: string | null;
+    adoption_status?: string | null;
   }>;
   contradictions?: number;
   missingEvidence?: Array<{ topic?: string | null; what_is_missing?: string | null; label?: string | null }>;
@@ -374,21 +372,17 @@ const T = {
     es: "El expediente aún no contiene evidencia verificada suficiente para responder esta pregunta. No se emite conclusión.",
     en: "The file does not yet contain enough verified evidence to answer this question. No conclusion is issued.",
   },
-  noDocs: {
-    es: "No hay documentos extraídos en el expediente.",
-    en: "No extracted documents in the file.",
-  },
-  basisLead: { es: "Sustento verificado", en: "Verified basis" },
-  blockersLead: { es: "Pendiente de acreditar", en: "Still unproven" },
+  noDocs: { es: "No hay documentos extraídos en el expediente.", en: "No extracted documents in the file." },
   contradictions: {
     es: (n: number) => `Se detectaron ${n} contradicción(es) verificada(s) en el expediente.`,
     en: (n: number) => `${n} verified contradiction(s) were detected in the file.`,
   },
-  conf: { high: { es: "alta", en: "high" }, med: { es: "media", en: "medium" }, low: { es: "baja", en: "low" } },
-  why: {
-    es: "Incide directamente en la pregunta principal del asunto.",
-    en: "It bears directly on the matter's primary question.",
+  conf: {
+    high: { es: "alta", en: "high" },
+    med: { es: "media", en: "medium" },
+    low: { es: "baja", en: "low" },
   },
+  why: { es: "Incide directamente en la pregunta principal del asunto.", en: "It bears directly on the matter's primary question." },
   impact: {
     critical: { es: "Impacto determinante en la posición del asunto.", en: "Determinative impact on the matter." },
     high: { es: "Impacto alto en la estrategia y la exposición.", en: "High impact on strategy and exposure." },
@@ -398,6 +392,10 @@ const T = {
   action: {
     es: "Verificar el soporte documental y decidir la actuación correspondiente.",
     en: "Verify the documentary support and decide the corresponding step.",
+  },
+  auditAction: {
+    es: "Verificar el engrose, los puntos resolutivos y el alcance exacto de la determinación antes de atribuirle efectos posteriores.",
+    en: "Verify the final decision, dispositive points, and exact scope of the holding before attributing later effects to it.",
   },
   gapAction: {
     es: (topic: string) => `Recabar u ofrecer prueba sobre: ${topic}.`,
@@ -417,10 +415,18 @@ function clean(s: unknown): string {
   return typeof s === "string" ? s.trim() : "";
 }
 
+function isVerifiedHolding(f: ObjectiveInput["findings"][number]): boolean {
+  return (
+    clean(f.audit_classification).toUpperCase() === "VERIFIED_COURT_HOLDING" ||
+    (clean(f.proposition_type).toLowerCase() === "holding" && clean(f.adoption_status).toLowerCase() === "adopted")
+  );
+}
+
 export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
   const L = input.locale === "en" ? "en" : "es";
-  const obj = objectiveFor(input.caseType);
   const findings = (input.findings ?? []).filter((f) => clean(f.title));
+  const isAmparoDecisionAudit = input.caseType === "amparo" && findings.some(isVerifiedHolding);
+  const obj = isAmparoDecisionAudit ? AMPARO_DECISION_OBJECTIVE : objectiveFor(input.caseType);
   const gaps = (input.missingEvidence ?? [])
     .map((m) => clean(m.topic) || clean(m.what_is_missing) || clean(m.label))
     .filter(Boolean)
@@ -432,7 +438,7 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
     (a, b) => (SEV_RANK[clean(b.severity).toLowerCase()] ?? 0) - (SEV_RANK[clean(a.severity).toLowerCase()] ?? 0),
   );
   const serious = ranked.filter((f) => (SEV_RANK[clean(f.severity).toLowerCase()] ?? 0) >= 3);
-
+  const holdings = ranked.filter(isVerifiedHolding);
   const insufficient = findings.length === 0 || docs === 0;
 
   let answer: string;
@@ -440,6 +446,14 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
   if (insufficient) {
     answer = docs === 0 ? `${T.noDocs[L]} ${T.insufficient[L]}` : T.insufficient[L];
     confidence = T.conf.low[L];
+  } else if (isAmparoDecisionAudit) {
+    // A holding's historical severity is not a risk polarity. The fact that a
+    // court holding is high-severity must never flip this answer into a claim
+    // that the client's case is favorable/adverse. We can safely say only
+    // that the decision is established, while later remedies require their
+    // own support.
+    answer = holdings.length ? obj.mixed[L] : obj.adverse[L];
+    confidence = holdings.length >= 2 ? T.conf.high[L] : T.conf.med[L];
   } else if (serious.length >= 3) {
     answer = obj.favorable[L];
     confidence = T.conf.high[L];
@@ -451,11 +465,12 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
     confidence = gaps.length ? T.conf.low[L] : T.conf.med[L];
   }
 
-  if (!insufficient && contradictions > 0) {
+  if (!insufficient && contradictions > 0 && !isAmparoDecisionAudit) {
     answer = `${answer} ${T.contradictions[L](contradictions)}`;
   }
 
-  const decision_points: DecisionPoint[] = ranked.slice(0, 5).map((f, i) => {
+  const decisionSource = isAmparoDecisionAudit ? holdings.slice(0, 5) : ranked.slice(0, 5);
+  const decision_points: DecisionPoint[] = decisionSource.map((f, i) => {
     const sev = clean(f.severity).toLowerCase() || "medium";
     const impactKey = (sev === "critical" ? "critical" : sev === "high" ? "high" : sev === "low" ? "low" : "medium") as
       | "critical"
@@ -466,21 +481,25 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
       id: clean(f.id) || `dp-${i + 1}`,
       issue: clean(f.title),
       why: clean(f.legal_significance) || T.why[L],
-      impact: clean(f.potential_impact) || T.impact[impactKey][L],
-      next_action: `${obj.actionFrame[L]}: ${T.action[L]}`,
+      impact: isAmparoDecisionAudit
+        ? (L === "es" ? "Determinación judicial verificada; debe leerse conforme a su alcance resolutivo." : "Verified judicial holding; read according to its dispositive scope.")
+        : clean(f.potential_impact) || T.impact[impactKey][L],
+      next_action: isAmparoDecisionAudit ? T.auditAction[L] : `${obj.actionFrame[L]}: ${T.action[L]}`,
       severity: sev,
     };
   });
 
-  for (const [i, gap] of gaps.slice(0, 3).entries()) {
-    decision_points.push({
-      id: `gap-${i + 1}`,
-      issue: gap,
-      why: T.gapWhy[L],
-      impact: T.gapImpact[L],
-      next_action: T.gapAction[L](gap),
-      severity: "medium",
-    });
+  if (!isAmparoDecisionAudit) {
+    for (const [i, gap] of gaps.slice(0, 3).entries()) {
+      decision_points.push({
+        id: `gap-${i + 1}`,
+        issue: gap,
+        why: T.gapWhy[L],
+        impact: T.gapImpact[L],
+        next_action: T.gapAction[L](gap),
+        severity: "medium",
+      });
+    }
   }
 
   return {
@@ -491,8 +510,8 @@ export function buildObjectiveBlock(input: ObjectiveInput): ObjectiveBlock {
     answer,
     confidence,
     insufficient,
-    basis: ranked.slice(0, 5).map((f) => clean(f.title)),
-    blockers: gaps,
+    basis: decisionSource.map((f) => clean(f.title)),
+    blockers: isAmparoDecisionAudit ? [] : gaps,
     decision_points,
   };
 }
