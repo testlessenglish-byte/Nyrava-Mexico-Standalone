@@ -31,6 +31,14 @@ describe("rendered report release policy", () => {
     },
   );
 
+  it("recognizes penal as the canonical Mexican criminal materia", () => {
+    const issues = validateRenderedReport(
+      { procedural_issues_report: "El Ministerio Público integró la carpeta de investigación." },
+      "penal",
+    );
+    expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(false);
+  });
+
   it.each(["penal", ...NON_PENAL_MATERIAS])(
     "blocks U.S. procedural vehicles in every Mexican materia: %s",
     (materia) => {
@@ -54,6 +62,40 @@ describe("rendered report release policy", () => {
       expect(decideRenderedReportRelease(issues).blocked).toBe(true);
     },
   );
+
+  it("blocks deterministic report-quality critical issues even when the aggregate score itself is uncalibrated", () => {
+    const issues = validateRenderedReport(
+      {
+        full_report: {
+          validation: {
+            quality_gate: {
+              score: 20,
+              passed: false,
+              critical_issues: ["17 orphaned citation(s) — verify docIndex"],
+            },
+          },
+        },
+      },
+      "amparo",
+    );
+    const decision = decideRenderedReportRelease(issues);
+    expect(issues.some((i) => i.code === "REPORT_QUALITY_CRITICAL")).toBe(true);
+    expect(decision.blocked).toBe(true);
+  });
+
+  it("does not block solely because a low aggregate quality score has no critical issue", () => {
+    const issues = validateRenderedReport(
+      {
+        full_report: {
+          validation: {
+            quality_gate: { score: 20, passed: false, critical_issues: [] },
+          },
+        },
+      },
+      "amparo",
+    );
+    expect(decideRenderedReportRelease(issues).blocked).toBe(false);
+  });
 
   it.each(["penal", ...NON_PENAL_MATERIAS])(
     "allows clean rendered content in %s",
