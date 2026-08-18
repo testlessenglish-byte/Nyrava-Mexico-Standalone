@@ -10,7 +10,12 @@
 // ============================================================================
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
+import {
+  PROJECTION_LIKE,
+  isCanonicalFinding,
+  type SelectableFinding,
+} from "@/lib/intelligence/finding-selection";
+import { consolidateFindings } from "@/lib/intelligence/finding-dedupe";
 
 // Legacy persisted values. The product now has one verified-analysis pipeline;
 // these strings remain accepted only so existing rows/migrations do not break.
@@ -35,19 +40,10 @@ export type EngineKey =
 
 /**
  * ONE VERIFIED PIPELINE.
- *
  * Historical strict/balanced/exploratory values must NEVER decide which
- * intelligence engines run. That old policy created a systemic UI failure:
- * cases persisted as `strict` could complete successfully while Strategy,
- * Perspectives, Theories, Opportunities, Trial Prep, Work Product, Evidence
- * Intel and the Strategy Center were deliberately prevented from writing,
- * leaving visible workspace tabs empty and making a complete case appear
- * broken.
- *
- * Evidence reliability is enforced by evidence-gate.server.ts, citation
- * verification, hallucination review and the final release gates. Engine
- * availability is not an evidentiary-strength control. All legacy values are
- * therefore compatibility aliases for the same complete engine set.
+ * intelligence engines run. Evidence reliability is enforced by the evidence
+ * gate/citation/hallucination/release layers, not by turning workspace modules
+ * off. All legacy values are compatibility aliases for one complete engine set.
  */
 const VERIFIED_ENGINE_SET: readonly EngineKey[] = [
   "extraction",
@@ -77,11 +73,6 @@ export function engineAllowedInMode(engine: EngineKey, mode: AnalysisMode): bool
   return ALLOWED[mode].has(engine);
 }
 
-/**
- * Retained for backward-compatible callers. With the one-pipeline policy this
- * should only fire for an actually unknown engine/mode combination, never for
- * a normal intelligence stage merely because an old case row says "strict".
- */
 export class StageSkippedError extends Error {
   readonly engine: EngineKey;
   readonly mode: AnalysisMode;
@@ -97,9 +88,6 @@ export function assertEngineAllowed(engine: EngineKey, mode: AnalysisMode): void
   if (!engineAllowedInMode(engine, mode)) throw new StageSkippedError(engine, mode);
 }
 
-// ----------------------------------------------------------------------------
-// CASE_STATE assembler
-// ----------------------------------------------------------------------------
 export type CaseStateDoc = { id: string; filename: string; status: string | null };
 export type CaseState = {
   case_id: string;
@@ -143,8 +131,21 @@ export async function buildCaseState(db: SupabaseClient<Database>, caseId: strin
   const mode: AnalysisMode =
     caseRow.analysis_mode === "balanced" || caseRow.analysis_mode === "exploratory" ? caseRow.analysis_mode : "strict";
 
-  const allFindings = (findings.data ?? []) as Array<Record<string, unknown>>;
-  const contradictions = allFindings.filter((f) => String(f.category ?? "").toLowerCase() === "contradiction");
+  // CASE_STATE used to expose every persisted row directly while the report
+  // and export paths consolidated/deduped them. That made "single source of
+  // truth" untrue: a workspace consumer could see a stale speculative child
+  // that the report had already reconciled into a verified court holding.
+  // Apply the same canonical selection here before any downstream module sees
+  // findings or contradiction counts.
+  const rawFindings = (findings.data ?? []) as Array<Record<string, unknown>>;
+  const deduped = consolidateFindings(rawFindings) as typeof rawFindings;
+  const canonicalFindings = deduped.filter((f) =>
+    isCanonicalFinding(f as unknown as SelectableFinding),
+  );
+  const allFindings = canonicalFindings.length > 0 ? canonicalFindings : deduped;
+  const contradictions = allFindings.filter(
+    (f) => String(f.category ?? "").toLowerCase() === "contradiction",
+  );
 
   const documents: CaseStateDoc[] = (docs.data ?? []).map((d) => ({
     id: d.id as string,
@@ -178,7 +179,6 @@ export async function buildCaseState(db: SupabaseClient<Database>, caseId: strin
   };
 }
 
-/** Canonical citation resolver. Renderer MUST use this — never raw UUIDs. */
 export function resolveCitation(state: CaseState, docId: string | null | undefined): string | null {
   if (!docId) return null;
   return state.citation_resolver[docId] ?? null;
