@@ -46,6 +46,10 @@ export function isProvisionalFinding(f: SelectableFinding): boolean {
   return (f.metadata as Record<string, unknown> | undefined)?.provisional === true;
 }
 
+export function isSuppressedFinding(f: SelectableFinding): boolean {
+  return String(f.finding_status ?? "candidate").toLowerCase() === "suppressed";
+}
+
 /**
  * True for finalized, non-provisional pipeline output that may appear as an
  * authoritative finding. A completed hallucination/citation pass can mark a
@@ -53,12 +57,24 @@ export function isProvisionalFinding(f: SelectableFinding): boolean {
  * appendix but must not re-enter the dashboard, PDF key-findings body, or
  * ordinary case UI through getCase() after the report explicitly quarantined
  * them.
+ *
+ * `finding_status=suppressed` is equally final: it is the pipeline's explicit
+ * decision that the row must not drive scores, executive findings, Talk to
+ * Case's authoritative answer set, or exports. The old selector ignored that
+ * status, which meant a row could be correctly suppressed by a later audit and
+ * still re-enter every canonical surface merely because its source_module was
+ * `engine:*` or `agent:*`.
  */
 export function isCanonicalFinding(f: SelectableFinding): boolean {
   const cls = classifyFindingSource(f);
   const verification = String(f.verification_status ?? "").toLowerCase();
   const quarantined = verification === "no_citation" || verification === "unverified";
-  return (cls === "engine" || cls === "agent") && !isProvisionalFinding(f) && !quarantined;
+  return (
+    (cls === "engine" || cls === "agent") &&
+    !isProvisionalFinding(f) &&
+    !isSuppressedFinding(f) &&
+    !quarantined
+  );
 }
 
 export type SelectFindingsOptions = {
@@ -69,6 +85,10 @@ export type SelectFindingsOptions = {
   /** Include rows explicitly quarantined by citation verification. Defaults
    * false for the canonical report/UI selection. */
   includeQuarantined?: boolean;
+  /** Include rows that the canonical audit explicitly suppressed. Defaults
+   * false. Use only on audit/debug surfaces that intentionally show rejected
+   * material. */
+  includeSuppressed?: boolean;
 };
 
 const DEFAULT_INCLUDE: ReadonlyArray<FindingSourceClass> = ["engine", "agent"];
@@ -84,6 +104,7 @@ export function selectFindings<T extends SelectableFinding>(
   return (findings ?? []).filter((f) => {
     if (!include.has(classifyFindingSource(f))) return false;
     if (!opts.includeProvisional && isProvisionalFinding(f)) return false;
+    if (!opts.includeSuppressed && isSuppressedFinding(f)) return false;
     if (!opts.includeQuarantined) {
       const verification = String(f.verification_status ?? "").toLowerCase();
       if (verification === "no_citation" || verification === "unverified") return false;
