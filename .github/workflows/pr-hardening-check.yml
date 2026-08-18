@@ -29,6 +29,7 @@ jobs:
           bunx vitest run
           src/lib/intelligence/__tests__/recommendation-grounding.test.ts
           src/lib/intelligence/__tests__/verified-scoring-amparo.test.ts
+          src/lib/intelligence/__tests__/witness-person-safety.test.ts
           src/lib/intelligence/__tests__/report-canonical-context-sanitization.test.ts
           src/lib/intelligence/__tests__/finding-selection-quarantine.test.ts
           src/lib/reporting/attorney-workproduct.test.ts
