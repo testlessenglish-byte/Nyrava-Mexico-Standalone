@@ -5903,6 +5903,29 @@ async function _runReportInner(args: {
   // silently fell through to the deterministic "Insufficient evidence"
   // boilerplate even on a healthy corpus. Retry with progressive
   // payload-shrinking, then only fall back after all attempts fail.
+  // FIX (2026-08-18): "CASE SCORE (explainable):" used to hand the model a
+  // bare JSON.stringify(score) blob with no explanation of what any field
+  // means — so the narrative writer, tasked with freely composing
+  // "score_breakdown" prose, had no guidance distinguishing case_quality
+  // (the mean of applicable per-dimension deterministic scores — the
+  // dashboard's headline "Fortaleza del caso") from overall_confidence (the
+  // average CONFIDENCE across verified findings — a different metric
+  // entirely) and no instruction to actually cite either exact number
+  // rather than estimating its own. Real case, twice observed: a report's
+  // prose said "puntuación general de 83" (its own free-floating estimate,
+  // reading loosely off overall_confidence) right next to a dashboard
+  // showing "Fortaleza del caso: 68" (case_quality) — a genuine, confusing,
+  // user-visible internal contradiction, even though neither number was
+  // fabricated. Explicitly labeling and instructing on both numbers here
+  // removes the model's need to guess which one "score_breakdown" prose is
+  // supposed to describe.
+  const scoreExplainerBlock = (rawCap: number) =>
+    `CASE SCORE (explainable — these are ALREADY COMPUTED deterministic numbers; "score_breakdown" prose MUST cite these exact values verbatim, never invent, estimate, or restate a different number for either one):\n` +
+    `- case_quality = ${(score as { case_quality?: unknown } | null)?.case_quality ?? "N/A"}: the case's headline strength score (mean of the applicable per-dimension scores below). This is what the dashboard shows as "Fortaleza del caso" — call it "puntuación general del caso" or "fortaleza del caso" in prose.\n` +
+    `- overall_confidence = ${(score as { overall_confidence?: unknown } | null)?.overall_confidence ?? "N/A"}: the average CONFIDENCE across this report's own verified findings — a DIFFERENT metric measuring how confident the analysis is in what it found, NOT how strong the case is. Call it "confianza general del análisis" in prose — NEVER "puntuación general" or any phrasing that implies it is the same number as case_quality.\n` +
+    `These two numbers measure different things and routinely differ — never present them as if they should be equal, and never substitute one for the other in prose.\n` +
+    `Raw score object:\n${JSON.stringify(score).slice(0, rawCap)}`;
+
   const buildUserContent = (scale: number) => {
     const s = (n: number) => Math.max(1200, Math.floor(n * scale));
     return `Return STRICT JSON with this exact shape. Markdown prose fields MUST contain inline citations like \`[DOC 3 p.2]\` for every concrete claim. Structured arrays MUST include doc_n, page, and quote for every citation object.
@@ -6046,8 +6069,7 @@ ${JSON.stringify(analysis).slice(0, s(18000))}
 AGENT OUTPUT:
 ${JSON.stringify(agents ?? []).slice(0, s(14000))}
 
-CASE SCORE (explainable):
-${JSON.stringify(score).slice(0, s(10000))}
+${scoreExplainerBlock(s(10000))}
 
 ENGINE OUTPUT (perspectives / evidence intel / strategy / witnesses / trial prep / theories / opportunities):
 ${JSON.stringify({
@@ -6186,8 +6208,7 @@ ${JSON.stringify(analysis).slice(0, 3000)}
 AGENT OUTPUT:
 ${JSON.stringify(agents ?? []).slice(0, 2500)}
 
-CASE SCORE (explainable):
-${JSON.stringify(score).slice(0, 2000)}
+${scoreExplainerBlock(2000)}
 
 ENGINE OUTPUT (perspectives / evidence intel / strategy / witnesses / trial prep / theories / opportunities):
 ${JSON.stringify({
