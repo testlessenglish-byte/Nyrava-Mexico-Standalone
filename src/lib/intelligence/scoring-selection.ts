@@ -11,8 +11,12 @@
 //   2. Structural — `engine:*` AND `agent:*` findings enter the canonical
 //      set (both represent finalized, non-provisional pipeline output).
 //      `analyzer:*` are provisional and never affect scoring or the report.
-//   3. Safety — an empty canonical set is a hard error, never silent.
-//   4. Ordering — scoring must occur AFTER the upstream preconditions.
+//   3. Reconciliation — duplicate/stale children are collapsed before any
+//      score or report consumer sees them. The strongest epistemic survivor
+//      (for example a VERIFIED_COURT_HOLDING) is the only row allowed to move
+//      downstream calculations.
+//   4. Safety — an empty canonical set is a hard error, never silent.
+//   5. Ordering — scoring must occur AFTER the upstream preconditions.
 //
 // FIX (2026-07-13): this filter previously accepted ONLY `engine:*`
 // findings, silently dropping every `agent:*` finding from scoring and the
@@ -20,15 +24,19 @@
 // investigator agents — chain_of_custody, constitutional_compliance,
 // procedural_violations, witness_credibility — from ever reaching the
 // Key Findings section or the case scorecard, even when those agents ran
-// successfully and produced grounded findings. This is why reports showed
-// e.g. "10 visible findings" out of hundreds generated, and why dimensions
-// like "Chain of custody integrity" showed "No findings mapped" despite the
-// narrative repeatedly discussing a chain-of-custody gap: the agent finding
-// that would have mapped to that dimension was filtered out before scoring
-// ever saw it. A corrected copy of this logic already existed, unused, in
-// canonical-scoring.ts — this brings scoring-selection.ts (the file
-// actually imported by pipeline.server.ts) in line with it.
+// successfully and produced grounded findings.
+//
+// FIX (2026-08-18): merely filtering source/status was not enough. The DB can
+// legitimately contain multiple finalized rows for the same canonical legal
+// issue because different engines/agents produced them before the read-time
+// reconciliation pass. Scoring could therefore consume a stale speculative
+// child even when report dedupe correctly preferred the verified court
+// holding. ADR5829/2025 exposed this: an old "Exención de impuestos" row
+// weakened every score dimension while its surviving canonical sibling was a
+// neutral VERIFIED_COURT_HOLDING. Selection now performs the SAME pure
+// consolidation used by report-time reconciliation before returning rows.
 
+import { consolidateFindings } from "./finding-dedupe";
 import { isCanonicalFinding } from "./finding-selection";
 import type { Finding } from "./types";
 
@@ -88,19 +96,23 @@ export function getCanonicalScoringFindings(args: {
   const ps = derivePipelineState(args.caseRow);
   if (!ps.finalized) throw new PipelineNotFinalizedError();
 
-  // Phase 1: the prefix rule now lives in finding-selection.ts so scoring,
-  // dashboard badges, agent statistics, and the exporter cannot drift.
-  // Behavior is unchanged — isCanonicalFinding() is this exact test:
-  // both `engine:*` (deterministic pipeline stages) and `agent:*`
-  // (multi-agent orchestrator findings — witness credibility, chain of
-  // custody, constitutional compliance, procedural violations, etc.) are
-  // finalized, non-provisional output and MUST both count toward
-  // scoring/report eligibility. Only `analyzer:*` (raw, pre-dedup)
-  // findings are provisional and excluded.
-  const canonical = args.findings.filter((f) => isCanonicalFinding(f));
+  // Phase 1: keep only authoritative finalized engine/agent rows. This
+  // removes provisional analyzer output, explicit suppressions and
+  // hallucination/citation quarantines through isCanonicalFinding().
+  const eligible = args.findings.filter((f) => isCanonicalFinding(f)) as Finding[];
+
+  if (eligible.length === 0) throw new CanonicalFindingsEmptyError();
+
+  // Phase 2: collapse rows that describe the same legal issue BEFORE either
+  // scoring or reporting sees them. consolidateFindings is pure and preserves
+  // all evidence/citations in the selected survivor while choosing the best
+  // epistemic row (verified holding/fact/rule before a speculative issue).
+  // This is essential because persistence intentionally retains historical
+  // producer rows for auditability; history must never become double weight.
+  const canonical = consolidateFindings(eligible) as Finding[];
 
   if (canonical.length === 0) throw new CanonicalFindingsEmptyError();
-  return canonical as Finding[];
+  return canonical;
 }
 
 /**
