@@ -1,8 +1,10 @@
 import type { QaIssue } from "./prerender-validate.server";
 
 /** Objective rendered-content integrity failures that must prevent a normal
- * attorney-facing release. These checks are deterministic; heuristic quality
- * scores remain warnings and are deliberately not promoted here. */
+ * attorney-facing release. The aggregate quality score itself remains
+ * informational because its weighting is not calibrated; deterministic
+ * `quality_gate.critical_issues` are blocked separately by
+ * REPORT_QUALITY_CRITICAL. */
 export const RENDERED_REPORT_BLOCKING_CODES = new Set<string>([
   "TOKEN_MUSTACHE",
   "TOKEN_DOLLAR_BRACE",
@@ -13,6 +15,7 @@ export const RENDERED_REPORT_BLOCKING_CODES = new Set<string>([
   "CASE_TYPE_LEAK",
   "SPANISH_CASE_TYPE_LEAK",
   "US_PROCEDURE_LEAK",
+  "REPORT_QUALITY_CRITICAL",
 ]);
 
 export interface RenderedReportReleaseDecision {
