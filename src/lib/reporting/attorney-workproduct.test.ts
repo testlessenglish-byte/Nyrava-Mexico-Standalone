@@ -47,6 +47,47 @@ describe("attorney work-product evidence classification", () => {
     expect(snapshot.criticalEvidence[0]).toContain("ADR-4640-2017-180212.pdf");
   });
 
+  it("does not infer missing notification evidence merely because a generic filename lacks the word notification", () => {
+    const ctx = {
+      documentLabels: ["ADR-4640-2017-180212.pdf"],
+      caseType: "amparo",
+      jurisdiction: "federal",
+      missingDocuments: [],
+    };
+    const finding = {
+      title: "La resolución analiza una cuestión de notificación",
+      description: "El órgano jurisdiccional examinó el argumento relativo a la notificación.",
+      evidence_refs: [
+        {
+          filename: "ADR-4640-2017-180212.pdf",
+          quote: "se analizó el agravio relativo a la notificación",
+        },
+      ],
+      confidence: 0.9,
+      severity: "medium",
+    };
+    const wp = buildFindingWorkProduct(finding, ctx);
+    expect(wp.pending).toEqual([]);
+    expect(wp.pending.join(" ")).not.toMatch(/acuse de notificación|no se localizó/i);
+  });
+
+  it("uses an explicit missing-documents signal when one is actually supplied", () => {
+    const ctx = {
+      documentLabels: ["expediente.pdf"],
+      caseType: "civil",
+      jurisdiction: "yucatan",
+      missingDocuments: ["acuse de notificación"],
+    };
+    const finding = {
+      title: "Revisar el acuse de notificación",
+      description: "La constancia de notificación es relevante para el plazo.",
+      confidence: 0.8,
+      severity: "medium",
+    };
+    const wp = buildFindingWorkProduct(finding, ctx);
+    expect(wp.pending.some((p) => /acuse de notificación/i.test(p))).toBe(true);
+  });
+
   it("continues to classify explicit judicial-resolution filenames at the highest tier", () => {
     const weight = classifyEvidenceWeight("Sentencia ejecutoria SCJN.pdf");
     expect(weight.label).toBe("Resolución Judicial");
