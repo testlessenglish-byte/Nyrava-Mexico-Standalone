@@ -4922,6 +4922,97 @@ function citationAuditDocxParas(data: CaseExportData): Paragraph[] {
   ];
 }
 
+// FIX (2026-08-18, ADR-5829/2025 audit — item 8, "silently-failed
+// engines/detected defects never surfaced"): pipeline.server.ts already
+// runs validateRenderedReport (prerender-validate.server.ts) against the
+// FINAL rendered report content on every run, and it already caught real
+// defects live — including SPANISH_CASE_TYPE_LEAK, which fires when
+// penal-only institutional vocabulary (Ministerio Público, Juez de
+// Control, carpeta de investigación) appears in a non-penal report, the
+// exact shape of the off-topic criminal-procedure content this audit's
+// item 4 flagged on a tax/administrative amparo case. That detection was
+// stored on full_report.rendered_qa.issues and summarized into
+// full_report.pipeline_warnings — but nothing ever rendered either one, so
+// an attorney had no way to know 7 critical issues had been found short of
+// reading the raw JSON export. This surfaces the existing detection
+// directly — no new computation, matching renderCitationAudit's precedent
+// immediately above. Deliberately still non-blocking (see
+// prerender-validate.server.ts's own module comment on that decision) —
+// this section's job is visibility, not enforcement.
+const RENDERED_QA_CODE_LABELS: Record<string, string> = {
+  SPANISH_CASE_TYPE_LEAK: "Terminología penal fuera de lugar",
+  CASE_TYPE_LEAK: "Terminología fuera de materia",
+  US_PROCEDURE_LEAK: "Término procesal estadounidense sin equivalente mexicano",
+  TOKEN_MUSTACHE: "Marcador de plantilla sin resolver",
+  TOKEN_DOLLAR_BRACE: "Marcador de plantilla sin resolver",
+  TOKEN_PRINTF: "Marcador de plantilla sin resolver",
+  TOKEN_NULL_LITERAL: "Valor nulo sin resolver",
+  TOKEN_NAN_PERCENT: "Valor numérico inválido",
+};
+
+function renderedQaCriticalIssues(data: CaseExportData): Array<Record<string, unknown>> {
+  const full = asObj(asObj(data.report).full_report);
+  const qa = asObj(full.rendered_qa);
+  return asArr(qa.issues).filter((i) => asStr(i.severity) === "critical");
+}
+
+function renderRenderedReportQa(b: PdfBuilder, data: CaseExportData) {
+  const issues = renderedQaCriticalIssues(data);
+  if (!issues.length) return;
+  b.h1("Auditoría de Calidad del Reporte");
+  b.text(
+    rt(
+      `El sistema detectó ${issues.length} problema(s) crítico(s) de calidad en el contenido generado de este reporte — terminología fuera de la materia del caso, términos procesales sin equivalente mexicano, o marcadores de plantilla sin resolver. Estas secciones deben revisarse con especial cuidado antes de confiar en su contenido.`,
+    ),
+    { size: 10, color: MUTED, gap: 8 },
+  );
+  b.table(
+    [["#", "Tipo", "Detalle"]],
+    issues.map((q, i) => [
+      i + 1,
+      RENDERED_QA_CODE_LABELS[asStr(q.code)] ?? asStr(q.code, "—"),
+      asStr(q.message).slice(0, 160),
+    ]),
+    {
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 130 },
+      },
+    },
+  );
+}
+
+function renderedReportQaDocxParas(data: CaseExportData): Paragraph[] {
+  const issues = renderedQaCriticalIssues(data);
+  if (!issues.length) return [];
+  return [
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun("Auditoría de Calidad del Reporte")],
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `El sistema detectó ${issues.length} problema(s) crítico(s) de calidad en el contenido generado de este reporte. Estas secciones deben revisarse con especial cuidado antes de confiar en su contenido.`,
+          italics: true,
+        }),
+      ],
+    }),
+    ...issues.map(
+      (q) =>
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `• ${RENDERED_QA_CODE_LABELS[asStr(q.code)] ?? asStr(q.code, "—")} — `,
+              bold: true,
+            }),
+            new TextRun(asStr(q.message).slice(0, 200)),
+          ],
+        }),
+    ),
+  ];
+}
+
 function renderEvidenceSources(b: PdfBuilder) {
   if (!_footnotes.length) return;
   b.h1("Fuentes de Evidencia");
@@ -5480,6 +5571,17 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         asArr(asObj(asObj(asObj(d.report).full_report).citation_audit).quarantined_findings).length > 0,
       renderPdf: (b, d) => renderCitationAudit(b, d),
       renderDocx: (d) => citationAuditDocxParas(d),
+    },
+    {
+      id: "rendered_report_qa",
+      title: "Auditoría de Calidad del Reporte",
+      // Not gated in LIMITED mode, same rationale as citation_audit above —
+      // this section's whole purpose is transparency about detected
+      // defects, so it must render even on a thin-corpus/LIMITED case.
+      gatedInLimited: false,
+      available: (d) => renderedQaCriticalIssues(d).length > 0,
+      renderPdf: (b, d) => renderRenderedReportQa(b, d),
+      renderDocx: (d) => renderedReportQaDocxParas(d),
     },
     {
       id: "priority_action_center",

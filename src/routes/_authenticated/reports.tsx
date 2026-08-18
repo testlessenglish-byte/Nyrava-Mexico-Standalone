@@ -361,6 +361,56 @@ function ReportsPage() {
                   );
                 })()}
 
+                {(() => {
+                  // FIX (2026-08-18, ADR-5829/2025 audit — item 8): the
+                  // pipeline already runs validateRenderedReport on the
+                  // FINAL rendered report content every time and stores
+                  // real detected defects (e.g. SPANISH_CASE_TYPE_LEAK —
+                  // penal-only vocabulary appearing in a non-penal report,
+                  // the exact shape of the off-topic criminal-procedure
+                  // content this audit flagged) on full_report.rendered_qa
+                  // — this just surfaces that existing detection, same
+                  // precedent as the citation-audit card above.
+                  const qa = (report?.full_report as any)?.rendered_qa as
+                    | {
+                        critical_count?: number;
+                        issues?: Array<{ code: string; severity: string; message: string }>;
+                      }
+                    | undefined;
+                  const critical = (qa?.issues ?? []).filter((i) => i.severity === "critical");
+                  if (!qa || critical.length === 0) return null;
+                  const CODE_KEYS: Record<string, string> = {
+                    SPANISH_CASE_TYPE_LEAK: "reports.reportQa.code.spanishCaseTypeLeak",
+                    CASE_TYPE_LEAK: "reports.reportQa.code.caseTypeLeak",
+                    US_PROCEDURE_LEAK: "reports.reportQa.code.usProcedureLeak",
+                  };
+                  return (
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        {t("reports.reportQa.title")}
+                      </p>
+                      <p className="mt-1 text-sm">
+                        {t("reports.reportQa.summary", { count: critical.length })}
+                      </p>
+                      <details className="mt-3 border-t border-border pt-3">
+                        <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                          {t("reports.reportQa.viewIssues")} ({critical.length})
+                        </summary>
+                        <ul className="mt-2 space-y-1 text-xs">
+                          {critical.map((it, i) => (
+                            <li key={i} className="flex flex-col gap-0.5">
+                              <span className="font-medium text-red-600 dark:text-red-400">
+                                {CODE_KEYS[it.code] ? t(CODE_KEYS[it.code]) : it.code}
+                              </span>
+                              <span className="text-muted-foreground">{it.message}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </div>
+                  );
+                })()}
+
                 {report.executive_summary ? (
                   <div className="rounded-xl border border-border bg-card/60 p-4">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">
