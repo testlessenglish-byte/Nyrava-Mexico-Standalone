@@ -7559,6 +7559,36 @@ ${paginationTail}`;
     c.kind = classifyContradiction(c);
   }
   const constIssues = isCriminalOrCivilRights ? verifyAndLabel(constIssuesRaw, ["facts"]) : [];
+  // FIX (2026-08-18, ADR-5829/2025 audit — item 6, "wrong constitutional
+  // article cited"): verifyAndLabel above only confirms the item's cited
+  // QUOTE exists in the corpus — it never checks whether the ARTICLE
+  // NUMBER itself is the one that actually governs the case. A real report
+  // cited "Art. 115, fracción IV" (CPEUM's municipal-treasury provision,
+  // exclusive to municipios) on an ISSSTE federal-entity tax dispute whose
+  // corpus never mentions a municipio at all. See
+  // constitutional-article-context-gate.ts for the full rationale — this
+  // is deliberately a narrow, single-article denylist check, not a general
+  // correctness engine. Nulls just the mis-cited article field (keeps the
+  // rest of the constitutional_issues entry, which may still be valid)
+  // rather than dropping the whole finding.
+  if (constIssues.length > 0) {
+    const { checkConstitutionalArticleContext } = await import(
+      "./intelligence/constitutional-article-context-gate"
+    );
+    const corpusPlainText = (docsForReportGround ?? [])
+      .map((d) => d.extracted_text ?? "")
+      .join("\n");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const ci of constIssues as any[]) {
+      const check = checkConstitutionalArticleContext(ci.articulo_cpeum, corpusPlainText);
+      if (check.outOfContext) {
+        pipelineWarnings.push(
+          `constitutional_article_context: dropped out-of-context citation "${ci.articulo_cpeum}" (${check.label}).`,
+        );
+        ci.articulo_cpeum = null;
+      }
+    }
+  }
   const motions = verifyAndLabel(motionsRaw, ["supporting_facts"]);
   // Questions themselves need no quote-verification, but FIX (2026-08-17,
   // pipeline-wide sweep): impeachment_with is a specific factual claim about
