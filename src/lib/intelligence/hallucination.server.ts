@@ -76,10 +76,6 @@ const REPORT_PROSE_FIELDS = [
   "risk_analysis",
 ] as const;
 
-// Quarantine is allowed to contain absence-of-evidence audit markers. Those
-// are not attorney instructions and must not be stripped merely because they
-// have no quote by construction. Only action/recommendation language is
-// eligible for this post-report safety scrub.
 const ACTION_TITLE_RX =
   /\b(presentar|preparar|interponer|promover|solicitar|revisar|formular|impugnar|apelar|recurrir|demandar|tramitar|iniciar)\b/i;
 
@@ -148,8 +144,6 @@ function scrubQuarantinedActionSentence(text: string, actionTitles: string[]): s
     return !actionTitles.some((title) => {
       const foldedTitle = foldText(title);
       if (!foldedTitle) return false;
-      // Exact normalized containment catches the common "Se recomienda ..."
-      // wrapper; token overlap catches close paraphrases of the same action.
       return foldedPiece.includes(foldedTitle) || similarActionText(piece, title);
     });
   });
@@ -217,7 +211,11 @@ async function reconcileSavedReportProse(
     }
   }
 
-  const consistency = full?.score_consistency as
+  const validation =
+    full?.validation && typeof full.validation === "object" && !Array.isArray(full.validation)
+      ? (full.validation as Record<string, unknown>)
+      : null;
+  const consistency = validation?.score_consistency as
     | {
         case_strength_score_llm_raw?: unknown;
         case_strength_score?: unknown;
@@ -280,10 +278,6 @@ export async function runHallucinationReview(args: {
   if (fErr) throw new Error(`Load findings failed: ${fErr.message}`);
   const findings = (findingsRaw ?? []) as Array<Finding & { source_module: string }>;
 
-  // The report has already been assembled by the time final hallucination
-  // review runs. Reconcile two deterministic post-render invariants here:
-  // (1) no citation-quarantined attorney action may survive in free prose,
-  // and (2) score prose must agree with the persisted deterministic score.
   const proseReconciliation = await reconcileSavedReportProse(db, caseId);
 
   const { data: pagesRaw } = await db
@@ -421,3 +415,8 @@ export async function runHallucinationReview(args: {
 
   return report;
 }
+
+export {
+  scrubQuarantinedActionSentence as __test__scrubQuarantinedActionSentence,
+  reconcileStrengthScoreText as __test__reconcileStrengthScoreText,
+};
