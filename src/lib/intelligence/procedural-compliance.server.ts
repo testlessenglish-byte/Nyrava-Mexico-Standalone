@@ -7,7 +7,10 @@
 // the report and the findings UI like any other risk.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { effectiveMxProfile } from "@/lib/execution/mx-pipeline";
+import {
+  effectiveMxProfile,
+  resolveConstitucionalReviewSubtype,
+} from "@/lib/execution/mx-pipeline";
 import { evaluateProceduralCompliance, type ComplianceReport } from "./procedural-compliance";
 import { resolveProceduralStage, type ProceduralStageResolution } from "./mx-procedural-stages";
 import { resolveMissingDocuments, type MissingDocumentsReport } from "./mx-missing-documents";
@@ -28,6 +31,35 @@ export type ProceduralComplianceReport = ComplianceReport & {
   deadlines: MxDeadline[];
 };
 
+function normalizeAmparoReviewStageMap(
+  stageMap: ProceduralStageResolution,
+): ProceduralStageResolution {
+  const fixAuthority = <T extends { id: string; authority: string }>(item: T): T =>
+    item.id === "sentencia_constitucional"
+      ? { ...item, authority: "Ley de Amparo Art. 93" }
+      : item;
+  const stages = stageMap.stages.map(fixAuthority);
+  const current = stageMap.current ? fixAuthority(stageMap.current) : null;
+  const completed = stageMap.completed.map(fixAuthority);
+  const next = stageMap.next ? fixAuthority(stageMap.next) : null;
+  const missing_requirements = stageMap.missing_requirements.map(fixAuthority);
+  return {
+    ...stageMap,
+    materia: "amparo",
+    stages,
+    current,
+    completed,
+    next,
+    missing_requirements,
+    procedural_risks: stageMap.procedural_risks.map((risk) =>
+      risk.replace(
+        /Ley Reglamentaria del Art\. 105 Arts\. 41-45 y 72-73/g,
+        "Ley de Amparo Art. 93",
+      ),
+    ),
+  };
+}
+
 export async function runProceduralCompliance(args: {
   db: Db;
   caseId: string;
@@ -45,42 +77,52 @@ export async function runProceduralCompliance(args: {
     | { case_type?: string | null; name?: string | null; description?: string | null }
     | null;
 
-  // Compliance matching must scan the WHOLE corpus — a required procedural
-  // act argued deep in an Amparo file (page 40+) was previously invisible
-  // because the default corpus window truncated the text. Loaded BEFORE
-  // resolving the profile (not after, as before) so its head can also feed
-  // effectiveMxProfile's text-signal override below — a document whose OWN
-  // title/first page announces "AMPARO DIRECTO EN REVISIÓN 4640/2017" must
-  // be caught even when the case's own name field never says so.
   const corpusText = await loadCaseCorpusText(db, caseId, FULL_CORPUS_SCAN_LIMIT);
+  const signalText = `${caseRowTyped?.name ?? ""} ${caseRowTyped?.description ?? ""} ${corpusText.slice(0, 3000)}`;
 
-  // effectiveMxProfile (not the base resolveMxProfile) so a case name/corpus
-  // that signals a genuine CNDH/human-rights-commission complaint, a real
-  // second-instance apelación, or an amparo directo en revisión before the
-  // SCJN still resolves to its own checklist instead of unconditionally
-  // defaulting to the base materia's. Previously this read only case_type,
-  // so none of these overrides could ever apply here even though
-  // mx-pipeline.ts already modeled them. Corpus signal is bounded to the
-  // first page-ish slice — a proceeding announces what it is up front; a
-  // deep-corpus false match ("amparo directo en revisión" quoted once on
-  // page 40 of an otherwise ordinary amparo file) is exactly the kind of
-  // over-trigger a wider scan would risk.
-  const materia = effectiveMxProfile(
+  // The SCJN-review checklist is an internal execution profile. It must not
+  // relabel an Amparo Directo/Indirecto en Revisión as materia constitucional.
+  const executionProfile = effectiveMxProfile(
     caseRowTyped?.case_type ?? null,
     caseRowTyped?.name ?? null,
     `${caseRowTyped?.description ?? ""} ${corpusText.slice(0, 3000)}`,
   );
-  const report = evaluateProceduralCompliance(materia, corpusText);
-  const stage_map = resolveProceduralStage(materia, corpusText);
-  const missing_documents = resolveMissingDocuments(materia, corpusText);
-  const events = extractMxEventsFromCorpus(materia, corpusText);
-  const deadlines = computeMxDeadlines({ materia, events });
+  const reviewSubtype =
+    executionProfile === "constitucional" ? resolveConstitucionalReviewSubtype(signalText) : null;
+  const isAmparoReview =
+    caseRowTyped?.case_type === "amparo" && reviewSubtype === "amparo_en_revision";
+  const reportedMateria = isAmparoReview ? "amparo" : executionProfile;
 
-  const fullReport: ProceduralComplianceReport = { ...report, stage_map, missing_documents, deadlines };
+  const reportBase = evaluateProceduralCompliance(executionProfile, corpusText);
+  const stageMapBase = resolveProceduralStage(executionProfile, corpusText);
+  const missingDocumentsBase = resolveMissingDocuments(executionProfile, corpusText);
+  const events = extractMxEventsFromCorpus(executionProfile, corpusText);
+  const deadlines = computeMxDeadlines({ materia: executionProfile, events });
+
+  const report: ComplianceReport = isAmparoReview
+    ? { ...reportBase, materia: "amparo" }
+    : reportBase;
+  const stage_map = isAmparoReview
+    ? normalizeAmparoReviewStageMap(stageMapBase)
+    : stageMapBase;
+  const missing_documents: MissingDocumentsReport = isAmparoReview
+    ? { ...missingDocumentsBase, materia: "amparo" }
+    : missingDocumentsBase;
+
+  const fullReport: ProceduralComplianceReport = {
+    ...report,
+    stage_map,
+    missing_documents,
+    deadlines,
+  };
 
   // Replace the previous run's findings so re-runs are idempotent.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (db as any).from("case_findings").delete().eq("case_id", caseId).eq("source_module", SOURCE_MODULE);
+  await (db as any)
+    .from("case_findings")
+    .delete()
+    .eq("case_id", caseId)
+    .eq("source_module", SOURCE_MODULE);
 
   const missing = report.items.filter(
     (i) => i.requirement === "required" && i.status === "no_identificado_en_corpus",
@@ -92,42 +134,23 @@ export async function runProceduralCompliance(args: {
       user_id: userId,
       title: `Elemento no identificado en el corpus: ${i.label_es}`,
       description:
-        `No se identificó una argumentación expresa y desarrollada sobre "${i.label_es}" (${i.authority}, materia ${materia}) en los documentos proporcionados. ` +
+        `No se identificó una argumentación expresa y desarrollada sobre "${i.label_es}" (${i.authority}, materia ${reportedMateria}) en los documentos proporcionados. ` +
         "Esto refleja lo que consta en el corpus analizado, no necesariamente una omisión en un escrito ya presentado ante el órgano jurisdiccional — verifique contra el expediente oficial antes de asumir un defecto procesal.",
       category: "cumplimiento_procesal",
-      // BUG FIXED (real completed-case exports, ADR 4640/2017 and
-      // ADR-2239-2018-180906): this was hardcoded "high" for EVERY
-      // corpus-absence item, unconditionally — so a finding whose own
-      // description says "no necesariamente una omisión... verifique
-      // contra el expediente oficial antes de asumir un defecto procesal"
-      // still carried the same severity tier as a confirmed defect. Both
-      // external reviews of real runs flagged this exact contradiction
-      // (a 70-90%-confidence ALTA badge on a 0-source "not found in
-      // corpus" item). "medium": still flagged for attorney attention
-      // (this is a REQUIRED checklist item, not a discretionary one — if
-      // it genuinely is missing from the official expediente that
-      // matters) without the ALTA tier implying a confirmed defect the
-      // finding's own text explicitly disclaims.
       severity: "medium" as const,
       legal_significance: i.authority,
       potential_impact: null,
       affected_party: null,
       source_module: SOURCE_MODULE,
-      // Absence-of-evidence finding: by construction there is no verbatim
-      // corpus quote to cite (the whole point is that the corpus does not
-      // contain the expected element). It previously hardcoded
-      // finding_type:"EVIDENCE_BASED_INFERENCE" and
-      // verification_status:"verified" directly on a raw insert, bypassing
-      // addGatedFindings/applyEvidenceGate entirely — so a finding with zero
-      // evidence_refs was explicitly stamped "verified". Routing through
-      // addGatedFindings with exemptCitation:true uses the same mechanism
-      // already established for this exact class of finding (see
-      // engines.server.ts's discovery-gap findings): the gate honestly
-      // classifies it AI_THEORY instead of claiming direct/inferred
-      // evidentiary support, and verification_status is left to the
-      // canonical (unset/default) value rather than being falsely asserted.
       confidence: 0.7,
-      metadata: { item_id: i.id, materia, authority: i.authority, requirement: i.requirement },
+      metadata: {
+        item_id: i.id,
+        materia: reportedMateria,
+        procedural_profile: executionProfile,
+        constitutional_review_subtype: reviewSubtype,
+        authority: i.authority,
+        requirement: i.requirement,
+      },
     }));
     const gate = await addGatedFindings(db, caseId, rows, { exemptCitation: true });
     findings_written = gate.inserted;
