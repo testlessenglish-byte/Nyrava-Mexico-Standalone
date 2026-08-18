@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  __test__filterConcludedCaseRecommendations as filterConcludedCaseRecommendations,
   __test__reconcileStrengthScoreText as reconcileStrengthScoreText,
   __test__scrubQuarantinedActionSentence as scrubQuarantinedActionSentence,
+  __test__scrubScorePlaceholderSentence as scrubScorePlaceholderSentence,
 } from "../hallucination.server";
 
 describe("post-report reconciliation", () => {
@@ -46,5 +48,59 @@ describe("post-report reconciliation", () => {
   it("leaves score prose unchanged when raw and final scores agree", () => {
     const text = "La fortaleza del caso se califica en 65.";
     expect(reconcileStrengthScoreText(text, 65, 65)).toBe(text);
+  });
+
+  it("drops only the broken internal score-placeholder sentence", () => {
+    const result = scrubScorePlaceholderSentence(
+      "La puntuación general del caso es 67. La confianza general del análisis es del well-supported, lo que refleja certeza alta.",
+    );
+    expect(result.text).toBe("La puntuación general del caso es 67.");
+    expect(result.removed).toBe(1);
+  });
+
+  it("removes an unsupported new-proceeding recommendation from a concluded audit", () => {
+    const result = filterConcludedCaseRecommendations(
+      [
+        {
+          title: "Demanda de amparo indirecto",
+          supportingFindingIds: [],
+          supportingEvidence: [],
+        },
+        {
+          title: "Verificar el engrose y los puntos resolutivos",
+          supportingFindingIds: [],
+          supportingEvidence: [],
+        },
+      ],
+      "concluded_audit",
+    );
+    expect(result.removed).toBe(1);
+    expect(result.recommendations).toHaveLength(1);
+  });
+
+  it("keeps a new-proceeding recommendation when a concluded audit carries structured support", () => {
+    const recommendations = [
+      {
+        title: "Interponer recurso de revisión",
+        supportingFindingIds: ["finding-1"],
+        supportingEvidence: [],
+      },
+    ];
+    const result = filterConcludedCaseRecommendations(recommendations, "concluded_audit");
+    expect(result.removed).toBe(0);
+    expect(result.recommendations).toEqual(recommendations);
+  });
+
+  it("does not apply concluded-audit suppression to an ongoing matter", () => {
+    const recommendations = [
+      {
+        title: "Demanda de amparo indirecto",
+        supportingFindingIds: [],
+        supportingEvidence: [],
+      },
+    ];
+    const result = filterConcludedCaseRecommendations(recommendations, "ongoing");
+    expect(result.removed).toBe(0);
+    expect(result.recommendations).toEqual(recommendations);
   });
 });
