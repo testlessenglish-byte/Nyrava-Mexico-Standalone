@@ -1,21 +1,5 @@
 // =============================================================================
 // ATTORNEY WORK PRODUCT LAYER (NYRAVA México) — pure, deterministic module.
-//
-// Turns the verified findings the pipeline already produced into case-
-// preparation work product a Mexican attorney can act on:
-//
-//   · Importancia Estratégica        — why the finding matters (2–4 paragraphs)
-//   · Síntesis Probatoria            — how multiple documents corroborate it
-//   · Evidencia Pendiente            — what the record does not contain
-//   · Próximas Acciones Recomendadas — 3–7 investigative / document steps
-//   · Peso probatorio (★)            — Mexican evidentiary reliability tiers
-//   · Agrupación por categoría de revisión y Snapshot del Expediente
-//
-// NO model calls, NO speculation, NO predictions. Every sentence is built
-// from fields already verified upstream (title, description,
-// legal_significance, potential_impact, severity, confidence, evidence
-// refs) plus the document inventory actually present in the case. If an
-// input is absent, the corresponding sentence is omitted — never invented.
 // =============================================================================
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -31,35 +15,25 @@ export { buildDocumentGraph };
 export type { DocumentGraph };
 
 export type EvidenceWeight = {
-  /** 1–5 — evidentiary reliability under Mexican practice, not AI confidence. */
   stars: number;
-  /** Star glyphs, e.g. "★★★★☆". */
   glyphs: string;
-  /** e.g. "Documento Público". */
   label: string;
 };
 
 export type FindingSourceDoc = {
   name: string;
   weight: EvidenceWeight;
-  /** Verbatim excerpts cited from this document, used for fact comparison. */
   quotes: string[];
 };
 
 export type FindingWorkProduct = {
-  /** Importancia Estratégica — 2–4 paragraphs. */
   importance: string[];
-  /** Síntesis Probatoria — deterministic cross-document comparison. */
   synthesis:
     | { docs: FindingSourceDoc[]; narrative: string; lines: string[]; grounded: boolean }
     | null;
-  /** Full structured synthesis (agreements / conflicts) for callers that need it. */
   synthesisDetail: EvidenceSynthesis | null;
-  /** Evidencia Pendiente o No Localizada. */
   pending: string[];
-  /** Próximas Acciones Recomendadas — 3–7 items. */
   actions: string[];
-  /** Attorney-facing review group. */
   group: AttorneyGroupKey;
 };
 
@@ -73,15 +47,6 @@ export type AttorneyGroupKey =
   | "revision";
 
 export const ATTORNEY_GROUPS: Array<{ key: AttorneyGroupKey; label: string }> = [
-  // Real bug (ADR-2239-2018-180906, SCJN ruling that Art. 75 IS
-  // constitutional): a VERIFIED_COURT_HOLDING — a favorable ruling the
-  // pipeline had already correctly classified as what the court decided,
-  // not a defect — was landing in "Cuestiones Críticas" at ALTA-95%
-  // because groupForFinding() below checked severity before it checked
-  // what KIND of proposition the finding even was. Court holdings are
-  // never risk-scored: they go in their own section, first, ahead of any
-  // risk analysis — a holding is what happened, not something wrong with
-  // the case's handling, and mixing the two inverts the report's meaning.
   { key: "holdings", label: "Determinaciones del Tribunal (Resumen del Caso)" },
   { key: "criticas", label: "Cuestiones Críticas" },
   { key: "procesales", label: "Riesgos Procesales" },
@@ -98,8 +63,6 @@ export const METHODOLOGY_STATEMENT =
   "Los hallazgos tienen por objeto asistir a profesionales del derecho organizando la evidencia e identificando " +
   "los puntos que requieren revisión adicional.";
 
-// ---------------------------------------------------------------- utilities
-
 function norm(s: string): string {
   return String(s ?? "")
     .normalize("NFD")
@@ -115,11 +78,12 @@ function weight(n: number, label: string): EvidenceWeight {
   return { stars: n, glyphs: stars(n), label };
 }
 
-/** Mexican evidentiary reliability tiers, matched against a document label. */
+const JUDICIAL_RESOLUTION_WEIGHT = weight(5, "Resolución Judicial");
+
 const WEIGHT_RULES: Array<{ re: RegExp; w: EvidenceWeight }> = [
   {
     re: /(sentencia|resolucion|laudo|auto de|acuerdo judicial|interlocutoria|ejecutoria)/,
-    w: weight(5, "Resolución Judicial"),
+    w: JUDICIAL_RESOLUTION_WEIGHT,
   },
   {
     re: /(escritura publica|registro publico|acta constitutiva|documento publico|oficio|constancia oficial|acta de audiencia|acta circunstanciada|caratula|expediente administrativo)/,
@@ -192,24 +156,16 @@ const SEVERITY_ES: Record<string, string> = {
   info: "informativa",
 };
 
-// ------------------------------------------------------------------ context
-
 export type WorkProductContext = {
-  /** Every document label in the case file (filenames / titles). */
   documentLabels: string[];
-  /** Materia key, e.g. "laboral". */
   caseType?: string | null;
-  /** Declared cases.jurisdiction ("federal", state code, "municipal"). */
   jurisdiction?: string | null;
-  /** Corpus-level missing documents already detected upstream. */
   missingDocuments?: string[];
-  /** Cross-finding document index (buildDocumentGraph), for shared-source statements. */
   graph?: DocumentGraph;
 };
 
 type AnyFinding = Record<string, any>;
 
-/** Cited documents with the verbatim quotes attributed to each one. */
 function findingSourceDocs(f: AnyFinding): Array<{ name: string; quotes: string[] }> {
   const refs = Array.isArray(f.evidence_refs) ? f.evidence_refs : [];
   const byName = new Map<string, string[]>();
@@ -232,7 +188,18 @@ function findingText(f: AnyFinding): string {
   );
 }
 
-// --------------------------------------------------------------- grouping
+function isVerifiedCourtHolding(f: AnyFinding): boolean {
+  return String(f.audit_classification ?? "") === "VERIFIED_COURT_HOLDING";
+}
+
+/** A document that directly supplies the quote for a VERIFIED_COURT_HOLDING
+ * is evidence of what a court decided. This is a stronger signal than its
+ * filename and prevents generic names such as ADR-4640-2017.pdf from being
+ * mislabeled as "Documento Sin Clasificar". */
+function weightForFindingSource(f: AnyFinding, name: string): EvidenceWeight {
+  if (isVerifiedCourtHolding(f)) return JUDICIAL_RESOLUTION_WEIGHT;
+  return classifyEvidenceWeight(name);
+}
 
 const PROCEDURAL_RE =
   /(procesal|procedimiento|notificacion|emplazamiento|plazo|termino|caducidad|prescripcion|competencia|nulidad|formalidad|cumplimiento_procesal|requisito)/;
@@ -242,20 +209,7 @@ const GAP_RE =
 const FAVORABLE_RE = /(corrobora|acredita|respalda|sustenta|favorable|exculpator)/;
 
 export function groupForFinding(f: AnyFinding): AttorneyGroupKey {
-  // BUG FIXED (real completed-case audit, ADR-2239-2018-180906 — SCJN
-  // First Chamber ruling that Article 75 of the Ley de Amparo IS
-  // constitutional): this function used to check severity FIRST, so a
-  // finding correctly tagged audit_classification: "VERIFIED_COURT_HOLDING"
-  // — the pipeline's own record of what the court actually decided, not a
-  // problem the attorney needs to address — still landed in "Cuestiones
-  // Críticas" at ALTA/95% purely because its severity field happened to be
-  // high. The favorable-evidence branch further down could never even be
-  // reached for a high/critical-severity finding, so there was no path by
-  // which a holding could avoid the risk buckets. audit_classification is
-  // the single most authoritative signal this pipeline computes about WHAT
-  // KIND of proposition a finding is (see finding-taxonomy.ts) — it must be
-  // checked before any text/category/severity heuristic, not after.
-  if (String(f.audit_classification ?? "") === "VERIFIED_COURT_HOLDING") return "holdings";
+  if (isVerifiedCourtHolding(f)) return "holdings";
   const cat = norm(f.category ?? "");
   const text = findingText(f);
   const sev = norm(f.severity ?? "");
@@ -267,8 +221,6 @@ export function groupForFinding(f: AnyFinding): AttorneyGroupKey {
   if (FAVORABLE_RE.test(text) && conf >= 0.7) return "favorable";
   return "revision";
 }
-
-// ------------------------------------------------------- per-finding output
 
 const PENDING_RULES: Array<{ mention: RegExp; corpus: RegExp; text: string }> = [
   {
@@ -339,44 +291,28 @@ function buildActions(f: AnyFinding, docs: FindingSourceDoc[], pending: string[]
         "Confirmar la autenticidad del soporte documental (ratificación, certificación notarial o cotejo con el original).",
       );
   } else {
-    actions.push(
-      "Identificar y adjuntar al expediente el documento fuente que sustenta este hallazgo.",
-    );
+    actions.push("Identificar y adjuntar al expediente el documento fuente que sustenta este hallazgo.");
   }
   if (CONTRADICTION_RE.test(cat) || CONTRADICTION_RE.test(text))
-    actions.push(
-      "Comparar de manera directa los documentos contradictorios y documentar cuál tiene mayor valor probatorio.",
-    );
+    actions.push("Comparar de manera directa los documentos contradictorios y documentar cuál tiene mayor valor probatorio.");
   if (/(cadena|custodia|traslado|resguardo)/.test(text))
-    actions.push(
-      "Revisar la cadena documental completa, desde el origen del documento hasta su incorporación al expediente.",
-    );
+    actions.push("Revisar la cadena documental completa, desde el origen del documento hasta su incorporación al expediente.");
   if (/(cfdi|factura|contabilidad|nomina|pago)/.test(text))
-    actions.push(
-      "Revisar los CFDI y registros contables relacionados con las cantidades referidas.",
-    );
+    actions.push("Revisar los CFDI y registros contables relacionados con las cantidades referidas.");
   if (/(notificacion|emplazamiento|acuse)/.test(text))
     actions.push("Confirmar los acuses de notificación y su constancia en autos.");
   if (/(plazo|termino|fecha|caducidad|prescripcion)/.test(text))
-    actions.push(
-      "Confirmar las fechas procesales aplicables contra las constancias del expediente.",
-    );
+    actions.push("Confirmar las fechas procesales aplicables contra las constancias del expediente.");
   if (/(autoridad|administrativ|sat|imss|infonavit|impi|inm|profeco|comar)/.test(text))
     actions.push("Solicitar el expediente administrativo completo a la autoridad correspondiente.");
   if (pending.length)
-    actions.push(
-      "Solicitar o localizar la documentación pendiente identificada para este hallazgo.",
-    );
+    actions.push("Solicitar o localizar la documentación pendiente identificada para este hallazgo.");
   if (docs.length <= 1)
-    actions.push(
-      "Localizar evidencia adicional e independiente que corrobore el hallazgo dentro del expediente.",
-    );
+    actions.push("Localizar evidencia adicional e independiente que corrobore el hallazgo dentro del expediente.");
 
   const unique = Array.from(new Set(actions));
   if (unique.length < 3)
-    unique.push(
-      "Cotejar el hallazgo con el resto de las constancias del expediente antes de utilizarlo.",
-    );
+    unique.push("Cotejar el hallazgo con el resto de las constancias del expediente antes de utilizarlo.");
   if (unique.length < 3)
     unique.push("Someter el hallazgo a revisión del abogado responsable del asunto.");
   return unique.slice(0, 7);
@@ -417,8 +353,6 @@ function buildImportance(
     docs.length > 0
       ? `Con base en las fuentes que lo sustentan (${docs.length} documento(s); el de mayor peso probatorio es ` +
         `${strongest.name} — ${strongest.weight.label} ${strongest.weight.glyphs}), el hallazgo ${effect}. ` +
-        // Corroboration is asserted only when the extracted facts actually
-        // agree across documents — never inferred from document count.
         (docs.length === 1
           ? "Al descansar en una sola fuente, su fuerza probatoria depende de que se localice corroboración independiente."
           : detail?.conflicts.length
@@ -441,8 +375,7 @@ function buildImportance(
     paras.push(String(f.potential_impact));
   }
 
-  const needsReview =
-    conf < 0.75 || docs.length <= 1 || String(f.verification_status ?? "") === "disputed";
+  const needsReview = conf < 0.75 || docs.length <= 1 || String(f.verification_status ?? "") === "disputed";
   paras.push(
     needsReview
       ? "Se requiere revisión profesional antes de apoyarse en este hallazgo: el sustento documental es limitado o su " +
@@ -462,30 +395,20 @@ function buildSynthesis(
   if (!docs.length) return { synthesis: null, detail: null };
   const detail = synthesizeEvidence(docs, {
     caseType: ctx.caseType ?? null,
-    // Declared jurisdiction is authoritative for authority retrieval:
-    // Federal (México) pulls the federal instruments, not local codes.
     jurisdiction: { materia: ctx.caseType ?? null, jurisdictionValue: ctx.jurisdiction ?? null },
     graph: ctx.graph,
     findingTitle: String(f.title ?? "").trim(),
   });
   if (!detail) return { synthesis: null, detail: null };
   return {
-    synthesis: {
-      docs,
-      narrative: detail.narrative,
-      lines: detail.lines,
-      grounded: detail.grounded,
-    },
+    synthesis: { docs, narrative: detail.narrative, lines: detail.lines, grounded: detail.grounded },
     detail,
   };
 }
 
-export function buildFindingWorkProduct(
-  f: AnyFinding,
-  ctx: WorkProductContext,
-): FindingWorkProduct {
+export function buildFindingWorkProduct(f: AnyFinding, ctx: WorkProductContext): FindingWorkProduct {
   const docs: FindingSourceDoc[] = findingSourceDocs(f)
-    .map((d) => ({ ...d, weight: classifyEvidenceWeight(d.name) }))
+    .map((d) => ({ ...d, weight: weightForFindingSource(f, d.name) }))
     .sort((a, b) => b.weight.stars - a.weight.stars);
   const pending = buildPending(f, ctx);
   const { synthesis, detail } = buildSynthesis(f, docs, ctx);
@@ -498,8 +421,6 @@ export function buildFindingWorkProduct(
     group: groupForFinding(f),
   };
 }
-
-// --------------------------------------------------------- case snapshot
 
 export type CaseSnapshot = {
   strengths: string[];
@@ -517,14 +438,8 @@ function title(f: AnyFinding): string {
 export function buildCaseSnapshot(findings: AnyFinding[], ctx: WorkProductContext): CaseSnapshot {
   const enriched = findings.map((f) => ({ f, wp: buildFindingWorkProduct(f, ctx) }));
 
-  // Strength = facts that agree across documents of different evidentiary
-  // families, not simply several documents attached to the finding.
   const strengths = enriched
-    .filter(
-      ({ wp }) =>
-        !wp.synthesisDetail?.conflicts.length &&
-        (wp.synthesisDetail?.agreements.some((a) => a.independent) ?? false),
-    )
+    .filter(({ wp }) => !wp.synthesisDetail?.conflicts.length && (wp.synthesisDetail?.agreements.some((a) => a.independent) ?? false))
     .slice(0, 5)
     .map(({ f, wp }) => {
       const a = wp.synthesisDetail!.agreements.find((x) => x.independent)!;
@@ -544,15 +459,25 @@ export function buildCaseSnapshot(findings: AnyFinding[], ctx: WorkProductContex
       const d = wp.synthesisDetail;
       if (d?.conflicts.length)
         return `${title(f)} — los documentos citados divergen en ${d.conflicts.length} dato(s) concreto(s).`;
-      if (!wp.synthesis?.docs.length)
-        return `${title(f)} — sin fuente documental citada de manera directa.`;
+      if (!wp.synthesis?.docs.length) return `${title(f)} — sin fuente documental citada de manera directa.`;
       if (wp.synthesis.docs.length === 1)
         return `${title(f)} — fuente documental única (${wp.synthesis.docs[0].weight.label}).`;
       return `${title(f)} — sin datos concretos coincidentes entre los pasajes citados.`;
     });
 
+  // A generic filename is not enough to infer document type. But if the same
+  // file directly supports a VERIFIED_COURT_HOLDING, its role as the judicial
+  // resolution is already established by the verified finding taxonomy.
+  const judicialSourceNames = new Set(
+    findings
+      .filter(isVerifiedCourtHolding)
+      .flatMap((f) => findingSourceDocs(f).map((doc) => doc.name)),
+  );
   const docWeights = ctx.documentLabels
-    .map((name) => ({ name, w: classifyEvidenceWeight(name) }))
+    .map((name) => ({
+      name,
+      w: judicialSourceNames.has(name) ? JUDICIAL_RESOLUTION_WEIGHT : classifyEvidenceWeight(name),
+    }))
     .sort((a, b) => b.w.stars - a.w.stars);
   const criticalEvidence = docWeights
     .filter((d) => d.w.stars >= 4)
@@ -570,26 +495,15 @@ export function buildCaseSnapshot(findings: AnyFinding[], ctx: WorkProductContex
 
   const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
   const priorityReview = [...enriched]
-    .sort(
-      (a, b) =>
-        (sevOrder[norm(a.f.severity ?? "")] ?? 9) - (sevOrder[norm(b.f.severity ?? "")] ?? 9),
-    )
+    .sort((a, b) => (sevOrder[norm(a.f.severity ?? "")] ?? 9) - (sevOrder[norm(b.f.severity ?? "")] ?? 9))
     .slice(0, 5)
     .map(({ f }) => `${title(f)} (gravedad ${SEVERITY_ES[norm(f.severity ?? "")] ?? "media"}).`);
 
-  return {
-    strengths,
-    weaknesses,
-    criticalEvidence,
-    missingEvidence,
-    proceduralConcerns,
-    priorityReview,
-  };
+  return { strengths, weaknesses, criticalEvidence, missingEvidence, proceduralConcerns, priorityReview };
 }
 
 export type SnapshotQuestion = { question: string; answer: string; bullets?: string[] };
 
-/** The five questions the executive summary must answer within the first page. */
 export function buildExecutiveQuestions(
   findings: AnyFinding[],
   ctx: WorkProductContext,
@@ -598,7 +512,7 @@ export function buildExecutiveQuestions(
   const materia = materiaLabel(ctx.caseType);
   const docCount = ctx.documentLabels.length;
   const n = findings.length;
-  const out: SnapshotQuestion[] = [
+  return [
     {
       question: "¿De qué trata el asunto?",
       answer:
@@ -609,7 +523,7 @@ export function buildExecutiveQuestions(
       question: "¿Cuál es la evidencia más sólida?",
       answer: snapshot.criticalEvidence.length
         ? "Los documentos de mayor valor probatorio localizados en el expediente son:"
-        : "No se localizaron documentos públicos, resoluciones judiciales, documentos certificados ni dictámenes periciales dentro del corpus.",
+        : "El inventario disponible no contiene una clasificación documental suficientemente específica para asignar, de forma determinística, una categoría de alto valor probatorio. Esto no significa que no existan resoluciones judiciales u otros documentos de alto valor; requiere confirmar la clasificación documental.",
       bullets: snapshot.criticalEvidence,
     },
     {
@@ -634,5 +548,4 @@ export function buildExecutiveQuestions(
       bullets: snapshot.priorityReview,
     },
   ];
-  return out;
 }

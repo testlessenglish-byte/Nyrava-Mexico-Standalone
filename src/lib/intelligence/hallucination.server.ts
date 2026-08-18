@@ -16,6 +16,7 @@ import {
 } from "./grounding.server";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import { isDuplicateTitle } from "./report-recommendations";
+import { checkDomainVocabulary } from "./domain-vocabulary-gate";
 import { validateRenderedReport } from "@/lib/canonical/prerender-validate.server";
 import { decideRenderedReportRelease } from "@/lib/canonical/rendered-report-release";
 
@@ -51,10 +52,12 @@ export type HallucinationReport = {
     }
   >;
   unverified_examples: Array<{ id: string; title: string; reason: string }>;
-  /** Unsupported action recommendations removed from attorney-facing prose. */
   quarantined_actions_removed?: number;
-  /** Score-prose fields reconciled to the persisted deterministic score. */
   score_prose_reconciled?: number;
+  score_placeholder_sentences_removed?: number;
+  concluded_case_actions_removed?: number;
+  materia_leak_actions_removed?: number;
+  false_orphan_citations_reconciled?: number;
 };
 
 const REPORT_PROSE_FIELDS = [
@@ -82,30 +85,9 @@ const ACTION_TITLE_RX =
   /\b(presentar|preparar|interponer|promover|solicitar|revisar|formular|impugnar|apelar|recurrir|demandar|tramitar|iniciar)\b/i;
 
 const ACTION_STOPWORDS = new Set([
-  "para",
-  "por",
-  "con",
-  "que",
-  "del",
-  "las",
-  "los",
-  "una",
-  "uno",
-  "unos",
-  "unas",
-  "este",
-  "esta",
-  "estos",
-  "estas",
-  "debe",
-  "deberia",
-  "recomienda",
-  "recomendar",
-  "considerar",
-  "considere",
-  "adecuadamente",
-  "nueva",
-  "nuevo",
+  "para", "por", "con", "que", "del", "las", "los", "una", "uno", "unos", "unas",
+  "este", "esta", "estos", "estas", "debe", "deberia", "recomienda", "recomendar",
+  "considerar", "considere", "adecuadamente", "nueva", "nuevo",
 ]);
 
 function foldText(value: string): string {
@@ -152,21 +134,92 @@ function scrubQuarantinedActionSentence(text: string, actionTitles: string[]): s
   return kept.join(" ").replace(/\s+/g, " ").trim();
 }
 
+/** `well-supported` is an internal sanitizer token, never attorney prose. */
+function scrubScorePlaceholderSentence(text: string): { text: string; removed: number } {
+  if (!text || !/\bwell-supported\b/i.test(text)) return { text, removed: 0 };
+  const pieces = text.split(/(?<=[.!?])\s+|\n+/g);
+  const kept: string[] = [];
+  let removed = 0;
+  for (const piece of pieces) {
+    if (/\bwell-supported\b/i.test(piece)) {
+      removed += 1;
+      continue;
+    }
+    if (piece.trim()) kept.push(piece.trim());
+  }
+  return { text: kept.join(" ").replace(/\s+/g, " ").trim(), removed };
+}
+
+const NEW_PROCEEDING_RX =
+  /\b(demanda\s+de\s+amparo(?:\s+(?:directo|indirecto))?|promover\s+(?:un\s+)?amparo|interponer\s+(?:un\s+)?recurso|presentar\s+(?:una\s+)?demanda|iniciar\s+(?:un\s+)?juicio|promover\s+(?:un\s+)?juicio)\b/i;
+
+function hasRecommendationSupport(rec: Record<string, unknown>): boolean {
+  const findingIds = Array.isArray(rec.supportingFindingIds) ? rec.supportingFindingIds : [];
+  const evidence = Array.isArray(rec.supportingEvidence) ? rec.supportingEvidence : [];
+  return findingIds.length > 0 || evidence.length > 0;
+}
+
+function filterConcludedCaseRecommendations(
+  recommendations: unknown,
+  caseAnalysisMode: unknown,
+): { recommendations: unknown; removed: number } {
+  if (String(caseAnalysisMode ?? "") !== "concluded_audit" || !Array.isArray(recommendations)) {
+    return { recommendations, removed: 0 };
+  }
+  let removed = 0;
+  const kept = recommendations.filter((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return true;
+    const rec = value as Record<string, unknown>;
+    const title = String(rec.title ?? "");
+    if (!NEW_PROCEEDING_RX.test(title)) return true;
+    if (hasRecommendationSupport(rec)) return true;
+    removed += 1;
+    return false;
+  });
+  return { recommendations: kept, removed };
+}
+
+/** Remove only recommended-action rows whose own text violates the resolved
+ * materia vocabulary. We do not rewrite them into a guessed legal action. */
+function sanitizePerspectiveActions(
+  full: Record<string, unknown>,
+  caseType: string,
+): number {
+  const intelligence = full.intelligence;
+  if (!intelligence || typeof intelligence !== "object" || Array.isArray(intelligence)) return 0;
+  const intel = intelligence as Record<string, unknown>;
+  if (!Array.isArray(intel.perspectives)) return 0;
+  let removed = 0;
+  intel.perspectives = intel.perspectives.map((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    const perspective = { ...(value as Record<string, unknown>) };
+    if (!Array.isArray(perspective.recommended_actions)) return perspective;
+    perspective.recommended_actions = perspective.recommended_actions.filter((action) => {
+      if (!action || typeof action !== "object" || Array.isArray(action)) return true;
+      const row = action as Record<string, unknown>;
+      const text = [row.action, row.title, row.description, row.reason]
+        .map((part) => String(part ?? ""))
+        .join(" ");
+      const check = checkDomainVocabulary(text, caseType || undefined);
+      if (check.clean) return true;
+      removed += 1;
+      return false;
+    });
+    return perspective;
+  });
+  full.intelligence = intel;
+  return removed;
+}
+
 function reconcileStrengthScoreText(
   text: string,
   rawScore: number | null,
   finalScore: number | null,
 ): string {
   if (
-    !text ||
-    rawScore == null ||
-    finalScore == null ||
-    rawScore === finalScore ||
-    !Number.isFinite(rawScore) ||
-    !Number.isFinite(finalScore)
-  ) {
-    return text;
-  }
+    !text || rawScore == null || finalScore == null || rawScore === finalScore ||
+    !Number.isFinite(rawScore) || !Number.isFinite(finalScore)
+  ) return text;
   const raw = String(Math.round(rawScore));
   const final = String(Math.round(finalScore));
   const rx = new RegExp(
@@ -176,19 +229,102 @@ function reconcileStrengthScoreText(
   return text.replace(rx, `$1${final}`);
 }
 
+function reconcileFalseOrphans(
+  full: Record<string, unknown>,
+  documents: Array<{ metadata?: unknown }>,
+): number {
+  const audit = full._citation_audit_prose;
+  if (!audit || typeof audit !== "object" || Array.isArray(audit)) return 0;
+  const auditObj = { ...(audit as Record<string, unknown>) };
+  if (!Array.isArray(auditObj.orphaned)) return 0;
+  const original = auditObj.orphaned.map(String);
+  const kept = original.filter((entry) => {
+    const m = entry.match(/\[DOC\s+(\d+)\s+p\.(\d+)\]\s+—\s+page\s+\d+\s+exceeds/i);
+    if (!m) return true;
+    const docIndex = Number(m[1]) - 1;
+    const citedPage = Number(m[2]);
+    const doc = documents[docIndex];
+    if (!doc) return true;
+    const metadata = doc.metadata;
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return true;
+    const actualPages = Number((metadata as Record<string, unknown>).pages);
+    return !(Number.isFinite(actualPages) && actualPages >= citedPage);
+  });
+  const reconciled = original.length - kept.length;
+  if (reconciled === 0) return 0;
+  auditObj.orphaned = kept;
+  auditObj.orphan_count = kept.length;
+  full._citation_audit_prose = auditObj;
+
+  const validation = full.validation;
+  if (validation && typeof validation === "object" && !Array.isArray(validation)) {
+    const validationObj = { ...(validation as Record<string, unknown>) };
+    const signals = validationObj.quality_signals;
+    if (signals && typeof signals === "object" && !Array.isArray(signals)) {
+      validationObj.quality_signals = {
+        ...(signals as Record<string, unknown>),
+        orphaned_citation_count: kept.length,
+      };
+    }
+    const gate = validationObj.quality_gate;
+    if (gate && typeof gate === "object" && !Array.isArray(gate)) {
+      const gateObj = { ...(gate as Record<string, unknown>) };
+      if (Array.isArray(gateObj.critical_issues)) {
+        gateObj.critical_issues = gateObj.critical_issues
+          .map(String)
+          .filter((issue) => !/orphaned citation\(s\)/i.test(issue) || kept.length > 0)
+          .map((issue) =>
+            /orphaned citation\(s\)/i.test(issue) && kept.length > 0
+              ? `${kept.length} orphaned citation(s) — verify docIndex`
+              : issue,
+          );
+      }
+      validationObj.quality_gate = gateObj;
+    }
+    full.validation = validationObj;
+  }
+  return reconciled;
+}
+
 async function reconcileSavedReportProse(
   db: Db,
   caseId: string,
-): Promise<{ quarantinedActionsRemoved: number; scoreProseReconciled: number }> {
+): Promise<{
+  quarantinedActionsRemoved: number;
+  scoreProseReconciled: number;
+  scorePlaceholderSentencesRemoved: number;
+  concludedCaseActionsRemoved: number;
+  materiaLeakActionsRemoved: number;
+  falseOrphanCitationsReconciled: number;
+}> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: saved } = await (db as any)
-    .from("reports")
-    .select(
-      `full_report,case_strength_score,score_breakdown,quality_blocked,quality_block_reasons,${REPORT_PROSE_FIELDS.join(",")}`,
-    )
-    .eq("case_id", caseId)
-    .maybeSingle();
-  if (!saved) return { quarantinedActionsRemoved: 0, scoreProseReconciled: 0 };
+  const [{ data: saved }, { data: caseRow }, { data: documentsRaw }] = await Promise.all([
+    (db as any)
+      .from("reports")
+      .select(`full_report,case_strength_score,score_breakdown,quality_blocked,quality_block_reasons,${REPORT_PROSE_FIELDS.join(",")}`)
+      .eq("case_id", caseId)
+      .maybeSingle(),
+    (db as any)
+      .from("cases")
+      .select("case_type,case_analysis_mode")
+      .eq("id", caseId)
+      .maybeSingle(),
+    (db as any)
+      .from("documents")
+      .select("metadata,created_at")
+      .eq("case_id", caseId)
+      .order("created_at", { ascending: true }),
+  ]);
+  if (!saved) {
+    return {
+      quarantinedActionsRemoved: 0,
+      scoreProseReconciled: 0,
+      scorePlaceholderSentencesRemoved: 0,
+      concludedCaseActionsRemoved: 0,
+      materiaLeakActionsRemoved: 0,
+      falseOrphanCitationsReconciled: 0,
+    };
+  }
 
   const full =
     saved.full_report && typeof saved.full_report === "object" && !Array.isArray(saved.full_report)
@@ -218,15 +354,9 @@ async function reconcileSavedReportProse(
       ? (full.validation as Record<string, unknown>)
       : null;
   const consistency = validation?.score_consistency as
-    | {
-        case_strength_score_llm_raw?: unknown;
-        case_strength_score?: unknown;
-      }
+    | { case_strength_score_llm_raw?: unknown; case_strength_score?: unknown }
     | undefined;
-  const rawScore =
-    typeof consistency?.case_strength_score_llm_raw === "number"
-      ? consistency.case_strength_score_llm_raw
-      : null;
+  const rawScore = typeof consistency?.case_strength_score_llm_raw === "number" ? consistency.case_strength_score_llm_raw : null;
   const finalScore =
     typeof saved.case_strength_score === "number"
       ? saved.case_strength_score
@@ -234,25 +364,56 @@ async function reconcileSavedReportProse(
         ? consistency.case_strength_score
         : null;
   let scoreReconciled = 0;
+  let placeholderRemoved = 0;
+
   if (typeof saved.score_breakdown === "string") {
-    const fixed = reconcileStrengthScoreText(saved.score_breakdown, rawScore, finalScore);
-    if (fixed !== saved.score_breakdown) {
-      patch.score_breakdown = fixed;
-      scoreReconciled += 1;
+    const original = saved.score_breakdown;
+    const scoreFixed = reconcileStrengthScoreText(original, rawScore, finalScore);
+    const placeholderFixed = scrubScorePlaceholderSentence(scoreFixed);
+    if (placeholderFixed.text !== original) {
+      patch.score_breakdown = placeholderFixed.text;
+      if (scoreFixed !== original) scoreReconciled += 1;
+      placeholderRemoved += placeholderFixed.removed;
     }
   }
+
   const prose =
     full?.prose && typeof full.prose === "object" && !Array.isArray(full.prose)
       ? { ...(full.prose as Record<string, unknown>) }
       : null;
   if (prose && typeof prose.score_breakdown === "string") {
-    const fixed = reconcileStrengthScoreText(prose.score_breakdown, rawScore, finalScore);
-    if (fixed !== prose.score_breakdown) {
-      prose.score_breakdown = fixed;
+    const original = prose.score_breakdown;
+    const scoreFixed = reconcileStrengthScoreText(original, rawScore, finalScore);
+    const placeholderFixed = scrubScorePlaceholderSentence(scoreFixed);
+    if (placeholderFixed.text !== original) {
+      prose.score_breakdown = placeholderFixed.text;
       full!.prose = prose;
       patch.full_report = full;
-      scoreReconciled += 1;
+      if (scoreFixed !== original) scoreReconciled += 1;
+      placeholderRemoved += placeholderFixed.removed;
     }
+  }
+
+  let concludedCaseActionsRemoved = 0;
+  let materiaLeakActionsRemoved = 0;
+  let falseOrphanCitationsReconciled = 0;
+  if (full) {
+    const filtered = filterConcludedCaseRecommendations(full.canonical_recommendations, caseRow?.case_analysis_mode);
+    if (filtered.removed > 0) {
+      full.canonical_recommendations = filtered.recommendations;
+      concludedCaseActionsRemoved = filtered.removed;
+    }
+    materiaLeakActionsRemoved = sanitizePerspectiveActions(full, String(caseRow?.case_type ?? ""));
+    falseOrphanCitationsReconciled = reconcileFalseOrphans(
+      full,
+      (documentsRaw ?? []) as Array<{ metadata?: unknown }>,
+    );
+
+    // Do not let a previous rendered-QA diagnostic become content that the
+    // next validation pass scans. Diagnostics mentioning the bad token/term
+    // would otherwise self-reproduce after the actual content was fixed.
+    delete full.rendered_qa;
+    patch.full_report = full;
   }
 
   if (Object.keys(patch).length > 0) {
@@ -261,45 +422,41 @@ async function reconcileSavedReportProse(
     if (error) throw new Error(`Failed to reconcile saved report prose: ${error.message}`);
   }
 
-  // Final release must be decided against the report AFTER deterministic
-  // reconciliation above. This is intentionally limited to objective
-  // integrity failures (wrong materia vocabulary, U.S.-procedure leakage,
-  // unresolved template tokens, OCR/quality_blocked state). The uncalibrated
-  // report-quality score is not used as a blocker.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: caseRow } = await (db as any)
-    .from("cases")
-    .select("case_type")
-    .eq("id", caseId)
-    .maybeSingle();
   const reconciledReport = { ...saved, ...patch } as Record<string, unknown>;
-  const renderedIssues = validateRenderedReport(
-    reconciledReport,
-    String(caseRow?.case_type ?? ""),
-  );
+  const renderedIssues = validateRenderedReport(reconciledReport, String(caseRow?.case_type ?? ""));
   const renderedDecision = decideRenderedReportRelease(renderedIssues);
+
+  if (full) {
+    full.rendered_qa = {
+      issues: renderedIssues,
+      issue_count: renderedIssues.length,
+      critical_count: renderedIssues.filter((issue) => issue.severity === "critical").length,
+      policy: "Final rendered-content validation after deterministic reconciliation.",
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any).from("reports").update({ full_report: full as any }).eq("case_id", caseId);
+    if (error) throw new Error(`Failed to persist final rendered QA: ${error.message}`);
+  }
+
   if (saved.quality_blocked || renderedDecision.blocked) {
     const reasons = [
-      ...(Array.isArray(saved.quality_block_reasons)
-        ? saved.quality_block_reasons.map(String)
-        : []),
+      ...(Array.isArray(saved.quality_block_reasons) ? saved.quality_block_reasons.map(String) : []),
       ...renderedDecision.reasons,
     ];
-    throw new Error(
-      `Rendered report integrity blocked release${reasons.length ? `: ${reasons.join("; ")}` : "."}`,
-    );
+    throw new Error(`Rendered report integrity blocked release${reasons.length ? `: ${reasons.join("; ")}` : "."}`);
   }
 
   return {
     quarantinedActionsRemoved: removed,
     scoreProseReconciled: scoreReconciled,
+    scorePlaceholderSentencesRemoved: placeholderRemoved,
+    concludedCaseActionsRemoved,
+    materiaLeakActionsRemoved,
+    falseOrphanCitationsReconciled,
   };
 }
 
-export async function runHallucinationReview(args: {
-  db: Db;
-  caseId: string;
-}): Promise<HallucinationReport> {
+export async function runHallucinationReview(args: { db: Db; caseId: string }): Promise<HallucinationReport> {
   const { db, caseId } = args;
 
   const { data: findingsRaw, error: fErr } = await db
@@ -328,10 +485,7 @@ export async function runHallucinationReview(args: {
   for (const [docId, pgs] of perDocPages) {
     pgs.sort((a, b) => a.page - b.page);
     const extracted = pgs.map((p) => p.text ?? "").join("\n");
-    perDocCorpus.set(
-      docId,
-      buildGroundingCorpus([{ id: docId, filename: docId, extracted_text: extracted }]),
-    );
+    perDocCorpus.set(docId, buildGroundingCorpus([{ id: docId, filename: docId, extracted_text: extracted }]));
   }
 
   const report: HallucinationReport = {
@@ -345,56 +499,37 @@ export async function runHallucinationReview(args: {
     unverified_examples: [],
     quarantined_actions_removed: proseReconciliation.quarantinedActionsRemoved,
     score_prose_reconciled: proseReconciliation.scoreProseReconciled,
+    score_placeholder_sentences_removed: proseReconciliation.scorePlaceholderSentencesRemoved,
+    concluded_case_actions_removed: proseReconciliation.concludedCaseActionsRemoved,
+    materia_leak_actions_removed: proseReconciliation.materiaLeakActionsRemoved,
+    false_orphan_citations_reconciled: proseReconciliation.falseOrphanCitationsReconciled,
   };
 
   const nowIso = new Date().toISOString();
-  const updates: Array<{
-    id: string;
-    status: "verified" | "unverified" | "no_citation" | "authority_exempt";
-    notes: string;
-  }> = [];
+  const updates: Array<{ id: string; status: "verified" | "unverified" | "no_citation" | "authority_exempt"; notes: string }> = [];
   for (const f of findings) {
     const mod = f.source_module || "unknown";
     if (!report.by_module[mod]) {
-      report.by_module[mod] = {
-        total: 0,
-        verified: 0,
-        unverified: 0,
-        no_citation: 0,
-        authority_exempt: 0,
-      };
+      report.by_module[mod] = { total: 0, verified: 0, unverified: 0, no_citation: 0, authority_exempt: 0 };
     }
     report.by_module[mod].total += 1;
 
-    let status: "verified" | "unverified" | "no_citation" | "authority_exempt" =
-      "no_citation";
+    let status: "verified" | "unverified" | "no_citation" | "authority_exempt" = "no_citation";
     let notes = "";
-
     const quote = (f.source_quote ?? "").trim();
-    const docId =
-      f.source_document_id ??
-      ((Array.isArray(f.source_doc_ids) && f.source_doc_ids[0]) || null);
+    const docId = f.source_document_id ?? ((Array.isArray(f.source_doc_ids) && f.source_doc_ids[0]) || null);
 
     if (!quote || !docId) {
       status = "no_citation";
-      notes =
-        !quote && !docId
-          ? "No source document or quote."
-          : !quote
-            ? "No source quote."
-            : "No source document.";
+      notes = !quote && !docId ? "No source document or quote." : !quote ? "No source quote." : "No source document.";
     } else {
       const corpus = perDocCorpus.get(docId);
       if (corpus && verifyQuote(quote, corpus)) {
         status = "verified";
-        notes =
-          f.source_page != null
-            ? `Quote verified against document (page ${f.source_page}).`
-            : "Quote verified against document.";
+        notes = f.source_page != null ? `Quote verified against document (page ${f.source_page}).` : "Quote verified against document.";
       } else if (isLegalAuthorityCitation(quote)) {
         status = "authority_exempt";
-        notes =
-          "Legal authority reference (constitutional/statutory/tesis) — exempt from verbatim corpus matching.";
+        notes = "Legal authority reference (constitutional/statutory/tesis) — exempt from verbatim corpus matching.";
       } else if (!corpus) {
         status = "unverified";
         notes = "Cited document has no extracted pages in the corpus.";
@@ -409,7 +544,6 @@ export async function runHallucinationReview(args: {
     if (status === "unverified" && report.unverified_examples.length < 25) {
       report.unverified_examples.push({ id: f.id, title: f.title, reason: notes });
     }
-
     updates.push({ id: f.id, status, notes });
   }
 
@@ -417,32 +551,16 @@ export async function runHallucinationReview(args: {
     const batch = updates.slice(i, i + 25);
     const results = await Promise.all(
       batch.map((u) =>
-        db
-          .from("case_findings")
-          .update({
-            verification_status: u.status,
-            verification_notes: u.notes,
-            verified_at: nowIso,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any)
-          .eq("id", u.id),
+        db.from("case_findings").update({ verification_status: u.status, verification_notes: u.notes, verified_at: nowIso } as any).eq("id", u.id),
       ),
     );
     const failed = results.find((r) => r.error);
-    if (failed?.error) {
-      throw new Error(`Finding verification update failed: ${failed.error.message}`);
-    }
+    if (failed?.error) throw new Error(`Finding verification update failed: ${failed.error.message}`);
   }
 
   await db
     .from("cases")
-    .update({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      hallucination_report: report as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      hallucination_at: nowIso as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any)
+    .update({ hallucination_report: report as any, hallucination_at: nowIso as any } as any)
     .eq("id", caseId);
 
   return report;
@@ -451,4 +569,8 @@ export async function runHallucinationReview(args: {
 export {
   scrubQuarantinedActionSentence as __test__scrubQuarantinedActionSentence,
   reconcileStrengthScoreText as __test__reconcileStrengthScoreText,
+  scrubScorePlaceholderSentence as __test__scrubScorePlaceholderSentence,
+  filterConcludedCaseRecommendations as __test__filterConcludedCaseRecommendations,
+  sanitizePerspectiveActions as __test__sanitizePerspectiveActions,
+  reconcileFalseOrphans as __test__reconcileFalseOrphans,
 };
