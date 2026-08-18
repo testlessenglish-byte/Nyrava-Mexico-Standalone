@@ -255,7 +255,7 @@ export function mergeCanonicalRecommendations(args: {
   // before every renderer; require auditable finding/evidence support here.
   const grounded = filterUnsupportedLegalFilingRecommendations(
     clusters as unknown as Array<Record<string, unknown>>,
-  ).items as CanonicalRecommendation[];
+  ).items as unknown as CanonicalRecommendation[];
   return grounded.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
 }
 
