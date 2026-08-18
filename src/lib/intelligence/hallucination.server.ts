@@ -16,6 +16,8 @@ import {
 } from "./grounding.server";
 import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 import { isDuplicateTitle } from "./report-recommendations";
+import { validateRenderedReport } from "@/lib/canonical/prerender-validate.server";
+import { decideRenderedReportRelease } from "@/lib/canonical/rendered-report-release";
 
 type Db = SupabaseClient<Database>;
 
@@ -182,7 +184,7 @@ async function reconcileSavedReportProse(
   const { data: saved } = await (db as any)
     .from("reports")
     .select(
-      `full_report,case_strength_score,score_breakdown,${REPORT_PROSE_FIELDS.join(",")}`,
+      `full_report,case_strength_score,score_breakdown,quality_blocked,quality_block_reasons,${REPORT_PROSE_FIELDS.join(",")}`,
     )
     .eq("case_id", caseId)
     .maybeSingle();
@@ -258,6 +260,36 @@ async function reconcileSavedReportProse(
     const { error } = await (db as any).from("reports").update(patch as any).eq("case_id", caseId);
     if (error) throw new Error(`Failed to reconcile saved report prose: ${error.message}`);
   }
+
+  // Final release must be decided against the report AFTER deterministic
+  // reconciliation above. This is intentionally limited to objective
+  // integrity failures (wrong materia vocabulary, U.S.-procedure leakage,
+  // unresolved template tokens, OCR/quality_blocked state). The uncalibrated
+  // report-quality score is not used as a blocker.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: caseRow } = await (db as any)
+    .from("cases")
+    .select("case_type")
+    .eq("id", caseId)
+    .maybeSingle();
+  const reconciledReport = { ...saved, ...patch } as Record<string, unknown>;
+  const renderedIssues = validateRenderedReport(
+    reconciledReport,
+    String(caseRow?.case_type ?? ""),
+  );
+  const renderedDecision = decideRenderedReportRelease(renderedIssues);
+  if (saved.quality_blocked || renderedDecision.blocked) {
+    const reasons = [
+      ...(Array.isArray(saved.quality_block_reasons)
+        ? saved.quality_block_reasons.map(String)
+        : []),
+      ...renderedDecision.reasons,
+    ];
+    throw new Error(
+      `Rendered report integrity blocked release${reasons.length ? `: ${reasons.join("; ")}` : "."}`,
+    );
+  }
+
   return {
     quarantinedActionsRemoved: removed,
     scoreProseReconciled: scoreReconciled,
