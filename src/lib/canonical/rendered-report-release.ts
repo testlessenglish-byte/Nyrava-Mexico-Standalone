@@ -25,15 +25,33 @@ export interface RenderedReportReleaseDecision {
   reasons: string[];
 }
 
+function issueKey(issue: QaIssue): string {
+  return [issue.code, issue.section, issue.sample ?? "", issue.message ?? ""].join("::");
+}
+
 export function decideRenderedReportRelease(issues: readonly QaIssue[]): RenderedReportReleaseDecision {
-  const blockingIssues = issues.filter(
+  // The rendered report object deliberately contains mirrored validation data
+  // (top-level + full_report). The scanner can therefore discover the same
+  // underlying problem more than once. Release must still block, but the
+  // agent log/UI should show one actionable reason rather than an unreadable
+  // repeated error string.
+  const seen = new Set<string>();
+  const uniqueIssues = issues.filter((issue) => {
+    const key = issueKey(issue);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const blockingIssues = uniqueIssues.filter(
     (issue) => issue.severity === "critical" && RENDERED_REPORT_BLOCKING_CODES.has(issue.code),
   );
   const blockingSet = new Set(blockingIssues);
   return {
     blocked: blockingIssues.length > 0,
     blockingIssues,
-    warningIssues: issues.filter((issue) => !blockingSet.has(issue)),
-    reasons: blockingIssues.map((issue) => `rendered_report_qa:${issue.code}:${issue.section}`),
+    warningIssues: uniqueIssues.filter((issue) => !blockingSet.has(issue)),
+    reasons: Array.from(
+      new Set(blockingIssues.map((issue) => `rendered_report_qa:${issue.code}:${issue.section}`)),
+    ),
   };
 }
