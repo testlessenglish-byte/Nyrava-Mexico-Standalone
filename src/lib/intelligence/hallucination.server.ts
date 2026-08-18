@@ -51,6 +51,8 @@ export type HallucinationReport = {
   unverified_examples: Array<{ id: string; title: string; reason: string }>;
   /** Unsupported action recommendations removed from attorney-facing prose. */
   quarantined_actions_removed?: number;
+  /** Score-prose fields reconciled to the persisted deterministic score. */
+  score_prose_reconciled?: number;
 };
 
 const REPORT_PROSE_FIELDS = [
@@ -81,6 +83,33 @@ const REPORT_PROSE_FIELDS = [
 const ACTION_TITLE_RX =
   /\b(presentar|preparar|interponer|promover|solicitar|revisar|formular|impugnar|apelar|recurrir|demandar|tramitar|iniciar)\b/i;
 
+const ACTION_STOPWORDS = new Set([
+  "para",
+  "por",
+  "con",
+  "que",
+  "del",
+  "las",
+  "los",
+  "una",
+  "uno",
+  "unos",
+  "unas",
+  "este",
+  "esta",
+  "estos",
+  "estas",
+  "debe",
+  "deberia",
+  "recomienda",
+  "recomendar",
+  "considerar",
+  "considere",
+  "adecuadamente",
+  "nueva",
+  "nuevo",
+]);
+
 function foldText(value: string): string {
   return value
     .normalize("NFD")
@@ -89,6 +118,26 @@ function foldText(value: string): string {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function actionTokens(value: string): Set<string> {
+  return new Set(
+    foldText(value)
+      .split(" ")
+      .filter((token) => token.length >= 4 && !ACTION_STOPWORDS.has(token))
+      .map((token) => (token.length > 6 && token.endsWith("s") ? token.slice(0, -1) : token)),
+  );
+}
+
+function similarActionText(a: string, b: string): boolean {
+  if (isDuplicateTitle(a, b)) return true;
+  const aa = actionTokens(a);
+  const bb = actionTokens(b);
+  if (aa.size < 3 || bb.size < 3) return false;
+  const [small, big] = aa.size <= bb.size ? [aa, bb] : [bb, aa];
+  let overlap = 0;
+  for (const token of small) if (big.has(token)) overlap += 1;
+  return overlap >= 3 && overlap / small.size >= 0.55;
 }
 
 function scrubQuarantinedActionSentence(text: string, actionTitles: string[]): string {
@@ -100,28 +149,54 @@ function scrubQuarantinedActionSentence(text: string, actionTitles: string[]): s
       const foldedTitle = foldText(title);
       if (!foldedTitle) return false;
       // Exact normalized containment catches the common "Se recomienda ..."
-      // wrapper. isDuplicateTitle catches a close title-only restatement.
-      return foldedPiece.includes(foldedTitle) || isDuplicateTitle(piece, title);
+      // wrapper; token overlap catches close paraphrases of the same action.
+      return foldedPiece.includes(foldedTitle) || similarActionText(piece, title);
     });
   });
   return kept.join(" ").replace(/\s+/g, " ").trim();
 }
 
-async function scrubQuarantinedActionsFromSavedReport(
+function reconcileStrengthScoreText(
+  text: string,
+  rawScore: number | null,
+  finalScore: number | null,
+): string {
+  if (
+    !text ||
+    rawScore == null ||
+    finalScore == null ||
+    rawScore === finalScore ||
+    !Number.isFinite(rawScore) ||
+    !Number.isFinite(finalScore)
+  ) {
+    return text;
+  }
+  const raw = String(Math.round(rawScore));
+  const final = String(Math.round(finalScore));
+  const rx = new RegExp(
+    `(fortaleza\\s+del\\s+caso(?:\\s+se\\s+califica\\s+en|\\s*[:=]?\\s*))${raw}\\b`,
+    "i",
+  );
+  return text.replace(rx, `$1${final}`);
+}
+
+async function reconcileSavedReportProse(
   db: Db,
   caseId: string,
-): Promise<number> {
+): Promise<{ quarantinedActionsRemoved: number; scoreProseReconciled: number }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: saved } = await (db as any)
     .from("reports")
-    .select(`full_report,${REPORT_PROSE_FIELDS.join(",")}`)
+    .select(
+      `full_report,case_strength_score,score_breakdown,${REPORT_PROSE_FIELDS.join(",")}`,
+    )
     .eq("case_id", caseId)
     .maybeSingle();
-  if (!saved) return 0;
+  if (!saved) return { quarantinedActionsRemoved: 0, scoreProseReconciled: 0 };
 
   const full =
     saved.full_report && typeof saved.full_report === "object" && !Array.isArray(saved.full_report)
-      ? (saved.full_report as Record<string, unknown>)
+      ? ({ ...(saved.full_report as Record<string, unknown>) } as Record<string, unknown>)
       : null;
   const citationAudit = full?.citation_audit as
     | { quarantined_findings?: Array<{ title?: unknown }> }
@@ -129,13 +204,12 @@ async function scrubQuarantinedActionsFromSavedReport(
   const actionTitles = (citationAudit?.quarantined_findings ?? [])
     .map((f) => String(f?.title ?? "").trim())
     .filter((title) => title.length > 0 && ACTION_TITLE_RX.test(title));
-  if (actionTitles.length === 0) return 0;
 
   const patch: Record<string, unknown> = {};
   let removed = 0;
   for (const field of REPORT_PROSE_FIELDS) {
     const value = saved[field];
-    if (typeof value !== "string" || !value.trim()) continue;
+    if (typeof value !== "string" || !value.trim() || actionTitles.length === 0) continue;
     const scrubbed = scrubQuarantinedActionSentence(value, actionTitles);
     if (scrubbed !== value.trim()) {
       patch[field] = scrubbed;
@@ -143,12 +217,53 @@ async function scrubQuarantinedActionsFromSavedReport(
     }
   }
 
+  const consistency = full?.score_consistency as
+    | {
+        case_strength_score_llm_raw?: unknown;
+        case_strength_score?: unknown;
+      }
+    | undefined;
+  const rawScore =
+    typeof consistency?.case_strength_score_llm_raw === "number"
+      ? consistency.case_strength_score_llm_raw
+      : null;
+  const finalScore =
+    typeof saved.case_strength_score === "number"
+      ? saved.case_strength_score
+      : typeof consistency?.case_strength_score === "number"
+        ? consistency.case_strength_score
+        : null;
+  let scoreReconciled = 0;
+  if (typeof saved.score_breakdown === "string") {
+    const fixed = reconcileStrengthScoreText(saved.score_breakdown, rawScore, finalScore);
+    if (fixed !== saved.score_breakdown) {
+      patch.score_breakdown = fixed;
+      scoreReconciled += 1;
+    }
+  }
+  const prose =
+    full?.prose && typeof full.prose === "object" && !Array.isArray(full.prose)
+      ? { ...(full.prose as Record<string, unknown>) }
+      : null;
+  if (prose && typeof prose.score_breakdown === "string") {
+    const fixed = reconcileStrengthScoreText(prose.score_breakdown, rawScore, finalScore);
+    if (fixed !== prose.score_breakdown) {
+      prose.score_breakdown = fixed;
+      full!.prose = prose;
+      patch.full_report = full;
+      scoreReconciled += 1;
+    }
+  }
+
   if (Object.keys(patch).length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (db as any).from("reports").update(patch as any).eq("case_id", caseId);
-    if (error) throw new Error(`Failed to remove quarantined action prose: ${error.message}`);
+    if (error) throw new Error(`Failed to reconcile saved report prose: ${error.message}`);
   }
-  return removed;
+  return {
+    quarantinedActionsRemoved: removed,
+    scoreProseReconciled: scoreReconciled,
+  };
 }
 
 export async function runHallucinationReview(args: {
@@ -165,16 +280,12 @@ export async function runHallucinationReview(args: {
   if (fErr) throw new Error(`Load findings failed: ${fErr.message}`);
   const findings = (findingsRaw ?? []) as Array<Finding & { source_module: string }>;
 
-  // Remove any attorney-facing action sentence whose underlying finding has
-  // already been quarantined by the citation audit. The structured action
-  // arrays are filtered during report assembly; this closes the remaining
-  // free-prose path exposed by ADR-4640/2017, where an unsupported "presentar
-  // una nueva demanda de amparo" recommendation survived in executive_summary.
-  const quarantinedActionsRemoved = await scrubQuarantinedActionsFromSavedReport(db, caseId);
+  // The report has already been assembled by the time final hallucination
+  // review runs. Reconcile two deterministic post-render invariants here:
+  // (1) no citation-quarantined attorney action may survive in free prose,
+  // and (2) score prose must agree with the persisted deterministic score.
+  const proseReconciliation = await reconcileSavedReportProse(db, caseId);
 
-  // Load all pages for this case and reconstruct per-document text so we can
-  // build a `GroundingCorpus` per doc — the exact structure `verifyQuote`
-  // consumes at write time.
   const { data: pagesRaw } = await db
     .from("document_pages")
     .select("document_id,page,text")
@@ -206,7 +317,8 @@ export async function runHallucinationReview(args: {
     authority_exempt: 0,
     by_module: {},
     unverified_examples: [],
-    quarantined_actions_removed: quarantinedActionsRemoved,
+    quarantined_actions_removed: proseReconciliation.quarantinedActionsRemoved,
+    score_prose_reconciled: proseReconciliation.scoreProseReconciled,
   };
 
   const nowIso = new Date().toISOString();
