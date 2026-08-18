@@ -7,14 +7,6 @@ function nonEmptyArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value.filter((item) => item != null && String(item).trim().length > 0) : [];
 }
 
-/**
- * A recommendation that asks an attorney to START/FORWARD a legal proceeding
- * is materially different from ordinary file-review housekeeping. It must
- * carry structured support produced by the pipeline before it is allowed into
- * the canonical attorney action list. This rule is case-type and mode neutral:
- * unsupported filing advice is unsafe in an ongoing case and in a concluded
- * audit alike.
- */
 export function isLegalFilingRecommendation(text: unknown): boolean {
   return FILING_OR_REMEDY_RX.test(String(text ?? "").trim());
 }
@@ -29,6 +21,12 @@ export function hasStructuredRecommendationSupport(rec: RecommendationLike): boo
   );
 }
 
+/**
+ * A recommendation that asks an attorney to start/forward a legal proceeding
+ * must carry structured support before it can enter the canonical action list.
+ * The rule is materia/mode neutral: unsupported filing advice is unsafe in any
+ * report.
+ */
 export function filterUnsupportedLegalFilingRecommendations<T extends RecommendationLike>(
   recommendations: readonly T[],
 ): { items: T[]; removed: T[] } {
@@ -46,11 +44,11 @@ export function filterUnsupportedLegalFilingRecommendations<T extends Recommenda
 }
 
 /**
- * Narrative prose is not a suitable place to invent a legal filing route. A
- * filing/remedy sentence is retained only when it includes an inline corpus
- * citation. This does not validate that citation here; the normal rendered
- * citation verifier still does that later. It merely prevents unsupported
- * free-text legal filing advice from bypassing the structured gate above.
+ * Free narrative prose never owns a legal filing/remedy recommendation. If a
+ * route is genuinely supported it belongs in canonical_recommendations, where
+ * its structured finding/evidence support can be audited. Removing it here
+ * also prevents the same action from surviving in an executive-summary
+ * paragraph after the canonical action itself was correctly suppressed.
  */
 export function scrubUnsupportedLegalFilingSentences(text: string): {
   text: string;
@@ -63,7 +61,7 @@ export function scrubUnsupportedLegalFilingSentences(text: string): {
   for (const part of parts) {
     const sentence = part.trim();
     if (!sentence) continue;
-    if (isLegalFilingRecommendation(sentence) && !/\[DOC\s+\d+(?:\s+p\.\s*\d+)?\]/i.test(sentence)) {
+    if (isLegalFilingRecommendation(sentence)) {
       removed += 1;
       continue;
     }
