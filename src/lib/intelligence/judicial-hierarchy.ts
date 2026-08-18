@@ -59,6 +59,11 @@ export interface AttributedProposition {
   speaker_role?: unknown;
   proposition_type?: unknown;
   adoption_status?: unknown;
+  /** Completed-case taxonomy. VERIFIED_COURT_HOLDING means "what the court
+   * decided", not "a risk the attorney needs to fix". It may be displayed
+   * in a dedicated holdings/context section, but never in a severity-ranked
+   * Executive Dashboard risk list. */
+  audit_classification?: unknown;
 }
 
 function rankOf(role: unknown): number {
@@ -80,6 +85,13 @@ export function isRejectedOrSuperseded(f: AttributedProposition): boolean {
   return f.adoption_status === "rejected" || f.proposition_type === "rejected_holding";
 }
 
+/** Court holdings are context/results, not risks. A historical severity
+ * value may still exist on the row for backwards compatibility, but it must
+ * never make the holding eligible for a severity-ranked dashboard widget. */
+export function isVerifiedCourtHolding(f: AttributedProposition): boolean {
+  return String(f.audit_classification ?? "") === "VERIFIED_COURT_HOLDING";
+}
+
 const DASHBOARD_ELIGIBLE_TYPES = new Set<string>(["holding", "procedural_fact"]);
 
 /**
@@ -91,15 +103,23 @@ const DASHBOARD_ELIGIBLE_TYPES = new Set<string>(["holding", "procedural_fact"])
  * ADOPTED holdings/procedural facts — never a party argument, an
  * unresolved point, or a rejected/superseded lower-instance position.
  *
- * Findings with no attribution at all pass straight through: this filter
- * only ever narrows a case where the extraction pass already ran the
- * judicial-hierarchy attribution prompt.
+ * Independently of judicial attribution, VERIFIED_COURT_HOLDING rows are
+ * excluded from this severity-ranked widget. They belong in the dedicated
+ * "Determinaciones del Tribunal" section. This closes the residual ADR
+ * 2239/2018 bug where the main findings section was fixed but the Executive
+ * Dashboard could still paint a favorable SCJN holding as a high-severity
+ * risk because it sorted the same row by its legacy severity field.
+ *
+ * Findings with no attribution at all otherwise pass straight through: this
+ * filter only narrows them when the completed-case taxonomy explicitly says
+ * they are court holdings.
  */
 export function filterExecutiveDashboardEligible<T extends AttributedProposition>(findings: readonly T[]): T[] {
-  const attributed = findings.filter(hasAttribution);
-  if (attributed.length === 0) return findings.slice();
+  const withoutCourtHoldings = findings.filter((f) => !isVerifiedCourtHolding(f));
+  const attributed = withoutCourtHoldings.filter(hasAttribution);
+  if (attributed.length === 0) return withoutCourtHoldings.slice();
   const highestRank = attributed.reduce((max, f) => Math.max(max, rankOf(f.speaker_role)), -1);
-  return findings.filter((f) => {
+  return withoutCourtHoldings.filter((f) => {
     if (!hasAttribution(f)) return true;
     if (isRejectedOrSuperseded(f)) return false;
     if (f.adoption_status && f.adoption_status !== "adopted") return false;
