@@ -192,14 +192,6 @@ function matches(f: Finding, dimensionKey: string, cats: string[], mods?: string
   return matchesLegacyCategory(f, cats, mods);
 }
 
-/**
- * A court holding is not itself a defect. The previous scorer mapped generic
- * categories such as "constitutional" to the negative side and therefore
- * treated a verified SCJN holding RECOGNIZING a constitutional right as a
- * constitutional violation. A holding affects a score only when the finding
- * has an explicit impact_direction. This keeps adverse holdings scoreable
- * while preventing doctrine/holding labels from being mistaken for risks.
- */
 export function findingScoringDirection(f: Finding): "strengthens" | "weakens" | "neutral" | "auto" {
   const explicit = String(f.impact_direction ?? "").toLowerCase();
   if (explicit === "strengthens" || explicit === "weakens" || explicit === "neutral") return explicit;
@@ -267,7 +259,7 @@ export function scrubScoringContributors(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any[] {
   const offDomainLabel =
-    /(conviction|appeal|chain of custody|miranda|4th amendment|5th amendment|6th amendment|search and seizure|grand jury|indictment|brady|giglio|informe policial homologado|medidas cautelares)/i;
+    /(conviction|appeal|chain of custody|cadena de custodia|miranda|4th amendment|5th amendment|6th amendment|search and seizure|grand jury|indictment|brady|giglio|informe policial homologado|medidas cautelares|control de detenci[oó]n|carpeta de investigaci[oó]n)/i;
   return arr.filter(
     (c) =>
       (opts.criminalLike || !offDomainLabel.test(String(c?.label ?? ""))) &&
