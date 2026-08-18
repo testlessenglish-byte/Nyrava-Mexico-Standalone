@@ -1,22 +1,6 @@
 // Real case-law grounding for legal issue hits (Report Intelligence).
-//
-// REBUILT 2026-07-29: this file previously queried CourtListener
-// (https://www.courtlistener.com), a U.S. case-law database, and attached
-// real U.S. federal/state court opinions to Mexican legal reports —
-// keyed off issue types that were themselves U.S. doctrine (Fourth
-// Amendment, Miranda, Brady, Jencks, Daubert/Frye). Both halves were
-// wrong for a platform whose own README states it is "Built exclusively
-// for Mexican law."
-//
-// This now queries `legal_authorities` — the local table populated by
-// `scjn.connector.ts` (Suprema Corte de Justicia de la Nación, verified
-// working against the real SJF2 jurisprudencia service) and
-// `cjf.connector.ts` (Consejo de la Judicatura Federal). No external
-// U.S. API call remains in this file.
-//
-// Intentionally fail-soft, same contract as before: any failure (DB
-// error, empty corpus, no match) returns an empty case_law array rather
-// than throwing. It must never be able to break report generation.
+// Mexican-only: queries the local legal_authorities corpus populated by the
+// government-source connectors. No U.S. case-law source is used here.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { LegalIssueHit } from "./report-augment.server";
@@ -32,11 +16,13 @@ export type CaseLawResult = {
   snippet: string;
 };
 
-// One curated search query per Mexican issue type detected in
-// buildLegalIssues() (see report-augment.server.ts's MX_ISSUE_RULES).
-// Kept separate from the detection regexes so this file can be edited
-// independently. Every query is in Spanish and targets real SCJN/CJF
-// jurisprudencia vocabulary, not translated U.S. doctrine.
+// Curated expansions where a compact issue label benefits from Mexican legal
+// vocabulary. IMPORTANT: this map is an optimization, not an allowlist. An
+// issue not present here MUST still query the knowledge library using its own
+// Spanish issue text; the previous allowlist behavior meant Amparo, fiscal,
+// administrativo, familiar, laboral, civil, mercantil, agrario, electoral,
+// ambiental and inmobiliario issues silently received zero legal-authority
+// grounding while penal labels happened to work.
 const ISSUE_QUERY_MAP: Record<string, string> = {
   "Cateo y Detención": "cateo orden judicial detención flagrancia caso urgente exclusión prueba ilícita",
   "Declaración del Imputado sin Garantías":
@@ -49,28 +35,30 @@ const ISSUE_QUERY_MAP: Record<string, string> = {
   "Cadena de Custodia": "cadena de custodia indicio ruptura valor probatorio exclusión",
   "Fundamentación Probatoria": "licitud de la prueba incorporación de prueba valoración probatoria juicio oral",
   "Impugnación Pericial": "dictamen pericial metodología perito acreditación valor probatorio impugnación",
+  "Procedencia del recurso de revisión": "amparo directo revisión procedencia cuestión constitucional importancia trascendencia",
+  "Legitimación": "legitimación interés jurídico interés legítimo amparo recurso revisión",
+  "Notificación": "notificación personal sentencia amparo plazo recurso revisión debido proceso",
+  "Interpretación constitucional": "interpretación directa constitución amparo directo revisión Suprema Corte",
+  "Definitividad": "principio definitividad amparo excepciones procedencia",
+  "Suspensión": "suspensión acto reclamado apariencia buen derecho interés social amparo",
+  "Competencia": "competencia jurisdicción órgano jurisdiccional amparo federal",
 };
 
-// Simple in-memory cache so a single report run never queries the same
-// issue twice (e.g. buildLegalIssues is called more than once per report).
-// This is per-server-instance and intentionally not persisted anywhere.
+export function buildCaseLawSearchQuery(issueType: string, materia?: string): string {
+  const issue = String(issueType ?? "").trim();
+  if (!issue) return "";
+  const curated = ISSUE_QUERY_MAP[issue];
+  if (curated) return curated;
+  // Generic fallback is what makes the knowledge network platform-wide.
+  // Keep it close to the issue wording instead of inventing doctrine. Adding
+  // the materia gives PostgreSQL websearch useful context for common labels
+  // such as "competencia" or "notificación" without changing the proposition.
+  const m = String(materia ?? "").trim();
+  return m ? `${issue} ${m}` : issue;
+}
+
 const runCache = new Map<string, CaseLawResult[]>();
 
-/**
- * Search the local legal_authorities table (SCJN/CJF jurisprudencia,
- * ingested via scjn.connector.ts / cjf.connector.ts) for real, citable
- * authority relevant to a given free-text Spanish query. Returns [] on
- * any failure or empty result — never throws.
- *
- * `opts.materia`, when provided, is used as a best-effort filter against
- * legal_authorities.metadata->>'materia' when that tag is present on a
- * row; rows without a materia tag are still eligible (many jurisprudencia
- * entries are cross-cutting) so this narrows rather than excludes.
- */
-// Issuers that belong to the federal judicial channel. Used to filter (and,
-// failing that, prioritize) precedent when the matter is routed as
-// Federal (México): SCJN, Plenos Regionales, Tribunales Colegiados/Unitarios
-// de Circuito, Juzgados de Distrito, TFJA, TEPJF, Tribunales Agrarios, CJF.
 const FEDERAL_ISSUER_RE =
   /suprema corte|scjn|pleno (regional|de circuito)|primera sala|segunda sala|tribunal(es)? colegiado|tribunal(es)? unitario|colegiado de circuito|juzgado de distrito|consejo de la judicatura federal|\bcjf\b|tribunal federal de justicia administrativa|\btfja\b|tribunal electoral del poder judicial|\btepjf\b|tribunal (unitario|superior) agrario|poder judicial de la federaci/i;
 
@@ -83,59 +71,30 @@ export async function searchCaseLaw(
   query: string,
   opts: { maxResults?: number; materia?: string; federalOnly?: boolean } = {},
 ): Promise<CaseLawResult[]> {
-  const cacheKey = `${query}::${opts.materia ?? ""}::${opts.federalOnly ? "fed" : "all"}`;
+  const normalizedQuery = String(query ?? "").trim();
+  if (!normalizedQuery) return [];
+  const cacheKey = `${normalizedQuery}::${opts.materia ?? ""}::${opts.federalOnly ? "fed" : "all"}`;
   const cached = runCache.get(cacheKey);
   if (cached) return cached;
 
   const max = opts.maxResults ?? 3;
-  // Under the federal channel we over-fetch so federal precedent can be
-  // isolated and ranked ahead of anything local before truncating to `max`.
   const fetchLimit = opts.federalOnly ? Math.max(max * 6, 18) : max;
 
   try {
-    // NOTE (2026-07-29 fix): the legal_authorities.kind column comment in
-    // its migration documents aspirational values ('law','code',
-    // 'regulation','jurisprudence','decision','concept','article') that
-    // don't match what the connectors actually write. Confirmed against
-    // live data: real kind values in use are 'jurisprudencia' and
-    // 'court_decision' (plus 'administrative_ruling', 'electoral_ruling',
-    // 'federal_statute', 'state_statute', 'federal_gazette', 'code',
-    // 'law', 'constitution' — not relevant to case-law grounding). The
-    // original .eq("kind", "jurisprudence") matched zero rows against
-    // real data. Querying both actually-populated kinds instead.
-    // FIX (2026-08-04): this query never filtered on verification_status,
-    // so it cited whatever the connectors scraped straight off DOF/SCJN/CJF
-    // with zero review — the column's own migration comment says "AI may
-    // only cite verified authorities by default," but nothing ever enforced
-    // that here. Confirmed live: 1000/1000 legal_authorities rows sit at
-    // the column's DEFAULT 'pending' because no verification workflow was
-    // ever built (see legal-knowledge-admin.functions.ts's new
-    // markAuthorityVerified for that missing piece). Until an authority has
-    // been explicitly reviewed and marked 'verified', it must not be cited
-    // in a report — an unreviewed government scrape is not the same thing
-    // as a verified legal citation, and the platform's own accuracy bar
-    // requires the latter.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q = (db as any)
+    const q = (db as any)
       .from("legal_authorities")
       .select("title,short_title,citation,issuer,published_at,source_url,body,metadata,authority_level")
       .in("kind", ["jurisprudencia", "court_decision"])
       .eq("verification_status", "verified")
-      .textSearch("body", query, { type: "websearch", config: "spanish" })
-      // Trust-level first (SCJN binding jurisprudencia over a persuasive
-      // circuit-court ruling — see authority-level.ts), recency as the
-      // tiebreaker within the same tier. `nullsFirst: false` sends any
-      // still-unbackfilled row (authority_level null — pre-Phase-2 rows
-      // ingested before this column was populated) to the bottom rather
-      // than letting Postgres's default NULLS-LAST-on-DESC accidentally
-      // do the wrong thing on a re-order.
+      .textSearch("body", normalizedQuery, { type: "websearch", config: "spanish" })
       .order("authority_level", { ascending: false, nullsFirst: false })
       .order("published_at", { ascending: false })
       .limit(fetchLimit);
 
     const { data, error } = await q;
     if (error) {
-      console.warn(`[case-law] legal_authorities lookup failed for query "${query}":`, error.message);
+      console.warn(`[case-law] legal_authorities lookup failed for query "${normalizedQuery}":`, error.message);
       return [];
     }
 
@@ -151,10 +110,6 @@ export async function searchCaseLaw(
     }));
 
     if (opts.federalOnly) {
-      // Federal channel: cite federal precedent (SCJN, Plenos, TCC, Juzgados
-      // de Distrito, TFJA, TEPJF). Only if the corpus yields no federal hit at
-      // all do we fall back to the unfiltered ranking, so the report is never
-      // left with zero authority.
       const federal = mapped.filter((r) => isFederalIssuer(r.court));
       mapped = federal.length ? federal : mapped;
     }
@@ -163,20 +118,18 @@ export async function searchCaseLaw(
     runCache.set(cacheKey, results);
     return results;
   } catch (err) {
-    console.warn(`[case-law] lookup threw for query "${query}":`, err instanceof Error ? err.message : err);
+    console.warn(
+      `[case-law] lookup threw for query "${normalizedQuery}":`,
+      err instanceof Error ? err.message : err,
+    );
     return [];
   }
 }
 
 /**
- * Takes the existing deterministic legal-issue hits and attaches real
- * SCJN/CJF jurisprudencia to each one, keyed off the Mexican issue type
- * (Cateo y Detención, Cadena de Custodia, etc — see
- * report-augment.server.ts). Never mutates input; never throws — on any
- * failure the issue is returned with case_law: [].
- *
- * `materia` narrows the search; `federalOnly` routes precedent retrieval
- * through the federal index (see searchCaseLaw above).
+ * Attach verified Mexican legal authorities to every detected legal issue.
+ * Unknown issue labels are searched by their own text instead of being
+ * silently discarded because they were absent from a hand-maintained map.
  */
 export async function attachCaseLaw(
   db: Db,
@@ -184,22 +137,19 @@ export async function attachCaseLaw(
   materia?: string,
   opts: { federalOnly?: boolean } = {},
 ): Promise<LegalIssueHit[]> {
-  // Only look up each distinct issue type once per report, not once per hit.
   const uniqueIssueTypes = Array.from(new Set(issues.map((i) => i.issue)));
   const byIssueType = new Map<string, CaseLawResult[]>();
 
   await Promise.all(
     uniqueIssueTypes.map(async (issueType) => {
-      const query = ISSUE_QUERY_MAP[issueType];
-      if (!query) {
-        byIssueType.set(issueType, []);
-        return;
-      }
-      const cases = await searchCaseLaw(db, query, {
-        maxResults: 3,
-        materia,
-        federalOnly: opts.federalOnly === true,
-      });
+      const query = buildCaseLawSearchQuery(issueType, materia);
+      const cases = query
+        ? await searchCaseLaw(db, query, {
+            maxResults: 3,
+            materia,
+            federalOnly: opts.federalOnly === true,
+          })
+        : [];
       byIssueType.set(issueType, cases);
     }),
   );
@@ -209,4 +159,3 @@ export async function attachCaseLaw(
     case_law: byIssueType.get(i.issue) ?? [],
   }));
 }
-
