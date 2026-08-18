@@ -122,6 +122,10 @@ function fromMemoRecommendedMotions(memo: Record<string, any> | null | undefined
       title,
       reason: String(m?.legal_standard ?? title),
       supportingFindingIds: [],
+      // Factual-basis strings are preserved for the audit trail, but the
+      // grounding gate only treats them as evidence when they themselves
+      // contain a concrete DOC/page pinpoint. Generated prose alone is not
+      // enough to authorize a filing recommendation.
       supportingEvidence: Array.isArray(m?.factual_basis) ? m.factual_basis.map(String) : [],
       confidence: null,
       expectedImpact: null,
@@ -140,7 +144,11 @@ function fromIntelNextActions(intel: Record<string, any> | null | undefined): Re
       owner: "intelligence" as const,
       title,
       reason: String(a?.why ?? title),
-      supportingFindingIds: Array.isArray(a?.depends_on) ? a.depends_on.map(String) : [],
+      // depends_on is a workflow dependency list, not a list of canonical
+      // finding ids. Treating it as evidentiary support allowed an LLM to
+      // make unsupported filing advice look grounded merely by naming a
+      // prerequisite task.
+      supportingFindingIds: [],
       supportingEvidence: [],
       confidence: null,
       expectedImpact: a?.deadline_hint ? `Deadline: ${a.deadline_hint}` : null,
@@ -173,15 +181,18 @@ function fromIntelMotionOpportunities(intel: Record<string, any> | null | undefi
   if (!Array.isArray(items)) return [];
   return items.map((m: any) => {
     const title = String(m?.motion ?? "").trim();
+    const citations = Array.isArray(m?.citations)
+      ? m.citations
+          .filter((c: any) => Number(c?.doc_n) > 0 && Number(c?.page) > 0 && String(c?.quote ?? "").trim().length > 0)
+          .map((c: any) => `[DOC ${Number(c.doc_n)} p.${Number(c.page)}] ${String(c.quote).trim()}`)
+      : [];
     return {
       id: `rec_${fnv1a(normalize(title))}`,
       owner: "intelligence" as const,
       title,
       reason: String(m?.legal_rationale ?? m?.basis ?? title),
       supportingFindingIds: [],
-      supportingEvidence: Array.isArray(m?.citations)
-        ? m.citations.map((c: any) => `DOC ${c?.doc_n ?? "?"} p.${c?.page ?? "?"}`)
-        : [],
+      supportingEvidence: citations,
       confidence: typeof m?.priority === "number" ? m.priority : null,
       expectedImpact: String(m?.likely_outcome ?? "") || null,
       priorityHint:
@@ -241,7 +252,7 @@ export function mergeCanonicalRecommendations(args: {
 
   // Legal filing/remedy advice cannot be admitted merely because an LLM put
   // it in narrative prose. The canonical list is the last common choke point
-  // before every renderer; require structured finding/evidence support here.
+  // before every renderer; require auditable finding/evidence support here.
   const grounded = filterUnsupportedLegalFilingRecommendations(
     clusters as unknown as Array<Record<string, unknown>>,
   ).items as CanonicalRecommendation[];
