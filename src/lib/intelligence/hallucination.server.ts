@@ -55,6 +55,10 @@ export type HallucinationReport = {
   quarantined_actions_removed?: number;
   /** Score-prose fields reconciled to the persisted deterministic score. */
   score_prose_reconciled?: number;
+  /** Broken score-placeholder sentences removed before release. */
+  score_placeholder_sentences_removed?: number;
+  /** Unsupported new-proceeding recommendations removed from concluded-case audits. */
+  concluded_case_actions_removed?: number;
 };
 
 const REPORT_PROSE_FIELDS = [
@@ -152,6 +156,58 @@ function scrubQuarantinedActionSentence(text: string, actionTitles: string[]): s
   return kept.join(" ").replace(/\s+/g, " ").trim();
 }
 
+/** `well-supported` is an internal fallback token created by the numeric-score
+ * sanitizer, not attorney prose. If it survives generation, dropping only the
+ * sentence containing that token is safer than inventing a replacement level. */
+function scrubScorePlaceholderSentence(text: string): { text: string; removed: number } {
+  if (!text || !/\bwell-supported\b/i.test(text)) return { text, removed: 0 };
+  const pieces = text.split(/(?<=[.!?])\s+|\n+/g);
+  const kept: string[] = [];
+  let removed = 0;
+  for (const piece of pieces) {
+    if (/\bwell-supported\b/i.test(piece)) {
+      removed += 1;
+      continue;
+    }
+    if (piece.trim()) kept.push(piece.trim());
+  }
+  return { text: kept.join(" ").replace(/\s+/g, " ").trim(), removed };
+}
+
+const NEW_PROCEEDING_RX =
+  /\b(demanda\s+de\s+amparo(?:\s+(?:directo|indirecto))?|promover\s+(?:un\s+)?amparo|interponer\s+(?:un\s+)?recurso|presentar\s+(?:una\s+)?demanda|iniciar\s+(?:un\s+)?juicio|promover\s+(?:un\s+)?juicio)\b/i;
+
+function hasRecommendationSupport(rec: Record<string, unknown>): boolean {
+  const findingIds = Array.isArray(rec.supportingFindingIds) ? rec.supportingFindingIds : [];
+  const evidence = Array.isArray(rec.supportingEvidence) ? rec.supportingEvidence : [];
+  return findingIds.length > 0 || evidence.length > 0;
+}
+
+/** A concluded-case audit may identify a potential later remedy, but the report
+ * must not tell an attorney to initiate a new proceeding unless the canonical
+ * recommendation itself carries structured support. This removes generic
+ * catalogue leakage such as "Demanda de amparo indirecto" with zero finding
+ * ids/evidence, without suppressing a supported remedy. */
+function filterConcludedCaseRecommendations(
+  recommendations: unknown,
+  caseAnalysisMode: unknown,
+): { recommendations: unknown; removed: number } {
+  if (String(caseAnalysisMode ?? "") !== "concluded_audit" || !Array.isArray(recommendations)) {
+    return { recommendations, removed: 0 };
+  }
+  let removed = 0;
+  const kept = recommendations.filter((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return true;
+    const rec = value as Record<string, unknown>;
+    const title = String(rec.title ?? "");
+    if (!NEW_PROCEEDING_RX.test(title)) return true;
+    if (hasRecommendationSupport(rec)) return true;
+    removed += 1;
+    return false;
+  });
+  return { recommendations: kept, removed };
+}
+
 function reconcileStrengthScoreText(
   text: string,
   rawScore: number | null,
@@ -179,16 +235,35 @@ function reconcileStrengthScoreText(
 async function reconcileSavedReportProse(
   db: Db,
   caseId: string,
-): Promise<{ quarantinedActionsRemoved: number; scoreProseReconciled: number }> {
+): Promise<{
+  quarantinedActionsRemoved: number;
+  scoreProseReconciled: number;
+  scorePlaceholderSentencesRemoved: number;
+  concludedCaseActionsRemoved: number;
+}> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: saved } = await (db as any)
-    .from("reports")
-    .select(
-      `full_report,case_strength_score,score_breakdown,quality_blocked,quality_block_reasons,${REPORT_PROSE_FIELDS.join(",")}`,
-    )
-    .eq("case_id", caseId)
-    .maybeSingle();
-  if (!saved) return { quarantinedActionsRemoved: 0, scoreProseReconciled: 0 };
+  const [{ data: saved }, { data: caseRow }] = await Promise.all([
+    (db as any)
+      .from("reports")
+      .select(
+        `full_report,case_strength_score,score_breakdown,quality_blocked,quality_block_reasons,${REPORT_PROSE_FIELDS.join(",")}`,
+      )
+      .eq("case_id", caseId)
+      .maybeSingle(),
+    (db as any)
+      .from("cases")
+      .select("case_type,case_analysis_mode")
+      .eq("id", caseId)
+      .maybeSingle(),
+  ]);
+  if (!saved) {
+    return {
+      quarantinedActionsRemoved: 0,
+      scoreProseReconciled: 0,
+      scorePlaceholderSentencesRemoved: 0,
+      concludedCaseActionsRemoved: 0,
+    };
+  }
 
   const full =
     saved.full_report && typeof saved.full_report === "object" && !Array.isArray(saved.full_report)
@@ -234,24 +309,44 @@ async function reconcileSavedReportProse(
         ? consistency.case_strength_score
         : null;
   let scoreReconciled = 0;
+  let placeholderRemoved = 0;
+
   if (typeof saved.score_breakdown === "string") {
-    const fixed = reconcileStrengthScoreText(saved.score_breakdown, rawScore, finalScore);
-    if (fixed !== saved.score_breakdown) {
-      patch.score_breakdown = fixed;
-      scoreReconciled += 1;
+    const scoreFixed = reconcileStrengthScoreText(saved.score_breakdown, rawScore, finalScore);
+    const placeholderFixed = scrubScorePlaceholderSentence(scoreFixed);
+    if (placeholderFixed.text !== saved.score_breakdown) {
+      patch.score_breakdown = placeholderFixed.text;
+      scoreReconciled += scoreFixed !== saved.score_breakdown ? 1 : 0;
+      placeholderRemoved += placeholderFixed.removed;
     }
   }
+
   const prose =
     full?.prose && typeof full.prose === "object" && !Array.isArray(full.prose)
       ? { ...(full.prose as Record<string, unknown>) }
       : null;
   if (prose && typeof prose.score_breakdown === "string") {
-    const fixed = reconcileStrengthScoreText(prose.score_breakdown, rawScore, finalScore);
-    if (fixed !== prose.score_breakdown) {
-      prose.score_breakdown = fixed;
+    const scoreFixed = reconcileStrengthScoreText(prose.score_breakdown, rawScore, finalScore);
+    const placeholderFixed = scrubScorePlaceholderSentence(scoreFixed);
+    if (placeholderFixed.text !== prose.score_breakdown) {
+      prose.score_breakdown = placeholderFixed.text;
       full!.prose = prose;
       patch.full_report = full;
-      scoreReconciled += 1;
+      scoreReconciled += scoreFixed !== prose.score_breakdown ? 1 : 0;
+      placeholderRemoved += placeholderFixed.removed;
+    }
+  }
+
+  let concludedCaseActionsRemoved = 0;
+  if (full) {
+    const filtered = filterConcludedCaseRecommendations(
+      full.canonical_recommendations,
+      caseRow?.case_analysis_mode,
+    );
+    if (filtered.removed > 0) {
+      full.canonical_recommendations = filtered.recommendations;
+      patch.full_report = full;
+      concludedCaseActionsRemoved = filtered.removed;
     }
   }
 
@@ -266,12 +361,6 @@ async function reconcileSavedReportProse(
   // integrity failures (wrong materia vocabulary, U.S.-procedure leakage,
   // unresolved template tokens, OCR/quality_blocked state). The uncalibrated
   // report-quality score is not used as a blocker.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: caseRow } = await (db as any)
-    .from("cases")
-    .select("case_type")
-    .eq("id", caseId)
-    .maybeSingle();
   const reconciledReport = { ...saved, ...patch } as Record<string, unknown>;
   const renderedIssues = validateRenderedReport(
     reconciledReport,
@@ -293,6 +382,8 @@ async function reconcileSavedReportProse(
   return {
     quarantinedActionsRemoved: removed,
     scoreProseReconciled: scoreReconciled,
+    scorePlaceholderSentencesRemoved: placeholderRemoved,
+    concludedCaseActionsRemoved,
   };
 }
 
@@ -345,6 +436,8 @@ export async function runHallucinationReview(args: {
     unverified_examples: [],
     quarantined_actions_removed: proseReconciliation.quarantinedActionsRemoved,
     score_prose_reconciled: proseReconciliation.scoreProseReconciled,
+    score_placeholder_sentences_removed: proseReconciliation.scorePlaceholderSentencesRemoved,
+    concluded_case_actions_removed: proseReconciliation.concludedCaseActionsRemoved,
   };
 
   const nowIso = new Date().toISOString();
@@ -451,4 +544,6 @@ export async function runHallucinationReview(args: {
 export {
   scrubQuarantinedActionSentence as __test__scrubQuarantinedActionSentence,
   reconcileStrengthScoreText as __test__reconcileStrengthScoreText,
+  scrubScorePlaceholderSentence as __test__scrubScorePlaceholderSentence,
+  filterConcludedCaseRecommendations as __test__filterConcludedCaseRecommendations,
 };
