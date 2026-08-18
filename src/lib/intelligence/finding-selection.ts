@@ -5,35 +5,9 @@
 // filters, or classifies `case_findings` rows MUST go through the helpers
 // here so scoring, dashboard badges, agent statistics, and the exporter can
 // never drift apart again.
-//
-// Phase 1 contract: NO BEHAVIOR CHANGE. Each helper reproduces exactly the
-// rule that already lived at its call sites:
-//   - classifyFindingSource() is the `engine:` / `agent:` / `analyzer:`
-//     prefix rule from scoring-selection.ts, verbatim.
-//   - selectFindings() is that same canonical filter, expressed once.
-//   - getFindingMetrics() is the severity/status tally the dashboard and
-//     agent statistics each computed inline.
-//   - getFindingConsensus() reads the new `supporting_engines[]` column
-//     added by the aggregation migration; it is additive and returns a
-//     zero-agreement result for rows that predate it.
-//
-// `source_module` semantics stay frozen: 17 confirmed consumers depend on
-// the prefix strings, so nothing here rewrites or reinterprets them.
 
-// Phase 2 adds one class: `projection:*` rows are mirrored copies of
-// specialized-table output (evidence classifications, witness credibility).
-// They are provenance rows, NOT new analysis — they are excluded from every
-// pre-existing surface by default so Phase 2 cannot move a single badge.
 export type FindingSourceClass = "engine" | "agent" | "analyzer" | "projection" | "other";
 
-/**
- * PostgREST `like` pattern matching every Phase 2 mirrored row.
- * Phase 3 reader audit: every pre-existing `case_findings` reader that is not
- * projection-aware filters with `.not("source_module", "like", PROJECTION_LIKE)`
- * so flipping FINDINGS_PROJECTION_ENABLED cannot move a badge, count, release
- * gate, citation audit, timeline, or report body. Only the canonical writer
- * (`src/lib/canonical/writer.server.ts`) reads projection rows on purpose.
- */
 export const PROJECTION_LIKE = "projection:%";
 
 export type FindingStatus = "candidate" | "verified" | "disputed" | "suppressed" | "promoted";
@@ -46,21 +20,19 @@ export const FINDING_STATUSES: readonly FindingStatus[] = [
   "promoted",
 ] as const;
 
-/** Minimal row shape every helper here accepts. Deliberately structural so
- *  Supabase rows, engine output, and test fixtures all satisfy it. */
 export type SelectableFinding = {
   source_module?: string | null;
   severity?: string | null;
   finding_status?: string | null;
   supporting_engines?: string[] | null;
   metadata?: Record<string, unknown> | null;
+  /** Hallucination/citation verifier result. A row explicitly marked
+   * no_citation/unverified has been quarantined and is not eligible for an
+   * authoritative report surface. Undefined preserves pre-verifier behavior
+   * while the pipeline is still running. */
+  verification_status?: string | null;
 };
 
-/**
- * The `engine:` / `agent:` / `analyzer:` classification. This is the single
- * definition — `scoring-selection.ts` delegates to it rather than repeating
- * the prefix test.
- */
 export function classifyFindingSource(f: SelectableFinding): FindingSourceClass {
   const sm = String(f.source_module ?? "");
   if (sm.startsWith("engine:")) return "engine";
@@ -70,40 +42,37 @@ export function classifyFindingSource(f: SelectableFinding): FindingSourceClass 
   return "other";
 }
 
-/** Provisional findings never enter scoring or the report. */
 export function isProvisionalFinding(f: SelectableFinding): boolean {
   return (f.metadata as Record<string, unknown> | undefined)?.provisional === true;
 }
 
 /**
- * True for a finding that is finalized, non-provisional pipeline output —
- * i.e. eligible for scoring, the scorecard, and the report body.
- *
- * Identical to the rule in getCanonicalScoringFindings(): `engine:*` AND
- * `agent:*` count; `analyzer:*` (raw, pre-dedupe) never does.
+ * True for finalized, non-provisional pipeline output that may appear as an
+ * authoritative finding. A completed hallucination/citation pass can mark a
+ * row `no_citation` or `unverified`; those rows remain in the database/audit
+ * appendix but must not re-enter the dashboard, PDF key-findings body, or
+ * ordinary case UI through getCase() after the report explicitly quarantined
+ * them.
  */
 export function isCanonicalFinding(f: SelectableFinding): boolean {
   const cls = classifyFindingSource(f);
-  return (cls === "engine" || cls === "agent") && !isProvisionalFinding(f);
+  const verification = String(f.verification_status ?? "").toLowerCase();
+  const quarantined = verification === "no_citation" || verification === "unverified";
+  return (cls === "engine" || cls === "agent") && !isProvisionalFinding(f) && !quarantined;
 }
 
 export type SelectFindingsOptions = {
-  /** Which source classes to keep. Defaults to the canonical set. */
   include?: ReadonlyArray<FindingSourceClass>;
-  /** Keep provisional rows. Defaults to false. */
   includeProvisional?: boolean;
-  /** Restrict to these `finding_status` values. Defaults to no restriction. */
   statuses?: ReadonlyArray<FindingStatus>;
-  /** Restrict to these severities. Defaults to no restriction. */
   severities?: ReadonlyArray<string>;
+  /** Include rows explicitly quarantined by citation verification. Defaults
+   * false for the canonical report/UI selection. */
+  includeQuarantined?: boolean;
 };
 
 const DEFAULT_INCLUDE: ReadonlyArray<FindingSourceClass> = ["engine", "agent"];
 
-/**
- * Unified selector. With no options this is exactly the canonical
- * scoring/report set — no behavior change from the pre-Phase-1 filters.
- */
 export function selectFindings<T extends SelectableFinding>(
   findings: ReadonlyArray<T>,
   opts: SelectFindingsOptions = {},
@@ -115,6 +84,10 @@ export function selectFindings<T extends SelectableFinding>(
   return (findings ?? []).filter((f) => {
     if (!include.has(classifyFindingSource(f))) return false;
     if (!opts.includeProvisional && isProvisionalFinding(f)) return false;
+    if (!opts.includeQuarantined) {
+      const verification = String(f.verification_status ?? "").toLowerCase();
+      if (verification === "no_citation" || verification === "unverified") return false;
+    }
     if (statuses && !statuses.has(String(f.finding_status ?? "candidate"))) return false;
     if (severities && !severities.has(String(f.severity ?? ""))) return false;
     return true;
@@ -122,13 +95,9 @@ export function selectFindings<T extends SelectableFinding>(
 }
 
 export type FindingMetrics = {
-  /** Every row handed in, no filtering. */
   total: number;
-  /** Rows passing the canonical (engine|agent, non-provisional) filter. */
   canonical: number;
-  /** Rows excluded as provisional or analyzer-only. */
   provisional: number;
-  /** critical + high, over the canonical set. */
   highPriority: number;
   bySource: Record<FindingSourceClass, number>;
   bySeverity: Record<string, number>;
@@ -139,10 +108,6 @@ function emptyStatusTally(): Record<FindingStatus, number> {
   return { candidate: 0, verified: 0, disputed: 0, suppressed: 0, promoted: 0 };
 }
 
-/**
- * One tally used by every badge, counter, and statistics surface.
- * `highPriority` reproduces the dashboard's existing critical|high rule.
- */
 export function getFindingMetrics(findings: ReadonlyArray<SelectableFinding>): FindingMetrics {
   const bySource: Record<FindingSourceClass, number> = {
     engine: 0,
@@ -189,21 +154,11 @@ export function getFindingMetrics(findings: ReadonlyArray<SelectableFinding>): F
 }
 
 export type FindingConsensus = {
-  /** Distinct pipeline stages that produced this finding. */
   agreementCount: number;
   engines: string[];
-  /**
-   * Display-safe wording. Never "independently verified" — these are stages
-   * of one pipeline, not independent corroboration.
-   */
   label: (lang: "es" | "en") => string;
 };
 
-/**
- * Reads `supporting_engines[]` (added by the aggregation migration).
- * Additive: rows written before the migration report zero agreement and the
- * caller renders nothing, exactly as today.
- */
 export function getFindingConsensus(f: SelectableFinding): FindingConsensus {
   const raw = Array.isArray(f.supporting_engines) ? f.supporting_engines : [];
   const engines = Array.from(new Set(raw.map((e) => String(e).trim()).filter(Boolean))).sort();
