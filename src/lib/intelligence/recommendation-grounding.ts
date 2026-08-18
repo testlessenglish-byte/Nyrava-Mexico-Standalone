@@ -3,13 +3,6 @@ export type RecommendationLike = Record<string, unknown>;
 const FILING_OR_REMEDY_RX =
   /\b(?:presentar|interponer|promover|formular|iniciar|preparar|redactar|solicitar|tramitar)\b[^.!?\n]{0,110}\b(?:demanda|amparo|recurso|apelacion|apelación|revision|revisión|queja|reclamacion|reclamación|juicio|incidente|medio de defensa|suspensi[oó]n|nulidad)\b|\b(?:demanda de amparo|amparo directo|amparo indirecto|recurso de revision|recurso de revisión|recurso de queja|recurso de reclamacion|recurso de reclamación|apelacion|apelación|suspensi[oó]n del acto reclamado|ampliaci[oó]n de demanda|petici[oó]n de nulidad)\b/i;
 
-/**
- * Forward-looking acts that are especially unsafe in a retrospective audit
- * unless the record establishes a still-available post-judgment route.
- * These patterns intentionally describe PROCEDURAL ACTS, not mere discussion
- * of them: a report may explain that a suspension or appeal existed without
- * recommending that the attorney file one now.
- */
 const CONCLUDED_PROSPECTIVE_ACTION_RX =
   /\b(?:presentar|interponer|promover|redactar|formular|tramitar|iniciar|solicitar|preparar)\b[^.!?\n]{0,120}\b(?:demanda(?:\s+de\s+amparo)?|amparo\s+(?:directo|indirecto)|recurso(?:\s+de\s+(?:revisi[oó]n|queja|reclamaci[oó]n))?|apelaci[oó]n|suspensi[oó]n(?:\s+del\s+acto\s+reclamado)?|ampliaci[oó]n\s+de\s+demanda|petici[oó]n\s+de\s+nulidad|incidente)\b|\bmientras\s+se\s+resuelve\s+el\s+amparo\b|\b(?:demanda\s+de\s+amparo\s+(?:directo|indirecto)|suspensi[oó]n\s+del\s+acto\s+reclamado|ampliaci[oó]n\s+de\s+demanda|petici[oó]n\s+de\s+nulidad|recurso\s+de\s+revisi[oó]n\s+ante\s+el\s+tribunal\s+de\s+alzada)\b/i;
 
@@ -36,6 +29,18 @@ function hasPinpointEvidence(value: unknown): boolean {
   return Number.isFinite(doc) && doc > 0 && Number.isFinite(page) && page > 0 && quote.length > 0;
 }
 
+function hasCanonicalFinding(rec: RecommendationLike): boolean {
+  return nonEmptyArray(rec.supportingFindingIds).some(isPlausibleFindingId);
+}
+
+function allEvidence(rec: RecommendationLike): unknown[] {
+  return [
+    ...nonEmptyArray(rec.supportingEvidence),
+    ...nonEmptyArray(rec.citations),
+    ...nonEmptyArray(rec.factual_basis),
+  ];
+}
+
 export function isLegalFilingRecommendation(text: unknown): boolean {
   return FILING_OR_REMEDY_RX.test(String(text ?? "").trim());
 }
@@ -45,45 +50,19 @@ export function isConcludedCaseProspectiveAction(text: unknown): boolean {
 }
 
 /**
- * Filing/remedy advice needs auditable support, not merely another generated
- * string. Workflow dependencies and uncited factual-basis prose are NOT
- * evidence. Accept only a real canonical-finding identifier or pinpoint
- * document support that contains a concrete DOC/page reference (or a
- * structured citation with doc, page and quote).
+ * Attorney-facing filing/remedy advice has a higher evidentiary burden than
+ * an ordinary investigation task. It must tie to BOTH a canonical finding
+ * and pinpoint record evidence. A generated legal sentence, a workflow
+ * dependency, or a quote with no finding linkage cannot authorize a filing.
+ * This rule is intentionally mode-independent: the same trustworthy standard
+ * applies to ongoing and concluded cases.
  */
 export function hasStructuredRecommendationSupport(rec: RecommendationLike): boolean {
-  const findingIds = nonEmptyArray(rec.supportingFindingIds);
-  if (findingIds.some(isPlausibleFindingId)) return true;
-
-  const evidence = nonEmptyArray(rec.supportingEvidence);
-  if (evidence.some(hasPinpointEvidence)) return true;
-
-  const citations = nonEmptyArray(rec.citations);
-  if (citations.some(hasPinpointEvidence)) return true;
-
-  const factualBasis = nonEmptyArray(rec.factual_basis);
-  if (factualBasis.some(hasPinpointEvidence)) return true;
-
-  return false;
+  return hasCanonicalFinding(rec) && allEvidence(rec).some(hasPinpointEvidence);
 }
 
-/**
- * For a concluded case, a generic citation showing that the court discussed a
- * doctrine is NOT enough to establish that a new proceeding remains legally
- * available. Require both a canonical finding and pinpoint record support for
- * a prospective procedural act. This deliberately leaves non-procedural audit
- * actions (verify resolutivos, obtain the complete expediente, research a
- * cited precedent) untouched.
- */
 export function hasConcludedPostureSupport(rec: RecommendationLike): boolean {
-  const findingIds = nonEmptyArray(rec.supportingFindingIds);
-  const hasFinding = findingIds.some(isPlausibleFindingId);
-  const evidence = [
-    ...nonEmptyArray(rec.supportingEvidence),
-    ...nonEmptyArray(rec.citations),
-    ...nonEmptyArray(rec.factual_basis),
-  ];
-  return hasFinding && evidence.some(hasPinpointEvidence);
+  return hasStructuredRecommendationSupport(rec);
 }
 
 export function filterUnsupportedLegalFilingRecommendations<T extends RecommendationLike>(
