@@ -19,35 +19,19 @@ export type WitnessProfile = {
   sources: string[];
 };
 
-// Names we consider witnesses when scanning free text. Mexican
-// investigative/procedural roles (REBUILT 2026-07-29 — previously used
-// U.S. police ranks: Detective, Sergeant, Lieutenant, Deputy, Sheriff).
 const WITNESS_TITLE_RE =
-  /\b(?:Policía de Investigación|Agente del Ministerio Público|Ministerio Público|Fiscal|Perito|Dr\.|Doctor|Doctora|Dra\.|Profesor|Profesora|Prof\.|Custodio)\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’.-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’.-]+)?\b/g;
-const PROPER_NAME_RE = /\b([A-Z][a-z]{2,}\s+[A-Z][a-z]{2,})\b/g;
+  /\b(?:Policía de Investigación|Agente del Ministerio Público|Fiscal|Perito|Dr\.|Doctor|Doctora|Dra\.|Profesor|Profesora|Prof\.|Custodio)\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’.-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’.-]+){0,2}\b/g;
+const PROPER_NAME_RE = /\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})?)\b/g;
 
-// FIX (2026-08-16): PROPER_NAME_RE has no way to tell a person's name apart
-// from any other two-capitalized-word phrase, so an amparo/constitutional
-// case's own institutional and citation vocabulary — "Amparo Directo",
-// "Primera Sala", "Semanario Judicial" — matched it and got listed as
-// cross-examination "witnesses" with fabricated prior-statement questions.
-// Confirmed live on a real case (ADR-2239-2018, attorney_work_product.
-// cross_examination_outlines). This is a targeted denylist of common
-// Mexican court/institution/publication phrases, not an attempt at general
-// NER — a real person sharing one of these exact phrases is the acceptable
-// tradeoff for not fabricating cross-examination scripts against a court.
 const NON_PERSON_NAME_PHRASES = new Set(
   [
     "Amparo Directo",
     "Amparo Indirecto",
     "Primera Sala",
     "Segunda Sala",
-    "Pleno de",
     "Tribunal Colegiado",
     "Tribunal Unitario",
     "Tribunal Electoral",
-    "Tribunal de",
-    "Juzgado de",
     "Suprema Corte",
     "Poder Judicial",
     "Semanario Judicial",
@@ -55,36 +39,65 @@ const NON_PERSON_NAME_PHRASES = new Set(
     "Ministerio Público",
     "Código Civil",
     "Código Penal",
+    "Código Nacional",
+    "Procedimientos Penales",
+    "Estados Unidos",
     "Ley Federal",
     "Ley General",
+    "Derechos Humanos",
   ].map((s) => s.toLowerCase()),
 );
 
-function isLikelyPersonName(name: string): boolean {
-  return !NON_PERSON_NAME_PHRASES.has(name.toLowerCase());
+// A generic capitalized phrase is NOT enough to create a witness. This is the
+// invariant that prevents "Procedimientos Penales", "Estados Unidos", court
+// names and doctrinal phrases from becoming people with fabricated cross-
+// examination questions.
+const NON_PERSON_TOKEN_RX =
+  /\b(?:amparo|sala|tribunal|juzgado|suprema|corte|poder|judicial|semanario|diario|ministerio|público|publico|código|codigo|ley|procedimientos?|penales?|estados|unidos|constitución|constitucion|nacional|federal|derechos|humanos|artículo|articulo|fracción|fraccion|recurso|sentencia|jurisprudencia)\b/i;
+const TESTIMONIAL_CONTEXT_RX =
+  /\b(?:testigo|testimonial|declar[oó]|declaraci[oó]n|compareci[oó]|comparecencia|entrevista(?:do|da)?|manifest[oó]|deponente|perito|dictamen|polic[ií]a|agente|fiscal|custodio|v[ií]ctima|ofendido|denunciante)\b/i;
+
+export function isLikelyWitnessPersonName(name: string, context = ""): boolean {
+  const clean = name.trim();
+  if (!clean || clean.length < 5 || clean.length > 90) return false;
+  if (NON_PERSON_NAME_PHRASES.has(clean.toLowerCase())) return false;
+  if (NON_PERSON_TOKEN_RX.test(clean)) return false;
+  // Names extracted from generic capitalization require nearby testimonial
+  // language; explicit titled-witness matches and database-seeded witnesses
+  // bypass this check at their call sites.
+  return TESTIMONIAL_CONTEXT_RX.test(context);
 }
 
-function roleFor(name: string, text: string): string {
+function contextsAround(text: string, name: string, radius = 180): string[] {
+  const lower = text.toLowerCase();
+  const needle = name.toLowerCase();
+  const out: string[] = [];
+  let from = 0;
+  while (out.length < 8) {
+    const i = lower.indexOf(needle, from);
+    if (i < 0) break;
+    out.push(text.slice(Math.max(0, i - radius), Math.min(text.length, i + name.length + radius)));
+    from = i + Math.max(1, name.length);
+  }
+  return out;
+}
+
+function roleFor(name: string, context: string): string {
   const n = name.toLowerCase();
-  const t = text.toLowerCase();
+  const t = context.toLowerCase();
   if (/^cw-\d+/i.test(name)) return "testigo colaborador";
   if (/(v[ií]ctima|ofendido|denunciante)/.test(t) && t.includes(n)) return "víctima";
-  if (
-    /(polic[ií]a de investigaci[oó]n|agente del ministerio p[uú]blico|ministerio p[uú]blico|fiscal|custodio)/.test(
-      name.toLowerCase(),
-    )
-  )
-    return "investigador";
-  if (/(doctor|dr\.|doctora|dra\.|profesor|profesora|prof\.|perito)/i.test(name)) return "perito";
-  if (/imputado|acusado/.test(t) && t.includes(n)) return "imputado";
+  if (/(polic[ií]a de investigaci[oó]n|agente del ministerio p[uú]blico|fiscal|custodio)/.test(t)) return "investigador";
+  if (/(doctor|dr\.|doctora|dra\.|profesor|profesora|prof\.|perito)/i.test(t)) return "perito";
+  if (/(imputado|acusado)/.test(t) && t.includes(n)) return "imputado";
   return "testigo";
 }
 
 function pickStatements(text: string, name: string, max = 4): string[] {
-  const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.length < 320 && s.length > 30);
+  const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.length < 420 && s.length > 30);
   const hits: string[] = [];
   for (const s of sentences) {
-    if (s.includes(name) || s.toLowerCase().includes(name.toLowerCase())) {
+    if (s.toLowerCase().includes(name.toLowerCase())) {
       hits.push(s.trim());
       if (hits.length >= max) break;
     }
@@ -110,113 +123,79 @@ export async function buildWitnessProfiles(db: Db, caseId: string): Promise<Witn
   const allText = corpus.map((c) => c.text).join("\n\n");
 
   const nameSet = new Set<string>();
-  // Seed with existing witnesses table.
+  // Human-reviewed/stored witness rows are authoritative seeds.
   for (const w of (witnessRows ?? []) as Array<{ name?: string }>) {
     if (typeof w?.name === "string" && w.name.trim()) nameSet.add(w.name.trim());
   }
-  // Extract from corpus.
+  // Explicit witness/professional titles provide their own person context.
   for (const m of allText.matchAll(WITNESS_TITLE_RE)) nameSet.add(m[0]);
+
+  // Generic proper-name extraction is only admitted if repeated AND at least
+  // one occurrence sits in testimonial context. Repetition alone is never a
+  // person signal.
   const properHits = new Map<string, number>();
   for (const m of allText.matchAll(PROPER_NAME_RE)) {
-    if (!isLikelyPersonName(m[1])) continue;
-    properHits.set(m[1], (properHits.get(m[1]) ?? 0) + 1);
+    const candidate = m[1];
+    const context = allText.slice(Math.max(0, (m.index ?? 0) - 180), Math.min(allText.length, (m.index ?? 0) + candidate.length + 180));
+    if (!isLikelyWitnessPersonName(candidate, context)) continue;
+    properHits.set(candidate, (properHits.get(candidate) ?? 0) + 1);
   }
-  for (const [n, c] of properHits) if (c >= 3) nameSet.add(n);
+  for (const [n, c] of properHits) if (c >= 2) nameSet.add(n);
 
-  // Cap so a giant corpus doesn't produce hundreds of low-quality profiles.
-  const names = Array.from(nameSet).slice(0, 40);
-  const profiles: WitnessProfile[] = names.map((name) => {
-    const sources = corpus.filter((c) => c.text.includes(name)).map((c) => c.filename);
+  const names = Array.from(nameSet)
+    .filter((name) => {
+      if ((witnessRows ?? []).some((w: any) => String(w?.name ?? "").trim() === name)) return true;
+      if (new RegExp(`^(?:${WITNESS_TITLE_RE.source.replace(/^\\b|\/g$/, "")})$`, "i").test(name)) return true;
+      return contextsAround(allText, name).some((ctx) => isLikelyWitnessPersonName(name, ctx));
+    })
+    .slice(0, 40);
+
+  return names.map((name) => {
+    const sources = corpus.filter((c) => c.text.toLowerCase().includes(name.toLowerCase())).map((c) => c.filename);
     const statements = pickStatements(allText, name, 5);
-    const role = roleFor(name, allText);
+    const nameContexts = contextsAround(allText, name);
+    const role = roleFor(name, nameContexts.join("\n"));
     const relatedFindings = (findings ?? []).filter((f) => {
       const blob = `${f.title ?? ""} ${f.description ?? ""} ${f.source_quote ?? ""}`;
-      return blob.includes(name);
+      return blob.toLowerCase().includes(name.toLowerCase());
     });
     const credibility_supports: string[] = [];
     const credibility_risks: string[] = [];
     const bias_indicators: string[] = [];
     const impeachment_opportunities: string[] = [];
 
-    // FIX (2026-07-29): these branches checked the OLD English role
-    // strings ("cooperating witness", "investigator", "expert", "victim")
-    // that roleFor() was rebuilt to no longer return — it now returns
-    // "testigo colaborador", "investigador", "perito", "víctima". Every
-    // branch below was silently dead (never matched anything) until this
-    // fix. Content also rebuilt: Mexico has no jury trials, no plea
-    // bargaining in the U.S. sense, and no Daubert/Frye standard — CNPP
-    // has criterio de oportunidad (Arts. 256–258) and expert-opinion
-    // challenge under Arts. 368–372.
     if (role === "testigo colaborador") {
-      bias_indicators.push(
-        "Testigo colaborador — incentivo inherente para declarar de forma favorable al Ministerio Público en el marco de un criterio de oportunidad.",
-      );
-      credibility_risks.push(
-        "Posible acuerdo de criterio de oportunidad o suspensión condicional del proceso; verificar los beneficios procesales otorgados (Arts. 256–258 CNPP).",
-      );
+      bias_indicators.push("Testigo colaborador — verificar cualquier beneficio procesal documentado antes de atribuir un incentivo.");
     }
     if (role === "investigador") {
-      credibility_supports.push("Policía de investigación con informes contemporáneos al hecho.");
-      credibility_risks.push(
-        "Riesgo de sesgo de confirmación; verificar si la investigación se centró prematuramente en un solo sospechoso.",
-      );
+      credibility_supports.push("Servidor investigador identificado en el registro; contraste sus afirmaciones con informes y constancias contemporáneas.");
     }
     if (role === "perito") {
-      credibility_risks.push(
-        "Sujeto a impugnación pericial por deficiencia metodológica o falta de acreditación (Arts. 368–372 CNPP).",
-      );
+      credibility_risks.push("Verificar acreditación, metodología, datos de entrada y límites expresados en el dictamen antes de impugnar su confiabilidad.");
     }
-    if (role === "víctima") {
-      bias_indicators.push("Calidad de víctima — interés directo en el resultado del proceso.");
-    }
+    if (role === "víctima") bias_indicators.push("Calidad de víctima/ofendido; evaluar interés y corroboración sin presumir falta de credibilidad.");
+
     for (const f of relatedFindings) {
       const cat = String(f.category ?? "").toLowerCase();
-      if (/contradict/.test(cat) || /credibility/.test(cat) || /impeach/.test(cat)) {
+      if (/contradict|credibility|impeach|inconsisten/.test(cat)) {
         impeachment_opportunities.push(String(f.title ?? "").slice(0, 200));
       }
     }
-    const direct_questions =
-      role === "investigador"
-        ? [
-            `Describa al Tribunal el desarrollo de su investigación, ${name}.`,
-            `¿Qué evidencia corrobora cada elemento del hecho delictivo?`,
-            `Describa la cadena de custodia de cada indicio que aseguró.`,
-          ]
+
+    const direct_questions = statements.length
+      ? role === "investigador"
+        ? ["Describa únicamente las diligencias que realizó personalmente.", "Identifique la constancia contemporánea que respalda cada afirmación relevante."]
         : role === "perito"
-          ? [
-              `Describa su acreditación y la metodología que aplicó en su dictamen.`,
-              `¿Cuál es el margen de error asociado a su técnica?`,
-              `¿Su dictamen ha sido validado o revisado institucionalmente?`,
-            ]
-          : [
-              `Relate al Tribunal lo que percibió directamente, ${name}.`,
-              `¿Con qué certeza afirma lo que observó?`,
-              `¿Registró o documentó sus observaciones en el momento de los hechos?`,
-            ];
-    const cross_questions =
-      role === "testigo colaborador"
-        ? [
-            `Usted celebró un acuerdo de criterio de oportunidad a cambio de una reducción en su exposición penal, ¿correcto?`,
-            `Su declaración de hoy es una condición de ese acuerdo, ¿no es así?`,
-            `Usted revisó sus declaraciones previas con el Ministerio Público antes de declarar hoy, ¿correcto?`,
-          ]
-        : role === "investigador"
-          ? [
-              `Usted centró la investigación en el imputado desde una etapa temprana, ¿no es así?`,
-              `Usted no agotó [línea de investigación alternativa] porque no encajaba con su hipótesis, ¿correcto?`,
-              `¿No es cierto que su informe omite [hecho contradictorio]?`,
-            ]
-          : role === "perito"
-            ? [
-                `Su metodología tiene un margen de error conocido de ___, ¿correcto?`,
-                `Otros peritos calificados discrepan de su conclusión, ¿no es así?`,
-                `Usted fue contratado y pagado por [parte], ¿correcto?`,
-              ]
-            : [
-                `Su declaración previa del [fecha] decía algo distinto, ¿no es así?`,
-                `Usted comentó su testimonio con el abogado antes de hoy, ¿correcto?`,
-                `Usted no puede descartar [explicación alternativa], ¿verdad?`,
-              ];
+          ? ["Explique su acreditación, metodología y datos examinados.", "Indique los límites y margen de error de su conclusión."]
+          : ["Relate únicamente lo que percibió directamente.", "Indique cuándo y cómo registró o comunicó esa percepción."]
+      : [];
+    const cross_questions = statements.length
+      ? role === "investigador"
+        ? ["¿Qué parte de su conclusión depende de información proporcionada por terceros?", "¿Qué líneas alternativas documentadas examinó y descartó?"]
+        : role === "perito"
+          ? ["¿Qué limitaciones metodológicas reconoce su propio dictamen?", "¿Qué datos, si cambiaran, modificarían su conclusión?"]
+          : ["¿Su declaración actual difiere de alguna manifestación previa documentada?", "¿Qué parte de su relato proviene de percepción directa y cuál de información de terceros?"]
+      : [];
 
     return {
       name,
@@ -231,13 +210,8 @@ export async function buildWitnessProfiles(db: Db, caseId: string): Promise<Witn
       sources: Array.from(new Set(sources)).slice(0, 6),
     };
   });
-
-  return profiles;
 }
 
-// ---------------------------------------------------------------------------
-// LEGAL ISSUE SPOTTING (Task 8)
-// ---------------------------------------------------------------------------
 export type LegalIssueHit = {
   issue: string;
   indicator: string;
@@ -245,9 +219,6 @@ export type LegalIssueHit = {
   quote: string;
   significance: string;
   next_step: string;
-  // Optional — populated only when buildLegalIssuesWithCaseLaw() is used
-  // instead of buildLegalIssues(). Left undefined otherwise, so nothing
-  // that reads this type without knowing about case_law breaks.
   case_law?: Array<{
     case_name: string;
     citation: string | null;
@@ -258,46 +229,6 @@ export type LegalIssueHit = {
   }>;
 };
 
-// REBUILT 2026-07-29: replaces the prior ISSUE_RULES, which detected and
-// generated next-step guidance for U.S. federal criminal procedure
-// (Fourth Amendment, Miranda, Franks, Brady, Jencks, FRE 901/902/702) —
-// none of which exist in Mexican penal procedure. This platform is
-// "Built exclusively for Mexican law" per its own README; the prior
-// table meant a real Mexican penal case running through buildWorkProduct()
-// could receive "File motion to suppress; request Franks hearing" or
-// "Serve Brady demand" as generated next steps — legal mechanisms with no
-// standing in a CNPP proceeding.
-//
-// Every rule below is grounded in CPEUM/CNPP:
-//   - Cateo y Detención: CPEUM Art. 16 (orden judicial fundada y
-//     motivada, salvo flagrancia o caso urgente); violations can support
-//     exclusión de prueba ilícita (CPEUM Art. 20, apartado A, fracción
-//     IX; CNPP Art. 97).
-//   - Declaración del Imputado sin Garantías: CPEUM Art. 20, apartado B
-//     (derecho a guardar silencio, asistencia de defensor desde la
-//     detención).
-//   - Irregularidad en Solicitud de Cateo: CNPP arts. 282–284 (requisitos
-//     de la solicitud y orden de cateo).
-//   - Omisión en el Deber de Aportación Probatoria: CPEUM Art. 21
-//     (principio de objetividad del Ministerio Público — no solo debe
-//     buscar la condena) together with CNPP Art. 218–219 (deber de
-//     poner a disposición de la defensa los registros de la
-//     investigación).
-//   - Declaraciones Previas de Testigo: entrevistas registradas en la
-//     carpeta de investigación, usadas para contrainterrogatorio conforme
-//     a las técnicas de litigación oral del CNPP (arts. 375–386) — there
-//     is no Mexican grand jury and no direct Jencks-Act equivalent; this
-//     is the actual functional analogue.
-//   - Cadena de Custodia: CNPP arts. 227–230.
-//   - Fundamentación Probatoria: licitud e incorporación de la prueba en
-//     juicio oral (CNPP Art. 357 and surrounding provisions).
-//   - Impugnación Pericial: CNPP arts. 368–372 (dictamen pericial,
-//     acreditación del perito, metodología).
-//
-// Article citations here are the general provisions governing each
-// mechanism, not a substitute for verifying against the specific case
-// file — same caveat this platform already applies to every other
-// generated citation.
 const ISSUE_RULES: Array<{
   issue: string;
   indicator: RegExp;
@@ -307,118 +238,68 @@ const ISSUE_RULES: Array<{
 }> = [
   {
     issue: "Cateo y Detención",
-    indicator:
-      /\b(orden\s+de\s+cateo|cateo\s+sin\s+orden|detenci[oó]n\s+sin\s+orden|flagrancia|caso\s+urgente|control\s+de\s+detenci[oó]n|aseguramiento\s+de\s+bienes)\b/i,
+    indicator: /\b(orden\s+de\s+cateo|cateo\s+sin\s+orden|detenci[oó]n\s+sin\s+orden|flagrancia|caso\s+urgente|control\s+de\s+detenci[oó]n|aseguramiento\s+de\s+bienes)\b/i,
     description: "Orden de cateo, detención, flagrancia, caso urgente",
-    significance:
-      "Todo cateo o detención requiere orden judicial fundada y motivada, salvo flagrancia o caso urgente (Art. 16 CPEUM). Los indicios obtenidos en un cateo o detención irregulares pueden excluirse como prueba ilícita (Art. 20, apartado A, fracción IX, CPEUM; Art. 97 CNPP).",
-    next_step:
-      "Promover incidente de exclusión de prueba ilícita ante el Juez de Control; solicitar la comparecencia del elemento aprehensor en audiencia de control de detención.",
+    significance: "Todo cateo o detención requiere orden judicial fundada y motivada, salvo flagrancia o caso urgente; la licitud debe verificarse contra las constancias y la norma vigente.",
+    next_step: "Verificar la orden, acta y audiencia de control; cualquier promoción debe sustentarse en la irregularidad concreta documentada.",
   },
   {
     issue: "Declaración del Imputado sin Garantías",
-    indicator:
-      /\b(declaraci[oó]n\s+sin\s+defensor|coacci[oó]n\s+en\s+declaraci[oó]n|renuncia\s+al\s+derecho\s+a\s+guardar\s+silencio|entrevista\s+sin\s+abogado|declaraci[oó]n\s+ministerial\s+sin\s+asistencia)\b/i,
+    indicator: /\b(declaraci[oó]n\s+sin\s+defensor|coacci[oó]n\s+en\s+declaraci[oó]n|renuncia\s+al\s+derecho\s+a\s+guardar\s+silencio|entrevista\s+sin\s+abogado|declaraci[oó]n\s+ministerial\s+sin\s+asistencia)\b/i,
     description: "Declaración del imputado, asistencia de defensor, derecho a guardar silencio",
-    significance:
-      "El imputado tiene derecho a guardar silencio y a la asistencia de un defensor desde el momento de su detención (Art. 20, apartado B, CPEUM). Una declaración obtenida sin estas garantías es nula y no puede utilizarse en su contra.",
-    next_step:
-      "Promover la exclusión de la declaración por violación al derecho de defensa adecuada; solicitar se declare la nulidad del acto ante el Juez de Control.",
+    significance: "Verificar si la declaración fue obtenida con defensa adecuada y respeto al derecho a guardar silencio.",
+    next_step: "Revisar la constancia, registro audiovisual y asistencia de defensor antes de concluir que existe una violación.",
   },
   {
     issue: "Irregularidad en Solicitud de Cateo",
-    indicator:
-      /\b(datos\s+falsos\s+en\s+cateo|omisi[oó]n\s+sustancial\s+en\s+cateo|solicitud\s+de\s+cateo\s+irregular)\b/i,
+    indicator: /\b(datos\s+falsos\s+en\s+cateo|omisi[oó]n\s+sustancial\s+en\s+cateo|solicitud\s+de\s+cateo\s+irregular)\b/i,
     description: "Datos falsos u omisiones sustanciales en la solicitud de cateo",
-    significance:
-      "La solicitud y orden de cateo deben cumplir los requisitos del Art. 282 y siguientes del CNPP. Si se acredita que la solicitud contuvo datos falsos u omitió información sustancial, la orden y sus frutos pueden invalidarse.",
-    next_step:
-      "Impugnar la legalidad del cateo ante el Juez de Control; solicitar la comparecencia del solicitante para acreditar la irregularidad.",
+    significance: "La solicitud y orden deben cumplir los requisitos aplicables; una irregularidad debe demostrarse con la propia solicitud, orden y ejecución.",
+    next_step: "Comparar solicitud, orden y acta de ejecución; no recomendar una impugnación hasta identificar la irregularidad concreta.",
   },
   {
     issue: "Omisión en el Deber de Aportación Probatoria",
-    indicator:
-      /\b(dato\s+de\s+prueba\s+no\s+revelado|prueba\s+no\s+desahogada|ocultamiento\s+de\s+evidencia|omisi[oó]n\s+probatoria|acuerdo\s+de\s+colaboraci[oó]n\s+no\s+revelado)\b/i,
-    description: "Datos de prueba no revelados, acuerdos de colaboración no divulgados",
-    significance:
-      "El Ministerio Público debe conducirse con objetividad y no únicamente buscar la condena (Art. 21 CPEUM); la carpeta de investigación debe ponerse a disposición de la defensa (Art. 218–219 CNPP). La ocultación de datos favorables a la defensa vulnera el derecho de defensa adecuada.",
-    next_step:
-      "Solicitar al Juez de Control que requiera al Ministerio Público la exhibición íntegra de la carpeta de investigación; promover incidente por omisión en el deber de aportación probatoria.",
+    indicator: /\b(dato\s+de\s+prueba\s+no\s+revelado|ocultamiento\s+de\s+evidencia|acuerdo\s+de\s+colaboraci[oó]n\s+no\s+revelado)\b/i,
+    description: "Datos de prueba no revelados o acuerdos no divulgados",
+    significance: "La existencia de una omisión debe verificarse contra el inventario y las constancias de acceso/descubrimiento probatorio.",
+    next_step: "Contrastar el inventario con las constancias de entrega antes de atribuir una omisión al Ministerio Público.",
   },
   {
     issue: "Declaraciones Previas de Testigo",
-    indicator:
-      /\b(entrevista\s+previa|declaraci[oó]n\s+previa\s+del\s+testigo|notas\s+de\s+entrevista|declaraci[oó]n\s+inconsistente)\b/i,
-    description: "Entrevistas previas del testigo registradas en la carpeta de investigación",
-    significance:
-      "Las entrevistas previas registradas en la carpeta de investigación, si son contradictorias con el testimonio rendido en juicio oral, pueden emplearse para impugnar la credibilidad del testigo durante el contrainterrogatorio (Art. 375–386 CNPP).",
-    next_step:
-      "Solicitar copia de las entrevistas previas del testigo para preparar el contrainterrogatorio y evidenciar contradicciones.",
+    indicator: /\b(entrevista\s+previa|declaraci[oó]n\s+previa\s+del\s+testigo|notas\s+de\s+entrevista|declaraci[oó]n\s+inconsistente)\b/i,
+    description: "Entrevistas o declaraciones previas documentadas",
+    significance: "Una declaración previa puede ser relevante para consistencia y credibilidad si se identifica a la persona y el contenido concreto.",
+    next_step: "Localizar la declaración previa completa y comparar pasajes específicos antes de formular preguntas de contradicción.",
   },
   {
     issue: "Cadena de Custodia",
-    indicator:
-      /\b(cadena\s+de\s+custodia|registro\s+de\s+cadena\s+de\s+custodia|sello\s+roto|manejo\s+de\s+indicios|laguna\s+en\s+custodia)\b/i,
-    description: "Manejo de indicios, vacíos en la documentación de custodia",
-    significance:
-      "La cadena de custodia debe documentarse conforme a los Arts. 227–230 del CNPP. Las rupturas no explicadas afectan el valor probatorio del indicio y pueden fundar su exclusión.",
-    next_step:
-      "Solicitar el registro completo de cadena de custodia; promover la exclusión del indicio si existen rupturas no explicadas.",
+    indicator: /\b(cadena\s+de\s+custodia|registro\s+de\s+cadena\s+de\s+custodia|sello\s+roto|manejo\s+de\s+indicios|laguna\s+en\s+custodia)\b/i,
+    description: "Manejo de indicios y documentación de custodia",
+    significance: "La integridad del indicio depende de las constancias concretas de identificación, traslado, almacenamiento y entrega.",
+    next_step: "Revisar el registro completo de cadena de custodia y señalar sólo rupturas documentadas.",
   },
   {
     issue: "Fundamentación Probatoria",
-    indicator:
-      /\b(licitud\s+de\s+la\s+prueba|incorporaci[oó]n\s+de\s+prueba|prueba\s+superveniente|fundamentaci[oó]n\s+probatoria)\b/i,
-    description: "Licitud e incorporación de la prueba al juicio oral",
-    significance:
-      "Todo medio de prueba debe incorporarse al juicio oral conforme a las reglas del CNPP (Art. 357 y correlativos); la prueba obtenida o incorporada sin cumplir estos requisitos carece de valor probatorio.",
-    next_step:
-      "Objetar la incorporación de la prueba por falta de licitud o fundamentación; exigir la comparecencia del custodio o generador del medio de prueba.",
+    indicator: /\b(licitud\s+de\s+la\s+prueba|incorporaci[oó]n\s+de\s+prueba|prueba\s+superveniente|fundamentaci[oó]n\s+probatoria)\b/i,
+    description: "Licitud e incorporación de la prueba",
+    significance: "La licitud y forma de incorporación deben evaluarse contra la actuación documentada y la etapa procesal correcta.",
+    next_step: "Identificar el medio de prueba, su origen y la actuación de incorporación antes de recomendar cualquier objeción.",
   },
   {
     issue: "Impugnación Pericial",
-    indicator:
-      /\b(dictamen\s+pericial|metodolog[ií]a\s+pericial|perito\s+sin\s+acreditaci[oó]n|error\s+de\s+laboratorio)\b/i,
-    description: "Metodología del dictamen pericial, acreditación del perito",
-    significance:
-      "El dictamen pericial debe sustentarse en una metodología reconocida y el perito debe estar debidamente acreditado (Arts. 368–372 CNPP). Un dictamen con deficiencias metodológicas puede impugnarse y perder valor probatorio.",
-    next_step:
-      "Promover la impugnación del dictamen pericial por deficiencia metodológica; ofrecer perito de la defensa conforme al Art. 368 del CNPP.",
+    indicator: /\b(dictamen\s+pericial|metodolog[ií]a\s+pericial|perito\s+sin\s+acreditaci[oó]n|error\s+de\s+laboratorio)\b/i,
+    description: "Metodología y acreditación pericial",
+    significance: "La confiabilidad pericial requiere examinar acreditación, método, datos y límites del dictamen concreto.",
+    next_step: "Revisar el dictamen y anexos técnicos antes de plantear una impugnación metodológica.",
   },
 ];
 
-// FIX (2026-08-18, ADR-5829/2025 audit — recurring hallucinated block):
-// ISSUE_RULES above is exhaustively CNPP/penal-only (see its own module
-// header — every article cited is Art. 16/20/21 CPEUM or CNPP), but this
-// function used to scan EVERY case's corpus against it with no materia
-// gate at all. A past comment near jury_themes above claimed the issue
-// keys were "effectively already penal-only in practice" because only
-// buildLegalIssues() itself produces them — true, but irrelevant: nothing
-// stopped buildLegalIssues() from firing on a non-penal case in the first
-// place. Confirmed live, verbatim, on TWO separate non-penal (amparo
-// fiscal) reports: "Omisión en el Deber de Aportación Probatoria" —
-// Ministerio Público/Juez de Control/carpeta de investigación language —
-// rendered in the "Cuestiones Jurídicas y Jurisprudencia" section of a tax
-// exemption case. "omisión probatoria" and similar generic-sounding
-// evidentiary-gap phrases are common enough outside penal procedure (a tax
-// case arguing missing documentation is exactly this shape) to trigger
-// these indicators despite their genuinely CNPP-specific legal content.
 export async function buildLegalIssues(db: Db, caseId: string): Promise<LegalIssueHit[]> {
+  // This deterministic rule set is CNPP/penal-only; never scan another materia.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: caseRow } = await (db as any)
-    .from("cases")
-    .select("case_type")
-    .eq("id", caseId)
-    .maybeSingle();
-  // Tolerant resolver — case_type can legitimately be unset at this point
-  // in the pipeline, and this function must never throw on that (both call
-  // sites below are try/caught, but a thrown error here would blank out
-  // the entire legal_issues/attorney_work_product section instead of just
-  // correctly skipping this penal-only rule set).
+  const { data: caseRow } = await (db as any).from("cases").select("case_type").eq("id", caseId).maybeSingle();
   const { mxProfileOrNull } = await import("../execution/mx-pipeline");
-  const isPenal =
-    mxProfileOrNull((caseRow as { case_type?: string | null } | null)?.case_type ?? null) === "penal";
-  if (!isPenal) return [];
+  if (mxProfileOrNull((caseRow as { case_type?: string | null } | null)?.case_type ?? null) !== "penal") return [];
 
   const { data: docs } = await db.from("documents").select("id,filename,extracted_text,status").eq("case_id", caseId);
   const hits: LegalIssueHit[] = [];
@@ -430,7 +311,6 @@ export async function buildLegalIssues(db: Db, caseId: string): Promise<LegalIss
     for (const rule of ISSUE_RULES) {
       const m = rule.indicator.exec(text);
       if (!m) continue;
-      // Grab surrounding context as the quote.
       const start = Math.max(0, m.index - 80);
       const end = Math.min(text.length, m.index + m[0].length + 160);
       const quote = text.slice(start, end).replace(/\s+/g, " ").trim();
@@ -450,12 +330,6 @@ export async function buildLegalIssues(db: Db, caseId: string): Promise<LegalIss
   return hits;
 }
 
-// Same as buildLegalIssues(), but also attaches real SCJN/CJF
-// jurisprudencia (via legal_authorities, see case-law.server.ts) to each
-// detected issue. Kept as a separate function so every existing caller
-// of buildLegalIssues() is completely unaffected. Fails soft: if case
-// law lookup fails for any reason, issues are returned exactly as
-// buildLegalIssues() would have returned them.
 export async function buildLegalIssuesWithCaseLaw(db: Db, caseId: string): Promise<LegalIssueHit[]> {
   const issues = await buildLegalIssues(db, caseId);
   if (!issues.length) return issues;
@@ -463,36 +337,19 @@ export async function buildLegalIssuesWithCaseLaw(db: Db, caseId: string): Promi
     const { attachCaseLaw } = await import("./case-law.server");
     const { isFederalJurisdiction } = await import("./jurisdictions");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: caseRow } = await (db as any)
-      .from("cases")
-      .select("case_type, jurisdiction")
-      .eq("id", caseId)
-      .maybeSingle();
+    const { data: caseRow } = await (db as any).from("cases").select("case_type, jurisdiction").eq("id", caseId).maybeSingle();
     const row = (caseRow ?? {}) as { case_type?: string | null; jurisdiction?: string | null };
-    // VERIFIED CASE IDENTITY — case-law attachment narrows (never excludes,
-    // per case-law.server.ts's own doc comment) by materia; never a raw
-    // cases.case_type read. undefined when nothing is known, which
-    // attachCaseLaw already treats as "no materia narrowing" rather than a
-    // guessed one.
     const { resolveCaseIdentity } = await import("./case-classification.server");
     const caseLawIdentity = await resolveCaseIdentity(db, caseId);
-    const materia = caseLawIdentity.caseType ?? undefined;
-    return await attachCaseLaw(db, issues, materia, {
+    return await attachCaseLaw(db, issues, caseLawIdentity.caseType ?? undefined, {
       federalOnly: isFederalJurisdiction(row.jurisdiction ?? null),
     });
-
   } catch (err) {
     console.warn("[legal-issues] case law attachment failed, returning issues without it:", err);
     return issues;
   }
 }
 
-// ---------------------------------------------------------------------------
-// EVIDENCE INVENTORY (Task 9)
-// Enumerate every extracted document as an evidence item, deriving what it
-// shows / supports / weaknesses / discovery status from filename + doc-type
-// heuristics + finding references. Deterministic, no LLM.
-// ---------------------------------------------------------------------------
 export type DiscoveryStatus = "complete" | "partial" | "missing";
 export type EvidenceInventoryItem = {
   item: string;
@@ -505,174 +362,19 @@ export type EvidenceInventoryItem = {
   status_note: string;
 };
 
-type InvRule = {
-  match: RegExp;
-  item: string;
-  shows: string;
-  theory: string;
-  weakness: string;
-  needed: string;
-};
-
+type InvRule = { match: RegExp; item: string; shows: string; theory: string; weakness: string; needed: string };
 const INV_RULES: InvRule[] = [
-  // Mexican evidence inventory. Patterns match Spanish filings; the columns
-  // describe value, procedural theory, weakness and what is still needed under
-  // Mexican law. The previous table was U.S. federal practice (302 memos, MLAT
-  // requests, IRS §6103, Franks/Carpenter, grand jury, PCAST) and matched
-  // almost nothing in a Mexican expediente.
-  {
-    match: /\b(estado\s+de\s+cuenta|estados\s+de\s+cuenta|movimientos\s+bancarios|cuenta\s+bancaria)\b/i,
-    item: "Estados de cuenta bancarios",
-    shows: "Flujo de recursos y actividad de la cuenta",
-    theory: "Acreditación patrimonial / defraudación",
-    weakness: "Requiere perfeccionamiento y ratificación por la institución",
-    needed: "Informe de la institución bancaria vía CNBV o requerimiento judicial",
-  },
-  {
-    match: /\b(whatsapp|telegram|imessage|mensajes?\s+de\s+texto|sms|capturas?\s+de\s+pantalla)\b/i,
-    item: "Registros de mensajería",
-    shows: "Intención, planeación y coordinación entre las partes",
-    theory: "Dolo / acuerdo de voluntades",
-    weakness: "Capturas sin metadatos no son fiables; posible objeción de autenticidad",
-    needed: "Extracción forense con hash y registro de cadena de custodia",
-  },
-  {
-    match: /\b(cfdi|factura|comprobante\s+fiscal|contabilidad|p[oó]liza\s+contable|declaraci[oó]n\s+anual)\b/i,
-    item: "Comprobantes fiscales y contabilidad",
-    shows: "Operaciones registradas, ingresos y deducciones",
-    theory: "Materialidad de operaciones / crédito fiscal",
-    weakness: "Presunción de inexistencia de operaciones (art. 69-B CFF)",
-    needed: "Documentación soporte de materialidad y opinión de cumplimiento SAT",
-  },
-  {
-    match: /\b(pagar[eé]|t[ií]tulo\s+de\s+cr[eé]dito|letra\s+de\s+cambio|contrato\s+de\s+cr[eé]dito)\b/i,
-    item: "Título de crédito o contrato mercantil",
-    shows: "Obligación exigible y monto reclamado",
-    theory: "Acción cambiaria / cumplimiento de contrato",
-    weakness: "Objeción de firma, prescripción y requisitos del art. 170 LGTOC",
-    needed: "Documento original y, en su caso, dictamen en documentoscopía",
-  },
-  {
-    match: /\b(bit[aá]cora|libro\s+de\s+actas|libro\s+mayor|memor[aá]ndum\s+interno)\b/i,
-    item: "Bitácora o libros internos",
-    shows: "Patrón de conducta y decisiones internas",
-    theory: "Conducta reiterada / responsabilidad corporativa",
-    weakness: "Elaboración unilateral; posible autofavorecimiento",
-    needed: "Documentos corroborantes y ratificación de quien los elaboró",
-  },
-  {
-    match: /\b(correo\s+electr[oó]nico|oficio|carta|comunicaci[oó]n\s+escrita)\b/i,
-    item: "Correspondencia y oficios",
-    shows: "Conocimiento, notificación y reconocimiento de hechos",
-    theory: "Notificación / confesión extrajudicial",
-    weakness: "Requiere acreditar autoría y recepción",
-    needed: "Hilo completo con encabezados o acuse de recibo",
-  },
-  {
-    match: /\b(transferencia|spei|clave\s+de\s+rastreo|remesa)\b/i,
-    item: "Comprobantes de transferencia",
-    shows: "Movimiento de recursos entre cuentas",
-    theory: "Origen y destino de los recursos",
-    weakness: "Sin clave de rastreo no se acredita la operación",
-    needed: "Comprobante con clave de rastreo e informe de la institución",
-  },
-  {
-    match: /\b(videovigilancia|cctv|videograbaci[oó]n|c[aá]mara\s+de\s+seguridad|video)\b/i,
-    item: "Videovigilancia",
-    shows: "Presencia física y conducta registrada",
-    theory: "Identificación / dinámica de los hechos",
-    weakness: "Sincronización horaria y continuidad de la cadena de custodia",
-    needed: "Archivo original con hash y registro de cadena de custodia",
-  },
-  {
-    match: /\b(geolocalizaci[oó]n|s[aá]bana\s+de\s+llamadas|antena|radiobases|gps)\b/i,
-    item: "Geolocalización y registros de telefonía",
-    shows: "Ubicación aproximada del dispositivo",
-    theory: "Ubicación en el lugar de los hechos",
-    weakness: "Cobertura por sector; exige autorización judicial previa (art. 303 CNPP)",
-    needed: "Autorización judicial y perito en telefonía",
-  },
-  {
-    match: /\b(gen[eé]tic[ao]|adn|serolog[ií]a|muestra\s+de\s+sangre)\b/i,
-    item: "Dictamen genético / serológico",
-    shows: "Identificación biológica",
-    theory: "Identificación",
-    weakness: "Interpretación de mezclas; riesgo de contaminación",
-    needed: "Revisión por perito de la contraparte de las notas de laboratorio",
-  },
-  {
-    match: /\b(dactilosc[oó]pic[ao]|huella|lof[oó]scop[ií]a)\b/i,
-    item: "Dictamen dactiloscópico",
-    shows: "Contacto físico con el objeto",
-    theory: "Identificación",
-    weakness: "Metodología comparativa con margen de subjetividad",
-    needed: "Verificación independiente por perito de la contraparte",
-  },
-  {
-    match: /\b(bal[ií]stic[ao]|arma\s+de\s+fuego|rodizonato|residuos\s+de\s+disparo)\b/i,
-    item: "Dictamen en balística",
-    shows: "Vinculación del arma con los hechos",
-    theory: "Empleo de arma de fuego",
-    weakness: "Subjetividad en el cotejo de marcas",
-    needed: "Perito independiente y registro de cadena de custodia del arma",
-  },
-  {
-    match: /\b(narc[oó]tico|sustancia\s+controlada|qu[ií]mic[ao]|dictamen\s+de\s+laboratorio)\b/i,
-    item: "Dictamen químico de sustancias",
-    shows: "Identidad y peso de la sustancia",
-    theory: "Narcomenudeo / delitos contra la salud",
-    weakness: "Protocolo de muestreo y calibración del instrumental",
-    needed: "Notas de laboratorio y constancias de calibración",
-  },
-  {
-    match: /\b(expediente\s+cl[ií]nico|nota\s+m[eé]dica|hospital|necropsia|certificado\s+m[eé]dico)\b/i,
-    item: "Documentación médica",
-    shows: "Lesiones, mecánica y causa de la muerte",
-    theory: "Lesiones / nexo causal",
-    weakness: "Requiere interpretación pericial y ratificación",
-    needed: "Ratificación del médico y perito de la contraparte",
-  },
-  {
-    match: /\b(entrevista|comparecencia|declaraci[oó]n|testimonial)\b/i,
-    item: "Registro de entrevista o declaración",
-    shows: "Manifestaciones previas de la persona",
-    theory: "Corroboración / contradicción con lo declarado en juicio",
-    weakness: "Registro incompleto o no textual",
-    needed: "Registro íntegro y, en su caso, audio o video de la entrevista",
-  },
-  {
-    match: /\b(orden\s+de\s+cateo|autorizaci[oó]n\s+judicial|orden\s+de\s+aprehensi[oó]n)\b/i,
-    item: "Orden o autorización judicial",
-    shows: "Fundamento del acto de molestia",
-    theory: "Licitud de la prueba (arts. 16 CPEUM, 264 CNPP)",
-    weakness: "Falta de fundamentación, motivación o exceso en su ejecución",
-    needed: "Orden completa y acta de la diligencia con inventario",
-  },
-  {
-    match: /\b(carpeta\s+de\s+investigaci[oó]n|denuncia|querella|acusaci[oó]n)\b/i,
-    item: "Carpeta de investigación / acusación",
-    shows: "Hechos imputados y teoría del caso de la Fiscalía",
-    theory: "Teoría del caso de la parte acusadora",
-    weakness: "Registros incompletos o descubrimiento probatorio parcial",
-    needed: "Descubrimiento probatorio íntegro (arts. 337-340 CNPP)",
-  },
-  {
-    match: /\b(escritura\s+p[uú]blica|certificado\s+de\s+libertad\s+de\s+gravamen|folio\s+real|catastro)\b/i,
-    item: "Instrumentos y constancias registrales",
-    shows: "Titularidad, gravámenes y situación registral del inmueble",
-    theory: "Acreditación de la propiedad",
-    weakness: "Constancias vencidas o inscripciones pendientes",
-    needed: "Certificado vigente del RPP y constancias de no adeudo",
-  },
-  {
-    match:
-      /\b(recibo\s+de\s+n[oó]mina|contrato\s+individual\s+de\s+trabajo|aviso\s+de\s+rescisi[oó]n|imss|control\s+de\s+asistencia)\b/i,
-    item: "Documentación laboral",
-    shows: "Relación de trabajo, salario y condiciones",
-    theory: "Acreditación de la relación laboral (art. 784 LFT)",
-    weakness: "Carga de la prueba a cargo del patrón; documentos sin firma",
-    needed: "Expediente laboral completo y constancias del IMSS",
-  },
+  { match: /\b(estado\s+de\s+cuenta|movimientos\s+bancarios|cuenta\s+bancaria)\b/i, item: "Estados de cuenta bancarios", shows: "Flujo de recursos y actividad de la cuenta", theory: "Acreditación patrimonial / defraudación", weakness: "Requiere perfeccionamiento y ratificación por la institución", needed: "Informe de la institución bancaria vía CNBV o requerimiento judicial" },
+  { match: /\b(whatsapp|telegram|imessage|mensajes?\s+de\s+texto|sms|capturas?\s+de\s+pantalla)\b/i, item: "Registros de mensajería", shows: "Contenido y coordinación comunicada", theory: "Contexto e intención, sujeto a autenticación", weakness: "Capturas sin metadatos pueden ser incompletas", needed: "Extracción forense o fuente original con metadatos" },
+  { match: /\b(cfdi|factura|comprobante\s+fiscal|contabilidad|p[oó]liza\s+contable|declaraci[oó]n\s+anual)\b/i, item: "Comprobantes fiscales y contabilidad", shows: "Operaciones registradas, ingresos y deducciones", theory: "Materialidad de operaciones / crédito fiscal", weakness: "Debe contrastarse con documentación soporte", needed: "Documentación soporte y constancias fiscales aplicables" },
+  { match: /\b(pagar[eé]|t[ií]tulo\s+de\s+cr[eé]dito|letra\s+de\s+cambio|contrato\s+de\s+cr[eé]dito)\b/i, item: "Título de crédito o contrato mercantil", shows: "Obligación y monto documentados", theory: "Acción o cumplimiento contractual", weakness: "Verificar original, firma, exigibilidad y prescripción", needed: "Original y constancias de exigibilidad; pericial sólo si existe controversia documentada" },
+  { match: /\b(correo\s+electr[oó]nico|oficio|carta|comunicaci[oó]n\s+escrita)\b/i, item: "Correspondencia y oficios", shows: "Comunicaciones documentadas", theory: "Notificación / conocimiento / contexto", weakness: "Debe acreditarse autoría y recepción cuando sean controvertidas", needed: "Hilo completo, encabezados o acuse según corresponda" },
+  { match: /\b(transferencia|spei|clave\s+de\s+rastreo|remesa)\b/i, item: "Comprobantes de transferencia", shows: "Movimiento documentado de recursos", theory: "Origen y destino de recursos", weakness: "Verificar autenticidad y correspondencia con la cuenta", needed: "Comprobante verificable y, si se controvierte, informe institucional" },
+  { match: /\b(videovigilancia|cctv|videograbaci[oó]n|c[aá]mara\s+de\s+seguridad|video)\b/i, item: "Videovigilancia", shows: "Registro audiovisual de hechos", theory: "Ubicación o dinámica de hechos", weakness: "Verificar integridad, fecha, fuente y continuidad", needed: "Archivo original y metadatos/constancias de obtención" },
+  { match: /\b(expediente\s+cl[ií]nico|nota\s+m[eé]dica|hospital|necropsia|certificado\s+m[eé]dico)\b/i, item: "Documentación médica", shows: "Condición, atención o lesiones documentadas", theory: "Daño / nexo causal según materia", weakness: "Puede requerir interpretación profesional", needed: "Expediente íntegro y pericial sólo cuando la cuestión técnica lo requiera" },
+  { match: /\b(entrevista|comparecencia|declaraci[oó]n|testimonial)\b/i, item: "Registro de entrevista o declaración", shows: "Manifestaciones documentadas de una persona", theory: "Corroboración / consistencia", weakness: "Verificar integridad y contexto", needed: "Registro completo y, si existe, audio/video original" },
+  { match: /\b(escritura\s+p[uú]blica|certificado\s+de\s+libertad\s+de\s+gravamen|folio\s+real|catastro)\b/i, item: "Instrumentos y constancias registrales", shows: "Titularidad, gravámenes y situación registral", theory: "Acreditación inmobiliaria", weakness: "Verificar vigencia y correspondencia registral", needed: "Constancias registrales vigentes según el acto analizado" },
+  { match: /\b(recibo\s+de\s+n[oó]mina|contrato\s+individual\s+de\s+trabajo|aviso\s+de\s+rescisi[oó]n|imss|control\s+de\s+asistencia)\b/i, item: "Documentación laboral", shows: "Relación, salario o condiciones documentadas", theory: "Relación laboral / prestaciones", weakness: "Verificar integridad y autoría", needed: "Expediente laboral y constancias relacionadas con el punto controvertido" },
 ];
 
 function ruleFor(filename: string, headText: string): InvRule | null {
@@ -684,11 +386,7 @@ function ruleFor(filename: string, headText: string): InvRule | null {
 export async function buildEvidenceInventory(db: Db, caseId: string): Promise<EvidenceInventoryItem[]> {
   const [{ data: docs }, { data: findings }] = await Promise.all([
     db.from("documents").select("id,filename,extracted_text,status").eq("case_id", caseId),
-    db
-      .from("case_findings")
-      .select("source_document_id,source_doc_ids,category,title")
-      .eq("case_id", caseId)
-      .not("source_module", "like", PROJECTION_LIKE),
+    db.from("case_findings").select("source_document_id,source_doc_ids,category,title").eq("case_id", caseId).not("source_module", "like", PROJECTION_LIKE),
   ]);
 
   const findingsByDoc = new Map<string, number>();
@@ -708,36 +406,25 @@ export async function buildEvidenceInventory(db: Db, caseId: string): Promise<Ev
     const text = String(d.extracted_text ?? "");
     const extracted = d.status === "extracted" && text.trim().length >= 100;
     const rule = ruleFor(filename, text);
-    const item = rule?.item ?? "Documento";
-    const shows = rule?.shows ?? "Antecedentes y contexto del asunto";
-    const theory = rule?.theory ?? "General";
-    const weakness = rule?.weakness ?? "Idoneidad y pertinencia de la prueba";
-    const needed = rule?.needed ?? "Ratificación o perfeccionamiento si se objeta su autenticidad";
-
     let status: DiscoveryStatus;
     let statusNote: string;
     if (!extracted) {
       status = "missing";
-      statusNote =
-        d.status === "extracted"
-          ? "Cargado pero el texto es ilegible — vuelva a digitalizar con mayor resolución."
-          : `Sin extracción (estado=${d.status ?? "desconocido"}).`;
+      statusNote = d.status === "extracted" ? "Cargado pero el texto es ilegible — vuelva a digitalizar con mayor resolución." : `Sin extracción (estado=${d.status ?? "desconocido"}).`;
     } else if ((findingsByDoc.get(id) ?? 0) === 0) {
       status = "partial";
-      statusNote =
-        "Extraído pero ningún motor lo citó — verifique la cobertura o solicite documentación complementaria.";
+      statusNote = "Extraído pero ningún hallazgo canónico lo cita — revisar pertinencia antes de asumir que falta evidencia.";
     } else {
       status = "complete";
       statusNote = `Citado en ${findingsByDoc.get(id)} hallazgo(s).`;
     }
-
     items.push({
-      item,
+      item: rule?.item ?? "Documento",
       source_document: filename,
-      what_it_shows: shows,
-      supports_theory: theory,
-      weakness_or_gap: weakness,
-      what_is_needed: needed,
+      what_it_shows: rule?.shows ?? "Antecedentes y contexto del asunto",
+      supports_theory: rule?.theory ?? "General",
+      weakness_or_gap: rule?.weakness ?? "Verificar pertinencia, autenticidad y alcance antes de asignar peso probatorio",
+      what_is_needed: rule?.needed ?? "Sólo documentación complementaria específicamente vinculada a un punto controvertido no acreditado",
       status,
       status_note: statusNote,
     });
@@ -745,12 +432,6 @@ export async function buildEvidenceInventory(db: Db, caseId: string): Promise<Ev
   return items;
 }
 
-// ---------------------------------------------------------------------------
-// ATTORNEY WORK PRODUCT (Task 10)
-// Template-driven assembly from findings + legal issues + witness profiles.
-// Never invents content — every line ties to a finding, an issue, or a
-// witness profile that already exists in the report.
-// ---------------------------------------------------------------------------
 export type CrossOutline = { witness: string; topics: string[] };
 export type WorkProduct = {
   case_strategy: string;
@@ -769,183 +450,68 @@ function citationOf(f: any): string {
   return doc ? `[${doc}${page}]` : "[uncited]";
 }
 
-// REBUILT 2026-07-29: matches the new ISSUE_RULES keys above. Mexican
-// oral-adversarial procedure works through incidentes and solicitudes
-// before the Juez de Control, not "motions" in the U.S. sense — the
-// labels below use the actual CNPP procedural vehicle for each issue.
 const MOTION_MAP: Record<string, string> = {
-  "Cateo y Detención": "Incidente de Exclusión de Prueba Ilícita (Cateo/Detención)",
-  "Declaración del Imputado sin Garantías": "Incidente de Exclusión de Declaración",
-  "Irregularidad en Solicitud de Cateo": "Impugnación de Legalidad de Cateo",
-  "Omisión en el Deber de Aportación Probatoria": "Incidente por Omisión en el Deber de Aportación Probatoria",
-  "Declaraciones Previas de Testigo": "Solicitud de Entrevistas Previas para Contrainterrogatorio",
-  "Cadena de Custodia": "Incidente de Exclusión — Cadena de Custodia",
-  "Fundamentación Probatoria": "Objeción a la Incorporación de Prueba",
-  "Impugnación Pericial": "Impugnación de Dictamen Pericial",
+  "Cateo y Detención": "Revisión de licitud de cateo/detención",
+  "Declaración del Imputado sin Garantías": "Revisión de licitud de declaración",
+  "Irregularidad en Solicitud de Cateo": "Revisión de legalidad de cateo",
+  "Omisión en el Deber de Aportación Probatoria": "Revisión de acceso/aportación probatoria",
+  "Declaraciones Previas de Testigo": "Revisión de declaración previa para contrainterrogatorio",
+  "Cadena de Custodia": "Revisión de cadena de custodia",
+  "Fundamentación Probatoria": "Revisión de licitud/incorporación de prueba",
+  "Impugnación Pericial": "Revisión de dictamen pericial",
 };
 
-// FIX (2026-08-16): every string this function generates — case_strategy,
-// jury_themes, trial_themes — was hardcoded around a penal prosecution-vs-
-// defense adversarial-trial framing ("Ministerio Público", "in dubio pro
-// reo... imputado") with NO materia check anywhere, so it fired
-// unconditionally regardless of the case's actual classification. Confirmed
-// live on a real Amparo Directo en Revisión case (ADR-2239-2018, about the
-// constitutionality of Ley de Amparo art. 75 — no Ministerio Público, no
-// imputado, no jury/trial of any kind involved): attorney_work_product.
-// case_strategy read "...directly controverting the Ministerio Público's
-// theory" and jury_themes read "...toda duda razonable debe favorecer al
-// imputado" — the exact penal-only-vocabulary leak this platform's own
-// domain-vocabulary-gate.ts already denylists elsewhere, just never reached
-// by this deterministic (non-LLM) generator. The affected_party === "prosecution"/"defense"
-// checks below were ALSO already dead on every materia including penal —
-// MX_PARTY_ROLES (mx-pipeline.ts, wired into finding generation since the
-// theory-engine fix earlier this session) writes real role slugs
-// ("ministerio_publico"/"defensa", "quejoso"/"autoridad_responsable", etc.),
-// never the literal strings "prosecution"/"defense" — removed rather than
-// remapped, since which party is "our side" isn't something this platform
-// tracks for any materia and guessing it per-materia risks fabricating
-// confidently-wrong strategic framing, worse than the leak itself.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function buildWorkProduct(
   db: Db,
   caseId: string,
-  ctx: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    legalIssues?: any[];
-    witnessProfiles?: WitnessProfile[];
-    caseType?: string | null;
-  } = {},
+  ctx: { legalIssues?: any[]; witnessProfiles?: WitnessProfile[]; caseType?: string | null } = {},
 ): Promise<WorkProduct> {
   const { resolveMxProfile } = await import("../execution/mx-pipeline");
   const isPenal = resolveMxProfile(ctx.caseType) === "penal";
-
   const { data: findings } = await db
     .from("case_findings")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .select("title,description,category,affected_party,severity,evidence_type,source_document_id,source_page" as any)
     .eq("case_id", caseId)
     .not("source_module", "like", PROJECTION_LIKE);
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (findings ?? []) as any[];
-  const defenseFav = rows.filter((f) => f.evidence_type === "exculpatory" || f.evidence_type === "impeachment");
-  const prosFav = rows.filter((f) => f.evidence_type === "inculpatory");
-
-  const strongest = [...defenseFav].sort((a, b) => {
-    const sev = (s: string) =>
-      (({ critical: 0, high: 1, medium: 2, low: 3, info: 4 }) as Record<string, number>)[s] ?? 4;
+  const favorable = rows.filter((f) => f.evidence_type === "exculpatory" || f.evidence_type === "impeachment");
+  const adverse = rows.filter((f) => f.evidence_type === "inculpatory");
+  const strongest = [...favorable].sort((a, b) => {
+    const sev = (s: string) => (({ critical: 0, high: 1, medium: 2, low: 3, info: 4 }) as Record<string, number>)[s] ?? 4;
     return sev(String(a.severity)) - sev(String(b.severity));
   })[0];
 
   const case_strategy = strongest
-    ? isPenal
-      ? `The strongest defense theory is grounded in ${String(strongest.category ?? "the record")
-          .toString()
-          .toLowerCase()}: ${String(strongest.title ?? "").trim()}. This should anchor the defense's theoría del caso and cross-examination while directly controverting the Ministerio Público's theory.`
-      : `El elemento más sólido identificado se sustenta en ${String(strongest.category ?? "el expediente")
-          .toString()
-          .toLowerCase()}: ${String(strongest.title ?? "").trim()}. Debe anclar la argumentación y confrontarse contra la posición de la contraparte, sujeto a corroboración adicional.`
-    : "Insufficient favorable findings to state a single dominant theory. Prioritize further investigation and expert review before committing to a strategy.";
+    ? `El elemento favorable más sólido identificado es ${String(strongest.title ?? "").trim()}. Su uso estratégico debe mantenerse dentro del alcance de la evidencia citada y de su estado de verificación.`
+    : "No hay suficientes hallazgos favorables verificados para formular una teoría dominante. Mantener separados los hechos acreditados de las líneas de investigación pendientes.";
+  const strengths = favorable.slice(0, 8).map((f) => ({ text: String(f.title ?? "Hallazgo favorable"), citation: citationOf(f) }));
+  const weaknesses = adverse.slice(0, 8).map((f) => ({ text: String(f.title ?? "Hallazgo adverso"), citation: citationOf(f) }));
 
-  const strengths = defenseFav.slice(0, 8).map((f) => ({
-    text: String(f.title ?? "Defense-favorable finding"),
-    citation: citationOf(f),
-  }));
-  const weaknesses = prosFav.slice(0, 8).map((f) => ({
-    text: String(f.title ?? "Prosecution-favorable finding"),
-    citation: citationOf(f),
-  }));
-
-  const issues = ctx.legalIssues ?? [];
+  const issues = isPenal ? (ctx.legalIssues ?? []) : [];
   const seenMotion = new Set<string>();
   const motion_opportunities: WorkProduct["motion_opportunities"] = [];
   for (const iss of issues) {
-    const motion = MOTION_MAP[String(iss.issue)] ?? `Motion regarding ${iss.issue}`;
+    const motion = MOTION_MAP[String(iss.issue)] ?? `Revisión jurídica: ${iss.issue}`;
     const key = `${motion}::${iss.document}`;
     if (seenMotion.has(key)) continue;
     seenMotion.add(key);
-    motion_opportunities.push({
-      motion,
-      basis: String(iss.significance ?? iss.indicator ?? ""),
-      source_document: String(iss.document ?? ""),
-    });
+    motion_opportunities.push({ motion, basis: String(iss.significance ?? iss.indicator ?? ""), source_document: String(iss.document ?? "") });
   }
 
-  const themeSeeds = defenseFav
-    .slice(0, 5)
-    .map((f) => `${String(f.title ?? "").trim()} — ${String(f.category ?? "").toLowerCase()}.`);
-  const trial_themes = themeSeeds.length
-    ? themeSeeds
-    : isPenal
-      ? ["In dubio pro reo, anclado en los vacíos e inconsistencias de la prueba del Ministerio Público."]
-      : ["Elementos insuficientes en el expediente para identificar un tema dominante; se recomienda revisión adicional."];
+  const trial_themes = favorable.slice(0, 5).map((f) => `${String(f.title ?? "").trim()} — ${String(f.category ?? "").toLowerCase()}.`);
+  if (!trial_themes.length) trial_themes.push("No hay soporte suficiente para un tema dominante; revisar los hallazgos verificados y los vacíos identificados.");
 
   const cross_examination_outlines: CrossOutline[] = (ctx.witnessProfiles ?? [])
-    .filter((w) => w.impeachment_opportunities.length > 0 || w.cross_questions.length > 0)
+    .filter((w) => w.key_statements.length > 0 && (w.impeachment_opportunities.length > 0 || w.cross_questions.length > 0))
     .slice(0, 20)
-    .map((w) => ({
-      witness: w.name,
-      topics: [...w.impeachment_opportunities.slice(0, 3), ...w.cross_questions.slice(0, 3)].slice(0, 5),
-    }));
+    .map((w) => ({ witness: w.name, topics: [...w.impeachment_opportunities.slice(0, 3), ...w.cross_questions.slice(0, 3)].slice(0, 5) }));
 
-  // FIX (2026-07-29): "jury_themes" is a legacy field name — Mexican
-  // penal procedure has no jury (juicio oral is decided by a professional
-  // Tribunal de Enjuiciamiento, CNPP Arts. 348-353). Kept as-is rather
-  // than renamed to avoid touching its two consumers' field name
-  // (AttorneyWorkProduct.tsx destructures it into `hearingThemes` and
-  // shows it under an i18n-driven label already, so the wrong field name
-  // was never itself user-visible) — but its CONTENT was pure U.S.
-  // adversarial-trial language, and its issue-key checks referenced
-  // "Chain of Custody"/"Authentication"/"Brady"/"Jencks", which no longer
-  // exist since ISSUE_RULES was rebuilt to Spanish keys — meaning these
-  // conditions could never match and this list fell through to the
-  // English "beyond a reasonable doubt" default on nearly every case.
-  // Rebuilt around the actual current issue keys and Mexican standards:
-  // in dubio pro reo (any reasonable doubt favors the accused) rather
-  // than the U.S. "beyond a reasonable doubt" jury-instruction phrasing.
-  const jury_themes: string[] = [];
-  if (defenseFav.some((f) => /credibility|impeach|bias|cooperat/i.test(`${f.title} ${f.category}`))) {
-    jury_themes.push(
-      isPenal
-        ? "La teoría del Ministerio Público descansa en testigos con un incentivo documentado para matizar su declaración."
-        : "La posición de la contraparte descansa en elementos con un incentivo documentado para matizar su versión.",
-    );
-  }
-  // These two conditions only ever match issue keys buildLegalIssues()
-  // (ISSUE_RULES, CNPP-grounded) generates — effectively already penal-only
-  // in practice — but the content itself is materia-neutral (evidence
-  // chain-of-custody / withheld-evidence concerns apply outside penal
-  // procedure too), so left ungated rather than forced isPenal.
-  if (issues.some((i) => i.issue === "Cadena de Custodia" || i.issue === "Fundamentación Probatoria")) {
-    jury_themes.push(
-      "La prueba confiable cuenta con una cadena de custodia documentada y sin interrupciones. Esta prueba no la tiene.",
-    );
-  }
-  if (
-    issues.some(
-      (i) =>
-        i.issue === "Omisión en el Deber de Aportación Probatoria" || i.issue === "Declaraciones Previas de Testigo",
-    )
-  ) {
-    jury_themes.push(
-      "Un caso construido sobre prueba omitida o revelada selectivamente no es un caso construido sobre la verdad.",
-    );
-  }
-  if (!jury_themes.length) {
-    jury_themes.push(
-      isPenal
-        ? "Las suposiciones no son prueba — bajo el principio in dubio pro reo, toda duda razonable debe favorecer al imputado."
-        : "Elementos insuficientes en el expediente para identificar un tema dominante; se recomienda revisión adicional.",
-    );
-  }
+  const jury_themes = isPenal
+    ? ["Separar hechos acreditados de inferencias y exigir que cada conclusión relevante se sostenga en prueba incorporada y verificable."]
+    : ["Separar determinaciones verificadas, inferencias sustentadas y cuestiones pendientes de revisión profesional."];
 
-  return {
-    case_strategy,
-    strengths,
-    weaknesses,
-    motion_opportunities,
-    trial_themes,
-    cross_examination_outlines,
-    jury_themes,
-  };
+  return { case_strategy, strengths, weaknesses, motion_opportunities, trial_themes, cross_examination_outlines, jury_themes };
 }
