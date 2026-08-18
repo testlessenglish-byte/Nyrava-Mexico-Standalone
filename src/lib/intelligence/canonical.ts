@@ -78,7 +78,11 @@ export function getMissingEvidence(r: ReportLike): any[] {
 
 export function getTimeline(r: ReportLike): any[] {
   const full = getFullReport(r);
-  // Pipeline stores timeline events in full_report.timeline or .events
+  // Canonical timeline is authoritative when present. Older reports used
+  // one of three legacy shapes, retained below for backwards compatibility.
+  const canonical = asObj(full.canonical_timeline);
+  const canonicalEvents = asArr(canonical.events);
+  if (canonicalEvents.length > 0) return canonicalEvents;
   return asArr(full.timeline ?? full.timeline_events ?? full.events);
 }
 
@@ -126,13 +130,41 @@ export function getCitations(r: ReportLike): any[] {
 
 // ---- Scores (ESS-gated) ----------------------------------------------
 
+function finiteScore(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : null;
+}
+
+/**
+ * Canonical risk is deterministic whenever the server persisted the
+ * deterministic legal-intelligence layer. `overall_confidence` is NOT risk.
+ *
+ * This matters because the report-writer LLM historically owned a separate
+ * `risk_score` field and could return the same numeric value as analysis
+ * confidence (e.g. confidence 87 => risk 87) even while the deterministic
+ * risk algorithm returned 8. Every display/export/Talk-to-Case consumer
+ * funnels through this helper, so a model-authored risk number can no longer
+ * outrank the deterministic algorithm.
+ */
 export function getScores(r: ReportLike): { strength: number | null; risk: number | null } {
   if (r?.scores_suppressed) return { strength: null, risk: null };
-  const toNum = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const full = getFullReport(r);
+  const algorithms = asObj(full.deterministic_algorithms);
+  const deterministicRisk = finiteScore(asObj(algorithms.risk).score);
   return {
-    strength: toNum(r?.case_strength_score),
-    risk: toNum(r?.risk_score),
+    strength: finiteScore(r?.case_strength_score),
+    risk: deterministicRisk ?? finiteScore(r?.risk_score),
   };
+}
+
+/** Analysis confidence is a separate epistemic metric and must never be shown as litigation risk. */
+export function getOverallConfidence(r: ReportLike): number | null {
+  const full = getFullReport(r);
+  const scorecard = asObj(full.deterministic_scorecard);
+  const direct = finiteScore(scorecard.overall_confidence);
+  if (direct !== null) return direct;
+  const validation = asObj(full.validation);
+  const fromValidation = finiteScore(validation.overall_confidence);
+  return fromValidation;
 }
 
 // ---- Theories --------------------------------------------------------
@@ -275,7 +307,6 @@ export function getReportMode(r: ReportLike): ReportMode {
   if (ess.level === "minimal" || ess.level === "unknown") return "LIMITED";
   return "FULL";
 }
-
 
 // ---- Practice Area (single source of truth for module isolation) -----
 export function getPracticeArea(r: ReportLike): string {
