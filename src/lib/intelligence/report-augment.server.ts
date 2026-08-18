@@ -387,7 +387,39 @@ const ISSUE_RULES: Array<{
   },
 ];
 
+// FIX (2026-08-18, ADR-5829/2025 audit — recurring hallucinated block):
+// ISSUE_RULES above is exhaustively CNPP/penal-only (see its own module
+// header — every article cited is Art. 16/20/21 CPEUM or CNPP), but this
+// function used to scan EVERY case's corpus against it with no materia
+// gate at all. A past comment near jury_themes above claimed the issue
+// keys were "effectively already penal-only in practice" because only
+// buildLegalIssues() itself produces them — true, but irrelevant: nothing
+// stopped buildLegalIssues() from firing on a non-penal case in the first
+// place. Confirmed live, verbatim, on TWO separate non-penal (amparo
+// fiscal) reports: "Omisión en el Deber de Aportación Probatoria" —
+// Ministerio Público/Juez de Control/carpeta de investigación language —
+// rendered in the "Cuestiones Jurídicas y Jurisprudencia" section of a tax
+// exemption case. "omisión probatoria" and similar generic-sounding
+// evidentiary-gap phrases are common enough outside penal procedure (a tax
+// case arguing missing documentation is exactly this shape) to trigger
+// these indicators despite their genuinely CNPP-specific legal content.
 export async function buildLegalIssues(db: Db, caseId: string): Promise<LegalIssueHit[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: caseRow } = await (db as any)
+    .from("cases")
+    .select("case_type")
+    .eq("id", caseId)
+    .maybeSingle();
+  // Tolerant resolver — case_type can legitimately be unset at this point
+  // in the pipeline, and this function must never throw on that (both call
+  // sites below are try/caught, but a thrown error here would blank out
+  // the entire legal_issues/attorney_work_product section instead of just
+  // correctly skipping this penal-only rule set).
+  const { mxProfileOrNull } = await import("../execution/mx-pipeline");
+  const isPenal =
+    mxProfileOrNull((caseRow as { case_type?: string | null } | null)?.case_type ?? null) === "penal";
+  if (!isPenal) return [];
+
   const { data: docs } = await db.from("documents").select("id,filename,extracted_text,status").eq("case_id", caseId);
   const hits: LegalIssueHit[] = [];
   const seen = new Set<string>();
