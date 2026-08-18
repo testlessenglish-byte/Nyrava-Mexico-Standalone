@@ -46,12 +46,15 @@ describe("classifyFindingSource", () => {
 });
 
 describe("isCanonicalFinding", () => {
-  it("accepts engine and agent, rejects analyzer, other, and provisional", () => {
+  it("accepts engine and agent, rejects analyzer, other, provisional, quarantined, and suppressed", () => {
     expect(isCanonicalFinding({ source_module: "engine:a" })).toBe(true);
     expect(isCanonicalFinding({ source_module: "agent:a" })).toBe(true);
     expect(isCanonicalFinding({ source_module: "analyzer:a" })).toBe(false);
     expect(isCanonicalFinding({ source_module: "legacy" })).toBe(false);
     expect(isCanonicalFinding({ source_module: "engine:a", metadata: { provisional: true } })).toBe(false);
+    expect(isCanonicalFinding({ source_module: "engine:a", verification_status: "no_citation" })).toBe(false);
+    expect(isCanonicalFinding({ source_module: "engine:a", verification_status: "unverified" })).toBe(false);
+    expect(isCanonicalFinding({ source_module: "engine:a", finding_status: "suppressed" })).toBe(false);
   });
 });
 
@@ -75,8 +78,6 @@ describe("selectFindings parity with getCanonicalScoringFindings", () => {
   });
 
   it("reproduces the dashboard high-priority badge rule exactly", () => {
-    // Pre-Phase-1 inline rule: every row, no source filter, severity in
-    // {critical, high}.
     const legacy = FIXTURE.filter((f) => f.severity === "critical" || f.severity === "high");
     const viaSelector = selectFindings(FIXTURE, {
       include: ["engine", "agent", "analyzer", "other"],
@@ -87,15 +88,30 @@ describe("selectFindings parity with getCanonicalScoringFindings", () => {
     expect(viaSelector.length).toBe(6);
   });
 
-  it("filters by finding_status when asked and defaults to no restriction", () => {
+  it("filters by finding_status when asked and keeps non-suppressed legacy rows by default", () => {
     const rows = [
       { source_module: "engine:a", finding_status: "promoted" },
       { source_module: "engine:b", finding_status: "verified" },
-      { source_module: "engine:c" }, // pre-migration row => treated as candidate
+      { source_module: "engine:c" },
     ];
     expect(selectFindings(rows).length).toBe(3);
     expect(selectFindings(rows, { statuses: ["promoted"] }).length).toBe(1);
     expect(selectFindings(rows, { statuses: ["candidate"] }).map((r) => r.source_module)).toEqual(["engine:c"]);
+  });
+
+  it("never lets a suppressed finding re-enter canonical report/scoring surfaces unless explicitly requested", () => {
+    const rows = [
+      { source_module: "engine:good", finding_status: "verified", severity: "high" },
+      { source_module: "engine:rejected", finding_status: "suppressed", severity: "critical" },
+    ];
+    expect(selectFindings(rows).map((r) => r.source_module)).toEqual(["engine:good"]);
+    expect(getCanonicalScoringFindings({ caseRow: CASE_ROW, findings: rows as never }).map((r) => r.source_module)).toEqual([
+      "engine:good",
+    ]);
+    expect(selectFindings(rows, { includeSuppressed: true }).map((r) => r.source_module)).toEqual([
+      "engine:good",
+      "engine:rejected",
+    ]);
   });
 });
 
@@ -105,7 +121,6 @@ describe("getFindingMetrics", () => {
     expect(m.total).toBe(8);
     expect(m.canonical).toBe(4);
     expect(m.provisional).toBe(2);
-    // high priority is computed over the canonical set only
     expect(m.highPriority).toBe(4);
     expect(m.bySource).toEqual({ engine: 3, agent: 2, analyzer: 2, projection: 0, other: 1 });
     expect(m.bySeverity.critical).toBe(3);
