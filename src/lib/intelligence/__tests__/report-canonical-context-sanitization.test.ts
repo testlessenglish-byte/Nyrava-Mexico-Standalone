@@ -32,6 +32,31 @@ describe("canonical narrative integrity guards", () => {
     expect(parsed.prose.missing_evidence_report).toMatch(/No se presenta evidencia/i);
   });
 
+  it("does not label a single legal holding as a contradiction", () => {
+    const parsed = {
+      prose: {
+        contradiction_report:
+          "Una contradicción significativa se presenta en la inoperancia de los agravios novedosos [DOC 1 p.4]. El tribunal declaró inoperante el argumento novedoso [DOC 1 p.4].",
+      },
+    };
+    const result = sanitizeNarrativeProse(parsed);
+    expect(result.unsupportedContradictionsRemoved).toBe(1);
+    expect(parsed.prose.contradiction_report).not.toMatch(/contradicción significativa/i);
+    expect(parsed.prose.contradiction_report).toMatch(/declaró inoperante/i);
+  });
+
+  it("keeps an explicit two-sided contradiction statement", () => {
+    const parsed = {
+      prose: {
+        contradiction_report:
+          "El documento A afirma el pago [DOC 1 p.2], mientras que el documento B niega su recepción [DOC 2 p.4]; existe una contradicción que requiere revisión.",
+      },
+    };
+    const result = sanitizeNarrativeProse(parsed);
+    expect(result.unsupportedContradictionsRemoved).toBe(0);
+    expect(parsed.prose.contradiction_report).toMatch(/contradicción/i);
+  });
+
   it("sanitizes the same object later consumed by canonical context", () => {
     const parsed = {
       prose: {
