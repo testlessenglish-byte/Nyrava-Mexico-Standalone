@@ -31,18 +31,73 @@ export type ProceduralComplianceReport = ComplianceReport & {
   deadlines: MxDeadline[];
 };
 
+/**
+ * The generic `constitucional` profile covers controversias, acciones and
+ * amparo review. For an ADR the shared checklist is useful only after removing
+ * the one item whose authority belongs exclusively to Art. 105 proceedings.
+ * Recompute the coverage fields from the retained items and describe the
+ * result as amparo review, not as a generic constitutional proceeding.
+ */
+function normalizeAmparoReviewCompliance(report: ComplianceReport): ComplianceReport {
+  const items = report.items.filter((item) => item.id !== "suspension_constitucional");
+  const required = items.filter((item) => item.requirement === "required");
+  const satisfied = items.filter((item) => item.status === "cumplido").length;
+  const missingRequired = required.filter((item) => item.status !== "cumplido");
+  const score = items.length === 0 ? 0 : Math.round((satisfied / items.length) * 100);
+  const summary =
+    missingRequired.length === 0
+      ? `Los elementos procesales evaluados para el recurso de revisión en amparo se encuentran documentados en el corpus (${satisfied}/${items.length}).`
+      : `No se identificaron en el corpus constancias o referencias suficientes para confirmar ${missingRequired.length} elemento(s) procesal(es) del recurso de revisión en amparo: ${missingRequired
+          .map((item) => `${item.label_es} (${item.authority})`)
+          .join("; ")}. Esto no demuestra por sí mismo que dichos elementos estén ausentes del expediente oficial — verifique contra el expediente antes de asumir un defecto procesal.`;
+  return {
+    ...report,
+    materia: "amparo",
+    items,
+    evaluated: items.length,
+    satisfied,
+    missing_required: missingRequired.length,
+    score,
+    summary,
+  };
+}
+
 function normalizeAmparoReviewStageMap(
   stageMap: ProceduralStageResolution,
 ): ProceduralStageResolution {
-  const fixAuthority = <T extends { id: string; authority: string }>(item: T): T =>
-    item.id === "sentencia_constitucional"
-      ? { ...item, authority: "Ley de Amparo Art. 93" }
-      : item;
-  const stages = stageMap.stages.map(fixAuthority);
-  const current = stageMap.current ? fixAuthority(stageMap.current) : null;
-  const completed = stageMap.completed.map(fixAuthority);
-  const next = stageMap.next ? fixAuthority(stageMap.next) : null;
-  const missing_requirements = stageMap.missing_requirements.map(fixAuthority);
+  const normalizeStage = <T extends { id: string; authority: string; label_es?: string; label_en?: string; patterns?: readonly string[] }>(item: T): T => {
+    if (item.id === "sentencia_constitucional") {
+      return {
+        ...item,
+        authority: "Ley de Amparo Art. 93",
+        label_es: "Resolución de la SCJN sobre el recurso de revisión",
+        label_en: "SCJN resolution of the amparo review",
+      };
+    }
+    if (item.id === "presentacion_demanda_constitucional") {
+      return {
+        ...item,
+        id: "interposicion_recurso_revision",
+        authority: "Ley de Amparo Arts. 86 y 88",
+        label_es: "Interposición del recurso de revisión",
+        label_en: "Filing of the review appeal",
+        patterns: ["recurso de revision", "interpone recurso", "escrito de agravios"],
+      };
+    }
+    if (item.id === "norma_o_acto_impugnado") {
+      return {
+        ...item,
+        label_es: "Resolución recurrida o cuestión constitucional identificada",
+        label_en: "Challenged judgment or constitutional question identified",
+      };
+    }
+    return item;
+  };
+  const stages = stageMap.stages.map(normalizeStage);
+  const current = stageMap.current ? normalizeStage(stageMap.current) : null;
+  const completed = stageMap.completed.map(normalizeStage);
+  const next = stageMap.next ? normalizeStage(stageMap.next) : null;
+  const missing_requirements = stageMap.missing_requirements.map(normalizeStage);
   return {
     ...stageMap,
     materia: "amparo",
@@ -51,12 +106,14 @@ function normalizeAmparoReviewStageMap(
     completed,
     next,
     missing_requirements,
-    procedural_risks: stageMap.procedural_risks.map((risk) =>
-      risk.replace(
-        /Ley Reglamentaria del Art\. 105 Arts\. 41-45 y 72-73/g,
-        "Ley de Amparo Art. 93",
-      ),
-    ),
+    procedural_risks: stageMap.procedural_risks
+      .map((risk) =>
+        risk
+          .replace(/Ley Reglamentaria del Art\. 105 Arts\. 41-45 y 72-73/g, "Ley de Amparo Art. 93")
+          .replace(/Presentación de la demanda o recurso/g, "Interposición del recurso de revisión")
+          .replace(/materia constitucional/gi, "recurso de revisión en amparo"),
+      )
+      .filter((risk) => !/controversia constitucional|accion de inconstitucionalidad/i.test(risk)),
   };
 }
 
@@ -100,7 +157,7 @@ export async function runProceduralCompliance(args: {
   const deadlines = computeMxDeadlines({ materia: executionProfile, events });
 
   const report: ComplianceReport = isAmparoReview
-    ? { ...reportBase, materia: "amparo" }
+    ? normalizeAmparoReviewCompliance(reportBase)
     : reportBase;
   const stage_map = isAmparoReview
     ? normalizeAmparoReviewStageMap(stageMapBase)
