@@ -40,9 +40,11 @@ export const STAGE_BUDGET_MS: Record<string, number> = {
 // with narrative=true, memo=false, intelligence=false and the misleading
 // errors "skipped — report checkpoint backstop reached".
 //
-// Reserve one additional continuation for phase two. Five remains strictly
-// below the pipeline runner's six-yield loop breaker, so the salvage/finalize
-// backstop still exists and cases still terminate.
+// Reserve one additional continuation for phase two. The runner's separate
+// MAX_STAGE_CHECKPOINTS guard counts only checkpoints since the most recent
+// successful AI call; a successful narrative call therefore resets that
+// no-progress window before memo/intelligence begin. This total report-stage
+// cap can safely be 5 while still retaining a finite salvage/finalize backstop.
 export const MAX_REPORT_CHECKPOINTS = 5;
 
 export function budgetFor(stage: string): number {
