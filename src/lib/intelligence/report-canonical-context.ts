@@ -11,6 +11,7 @@
 
 import { scrubUnsupportedLegalFilingSentences } from "./recommendation-grounding";
 import { evidenceGapTopics, scrubEvidenceAbsenceInversion } from "./absence-evidence-guard";
+import { scrubUnsupportedContradictionSentences } from "./contradiction-prose-guard";
 
 export type RecommendationOwner = "narrative" | "memo" | "intelligence";
 
@@ -113,27 +114,30 @@ const NARRATIVE_FIELDS = [
   "prosecution_theory_report",
   "defense_theory_report",
   "alternative_theory_report",
-  "contradiction_report",
   "timeline_summary",
 ] as const;
 
-/**
- * Mutates narrativeParsed.prose intentionally. The pipeline later merges this
- * exact object into the final report, so sanitizing only a detached canonical
- * context would leave the original unsafe prose untouched.
- */
 export function sanitizeNarrativeProse(
   narrativeParsed: Record<string, any> | null | undefined,
-): { filingSentencesRemoved: number; absenceInversionsRemoved: number } {
+): {
+  filingSentencesRemoved: number;
+  absenceInversionsRemoved: number;
+  unsupportedContradictionsRemoved: number;
+} {
   const prose = narrativeParsed?.prose;
   if (!prose || typeof prose !== "object" || Array.isArray(prose)) {
-    return { filingSentencesRemoved: 0, absenceInversionsRemoved: 0 };
+    return {
+      filingSentencesRemoved: 0,
+      absenceInversionsRemoved: 0,
+      unsupportedContradictionsRemoved: 0,
+    };
   }
 
   const missingEvidence = typeof prose.missing_evidence_report === "string" ? prose.missing_evidence_report : "";
   const gapTopics = evidenceGapTopics(missingEvidence);
   let filingSentencesRemoved = 0;
   let absenceInversionsRemoved = 0;
+  let unsupportedContradictionsRemoved = 0;
 
   for (const field of NARRATIVE_FIELDS) {
     const value = prose[field];
@@ -145,15 +149,27 @@ export function sanitizeNarrativeProse(
     prose[field] = absence.text;
   }
 
-  // The missing-evidence lane is allowed to state exactly what was not found,
-  // but it still cannot own a legal filing recommendation.
+  if (typeof prose.contradiction_report === "string" && prose.contradiction_report.trim()) {
+    const filing = scrubUnsupportedLegalFilingSentences(prose.contradiction_report);
+    filingSentencesRemoved += filing.removed;
+    const absence = scrubEvidenceAbsenceInversion(filing.text, gapTopics);
+    absenceInversionsRemoved += absence.removed;
+    const contradiction = scrubUnsupportedContradictionSentences(absence.text);
+    unsupportedContradictionsRemoved += contradiction.removed;
+    prose.contradiction_report = contradiction.text;
+  }
+
   if (typeof prose.missing_evidence_report === "string") {
     const filing = scrubUnsupportedLegalFilingSentences(prose.missing_evidence_report);
     filingSentencesRemoved += filing.removed;
     prose.missing_evidence_report = filing.text;
   }
 
-  return { filingSentencesRemoved, absenceInversionsRemoved };
+  return {
+    filingSentencesRemoved,
+    absenceInversionsRemoved,
+    unsupportedContradictionsRemoved,
+  };
 }
 
 export function buildCanonicalReportContext(
