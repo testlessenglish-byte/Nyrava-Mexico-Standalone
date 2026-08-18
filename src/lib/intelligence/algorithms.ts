@@ -25,11 +25,11 @@ const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Math.ro
 // ---------------------------------------------------------------------
 export interface EvidenceItem {
   id: string;
-  type?: string;                       // "document" | "testimony" | "physical" | ...
+  type?: string;
   source_doc_ids?: string[];
   witness_ids?: string[];
   physical?: boolean;
-  ocr_confidence?: number;             // 0..1 ; undefined = native text
+  ocr_confidence?: number;
   chain_of_custody?: boolean;
   conflicting_testimony?: boolean;
 }
@@ -56,13 +56,13 @@ export function scoreEvidence(e: EvidenceItem): {
 // 2. Witness Credibility Engine
 // ---------------------------------------------------------------------
 export interface WitnessSignals {
-  internal_consistency?: number;       // 0..1
-  contradictions?: number;             // count
-  corroborated_statements?: number;    // count
+  internal_consistency?: number;
+  contradictions?: number;
+  corroborated_statements?: number;
   prior_inconsistent_statements?: number;
   bias_indicators?: number;
-  opportunity_to_observe?: number;     // 0..1
-  statement_completeness?: number;     // 0..1
+  opportunity_to_observe?: number;
+  statement_completeness?: number;
 }
 export function scoreWitnessCredibility(w: WitnessSignals): {
   score: number;
@@ -86,7 +86,7 @@ export function scoreWitnessCredibility(w: WitnessSignals): {
 // ---------------------------------------------------------------------
 export interface TimelineEvent {
   id?: string;
-  date?: string;                       // any parseable date string
+  date?: string;
   event?: string;
   source_doc_id?: string;
 }
@@ -134,14 +134,14 @@ export interface Statement {
   id: string;
   subject?: string;
   event?: string;
-  attributes?: Record<string, unknown>; // e.g. { time: "10:00", color: "red" }
+  attributes?: Record<string, unknown>;
   source_doc_id?: string;
 }
 const norm = (s: unknown) =>
   String(s ?? "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // fold accents so Spanish-language field values compare correctly
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9 ]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -207,27 +207,6 @@ export function auditChainOfCustody(entries: CustodyEntry[]): {
 // ---------------------------------------------------------------------
 // 7. Standard of Proof Engine (Estándar Probatorio)
 // ---------------------------------------------------------------------
-// Mexican law does not use the US three-tier system (preponderance /
-// clear and convincing / beyond reasonable doubt) as named standards.
-// The closest real equivalents, used here:
-//   - mas_alla_duda_razonable: the CNPP Art. 402 standard a tribunal must
-//     reach ("convicción") to issue a sentencia condenatoria in a penal
-//     matter — comparably demanding to "beyond reasonable doubt" in
-//     substance, correctly named and sourced here rather than borrowed.
-//   - preponderancia_indiciaria: the general civil/mercantil/familiar
-//     burden (carga de la prueba — quien afirma un hecho debe probarlo)
-//     — no single named "51%" standard exists in Mexican civil doctrine;
-//     this models the ordinary civil threshold, not a specific codified
-//     percentage.
-//   - interes_juridico_acreditado: the threshold an amparo quejoso must
-//     meet to establish interés jurídico/legítimo and the existencia del
-//     acto reclamado before the substantive analysis proceeds.
-// The exact numeric thresholds below are a first-pass calibration, not a
-// codified legal percentage (Mexican law does not assign numeric
-// percentages to these standards the way US evidence law sometimes
-// informally does) — flag for attorney review before relying on the
-// specific threshold values in a filed document.
-// ---------------------------------------------------------------------
 export type BurdenStandard = "mas_alla_duda_razonable" | "preponderancia_indiciaria" | "interes_juridico_acreditado";
 const STANDARD_THRESHOLD: Record<BurdenStandard, number> = {
   mas_alla_duda_razonable: 90,
@@ -260,10 +239,22 @@ export interface RiskInputs {
 export function assessRisk(r: RiskInputs): { score: number; band: Severity; factors: Array<{ label: string; delta: number }> } {
   const factors: Array<{ label: string; delta: number }> = [];
   let s = 0;
-  const add = (label: string, n: number, w: number) => { const d = n * w; s += d; if (n) factors.push({ label: `${n} x ${label}`, delta: d }); };
+  const add = (label: string, n: number, w: number) => {
+    const count = Math.max(0, Number.isFinite(n) ? n : 0);
+    const d = count * w;
+    s += d;
+    if (count && d !== 0) factors.push({ label: `${count} x ${label}`, delta: d });
+  };
   add("unresolved contradictions", r.unresolved_contradictions, 8);
   add("missing evidence items", r.missing_evidence, 6);
-  add("constitutional issues", r.constitutional_issues, 10);
+  // A constitutional issue is NOT inherently adverse. It can be a favorable
+  // SCJN holding, an applicable legal rule, or a question the court already
+  // resolved. The old formula blindly added +10 for every constitutional
+  // item and therefore inflated Amparo risk precisely when a judgment had
+  // more constitutional analysis. Until the caller supplies an explicit
+  // adverse-impact signal, constitutional issue count is context-only and
+  // must not move risk.
+  add("constitutional issues (context only)", r.constitutional_issues, 0);
   add("unfavorable witnesses", r.unfavorable_witnesses, 7);
   add("procedural defects", r.procedural_defects, 5);
   const score = clamp(s);
@@ -274,11 +265,27 @@ export function assessRisk(r: RiskInputs): { score: number; band: Severity; fact
 // ---------------------------------------------------------------------
 // 9. Procedural Remedy Detector (Promociones y Recursos Procedentes)
 // ---------------------------------------------------------------------
-// Replaces the former US motion-practice mapping (Brady/Fourth Amendment/
-// Motion in Limine — none of which exist as filed remedies in Mexican
-// procedure) with the actual Mexican procedural remedies triggered by
-// each signal, per the CNPP and Ley de Amparo.
 export interface MotionSignal { tag: string; severity: Severity; }
+
+/**
+ * The legacy remedy table is predominantly CNPP-specific. A generic report
+ * signal such as `missing_evidence` must never be enough, by itself, to
+ * manufacture a criminal-procedure filing in an Amparo, civil, family,
+ * labor, tax, administrative, or real-estate case. We therefore require an
+ * unmistakably penal signal before any CNPP remedy rule is allowed to fire.
+ */
+function hasPenalAnchor(signals: MotionSignal[]): boolean {
+  return signals.some((x) =>
+    [
+      "prueba_ilicita",
+      "control_detencion_defectuoso",
+      "cadena_custodia_rota",
+      "medidas_cautelares_desproporcionadas",
+      "vinculacion_proceso_defectuosa",
+    ].includes(x.tag),
+  );
+}
+
 const MOTION_RULES: Array<{ when: (s: MotionSignal[]) => boolean; motion: string; basis: string }> = [
   {
     when: (s) => s.some((x) => x.tag === "prueba_ilicita" && SEV_RANK[x.severity] >= 3),
@@ -291,7 +298,9 @@ const MOTION_RULES: Array<{ when: (s: MotionSignal[]) => boolean; motion: string
     basis: "Defectos en la audiencia de control de detención (Art. 16 CPEUM; Art. 308 CNPP)",
   },
   {
-    when: (s) => s.some((x) => x.tag === "descubrimiento_probatorio_incompleto"),
+    // Generic missing-evidence is not a penal signal. Keep this legacy
+    // remedy only when the same case also contains a penal anchor.
+    when: (s) => hasPenalAnchor(s) && s.some((x) => x.tag === "descubrimiento_probatorio_incompleto"),
     motion: "Solicitud de descubrimiento probatorio complementario",
     basis: "Descubrimiento probatorio incompleto de la contraparte (Art. 337 y ss. CNPP)",
   },
@@ -316,7 +325,10 @@ const MOTION_RULES: Array<{ when: (s: MotionSignal[]) => boolean; motion: string
     basis: "Violación de derechos fundamentales susceptible de amparo (Arts. 103 y 107 CPEUM; Ley de Amparo)",
   },
   {
-    when: (s) => s.filter((x) => x.tag === "defecto_procesal").length >= 2,
+    // "defecto_procesal" is materia-neutral upstream. Do not translate two
+    // generic defects into a criminal-style incident unless penal context is
+    // independently present.
+    when: (s) => hasPenalAnchor(s) && s.filter((x) => x.tag === "defecto_procesal").length >= 2,
     motion: "Incidente de nulidad procesal",
     basis: "Defectos procesales acumulados que afectan el debido proceso",
   },
@@ -328,20 +340,15 @@ export function detectMotions(signals: MotionSignal[]): Array<{ motion: string; 
 // ---------------------------------------------------------------------
 // 10. Grounds for Appeal / Amparo Detector (Agravios y Conceptos de Violación)
 // ---------------------------------------------------------------------
-// Replaces the former US appellate-issue taxonomy. Notably removes
-// "jury_instruction_error" outright rather than renaming it — Mexican
-// criminal procedure has no jury system, so there is no equivalent
-// concept to map it to; it is not a translation gap, the underlying
-// mechanism does not exist here.
 export interface TrialEvent { kind: string; preserved?: boolean; severity?: Severity; description?: string; }
 export function detectAppealIssues(events: TrialEvent[]): Array<{ issue: string; preserved: boolean; severity: Severity; description?: string }> {
   const APPEAL_KINDS = new Set([
-    "valoracion_prueba_erronea",       // erroneous evidence valuation by the tribunal
-    "motivacion_insuficiente_sentencia", // insufficient grounding/reasoning — Art. 16 CPEUM requires all acts of authority to be fundados y motivados
-    "conducta_indebida_ministerio_publico", // prosecutorial (Ministerio Público) misconduct
-    "defensa_inadecuada",              // inadequate defense — Art. 20, apartado B, fracc. VIII CPEUM (defensa adecuada)
+    "valoracion_prueba_erronea",
+    "motivacion_insuficiente_sentencia",
+    "conducta_indebida_ministerio_publico",
+    "defensa_inadecuada",
     "violacion_constitucional",
-    "error_individualizacion_pena",    // sentencing/individualización de la pena error
+    "error_individualizacion_pena",
   ]);
   return events
     .filter((e) => APPEAL_KINDS.has(e.kind))
