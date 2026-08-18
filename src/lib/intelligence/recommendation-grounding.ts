@@ -3,22 +3,54 @@ export type RecommendationLike = Record<string, unknown>;
 const FILING_OR_REMEDY_RX =
   /\b(?:presentar|interponer|promover|formular|iniciar|preparar)\b[^.!?\n]{0,90}\b(?:demanda|amparo|recurso|apelacion|apelación|revision|revisión|queja|reclamacion|reclamación|juicio|incidente|medio de defensa)\b|\b(?:demanda de amparo|amparo directo|amparo indirecto|recurso de revision|recurso de revisión|recurso de queja|recurso de reclamacion|recurso de reclamación|apelacion|apelación)\b/i;
 
+const PINPOINT_RX = /\[?DOC\s+\d+\s+p\.\s*\d+\]?/i;
+const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CANONICAL_FINDING_ID_RX = /^(?:finding|cf|canonical|f)[_:-][a-z0-9][a-z0-9_.:-]{4,}$/i;
+
 function nonEmptyArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value.filter((item) => item != null && String(item).trim().length > 0) : [];
+}
+
+function isPlausibleFindingId(value: unknown): boolean {
+  const s = String(value ?? "").trim();
+  return UUID_RX.test(s) || CANONICAL_FINDING_ID_RX.test(s);
+}
+
+function hasPinpointEvidence(value: unknown): boolean {
+  if (typeof value === "string") return PINPOINT_RX.test(value);
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  const doc = Number(row.doc_n ?? row.doc ?? row.document_number);
+  const page = Number(row.page ?? row.page_number);
+  const quote = String(row.quote ?? row.excerpt ?? "").trim();
+  return Number.isFinite(doc) && doc > 0 && Number.isFinite(page) && page > 0 && quote.length > 0;
 }
 
 export function isLegalFilingRecommendation(text: unknown): boolean {
   return FILING_OR_REMEDY_RX.test(String(text ?? "").trim());
 }
 
+/**
+ * Filing/remedy advice needs auditable support, not merely another generated
+ * string. Workflow dependencies and uncited factual-basis prose are NOT
+ * evidence. Accept only a real canonical-finding identifier or pinpoint
+ * document support that contains a concrete DOC/page reference (or a
+ * structured citation with doc, page and quote).
+ */
 export function hasStructuredRecommendationSupport(rec: RecommendationLike): boolean {
-  return (
-    nonEmptyArray(rec.supportingFindingIds).length > 0 ||
-    nonEmptyArray(rec.supportingEvidence).length > 0 ||
-    nonEmptyArray(rec.citations).length > 0 ||
-    nonEmptyArray(rec.factual_basis).length > 0 ||
-    nonEmptyArray(rec.depends_on).length > 0
-  );
+  const findingIds = nonEmptyArray(rec.supportingFindingIds);
+  if (findingIds.some(isPlausibleFindingId)) return true;
+
+  const evidence = nonEmptyArray(rec.supportingEvidence);
+  if (evidence.some(hasPinpointEvidence)) return true;
+
+  const citations = nonEmptyArray(rec.citations);
+  if (citations.some(hasPinpointEvidence)) return true;
+
+  const factualBasis = nonEmptyArray(rec.factual_basis);
+  if (factualBasis.some(hasPinpointEvidence)) return true;
+
+  return false;
 }
 
 /**
