@@ -46,9 +46,6 @@ const PLACEHOLDER_PATTERNS: Array<{ code: string; rx: RegExp; severity: QaSeveri
   { code: "TOKEN_DOUBLE_SPACE_PERIOD", rx: /\.\s{3,}[A-Z]/g, severity: "warning" },
 ];
 
-// Criminal-procedure doctrines that must not appear in civil / commercial /
-// corporate / securities / etc. reports. Keyed by exact phrases the LLM has
-// been observed to leak.
 const CRIMINAL_ONLY_TERMS = [
   /\bFranks hearing\b/i,
   /\bFranks v\.?\s+Delaware\b/i,
@@ -61,17 +58,6 @@ const CRIMINAL_ONLY_TERMS = [
   /\bFourth Amendment (?:seizure|search)\b/i,
 ];
 
-// Audit P0-4/P0-5/A1/A2 follow-up: U.S. procedural vehicles that do not
-// exist under ANY Mexican materia — civil, mercantil, laboral, or penal.
-// Unlike CRIMINAL_ONLY_TERMS above (doctrine that is only wrong in the
-// WRONG case type), these are wrong unconditionally, so they are checked
-// for every case type, not gated behind `!criminal`. This is a second,
-// independent line of defense (defense in depth) against the class of bug
-// found in pipeline.server.ts's runReport prompt and
-// litigation.server.ts's litigation-strategy-center templates — those
-// sources are now fixed, so this list should stay empty in practice; it
-// exists to catch a future regression (a prompt edit or model drift
-// reintroducing these terms) before it reaches an attorney's PDF.
 const US_PROCEDURE_TERMS_ALWAYS_WRONG = [
   /\bMotion to Dismiss\b/i,
   /\bMotion to Compel\b/i,
@@ -81,7 +67,9 @@ const US_PROCEDURE_TERMS_ALWAYS_WRONG = [
   /\bProtective Order\b/i,
 ];
 
-const CRIMINAL_AREAS = new Set(["criminal", "criminal_defense", "criminal-defense"]);
+// `penal` is the canonical Mexican case_type. The older English aliases are
+// retained because historical rows and tests still use them.
+const CRIMINAL_AREAS = new Set(["penal", "criminal", "criminal_defense", "criminal-defense"]);
 
 function isCriminal(caseType: string | null | undefined): boolean {
   const s = String(caseType ?? "").toLowerCase();
@@ -142,17 +130,12 @@ function validateScores(analysis: CaseAnalysis, issues: QaIssue[]): void {
   }
 }
 
-/**
- * Run the full prerender validation pass. Never throws; returns issues.
- * Callers decide whether to block (any critical) or persist warnings.
- */
 export function validateBeforeRender(analysis: CaseAnalysis): QaIssue[] {
   const issues: QaIssue[] = [];
   const caseType = analysis.ExecutiveSummary?.case_type ?? null;
   const criminal = isCriminal(caseType);
 
   for (const { path, value } of walkStrings(analysis, "")) {
-    // Placeholder scan
     for (const p of PLACEHOLDER_PATTERNS) {
       const sample = firstMatch(value, p.rx);
       if (sample) {
@@ -165,7 +148,6 @@ export function validateBeforeRender(analysis: CaseAnalysis): QaIssue[] {
         });
       }
     }
-    // Case-type isolation — only for non-criminal reports
     if (!criminal) {
       for (const rx of CRIMINAL_ONLY_TERMS) {
         const sample = firstMatch(value, rx);
@@ -180,8 +162,6 @@ export function validateBeforeRender(analysis: CaseAnalysis): QaIssue[] {
         }
       }
     }
-    // U.S. procedural vehicles that are wrong for every Mexican case type —
-    // checked unconditionally, unlike CRIMINAL_ONLY_TERMS above.
     for (const rx of US_PROCEDURE_TERMS_ALWAYS_WRONG) {
       const sample = firstMatch(value, rx);
       if (sample) {
@@ -198,7 +178,6 @@ export function validateBeforeRender(analysis: CaseAnalysis): QaIssue[] {
 
   validateScores(analysis, issues);
 
-  // Score consistency — Scores.suppressed must come with a rationale.
   if (analysis.Scores?.suppressed && !String(analysis.Scores.rationale ?? "").trim()) {
     issues.push({
       code: "SUPPRESSION_NO_REASON",
@@ -218,23 +197,23 @@ export function partitionIssues(issues: QaIssue[]): { critical: QaIssue[]; warni
   };
 }
 
+function readQualityCriticalIssues(reportContent: Record<string, unknown>): string[] {
+  const full = reportContent.full_report;
+  if (!full || typeof full !== "object" || Array.isArray(full)) return [];
+  const validation = (full as Record<string, unknown>).validation;
+  if (!validation || typeof validation !== "object" || Array.isArray(validation)) return [];
+  const qualityGate = (validation as Record<string, unknown>).quality_gate;
+  if (!qualityGate || typeof qualityGate !== "object" || Array.isArray(qualityGate)) return [];
+  const critical = (qualityGate as Record<string, unknown>).critical_issues;
+  return Array.isArray(critical)
+    ? critical.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+}
+
 // ----------------------------------------------------------------------------
 // Canonical Reconciliation Design (2026-08-16), P3 §10 — validateBeforeRender
-// above only ever validates canonical_analysis (see gate.server.ts's
-// runCanonicalGate), an additive shadow projection pipeline.server.ts's own
-// header comment describes as "never blocks legacy path" — it is NOT the
-// reports.full_report content export.ts/the report UI actually renders for
-// the attorney. This is the same prose-walking approach, pointed at the real
-// content instead, plus a Spanish criminal-institution denylist
-// (checkDomainVocabulary, reused from domain-vocabulary-gate.ts — the exact
-// terms already trusted as penal-only elsewhere in this codebase) alongside
-// the existing English/U.S.-doctrine terms. Takes a plain object rather than
-// the 17-section CaseAnalysis shape, since reports.full_report has an
-// entirely different structure. Deliberately does NOT port
-// validateScores/SUPPRESSION_NO_REASON from validateBeforeRender — those are
-// CaseAnalysis.Scores-shaped and not this function's concern; callers that
-// want the placeholder/case-type-leak scan on real content use this, the
-// existing Scores-shaped checks stay on the canonical_analysis path.
+// above only ever validates canonical_analysis. validateRenderedReport scans
+// the actual reports row/full_report that UI/export consumers receive.
 // ----------------------------------------------------------------------------
 export function validateRenderedReport(
   reportContent: Record<string, unknown>,
@@ -294,6 +273,22 @@ export function validateRenderedReport(
         });
       }
     }
+  }
+
+  // The aggregate quality score itself is not calibrated and therefore is
+  // not a release criterion. Its `critical_issues` array is different: these
+  // are deterministic integrity failures emitted by report-quality-gate.ts
+  // (e.g. orphaned citations, a missing legal memorandum, or a failed memo
+  // chunk). A report may score below 70 for harmless reasons such as having
+  // no cross-examination, but it may not be released with a known critical.
+  for (const critical of readQualityCriticalIssues(reportContent)) {
+    issues.push({
+      code: "REPORT_QUALITY_CRITICAL",
+      severity: "critical",
+      section: "full_report.validation.quality_gate",
+      message: critical,
+      sample: critical,
+    });
   }
 
   return issues;
