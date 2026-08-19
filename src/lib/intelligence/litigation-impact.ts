@@ -86,7 +86,7 @@ const DIMENSION_DISPLAY: Record<string, { title: string; polarity: ImpactPolarit
   witness_reliability: { title: "Witness Reliability", polarity: "strength" },
   timeline_integrity: { title: "Timeline Integrity", polarity: "strength" },
   chain_of_custody: { title: "Chain of Custody", polarity: "strength" },
-  constitutional_compliance: { title: "Constitutional Risk", polarity: "risk" },
+  constitutional_compliance: { title: "Constitutional Compliance", polarity: "strength" },
   investigation_completeness: { title: "Investigation Completeness", polarity: "strength" },
   discovery_completeness: { title: "Discovery Completeness", polarity: "strength" },
   forensic_reliability: { title: "Forensic Reliability", polarity: "strength" },
