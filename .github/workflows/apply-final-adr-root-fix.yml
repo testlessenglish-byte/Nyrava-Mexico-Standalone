@@ -1,0 +1,86 @@
+name: Apply final ADR root fix
+on:
+  push:
+    branches: [agent/final-adr-root-fix]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[final-adr-root-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/final-adr-root-fix
+          fetch-depth: 0
+      - name: Patch only the two reproduced root causes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # 1) Corpus-level notification reconciliation at the canonical finding write choke point.
+          p = Path('src/lib/intelligence/findings.server.ts')
+          s = p.read_text()
+          old = '''function isPersonalNoticeSourceInversion(r: NewFinding): boolean {\n  const evidence = [String(r.source_quote ?? ""), JSON.stringify(r.evidence_refs ?? [])].join(" ");\n  const claim = [String(r.title ?? ""), String(r.description ?? ""), String(r.legal_significance ?? ""), String(r.potential_impact ?? "")].join(" ");\n  const evidenceDeniesDuty = /(?:no\\s+exist[ií]a|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence);\n  const claimAssertsDefect = /notific[^.!?]{0,100}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim);\n  return evidenceDeniesDuty && claimAssertsDefect;\n}\n'''
+          new = '''const PERSONAL_NOTICE_NO_DUTY = /(?:no\\s+exist[ií]a(?:\\s+alg[uú]n)?|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,180}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,140}notific[^.!?]{0,100}personal/i;\n\nfunction isPersonalNoticeDefectClaim(r: NewFinding): boolean {\n  const claim = [String(r.title ?? ""), String(r.description ?? ""), String(r.legal_significance ?? ""), String(r.potential_impact ?? ""), JSON.stringify(r.metadata ?? {})].join(" ");\n  return /notific[^.!?]{0,120}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|garanti[cz]|asegurar|necesari[oa])/i.test(claim);\n}\n\nfunction isPersonalNoticeSourceInversion(r: NewFinding): boolean {\n  const evidence = [String(r.source_quote ?? ""), JSON.stringify(r.evidence_refs ?? [])].join(" ");\n  return PERSONAL_NOTICE_NO_DUTY.test(evidence) && isPersonalNoticeDefectClaim(r);\n}\n'''
+          if old not in s:
+              raise SystemExit('findings helper marker not found')
+          s = s.replace(old, new, 1)
+          old2 = '''  const corpusFlat = corpus.docs.map((d) => d.pages.join("\\n")).join("\\n");\n  const civil = isCivilCaseType(caseType);'''
+          new2 = '''  const corpusFlat = corpus.docs.map((d) => d.pages.join("\\n")).join("\\n");\n  // Cross-finding reconciliation: the controlling no-duty proposition may live\n  // in a DIFFERENT agent/finding than the false defect theory. The prior guard\n  // only compared a finding to its own quote, which is why ADR5829/2025 still\n  // published a personal-notice defect even though the same corpus expressly\n  // says no duty to notify personally existed.\n  const corpusDeniesPersonalNoticeDuty = PERSONAL_NOTICE_NO_DUTY.test(corpusFlat);\n  const civil = isCivilCaseType(caseType);'''
+          if old2 not in s:
+              raise SystemExit('corpusFlat marker not found')
+          s = s.replace(old2, new2, 1)
+          old3 = '''    if (isPersonalNoticeSourceInversion(r)) {\n      audit.rejections.push({ title: String(r.title ?? ""), reason: "claim_evidence_irrelevant", detail: "source expressly negates the personal-notice duty asserted as a defect" });'''
+          new3 = '''    if (isPersonalNoticeSourceInversion(r) || (corpusDeniesPersonalNoticeDuty && isPersonalNoticeDefectClaim(r))) {\n      audit.rejections.push({ title: String(r.title ?? ""), reason: "claim_evidence_irrelevant", detail: "verified corpus expressly negates the personal-notice duty asserted as a defect" });'''
+          if old3 not in s:
+              raise SystemExit('validation inversion marker not found')
+          s = s.replace(old3, new3, 1)
+          p.write_text(s)
+
+          # 2) Report-stage cross-surface sanitizer + concluded-audit motion gate.
+          p = Path('src/lib/pipeline.server.ts')
+          s = p.read_text()
+          marker = '''  const corpusFullText = (docsForReportGround ?? []).map((d) => d.extracted_text ?? "").join("\\n");\n'''
+          insert = marker + '''  // ADR5829/2025 final reconciliation: source meaning wins across agent boundaries.\n  // If the verified corpus expressly says there was no duty to notify personally,\n  // a different agent/report chunk may not resurrect that absence as a defect,\n  // nullity theory, risk, recommendation, or future corrective action.\n  const personalNoticeNoDuty = /(?:no\\s+exist[ií]a(?:\\s+alg[uú]n)?|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,180}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,140}notific[^.!?]{0,100}personal/i.test(corpusFullText);\n  const isFalsePersonalNoticeTheory = (value: unknown): boolean => {\n    const text = typeof value === "string" ? value : JSON.stringify(value ?? "");\n    return /notific[^.!?]{0,120}personal/i.test(text) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|garanti[cz]|asegurar|necesari[oa])/i.test(text);\n  };\n  if (personalNoticeNoDuty) {\n    for (const key of ["next_actions", "strategy_recommendations", "motion_opportunities", "recommendations"]) {\n      const value = (parsed as Record<string, unknown>)[key];\n      if (Array.isArray(value)) (parsed as Record<string, unknown>)[key] = value.filter((item) => !isFalsePersonalNoticeTheory(item));\n    }\n    const exec = (parsed as Record<string, unknown>).executive_summary;\n    if (exec && typeof exec === "object" && !Array.isArray(exec)) {\n      const urgent = (exec as Record<string, unknown>).urgent_actions;\n      if (Array.isArray(urgent)) (exec as Record<string, unknown>).urgent_actions = urgent.filter((item) => !isFalsePersonalNoticeTheory(item));\n      if (isFalsePersonalNoticeTheory((exec as Record<string, unknown>).primary_risk)) (exec as Record<string, unknown>).primary_risk = "";\n    }\n    const legalAnalysis = (parsed as Record<string, unknown>).legal_analysis;\n    if (Array.isArray(legalAnalysis)) (parsed as Record<string, unknown>).legal_analysis = legalAnalysis.filter((item) => !isFalsePersonalNoticeTheory(item));\n    for (const key of Object.keys(prose)) {\n      const value = prose[key];\n      if (typeof value !== "string" || !isFalsePersonalNoticeTheory(value)) continue;\n      prose[key] = value.split(/(?<=[.!?])\\s+|\\n+/g).filter((sentence) => !isFalsePersonalNoticeTheory(sentence)).join(" ").trim();\n    }\n  }\n  const { getCaseAnalysisMode: getReportCaseAnalysisMode } = await import("./intelligence/case-analysis-mode");\n  const reportCaseAnalysisMode = await getReportCaseAnalysisMode(db, caseId);\n  const allowReportMotionGeneration = reportCaseAnalysisMode === "concluded_audit" ? false : ess.allowMotionGeneration;\n'''
+          # insert must occur AFTER ess exists, not here; split in two parts.
+          if marker not in s:
+              raise SystemExit('pipeline corpus marker not found')
+          # add only reconciliation before ESS
+          recon = marker + insert.split('  const { getCaseAnalysisMode: getReportCaseAnalysisMode }')[0].split(marker,1)[1]
+          s = s.replace(marker, recon, 1)
+          ess_end = '''  });\n\n  // ESS-driven per-finding constraint'''
+          gate = '''  });\n\n  const { getCaseAnalysisMode: getReportCaseAnalysisMode } = await import("./intelligence/case-analysis-mode");\n  const reportCaseAnalysisMode = await getReportCaseAnalysisMode(db, caseId);\n  // A concluded legal audit remains FULL for analysis/scoring, but it must not\n  // generate a new complaint/motion/incident merely because ESS is strong.\n  const allowReportMotionGeneration = reportCaseAnalysisMode === "concluded_audit" ? false : ess.allowMotionGeneration;\n\n  // ESS-driven per-finding constraint'''
+          if ess_end not in s:
+              raise SystemExit('ESS end marker not found')
+          s = s.replace(ess_end, gate, 1)
+          # Report FULL/LIMITED must NOT become LIMITED just because a concluded audit suppresses forward motions.
+          s = s.replace('''    !ess.allowMotionGeneration ||\n    ess.bin === "minimal" ||''', '''    ess.bin === "minimal" ||''', 1)
+          s = s.replace('''  const motionsFinal = isLimited ? [] : motionsGuarded.items;''', '''  const motionsFinal = isLimited || !allowReportMotionGeneration ? [] : motionsGuarded.items;''', 1)
+          s = s.replace('''  const motionsSuppressed = ess.allowMotionGeneration ? 0 : motionsGuarded.items.length;\n  const motionsAccepted = ess.allowMotionGeneration ? motionsGuarded.items.length : 0;''', '''  const motionsSuppressed = allowReportMotionGeneration ? 0 : motionsGuarded.items.length;\n  const motionsAccepted = allowReportMotionGeneration ? motionsGuarded.items.length : 0;''', 1)
+          s = s.replace('''      gate: ess.allowMotionGeneration ? "open" : "ess_blocked",''', '''      gate: allowReportMotionGeneration ? "open" : reportCaseAnalysisMode === "concluded_audit" ? "concluded_audit_blocked" : "ess_blocked",''', 1)
+          s = s.replace('''      allowMotion: ess.allowMotionGeneration,''', '''      allowMotion: allowReportMotionGeneration,''', 1)
+          s = s.replace('''          ...ess,\n          secondary_validator: validatorAudit,\n          motions_suppressed_by_gate: ess.allowMotionGeneration ? 0 : motionsGuarded.items.length,''', '''          ...ess,\n          allowMotionGeneration: allowReportMotionGeneration,\n          secondary_validator: validatorAudit,\n          motions_suppressed_by_gate: allowReportMotionGeneration ? 0 : motionsGuarded.items.length,''', 1)
+          p.write_text(s)
+
+          # Regression source assertions: fast and deterministic, in addition to normal launch-hardening build.
+          t = Path('src/lib/intelligence/__tests__/adr5829-final-root-fix.test.ts')
+          t.write_text('''import { describe, expect, it } from "vitest";\nimport fs from "node:fs";\n\ndescribe("ADR5829 final root fixes", () => {\n  it("reconciles personal-notice duty at corpus level before canonical insertion", () => {\n    const source = fs.readFileSync("src/lib/intelligence/findings.server.ts", "utf8");\n    expect(source).toContain("corpusDeniesPersonalNoticeDuty");\n    expect(source).toContain("isPersonalNoticeDefectClaim");\n    expect(source).toContain("verified corpus expressly negates the personal-notice duty");\n  });\n\n  it("blocks forward motion generation for concluded audits without downgrading the full analysis", () => {\n    const source = fs.readFileSync("src/lib/pipeline.server.ts", "utf8");\n    expect(source).toContain('reportCaseAnalysisMode === "concluded_audit" ? false : ess.allowMotionGeneration');\n    expect(source).toContain("allowReportMotionGeneration");\n    expect(source).toContain("concluded_audit_blocked");\n    expect(source).toContain("personalNoticeNoDuty");\n  });\n});\n''')
+
+          # Remove temporary locator/patch workflows from the eventual PR.
+          Path('.github/workflows/locate-final-adr-gate.yml').unlink(missing_ok=True)
+          Path('.github/workflows/apply-final-adr-root-fix.yml').unlink(missing_ok=True)
+          PY
+      - name: Verify focused regressions and build
+        run: |
+          bun install --frozen-lockfile
+          bunx vitest run src/lib/intelligence/__tests__/adr5829-final-root-fix.test.ts src/lib/intelligence/__tests__/post169-correctness.test.ts src/lib/intelligence/__tests__/hallucination-report-reconciliation.test.ts
+          bun run build
+      - name: Commit final fixes
+        run: |
+          git config user.name "Nyrava Fix Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix final ADR notification and concluded-audit gates [final-adr-root-applied]"
+          git push origin HEAD:agent/final-adr-root-fix
