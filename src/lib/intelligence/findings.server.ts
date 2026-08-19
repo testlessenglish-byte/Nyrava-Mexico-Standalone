@@ -227,12 +227,16 @@ const VIOLATION_CLAIM =
 // Source-meaning inversion guard. If a finding's own quoted evidence says
 // no duty of personal notice existed, that same finding cannot convert the
 // absence of personal notice into a defect, nullity, prejudice, or risk.
+const PERSONAL_NOTICE_NO_DUTY = /(?:no\s+exist[ií]a(?:\s+alg[uú]n)?|no\s+(?:era|es|resultaba|fue)\s+necesari[oa]|no\s+hab[ií]a)\b[^.!?]{0,180}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,140}notific[^.!?]{0,100}personal/i;
+
+function isPersonalNoticeDefectClaim(r: NewFinding): boolean {
+  const claim = [String(r.title ?? ""), String(r.description ?? ""), String(r.legal_significance ?? ""), String(r.potential_impact ?? ""), JSON.stringify(r.metadata ?? {})].join(" ");
+  return /notific[^.!?]{0,120}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|garanti[cz]|asegurar|necesari[oa])/i.test(claim);
+}
+
 function isPersonalNoticeSourceInversion(r: NewFinding): boolean {
   const evidence = [String(r.source_quote ?? ""), JSON.stringify(r.evidence_refs ?? [])].join(" ");
-  const claim = [String(r.title ?? ""), String(r.description ?? ""), String(r.legal_significance ?? ""), String(r.potential_impact ?? "")].join(" ");
-  const evidenceDeniesDuty = /(?:no\s+exist[ií]a|no\s+(?:era|es|resultaba|fue)\s+necesari[oa]|no\s+hab[ií]a)\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence);
-  const claimAssertsDefect = /notific[^.!?]{0,100}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim);
-  return evidenceDeniesDuty && claimAssertsDefect;
+  return PERSONAL_NOTICE_NO_DUTY.test(evidence) && isPersonalNoticeDefectClaim(r);
 }
 
 // Tautology / trivial-content patterns. A finding that says nothing more than
@@ -302,14 +306,15 @@ async function validateFindingsForCase(
     getLockedCaseType(db, caseId),
   ]);
   const corpusFlat = corpus.docs.map((d) => d.pages.join("\n")).join("\n");
+  const corpusDeniesPersonalNoticeDuty = PERSONAL_NOTICE_NO_DUTY.test(corpusFlat);
   const civil = isCivilCaseType(caseType);
   const kept: NewFinding[] = [];
   for (const r of rows) {
     const blob = `${r.title ?? ""} ${r.description ?? ""} ${r.legal_significance ?? ""}`;
 
     // Layer -1 — source meaning must agree with the generated legal claim.
-    if (isPersonalNoticeSourceInversion(r)) {
-      audit.rejections.push({ title: String(r.title ?? ""), reason: "claim_evidence_irrelevant", detail: "source expressly negates the personal-notice duty asserted as a defect" });
+    if (isPersonalNoticeSourceInversion(r) || (corpusDeniesPersonalNoticeDuty && isPersonalNoticeDefectClaim(r))) {
+      audit.rejections.push({ title: String(r.title ?? ""), reason: "claim_evidence_irrelevant", detail: "verified corpus expressly negates the personal-notice duty asserted as a defect" });
       audit.rejected += 1;
       continue;
     }
