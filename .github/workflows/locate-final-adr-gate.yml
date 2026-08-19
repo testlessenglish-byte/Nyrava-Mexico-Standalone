@@ -2,6 +2,8 @@ name: Locate final ADR gate
 on:
   push:
     branches: [agent/final-adr-root-fix]
+  pull_request:
+    branches: [main]
 permissions:
   contents: read
 jobs:
