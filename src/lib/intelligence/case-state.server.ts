@@ -1,12 +1,10 @@
 // ============================================================================
-// CASE_STATE — Single source of truth for ALL downstream rendering & analysis.
+// CASE_STATE — shared canonical case intelligence for downstream consumers.
 //
-// PIPELINE FLOW: INGEST → NORMALIZE → ANALYZE → COMMIT TO CASE_STATE → RENDER
+// PIPELINE FLOW: INGEST → NORMALIZE → ANALYZE → RECONCILE → CASE_STATE → RENDER
 //
-// Nothing downstream (renderer, scoring view, reports, exports) is allowed to
-// infer or compute. They MUST read from this object and format it. This file
-// owns the assembly + the citation resolver + the legacy mode compatibility
-// policy.
+// Downstream consumers must use reconciled findings and the persisted stage
+// state exposed here rather than rebuilding their own competing interpretation.
 // ============================================================================
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -17,9 +15,9 @@ import {
 } from "@/lib/intelligence/finding-selection";
 import { consolidateFindings } from "@/lib/intelligence/finding-dedupe";
 
-// Legacy persisted values. The product now has one verified-analysis pipeline;
-// these strings remain accepted only so existing rows/migrations do not break.
-export type AnalysisMode = "strict" | "balanced" | "exploratory";
+// `strict`, `balanced`, and `exploratory` are accepted only as historical
+// storage/input aliases. Runtime behavior is always the single verified mode.
+export type AnalysisMode = "verified" | "strict" | "balanced" | "exploratory";
 
 export type EngineKey =
   | "extraction"
@@ -39,38 +37,12 @@ export type EngineKey =
   | "litigation_strategy_center";
 
 /**
- * ONE VERIFIED PIPELINE.
- * Historical strict/balanced/exploratory values must NEVER decide which
- * intelligence engines run. Evidence reliability is enforced by the evidence
- * gate/citation/hallucination/release layers, not by turning workspace modules
- * off. All legacy values are compatibility aliases for one complete engine set.
+ * There is one verified pipeline. Historical mode tokens must never gate an
+ * engine. Evidence reliability is enforced by reconciliation, citations,
+ * hallucination/QA/Judge gates, and procedural-posture rules.
  */
-const VERIFIED_ENGINE_SET: readonly EngineKey[] = [
-  "extraction",
-  "analyzers",
-  "agents",
-  "scoring",
-  "contradictions",
-  "discovery",
-  "witness",
-  "theory",
-  "opportunity",
-  "trial_prep",
-  "work_product",
-  "strategy",
-  "perspectives",
-  "evidence_intel",
-  "litigation_strategy_center",
-] as const;
-
-const ALLOWED: Record<AnalysisMode, Set<EngineKey>> = {
-  strict: new Set(VERIFIED_ENGINE_SET),
-  balanced: new Set(VERIFIED_ENGINE_SET),
-  exploratory: new Set(VERIFIED_ENGINE_SET),
-};
-
-export function engineAllowedInMode(engine: EngineKey, mode: AnalysisMode): boolean {
-  return ALLOWED[mode].has(engine);
+export function engineAllowedInMode(_engine: EngineKey, _mode: AnalysisMode): boolean {
+  return true;
 }
 
 export class StageSkippedError extends Error {
@@ -84,9 +56,9 @@ export class StageSkippedError extends Error {
   }
 }
 
-export function assertEngineAllowed(engine: EngineKey, mode: AnalysisMode): void {
-  if (!engineAllowedInMode(engine, mode)) throw new StageSkippedError(engine, mode);
-}
+// Compatibility export for callers that still invoke the old guard. With one
+// verified pipeline this intentionally never throws.
+export function assertEngineAllowed(_engine: EngineKey, _mode: AnalysisMode): void {}
 
 export type CaseStateDoc = { id: string; filename: string; status: string | null };
 export type CaseState = {
@@ -105,6 +77,9 @@ export type CaseState = {
   pipeline_status: {
     ingestion_complete: boolean;
     analysis_complete: boolean;
+    verified_complete: boolean;
+    // Compatibility aliases for older UI code. They all represent the same
+    // verified scoring completion state and must not fork behavior.
     strict_complete: boolean;
     balanced_complete: boolean;
     exploratory_complete: boolean;
@@ -113,7 +88,6 @@ export type CaseState = {
 };
 
 export async function buildCaseState(db: SupabaseClient<Database>, caseId: string): Promise<CaseState> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [c, docs, findings, scores, witnesses, opps, theories, trial, wp] = await Promise.all([
     db.from("cases").select("*").eq("id", caseId).maybeSingle(),
     db.from("documents").select("id,filename,status").eq("case_id", caseId).order("created_at", { ascending: true }),
@@ -128,15 +102,13 @@ export async function buildCaseState(db: SupabaseClient<Database>, caseId: strin
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const caseRow = (c.data ?? {}) as any;
-  const mode: AnalysisMode =
-    caseRow.analysis_mode === "balanced" || caseRow.analysis_mode === "exploratory" ? caseRow.analysis_mode : "strict";
 
-  // CASE_STATE used to expose every persisted row directly while the report
-  // and export paths consolidated/deduped them. That made "single source of
-  // truth" untrue: a workspace consumer could see a stale speculative child
-  // that the report had already reconciled into a verified court holding.
-  // Apply the same canonical selection here before any downstream module sees
-  // findings or contradiction counts.
+  // Runtime case-state is always unified. We deliberately do not echo the
+  // retired DB token back into downstream decision logic.
+  const mode: AnalysisMode = "verified";
+
+  // Apply the same reconciliation/dedupe policy before any workspace, report,
+  // scoring, or Talk-to-Case consumer sees the findings.
   const rawFindings = (findings.data ?? []) as Array<Record<string, unknown>>;
   const deduped = consolidateFindings(rawFindings) as typeof rawFindings;
   const canonicalFindings = deduped.filter((f) =>
@@ -155,6 +127,13 @@ export async function buildCaseState(db: SupabaseClient<Database>, caseId: strin
   const resolver: Record<string, string> = {};
   for (const d of documents) resolver[d.id] = d.filename;
 
+  // Use the actual live-schema stage fields. The old implementation checked
+  // non-existent `uploaded_at`/`analyzed_at` properties, which could report a
+  // stage as incomplete after the pipeline had actually finished.
+  const ingestionComplete = Boolean(caseRow.extracted_at);
+  const analysisComplete = Boolean(caseRow.analysis_at);
+  const verifiedComplete = Boolean(caseRow.scored_at);
+
   return {
     case_id: caseId,
     case_type: caseRow.case_type ?? null,
@@ -169,11 +148,12 @@ export async function buildCaseState(db: SupabaseClient<Database>, caseId: strin
     work_product: (wp.data ?? []) as Array<Record<string, unknown>>,
     scores: (scores.data ?? null) as Record<string, unknown> | null,
     pipeline_status: {
-      ingestion_complete: !!caseRow.extracted_at || !!caseRow.uploaded_at,
-      analysis_complete: !!caseRow.analyzed_at,
-      strict_complete: !!caseRow.scored_at,
-      balanced_complete: !!caseRow.scored_at,
-      exploratory_complete: !!caseRow.scored_at,
+      ingestion_complete: ingestionComplete,
+      analysis_complete: analysisComplete,
+      verified_complete: verifiedComplete,
+      strict_complete: verifiedComplete,
+      balanced_complete: verifiedComplete,
+      exploratory_complete: verifiedComplete,
     },
     citation_resolver: resolver,
   };
