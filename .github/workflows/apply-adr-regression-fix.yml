@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - agent/adr-regression-only
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: ${{ !contains(github.event.head_commit.message, '[adr-regression-applied]') }}
+    if: ${{ !contains(github.event.head_commit.message || github.event.pull_request.title, '[adr-regression-applied]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,29 +31,22 @@ jobs:
               s = p.read_text()
               if old not in s:
                   raise SystemExit(f"pattern not found in {path}: {old[:100]!r}")
-              s2 = s.replace(old, new, 1)
-              p.write_text(s2)
+              p.write_text(s.replace(old, new, 1))
 
-          # 1) Reject a finding when its own quoted evidence expressly says
-          # there was NO duty of personal notice but its generated claim turns
-          # the absence of personal notice into a defect/nullity/risk.
           path = 'src/lib/intelligence/findings.server.ts'
-          p = Path(path)
-          s = p.read_text()
+          p = Path(path); s = p.read_text()
           marker = '''const VIOLATION_CLAIM =\n  /\\b(discovery (violation|abuse|misconduct|sanction)|spoliation|failure to (disclose|produce)|brady (violation|material))\\b/i;\n'''
-          insert = marker + '''\n// Source-meaning inversion guard. If the finding's own quoted evidence says\n// no duty of personal notice existed, the same finding cannot characterize\n// the absence of personal notice as a defect, nullity, prejudice, or risk.\n// This is evidence-semantic consistency, not an ADR-specific hardcode.\nfunction isPersonalNoticeSourceInversion(r: NewFinding): boolean {\n  const evidence = [\n    String(r.source_quote ?? ""),\n    JSON.stringify(r.evidence_refs ?? []),\n  ].join(" ");\n  const claim = [\n    String(r.title ?? ""),\n    String(r.description ?? ""),\n    String(r.legal_significance ?? ""),\n    String(r.potential_impact ?? ""),\n  ].join(" ");\n  const evidenceDeniesDuty =\n    /(?:no\\s+exist[ií]a|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence);\n  const claimAssertsDefect =\n    /notific[^.!?]{0,100}personal/i.test(claim) &&\n    /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim);\n  return evidenceDeniesDuty && claimAssertsDefect;\n}\n'''
-          if 'function isPersonalNoticeSourceInversion' not in s:
+          insert = marker + '''\n// Source-meaning inversion guard. If a finding's own quoted evidence says\n// no duty of personal notice existed, that same finding cannot convert the\n// absence of personal notice into a defect, nullity, prejudice, or risk.\nfunction isPersonalNoticeSourceInversion(r: NewFinding): boolean {\n  const evidence = [String(r.source_quote ?? ""), JSON.stringify(r.evidence_refs ?? [])].join(" ");\n  const claim = [String(r.title ?? ""), String(r.description ?? ""), String(r.legal_significance ?? ""), String(r.potential_impact ?? "")].join(" ");\n  const evidenceDeniesDuty = /(?:no\\s+exist[ií]a|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence);\n  const claimAssertsDefect = /notific[^.!?]{0,100}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim);\n  return evidenceDeniesDuty && claimAssertsDefect;\n}\n'''
+          if 'function isPersonalNoticeSourceInversion(r: NewFinding)' not in s:
               if marker not in s: raise SystemExit('findings marker missing')
               s = s.replace(marker, insert, 1)
           loop_marker = '''    const blob = `${r.title ?? ""} ${r.description ?? ""} ${r.legal_significance ?? ""}`;\n\n    // Layer 0 — Tautology filter.'''
-          loop_insert = '''    const blob = `${r.title ?? ""} ${r.description ?? ""} ${r.legal_significance ?? ""}`;\n\n    // Layer -1 — reject a semantic inversion of the finding's own evidence.\n    // Example: source says "no existía deber de notificar personalmente"\n    // while generated prose says the absence may invalidate the proceeding.\n    if (isPersonalNoticeSourceInversion(r)) {\n      audit.rejections.push({\n        title: String(r.title ?? ""),\n        reason: "claim_evidence_irrelevant",\n        detail: "source expressly negates the personal-notice duty asserted as a defect",\n      });\n      audit.rejected += 1;\n      continue;\n    }\n\n    // Layer 0 — Tautology filter.'''
+          loop_insert = '''    const blob = `${r.title ?? ""} ${r.description ?? ""} ${r.legal_significance ?? ""}`;\n\n    // Layer -1 — source meaning must agree with the generated legal claim.\n    if (isPersonalNoticeSourceInversion(r)) {\n      audit.rejections.push({ title: String(r.title ?? ""), reason: "claim_evidence_irrelevant", detail: "source expressly negates the personal-notice duty asserted as a defect" });\n      audit.rejected += 1;\n      continue;\n    }\n\n    // Layer 0 — Tautology filter.'''
           if 'source expressly negates the personal-notice duty' not in s:
               if loop_marker not in s: raise SystemExit('findings loop marker missing')
               s = s.replace(loop_marker, loop_insert, 1)
           p.write_text(s)
 
-          # 2) Every canonical consumer (dashboard, report fetch, Talk to Case)
-          # also excludes a legacy self-inverted row if one already exists.
           path = 'src/lib/intelligence/finding-selection.ts'
           p = Path(path); s = p.read_text()
           type_marker = '''  verification_status?: string | null;\n};'''
@@ -59,7 +55,7 @@ jobs:
               if type_marker not in s: raise SystemExit('selection type marker missing')
               s = s.replace(type_marker, type_new, 1)
           fn_marker = '''export function isCanonicalFinding(f: SelectableFinding): boolean {\n  const cls = classifyFindingSource(f);'''
-          fn_new = '''function isPersonalNoticeSourceInversion(f: SelectableFinding): boolean {\n  const evidence = [String(f.source_quote ?? ""), JSON.stringify(f.evidence_refs ?? [])].join(" ");\n  const claim = [f.title, f.description, f.legal_significance, f.potential_impact]\n    .map((v) => String(v ?? ""))\n    .join(" ");\n  return (\n    /(?:no\\s+exist[ií]a|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence) &&\n    /notific[^.!?]{0,100}personal/i.test(claim) &&\n    /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim)\n  );\n}\n\nexport function isCanonicalFinding(f: SelectableFinding): boolean {\n  const cls = classifyFindingSource(f);'''
+          fn_new = '''function isPersonalNoticeSourceInversion(f: SelectableFinding): boolean {\n  const evidence = [String(f.source_quote ?? ""), JSON.stringify(f.evidence_refs ?? [])].join(" ");\n  const claim = [f.title, f.description, f.legal_significance, f.potential_impact].map((v) => String(v ?? "")).join(" ");\n  return /(?:no\\s+exist[ií]a|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence) && /notific[^.!?]{0,100}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim);\n}\n\nexport function isCanonicalFinding(f: SelectableFinding): boolean {\n  const cls = classifyFindingSource(f);'''
           if 'function isPersonalNoticeSourceInversion(f: SelectableFinding)' not in s:
               if fn_marker not in s: raise SystemExit('selection function marker missing')
               s = s.replace(fn_marker, fn_new, 1)
@@ -70,60 +66,35 @@ jobs:
               s = s.replace(return_marker, return_new, 1)
           p.write_text(s)
 
-          # 3) Fix impact semantics: constitutional_compliance is a strength /
-          # compliance dimension. A score of 56 cannot be labeled "High Risk".
-          replace_once(
-              'src/lib/intelligence/litigation-impact.ts',
-              'constitutional_compliance: { title: "Constitutional Risk", polarity: "risk" },',
-              'constitutional_compliance: { title: "Constitutional Compliance", polarity: "strength" },',
-          )
+          replace_once('src/lib/intelligence/litigation-impact.ts', 'constitutional_compliance: { title: "Constitutional Risk", polarity: "risk" },', 'constitutional_compliance: { title: "Constitutional Compliance", polarity: "strength" },')
 
-          # 4) Export must use canonical timeline, canonical risk, and a final
-          # source-meaning scrub. This does not rely on Supabase migration state.
           path = 'src/lib/export.ts'
           p = Path(path); s = p.read_text()
-          import_marker = '''  getScores,\n  getAgentSummary,'''
-          import_new = '''  getScores,\n  getTimeline,\n  getAgentSummary,'''
           if '  getTimeline,' not in s:
-              if import_marker not in s: raise SystemExit('export import marker missing')
-              s = s.replace(import_marker, import_new, 1)
-
+              s = s.replace('''  getScores,\n  getAgentSummary,''', '''  getScores,\n  getTimeline,\n  getAgentSummary,''', 1)
           rt_marker = '''function reportText(data: CaseExportData, key: string): string {\n  const r = asObj(data.report);\n  const full = asObj(r.full_report);\n  const prose = asObj(full.prose);\n  return processProseCitations(asStr(r[key]) || asStr(prose[key]) || asStr(full[key]));\n}\n'''
-          rt_new = '''function exportHasNoPersonalNoticeDuty(data: CaseExportData): boolean {\n  return (data.findings ?? []).some((f) => {\n    const evidence = [\n      asStr(f.source_quote),\n      JSON.stringify(f.evidence_refs ?? []),\n      JSON.stringify(f.metadata ?? {}),\n    ].join(" ");\n    return /(?:no\\s+exist[ií]a|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence);\n  });\n}\n\nfunction scrubExportPostureInversion(data: CaseExportData, text: string): string {\n  if (!text || !exportHasNoPersonalNoticeDuty(data)) return text;\n  const parts = text.split(/(?<=[.!?])\\s+|\\n+/g);\n  return parts\n    .filter((part) => {\n      const s = part.trim();\n      if (!/notific[^.!?]{0,100}personal/i.test(s)) return true;\n      return !/(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|necesaria|necesario)/i.test(s);\n    })\n    .join(" ")\n    .replace(/\\s{2,}/g, " ")\n    .trim();\n}\n\nfunction canonicalTimelineText(data: CaseExportData): string {\n  const events = getTimeline(getReportRow(data));\n  if (!events.length) return "";\n  return events\n    .slice(0, 24)\n    .map((ev) => {\n      const date = asStr(ev.date) || asStr(ev.date_raw);\n      const event = asStr(ev.event) || asStr(ev.description);\n      return date && event ? `${date}: ${event}` : event || date;\n    })\n    .filter(Boolean)\n    .join("\\n");\n}\n\nfunction reportText(data: CaseExportData, key: string): string {\n  if (key === "timeline_summary") {\n    const canonical = canonicalTimelineText(data);\n    if (canonical) return processProseCitations(canonical);\n  }\n  const r = asObj(data.report);\n  const full = asObj(r.full_report);\n  const prose = asObj(full.prose);\n  const raw = asStr(r[key]) || asStr(prose[key]) || asStr(full[key]);\n  return processProseCitations(scrubExportPostureInversion(data, raw));\n}\n'''
+          rt_new = '''function exportHasNoPersonalNoticeDuty(data: CaseExportData): boolean {\n  return (data.findings ?? []).some((f) => {\n    const evidence = [asStr(f.source_quote), JSON.stringify(f.evidence_refs ?? []), JSON.stringify(f.metadata ?? {})].join(" ");\n    return /(?:no\\s+exist[ií]a|no\\s+(?:era|es|resultaba|fue)\\s+necesari[oa]|no\\s+hab[ií]a)\\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence);\n  });\n}\n\nfunction scrubExportPostureInversion(data: CaseExportData, text: string): string {\n  if (!text || !exportHasNoPersonalNoticeDuty(data)) return text;\n  return text.split(/(?<=[.!?])\\s+|\\n+/g).filter((part) => {\n    const value = part.trim();\n    if (!/notific[^.!?]{0,100}personal/i.test(value)) return true;\n    return !/(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|necesaria|necesario)/i.test(value);\n  }).join(" ").replace(/\\s{2,}/g, " ").trim();\n}\n\nfunction canonicalTimelineText(data: CaseExportData): string {\n  return getTimeline(getReportRow(data)).slice(0, 24).map((ev) => {\n    const date = asStr(ev.date) || asStr(ev.date_raw);\n    const event = asStr(ev.event) || asStr(ev.description);\n    return date && event ? `${date}: ${event}` : event || date;\n  }).filter(Boolean).join("\\n");\n}\n\nfunction reportText(data: CaseExportData, key: string): string {\n  if (key === "timeline_summary") {\n    const canonical = canonicalTimelineText(data);\n    if (canonical) return processProseCitations(canonical);\n  }\n  const r = asObj(data.report);\n  const full = asObj(r.full_report);\n  const prose = asObj(full.prose);\n  const raw = asStr(r[key]) || asStr(prose[key]) || asStr(full[key]);\n  return processProseCitations(scrubExportPostureInversion(data, raw));\n}\n'''
           if 'function exportHasNoPersonalNoticeDuty' not in s:
               if rt_marker not in s: raise SystemExit('reportText marker missing')
               s = s.replace(rt_marker, rt_new, 1)
-
-          exec_marker = '''  const exec = processProseCitations(asStr(r.executive_summary) || asStr(r.attorney_summary));'''
-          exec_new = '''  const exec = reportText(data, "executive_summary") || reportText(data, "attorney_summary");'''
-          if exec_marker in s:
-              s = s.replace(exec_marker, exec_new, 1)
-
+          s = s.replace('''  const exec = processProseCitations(asStr(r.executive_summary) || asStr(r.attorney_summary));''', '''  const exec = reportText(data, "executive_summary") || reportText(data, "attorney_summary");''', 1)
           risk_marker = '''function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {\n  const risk = reportText(data, "risk_analysis") || reportText(data, "score_breakdown");\n  const r = asObj(data.report);\n  b.h1("Análisis de Riesgo");\n  if (typeof r.risk_score === "number" && !r.scores_suppressed) {'''
           risk_new = '''function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {\n  const risk = reportText(data, "risk_analysis") || reportText(data, "score_breakdown");\n  const r = asObj(data.report);\n  const canonicalRisk = getScores(getReportRow(data)).risk;\n  b.h1("Análisis de Riesgo");\n  if (typeof canonicalRisk === "number" && !r.scores_suppressed) {'''
           if 'const canonicalRisk = getScores(getReportRow(data)).risk;' not in s:
               if risk_marker not in s: raise SystemExit('risk marker missing')
               s = s.replace(risk_marker, risk_new, 1)
           s = s.replace('''        value: Number(r.risk_score),\n        color: b.scoreColor(Number(r.risk_score), true),''', '''        value: canonicalRisk,\n        color: b.scoreColor(canonicalRisk, true),''', 1)
-
           motion_marker = '''function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {\n  const r = asObj(data.report);\n  const motionsSuppressed = Boolean(r.motions_suppressed);'''
-          motion_new = '''function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {\n  const r = asObj(data.report);\n  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") return;\n  const motionsSuppressed = Boolean(r.motions_suppressed);'''
           if 'case_analysis_mode) === "concluded_audit") return;' not in s:
               if motion_marker not in s: raise SystemExit('motion marker missing')
-              s = s.replace(motion_marker, motion_new, 1)
-
+              s = s.replace(motion_marker, '''function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {\n  const r = asObj(data.report);\n  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") return;\n  const motionsSuppressed = Boolean(r.motions_suppressed);''', 1)
           impact_marker = '''  const dashboard = buildLitigationImpactDashboard(reportRow);\n  if (dashboard.suppressed || dashboard.cards.length === 0) return;'''
-          impact_new = '''  const dashboard = buildLitigationImpactDashboard(reportRow);\n  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") {\n    dashboard.cards = dashboard.cards.filter((card) => card.id !== "top_motion");\n  }\n  if (dashboard.suppressed || dashboard.cards.length === 0) return;'''
+          impact_new = '''  const dashboard = buildLitigationImpactDashboard(reportRow);\n  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") dashboard.cards = dashboard.cards.filter((card) => card.id !== "top_motion");\n  if (dashboard.suppressed || dashboard.cards.length === 0) return;'''
           if 'dashboard.cards = dashboard.cards.filter((card) => card.id !== "top_motion")' not in s:
-              if impact_marker not in s: raise SystemExit('impact marker missing')
-              s = s.replace(impact_marker, impact_new, 1)
-              # Apply the same replacement to the DOCX dashboard's second occurrence.
-              if impact_marker not in s: raise SystemExit('second impact marker missing')
-              s = s.replace(impact_marker, impact_new, 1)
-
+              if s.count(impact_marker) < 2: raise SystemExit('impact markers missing')
+              s = s.replace(impact_marker, impact_new, 2)
           p.write_text(s)
 
-          # Remove this one-shot workflow from the resulting branch commit.
           Path('.github/workflows/apply-adr-regression-fix.yml').unlink()
           PY
       - name: Commit focused fixes
