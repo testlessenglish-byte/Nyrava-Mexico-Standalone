@@ -3128,6 +3128,7 @@ function renderLitigationImpactDashboard(b: PdfBuilder, data: CaseExportData) {
 function impactDashboardDocxParas(data: CaseExportData): Paragraph[] {
   const reportRow = (data.report ?? {}) as Record<string, unknown>;
   const dashboard = buildLitigationImpactDashboard(reportRow);
+  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") dashboard.cards = dashboard.cards.filter((card) => card.id !== "top_motion");
   if (dashboard.suppressed || dashboard.cards.length === 0) return [];
 
   const out: Paragraph[] = [
