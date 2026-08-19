@@ -7,6 +7,7 @@
 //   • no blank recommendations or theories (missing title/description)
 //   • no repeated prose lines within the same section
 //   • no repeated recommendations/theories/opportunities by normalized title
+//   • no legacy confidence value may survive under the name `risk_score`
 //
 // This module is presentation-only. It does NOT invent, promote, or
 // downgrade evidence. Anything filtered here is empty, blank, or a duplicate
@@ -112,6 +113,14 @@ export function stripEmptySections(
   return out;
 }
 
+function canonicalLitigationRisk(report: Record<string, unknown>): number | null {
+  const litigationRisk = report.litigation_risk;
+  if (!litigationRisk || typeof litigationRisk !== "object") return null;
+  const score = Number((litigationRisk as Record<string, unknown>).score);
+  if (!Number.isFinite(score) || score < 0 || score > 100) return null;
+  return Math.round(score);
+}
+
 /**
  * Full normalization pass for a finalized report payload. Idempotent — safe
  * to call more than once; a second pass is a no-op on the output of the first.
@@ -142,5 +151,14 @@ export function normalizeReport<T extends Record<string, unknown>>(report: T): T
     const v = cleaned[key];
     if (typeof v === "string") cleaned[key] = dedupeProseLines(v);
   }
+
+  // `risk_score` used to carry an LLM confidence value in some report
+  // generations. Once deterministic `litigation_risk.score` exists, it is the
+  // sole canonical meaning of risk. Overwrite the legacy alias at the final
+  // serialization boundary so JSON/PDF/UI/Case AI cannot disagree (e.g. 88
+  // in JSON while the deterministic dashboard correctly displays 6).
+  const canonicalRisk = canonicalLitigationRisk(cleaned);
+  if (canonicalRisk !== null) cleaned.risk_score = canonicalRisk;
+
   return cleaned as T;
 }

@@ -67,13 +67,21 @@ describe("legal filing recommendation grounding", () => {
     ).toBe(true);
   });
 
-  it("requires the same verified support for a new act in a concluded case", () => {
+  it("requires verified support plus an explicit post-judgment posture for a new act in a concluded case", () => {
     expect(hasConcludedPostureSupport({ supportingFindingIds: [findingId], supportingEvidence: [] })).toBe(false);
     expect(hasConcludedPostureSupport({ supportingFindingIds: [], supportingEvidence: ["[DOC 1 p.4] plazo abierto"] })).toBe(false);
     expect(
       hasConcludedPostureSupport({
         supportingFindingIds: [findingId],
         supportingEvidence: ["[DOC 1 p.4] la resolución deja a salvo el derecho de..."],
+      }),
+    ).toBe(false);
+    expect(
+      hasConcludedPostureSupport({
+        title: "Interponer recurso contra la nueva resolución",
+        procedural_posture: "Resolución posterior a la sentencia",
+        supportingFindingIds: [findingId],
+        supportingEvidence: ["[DOC 1 p.4] La resolución posterior deja a salvo el derecho de recurrir..."],
       }),
     ).toBe(true);
   });

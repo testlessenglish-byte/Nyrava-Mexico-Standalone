@@ -6,6 +6,15 @@ const FILING_OR_REMEDY_RX =
 const CONCLUDED_PROSPECTIVE_ACTION_RX =
   /\b(?:presentar|interponer|promover|redactar|formular|tramitar|iniciar|solicitar|preparar)\b[^.!?\n]{0,120}\b(?:demanda(?:\s+de\s+amparo)?|amparo\s+(?:directo|indirecto)|recurso(?:\s+de\s+(?:revisi[oó]n|queja|reclamaci[oó]n))?|apelaci[oó]n|suspensi[oó]n(?:\s+del\s+acto\s+reclamado)?|ampliaci[oó]n\s+de\s+demanda|petici[oó]n\s+de\s+nulidad|incidente)\b|\bmientras\s+se\s+resuelve\s+el\s+amparo\b|\b(?:demanda\s+de\s+amparo\s+(?:directo|indirecto)|suspensi[oó]n\s+del\s+acto\s+reclamado|ampliaci[oó]n\s+de\s+demanda|petici[oó]n\s+de\s+nulidad|recurso\s+de\s+revisi[oó]n\s+ante\s+el\s+tribunal\s+de\s+alzada)\b/i;
 
+// A concluded case may still have a real post-judgment remedy, but a citation to
+// the historic record is NOT enough to prove that remedy remains procedurally
+// available. Require explicit posture language showing a genuinely subsequent
+// event/remedy (compliance, execution, new act, supervening fact, etc.). This
+// prevents an already-decided ADR from regenerating the very recurso/amparo or
+// a notification incident that belongs to the historical proceeding.
+const EXPLICIT_POST_JUDGMENT_REMEDY_RX =
+  /\b(?:posterior(?:mente)?\s+a\s+la\s+sentencia|despu[eé]s\s+de\s+la\s+sentencia|post[- ]?sentencia|post[- ]?judgment|cumplimiento\s+de\s+(?:la\s+)?sentencia|ejecuci[oó]n\s+de\s+(?:la\s+)?sentencia|incidente\s+de\s+cumplimiento|nuevo\s+acto\s+de\s+autoridad|acto\s+nuevo|hecho\s+superveniente|resoluci[oó]n\s+posterior|nueva\s+resoluci[oó]n|recurso\s+contra\s+la\s+nueva\s+resoluci[oó]n|remedy\s+after\s+judgment|post[- ]?judgment\s+remedy|new\s+government\s+act|supervening\s+fact)\b/i;
+
 const PINPOINT_RX = /\[?DOC\s+\d+\s+p\.\s*\d+\]?/i;
 const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CANONICAL_FINDING_ID_RX = /^(?:finding|cf|canonical|f)[_:-][a-z0-9][a-z0-9_.:-]{4,}$/i;
@@ -41,6 +50,22 @@ function allEvidence(rec: RecommendationLike): unknown[] {
   ];
 }
 
+function recommendationText(rec: RecommendationLike): string {
+  return [
+    rec.title,
+    rec.reason,
+    rec.action,
+    rec.motion,
+    rec.expectedImpact,
+    rec.procedural_posture,
+    rec.case_status,
+    rec.legal_rationale,
+    rec.description,
+  ]
+    .map((v) => String(v ?? ""))
+    .join(" ");
+}
+
 export function isLegalFilingRecommendation(text: unknown): boolean {
   return FILING_OR_REMEDY_RX.test(String(text ?? "").trim());
 }
@@ -61,8 +86,14 @@ export function hasStructuredRecommendationSupport(rec: RecommendationLike): boo
   return hasCanonicalFinding(rec) && allEvidence(rec).some(hasPinpointEvidence);
 }
 
+/**
+ * For a CONCLUDED case, historic support for what happened in the old case is
+ * not proof that a new filing remains available now. A prospective remedy is
+ * allowed through only when BOTH ordinary structured support exists and the
+ * recommendation itself identifies a genuine post-judgment posture/event.
+ */
 export function hasConcludedPostureSupport(rec: RecommendationLike): boolean {
-  return hasStructuredRecommendationSupport(rec);
+  return hasStructuredRecommendationSupport(rec) && EXPLICIT_POST_JUDGMENT_REMEDY_RX.test(recommendationText(rec));
 }
 
 export function filterUnsupportedLegalFilingRecommendations<T extends RecommendationLike>(
@@ -87,9 +118,7 @@ export function filterConcludedCaseProspectiveRecommendations<T extends Recommen
   const items: T[] = [];
   const removed: T[] = [];
   for (const rec of recommendations) {
-    const text = [rec.title, rec.reason, rec.action, rec.motion, rec.expectedImpact]
-      .map((v) => String(v ?? ""))
-      .join(" ");
+    const text = recommendationText(rec);
     if (isConcludedCaseProspectiveAction(text) && !hasConcludedPostureSupport(rec)) {
       removed.push(rec);
       continue;

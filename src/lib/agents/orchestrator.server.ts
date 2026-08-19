@@ -880,10 +880,12 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
 // Final release review — the LAST step of the pipeline.
 //
 // Runs only after report generation has produced and saved a completed
-// report. It re-executes the release-gate agents (report, qa, judge,
-// hallucination) against that completed report, then writes the case's final
-// status exactly once. Report generation itself never assigns the final
-// status: generating a report and approving a report are separate actions.
+// report. It re-executes the release-gate agents. Hallucination reconciliation
+// runs BEFORE Judge so the Judge audits the same surviving/canonical claim set
+// that can actually be released. A Judge result computed over raw claims that
+// Hallucination removes milliseconds later is not a valid final verdict.
+// Report generation itself never assigns the final status: generating a
+// report and approving a report are separate actions.
 // ---------------------------------------------------------------------------
 export type FinalReleaseReview = {
   reviewed: boolean;
@@ -909,15 +911,12 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const analysisMode = (await getAnalysisMode(args.db, args.caseId)) as AnalysisMode;
   const ctx: RunCtx = { ...args, runId, analysisMode };
 
-  // The completed report MUST exist before any release decision is made.
   const { data: reportRow } = await args.db
     .from("reports")
     .select("case_id")
     .eq("case_id", args.caseId)
     .maybeSingle();
   if (!reportRow) {
-    // No report to review → nothing can be released, and nothing is blocked
-    // either: the case simply hasn't produced a report yet.
     console.warn(`[final-release] case ${args.caseId} has no saved report — release review skipped`);
     return {
       reviewed: false,
@@ -929,11 +928,17 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     };
   }
 
+  // ORDER IS A RELEASE INVARIANT. Hallucination may quarantine/suppress
+  // unsupported rows. Judge must therefore run after it. ADR5829/2025 proved
+  // the old order was wrong: Judge saw 19 rows (63% cited) and failed, then
+  // Hallucination reconciled the set to 14 rows and the same Judge logic
+  // subsequently saw 71%. Final release must never be decided from the stale
+  // pre-reconciliation population.
   const gateRunners: Array<[string, (c: RunCtx) => Promise<AgentResult>]> = [
     ["report", agentReport],
     ["qa", agentQA],
-    ["judge", agentJudge],
     ["hallucination", agentHallucination],
+    ["judge", agentJudge],
   ];
 
   const outcomes: Record<string, boolean> = {};
@@ -950,14 +955,6 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
 
   const gatesPassed = Boolean(outcomes.report && outcomes.qa && outcomes.judge && outcomes.hallucination);
 
-  // Re-check every REQUIRED pipeline engine's CURRENT state — the same
-  // canGenerateReport() single source of truth report generation's own
-  // pre-flight gate already uses, consulted again here because none of the
-  // 4 gate agents above re-runs or re-inspects procedural_compliance,
-  // contradictions, or any other required engine; they only read the
-  // report's own prose and citations. A required engine that failed (or
-  // regressed to a bad state) after report generation but before this
-  // review must still block release.
   const { data: engineRuns } = await args.db
     .from("pipeline_engine_runs")
     .select("id,engine,status,started_at,ended_at,created_at")
@@ -979,7 +976,6 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
       ? `Final review blocked — required engine(s) did not complete: ${engineGate.missingBlocking.join(", ")}.`
       : "Final review requires revision — see QA/Judge/Hallucination logs.";
 
-  // Single, final status write.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (args.db as any)
     .from("cases")
