@@ -33,6 +33,12 @@ export type SelectableFinding = {
    * authoritative report surface. Undefined preserves pre-verifier behavior
    * while the pipeline is still running. */
   verification_status?: string | null;
+  title?: string | null;
+  description?: string | null;
+  legal_significance?: string | null;
+  potential_impact?: string | null;
+  source_quote?: string | null;
+  evidence_refs?: unknown;
 };
 
 export function classifyFindingSource(f: SelectableFinding): FindingSourceClass {
@@ -67,12 +73,19 @@ export function isSuppressedFinding(f: SelectableFinding): boolean {
  * still re-enter every canonical surface merely because its source_module was
  * `engine:*` or `agent:*`.
  */
+function isPersonalNoticeSourceInversion(f: SelectableFinding): boolean {
+  const evidence = [String(f.source_quote ?? ""), JSON.stringify(f.evidence_refs ?? [])].join(" ");
+  const claim = [f.title, f.description, f.legal_significance, f.potential_impact].map((v) => String(v ?? "")).join(" ");
+  return /(?:no\s+exist[ií]a|no\s+(?:era|es|resultaba|fue)\s+necesari[oa]|no\s+hab[ií]a)\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence) && /notific[^.!?]{0,100}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim);
+}
+
 export function isCanonicalFinding(f: SelectableFinding): boolean {
   const cls = classifyFindingSource(f);
   const verification = String(f.verification_status ?? "").toLowerCase();
   const quarantined = verification === "no_citation" || verification === "unverified";
   return (
     (cls === "engine" || cls === "agent") &&
+    !isPersonalNoticeSourceInversion(f) &&
     !isProvisionalFinding(f) &&
     !isSuppressedFinding(f) &&
     !quarantined

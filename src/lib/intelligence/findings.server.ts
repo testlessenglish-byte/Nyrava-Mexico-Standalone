@@ -224,6 +224,17 @@ async function buildCaseCorpus(db: Db, caseId: string): Promise<GroundingCorpus>
 const VIOLATION_CLAIM =
   /\b(discovery (violation|abuse|misconduct|sanction)|spoliation|failure to (disclose|produce)|brady (violation|material))\b/i;
 
+// Source-meaning inversion guard. If a finding's own quoted evidence says
+// no duty of personal notice existed, that same finding cannot convert the
+// absence of personal notice into a defect, nullity, prejudice, or risk.
+function isPersonalNoticeSourceInversion(r: NewFinding): boolean {
+  const evidence = [String(r.source_quote ?? ""), JSON.stringify(r.evidence_refs ?? [])].join(" ");
+  const claim = [String(r.title ?? ""), String(r.description ?? ""), String(r.legal_significance ?? ""), String(r.potential_impact ?? "")].join(" ");
+  const evidenceDeniesDuty = /(?:no\s+exist[ií]a|no\s+(?:era|es|resultaba|fue)\s+necesari[oa]|no\s+hab[ií]a)\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence);
+  const claimAssertsDefect = /notific[^.!?]{0,100}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim);
+  return evidenceDeniesDuty && claimAssertsDefect;
+}
+
 // Tautology / trivial-content patterns. A finding that says nothing more than
 // "the document exists" / "a document was uploaded" / "there is a case file"
 // contributes no legal analysis and is suppressed here. Substantive findings
@@ -295,6 +306,13 @@ async function validateFindingsForCase(
   const kept: NewFinding[] = [];
   for (const r of rows) {
     const blob = `${r.title ?? ""} ${r.description ?? ""} ${r.legal_significance ?? ""}`;
+
+    // Layer -1 — source meaning must agree with the generated legal claim.
+    if (isPersonalNoticeSourceInversion(r)) {
+      audit.rejections.push({ title: String(r.title ?? ""), reason: "claim_evidence_irrelevant", detail: "source expressly negates the personal-notice duty asserted as a defect" });
+      audit.rejected += 1;
+      continue;
+    }
 
     // Layer 0 — Tautology filter. Trivial findings ("the document exists",
     // "there are documents", "no additional findings") add no legal value

@@ -73,6 +73,7 @@ import {
   getReportMode,
   getFindingCounters,
   getScores,
+  getTimeline,
   getAgentSummary,
   validateAgentSummary,
   type ReportMode,
@@ -2538,7 +2539,7 @@ function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) 
     }
   }
 
-  const exec = processProseCitations(asStr(r.executive_summary) || asStr(r.attorney_summary));
+  const exec = reportText(data, "executive_summary") || reportText(data, "attorney_summary");
   if (exec) b.text(exec, { size: 11, gap: 8 });
 
   // Five questions an attorney must be able to answer within sixty seconds
@@ -2721,6 +2722,7 @@ function motionEvidenceBullets(m: Record<string, unknown>): string[] {
 // attorney what exists and why it matters.
 function renderRecommendedMotions(b: PdfBuilder, data: CaseExportData) {
   const r = asObj(data.report);
+  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") return;
   const motionsSuppressed = Boolean(r.motions_suppressed);
   const motions = motionsSuppressed ? [] : asArr(r.motion_opportunities);
   if (!motions.length) return;
@@ -3103,6 +3105,7 @@ const IMPACT_DASHBOARD_NOTE =
 function renderLitigationImpactDashboard(b: PdfBuilder, data: CaseExportData) {
   const reportRow = (data.report ?? {}) as Record<string, unknown>;
   const dashboard = buildLitigationImpactDashboard(reportRow);
+  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") dashboard.cards = dashboard.cards.filter((card) => card.id !== "top_motion");
   if (dashboard.suppressed || dashboard.cards.length === 0) return;
 
   b.h1("Panel de Impacto Litigioso");
@@ -3150,11 +3153,40 @@ function impactDashboardDocxParas(data: CaseExportData): Paragraph[] {
   return out;
 }
 
+function exportHasNoPersonalNoticeDuty(data: CaseExportData): boolean {
+  return (data.findings ?? []).some((f) => {
+    const evidence = [asStr(f.source_quote), JSON.stringify(f.evidence_refs ?? []), JSON.stringify(f.metadata ?? {})].join(" ");
+    return /(?:no\s+exist[ií]a|no\s+(?:era|es|resultaba|fue)\s+necesari[oa]|no\s+hab[ií]a)\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence);
+  });
+}
+
+function scrubExportPostureInversion(data: CaseExportData, text: string): string {
+  if (!text || !exportHasNoPersonalNoticeDuty(data)) return text;
+  return text.split(/(?<=[.!?])\s+|\n+/g).filter((part) => {
+    const value = part.trim();
+    if (!/notific[^.!?]{0,100}personal/i.test(value)) return true;
+    return !/(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|necesaria|necesario)/i.test(value);
+  }).join(" ").replace(/\s{2,}/g, " ").trim();
+}
+
+function canonicalTimelineText(data: CaseExportData): string {
+  return getTimeline(getReportRow(data)).slice(0, 24).map((ev) => {
+    const date = asStr(ev.date) || asStr(ev.date_raw);
+    const event = asStr(ev.event) || asStr(ev.description);
+    return date && event ? `${date}: ${event}` : event || date;
+  }).filter(Boolean).join("\n");
+}
+
 function reportText(data: CaseExportData, key: string): string {
+  if (key === "timeline_summary") {
+    const canonical = canonicalTimelineText(data);
+    if (canonical) return processProseCitations(canonical);
+  }
   const r = asObj(data.report);
   const full = asObj(r.full_report);
   const prose = asObj(full.prose);
-  return processProseCitations(asStr(r[key]) || asStr(prose[key]) || asStr(full[key]));
+  const raw = asStr(r[key]) || asStr(prose[key]) || asStr(full[key]);
+  return processProseCitations(scrubExportPostureInversion(data, raw));
 }
 
 function fallbackOverview(data: CaseExportData): string {
@@ -3343,8 +3375,9 @@ function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
 function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {
   const risk = reportText(data, "risk_analysis") || reportText(data, "score_breakdown");
   const r = asObj(data.report);
+  const canonicalRisk = getScores(getReportRow(data)).risk;
   b.h1("Análisis de Riesgo");
-  if (typeof r.risk_score === "number" && !r.scores_suppressed) {
+  if (typeof canonicalRisk === "number" && !r.scores_suppressed) {
     // Compact score strip — the risk score is already displayed as a
     // prominent radial gauge on the cover page. A second large radial
     // repeat here creates visual repetition; the strip preserves the
@@ -3352,8 +3385,8 @@ function renderRiskAnalysis(b: PdfBuilder, data: CaseExportData) {
     b.compactScoreStrip([
       {
         label: rt("Risk Score"),
-        value: Number(r.risk_score),
-        color: b.scoreColor(Number(r.risk_score), true),
+        value: canonicalRisk,
+        color: b.scoreColor(canonicalRisk, true),
       },
     ]);
   }
