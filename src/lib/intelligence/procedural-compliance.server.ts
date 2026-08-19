@@ -21,8 +21,6 @@ import { addGatedFindings } from "./findings.server";
 type Db = SupabaseClient<Database>;
 
 const SOURCE_MODULE = "engine:procedural_compliance";
-
-/** Whole-corpus scan budget for deterministic checklist matching (no AI cost). */
 const FULL_CORPUS_SCAN_LIMIT = 5_000_000;
 
 export type ProceduralComplianceReport = ComplianceReport & {
@@ -38,12 +36,6 @@ function fold(value: string): string {
     .toLowerCase();
 }
 
-/**
- * A concluded ADR often arrives as the SCJN ejecutoria itself, not as a full
- * copy of every filing in the lower record. The final-decision signal is
- * therefore established from the document's own identity, not from whether
- * every earlier procedural document was uploaded.
- */
 function hasScjnAmparoReviewDecision(corpusText: string): boolean {
   const text = fold(corpusText);
   const hasCourt =
@@ -55,15 +47,54 @@ function hasScjnAmparoReviewDecision(corpusText: string): boolean {
   return hasCourt && hasReview && hasDecisionLanguage;
 }
 
+function directSignalExcerpt(corpusText: string, rx: RegExp): string | null {
+  rx.lastIndex = 0;
+  const match = rx.exec(corpusText);
+  if (!match) return null;
+  const start = Math.max(0, match.index - 90);
+  const end = Math.min(corpusText.length, match.index + match[0].length + 130);
+  return corpusText.slice(start, end).replace(/\s+/g, " ").trim();
+}
+
 /**
- * The generic `constitucional` profile covers controversias, acciones and
- * amparo review. For an ADR the shared checklist is useful only after removing
- * the one item whose authority belongs exclusively to Art. 105 proceedings.
- * Recompute the coverage fields from the retained items and describe the
- * result as amparo review, not as a generic constitutional proceeding.
+ * The generic constitutional checklist is intentionally conservative, but a
+ * final ADR often states procedural facts in ordinary judicial language that
+ * the original keyword list did not include. Those direct statements must be
+ * shared by the procedural layer instead of letting one engine say standing
+ * is absent while another has a verbatim SCJN finding that standing exists.
+ * This helper promotes ONLY literal corpus signals; it makes no inference.
  */
-function normalizeAmparoReviewCompliance(report: ComplianceReport): ComplianceReport {
-  const items = report.items.filter((item) => item.id !== "suspension_constitucional");
+function supplementAmparoReviewDirectSignals(
+  report: ComplianceReport,
+  corpusText: string,
+): ComplianceReport {
+  const standingRx =
+    /(?:parte\s+(?:quejosa|recurrente)|recurrente)[^.!?\n]{0,180}(?:tiene|cuenta\s+con)\s+legitimaci[oó]n|legitimaci[oó]n\s+para\s+interponer\s+el\s+recurso\s+de\s+revisi[oó]n/iu;
+  const challengedRx =
+    /(?:sentencia|resoluci[oó]n)\s+(?:reclamada|recurrida|combatida)|fallo\s+del\s+tribunal\s+colegiado|resoluci[oó]n\s+del\s+tribunal\s+colegiado/iu;
+
+  const standingEvidence = directSignalExcerpt(corpusText, standingRx);
+  const challengedEvidence = directSignalExcerpt(corpusText, challengedRx);
+
+  const items = report.items.map((item) => {
+    if (item.id === "legitimacion_constitucional" && item.status !== "cumplido" && standingEvidence) {
+      return { ...item, status: "cumplido" as const, evidence: standingEvidence };
+    }
+    if (item.id === "norma_o_acto_impugnado" && item.status !== "cumplido" && challengedEvidence) {
+      return { ...item, status: "cumplido" as const, evidence: challengedEvidence };
+    }
+    return item;
+  });
+
+  return { ...report, items };
+}
+
+function normalizeAmparoReviewCompliance(
+  rawReport: ComplianceReport,
+  corpusText: string,
+): ComplianceReport {
+  const supplemented = supplementAmparoReviewDirectSignals(rawReport, corpusText);
+  const items = supplemented.items.filter((item) => item.id !== "suspension_constitucional");
   const required = items.filter((item) => item.requirement === "required");
   const satisfied = items.filter((item) => item.status === "cumplido").length;
   const missingRequired = required.filter((item) => item.status !== "cumplido");
@@ -75,7 +106,7 @@ function normalizeAmparoReviewCompliance(report: ComplianceReport): ComplianceRe
           .map((item) => `${item.label_es} (${item.authority})`)
           .join("; ")}. En una ejecutoria concluida de la SCJN este porcentaje mide únicamente qué tanto del trámite previo está reproducido en el documento cargado; NO es una calificación de validez procesal ni demuestra que esos actos hayan faltado en el expediente oficial.`;
   return {
-    ...report,
+    ...supplemented,
     materia: "amparo",
     items,
     evaluated: items.length,
@@ -137,10 +168,6 @@ function normalizeAmparoReviewStageMap(
   const current = decisionDetected && decisionStage ? decisionStage : stageMap.current ? normalizeStage(stageMap.current) : null;
   const next = decisionDetected ? null : stageMap.next ? normalizeStage(stageMap.next) : null;
 
-  // A concluded decision corpus is not a complete docket inventory. Earlier
-  // filings not reproduced in the uploaded judgment are evidence gaps, not
-  // proof that the proceeding skipped those stages. Do not manufacture a
-  // reposición risk from that absence.
   const missing_requirements =
     decisionDetected && concludedAudit ? [] : stageMap.missing_requirements.map(normalizeStage);
   const procedural_risks =
@@ -167,13 +194,6 @@ function normalizeAmparoReviewStageMap(
   };
 }
 
-/**
- * A concluded SCJN judgment is not a substitute for the historical lower-
- * court docket. Therefore a deterministic checklist scanning only that
- * judgment must never publish earlier pleadings as "missing documents".
- * Keep documents actually detected for audit provenance, but clear the
- * negative missing list when the final SCJN decision is itself present.
- */
 function normalizeAmparoReviewMissingDocuments(
   report: MissingDocumentsReport,
   corpusText: string,
@@ -209,8 +229,6 @@ export async function runProceduralCompliance(args: {
   const corpusText = await loadCaseCorpusText(db, caseId, FULL_CORPUS_SCAN_LIMIT);
   const signalText = `${caseRowTyped?.name ?? ""} ${caseRowTyped?.description ?? ""} ${corpusText.slice(0, 3000)}`;
 
-  // The SCJN-review checklist is an internal execution profile. It must not
-  // relabel an Amparo Directo/Indirecto en Revisión as materia constitucional.
   const executionProfile = effectiveMxProfile(
     caseRowTyped?.case_type ?? null,
     caseRowTyped?.name ?? null,
@@ -230,7 +248,7 @@ export async function runProceduralCompliance(args: {
   const deadlines = computeMxDeadlines({ materia: executionProfile, events });
 
   const report: ComplianceReport = isAmparoReview
-    ? normalizeAmparoReviewCompliance(reportBase)
+    ? normalizeAmparoReviewCompliance(reportBase, corpusText)
     : reportBase;
   const stage_map = isAmparoReview
     ? normalizeAmparoReviewStageMap(stageMapBase, corpusText, concludedAudit)
@@ -258,11 +276,6 @@ export async function runProceduralCompliance(args: {
     (i) => i.requirement === "required" && i.status === "no_identificado_en_corpus",
   );
   let findings_written = 0;
-  // In a concluded audit, an uploaded judgment is not expected to reproduce
-  // every earlier filing. "Not identified in this corpus" remains visible in
-  // procedural_compliance as an evidence gap, but it must not become a risk
-  // finding unless the record itself establishes a defect. This enforces the
-  // platform's own absence-of-evidence rule at the write boundary.
   const mayWriteMissingAsFinding = !concludedAudit;
   if (missing.length > 0 && mayWriteMissingAsFinding) {
     const rows = missing.map((i) => ({
