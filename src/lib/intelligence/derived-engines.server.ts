@@ -16,6 +16,13 @@
 // prior engines returned so `runEngine(...)` continues to record real
 // generated/accepted numbers in `pipeline_engine_runs`.
 //
+// IMPORTANT: these helpers are used by BOTH the automatic pipeline and the
+// manual per-engine rerun buttons. A manual rerun happens after a report may
+// already have been released. Any upstream intelligence rerun therefore must
+// invalidate report/gate artifacts that were assembled from the previous
+// snapshot. Otherwise the UI can show a clean current engine result while the
+// PDF/JSON continues serving an older contradiction/missing-evidence count.
+//
 // NOTE (category_key fix): `category` on case_findings holds the localized,
 // human-facing label (Spanish for MX cases, e.g. "Testimonio de Testigo") —
 // it must never be used for internal filtering. `category_key` holds the
@@ -73,8 +80,63 @@ async function countFindings(
   return count ?? 0;
 }
 
+/**
+ * Invalidate every downstream artifact that can legally depend on a derived
+ * analyzer/agent result. This is deliberately idempotent and safe during the
+ * normal pipeline: before report generation these tables are empty anyway.
+ * On a manual rerun after release, it prevents an old report/canonical mirror
+ * or old hallucination/QA result from surviving beside the new engine state.
+ */
+async function invalidateDownstreamSnapshot(db: Db, caseId: string, source: string): Promise<void> {
+  const derivedTables = ["report_versions", "canonical_analysis", "reports"] as const;
+  for (const table of derivedTables) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (db as any).from(table).delete().eq("case_id", caseId);
+    if (error) {
+      throw new Error(`[${source}] failed invalidating ${table}: ${error.message}`);
+    }
+  }
+
+  // shared_brief is a cached upstream snapshot. It previously survived a
+  // manual contradiction/derived-engine rerun and could re-inject an older
+  // contradiction into later report assembly even when case_findings was
+  // currently clean. Clear it together with every report/release gate field.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: caseRow, error: readError } = await (db as any)
+    .from("cases")
+    .select("status")
+    .eq("id", caseId)
+    .maybeSingle();
+  if (readError) throw new Error(`[${source}] failed reading case state: ${readError.message}`);
+
+  const currentStatus = String(caseRow?.status ?? "");
+  const terminal = new Set(["released", "complete", "needs_revision"]);
+  const patch: Record<string, unknown> = {
+    report_at: null,
+    hallucination_at: null,
+    completed_at: null,
+    shared_brief: null,
+    shared_brief_at: null,
+    hallucination_report: null,
+    legal_qa_report: null,
+    report_checkpoint_count: 0,
+  };
+  if (terminal.has(currentStatus)) {
+    patch.status = "needs_revision";
+    patch.status_message = "Upstream intelligence changed; regenerate report and verification gates";
+    patch.progress = 90;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (db as any).from("cases").update(patch).eq("id", caseId);
+  if (updateError) {
+    throw new Error(`[${source}] failed invalidating case report state: ${updateError.message}`);
+  }
+}
+
 export async function deriveContradictions(db: Db, caseId: string) {
   const n = await countFindings(db, caseId, DERIVED_ENGINE_SOURCES.contradictions);
+  await invalidateDownstreamSnapshot(db, caseId, "deriveContradictions");
   return {
     value: { derived_from: "analyzers", contradictions: n },
     stats: { generated: n, accepted: n },
@@ -83,6 +145,7 @@ export async function deriveContradictions(db: Db, caseId: string) {
 
 export async function deriveDiscoveryGaps(db: Db, caseId: string) {
   const n = await countFindings(db, caseId, DERIVED_ENGINE_SOURCES.discoveryGaps);
+  await invalidateDownstreamSnapshot(db, caseId, "deriveDiscoveryGaps");
   return {
     value: { derived_from: "analyzers", missing_evidence: n },
     stats: { generated: n, accepted: n },
@@ -91,6 +154,7 @@ export async function deriveDiscoveryGaps(db: Db, caseId: string) {
 
 export async function deriveEvidenceIntel(db: Db, caseId: string) {
   const n = await countFindings(db, caseId, DERIVED_ENGINE_SOURCES.evidenceIntel);
+  await invalidateDownstreamSnapshot(db, caseId, "deriveEvidenceIntel");
   return {
     value: { derived_from: "analyzers", procedural_issues: n },
     stats: { generated: n, accepted: n },
@@ -102,6 +166,7 @@ export async function deriveWitnessIntel(db: Db, caseId: string) {
   // category_key='witness' via the AGENTS pipeline. Count those instead of
   // re-running an LLM sweep.
   const n = await countFindings(db, caseId, DERIVED_ENGINE_SOURCES.witnessIntel);
+  await invalidateDownstreamSnapshot(db, caseId, "deriveWitnessIntel");
   return {
     value: { derived_from: "agents.witness_credibility", witnesses: n },
     stats: { generated: n, accepted: n },
