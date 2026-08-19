@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 
+// Regression lock for ADR5829/2025: source meaning and concluded-case posture must win.
 describe("ADR5829 final root fixes", () => {
   it("reconciles personal-notice duty across the verified corpus", () => {
     const source = fs.readFileSync("src/lib/intelligence/findings.server.ts", "utf8");
