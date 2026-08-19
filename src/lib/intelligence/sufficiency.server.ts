@@ -1,86 +1,53 @@
-// Evidence Sufficiency Scoring (ESS) + Narrative Caps + Secondary Validator.
-//
-// Implements the platform's "sparse evidence → sparse reports" rule. The
-// pipeline must never generate a 20-page narrative from a 660-character
-// corpus. ESS bins drive maximum per-section length, motion availability,
-// and quantitative scoring availability. A secondary validator pass strips
-// any sentence that cannot be traced back to the extracted corpus.
+// Evidence Sufficiency Scoring (ESS) + narrative caps + corpus validator.
+// Pure deterministic utilities: no database and no model calls.
 
 export type ESSInputs = {
   documentCount: number;
   pageCount: number;
-  /** Total characters of extracted text across the corpus. */
   extractedChars: number;
-  /** Distinct verified findings persisted for the case. */
   factCount: number;
-  /** Count of validated contradictions (already gated). */
   contradictionCount: number;
-  /** Count of facts corroborated by ≥2 source documents. */
   corroboratedCount: number;
-  /**
-   * OPTIONAL doc-type signals (recalibration override). When any of these
-   * indicate a substantive litigation corpus — a charging document, a
-   * high-weight document type (indictment, complaint, search warrant, expert
-   * report, grand jury transcript, proffer), or ≥3 distinct document types —
-   * the case is promoted to Full Analysis regardless of the raw corpus
-   * metrics. This prevents the "Limited Analysis" label from firing on
-   * concise but litigation-ready records.
-   */
   hasChargingDocument?: boolean;
   highWeightDocTypeCount?: number;
   distinctDocTypeCount?: number;
-  /**
-   * Report locale, for insufficientEvidenceNotice's language only — nothing
-   * else in this function is locale-aware. Defaults to "en" for the
-   * work-product gating call site (computeWorkProductEss below), which never
-   * reads the notice text, only the boolean gates. CONFIRMED LIVE
-   * (ADR5829/2025, es report): the report stage's own call (pipeline.server.ts)
-   * omitted this, so a "minimal" bin unconditionally prepended this English
-   * notice onto a Spanish executive_summary — QA's language-drift check
-   * correctly caught it ("Report language drift (es): Evidence.") and forced
-   * the case to needs_revision.
-   */
   locale?: "en" | "es";
 };
 
 export type ESSResult = {
-  score: number; // 0..100
+  score: number;
   bin: "minimal" | "low" | "medium" | "high";
-  maxNarrativePages: number; // soft cap for each prose section
-  maxCharsPerSection: number; // hard cap for each prose section
+  maxNarrativePages: number;
+  maxCharsPerSection: number;
   allowQuantitativeScores: boolean;
   allowMotionGeneration: boolean;
   allowLegalTheories: boolean;
   insufficientEvidenceNotice: string | null;
   reasons: string[];
-  /** True when the doc-type override promoted the case to Full Analysis. */
   fullAnalysisOverride?: boolean;
 };
 
-// ---------------------------------------------------------------------------
-// Document-type classifier (heuristic, filename + text driven).
-// Used by the pipeline to feed ESS the recalibration signals above. Keeping
-// this here (not in the pipeline module) lets tests exercise it directly.
-// ---------------------------------------------------------------------------
+type DocPattern = { type: string; rx: RegExp };
 
-// TODO(i18n): every pattern below is English-only. A non-English filing will
-// silently fail to match any of these and just look like a sparse/unweighted
-// corpus (lower ESS bin) rather than surfacing "document language not
-// recognized" as a distinct signal. Fixing this properly needs a language
-// detection step, which is new capability and intentionally not added here.
-const HIGH_WEIGHT_PATTERNS: Array<{ type: string; rx: RegExp }> = [
+/**
+ * High-weight documents are substantive records that can independently carry
+ * enough legal/factual content for a useful analysis even when the corpus is
+ * only one or two files. A final appellate/SCJN judgment belongs here just as
+ * much as a complaint, warrant or expert report. Without this, a complete
+ * ADR judgment could be mislabeled as a thin active-case file merely because
+ * it is one document.
+ */
+const HIGH_WEIGHT_PATTERNS: DocPattern[] = [
   { type: "indictment", rx: /\bindictment\b/i },
   { type: "complaint", rx: /\bcomplaint\b/i },
   { type: "search_warrant", rx: /\b(search\s+warrant|warrant\s+affidavit)\b/i },
   { type: "expert_report", rx: /\b(expert\s+(report|affidavit|opinion|declaration))\b/i },
   { type: "grand_jury_transcript", rx: /\bgrand\s+jury\b/i },
   { type: "proffer_agreement", rx: /\bproffer\b/i },
-  // Mexican-Spanish equivalents. Without these, this classifier — built
-  // entirely on English legal vocabulary — silently fails to recognize any
-  // document in a Spanish-language corpus, which is every case this product
-  // actually serves. A demanda, auto de vinculación, or dictamen pericial is
-  // exactly as substantive as an English complaint or expert report, but
-  // none of the English-only patterns above ever match it.
+  {
+    type: "final_judgment",
+    rx: /\b(final\s+judg(?:e)?ment|appellate\s+(?:opinion|decision)|supreme\s+court\s+(?:opinion|decision))\b/i,
+  },
   {
     type: "indictment",
     rx: /\b(auto\s+de\s+(formal\s+prisi[oó]n|vinculaci[oó]n\s+a\s+proceso)|pliego\s+de\s+consignaci[oó]n)\b/i,
@@ -88,6 +55,10 @@ const HIGH_WEIGHT_PATTERNS: Array<{ type: string; rx: RegExp }> = [
   { type: "complaint", rx: /\b(demanda|querella|denuncia)\b/i },
   { type: "search_warrant", rx: /\b(orden\s+de\s+(cateo|aprehensi[oó]n))\b/i },
   { type: "expert_report", rx: /\b(dictamen\s+pericial|peritaje)\b/i },
+  {
+    type: "final_judgment",
+    rx: /\b(sentencia\s+(?:definitiva|ejecutoria)|amparo\s+directo\s+en\s+revisi[oó]n|engrose|puntos?\s+resolutivos?)\b/i,
+  },
 ];
 
 const CHARGING_DOC_PATTERNS: RegExp[] = [
@@ -98,9 +69,6 @@ const CHARGING_DOC_PATTERNS: RegExp[] = [
   /\bfelony\s+complaint\b/i,
   /\bmisdemeanor\s+complaint\b/i,
   /\bcharging\s+document\b/i,
-  // Mexican-Spanish equivalents — the initiating/foundational filing in a
-  // Mexican matter (a civil/familiar demanda, a criminal querella/denuncia,
-  // an amparo demanda, or the auto that opens a criminal proceeding).
   /\bdemanda\b/i,
   /\bquerella\b/i,
   /\bdenuncia\b/i,
@@ -108,7 +76,7 @@ const CHARGING_DOC_PATTERNS: RegExp[] = [
   /\bpliego\s+de\s+consignaci[oó]n\b/i,
 ];
 
-const DOC_TYPE_PATTERNS: Array<{ type: string; rx: RegExp }> = [
+const DOC_TYPE_PATTERNS: DocPattern[] = [
   { type: "indictment", rx: /\bindictment\b/i },
   { type: "complaint", rx: /\bcomplaint\b/i },
   { type: "answer", rx: /\banswer\b/i },
@@ -129,12 +97,7 @@ const DOC_TYPE_PATTERNS: Array<{ type: string; rx: RegExp }> = [
   { type: "medical", rx: /\b(medical|ER|hospital|admission|autopsy)\b/i },
   { type: "police_record", rx: /\b(arrest|police|body[\s_-]*cam|incident)\b/i },
   { type: "financial", rx: /\b(bank|ledger|payment|financial|payroll)\b/i },
-  // Mexican-Spanish equivalents — see the note on HIGH_WEIGHT_PATTERNS above.
-  // Same reasoning: every pattern above is English-only, so a wholly
-  // Spanish-language corpus (the norm for this product) never accumulates
-  // distinctDocTypeCount past 0, and the ">= 3 distinct types" override path
-  // never fires either. These map the same concepts to their Mexican filing
-  // names, not a 1:1 legal-system translation.
+  { type: "judgment", rx: /\b(final\s+judg(?:e)?ment|appellate\s+(?:opinion|decision))\b/i },
   { type: "indictment", rx: /\bauto\s+de\s+(formal\s+prisi[oó]n|vinculaci[oó]n\s+a\s+proceso)\b/i },
   { type: "complaint", rx: /\b(demanda|querella|denuncia)\b/i },
   { type: "answer", rx: /\bcontestaci[oó]n(\s+de\s+demanda)?\b/i },
@@ -155,10 +118,16 @@ const DOC_TYPE_PATTERNS: Array<{ type: string; rx: RegExp }> = [
   { type: "medical", rx: /\b(m[eé]dico|hospital|cl[ií]nica|autopsia)\b/i },
   { type: "police_record", rx: /\b(detenci[oó]n|polic[ií]a|parte\s+informativo)\b/i },
   { type: "financial", rx: /\b(banco|estado\s+de\s+cuenta|pago|n[oó]mina)\b/i },
-  // Common Mexican document types with no clean English analogue above.
   { type: "public_deed", rx: /\bescritura\s+p[uú]blica\b/i },
-  { type: "property_registry", rx: /\b(registro\s+p[uú]blico\s+de\s+la\s+propiedad|libertad\s+de\s+grav[aá]men)\b/i },
+  {
+    type: "property_registry",
+    rx: /\b(registro\s+p[uú]blico\s+de\s+la\s+propiedad|libertad\s+de\s+grav[aá]men)\b/i,
+  },
   { type: "amparo_filing", rx: /\b(amparo|informe\s+justificado|acuerdo\s+de\s+suspensi[oó]n)\b/i },
+  {
+    type: "judgment",
+    rx: /\b(sentencia\s+(?:definitiva|ejecutoria)|amparo\s+directo\s+en\s+revisi[oó]n|engrose|puntos?\s+resolutivos?)\b/i,
+  },
 ];
 
 export type DocTypeSignals = {
@@ -177,14 +146,7 @@ export function detectDocTypeSignals(
   let hasCharging = false;
   for (const d of docs) {
     const name = String(d.filename ?? "");
-    // Sample the head of the extracted text — charging docs / captions live
-    // in the first page. Avoids scanning megabytes for every doc.
     const head = String(d.extracted_text ?? "").slice(0, 4000);
-    // Mexican filenames are conventionally underscore- or hyphen-separated
-    // (e.g. "01_Demanda_Divorcio.txt"), but regex \b treats underscore as a
-    // word character, so \bdemanda\b would never match "_Demanda_" as-is.
-    // Normalizing separators to spaces lets filename matching work the same
-    // as body-text matching.
     const normalizedName = name.replace(/[_-]+/g, " ");
     const hay = `${normalizedName}\n${head}`;
     for (const p of HIGH_WEIGHT_PATTERNS) if (p.rx.test(hay)) highWeight.add(p.type);
@@ -214,36 +176,17 @@ export function computeESS(inputs: ESSInputs): ESSResult {
   } = inputs;
   const reasons: string[] = [];
 
-  // Saturating component scores (each 0..1).
   const sDocs = Math.min(1, documentCount / 8);
   const sChars = Math.min(1, extractedChars / 50_000);
   const sFacts = Math.min(1, factCount / 25);
   const sCorrob = Math.min(1, corroboratedCount / 6);
   const sConflict = Math.min(1, contradictionCount / 4);
-
-  // Weighted blend — corpus mass + extracted facts dominate.
-  //
-  // TODO(calibration): these weights (0.20/0.30/0.30/0.15/0.05) and the bin
-  // thresholds below (1,000 / 20,000 / 50,000 chars; 3 / 8 / 20 facts) are
-  // hand-picked, not derived from real attorney/outcome data. This function
-  // tells attorneys below-threshold reports "would not be defensible" (see
-  // insufficientEvidenceNotice below) — a claim now softened to reflect that
-  // it's this platform's current bar, not an empirically validated one.
-  // Properly calibrating requires logging (ESS score + bin) alongside
-  // whether the resulting report held up in practice, which is new
-  // infrastructure and intentionally not added here.
   const raw = sDocs * 0.2 + sChars * 0.3 + sFacts * 0.3 + sCorrob * 0.15 + sConflict * 0.05;
   const score = Math.round(raw * 100);
 
-  // Bin selection follows the spec's narrative-length thresholds.
   let bin: ESSResult["bin"];
   let maxNarrativePages: number;
   let maxCharsPerSection: number;
-  // A short appellate brief or pleading can still contain many verified facts.
-  // Do not force the whole report into "minimal" solely because the source is
-  // concise; use minimal only when both the corpus and verified-fact set are
-  // sparse. This preserves hallucination controls without suppressing complete
-  // PDFs for compact but analyzable records.
   if (extractedChars < 1_000 || factCount < 3) {
     bin = "minimal";
     maxNarrativePages = 2;
@@ -263,19 +206,6 @@ export function computeESS(inputs: ESSInputs): ESSResult {
     maxCharsPerSection = 18_000;
   }
 
-  // ------------------------------------------------------------------
-  // Full-Analysis override.
-  // A case with a charging document, any high-weight document type, or
-  // ≥3 distinct document types is a substantive litigation corpus and
-  // qualifies for Full Analysis even if character/fact counts are low.
-  // Lifts the bin to at least "medium", enables scoring/motions/theories,
-  // and suppresses the "minimal" insufficiency notice so downstream
-  // labelling renders "Full Case Analysis".
-  // ------------------------------------------------------------------
-  // A corpus of 15+ successfully parsed documents is, by itself, a
-  // substantive litigation record. It always unlocks Full Analysis —
-  // procedural-compliance checklist gaps are advisory for the attorney and
-  // never evidence-sufficiency gatekeepers.
   const substantialCorpus = documentCount >= 15;
   const overrideTriggered =
     hasChargingDocument || highWeightDocTypeCount > 0 || distinctDocTypeCount >= 3 || substantialCorpus;
@@ -289,11 +219,9 @@ export function computeESS(inputs: ESSInputs): ESSResult {
     );
   }
 
-
   const allowQuantitativeScores = overrideTriggered ? true : bin !== "minimal" && factCount >= 5;
   const allowMotionGeneration = overrideTriggered ? true : bin !== "minimal" && factCount >= 4;
   const allowLegalTheories = overrideTriggered ? true : bin !== "minimal";
-
   const insufficientEvidenceNotice =
     !overrideTriggered && bin === "minimal"
       ? locale === "es"
@@ -315,18 +243,6 @@ export function computeESS(inputs: ESSInputs): ESSResult {
   };
 }
 
-/**
- * ESS for a work-product generation decision (engines.server.ts's
- * runWorkProductEngine), built from data that engine already has loaded —
- * not the report stage's own ESS run, which executes later in the
- * canonical pipeline order and would be too late to gate generation here.
- * `contradictionCount` is fixed at 0: contradiction detection is a separate,
- * later pipeline stage not available at this call site, and its weight in
- * computeESS's blend (0.05) is small enough that omitting it doesn't
- * materially change the bin. Extracted so the gating decision is directly
- * unit-testable without mocking the whole engine (callGroq, buildContext,
- * the case_work_product upsert, etc.).
- */
 export function computeWorkProductEss(
   docRows: Array<{ extracted_text?: string | null; filename?: string | null }>,
   findings: Array<{ source_doc_ids?: string[] }>,
@@ -339,8 +255,6 @@ export function computeWorkProductEss(
   const docTypeSignals = detectDocTypeSignals(docRows);
   return computeESS({
     documentCount: docRows.length,
-    // Not tracked at this call site and unused by computeESS's own scoring
-    // — pageCount is part of ESSInputs but never read in computeESS's body.
     pageCount: 0,
     extractedChars,
     factCount: findings.length,
@@ -352,148 +266,21 @@ export function computeWorkProductEss(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Secondary validator — sentence-level corpus traceability.
-// Drops any sentence whose 4+ longest word tokens do not appear in the
-// extracted corpus. Pure-text utility, no LLM cost.
-// ---------------------------------------------------------------------------
-
-// English stopwords — kept for any residual English-language input (e.g.
-// bilingual filings, attorney notes) so they don't get penalized either way.
 const STOPWORDS = new Set([
-  "the",
-  "and",
-  "that",
-  "this",
-  "with",
-  "from",
-  "into",
-  "have",
-  "been",
-  "were",
-  "they",
-  "their",
-  "there",
-  "which",
-  "while",
-  "because",
-  "about",
-  "these",
-  "those",
-  "other",
-  "shall",
-  "will",
-  "would",
-  "could",
-  "should",
-  "under",
-  "upon",
-  "such",
-  "than",
-  "then",
-  "when",
-  "where",
-  "what",
-  "whom",
-  "whose",
-  "also",
-  "each",
-  "more",
-  "most",
-  "some",
-  "only",
-  "very",
-  "much",
-  "many",
-  "over",
-  "case",
-  "court",
-  "party",
-  "parties",
-  "matter",
-  "filed",
-  "based",
-  "being",
-  "cannot",
-  "does",
-  "done",
-  "made",
-  "make",
-  "made",
-  "said",
-  "according",
-  "including",
-  "without",
-  "within",
-  "between",
-  "among",
-  "through",
-  // Spanish stopwords — this platform's corpus is Mexican-Spanish, so
-  // without these, high-frequency function words (que, para, con, los...)
-  // get treated as "content" tokens and dilute the traceability check.
-  "que",
-  "para",
-  "con",
-  "los",
-  "las",
-  "del",
-  "por",
-  "una",
-  "uno",
-  "unos",
-  "unas",
-  "como",
-  "pero",
-  "este",
-  "esta",
-  "estos",
-  "estas",
-  "esos",
-  "esas",
-  "sobre",
-  "entre",
-  "desde",
-  "hasta",
-  "cuando",
-  "donde",
-  "cual",
-  "cuales",
-  "quien",
-  "quienes",
-  "sido",
-  "fueron",
-  "sera",
-  "seran",
-  "puede",
-  "pueden",
-  "debe",
-  "deben",
-  "tiene",
-  "tienen",
-  "segun",
-  "dicho",
-  "dicha",
-  "dichos",
-  "dichas",
-  "mismo",
-  "misma",
-  "mismos",
-  "mismas",
-  "caso",
-  "parte",
-  "partes",
-  "asunto",
+  "the", "and", "that", "this", "with", "from", "into", "have", "been", "were", "they",
+  "their", "there", "which", "while", "because", "about", "these", "those", "other", "shall",
+  "will", "would", "could", "should", "under", "upon", "such", "than", "then", "when", "where",
+  "what", "whom", "whose", "also", "each", "more", "most", "some", "only", "very", "much",
+  "many", "over", "case", "court", "party", "parties", "matter", "filed", "based", "being",
+  "cannot", "does", "done", "made", "make", "said", "according", "including", "without", "within",
+  "between", "among", "through", "que", "para", "con", "los", "las", "del", "por", "una", "uno",
+  "unos", "unas", "como", "pero", "este", "esta", "estos", "estas", "esos", "esas", "sobre",
+  "entre", "desde", "hasta", "cuando", "donde", "cual", "cuales", "quien", "quienes", "sido",
+  "fueron", "sera", "seran", "puede", "pueden", "debe", "deben", "tiene", "tienen", "segun",
+  "dicho", "dicha", "dichos", "dichas", "mismo", "misma", "mismos", "mismas", "caso", "parte",
+  "partes", "asunto",
 ]);
 
-// Accented Latin letters used in Mexican-Spanish legal text (á é í ó ú ñ ü
-// and their uppercase forms, already lowercased by the time this runs).
-// A plain [a-z] class treats every accented character as a token
-// boundary — "artículo" becomes "art" (too short, dropped) + "culo"
-// (kept), "código" becomes "digo", "según" produces no token at all.
-// That corrupts the vocabulary this function builds AND the sentences it
-// later checks against that vocabulary, since every accented content word
-// in Mexican filings gets mangled the same way. Including the accented
-// range keeps whole words intact.
 const WORD_CHAR = "a-záéíóúñüàèìòù";
 
 function tokens(s: string): string[] {
@@ -507,47 +294,21 @@ function buildCorpusVocab(corpusText: string): Set<string> {
 
 function sentenceTraceable(sentence: string, vocab: Set<string>): boolean {
   const toks = tokens(sentence);
-  // Truly empty (punctuation-only, stray markers) — nothing to check.
   if (toks.length === 0) return true;
   if (toks.length < 4) {
-    // A heading or structural fragment ("Statement of Facts", "Argument")
-    // never ends in sentence-ending punctuation and was never a factual
-    // claim to begin with — the original exemption was really meant for
-    // these, and they should stay exempt. A short *declarative* sentence
-    // ending in ".", "!", or "?" — e.g. "He lied." — IS a factual claim
-    // and previously slipped through ungated at any length under 4 tokens
-    // purely because it was short. Only the latter needs the stricter check.
     const looksLikeSentence = /[.!?]\s*$/.test(sentence.trim());
-    if (!looksLikeSentence) return true; // heading/transition — exempt
+    if (!looksLikeSentence) return true;
     const hits = toks.filter((t) => vocab.has(t)).length;
-    return hits === toks.length; // short factual claims: require full coverage
+    return hits === toks.length;
   }
   const hits = toks.filter((t) => vocab.has(t)).length;
-  // At least 35% of meaningful tokens must appear in the corpus.
   return hits / toks.length >= 0.35;
 }
 
 const SENTENCE_SPLIT = /(?<=[.!?])\s+(?=[A-Z(•\-"])/g;
-
-// Common abbreviations/initials that end in a period but are NOT sentence
-// boundaries. Shared by both the corpus-traceability validator below and
-// capNarrative() further down — a naive sentence-boundary check treats
-// every one of these as a real sentence end, which routinely splits or
-// truncates text mid-sentence right after a name like "Officer T. Alvarez"
-// or a legal abbreviation like "Av. Rev. Stat.", "St.", "Ave.", "No.".
-// This applies across every case, not any single corpus.
 const NON_SENTENCE_ABBREVIATIONS =
   /\b(?:[A-Z]|Mr|Mrs|Ms|Dr|Rev|St|Ave|Rd|Blvd|No|Stat|Inc|Corp|Co|Ltd|Jr|Sr|vs|v|etc|al|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.\s$/i;
 
-/**
- * Splits `body` into sentences, then re-merges any adjacent fragments where
- * the split point was actually an abbreviation/initial (e.g. "T. Alvarez",
- * "Av. Rev. Stat.") rather than a real sentence end. Without this, a
- * fragment like "Alvarez stopped..." can independently fail the corpus
- * traceability check and be silently dropped, deleting real content from
- * the report — the same root cause as the capNarrative truncation bug
- * above, just manifesting as missing text instead of a broken sentence.
- */
 function splitIntoRealSentences(body: string): string[] {
   const rawParts = body.split(SENTENCE_SPLIT);
   const merged: string[] = [];
@@ -570,11 +331,9 @@ export function validateProseAgainstCorpus(
   const vocab = buildCorpusVocab(corpusText);
   if (vocab.size === 0) return { text, kept: 0, dropped: 0 };
 
-  // Preserve paragraph and list structure — validate sentence-by-sentence
-  // within each line, keep bullet markers.
   const lines = text.split(/\r?\n/);
-  let kept = 0,
-    dropped = 0;
+  let kept = 0;
+  let dropped = 0;
   const outLines: string[] = [];
   for (const raw of lines) {
     const line = raw.trimEnd();
@@ -594,41 +353,28 @@ export function validateProseAgainstCorpus(
       if (sentenceTraceable(s, vocab)) {
         surviving.push(s);
         kept += 1;
-      } else dropped += 1;
+      } else {
+        dropped += 1;
+      }
     }
     if (surviving.length === 0) continue;
     outLines.push(bullet + surviving.join(" "));
   }
   return {
-    text: outLines
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim(),
+    text: outLines.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
     kept,
     dropped,
   };
 }
 
-// ---------------------------------------------------------------------------
-// Narrative length cap. Truncates at the nearest REAL sentence boundary and
-// appends an explicit notice rather than silently chopping.
-// ---------------------------------------------------------------------------
-
-/**
- * Finds the last index in `text` that is a genuine sentence-ending period,
- * skipping any "period + space" that's actually an abbreviation or
- * single-letter initial (e.g. "T. Alvarez", "Av. Rev. Stat.").
- */
 function lastRealSentenceBoundary(text: string): number {
   let searchFrom = text.length;
   while (searchFrom > 0) {
     const idx = text.lastIndexOf(". ", searchFrom - 1);
     if (idx === -1) return -1;
     const precedingContext = text.slice(Math.max(0, idx - 12), idx + 2);
-    if (!NON_SENTENCE_ABBREVIATIONS.test(precedingContext)) {
-      return idx;
-    }
-    searchFrom = idx; // keep looking further back for a real boundary
+    if (!NON_SENTENCE_ABBREVIATIONS.test(precedingContext)) return idx;
+    searchFrom = idx;
   }
   return -1;
 }
