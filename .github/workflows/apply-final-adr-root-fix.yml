@@ -15,6 +15,7 @@ jobs:
         with:
           ref: agent/final-adr-root-fix
           fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
       - name: Patch only the two reproduced root causes
         shell: bash
         run: |
