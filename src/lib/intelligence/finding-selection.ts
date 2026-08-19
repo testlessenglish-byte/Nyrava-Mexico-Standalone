@@ -6,6 +6,8 @@
 // here so scoring, dashboard badges, agent statistics, and the exporter can
 // never drift apart again.
 
+import { consolidateFindings } from "./finding-dedupe";
+
 export type FindingSourceClass = "engine" | "agent" | "analyzer" | "projection" | "other";
 
 export const PROJECTION_LIKE = "projection:%";
@@ -101,7 +103,7 @@ export function selectFindings<T extends SelectableFinding>(
   const statuses = opts.statuses ? new Set<string>(opts.statuses) : null;
   const severities = opts.severities ? new Set<string>(opts.severities) : null;
 
-  return (findings ?? []).filter((f) => {
+  const selected = (findings ?? []).filter((f) => {
     if (!include.has(classifyFindingSource(f))) return false;
     if (!opts.includeProvisional && isProvisionalFinding(f)) return false;
     if (!opts.includeSuppressed && isSuppressedFinding(f)) return false;
@@ -113,6 +115,16 @@ export function selectFindings<T extends SelectableFinding>(
     if (severities && !severities.has(String(f.severity ?? ""))) return false;
     return true;
   });
+
+  // Canonical selection is also the canonical reconciliation boundary.
+  // Every UI/report/Talk-to-Case consumer already funnels through this
+  // selector, so consolidating here prevents a report from rendering several
+  // aliases of one legal issue even when different engines produced them.
+  // consolidateFindings preserves/merges evidence, citations, source docs,
+  // categories, supporting engines and alias metadata; nothing is discarded.
+  return consolidateFindings(
+    selected as unknown as Array<Record<string, unknown>>,
+  ) as unknown as T[];
 }
 
 export type FindingMetrics = {
