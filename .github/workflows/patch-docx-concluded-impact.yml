@@ -1,0 +1,31 @@
+name: Patch concluded audit DOCX impact
+on:
+  push:
+    branches: [agent/adr-regression-only]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/adr-regression-only
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/lib/export.ts')
+          s=p.read_text()
+          old='''function impactDashboardDocxParas(data: CaseExportData): Paragraph[] {\n  const reportRow = (data.report ?? {}) as Record<string, unknown>;\n  const dashboard = buildLitigationImpactDashboard(reportRow);\n  if (dashboard.suppressed || dashboard.cards.length === 0) return [];'''
+          new='''function impactDashboardDocxParas(data: CaseExportData): Paragraph[] {\n  const reportRow = (data.report ?? {}) as Record<string, unknown>;\n  const dashboard = buildLitigationImpactDashboard(reportRow);\n  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") dashboard.cards = dashboard.cards.filter((card) => card.id !== "top_motion");\n  if (dashboard.suppressed || dashboard.cards.length === 0) return [];'''
+          if old not in s: raise SystemExit('DOCX impact block not found')
+          p.write_text(s.replace(old,new,1))
+          Path('.github/workflows/patch-docx-concluded-impact.yml').unlink()
+          PY
+          git config user.name "Nyrava Fix Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Hide motion impact from concluded audits"
+          git push origin HEAD:agent/adr-regression-only
