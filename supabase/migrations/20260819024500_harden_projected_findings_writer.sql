@@ -110,7 +110,7 @@ begin
 end;
 $function$;
 
-revoke execute on function public.project_case_findings(uuid, jsonb) from public, anon, authenticated;
+revoke execute on function public.project_case_findings(uuid, jsonb) from PUBLIC, anon, authenticated;
 grant execute on function public.project_case_findings(uuid, jsonb) to service_role;
 
 comment on function public.project_case_findings(uuid, jsonb) is
