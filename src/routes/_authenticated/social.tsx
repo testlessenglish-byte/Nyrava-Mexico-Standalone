@@ -11,7 +11,7 @@ import {
 import { useI18n } from "@/i18n";
 import {
   createSocialCase, createSocialPerson, findPossibleSocialPeople,
-  getSocialWorkspace, searchSocialRecords,
+  ensureSocialProgram, getSocialWorkspace, searchSocialRecords,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
 
@@ -52,9 +52,11 @@ function SocialCarePage(){
   const createCaseFn=useServerFn(createSocialCase);
   const duplicateFn=useServerFn(findPossibleSocialPeople);
   const searchFn=useServerFn(searchSocialRecords);
+  const ensureProgramFn=useServerFn(ensureSocialProgram);
   const [area,setArea]=useState<Area>("dashboard");
   const [orgId,setOrgId]=useState("");
   const [query,setQuery]=useState("");
+  const [programSetup,setProgramSetup]=useState({nameEs:"Atención Integral",nameEn:"Comprehensive Care",prefix:"NYR-SOC"});
   const workspace=useQuery({queryKey:["social-workspace"],queryFn:()=>workspaceFn()});
   const resolvedOrg=orgId||workspace.data?.organizations?.[0]?.id||"";
   const programs=(workspace.data?.programs??[]).filter((p:any)=>p.org_id===resolvedOrg);
@@ -78,6 +80,11 @@ function SocialCarePage(){
   const createCaseMutation=useMutation({
     mutationFn:()=>createCaseFn({data:{orgId:resolvedOrg,programId:caseDraft.programId||programs[0]?.id,personId:caseDraft.personId,caseType:caseDraft.caseType,serviceAreas:[],priority:caseDraft.priority,riskLevel:"unknown",confidentialityLevel:"standard",tags:[]}}),
     onSuccess:(row:any)=>{toast.success(es?`Caso ${row.case_number} creado`:`Case ${row.case_number} created`);qc.invalidateQueries({queryKey:["social-workspace"]});setArea("cases");},
+    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+  });
+  const programMutation=useMutation({
+    mutationFn:()=>ensureProgramFn({data:{orgId:resolvedOrg,...programSetup}}),
+    onSuccess:()=>{toast.success(es?"Programa social actualizado":"Social program updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
     onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
   });
   const stats=workspace.data?.stats;
@@ -164,7 +171,17 @@ function SocialCarePage(){
         {area==="families"&&<Empty title={es?"Familias y hogares":"Families and households"} text={es?"Los registros familiares conservan miembros, relaciones, riesgos, necesidades y permisos compartidos sin eliminar los casos individuales.":"Family records preserve members, relationships, risks, needs and shared permissions without replacing individual cases."}/>}
         {area==="assessments"&&<Empty title={es?"Evaluaciones versionadas":"Versioned assessments"} text={es?"Cada clasificación requiere evidencia, razón, factores protectores, acciones, seguimiento y fecha de revisión.":"Every classification requires evidence, reason, protective factors, actions, follow-up and a review date."}/>}
         {area==="plans"&&<Empty title={es?"Planes de atención":"Care plans"} text={es?"Las versiones aprobadas son inmutables y toda nueva revisión crea una versión adicional.":"Approved versions are immutable; every revision creates a new version."}/>}
-        {["interventions","legal","psychosocial","referrals","tasks","documents","transfers","closure","indicators","activity","administration"].includes(area)&&<OperationalArea area={area} es={es} cases={visibleCases}/>}
+        {area==="administration"&&<section className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-lg font-semibold">{es?"Administración del programa":"Program administration"}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{es?"Configure el nombre bilingüe y el prefijo inmutable de nuevos folios. Los folios existentes no cambian.":"Configure bilingual labels and the prefix for new immutable case numbers. Existing numbers never change."}</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Field label="Nombre (ES)" value={programSetup.nameEs} onChange={v=>setProgramSetup({...programSetup,nameEs:v})}/>
+            <Field label="Name (EN)" value={programSetup.nameEn} onChange={v=>setProgramSetup({...programSetup,nameEn:v})}/>
+            <Field label={es?"Prefijo de folio":"Case prefix"} value={programSetup.prefix} onChange={v=>setProgramSetup({...programSetup,prefix:v.toUpperCase().replace(/[^A-Z0-9-]/g,"")})}/>
+            <button disabled={!resolvedOrg||programMutation.isPending} onClick={()=>programMutation.mutate()} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{programMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Guardar programa":"Save program"}</button>
+          </div>
+        </section>}
+        {["interventions","legal","psychosocial","referrals","tasks","documents","transfers","closure","indicators","activity"].includes(area)&&<OperationalArea area={area} es={es} cases={visibleCases}/>}
       </main>
     </div>
   </div>;
