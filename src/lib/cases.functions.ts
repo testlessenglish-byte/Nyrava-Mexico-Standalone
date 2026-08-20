@@ -113,7 +113,11 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     const case_type = allowedCaseTypes.has(rawCaseType) ? rawCaseType : null;
     const allowedJurisdictions = new Set<string>(JURISDICTION_VALUES);
     const rawJurisdiction = String(data.get("jurisdiction") ?? "");
-    const jurisdiction = allowedJurisdictions.has(rawJurisdiction) ? rawJurisdiction : null;
+    const jurisdiction = allowedJurisdictions.has(rawJurisdiction)
+      ? rawJurisdiction
+      : case_type === "migratorio"
+        ? "federal"
+        : null;
     // Settable at upload time (rather than only afterward, on the workspace
     // page) so a user who already knows they're auditing a concluded case
     // doesn't have to visit a second page just to set this before running.
