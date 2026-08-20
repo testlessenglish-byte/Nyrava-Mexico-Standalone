@@ -40,7 +40,7 @@ export const Route = createFileRoute("/_authenticated/billing")({
 });
 
 function BillingPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const qc = useQueryClient();
   const statusFn = useServerFn(getMyBillingStatus);
   const checkoutFn = useServerFn(createCheckoutSession);
@@ -52,8 +52,10 @@ function BillingPage() {
   });
 
   const checkout = useMutation({
-    mutationFn: (planKey: PlanKey) =>
-      checkoutFn({ data: { planKey, origin: window.location.origin } }),
+    mutationFn: (input: { planKey: PlanKey; provider: "mercadopago" | "stripe" }) =>
+      checkoutFn({
+        data: { planKey: input.planKey, provider: input.provider, origin: window.location.origin },
+      }),
     onSuccess: (res: { url?: string | null }) => {
       if (res?.url) window.location.href = res.url;
       else toast.error(t("billing.error.noCheckout"));
@@ -172,14 +174,35 @@ function BillingPage() {
                   <ShieldCheck className="h-4 w-4" /> {t("billing.currentPlan")}
                 </div>
               ) : plan.selfServe ? (
-                <button
-                  onClick={() => checkout.mutate(plan.key)}
-                  disabled={checkout.isPending}
-                  className="mt-5 inline-flex items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-                >
-                  {checkout.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {t("billing.choose")}
-                </button>
+                <div className="mt-5 grid gap-2">
+                  {data?.providers?.mercadopago && (
+                    <button
+                      onClick={() => checkout.mutate({ planKey: plan.key, provider: "mercadopago" })}
+                      disabled={checkout.isPending}
+                      className="inline-flex items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                    >
+                      {checkout.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {locale === "es" ? "Pagar con Mercado Pago" : "Pay with Mercado Pago"}
+                    </button>
+                  )}
+                  {data?.providers?.stripe && (
+                    <button
+                      onClick={() => checkout.mutate({ planKey: plan.key, provider: "stripe" })}
+                      disabled={checkout.isPending}
+                      className="inline-flex items-center justify-center gap-2 rounded border border-primary/40 bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-primary/5 disabled:opacity-50"
+                    >
+                      {checkout.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {locale === "es" ? "Pagar con Stripe" : "Pay with Stripe"}
+                    </button>
+                  )}
+                  {!data?.providers?.mercadopago && !data?.providers?.stripe && (
+                    <p className="text-center text-xs text-muted-foreground">
+                      {locale === "es"
+                        ? "Pago en línea temporalmente no disponible."
+                        : "Online checkout is temporarily unavailable."}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <a
                   href="mailto:soporte@mexico.nyrava.com"
