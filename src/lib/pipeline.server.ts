@@ -3610,7 +3610,7 @@ ${AGENT_JH_INSTRUCTIONS}
     type: "ways_out_analysis",
     category: "ways_out_analysis",
     system:
-      "You are a Mexican legal-forensic-audit investigator specialized in identifying POSIBLES VÍAS DE SALIDA / OPORTUNIDADES DE IMPUGNACIÓN for a CONCLUDED case — legally supportable avenues that could potentially challenge or change the outcome. You do NOT predict victory and you do NOT recommend filing anything — you identify whether the record and applicable law support the POSSIBILITY of a route, using ONLY the remedy/motion types the ALLOWED MOTION/REMEDY TYPES list above actually contains for this materia. Never propose 'file an amparo' or similar as a conclusion — instead identify 'potential avenue: <remedy type> — requires attorney verification' and explain, with citations, why the record may support it and what is missing. If you search for a plausible avenue and find no supportable basis, say so explicitly (audit_classification: NOT_FOUND) rather than omitting it silently — the honest absence of an avenue is itself valuable output. Aggressive investigation, conservative conclusions: search deeply across the whole corpus, but classify strictly per the audit_classification taxonomy in your instructions above. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it, and instead emit it as EVIDENCE_GAP or NOT_FOUND with an empty evidence_refs array explaining what is missing.",
+      "You are a Mexican legal-forensic-audit investigator specialized in identifying POSIBLES VÍAS DE SALIDA / OPORTUNIDADES DE IMPUGNACIÓN for a CONCLUDED case — legally supportable avenues that could potentially challenge or change the outcome. You do NOT predict victory and you do NOT recommend filing anything — you identify whether the record and applicable law support the POSSIBILITY of a route, using ONLY the remedy/motion types the ALLOWED MOTION/REMEDY TYPES list above actually contains for this materia. First reconstruct the complete procedural history and dispositive: a recurso or amparo that the supplied judgment already decided is historical posture, NEVER a future avenue and NEVER something you may say has not yet been filed. Never propose 'file an amparo' or similar as a conclusion — instead identify 'potential avenue: <remedy type> — requires attorney verification' and explain, with citations, why the record may support it and what is missing. If you search for a plausible avenue and find no supportable basis, say so explicitly (audit_classification: NOT_FOUND) rather than omitting it silently — the honest absence of an avenue is itself valuable output. Aggressive investigation, conservative conclusions: search deeply across the whole corpus, but classify strictly per the audit_classification taxonomy in your instructions above. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it, and instead emit it as EVIDENCE_GAP or NOT_FOUND with an empty evidence_refs array explaining what is missing.",
     prompt: `Return STRICT JSON. EVERY item in findings with a non-empty description of supporting evidence MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. A finding classified EVIDENCE_GAP or NOT_FOUND may have an empty evidence_refs array (there is nothing case-specific to cite), but must still explain in "what_is_missing" what would be needed to establish it.
 { "summary": string, "confidence": number (0-1),
   "findings": [ { "title": string, "potential_avenue": string (must be one of the ALLOWED MOTION/REMEDY TYPES listed above, or "ninguna vía identificada" if none apply), "description": string, "why_it_may_apply": string, "legal_authority": string, "what_is_missing": string, "potential_obstacle": string, "attorney_verification_required": boolean, "audit_classification": "VERIFIED_FACT"|"VERIFIED_COURT_HOLDING"|"VERIFIED_LEGAL_RULE"|"SUPPORTED_INFERENCE"|"POTENTIAL_ISSUE"|"EVIDENCE_GAP"|"NOT_FOUND", "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
@@ -9511,11 +9511,14 @@ ${paginationTail}`;
   await clearChunkCache();
 
   await setCase(db, caseId, {
-    status: "complete",
-    status_message: "Litigation intelligence ready",
-    progress: 100,
-    report_at: new Date().toISOString(),
-    completed_at: new Date().toISOString(),
+    // A saved report is still a DRAFT until the post-report agents approve
+    // it. Never expose an intermediate "complete / ready" state between the
+    // report write and runFinalReleaseReview().
+    status: "generating_report",
+    status_message: "Report saved — final release review in progress",
+    progress: 99,
+    report_at: null,
+    completed_at: null,
     error: null,
   });
 
@@ -9537,9 +9540,28 @@ ${paginationTail}`;
       apiKey,
       apiKeys: apiKeys ?? [apiKey],
     });
+    if (!review.reviewed || review.status === "failed") {
+      await setCase(db, caseId, {
+        status: "needs_revision",
+        status_message: "Final release review could not inspect the saved report — draft blocked.",
+        progress: 99,
+        report_at: null,
+        completed_at: null,
+        error: review.errors.join("; ").slice(0, 2000),
+      });
+    }
     console.info(`[final-release] case ${caseId} → ${review.status} (released=${review.released})`);
   } catch (e) {
     console.warn("[final-release] review failed after report generation", e);
+    const message = e instanceof Error ? e.message : String(e);
+    await setCase(db, caseId, {
+      status: "needs_revision",
+      status_message: "Final release review failed — report remains a blocked draft.",
+      progress: 99,
+      report_at: null,
+      completed_at: null,
+      error: `Final release review failed: ${message}`.slice(0, 2000),
+    });
   }
 
   // ---- Completed Case Audit / Outcome Assessment -------------------------
