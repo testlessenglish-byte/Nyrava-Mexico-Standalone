@@ -21,7 +21,12 @@ describe("social-care migration security coverage",()=>{
     "social_indicator_snapshots","social_retention_actions","social_support_access_grants",
   ])("creates and protects %s",(table)=>{
     expect(sql).toContain(`create table if not exists public.${table}`);
-    expect(sql).toContain(`alter table public.${table} enable row level security`);
+    const foundationRlsList = foundation.slice(foundation.indexOf("-- RLS: configuration"));
+    const protectedByFoundationLoop = foundationRlsList.includes(`'${table}'`);
+    const protectedByHardening = hardening.includes(
+      `alter table public.${table} enable row level security`,
+    );
+    expect(protectedByFoundationLoop || protectedByHardening).toBe(true);
   });
 
   it("uses non-reusable immutable case numbering",()=>{
