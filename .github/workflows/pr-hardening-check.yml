@@ -37,5 +37,8 @@ jobs:
           src/lib/reporting/objective.test.ts
           src/lib/canonical/__tests__/rendered-report-release.test.ts
 
+      - name: TypeScript integrity check
+        run: bunx tsc --noEmit
+
       - name: Build production bundle
         run: bun run build
