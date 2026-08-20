@@ -98,7 +98,7 @@ export function canonicalEvidenceIntegrityIssue(f: SelectableFinding): string | 
 
   // A theory with no classified evidentiary basis must not enter an
   // authoritative report merely because a loose source_quote was attached.
-  if (!auditClass && quotedRefs.length === 0) return "unclassified_finding_without_evidence_ref";
+  if (String(f.source_module ?? "").startsWith("engine:theory:") && !auditClass && quotedRefs.length === 0) return "unclassified_theory_without_evidence_ref";
 
   // ADR holding-polarity guard: a statement that SCJN held an entity was NOT
   // exempt is not entailed by a quote saying only that lower decisions were
@@ -106,7 +106,7 @@ export function canonicalEvidenceIntegrityIssue(f: SelectableFinding): string | 
   if (
     /\bSCJN\b|Suprema Corte/i.test(claim) &&
     /no\s+(?:est[aá]|se\s+encuentra|resulta)\s+exent/i.test(claim) &&
-    /(?:fallo|sentencia|determinaci[oó]n).{0,100}(?:Tribunal Colegiado|autoridad responsable).{0,140}incorrect/i.test(evidence) &&
+    /(?:incorrect.{0,140}(?:fallo|sentencia|determinaci[oó]n|Tribunal Colegiado|autoridad responsable)|(?:fallo|sentencia|determinaci[oó]n|Tribunal Colegiado|autoridad responsable).{0,140}incorrect)/i.test(evidence) &&
     !/no\s+(?:est[aá]|se\s+encuentra|resulta)\s+exent/i.test(evidence)
   ) return "court_holding_polarity_not_entailed";
 
