@@ -42,6 +42,9 @@ jobs:
           src/lib/social/__tests__/social-domain.test.ts
           src/lib/social/__tests__/social-migrations.test.ts
 
+      - name: Lint
+        run: bun run lint
+
       - name: TypeScript integrity check
         run: bunx tsc --noEmit
 
