@@ -227,9 +227,12 @@ create table if not exists public.social_case_assignments (
   assigned_by uuid not null references auth.users(id),
   assigned_at timestamptz not null default now(),
   ended_at timestamptz,
-  active boolean not null default true,
-  unique (social_case_id, user_id, assignment_role, active)
+  active boolean not null default true
 );
+
+create unique index if not exists social_case_assignments_one_active
+  on public.social_case_assignments(social_case_id,user_id,assignment_role)
+  where active;
 
 create table if not exists public.social_record_grants (
   id uuid primary key default gen_random_uuid(),
@@ -796,7 +799,11 @@ as $$
         or (not p_write and public.social_has_capability(c.org_id,'case.view_all',p_user))
       )
       and case p_record_type
-        when 'general_case_record' then true
+        when 'general_case_record' then
+          not p_write
+          or public.can_manage_org(c.org_id,p_user)
+          or public.social_has_capability(c.org_id,'case.update',p_user)
+          or public.social_has_capability(c.org_id,'case.update_assigned',p_user)
         when 'social_work_record' then
           public.social_has_capability(c.org_id,'intervention.social_work',p_user)
           or exists(select 1 from public.social_record_grants g where g.social_case_id=c.id and g.user_id=p_user and g.record_type=p_record_type and g.revoked_at is null and (g.expires_at is null or g.expires_at>now()) and g.can_read and (not p_write or g.can_write))
@@ -893,9 +900,20 @@ declare
   v_id uuid;
 begin
   v_org := coalesce(new.org_id,old.org_id);
-  v_case := case when tg_table_name='social_cases' then coalesce(new.id,old.id)
-            else coalesce(new.social_case_id,old.social_case_id) end;
-  v_id := coalesce(new.id,old.id);
+  v_case := case
+    when tg_table_name='social_cases' then coalesce(
+      (to_jsonb(new)->>'id')::uuid,
+      (to_jsonb(old)->>'id')::uuid
+    )
+    else coalesce(
+      nullif(to_jsonb(new)->>'social_case_id','')::uuid,
+      nullif(to_jsonb(old)->>'social_case_id','')::uuid
+    )
+  end;
+  v_id := coalesce(
+    nullif(to_jsonb(new)->>'id','')::uuid,
+    nullif(to_jsonb(old)->>'id','')::uuid
+  );
   insert into public.social_activity_events(
     org_id,social_case_id,actor_id,event_type,entity_type,entity_id,metadata
   ) values(
@@ -973,8 +991,14 @@ create policy social_people_create on public.social_people for insert
 with check (public.is_org_member(org_id,auth.uid()) and created_by=auth.uid()
   and (public.social_has_capability(org_id,'person.manage',auth.uid()) or public.can_manage_org(org_id,auth.uid())));
 create policy social_people_update on public.social_people for update
-using (public.social_can_access_person(id,auth.uid()))
-with check (public.social_can_access_person(id,auth.uid()));
+using (public.social_can_access_person(id,auth.uid()) and (
+  public.can_manage_org(org_id,auth.uid())
+  or public.social_has_capability(org_id,'person.manage',auth.uid())
+))
+with check (public.social_can_access_person(id,auth.uid()) and (
+  public.can_manage_org(org_id,auth.uid())
+  or public.social_has_capability(org_id,'person.manage',auth.uid())
+));
 create policy social_families_read on public.social_families for select
 using (public.is_org_member(org_id,auth.uid()) and (
   public.can_manage_org(org_id,auth.uid()) or created_by=auth.uid()
@@ -982,8 +1006,14 @@ using (public.is_org_member(org_id,auth.uid()) and (
   or exists(select 1 from public.social_cases c where c.family_id=id and public.social_can_access_case(c.id,'general_case_record',false,auth.uid()))
 ));
 create policy social_families_write on public.social_families for all
-using (public.is_org_member(org_id,auth.uid()) and (public.can_manage_org(org_id,auth.uid()) or assigned_case_manager=auth.uid() or created_by=auth.uid()))
-with check (public.is_org_member(org_id,auth.uid()) and (public.can_manage_org(org_id,auth.uid()) or assigned_case_manager=auth.uid() or created_by=auth.uid()));
+using (public.is_org_member(org_id,auth.uid()) and (
+  public.can_manage_org(org_id,auth.uid())
+  or public.social_has_capability(org_id,'person.manage',auth.uid())
+))
+with check (public.is_org_member(org_id,auth.uid()) and (
+  public.can_manage_org(org_id,auth.uid())
+  or public.social_has_capability(org_id,'person.manage',auth.uid())
+));
 create policy social_family_members_access on public.social_family_members for all
 using (public.is_org_member(org_id,auth.uid()) and exists(select 1 from public.social_families f where f.id=family_id))
 with check (public.is_org_member(org_id,auth.uid()));
