@@ -794,7 +794,13 @@ export const runFullPipelineStep = createServerFn({ method: "POST" })
 export const queueCaseForPipeline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ caseId: z.string().uuid(), reset: z.boolean().optional() }).parse(d),
+    z
+      .object({
+        caseId: z.string().uuid(),
+        reset: z.boolean().optional(),
+        startFrom: z.enum(["extraction", "analyzers"]).optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "QueueCase");
@@ -943,7 +949,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
         worker_lease_until: null,
         status: "queued",
         status_message: data.reset ? "Queued for full rerun" : "Queued",
-        next_stage: data.reset ? "reset" : "extraction",
+        next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
         cancel_requested: false,
       })
       .eq("id", data.caseId);
@@ -954,7 +960,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
       status: error ? "error" : "ok",
       error: error?.message ?? null,
       detail: {
-        next_stage: data.reset ? "reset" : "extraction",
+        next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
         pg_code: error?.code ?? null,
         pg_details: error?.details ?? null,
       },
@@ -995,7 +1001,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
         previous_status: existing.status ?? null,
         new_status: "queued",
         previous_next_stage: null,
-        new_next_stage: data.reset ? "reset" : "extraction",
+        new_next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
       })}`,
     );
     return { ok: true, queued: true };
