@@ -215,3 +215,112 @@ export const revokeSocialConsent=createServerFn({method:"POST"})
     const {error}=await supabase.from("social_consents").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("id",data.consentId);fail(error);
     return {ok:true,reason:data.reason};
   });
+
+
+const recordType=z.enum(["general_case_record","social_work_record","legal_privileged_record","psychosocial_restricted_record","medical_restricted_record","child_protection_restricted_record"]);
+
+export const recordSocialIntervention=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    socialCaseId:uuid,occurredAt:z.string().datetime(),serviceType:z.string().trim().min(2).max(120),
+    locationMethod:z.string().trim().max(240).optional(),reason:z.string().trim().min(2).max(5000),
+    actionsTaken:z.string().trim().min(2).max(10000),outcome:z.string().trim().max(5000).optional(),
+    followUpRequired:z.boolean().default(false),recordType:recordType.default("general_case_record"),
+    confidentialityLevel:z.enum(["standard","confidential","restricted","highly_restricted"]).default("standard"),
+    nextAppointment:z.string().datetime().optional(),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);
+    const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,person_id,family_id").eq("id",data.socialCaseId).single();fail(caseError);
+    const {data:row,error}=await supabase.from("social_interventions").insert({
+      org_id:c.org_id,social_case_id:data.socialCaseId,person_id:c.person_id,family_id:c.family_id,
+      occurred_at:data.occurredAt,service_type:data.serviceType,professional_id:userId,
+      location_method:data.locationMethod??null,reason:data.reason,actions_taken:data.actionsTaken,
+      outcome:data.outcome??null,follow_up_required:data.followUpRequired,record_type:data.recordType,
+      confidentiality_level:data.confidentialityLevel,next_appointment:data.nextAppointment??null,
+    }).select("id").single();fail(error);return row;
+  });
+
+export const upsertSocialTask=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    id:uuid.optional(),socialCaseId:uuid,title:z.string().trim().min(2).max(300),
+    description:z.string().trim().max(4000).optional(),assigneeId:uuid.optional(),
+    priority:z.enum(["low","normal","high","urgent"]).default("normal"),
+    status:z.enum(["todo","in_progress","blocked","done","cancelled"]).default("todo"),
+    dueAt:z.string().datetime().optional(),reminderAt:z.string().datetime().optional(),
+    recurrence:z.record(z.string(),z.unknown()).optional(),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);
+    const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id").eq("id",data.socialCaseId).single();fail(caseError);
+    const row={org_id:c.org_id,social_case_id:data.socialCaseId,title:data.title,description:data.description??null,assignee_id:data.assigneeId??userId,priority:data.priority,status:data.status,due_at:data.dueAt??null,reminder_at:data.reminderAt??null,recurrence:data.recurrence??null,completed_at:data.status==="done"?new Date().toISOString():null,created_by:userId};
+    const q=data.id?supabase.from("social_tasks").update(row).eq("id",data.id):supabase.from("social_tasks").insert(row);
+    const {data:saved,error}=await q.select("id,status,due_at").single();fail(error);return saved;
+  });
+
+export const closeSocialCase=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    caseId:uuid,reason:z.enum(["services_completed","client_withdrew","unable_to_contact","transferred","ineligible","relocated","duplicate_case","other"]),
+    finalRisk:z.enum(["unknown","low","moderate","high","critical"]),
+    summary:z.record(z.string(),z.unknown()).default({}),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);const {data:id,error}=await supabase.rpc("close_social_case",{p_case:data.caseId,p_reason:data.reason,p_final_risk:data.finalRisk,p_summary:data.summary});fail(error);return {closureId:id};
+  });
+
+export const reopenSocialCase=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid,reason:z.string().trim().min(3).max(2000)}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("reopen_social_case",{p_case:data.caseId,p_reason:data.reason});fail(error);return {ok:true};});
+
+export const createSocialTransfer=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    socialCaseId:uuid,transferType:z.enum(["case_manager","office","service_team","external_organization","social_to_legal","legal_to_social"]),
+    toUserId:uuid.optional(),toOfficeId:uuid.optional(),receivingOrgId:uuid.optional(),consentId:uuid.optional(),
+    selectedInformation:z.record(z.string(),z.unknown()).default({}),restrictedInformation:z.record(z.string(),z.unknown()).default({}),
+    summary:z.string().trim().min(3).max(10000),deadlines:z.array(z.unknown()).default([]),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,assigned_case_manager").eq("id",data.socialCaseId).single();fail(caseError);
+    const {data:row,error}=await supabase.from("social_case_transfers").insert({org_id:c.org_id,social_case_id:data.socialCaseId,transfer_type:data.transferType,from_user_id:c.assigned_case_manager,to_user_id:data.toUserId??null,to_office_id:data.toOfficeId??null,receiving_org_id:data.receivingOrgId??null,consent_id:data.consentId??null,selected_information:data.selectedInformation,restricted_information:data.restrictedInformation,transfer_summary:data.summary,deadlines:data.deadlines,status:"pending_approval",created_by:userId}).select("id,status").single();fail(error);return row;
+  });
+
+export const acceptSocialTransfer=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({transferId:uuid}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("accept_social_transfer",{p_transfer:data.transferId});fail(error);return {ok:true};});
+
+export const linkSocialImmigrationMatter=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    socialCaseId:uuid,immigrationCaseId:uuid,consentId:uuid,
+    permittedStatusFields:z.array(z.string().trim().min(1).max(120)).max(50).default([]),
+    sharedSocialFields:z.array(z.string().trim().min(1).max(120)).max(100).default([]),
+    sharedDocumentIds:z.array(uuid).max(100).default([]),
+    nonRefoulementConcern:z.boolean().default(false),detentionDeportationRisk:z.boolean().default(false),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id").eq("id",data.socialCaseId).single();fail(caseError);
+    const {data:row,error}=await supabase.from("social_immigration_links").insert({org_id:c.org_id,social_case_id:data.socialCaseId,immigration_case_id:data.immigrationCaseId,consent_id:data.consentId,permitted_status_fields:data.permittedStatusFields,shared_social_fields:data.sharedSocialFields,shared_document_ids:data.sharedDocumentIds,non_refoulement_concern:data.nonRefoulementConcern,detention_deportation_risk:data.detentionDeportationRisk,created_by:userId}).select("id").single();fail(error);return row;
+  });
+
+export const getSocialIndicators=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({orgId:uuid,from:z.string().date(),to:z.string().date(),programId:uuid.optional(),officeId:uuid.optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);const {data:rows,error}=await supabase.rpc("social_indicator_summary",{p_org:data.orgId,p_from:data.from,p_to:data.to,p_program:data.programId??null,p_office:data.officeId??null});fail(error);return rows??[];
+  });
+
+export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({orgId:uuid,socialCaseId:uuid,recordType:recordType,fileName:z.string().trim().min(1).max(240)}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");
+    const path=`${data.orgId}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
+    const {data:signed,error}=await supabase.storage.from("social-case-files").createSignedUploadUrl(path);fail(error);
+    return {path,token:signed.token,signedUrl:signed.signedUrl};
+  });
