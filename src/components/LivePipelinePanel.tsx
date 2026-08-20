@@ -35,7 +35,7 @@ type Event = {
   created_at: string;
 };
 
-type EngineRun = {
+export type EngineRun = {
   id: string;
   engine: string;
   status: string;
@@ -61,6 +61,63 @@ type EngineRun = {
   ended_at: string | null;
   created_at: string;
 };
+
+type ProviderCall = {
+  ts?: number;
+  provider: string;
+  model?: string | null;
+  ok: boolean;
+  latency_ms?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  retry_count?: number;
+  key_index?: number | null;
+  key_label?: string | null;
+  key_fingerprint?: string | null;
+  error?: string | null;
+};
+
+export function providerCallsForRun(run: Pick<EngineRun, "meta" | "provider" | "model" | "tokens_in" | "tokens_out" | "status">): ProviderCall[] {
+  const telemetry = run.meta?.telemetry;
+  const raw = telemetry && typeof telemetry === "object"
+    ? (telemetry as Record<string, unknown>).provider_calls
+    : null;
+  if (Array.isArray(raw)) {
+    return raw.filter((call): call is ProviderCall => {
+      if (!call || typeof call !== "object") return false;
+      const value = call as Record<string, unknown>;
+      return typeof value.provider === "string" && typeof value.ok === "boolean";
+    });
+  }
+  // Backward-compatible view for rows written before per-call telemetry.
+  return run.provider
+    ? [{
+        provider: run.provider,
+        model: run.model,
+        ok: run.status === "completed",
+        input_tokens: run.tokens_in ?? 0,
+        output_tokens: run.tokens_out ?? 0,
+      }]
+    : [];
+}
+
+export function summarizeProviderUsage(runs: readonly EngineRun[]) {
+  const byProvider = new Map<string, { calls: number; ok: number; failed: number; tokens: number; keys: Set<string> }>();
+  for (const run of runs) {
+    for (const call of providerCallsForRun(run)) {
+      const group = byProvider.get(call.provider) ?? { calls: 0, ok: 0, failed: 0, tokens: 0, keys: new Set<string>() };
+      group.calls += 1;
+      if (call.ok) group.ok += 1;
+      else group.failed += 1;
+      group.tokens += (call.input_tokens ?? 0) + (call.output_tokens ?? 0);
+      if (call.key_label) group.keys.add(call.key_label);
+      byProvider.set(call.provider, group);
+    }
+  }
+  return Array.from(byProvider.entries())
+    .map(([provider, value]) => ({ ...value, provider, keys: Array.from(value.keys).sort() }))
+    .sort((a, b) => b.calls - a.calls || a.provider.localeCompare(b.provider));
+}
 
 // Stage/engine names are resolved through the Mexican pipeline profile
 // (mx-pipeline.ts) + i18n, so the ledger and activity feed speak the user's
@@ -267,20 +324,7 @@ export function LivePipelinePanel({
   // "latest" row superseded), not `latestRuns` — a retried/failed call
   // still consumed real tokens and cost, and "how much API was used" means
   // everything actually spent, not just the surviving final attempt.
-  const providerUsage = useMemo(() => {
-    const byProvider = new Map<string, { calls: number; tokens: number; cost: number }>();
-    for (const r of runs) {
-      if (!r.provider) continue;
-      const g = byProvider.get(r.provider) ?? { calls: 0, tokens: 0, cost: 0 };
-      g.calls += 1;
-      g.tokens += (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
-      g.cost += r.cost_usd ?? 0;
-      byProvider.set(r.provider, g);
-    }
-    return Array.from(byProvider.entries())
-      .map(([provider, v]) => ({ provider, ...v }))
-      .sort((a, b) => b.calls - a.calls);
-  }, [runs]);
+  const providerUsage = useMemo(() => summarizeProviderUsage(runs), [runs]);
 
   const close = () => {
     userClosedRef.current = true;
@@ -346,12 +390,12 @@ export function LivePipelinePanel({
               <span
                 key={p.provider}
                 className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
-                title={`${p.provider}: ${p.calls} ${t("pipeline.usage.calls")}, ${p.tokens.toLocaleString()} ${t("pipeline.col.tokens").toLowerCase()}${p.cost > 0 ? `, $${p.cost.toFixed(4)}` : ""}`}
+                title={`${p.provider}: ${p.calls} ${t("pipeline.usage.calls")}, ${p.ok} ok / ${p.failed} failed, ${p.tokens.toLocaleString()} ${t("pipeline.col.tokens").toLowerCase()}${p.keys.length ? `, ${p.keys.join(", ")}` : ""}`}
               >
                 <span className="font-medium capitalize">{p.provider}</span>
                 <span className="text-muted-foreground tabular-nums">
-                  {p.calls}× · {p.tokens.toLocaleString()}
-                  {p.cost > 0 ? ` · $${p.cost.toFixed(4)}` : ""}
+                  {p.calls}× · {p.ok}✓/{p.failed}✕ · {p.tokens.toLocaleString()}
+                  {p.keys.length ? ` · ${p.keys.join(", ")}` : ""}
                 </span>
               </span>
             ))}
@@ -379,6 +423,10 @@ export function LivePipelinePanel({
                   {latestRuns.map((r) => {
                     const isExpanded = expandedRun === r.id;
                     const isFailure = r.status === "failed" || r.status === "blocked";
+                    const providerCalls = providerCallsForRun(r);
+                    const providerLabel = providerCalls.length
+                      ? Array.from(new Set(providerCalls.map((call) => `${call.provider}${call.key_label ? ` ${call.key_label}` : ""}`))).join(", ")
+                      : "Deterministic";
                     return (
                       <>
                         <tr
@@ -399,7 +447,7 @@ export function LivePipelinePanel({
                           <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
                             {fmtDuration(r.runtime_ms)}
                           </td>
-                          <td className="px-2 py-1.5 truncate text-muted-foreground">{r.provider ?? "—"}</td>
+                          <td className="max-w-[150px] truncate px-2 py-1.5 text-muted-foreground" title={providerLabel}>{providerLabel}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
                             {fmtTokens(r.tokens_in, r.tokens_out)}
                           </td>
@@ -476,6 +524,22 @@ export function LivePipelinePanel({
                                     <dt>Blocked by</dt>
                                     <dd className="text-orange-400">
                                       {r.blocking_engines.map(engineName).join(", ")}
+                                    </dd>
+                                  </>
+                                )}
+                                {providerCalls.length > 0 && (
+                                  <>
+                                    <dt>Provider calls</dt>
+                                    <dd className="space-y-1 text-foreground">
+                                      {providerCalls.map((call, index) => (
+                                        <div key={`${call.ts ?? index}-${index}`} className="font-mono text-[10px]">
+                                          <span className={call.ok ? "text-emerald-400" : "text-destructive"}>
+                                            {call.ok ? "✓" : "✕"}
+                                          </span>{" "}
+                                          {call.provider} · {call.key_label ?? "server key"} · {call.model ?? "default model"}
+                                          {call.error ? <span className="block text-destructive">{call.error}</span> : null}
+                                        </div>
+                                      ))}
                                     </dd>
                                   </>
                                 )}
