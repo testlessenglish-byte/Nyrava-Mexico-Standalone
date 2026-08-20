@@ -171,6 +171,11 @@ export type NewFinding = Omit<
   | "tags"
   | "metadata"
 > & {
+  /** Verbatim source quote when an engine carries a single primary quote in
+   * addition to evidence_refs. This is an input-only convenience field used
+   * by validation/source-meaning guards and is not required on persisted
+   * Finding rows. */
+  source_quote?: string | null;
   source_doc_ids?: string[];
   evidence_refs?: Finding["evidence_refs"];
   related_finding_ids?: string[];

@@ -3097,7 +3097,7 @@ export const duplicateCase = createServerFn({ method: "POST" })
     const { supabase, userId } = await getAuthedContext(context, "Duplicate");
     const { data: orig, error } = await supabase
       .from("cases")
-      .select("name,description")
+      .select("name,description,analysis_mode")
       .eq("id", data.caseId)
       .maybeSingle();
     if (error || !orig) throw new Error(error?.message ?? "Source case not found");
@@ -3107,6 +3107,7 @@ export const duplicateCase = createServerFn({ method: "POST" })
         user_id: userId,
         name: `${orig.name} (copy)`,
         description: orig.description,
+        analysis_mode: orig.analysis_mode,
         status: "uploaded",
         progress: 0,
       })

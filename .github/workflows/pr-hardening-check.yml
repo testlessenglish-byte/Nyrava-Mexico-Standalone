@@ -32,9 +32,13 @@ jobs:
           src/lib/intelligence/__tests__/witness-person-safety.test.ts
           src/lib/intelligence/__tests__/report-canonical-context-sanitization.test.ts
           src/lib/intelligence/__tests__/finding-selection-quarantine.test.ts
+          src/lib/intelligence/__tests__/stale-data-guard-coverage.test.ts
           src/lib/reporting/attorney-workproduct.test.ts
           src/lib/reporting/objective.test.ts
           src/lib/canonical/__tests__/rendered-report-release.test.ts
+
+      - name: TypeScript integrity check
+        run: bunx tsc --noEmit
 
       - name: Build production bundle
         run: bun run build
