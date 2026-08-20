@@ -7,7 +7,8 @@ const foundation=migration("20260820230000_social_case_management_foundation.sql
 const workflows=migration("20260820231000_social_case_workflows.sql");
 const hardening=migration("20260820232000_social_case_management_hardening.sql");
 const billing=migration("20260820233000_billing_provider_controls.sql");
-const sql=[foundation,workflows,hardening].join("\n").toLowerCase();
+const transactional=migration("20260820234000_social_transactional_workflows.sql");
+const sql=[foundation,workflows,hardening,transactional].join("\n").toLowerCase();
 
 describe("social-care migration security coverage",()=>{
   it.each([
@@ -72,9 +73,16 @@ describe("social-care migration security coverage",()=>{
     expect(hardening).toContain("interval '8 hours'");
     expect(hardening).toContain("not p_write and public.social_support_access_active");
   });
-  it("uses private storage and never grants authenticated delete",()=>{
+  it("uses record-aware private storage and never grants authenticated delete",()=>{
     expect(hardening).toContain("values('social-case-files','social-case-files',false");
-    expect(hardening).not.toMatch(/create policy social_case_files_delete/i);
+    expect(transactional).toContain("(storage.foldername(name))[3]");
+    expect(transactional).toContain("public.social_can_access_case");
+    expect(sql).not.toMatch(/create policy social_case_files_delete/i);
+  });
+  it("creates family, consent, assessment and care plan atomically",()=>{
+    for(const fn of ["create_social_family","create_social_consent","create_social_assessment_initial","create_social_care_plan"]){
+      expect(transactional).toContain(`function public.${fn}`);
+    }
   });
   it("preserves append-only activity history",()=>{
     expect(sql).toContain("prevent_social_activity_mutation");
