@@ -59,6 +59,50 @@ function normalize(s: string): string {
 }
 
 const STAGE_MAPS: Record<MxPipelineProfile, readonly ProceduralStageDef[]> = {
+  migratorio: [
+    {
+      id: "presentacion_solicitud",
+      label_es: "Presentación de solicitud o promoción",
+      label_en: "Application or filing submitted",
+      authority: "Ley de Migración, ley especial y ficha oficial vigente aplicables",
+      patterns: ["acuse de recibo", "solicitud presentada", "numero de tramite", "número de trámite"],
+    },
+    {
+      id: "prevencion_requerimiento",
+      label_es: "Prevención o requerimiento de información",
+      label_en: "Request for additional information",
+      authority: "Ley Federal de Procedimiento Administrativo y norma especial aplicable",
+      patterns: ["prevencion", "prevención", "requerimiento de informacion", "requerimiento de documentación"],
+    },
+    {
+      id: "desahogo",
+      label_es: "Desahogo de prevención o aportación de pruebas",
+      label_en: "Response or supporting evidence filed",
+      authority: "Norma y ficha oficial vigente del procedimiento documentado",
+      patterns: ["desahogo de prevencion", "contestacion al requerimiento", "aportacion de pruebas"],
+    },
+    {
+      id: "resolucion",
+      label_es: "Resolución de la autoridad competente",
+      label_en: "Decision by the competent Mexican authority",
+      authority: "Ley de Migración, Ley de Nacionalidad o ley de refugio aplicable",
+      patterns: ["resuelve", "resolucion", "resolución", "oficio de resolucion"],
+    },
+    {
+      id: "notificacion",
+      label_es: "Notificación de la resolución",
+      label_en: "Service of the decision",
+      authority: "Ley Federal de Procedimiento Administrativo y norma especial aplicable",
+      patterns: ["constancia de notificacion", "cedula de notificacion", "fecha de notificacion"],
+    },
+    {
+      id: "medio_defensa",
+      label_es: "Medio de defensa, cuando proceda",
+      label_en: "Mexican administrative or judicial remedy, when available",
+      authority: "Ley especial, LFPCA y Ley de Amparo según el acto documentado",
+      patterns: ["recurso", "juicio contencioso administrativo", "demanda de amparo"],
+    },
+  ],
   penal: [
     {
       id: "denuncia_querella",
