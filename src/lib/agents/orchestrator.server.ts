@@ -22,7 +22,7 @@ import { ENGINE, canGenerateReport, REPORT_REQUIRED_ENGINES } from "@/lib/execut
 import { AGENT_DEFINITIONS, type AgentResult, type AgentDefinition } from "./types";
 import { attachAgentStats, buildAgentStatistics } from "./statistics.server";
 import { isCheckpointError } from "@/lib/pipeline-checkpoint.server";
-import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
+import { PROJECTION_LIKE, canonicalEvidenceIntegrityIssue } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 
@@ -553,12 +553,18 @@ export type JudgeFinding = {
   source_doc_ids: string[] | null;
   source_quote: string | null;
   source_module: string | null;
+  title?: string | null;
+  description?: string | null;
+  legal_significance?: string | null;
+  potential_impact?: string | null;
+  evidence_refs?: unknown;
+  audit_classification?: string | null;
 };
 
 export type JudgeVerdictResult = {
   verdict: "approve" | "needs_revision" | "reject";
   notes: string[];
-  totals: { findings: number; cited: number; cited_ratio: number };
+  totals: { findings: number; cited: number; cited_ratio: number; integrity_issues: number };
 };
 
 /** Pure decision, extracted so the citation-exemption behavior is directly
@@ -576,9 +582,20 @@ export function computeJudgeVerdict(
   const totalN = findings.length;
   const cited = findings.filter((f) => hasTraceableCitation(f)).length;
   const citedRatio = totalN > 0 ? cited / totalN : 1;
+  const integrityIssues = findings
+    .map((f) => ({ title: String(f.title ?? ""), issue: canonicalEvidenceIntegrityIssue(f) }))
+    .filter((x) => x.issue);
   if (totalN === 0) {
     verdict = "reject";
     notes.push("No findings to evaluate.");
+  } else if (integrityIssues.length > 0) {
+    verdict = "reject";
+    notes.push(
+      `Semantic evidence integrity failed for ${integrityIssues.length} finding(s): ${integrityIssues
+        .slice(0, 5)
+        .map((x) => `${x.title || "(untitled)"} [${x.issue}]`)
+        .join(", ")}.`,
+    );
   } else if (citedRatio < t.reject) {
     verdict = "reject";
     notes.push(
@@ -597,13 +614,13 @@ export function computeJudgeVerdict(
     verdict = "needs_revision";
     notes.push(`High contradiction count (${contraCount}) warrants revision.`);
   }
-  return { verdict, notes, totals: { findings: totalN, cited, cited_ratio: citedRatio } };
+  return { verdict, notes, totals: { findings: totalN, cited, cited_ratio: citedRatio, integrity_issues: integrityIssues.length } };
 }
 
 async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
   const { data: allFindings } = await ctx.db
     .from("case_findings")
-    .select("id,source_document_id,source_doc_ids,source_quote,source_module")
+    .select("id,title,description,legal_significance,potential_impact,source_document_id,source_doc_ids,source_quote,evidence_refs,audit_classification,source_module")
     .eq("case_id", ctx.caseId)
     .not("source_module", "like", PROJECTION_LIKE);
   const { verdict, notes, totals } = computeJudgeVerdict(
@@ -982,6 +999,13 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     .update({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       status: status as any,
+      // Released is a terminal persisted state even when the database
+      // migration has not yet reached a deployment environment.
+      progress: released ? 100 : 99,
+      completed_at: released ? new Date().toISOString() : null,
+      report_at: released ? new Date().toISOString() : null,
+      next_stage: null,
+      worker_lease_until: null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       status_message: statusMessage as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
