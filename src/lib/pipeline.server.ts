@@ -2988,7 +2988,67 @@ const AGENT_JH_FRAGMENT = judicialHierarchySchemaFragment();
 const AGENT_JH_INSTRUCTIONS = judicialHierarchyInstructions();
 const AGENT_AUDIT_CLASSIFICATION_FRAGMENT = auditClassificationSchemaFragment();
 
-const AGENTS: { type: string; category: string; system: string; prompt: string }[] = [
+const IMMIGRATION_AGENT_GROUNDING =
+  "Output JSON only. Use exclusively Mexican law and authorities (INM, SRE/consulates, COMAR, DIF/protection authorities, TFJA, PJF and CNDH as applicable). Never use USCIS, ICE, green-card, U.S. form, removal-court or U.S. visa concepts. Every finding must include at least one exact, contiguous quote copied from a supplied document; omit any finding that cannot be grounded. Distinguish verified facts from inferences and never present an unverified deadline or remembered legal requirement as current law.";
+
+const IMMIGRATION_AGENT_PROMPT = `Return STRICT JSON:
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "persona_migrante"|"autoridad_responsable"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }
+Each quote must be a single exact contiguous excerpt of at most 200 characters from the cited document. If a trigger date, governing rule, official requirement or current source version is missing, say it is unconfirmed and identify what must be verified; do not calculate or invent it.`;
+
+const IMMIGRATION_AGENTS: { type: string; category: string; system: string; prompt: string }[] = [
+  {
+    type: "immigration_eligibility_analysis",
+    category: "immigration_eligibility_analysis",
+    system:
+      "Analyze requested Mexican immigration status or benefit, current condition of stay, continuity, family/employment basis and document sufficiency. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "immigration_deadline_continuity",
+    category: "immigration_deadline_continuity",
+    system:
+      "Extract notification, entry, expiration, prevention, appeal, TFJA and amparo trigger dates. State the rule, calendar/business-day basis, excluded days, authority and confidence; never confirm a deadline without its trigger and verified rule. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "refugee_non_refoulement_analysis",
+    category: "refugee_non_refoulement_analysis",
+    system:
+      "Analyze refugee eligibility, complementary protection, non-refoulement, humanitarian grounds, family unity and risk on return under Mexican law and treaties binding on Mexico. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "nationality_naturalization_analysis",
+    category: "nationality_naturalization_analysis",
+    system:
+      "Analyze Mexican nationality by birth or filiation, declarations, certificates, dual nationality, naturalization grounds and challenges to SRE decisions. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "immigration_due_process_remedies",
+    category: "immigration_due_process_remedies",
+    system:
+      "Analyze competence, notice, reasons and legal grounds, hearing rights, detention legality, administrative appeal, TFJA nullity, amparo and urgent suspension without assuming a remedy is available. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "child_vulnerability_protection",
+    category: "child_vulnerability_protection",
+    system:
+      "Analyze best interests of children, family unity, unaccompanied-child safeguards, vulnerability, DIF/protection-authority intervention and alternatives to detention. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+];
+
+const AGENTS: { type: string; category: string; system: string; prompt: string }[
+  ...IMMIGRATION_AGENTS,] = [
   {
     type: "witness_credibility",
     category: "witness",
@@ -3703,6 +3763,13 @@ const AGENT_ENGINE: Record<string, string> = {
   conagua_water_rights_review: "agent:conagua_water_rights_review",
   pollution_remediation_analysis: "agent:pollution_remediation_analysis",
   protected_species_areas_review: "agent:protected_species_areas_review",
+  // Migratorio, refugio y nacionalidad specialized investigators.
+  immigration_eligibility_analysis: "agent:immigration_eligibility_analysis",
+  immigration_deadline_continuity: "agent:immigration_deadline_continuity",
+  refugee_non_refoulement_analysis: "agent:refugee_non_refoulement_analysis",
+  nationality_naturalization_analysis: "agent:nationality_naturalization_analysis",
+  immigration_due_process_remedies: "agent:immigration_due_process_remedies",
+  child_vulnerability_protection: "agent:child_vulnerability_protection",
   // Inmobiliario specialized investigators (2026-08-04). Bare (not
   // namespaced) to match the engine names already declared in
   // MX_ENGINES.inmobiliario / PRACTICE_GATED_ENGINES since before this
