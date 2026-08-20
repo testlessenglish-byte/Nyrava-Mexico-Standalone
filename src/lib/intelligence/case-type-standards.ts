@@ -27,6 +27,38 @@ export interface CaseTypeStandards {
 
 const STANDARDS: Record<PracticeArea, CaseTypeStandards> = {
 
+  migratorio: {
+    label: "Derecho Migratorio Mexicano",
+    controlling_standards:
+      "La movilidad y condición migratoria se rigen por los artículos 1, 11 y 33 de la CPEUM, la Ley de Migración y su Reglamento; el reconocimiento de la condición de refugiado, protección complementaria y asilo político por la ley especial aplicable y el principio de no devolución; y la nacionalidad y naturalización por el artículo 30 CPEUM y la Ley de Nacionalidad. El análisis debe distinguir con precisión el trámite o procedimiento, la autoridad competente (INM, SRE, COMAR, DIF, TFJA o PJF), el acto documentado y su fecha de notificación. Ningún plazo, requisito, derecho de permanencia, autorización de trabajo o resultado puede afirmarse sin fuente mexicana vigente y evidencia del expediente.",
+    key_cases: [
+      "Arts. 1 y 11 CPEUM — derechos humanos, principio pro persona y libertad de tránsito",
+      "Art. 33 CPEUM — personas extranjeras y garantía de audiencia en expulsión",
+      "Ley de Migración y Reglamento de la Ley de Migración — ingreso, estancia, regularización, retorno y procedimientos migratorios",
+      "Ley sobre Refugiados, Protección Complementaria y Asilo Político — reconocimiento, no devolución y protección complementaria",
+      "Art. 30 CPEUM y Ley de Nacionalidad — nacionalidad por nacimiento, naturalización y recuperación",
+      "Convención sobre el Estatuto de los Refugiados y Convención Americana sobre Derechos Humanos — interpretar sólo con versión y aplicabilidad verificadas",
+    ],
+    canonical_motions: [
+      "Solicitud o promoción ante el Instituto Nacional de Migración",
+      "Recurso administrativo o juicio contencioso ante el TFJA, cuando proceda y esté documentado",
+      "Demanda de amparo contra detención, incomunicación, deportación, retorno o acto de autoridad, según procedencia",
+      "Solicitud de reconocimiento de la condición de refugiado o protección complementaria ante COMAR",
+      "Solicitud de medidas de protección para niña, niño o adolescente ante la autoridad competente",
+      "Trámite de nacionalidad o naturalización ante la Secretaría de Relaciones Exteriores",
+    ],
+    evidentiary_rules: [
+      "Conservar originales y versiones: pasaporte, documento migratorio, constancias de trámite, acuses, resoluciones y notificaciones no son intercambiables.",
+      "Un plazo sólo puede calcularse cuando consten el acto detonante, la fecha de notificación o conocimiento y la regla vigente aplicable; de faltar alguno, marcarlo pendiente.",
+      "La identidad, nacionalidad, parentesco, domicilio, empleo, estudios y solvencia deben vincularse con documentos específicos y vigentes, sin inferir hechos ausentes.",
+      "Los datos de pasaporte y otros identificadores sensibles deben enmascararse en interfaces, registros y exportaciones no autorizadas.",
+    ],
+    damages_or_remedies:
+      "El remedio depende del procedimiento y puede comprender reconocimiento o conservación de condición de estancia, regularización, reposición del procedimiento, nulidad del acto, libertad frente a detención ilegal, suspensión en amparo, reconocimiento de refugio o protección complementaria, documentación de nacionalidad, reunificación familiar o medidas reforzadas de protección. No prometer aprobación ni permanencia.",
+    drafting_notes:
+      "Trabajar exclusivamente con derecho mexicano y fuentes oficiales vigentes. Separar hechos acreditados, inferencias y datos faltantes; mostrar nivel de confianza y fecha de corte. No inventar plazos ni requisitos y no trasladar categorías de USCIS, DHS, ICE, removal, green card, asylum clock u otras figuras extranjeras. Si la fuente oficial no está disponible, usar la última versión verificada en caché, advertir la indisponibilidad y bloquear conclusiones dependientes de una actualización no verificada.",
+  },
+
   penal: {
     label: "Derecho Penal (Sistema Acusatorio)",
     controlling_standards:
