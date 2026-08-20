@@ -26,6 +26,8 @@ export const CASE_DERIVED_TABLES = [
   "case_motion_drafts",
   "case_domain_activations",
   "case_chat_messages",
+  "case_finding_patches",
+  "case_decision_reconstructions",
   "evidence_classifications",
   "image_intelligence",
   "report_versions",
