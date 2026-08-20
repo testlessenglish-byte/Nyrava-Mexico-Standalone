@@ -44,6 +44,57 @@ function normalize(s: string): string {
 }
 
 const CHECKLISTS: Record<MxPipelineProfile, readonly RequiredDocument[]> = {
+  migratorio: [
+    {
+      id: "identidad_viaje",
+      label_es: "Documento de identidad o viaje vigente",
+      label_en: "Current identity or travel document",
+      authority: "Ley de Migración y Reglamento de la Ley de Migración",
+      patterns: ["pasaporte", "documento de identidad y viaje", "documento de viaje"],
+    },
+    {
+      id: "documento_condicion_estancia",
+      label_es: "Visa, tarjeta o documento de condición de estancia",
+      label_en: "Visa, resident card or immigration-status document",
+      authority: "Ley de Migración y Reglamento de la Ley de Migración",
+      patterns: ["visa", "residente temporal", "residente permanente", "tarjeta de residente", "condicion de estancia"],
+    },
+    {
+      id: "acuse_tramite",
+      label_es: "Acuse y número de trámite ante la autoridad competente",
+      label_en: "Official filing receipt and proceeding number",
+      authority: "Lineamientos y ficha oficial vigente del trámite aplicable",
+      patterns: ["acuse de recibo", "numero de tramite", "número de trámite", "número único de trámite", "nut"],
+    },
+    {
+      id: "resolucion_notificacion",
+      label_es: "Resolución y constancia de notificación, si existen",
+      label_en: "Decision and service record, if issued",
+      authority: "Ley Federal de Procedimiento Administrativo; ley especial aplicable",
+      patterns: ["resolucion", "resolución", "constancia de notificacion", "cedula de notificacion", "oficio de notificacion"],
+    },
+    {
+      id: "vinculo_familiar",
+      label_es: "Documentos de vínculo familiar, cuando sean fundamento del trámite",
+      label_en: "Family-relationship records when relied upon",
+      authority: "Ley de Migración y Reglamento de la Ley de Migración",
+      patterns: ["acta de nacimiento", "acta de matrimonio", "vinculo familiar", "unidad familiar"],
+    },
+    {
+      id: "refugio_comar",
+      label_es: "Constancias de solicitud o procedimiento ante COMAR, cuando aplique",
+      label_en: "COMAR refugee-proceeding records, when applicable",
+      authority: "Ley sobre Refugiados, Protección Complementaria y Asilo Político",
+      patterns: ["comar", "solicitud de reconocimiento de la condicion de refugiado", "proteccion complementaria", "no devolucion"],
+    },
+    {
+      id: "nacionalidad_sre",
+      label_es: "Constancias de nacionalidad o naturalización ante SRE, cuando aplique",
+      label_en: "SRE nationality or naturalization records, when applicable",
+      authority: "Constitución Art. 30; Ley de Nacionalidad",
+      patterns: ["carta de naturalizacion", "certificado de nacionalidad mexicana", "declaratoria de nacionalidad", "secretaria de relaciones exteriores"],
+    },
+  ],
   penal: [
     {
       id: "carpeta_investigacion",
