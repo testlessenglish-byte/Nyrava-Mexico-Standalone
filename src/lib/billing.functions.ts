@@ -127,12 +127,26 @@ export const getMyBillingStatus = createServerFn({ method: "GET" })
     const userId = await getAuthedUserId(context as { supabase?: Db; userId?: string });
     const access = await getBillingAccess(userId);
     const admin = getAdminClient();
-    const { data } = await admin
-      .from("subscriptions")
-      .select("current_period_end,cancel_at_period_end")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const [{ data }, { data: providerRows }] = await Promise.all([
+      admin
+        .from("subscriptions")
+        .select("current_period_end,cancel_at_period_end")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      (admin as any).from("billing_provider_settings").select("provider,enabled"),
+    ]);
+    const providerFlags = Object.fromEntries(
+      (providerRows ?? []).map((r: { provider: string; enabled: boolean }) => [r.provider, r.enabled]),
+    );
     return {
+      providers: {
+        mercadopago:
+          providerFlags.mercadopago !== false &&
+          Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN),
+        stripe:
+          providerFlags.stripe === true &&
+          Boolean(process.env.STRIPE_SECRET_KEY),
+      },
       plan: access.plan,
       status: access.status,
       freeCaseUsed: access.freeCaseUsed,
