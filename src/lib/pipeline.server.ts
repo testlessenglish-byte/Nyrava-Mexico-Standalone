@@ -3047,8 +3047,8 @@ const IMMIGRATION_AGENTS: { type: string; category: string; system: string; prom
   },
 ];
 
-const AGENTS: { type: string; category: string; system: string; prompt: string }[
-  ...IMMIGRATION_AGENTS,] = [
+const AGENTS: { type: string; category: string; system: string; prompt: string }[] = [
+  ...IMMIGRATION_AGENTS,
   {
     type: "witness_credibility",
     category: "witness",
