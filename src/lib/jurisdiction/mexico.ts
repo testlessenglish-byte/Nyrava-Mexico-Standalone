@@ -157,6 +157,23 @@ const MX_ALIASES: Record<string, MexicanCaseType> = {
   "controversia constitucional": "constitucional",
   "accion de inconstitucionalidad": "constitucional",
   "acción de inconstitucionalidad": "constitucional",
+  // migratorio, refugio y nacionalidad
+  immigration: "migratorio",
+  inmigracion: "migratorio",
+  "inmigración": "migratorio",
+  migracion: "migratorio",
+  "migración": "migratorio",
+  "derecho migratorio": "migratorio",
+  "materia migratoria": "migratorio",
+  extranjeria: "migratorio",
+  "extranjería": "migratorio",
+  refugio: "migratorio",
+  refugiados: "migratorio",
+  "proteccion complementaria": "migratorio",
+  "protección complementaria": "migratorio",
+  nacionalidad: "migratorio",
+  naturalizacion: "migratorio",
+  "naturalización": "migratorio",
 };
 
 /**
