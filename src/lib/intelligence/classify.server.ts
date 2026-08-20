@@ -280,6 +280,44 @@ const UNIVERSAL_CATEGORY_RULES: CategoryRule[] = [
 // Checked FIRST, before the universal layer. Materia-specific institutions
 // that don't recur elsewhere.
 const MATERIA_CATEGORY_RULES: Record<MexicanCaseType, CategoryRule[]> = {
+  migratorio: [
+    {
+      match: /\b(INM|Instituto\s+Nacional\s+de\s+Migraci[oó]n|condici[oó]n\s+de\s+estancia|residencia\s+temporal|residencia\s+permanente|regularizaci[oó]n\s+migratoria|visa|documento\s+migratorio)\b/i,
+      key: "tramite_migratorio",
+      es: "Trámite Migratorio",
+      gloss: "Mexican Immigration Proceeding",
+    },
+    {
+      match: /\b(COMAR|refugiad[oa]|condici[oó]n\s+de\s+refugiado|protecci[oó]n\s+complementaria|asilo\s+pol[ií]tico|no\s+devoluci[oó]n)\b/i,
+      key: "proteccion_internacional",
+      es: "Protección Internacional",
+      gloss: "Refugee or Complementary Protection",
+    },
+    {
+      match: /\b(nacionalidad\s+mexicana|naturalizaci[oó]n|carta\s+de\s+naturalizaci[oó]n|doble\s+nacionalidad|SRE)\b/i,
+      key: "nacionalidad_naturalizacion",
+      es: "Nacionalidad y Naturalización",
+      gloss: "Nationality and Naturalization",
+    },
+    {
+      match: /\b(detenci[oó]n\s+migratoria|estaci[oó]n\s+migratoria|deportaci[oó]n|retorno\s+asistido|expulsi[oó]n|presentaci[oó]n\s+ante\s+INM)\b/i,
+      key: "control_detencion_migratoria",
+      es: "Control y Detención Migratoria",
+      gloss: "Immigration Control and Detention",
+    },
+    {
+      match: /\b(niñ[oa]|adolescente|inter[eé]s\s+superior|DIF|unidad\s+familiar|reunificaci[oó]n\s+familiar)\b/i,
+      key: "proteccion_familiar_ninez",
+      es: "Protección Familiar y de la Niñez",
+      gloss: "Family and Child Protection",
+    },
+    {
+      match: /\b(plazo|vencimiento|notificaci[oó]n|acuse|prevenci[oó]n|requerimiento|continuidad\s+de\s+estancia)\b/i,
+      key: "plazo_continuidad_migratoria",
+      es: "Plazo y Continuidad Migratoria",
+      gloss: "Immigration Deadline and Continuity",
+    },
+  ],
   penal: [
     {
       match:
