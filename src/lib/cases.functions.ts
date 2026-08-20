@@ -4192,13 +4192,20 @@ export const uploadCaseEvidence = createServerFn({ method: "POST" })
     }
     if (total > MAX_TOTAL_BYTES) throw new Error("Total upload exceeds 200 MB");
 
-    const { data: owns } = await supabase
+    // The authenticated Supabase client already enforces case access through
+    // RLS. Do not add an owner-only predicate here: authorized organization
+    // members must be able to add evidence according to their role.
+    const { data: accessibleCase, error: accessError } = await supabase
       .from("cases")
       .select("id")
       .eq("id", caseId)
-      .eq("user_id", userId)
       .maybeSingle();
-    if (!owns) throw new Error("Case not found");
+    if (accessError || !accessibleCase) throw new Error("Case not found");
+
+    const rerunScopeRaw = String(data.get("rerunScope") ?? "affected_analysis");
+    const rerunScope = z
+      .enum(["new_documents_only", "affected_analysis", "full_case"])
+      .parse(rerunScopeRaw);
 
     const uploads = await Promise.all(
       files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
@@ -4505,19 +4512,23 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
       files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
     );
     const { uploadFiles } = await import("@/lib/pipeline.server");
-    await uploadFiles({ db: supabase, caseId, userId, uploads });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: newDocsRows } = await (supabase as any)
-      .from("documents")
-      .select("id,filename")
-      .eq("case_id", caseId)
-      .in(
-        "filename",
-        files.map((f) => f.name),
-      )
-      .order("created_at", { ascending: false })
-      .limit(files.length * 2);
-    const newDocIds = ((newDocsRows ?? []) as Array<{ id: string }>).map((d) => d.id);
+    const uploadResult = await uploadFiles({ db: supabase, caseId, userId, uploads });
+    const newDocIds = uploadResult.uploadedDocumentIds;
+    if (uploadResult.uploaded === 0) {
+      return {
+        ok: true,
+        uploaded: 0,
+        skipped: uploadResult.skipped,
+        excludedNonEvidentiary: uploadResult.excludedNonEvidentiary,
+        revisedDocuments: uploadResult.revisedDocuments,
+        newDocumentIds: [],
+        snapshottedVersion: null,
+        nextVersion: baselineVersion || null,
+        rerunScope,
+        startFrom: null,
+        affectedStages: [],
+      };
+    }
 
     // 3. Run extraction synchronously for the new docs. runExtraction is
     // idempotent: already-extracted documents are skipped, so only the
@@ -4543,13 +4554,21 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
 
     return {
       ok: true,
-      uploaded: files.length,
+      uploaded: uploadResult.uploaded,
+      skipped: uploadResult.skipped,
+      excludedNonEvidentiary: uploadResult.excludedNonEvidentiary,
+      revisedDocuments: uploadResult.revisedDocuments,
       newDocumentIds: newDocIds,
       snapshottedVersion: baselineVersion || null,
       nextVersion: baselineVersion + 1,
+      rerunScope,
+      startFrom: rerunScope === "new_documents_only" ? null : "analyzers",
       // Whole-corpus engines that must rerun because a new doc can shift
       // cross-document outputs (contradictions, timeline, witness, etc.).
-      affectedStages: [
+      affectedStages:
+        rerunScope === "new_documents_only"
+          ? []
+          : [
         "analyzers",
         "agents",
         "timeline",
