@@ -208,7 +208,7 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_nyrava_enforce_released_case_terminal_state ON public.cases;
 CREATE TRIGGER trg_nyrava_enforce_released_case_terminal_state
-BEFORE INSERT OR UPDATE OF status, progress, completed_at, next_stage ON public.cases
+BEFORE INSERT OR UPDATE OF status, progress, completed_at, next_stage, worker_lease_until ON public.cases
 FOR EACH ROW EXECUTE FUNCTION public.nyrava_enforce_released_case_terminal_state();
 
 -- Preserve the CURRENT service-role-only factory-reset API, including the
