@@ -64,6 +64,25 @@ describe("computeJudgeVerdict: citation-exempt source modules", () => {
     expect(result.verdict).toBe("needs_revision");
   });
 
+  it("rejects a fully cited finding when the quote does not entail the asserted SCJN holding", () => {
+    const result = computeJudgeVerdict(
+      [
+        finding({
+          title: "Aplicabilidad de la exención fiscal",
+          description: "La SCJN determinó que el ISSSTE no está exento del pago de impuestos locales.",
+          audit_classification: "VERIFIED_COURT_HOLDING",
+          source_document_id: "doc-1",
+          source_quote: "El Pleno determinó que fue incorrecto el fallo del Tribunal Colegiado respecto del impuesto predial.",
+          evidence_refs: [{ quote: "El Pleno determinó que fue incorrecto el fallo del Tribunal Colegiado respecto del impuesto predial." }],
+        }),
+      ],
+      "strict",
+    );
+    expect(result.totals.cited_ratio).toBe(1);
+    expect(result.totals.integrity_issues).toBe(1);
+    expect(result.verdict).toBe("reject");
+  });
+
   it("a case with ONLY exempt findings still rejects — exemption never manufactures a pass out of nothing", () => {
     const result = computeJudgeVerdict(
       [finding({ source_module: "engine:procedural_compliance" })],

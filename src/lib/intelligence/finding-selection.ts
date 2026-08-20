@@ -39,6 +39,9 @@ export type SelectableFinding = {
   potential_impact?: string | null;
   source_quote?: string | null;
   evidence_refs?: unknown;
+  source_document_id?: string | null;
+  source_doc_ids?: string[] | null;
+  audit_classification?: string | null;
 };
 
 export function classifyFindingSource(f: SelectableFinding): FindingSourceClass {
@@ -79,6 +82,44 @@ function isPersonalNoticeSourceInversion(f: SelectableFinding): boolean {
   return /(?:no\s+exist[ií]a|no\s+(?:era|es|resultaba|fue)\s+necesari[oa]|no\s+hab[ií]a)\b[^.!?]{0,160}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,120}notific[^.!?]{0,80}personal/i.test(evidence) && /notific[^.!?]{0,100}personal/i.test(claim) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio)/i.test(claim);
 }
 
+/** Deterministic release-integrity checks. These deliberately target factual
+ * mismatches that citation-presence checks cannot detect: a quote may exist
+ * while supporting a different court, proposition, or polarity. */
+export function canonicalEvidenceIntegrityIssue(f: SelectableFinding): string | null {
+  const refs = Array.isArray(f.evidence_refs)
+    ? (f.evidence_refs as Array<Record<string, unknown>>)
+    : [];
+  const quotedRefs = refs.filter((r) => typeof r?.quote === "string" && r.quote.trim().length > 0);
+  const claim = [f.title, f.description, f.legal_significance, f.potential_impact]
+    .map((v) => String(v ?? ""))
+    .join(" ");
+  const evidence = [String(f.source_quote ?? ""), ...quotedRefs.map((r) => String(r.quote))].join(" ");
+  const auditClass = String(f.audit_classification ?? "").toUpperCase();
+
+  // A theory with no classified evidentiary basis must not enter an
+  // authoritative report merely because a loose source_quote was attached.
+  if (String(f.source_module ?? "").startsWith("engine:theory:") && !auditClass && quotedRefs.length === 0) return "unclassified_theory_without_evidence_ref";
+
+  // ADR holding-polarity guard: a statement that SCJN held an entity was NOT
+  // exempt is not entailed by a quote saying only that lower decisions were
+  // incorrect. The quote must itself contain the asserted non-exemption.
+  if (
+    /\bSCJN\b|Suprema Corte/i.test(claim) &&
+    /no\s+(?:est[aá]|se\s+encuentra|resulta)\s+exent/i.test(claim) &&
+    /(?:incorrect.{0,140}(?:fallo|sentencia|determinaci[oó]n|Tribunal Colegiado|autoridad responsable)|(?:fallo|sentencia|determinaci[oó]n|Tribunal Colegiado|autoridad responsable).{0,140}incorrect)/i.test(evidence) &&
+    !/no\s+(?:est[aá]|se\s+encuentra|resulta)\s+exent/i.test(evidence)
+  ) return "court_holding_polarity_not_entailed";
+
+  // Competence and admissibility/procedencia are distinct holdings.
+  if (
+    /proceden(?:cia|te).{0,180}(?:debido|porque|por\s+la\s+existencia)/i.test(claim) &&
+    /\bcompetente\b/i.test(evidence) &&
+    !/proceden(?:cia|te)/i.test(evidence)
+  ) return "competence_quote_does_not_establish_admissibility";
+
+  return null;
+}
+
 export function isCanonicalFinding(f: SelectableFinding): boolean {
   const cls = classifyFindingSource(f);
   const verification = String(f.verification_status ?? "").toLowerCase();
@@ -86,6 +127,7 @@ export function isCanonicalFinding(f: SelectableFinding): boolean {
   return (
     (cls === "engine" || cls === "agent") &&
     !isPersonalNoticeSourceInversion(f) &&
+    !canonicalEvidenceIntegrityIssue(f) &&
     !isProvisionalFinding(f) &&
     !isSuppressedFinding(f) &&
     !quarantined
@@ -120,6 +162,7 @@ export function selectFindings<T extends SelectableFinding>(
     if (!include.has(classifyFindingSource(f))) return false;
     if (!opts.includeProvisional && isProvisionalFinding(f)) return false;
     if (!opts.includeSuppressed && isSuppressedFinding(f)) return false;
+    if (canonicalEvidenceIntegrityIssue(f)) return false;
     if (!opts.includeQuarantined) {
       const verification = String(f.verification_status ?? "").toLowerCase();
       if (verification === "no_citation" || verification === "unverified") return false;

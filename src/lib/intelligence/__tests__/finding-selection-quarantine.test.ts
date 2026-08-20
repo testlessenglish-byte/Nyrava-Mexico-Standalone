@@ -43,3 +43,49 @@ describe("citation quarantine finding selection", () => {
     ).toBe(true);
   });
 });
+
+
+describe("ADR semantic evidence integrity", () => {
+  const base = {
+    source_module: "agent:constitutional_rights_mapping",
+    verification_status: "verified",
+    finding_status: "candidate",
+    audit_classification: "VERIFIED_COURT_HOLDING",
+    evidence_refs: [] as Array<{ quote: string }>,
+  };
+
+  it("rejects SCJN non-exemption claims not entailed by an overturned-lower-court quote", () => {
+    const finding = {
+      ...base,
+      title: "Aplicabilidad de la exención fiscal",
+      description: "La SCJN determinó que el ISSSTE no está exento del pago de impuestos locales.",
+      source_quote: "El Pleno de la SCJN determina que fue incorrecto tanto el fallo del Tribunal Colegiado, como de la autoridad responsable, en relación con el impuesto predial.",
+      evidence_refs: [{ quote: "El Pleno de la SCJN determina que fue incorrecto tanto el fallo del Tribunal Colegiado, como de la autoridad responsable, en relación con el impuesto predial." }],
+    };
+    expect(isCanonicalFinding(finding)).toBe(false);
+    expect(selectFindings([finding])).toEqual([]);
+  });
+
+  it("rejects procedencia conclusions supported only by a competence quote", () => {
+    const finding = {
+      ...base,
+      title: "Procedencia del recurso de revisión",
+      description: "El recurso fue procedente debido a cuestiones constitucionales no atendidas.",
+      source_quote: "El Pleno de esta SCJN es competente para conocer del presente asunto.",
+      evidence_refs: [{ quote: "El Pleno de esta SCJN es competente para conocer del presente asunto." }],
+    };
+    expect(isCanonicalFinding(finding)).toBe(false);
+  });
+
+  it("rejects an unclassified generated theory with zero evidence references", () => {
+    const finding = {
+      source_module: "engine:theory:tercero_interesado",
+      verification_status: "verified",
+      finding_status: "candidate",
+      audit_classification: null,
+      source_quote: "Loose quote not bound as evidence.",
+      evidence_refs: [],
+    };
+    expect(isCanonicalFinding(finding)).toBe(false);
+  });
+});

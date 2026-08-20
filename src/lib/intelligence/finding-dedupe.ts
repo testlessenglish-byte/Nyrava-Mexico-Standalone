@@ -297,7 +297,13 @@ function sharesEvidence(a: Prepared, b: Prepared): boolean {
 
 function sharesQuoteEvidence(a: Prepared, b: Prepared): boolean {
   if (a.evidenceQuotes.size === 0 || b.evidenceQuotes.size === 0) return false;
-  for (const q of a.evidenceQuotes) if (b.evidenceQuotes.has(q)) return true;
+  for (const q of a.evidenceQuotes) {
+    for (const other of b.evidenceQuotes) {
+      // Engines often quote the same holding at different lengths. Treat a
+      // meaningful verbatim containment as the same evidence anchor.
+      if (q === other || (Math.min(q.length, other.length) >= MIN_QUOTE_LEN && (q.includes(other) || other.includes(q)))) return true;
+    }
+  }
   return false;
 }
 

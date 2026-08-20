@@ -32,6 +32,8 @@ jobs:
           src/lib/intelligence/__tests__/witness-person-safety.test.ts
           src/lib/intelligence/__tests__/report-canonical-context-sanitization.test.ts
           src/lib/intelligence/__tests__/finding-selection-quarantine.test.ts
+          src/lib/intelligence/__tests__/finding-dedupe.test.ts
+          src/lib/agents/__tests__/judge-citation-exemption.test.ts
           src/lib/intelligence/__tests__/stale-data-guard-coverage.test.ts
           src/lib/reporting/attorney-workproduct.test.ts
           src/lib/reporting/objective.test.ts
