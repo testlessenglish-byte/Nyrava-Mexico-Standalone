@@ -9600,6 +9600,20 @@ ${paginationTail}`;
     "Failed to save report",
   );
 
+  // If this run followed Add Evidence, calculate the delta now: the new
+  // report is persisted, while report_versions still points at the baseline
+  // captured before the upload. Doing this in the pipeline avoids the old
+  // client race that finalized the change log immediately after queueing.
+  try {
+    const { finalizeReportChangeLogForCase } = await import("./cases.functions");
+    await finalizeReportChangeLogForCase(db, caseId);
+  } catch (changeLogError) {
+    console.warn(
+      "[report-change-log] automatic finalization skipped:",
+      changeLogError instanceof Error ? changeLogError.message : changeLogError,
+    );
+  }
+
   // Immutable version snapshot — directive Phase 1.1.
   // Read back the persisted row so the snapshot reflects exactly what was
   // saved (version, change_log, quality_blocked, etc.).
