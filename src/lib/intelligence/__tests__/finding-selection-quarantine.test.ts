@@ -89,3 +89,47 @@ describe("ADR semantic evidence integrity", () => {
     expect(isCanonicalFinding(finding)).toBe(false);
   });
 });
+
+describe("ADR semantic evidence provenance isolation", () => {
+  it("does not let an unrelated secondary quote cure an inverted primary holding", () => {
+    const finding = {
+      source_module: "agent:constitutional_rights_mapping",
+      verification_status: "verified",
+      finding_status: "candidate",
+      audit_classification: "VERIFIED_COURT_HOLDING",
+      title: "Aplicabilidad de la exención fiscal",
+      description: "La SCJN determinó que el ISSSTE no está exento del pago de impuestos locales.",
+      source_quote:
+        "El Pleno determinó que fue incorrecto el fallo del Tribunal Colegiado respecto del impuesto predial.",
+      evidence_refs: [
+        {
+          document_id: "unrelated-document",
+          quote: "Una parte alegó que el organismo no está exento de contribuciones locales.",
+        },
+      ],
+    };
+
+    expect(isCanonicalFinding(finding)).toBe(false);
+    expect(selectFindings([finding])).toEqual([]);
+  });
+
+  it("does not let a procedencia quote cure a competence-only primary quote", () => {
+    const finding = {
+      source_module: "agent:constitutional_rights_mapping",
+      verification_status: "verified",
+      finding_status: "candidate",
+      audit_classification: "VERIFIED_COURT_HOLDING",
+      title: "Procedencia del recurso de revisión",
+      description: "El recurso fue procedente debido a cuestiones constitucionales no atendidas.",
+      source_quote: "El Pleno de esta SCJN es competente para conocer del presente asunto.",
+      evidence_refs: [
+        {
+          document_id: "different-resolution",
+          quote: "En otro expediente se declaró procedente un recurso diverso.",
+        },
+      ],
+    };
+
+    expect(isCanonicalFinding(finding)).toBe(false);
+  });
+});
