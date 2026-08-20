@@ -22,22 +22,29 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
     const {data:organizations,error:orgError}=await supabase.from("organizations").select("id,name").order("name");
     fail(orgError);
     const orgIds=(organizations??[]).map((o:any)=>o.id);
-    if(!orgIds.length) return {organizations:[],programs:[],offices:[],cases:[],people:[],alerts:[],stats:{active:0,critical:0,overdue:0,unverifiedReferrals:0},userId};
-    const [programs,offices,cases,people,alerts,referrals,tasks]=await Promise.all([
+    const empty={organizations:[],programs:[],offices:[],cases:[],people:[],families:[],alerts:[],institutions:[],templates:[],roleAssignments:[],recentActivity:[],stats:{active:0,critical:0,overdue:0,unverifiedReferrals:0},userId};
+    if(!orgIds.length)return empty;
+    const [programs,offices,cases,people,families,alerts,referrals,tasks,institutions,templates,roleAssignments,recentActivity]=await Promise.all([
       supabase.from("social_programs").select("id,org_id,name_es,name_en,case_prefix,active").in("org_id",orgIds).eq("active",true).order("name_es"),
       supabase.from("social_offices").select("id,org_id,name,address,active").in("org_id",orgIds).eq("active",true).order("name"),
-      supabase.from("social_cases").select("id,org_id,program_id,case_number,case_type,status,priority,risk_level,last_activity_at,next_required_action,person_id,family_id,assigned_case_manager").in("org_id",orgIds).is("deleted_at",null).order("last_activity_at",{ascending:false}).limit(100),
-      supabase.from("social_people").select("id,org_id,person_number,legal_name,preferred_name,telephone,email,consent_status,record_status").in("org_id",orgIds).is("deleted_at",null).order("updated_at",{ascending:false}).limit(100),
-      supabase.from("social_alerts").select("id,org_id,social_case_id,alert_type,severity,title_es,title_en,due_at").in("org_id",orgIds).is("resolved_at",null).order("due_at",{ascending:true}).limit(100),
+      supabase.from("social_cases").select("id,org_id,program_id,case_number,case_type,status,priority,risk_level,last_activity_at,next_required_action,person_id,family_id,assigned_case_manager,supervising_manager,service_areas,confidentiality_level,consent_status").in("org_id",orgIds).is("deleted_at",null).order("last_activity_at",{ascending:false}).limit(250),
+      supabase.from("social_people").select("id,org_id,person_number,legal_name,preferred_name,telephone,email,consent_status,record_status").in("org_id",orgIds).is("deleted_at",null).order("updated_at",{ascending:false}).limit(250),
+      supabase.from("social_families").select("id,org_id,family_number,family_name,primary_contact_person_id,assigned_case_manager,current_location").in("org_id",orgIds).is("deleted_at",null).order("updated_at",{ascending:false}).limit(250),
+      supabase.from("social_alerts").select("id,org_id,social_case_id,alert_type,severity,title_es,title_en,due_at,acknowledged_at").in("org_id",orgIds).is("resolved_at",null).order("due_at",{ascending:true}).limit(250),
       supabase.from("social_referrals").select("id,status").in("org_id",orgIds).neq("status","completed"),
       supabase.from("social_tasks").select("id,status,due_at").in("org_id",orgIds).neq("status","done"),
+      supabase.from("social_institutions").select("id,org_id,name,institution_type,services,active").or(`org_id.is.null,org_id.in.(${orgIds.join(",")})`).eq("active",true).order("name"),
+      supabase.from("social_assessment_templates").select("id,org_id,code,version,name_es,name_en,schema").or(`org_id.is.null,org_id.in.(${orgIds.join(",")})`).eq("active",true).order("name_es"),
+      supabase.from("social_role_assignments").select("id,org_id,user_id,role,scope_type,scope_id,active,ends_at").in("org_id",orgIds).eq("active",true),
+      supabase.from("social_activity_events").select("id,org_id,social_case_id,actor_id,event_type,entity_type,occurred_at").in("org_id",orgIds).order("occurred_at",{ascending:false}).limit(100),
     ]);
-    [programs,offices,cases,people,alerts,referrals,tasks].forEach((r:any)=>fail(r.error));
-    const now=Date.now();
-    const caseRows=cases.data??[];
+    [programs,offices,cases,people,families,alerts,referrals,tasks,institutions,templates,roleAssignments,recentActivity].forEach((r:any)=>fail(r.error));
+    const now=Date.now();const caseRows=cases.data??[];
     return {
       organizations:organizations??[],programs:programs.data??[],offices:offices.data??[],
-      cases:caseRows,people:people.data??[],alerts:alerts.data??[],userId,
+      cases:caseRows,people:people.data??[],families:families.data??[],alerts:alerts.data??[],
+      institutions:institutions.data??[],templates:templates.data??[],
+      roleAssignments:roleAssignments.data??[],recentActivity:recentActivity.data??[],userId,
       stats:{
         active:caseRows.filter((c:any)=>!["closed","archived","transferred"].includes(c.status)).length,
         critical:caseRows.filter((c:any)=>c.risk_level==="critical").length,
