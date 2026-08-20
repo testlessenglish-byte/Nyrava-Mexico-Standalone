@@ -21,6 +21,7 @@ describe("stale-data and persistence guard coverage", () => {
 
   it("factory reset includes current provenance and stale-derived tables", () => {
     const sql = read("supabase/migrations/20260820023500_guard_coverage_and_reset_integrity.sql");
+    const preview = read("src/lib/factory-reset.functions.ts");
     for (const table of [
       "pipeline_trace",
       "cross_agent_audit",
@@ -31,7 +32,17 @@ describe("stale-data and persistence guard coverage", () => {
       "verification_items",
     ]) {
       expect(sql).toContain(`'${table}'`);
+      expect(preview).toContain(`"${table}"`);
     }
+  });
+
+  it("preserves the current service-role-only factory reset RPC contract", () => {
+    const sql = read("supabase/migrations/20260820023500_guard_coverage_and_reset_integrity.sql");
+    const caller = read("src/lib/factory-reset.functions.ts");
+    expect(sql).toContain("p_actor_id uuid DEFAULT NULL");
+    expect(sql).toContain("service role required");
+    expect(sql).toContain("TO service_role");
+    expect(caller).toContain("p_actor_id: context.userId");
   });
 
   it("the persistence guard is corpus-aware, not cache-aware", () => {
