@@ -8,3 +8,7 @@ This regression records four invariants reproduced in the 2026-08-19 production 
 4. A `concluded_audit` report must not surface a recommended filing/motion card as though the concluded proceeding were still awaiting an initiating motion.
 
 These are report-integrity invariants, not case-specific legal conclusions. The source-meaning guard applies whenever quoted evidence expressly negates the duty that generated prose attempts to turn into a defect.
+
+## 2026-08-20 release-integrity follow-up
+
+PR #176 added blocking semantic checks for the ADR5829/2025 holding inversion, competence/procedencia mismatch, zero-evidence theories, quote-span deduplication, and terminal release-state persistence. This follow-up records the production deployment boundary at merge commit `818416e56bf56ed46f1419e2a186f7e852ba2a25` so connected deployment systems can synchronize the repaired main branch.
