@@ -10,8 +10,9 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import {
-  createSocialCase, createSocialPerson, findPossibleSocialPeople,
-  ensureSocialProgram, getSocialWorkspace, searchSocialRecords,
+  acknowledgeSocialAlert, createSocialCase, createSocialFamily, createSocialPerson,
+  findPossibleSocialPeople, ensureSocialProgram, getSocialIndicators,
+  getSocialWorkspace, searchSocialRecords,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
 import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
@@ -54,16 +55,24 @@ function SocialCarePage(){
   const duplicateFn=useServerFn(findPossibleSocialPeople);
   const searchFn=useServerFn(searchSocialRecords);
   const ensureProgramFn=useServerFn(ensureSocialProgram);
+  const createFamilyFn=useServerFn(createSocialFamily);
+  const indicatorsFn=useServerFn(getSocialIndicators);
+  const acknowledgeAlertFn=useServerFn(acknowledgeSocialAlert);
   const [area,setArea]=useState<Area>("dashboard");
   const [selectedCaseId,setSelectedCaseId]=useState("");
   const [orgId,setOrgId]=useState("");
   const [query,setQuery]=useState("");
   const [programSetup,setProgramSetup]=useState({nameEs:"Atención Integral",nameEn:"Comprehensive Care",prefix:"NYR-SOC"});
+  const [family,setFamily]=useState({name:"",primaryId:"",memberIds:[] as string[]});
+  const today=new Date().toISOString().slice(0,10);const yearStart=`${today.slice(0,4)}-01-01`;
+  const [indicatorRange,setIndicatorRange]=useState({from:yearStart,to:today});
   const workspace=useQuery({queryKey:["social-workspace"],queryFn:()=>workspaceFn()});
   const resolvedOrg=orgId||workspace.data?.organizations?.[0]?.id||"";
   const programs=(workspace.data?.programs??[]).filter((p:any)=>p.org_id===resolvedOrg);
   const visibleCases=(workspace.data?.cases??[]).filter((c:any)=>c.org_id===resolvedOrg);
   const visiblePeople=(workspace.data?.people??[]).filter((p:any)=>p.org_id===resolvedOrg);
+  const visibleFamilies=(workspace.data?.families??[]).filter((x:any)=>x.org_id===resolvedOrg);
+  const visibleAlerts=(workspace.data?.alerts??[]).filter((x:any)=>x.org_id===resolvedOrg);
   const search=useMutation({
     mutationFn:()=>searchFn({data:{orgId:resolvedOrg,query,limit:50}}),
     onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
@@ -87,6 +96,17 @@ function SocialCarePage(){
   const programMutation=useMutation({
     mutationFn:()=>ensureProgramFn({data:{orgId:resolvedOrg,...programSetup}}),
     onSuccess:()=>{toast.success(es?"Programa social actualizado":"Social program updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
+    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+  });
+  const familyMutation=useMutation({
+    mutationFn:()=>createFamilyFn({data:{orgId:resolvedOrg,familyName:family.name,primaryContactPersonId:family.primaryId||undefined,currentLocation:{},memberIds:family.memberIds}}),
+    onSuccess:()=>{toast.success(es?"Familia registrada":"Family registered");setFamily({name:"",primaryId:"",memberIds:[]});qc.invalidateQueries({queryKey:["social-workspace"]});},
+    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+  });
+  const indicators=useQuery({queryKey:["social-indicators",resolvedOrg,indicatorRange],queryFn:()=>indicatorsFn({data:{orgId:resolvedOrg,from:indicatorRange.from,to:indicatorRange.to}}),enabled:area==="indicators"&&!!resolvedOrg});
+  const acknowledgeMutation=useMutation({
+    mutationFn:(id:string)=>acknowledgeAlertFn({data:{alertId:id,resolve:true}}),
+    onSuccess:()=>{toast.success(es?"Alerta resuelta":"Alert resolved");qc.invalidateQueries({queryKey:["social-workspace"]});},
     onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
   });
   const stats=workspace.data?.stats;
