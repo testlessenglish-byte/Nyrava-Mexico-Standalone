@@ -7733,6 +7733,30 @@ ${paginationTail}`;
   );
   const pageCountTotal = docIndex.reduce((n, d) => n + Math.max(1, d.pages || 1), 0);
   const corpusFullText = (docsForReportGround ?? []).map((d) => d.extracted_text ?? "").join("\n");
+  const personalNoticeNoDuty = /(?:no\s+exist[ií]a(?:\s+alg[uú]n)?|no\s+(?:era|es|resultaba|fue)\s+necesari[oa]|no\s+hab[ií]a)\b[^.!?]{0,180}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,140}notific[^.!?]{0,100}personal/i.test(corpusFullText);
+  const isFalsePersonalNoticeTheory = (value: unknown): boolean => {
+    const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
+    return /notific[^.!?]{0,120}personal/i.test(text) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|garanti[cz]|asegurar|necesari[oa])/i.test(text);
+  };
+  if (personalNoticeNoDuty) {
+    for (const key of ["next_actions", "strategy_recommendations", "motion_opportunities", "recommendations"]) {
+      const value = (parsed as Record<string, unknown>)[key];
+      if (Array.isArray(value)) (parsed as Record<string, unknown>)[key] = value.filter((item) => !isFalsePersonalNoticeTheory(item));
+    }
+    const exec = (parsed as Record<string, unknown>).executive_summary;
+    if (exec && typeof exec === "object" && !Array.isArray(exec)) {
+      const urgent = (exec as Record<string, unknown>).urgent_actions;
+      if (Array.isArray(urgent)) (exec as Record<string, unknown>).urgent_actions = urgent.filter((item) => !isFalsePersonalNoticeTheory(item));
+      if (isFalsePersonalNoticeTheory((exec as Record<string, unknown>).primary_risk)) (exec as Record<string, unknown>).primary_risk = "";
+    }
+    const legalAnalysis = (parsed as Record<string, unknown>).legal_analysis;
+    if (Array.isArray(legalAnalysis)) (parsed as Record<string, unknown>).legal_analysis = legalAnalysis.filter((item) => !isFalsePersonalNoticeTheory(item));
+    for (const key of Object.keys(prose)) {
+      const value = prose[key];
+      if (typeof value !== "string" || !isFalsePersonalNoticeTheory(value)) continue;
+      prose[key] = value.split(/(?<=[.!?])\s+|\n+/g).filter((sentence) => !isFalsePersonalNoticeTheory(sentence)).join(" ").trim();
+    }
+  }
   // Count facts corroborated by ≥2 documents (heuristic: distinct doc ids on finding citations).
   let corroboratedCount = 0;
   for (const f of findings as Array<{ source_doc_ids?: unknown }>) {
@@ -7767,6 +7791,10 @@ ${paginationTail}`;
     // landed in the minimal bin.
     locale: reportLocaleForNotice,
   });
+
+  const { getCaseAnalysisMode: getReportCaseAnalysisMode } = await import("./intelligence/case-analysis-mode");
+  const reportCaseAnalysisMode = await getReportCaseAnalysisMode(db, caseId);
+  const allowReportMotionGeneration = reportCaseAnalysisMode === "concluded_audit" ? false : ess.allowMotionGeneration;
 
   // ESS-driven per-finding constraint (report-quality audit, 2026-08-14,
   // ADR-2239-2018-180906): "modo LIMITADO" already suppresses the CASE-LEVEL
@@ -7938,7 +7966,6 @@ ${paginationTail}`;
   const reportMode: "FULL" | "LIMITED" =
     !chunkStatus.narrative.ok ||
     !ess.allowQuantitativeScores ||
-    !ess.allowMotionGeneration ||
     ess.bin === "minimal" ||
     scoreSuppressed
       ? "LIMITED"
@@ -7947,7 +7974,7 @@ ${paginationTail}`;
 
   // Motion / scoring governance gates — in LIMITED mode, gated prose is
   // cleared entirely so suppressed content can never leak into the export.
-  const motionsFinal = isLimited ? [] : motionsGuarded.items;
+  const motionsFinal = isLimited || !allowReportMotionGeneration ? [] : motionsGuarded.items;
   if (isLimited) {
     // Fields gated in LIMITED mode are wiped — we skip generation rather
     // than soft-hiding. The export layer renders a single suppression line.
@@ -8164,8 +8191,8 @@ ${paginationTail}`;
     suppressed_validator: 0,
     meta: meta as never,
   });
-  const motionsSuppressed = ess.allowMotionGeneration ? 0 : motionsGuarded.items.length;
-  const motionsAccepted = ess.allowMotionGeneration ? motionsGuarded.items.length : 0;
+  const motionsSuppressed = allowReportMotionGeneration ? 0 : motionsGuarded.items.length;
+  const motionsAccepted = allowReportMotionGeneration ? motionsGuarded.items.length : 0;
   const totalProseDropped = Object.values(validatorAudit).reduce(
     (n, x) => n + (x?.dropped ?? 0),
     0,
@@ -8207,12 +8234,12 @@ ${paginationTail}`;
       Array.isArray(opps) ? (opps as unknown[]).length : 0,
     ),
     subRow("motion", motionsRaw.length, motionsAccepted, motionsSuppressed, {
-      gate: ess.allowMotionGeneration ? "open" : "ess_blocked",
+      gate: allowReportMotionGeneration ? "open" : reportCaseAnalysisMode === "concluded_audit" ? "concluded_audit_blocked" : "ess_blocked",
     }),
     subRow("ess_validator", findings.length, findings.length, 0, {
       bin: ess.bin,
       score: ess.score,
-      allowMotion: ess.allowMotionGeneration,
+      allowMotion: allowReportMotionGeneration,
       allowScores: ess.allowQuantitativeScores,
     }),
     subRow(
@@ -8743,8 +8770,9 @@ ${paginationTail}`;
           policy:
             "Evidence Sufficiency Score (ESS) caps narrative length, gates motion generation, and gates quantitative scoring. Sparse corpora cannot produce rich reports. A secondary validator strips any prose sentence whose meaningful tokens do not appear in the extracted corpus.",
           ...ess,
+          allowMotionGeneration: allowReportMotionGeneration,
           secondary_validator: validatorAudit,
-          motions_suppressed_by_gate: ess.allowMotionGeneration ? 0 : motionsGuarded.items.length,
+          motions_suppressed_by_gate: allowReportMotionGeneration ? 0 : motionsGuarded.items.length,
         },
         // Canonical Reconciliation Design (2026-08-16), P2 — visibility for
         // resolveReportCaseType's conflict override: when true, the report's
