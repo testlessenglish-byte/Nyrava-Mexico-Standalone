@@ -14,6 +14,7 @@ import {
   ensureSocialProgram, getSocialWorkspace, searchSocialRecords,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
+import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
 
 export const Route=createFileRoute("/_authenticated/social")({
   head:()=>({meta:[
@@ -54,6 +55,7 @@ function SocialCarePage(){
   const searchFn=useServerFn(searchSocialRecords);
   const ensureProgramFn=useServerFn(ensureSocialProgram);
   const [area,setArea]=useState<Area>("dashboard");
+  const [selectedCaseId,setSelectedCaseId]=useState("");
   const [orgId,setOrgId]=useState("");
   const [query,setQuery]=useState("");
   const [programSetup,setProgramSetup]=useState({nameEs:"Atención Integral",nameEn:"Comprehensive Care",prefix:"NYR-SOC"});
@@ -94,6 +96,14 @@ function SocialCarePage(){
   },[visibleCases,query]);
 
   if(workspace.isLoading)return <div className="p-8 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>{es?"Cargando Atención Integral…":"Loading Comprehensive Care…"}</div>;
+  if(selectedCaseId)return <div className="mx-auto max-w-[1600px] p-4 md:p-6"><SocialCaseWorkspace
+    caseId={selectedCaseId}
+    people={workspace.data?.people??[]}
+    institutions={workspace.data?.institutions??[]}
+    templates={workspace.data?.templates??[]}
+    roleAssignments={workspace.data?.roleAssignments??[]}
+    onClose={()=>{setSelectedCaseId("");void qc.invalidateQueries({queryKey:["social-workspace"]});}}
+  /></div>;
   return <div className="mx-auto max-w-[1500px] p-4 md:p-6">
     <header className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10 p-5 md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -130,7 +140,7 @@ function SocialCarePage(){
           <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-4">
             <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 text-warning"/><div><p className="text-sm font-semibold">{es?"Guía de escalamiento":"Escalation guidance"}</p><p className="text-sm text-muted-foreground">{EMERGENCY_GUIDANCE[locale]}</p></div></div>
           </div>
-          <CaseTable cases={visibleCases.slice(0,12)} es={es}/>
+          <CaseTable cases={visibleCases.slice(0,12)} es={es} onOpen={setSelectedCaseId}/>
         </>}
 
         {(area==="people"||area==="intake")&&<div className="grid gap-4 xl:grid-cols-[minmax(0,420px)_1fr]">
@@ -164,7 +174,7 @@ function SocialCarePage(){
           </div>
           <div className="mb-4 flex flex-wrap gap-2"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={es?"Buscar por nombre, folio, teléfono, estado…":"Search name, ID, phone, status…"} className="min-w-[260px] flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm"/><button onClick={()=>search.mutate()} disabled={!resolvedOrg||search.isPending} className="rounded-lg border border-border px-4 py-2 text-sm"><Search className="mr-2 inline h-4 w-4"/>{es?"Búsqueda amplia":"Broad search"}</button></div>
           {search.data&&<div className="mb-4 rounded-lg border border-border bg-card p-3 text-sm">{es?"Resultados autorizados":"Authorized results"}: {search.data.length}</div>}
-          <CaseTable cases={filtered} es={es}/>
+          <CaseTable cases={filtered} es={es} onOpen={setSelectedCaseId}/>
         </section>}
 
         {area==="intake"&&null}
@@ -189,7 +199,7 @@ function SocialCarePage(){
 
 function Metric({label,value,danger=false}:{label:string;value:number;danger?:boolean}){return <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-1 text-3xl font-semibold ${danger&&value>0?"text-destructive":""}`}>{value}</p></div>}
 function Field({label,value,onChange,type="text"}:{label:string;value:string;onChange:(v:string)=>void;type?:string}){return <label className="block text-xs font-medium text-muted-foreground">{label}<input type={type} value={value} onChange={e=>onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>}
-function CaseTable({cases,es}:{cases:any[];es:boolean}){return <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground"><th className="px-4 py-3">{es?"Folio":"Case no."}</th><th className="px-4 py-3">{es?"Tipo":"Type"}</th><th className="px-4 py-3">{es?"Estado":"Status"}</th><th className="px-4 py-3">{es?"Riesgo":"Risk"}</th><th className="px-4 py-3">{es?"Última actividad":"Last activity"}</th></tr></thead><tbody>{cases.map(c=><tr key={c.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{c.case_number}</td><td className="px-4 py-3">{c.case_type}</td><td className="px-4 py-3">{c.status}</td><td className={`px-4 py-3 ${c.risk_level==="critical"?"font-semibold text-destructive":""}`}>{c.risk_level}</td><td className="px-4 py-3 text-muted-foreground">{new Date(c.last_activity_at).toLocaleDateString()}</td></tr>)}{!cases.length&&<tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">{es?"Sin casos autorizados":"No authorized cases"}</td></tr>}</tbody></table></div>}
+function CaseTable({cases,es,onOpen}:{cases:any[];es:boolean;onOpen:(id:string)=>void}){return <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground"><th className="px-4 py-3">{es?"Folio":"Case no."}</th><th className="px-4 py-3">{es?"Tipo":"Type"}</th><th className="px-4 py-3">{es?"Estado":"Status"}</th><th className="px-4 py-3">{es?"Riesgo":"Risk"}</th><th className="px-4 py-3">{es?"Última actividad":"Last activity"}</th><th className="px-4 py-3"></th></tr></thead><tbody>{cases.map(c=><tr key={c.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{c.case_number}</td><td className="px-4 py-3">{c.case_type}</td><td className="px-4 py-3">{c.status}</td><td className={`px-4 py-3 ${c.risk_level==="critical"?"font-semibold text-destructive":""}`}>{c.risk_level}</td><td className="px-4 py-3 text-muted-foreground">{new Date(c.last_activity_at).toLocaleDateString()}</td><td className="px-4 py-3 text-right"><button type="button" onClick={()=>onOpen(c.id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{es?"Abrir":"Open"}</button></td></tr>)}{!cases.length&&<tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{es?"Sin casos autorizados":"No authorized cases"}</td></tr>}</tbody></table></div>}
 function PeopleTable({people,es}:{people:any[];es:boolean}){return <div className="overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-4 py-3">{es?"ID":"ID"}</th><th className="px-4 py-3">{es?"Persona":"Person"}</th><th className="px-4 py-3">{es?"Consentimiento":"Consent"}</th></tr></thead><tbody>{people.map(p=><tr key={p.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{p.person_number}</td><td className="px-4 py-3">{p.legal_name}<span className="block text-xs text-muted-foreground">{p.preferred_name}</span></td><td className="px-4 py-3">{p.consent_status}</td></tr>)}</tbody></table></div>}
 function Empty({title,text}:{title:string;text:string}){return <section className="rounded-xl border border-border bg-card p-6"><h2 className="text-lg font-semibold">{title}</h2><p className="mt-2 max-w-3xl text-sm text-muted-foreground">{text}</p></section>}
 function OperationalArea({area,es,cases}:{area:string;es:boolean;cases:any[]}){const labels:Record<string,[string,string,string,string]>={
