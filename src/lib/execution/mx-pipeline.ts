@@ -47,6 +47,7 @@ export type MxPipelineProfile =
   | "agrario"
   | "electoral"
   | "ambiental"
+  | "migratorio"
   // Responsabilidad médica / mala praxis — a civil liability claim (or, when
   // brought against a public institution — IMSS, ISSSTE, hospital estatal —
   // an administrativo one) that the base civil/administrativo checklists
@@ -116,6 +117,7 @@ const PROFILE_BY_MATERIA: Record<MexicanCaseType, MxPipelineProfile> = {
   // profile (that would pull in trial_prep/discovery/witness stages meant
   // for a lawsuit, not a closing). See EXCLUDED_STAGES below.
   inmobiliario: "inmobiliario",
+  migratorio: "migratorio",
 };
 
 /**
