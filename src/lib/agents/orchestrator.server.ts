@@ -994,7 +994,7 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
       : "Final review requires revision — see QA/Judge/Hallucination logs.";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (args.db as any)
+  const { error: releaseStateError } = await (args.db as any)
     .from("cases")
     .update({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1011,6 +1011,9 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
     .eq("id", args.caseId);
+  if (releaseStateError) {
+    throw new Error(`Failed to persist final release state for case ${args.caseId}: ${releaseStateError.message}`);
+  }
   console.info(
     `[final-release] ${JSON.stringify({
       run_id: runId,

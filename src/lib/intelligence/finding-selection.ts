@@ -93,7 +93,9 @@ export function canonicalEvidenceIntegrityIssue(f: SelectableFinding): string | 
   const claim = [f.title, f.description, f.legal_significance, f.potential_impact]
     .map((v) => String(v ?? ""))
     .join(" ");
-  const evidence = [String(f.source_quote ?? ""), ...quotedRefs.map((r) => String(r.quote))].join(" ");
+  const sourceQuote = String(f.source_quote ?? "").trim();
+  const evidenceQuotes = quotedRefs.map((r) => String(r.quote).trim());
+  const evidenceSegments = sourceQuote ? [sourceQuote, ...evidenceQuotes] : evidenceQuotes;
   const auditClass = String(f.audit_classification ?? "").toUpperCase();
 
   // A theory with no classified evidentiary basis must not enter an
@@ -103,18 +105,31 @@ export function canonicalEvidenceIntegrityIssue(f: SelectableFinding): string | 
   // ADR holding-polarity guard: a statement that SCJN held an entity was NOT
   // exempt is not entailed by a quote saying only that lower decisions were
   // incorrect. The quote must itself contain the asserted non-exemption.
+  const overturnedLowerCourt =
+    /(?:incorrect.{0,140}(?:fallo|sentencia|determinaci[oó]n|Tribunal Colegiado|autoridad responsable)|(?:fallo|sentencia|determinaci[oó]n|Tribunal Colegiado|autoridad responsable).{0,140}incorrect)/i;
+  const statesNonExemption = /no\s+(?:est[aá]|se\s+encuentra|resulta)\s+exent/i;
   if (
     /\bSCJN\b|Suprema Corte/i.test(claim) &&
-    /no\s+(?:est[aá]|se\s+encuentra|resulta)\s+exent/i.test(claim) &&
-    /(?:incorrect.{0,140}(?:fallo|sentencia|determinaci[oó]n|Tribunal Colegiado|autoridad responsable)|(?:fallo|sentencia|determinaci[oó]n|Tribunal Colegiado|autoridad responsable).{0,140}incorrect)/i.test(evidence) &&
-    !/no\s+(?:est[aá]|se\s+encuentra|resulta)\s+exent/i.test(evidence)
+    statesNonExemption.test(claim) &&
+    (
+      (sourceQuote && overturnedLowerCourt.test(sourceQuote) && !statesNonExemption.test(sourceQuote)) ||
+      (!sourceQuote &&
+        evidenceSegments.some((quote) => overturnedLowerCourt.test(quote)) &&
+        !evidenceSegments.some((quote) => statesNonExemption.test(quote)))
+    )
   ) return "court_holding_polarity_not_entailed";
 
-  // Competence and admissibility/procedencia are distinct holdings.
+  // Competence and admissibility/procedencia are distinct holdings. Keep each
+  // quote as its own provenance unit so an unrelated ref cannot cure the
+  // primary quote's semantic mismatch.
+  const competenceOnly = (quote: string) =>
+    /\bcompetente\b/i.test(quote) && !/proceden(?:cia|te)/i.test(quote);
   if (
     /proceden(?:cia|te).{0,180}(?:debido|porque|por\s+la\s+existencia)/i.test(claim) &&
-    /\bcompetente\b/i.test(evidence) &&
-    !/proceden(?:cia|te)/i.test(evidence)
+    (
+      (sourceQuote && competenceOnly(sourceQuote)) ||
+      (!sourceQuote && evidenceSegments.length > 0 && evidenceSegments.every(competenceOnly))
+    )
   ) return "competence_quote_does_not_establish_admissibility";
 
   return null;
