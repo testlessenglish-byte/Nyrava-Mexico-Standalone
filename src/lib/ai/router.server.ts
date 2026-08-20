@@ -55,6 +55,9 @@ export interface RouteOpts extends ChatOpts {
    * option — a real 429 costs milliseconds, a stalled stage costs the run.
    */
   _ignoreCooldowns?: boolean;
+  /** Internal: provider order selected for this logical call. Preserved by
+   * recursive cooldown/compression retries so round-robin advances once. */
+  _providerOrder?: ProviderType[];
 }
 
 export interface RouteResult extends ChatResult {
@@ -292,6 +295,19 @@ const CACHE_MAX = 500;
 // balanced first-key selection without a read/write database race, and every
 // selection is emitted into telemetry below.
 const _groqKeyCursor = new Map<string, number>();
+const _providerGroupCursor = new Map<string, number>();
+
+/** Rotate provider groups while preserving every provider's internal key
+ * order. Exported so the fairness invariant is testable without DB/network
+ * mocks. */
+export function rotateProviderGroups<T extends { provider: ProviderType }>(
+  groups: readonly T[],
+  start: number,
+): T[] {
+  if (groups.length < 2) return [...groups];
+  const offset = ((start % groups.length) + groups.length) % groups.length;
+  return groups.map((_, index) => groups[(offset + index) % groups.length]);
+}
 
 // Groq enforces quotas at the ORGANIZATION level for a given model. Users
 // may hold keys across multiple orgs, so cooldown is keyed by (model, org)
@@ -788,6 +804,25 @@ export async function routeAI(opts: RouteOpts): Promise<RouteResult> {
         // A different provider entirely — add it as its own fallback group.
         runtimeGroups.push(g);
       }
+    }
+  }
+
+  // Balance successful calls ACROSS configured providers, not just across
+  // keys within the first provider. Previously the saved provider order was
+  // a permanent primary/fallback chain, so a healthy first provider served
+  // every request and Gemini/Groq/OpenRouter never rotated. A forced provider
+  // remains absolute (Admin connection tests rely on that behavior).
+  if (!opts.forceProvider && opts.userId && runtimeGroups.length > 1) {
+    const providers = runtimeGroups.map((g) => g.provider);
+    const cursorId = `${opts.userId}:${providers.slice().sort().join(",")}`;
+    const selectedOrder = opts._providerOrder?.filter((p) => providers.includes(p));
+    if (selectedOrder?.length === providers.length) {
+      runtimeGroups = selectedOrder.map((provider) => runtimeGroups.find((g) => g.provider === provider)!);
+    } else {
+      const start = (_providerGroupCursor.get(cursorId) ?? 0) % runtimeGroups.length;
+      runtimeGroups = rotateProviderGroups(runtimeGroups, start);
+      _providerGroupCursor.set(cursorId, (start + 1) % runtimeGroups.length);
+      Object.assign(opts, { _providerOrder: runtimeGroups.map((g) => g.provider) });
     }
   }
 
