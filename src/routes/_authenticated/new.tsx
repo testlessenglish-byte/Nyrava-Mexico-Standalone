@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Upload, FileText, X, KeyRound, ShieldCheck } from "lucide-react";
 import { CASE_TYPE_SELECT_GROUPS } from "@/lib/intelligence/practice-areas";
 import { JURISDICTION_GROUPS } from "@/lib/intelligence/jurisdictions";
+import { IMMIGRATION_SUBTYPES } from "@/lib/jurisdiction/immigration";
 import {
   CASE_ANALYSIS_MODE_SELECTABLE_OPTIONS,
   type CaseAnalysisMode,
@@ -39,6 +40,12 @@ function NewCasePage() {
   const [caseAnalysisMode, setCaseAnalysisMode] = useState<CaseAnalysisMode>("ongoing");
   const [caseType, setCaseType] = useState<string>("");
   const [amparoSubtype, setAmparoSubtype] = useState<"" | "indirecto" | "directo" | "directo_en_revision">("");
+  const [immigrationSubtype, setImmigrationSubtype] = useState("");
+  const [immigrationClientName, setImmigrationClientName] = useState("");
+  const [immigrationNationality, setImmigrationNationality] = useState("");
+  const [immigrationPassport, setImmigrationPassport] = useState("");
+  const [immigrationCondition, setImmigrationCondition] = useState("");
+  const [immigrationBenefit, setImmigrationBenefit] = useState("");
   const [jurisdiction, setJurisdiction] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [drag, setDrag] = useState(false);
@@ -72,14 +79,21 @@ function NewCasePage() {
       toast.error(t("new.toast.needCaseType"));
       return;
     }
+    if (caseType === "migratorio" && !immigrationSubtype) {
+      toast.error(locale === "es" ? "Selecciona el subtipo migratorio." : "Select an immigration subtype.");
+      return;
+    }
 
     setSubmitting(true);
     const fd = new FormData();
     fd.append("name", name);
+    const selectedImmigrationSubtype = IMMIGRATION_SUBTYPES.find(([key]) => key === immigrationSubtype);
     const descToSubmit =
       caseType === "amparo" && amparoSubtype === "directo_en_revision"
         ? `${desc}\n\n(Amparo Directo en Revisión ante la SCJN)`
-        : desc;
+        : caseType === "migratorio" && selectedImmigrationSubtype
+          ? `${desc}\n\n(Subtipo migratorio: ${selectedImmigrationSubtype[1]})`
+          : desc;
     fd.append("description", descToSubmit);
     // Single trusted analysis standard. `strict` is an internal compatibility
     // token only; there is no longer a user-selectable strict/exploratory fork.
@@ -87,6 +101,24 @@ function NewCasePage() {
     fd.append("case_type", caseType);
     fd.append("case_analysis_mode", caseAnalysisMode);
     if (jurisdiction) fd.append("jurisdiction", jurisdiction);
+    if (caseType === "migratorio") {
+      fd.append(
+        "matter_metadata",
+        JSON.stringify({
+          immigration_subtype: immigrationSubtype,
+          client_name: immigrationClientName,
+          nationality: immigrationNationality,
+          passport_number: immigrationPassport,
+          current_condition_of_stay: immigrationCondition,
+          requested_benefit: immigrationBenefit,
+          confidentiality_level: "confidential",
+          priority: "normal",
+          client_aliases: [],
+          tags: [],
+          important_dates: [],
+        }),
+      );
+    }
 
     for (const f of files) fd.append("files", f);
     toast.info(t("new.toast.uploading"));
@@ -183,6 +215,71 @@ function NewCasePage() {
                 <option value="directo">{t("new.field.amparoSubtype.directo")}</option>
                 <option value="directo_en_revision">{t("new.field.amparoSubtype.directoEnRevision")}</option>
               </select>
+            </div>
+          )}
+
+          {caseType === "migratorio" && (
+            <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <div>
+                <label className="text-sm font-medium">
+                  {locale === "es" ? "Subtipo migratorio" : "Immigration subtype"}
+                </label>
+                <select
+                  value={immigrationSubtype}
+                  onChange={(e) => setImmigrationSubtype(e.target.value)}
+                  className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">
+                    {locale === "es" ? "Selecciona un subtipo" : "Select a subtype"}
+                  </option>
+                  {IMMIGRATION_SUBTYPES.map(([key, es, en]) => (
+                    <option key={key} value={key}>{locale === "es" ? es : en}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    label: locale === "es" ? "Nombre del cliente" : "Client name",
+                    value: immigrationClientName,
+                    set: setImmigrationClientName,
+                  },
+                  {
+                    label: locale === "es" ? "Nacionalidad" : "Nationality",
+                    value: immigrationNationality,
+                    set: setImmigrationNationality,
+                  },
+                  {
+                    label: locale === "es" ? "Pasaporte" : "Passport",
+                    value: immigrationPassport,
+                    set: setImmigrationPassport,
+                  },
+                  {
+                    label: locale === "es" ? "Condición de estancia actual" : "Current immigration status",
+                    value: immigrationCondition,
+                    set: setImmigrationCondition,
+                  },
+                  {
+                    label: locale === "es" ? "Beneficio solicitado" : "Requested benefit",
+                    value: immigrationBenefit,
+                    set: setImmigrationBenefit,
+                  },
+                ].map((field) => (
+                  <label key={field.label} className="text-xs font-medium">
+                    {field.label}
+                    <input
+                      value={field.value}
+                      onChange={(e) => field.set(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {locale === "es"
+                  ? "Los pasaportes y números sensibles se enmascaran en listados y registros."
+                  : "Passports and sensitive identifiers are masked in list views and logs."}
+              </p>
             </div>
           )}
 

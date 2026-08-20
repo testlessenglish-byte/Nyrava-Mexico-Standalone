@@ -157,6 +157,21 @@ export const MX_DASHBOARD_MODULES: Record<MexicanCaseType, readonly string[]> = 
     "escrow",
     "property_intelligence",
   ],
+  migratorio: [
+    "immigration_status",
+    "eligibility_analysis",
+    "document_sufficiency",
+    "immigration_deadlines",
+    "family_relationship",
+    "employer_compliance",
+    "verification_enforcement",
+    "detention_deportation_risk",
+    "refugee_non_refoulement",
+    "child_vulnerability",
+    "administrative_remedies",
+    "nationality_naturalization",
+    "current_law_validation",
+  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -194,6 +209,17 @@ export const MX_LIFECYCLE_STATUSES: Record<MexicanCaseType, readonly string[]> =
     "waiting_on_municipality",
     "ready_to_close",
     "closing_scheduled",
+  ],
+  migratorio: [
+    "waiting_on_client",
+    "waiting_on_inm",
+    "waiting_on_comar",
+    "waiting_on_sre",
+    "waiting_on_tfja",
+    "waiting_on_court",
+    "prevention_response_due",
+    "interview_scheduled",
+    "resolution_issued",
   ],
 };
 
@@ -247,6 +273,19 @@ export const MX_PARTY_ROLES: Record<MexicanCaseType, readonly string[]> = {
     "registro_publico",
     "municipio",
     "escrow",
+  ],
+  migratorio: [
+    "persona_migrante",
+    "solicitante",
+    "refugiado",
+    "empleador",
+    "familiar",
+    "inm",
+    "comar",
+    "sre",
+    "dif",
+    "autoridad_responsable",
+    "tercero_interesado",
   ],
 };
 
@@ -465,6 +504,32 @@ export const MX_TASK_TEMPLATES: Record<MexicanCaseType, readonly MxTaskTemplate[
       dueInDays: 30,
     },
   ],
+  migratorio: [
+    {
+      key: "migratorio_vigencia",
+      title: { es: "Verificar vigencia de estancia y documentos", en: "Verify status and document validity" },
+      priority: "high",
+      dueInDays: 1,
+    },
+    {
+      key: "migratorio_prevencion",
+      title: { es: "Confirmar plazo para responder prevención", en: "Confirm prevention-response deadline" },
+      priority: "high",
+      dueInDays: 1,
+    },
+    {
+      key: "migratorio_fuente_actual",
+      title: { es: "Verificar requisitos y fuente oficial vigente", en: "Verify current official requirements and source" },
+      priority: "high",
+      dueInDays: 2,
+    },
+    {
+      key: "migratorio_suficiencia",
+      title: { es: "Revisar suficiencia documental", en: "Review document sufficiency" },
+      priority: "normal",
+      dueInDays: 3,
+    },
+  ],
 };
 
 export function taskTemplatesFor(t: MexicanCaseType): readonly MxTaskTemplate[] {
@@ -502,6 +567,8 @@ export const MX_AI_PERSONA: Record<MexicanCaseType, string> = {
     "Actúas como especialista en derecho ambiental mexicano: LGEEPA, manifestaciones de impacto ambiental, PROFEPA y responsabilidad ambiental.",
   inmobiliario:
     "Actúas como abogado inmobiliario transaccional mexicano: due diligence de título, certificado de libertad de gravamen, catastro, constancias de no adeudo, fideicomiso y cierre ante notario. No es litigio.",
+  migratorio:
+    "Actúas como especialista en derecho migratorio, refugio y nacionalidad mexicana. Aplicas exclusivamente derecho mexicano y fuentes oficiales vigentes del INM, SRE, COMAR, DOF, TFJA y Poder Judicial de la Federación. Distingues hechos verificados, inferencias y requisitos pendientes; nunca sustituyes una fuente oficial con memoria del modelo.",
 };
 
 export function aiPersonaFor(t: MexicanCaseType): string {

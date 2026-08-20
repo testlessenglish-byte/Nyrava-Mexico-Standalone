@@ -193,6 +193,33 @@ function expandZipsAndFiles(
  * rather than re-uploaded. Documents are inserted with status="pending" —
  * extraction is a separate, later pipeline stage.
  */
+function revisionIdentity(filename: string): string {
+  const dot = filename.lastIndexOf(".");
+  const stem = (dot > 0 ? filename.slice(0, dot) : filename)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  return stem
+    .replace(/\s*\(\d+\)\s*$/g, "")
+    .replace(/(?:[\s._-]+(?:copy|copia|revised|revision|rev|version|final|v)\s*\d*)+$/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+type UploadResult = {
+  uploaded: number;
+  skipped: number;
+  excludedNonEvidentiary: string[];
+  uploadedDocumentIds: string[];
+  revisedDocuments: Array<{
+    documentId: string;
+    priorDocumentId: string;
+    revisionRootDocumentId: string;
+    version: number;
+  }>;
+};
+
 export async function uploadFiles(opts: {
   db: Db;
   caseId: string;
@@ -205,7 +232,7 @@ export async function uploadFiles(opts: {
   // corpus until a user explicitly promotes it (promoteRevisionDocument in
   // cases.functions.ts). See migration 20260813224813_document_evidence_scope.
   evidenceScope?: "case_corpus" | "revision_context";
-}): Promise<{ uploaded: number; skipped: number; excludedNonEvidentiary: string[] }> {
+}): Promise<UploadResult> {
   const { db, caseId, userId, uploads: rawUploads, evidenceScope = "case_corpus" } = opts;
   const { sha256Hex } = await import("./hash.server");
   const uploads = expandZipsAndFiles(rawUploads);
@@ -213,36 +240,60 @@ export async function uploadFiles(opts: {
   let uploaded = 0;
   let skipped = 0;
   const excludedNonEvidentiary: string[] = [];
+  const uploadedDocumentIds: string[] = [];
+  const revisedDocuments: UploadResult["revisedDocuments"] = [];
+
+  // Build the version candidates once. Exact duplicates remain content-hash
+  // based; filename normalization is used only after hashes differ, so a
+  // revised file is preserved instead of replacing its predecessor.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: priorRows, error: priorError } = await (db as any)
+    .from("documents")
+    .select("id,filename,content_hash,metadata,created_at")
+    .eq("case_id", caseId)
+    .is("archived_at", null)
+    .order("created_at", { ascending: true });
+  if (priorError) {
+    throw new Error("Failed to inspect existing documents: " + priorError.message);
+  }
+
+  type PriorDocument = {
+    id: string;
+    filename: string;
+    content_hash: string;
+    metadata: Record<string, unknown> | null;
+    created_at: string;
+  };
+  const knownDocuments = ((priorRows ?? []) as PriorDocument[]).slice();
 
   for (const file of uploads) {
-    // Never ingest answer keys / ground-truth solution sheets as evidence —
-    // see isNonEvidentiaryFilename for why this must happen before storage
-    // upload or the documents insert, not as a later filter.
     if (isNonEvidentiaryFilename(file.name)) {
       excludedNonEvidentiary.push(file.name);
       continue;
     }
 
     const contentHash = await sha256Hex(file.bytes);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existing } = await (db as any)
-      .from("documents")
-      .select("id")
-      .eq("case_id", caseId)
-      .eq("content_hash", contentHash)
-      .maybeSingle();
-    if (existing) {
+    const exactDuplicate = knownDocuments.find((doc) => doc.content_hash === contentHash);
+    if (exactDuplicate) {
       skipped += 1;
       continue;
     }
 
+    const identity = revisionIdentity(file.name);
+    const revisionCandidates = identity
+      ? knownDocuments.filter((doc) => revisionIdentity(doc.filename) === identity)
+      : [];
+    const priorRevision = revisionCandidates.at(-1) ?? null;
+    const priorMetadata = priorRevision?.metadata ?? {};
+    const priorVersion = Number(priorMetadata.revision_version ?? 1);
+    const revisionVersion = priorRevision ? Math.max(1, priorVersion) + 1 : 1;
+    const revisionRootDocumentId = priorRevision
+      ? String(priorMetadata.revision_root_document_id ?? priorRevision.id)
+      : null;
+
     const mimeType = inferMimeType(file.name);
-    // RLS policy "case files own write" on storage.objects requires the
-    // first path segment to equal auth.uid() — see
-    // supabase/migrations/20260620074128_..._8045ed19.sql. caseId must NOT
-    // be the first segment or every insert is rejected with 42501.
-    const storagePath = `${userId}/${caseId}/${crypto.randomUUID()}-${file.name}`;
+    const storagePath =
+      userId + "/" + caseId + "/" + crypto.randomUUID() + "-" + file.name;
 
     const { error: uploadError } = await db.storage
       .from("case-files")
@@ -251,30 +302,68 @@ export async function uploadFiles(opts: {
         upsert: false,
       });
     if (uploadError) {
-      throw new Error(`Failed to upload "${file.name}": ${uploadError.message}`);
+      throw new Error('Failed to upload "' + file.name + '": ' + uploadError.message);
     }
 
+    const metadata = {
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: userId,
+      original_filename: file.name,
+      revision_identity: identity || null,
+      revision_version: revisionVersion,
+      revision_of_document_id: priorRevision?.id ?? null,
+      revision_root_document_id: revisionRootDocumentId,
+    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: insertError } = await (db as any).from("documents").insert({
-      case_id: caseId,
-      user_id: userId,
-      filename: file.name,
-      content_hash: contentHash,
-      mime_type: mimeType,
-      size_bytes: file.bytes.byteLength,
-      storage_path: storagePath,
-      status: "pending",
-      evidence_scope: evidenceScope,
-    });
-    if (insertError) {
+    const { data: inserted, error: insertError } = await (db as any)
+      .from("documents")
+      .insert({
+        case_id: caseId,
+        user_id: userId,
+        filename: file.name,
+        content_hash: contentHash,
+        mime_type: mimeType,
+        size_bytes: file.bytes.byteLength,
+        storage_path: storagePath,
+        status: "pending",
+        evidence_scope: evidenceScope,
+        metadata,
+      })
+      .select("id,created_at")
+      .single();
+    if (insertError || !inserted?.id) {
       await db.storage.from("case-files").remove([storagePath]);
-      throw new Error(`Failed to record "${file.name}": ${insertError.message}`);
+      throw new Error(
+        'Failed to record "' + file.name + '": ' + (insertError?.message ?? "missing id"),
+      );
     }
 
     uploaded += 1;
+    uploadedDocumentIds.push(String(inserted.id));
+    if (priorRevision && revisionRootDocumentId) {
+      revisedDocuments.push({
+        documentId: String(inserted.id),
+        priorDocumentId: priorRevision.id,
+        revisionRootDocumentId,
+        version: revisionVersion,
+      });
+    }
+    knownDocuments.push({
+      id: String(inserted.id),
+      filename: file.name,
+      content_hash: contentHash,
+      metadata,
+      created_at: String(inserted.created_at ?? new Date().toISOString()),
+    });
   }
 
-  return { uploaded, skipped, excludedNonEvidentiary };
+  return {
+    uploaded,
+    skipped,
+    excludedNonEvidentiary,
+    uploadedDocumentIds,
+    revisedDocuments,
+  };
 }
 
 export async function runPipelineForCase(
@@ -2988,7 +3077,67 @@ const AGENT_JH_FRAGMENT = judicialHierarchySchemaFragment();
 const AGENT_JH_INSTRUCTIONS = judicialHierarchyInstructions();
 const AGENT_AUDIT_CLASSIFICATION_FRAGMENT = auditClassificationSchemaFragment();
 
+const IMMIGRATION_AGENT_GROUNDING =
+  "Output JSON only. Use exclusively Mexican law and authorities (INM, SRE/consulates, COMAR, DIF/protection authorities, TFJA, PJF and CNDH as applicable). Never use USCIS, ICE, green-card, U.S. form, removal-court or U.S. visa concepts. Every finding must include at least one exact, contiguous quote copied from a supplied document; omit any finding that cannot be grounded. Distinguish verified facts from inferences and never present an unverified deadline or remembered legal requirement as current law.";
+
+const IMMIGRATION_AGENT_PROMPT = `Return STRICT JSON:
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "persona_migrante"|"autoridad_responsable"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }
+Each quote must be a single exact contiguous excerpt of at most 200 characters from the cited document. If a trigger date, governing rule, official requirement or current source version is missing, say it is unconfirmed and identify what must be verified; do not calculate or invent it.`;
+
+const IMMIGRATION_AGENTS: { type: string; category: string; system: string; prompt: string }[] = [
+  {
+    type: "immigration_eligibility_analysis",
+    category: "immigration_eligibility_analysis",
+    system:
+      "Analyze requested Mexican immigration status or benefit, current condition of stay, continuity, family/employment basis and document sufficiency. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "immigration_deadline_continuity",
+    category: "immigration_deadline_continuity",
+    system:
+      "Extract notification, entry, expiration, prevention, appeal, TFJA and amparo trigger dates. State the rule, calendar/business-day basis, excluded days, authority and confidence; never confirm a deadline without its trigger and verified rule. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "refugee_non_refoulement_analysis",
+    category: "refugee_non_refoulement_analysis",
+    system:
+      "Analyze refugee eligibility, complementary protection, non-refoulement, humanitarian grounds, family unity and risk on return under Mexican law and treaties binding on Mexico. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "nationality_naturalization_analysis",
+    category: "nationality_naturalization_analysis",
+    system:
+      "Analyze Mexican nationality by birth or filiation, declarations, certificates, dual nationality, naturalization grounds and challenges to SRE decisions. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "immigration_due_process_remedies",
+    category: "immigration_due_process_remedies",
+    system:
+      "Analyze competence, notice, reasons and legal grounds, hearing rights, detention legality, administrative appeal, TFJA nullity, amparo and urgent suspension without assuming a remedy is available. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "child_vulnerability_protection",
+    category: "child_vulnerability_protection",
+    system:
+      "Analyze best interests of children, family unity, unaccompanied-child safeguards, vulnerability, DIF/protection-authority intervention and alternatives to detention. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+];
+
 const AGENTS: { type: string; category: string; system: string; prompt: string }[] = [
+  ...IMMIGRATION_AGENTS,
   {
     type: "witness_credibility",
     category: "witness",
@@ -3703,6 +3852,13 @@ const AGENT_ENGINE: Record<string, string> = {
   conagua_water_rights_review: "agent:conagua_water_rights_review",
   pollution_remediation_analysis: "agent:pollution_remediation_analysis",
   protected_species_areas_review: "agent:protected_species_areas_review",
+  // Migratorio, refugio y nacionalidad specialized investigators.
+  immigration_eligibility_analysis: "agent:immigration_eligibility_analysis",
+  immigration_deadline_continuity: "agent:immigration_deadline_continuity",
+  refugee_non_refoulement_analysis: "agent:refugee_non_refoulement_analysis",
+  nationality_naturalization_analysis: "agent:nationality_naturalization_analysis",
+  immigration_due_process_remedies: "agent:immigration_due_process_remedies",
+  child_vulnerability_protection: "agent:child_vulnerability_protection",
   // Inmobiliario specialized investigators (2026-08-04). Bare (not
   // namespaced) to match the engine names already declared in
   // MX_ENGINES.inmobiliario / PRACTICE_GATED_ENGINES since before this
@@ -9443,6 +9599,20 @@ ${paginationTail}`;
     (await db.from("reports").upsert(reportRow, { onConflict: "case_id" })).error,
     "Failed to save report",
   );
+
+  // If this run followed Add Evidence, calculate the delta now: the new
+  // report is persisted, while report_versions still points at the baseline
+  // captured before the upload. Doing this in the pipeline avoids the old
+  // client race that finalized the change log immediately after queueing.
+  try {
+    const { finalizeReportChangeLogForCase } = await import("./cases.functions");
+    await finalizeReportChangeLogForCase(db, caseId);
+  } catch (changeLogError) {
+    console.warn(
+      "[report-change-log] automatic finalization skipped:",
+      changeLogError instanceof Error ? changeLogError.message : changeLogError,
+    );
+  }
 
   // Immutable version snapshot — directive Phase 1.1.
   // Read back the persisted row so the snapshot reflects exactly what was

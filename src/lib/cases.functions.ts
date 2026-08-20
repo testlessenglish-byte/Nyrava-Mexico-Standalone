@@ -113,11 +113,27 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     const case_type = allowedCaseTypes.has(rawCaseType) ? rawCaseType : null;
     const allowedJurisdictions = new Set<string>(JURISDICTION_VALUES);
     const rawJurisdiction = String(data.get("jurisdiction") ?? "");
-    const jurisdiction = allowedJurisdictions.has(rawJurisdiction) ? rawJurisdiction : null;
+    const jurisdiction = allowedJurisdictions.has(rawJurisdiction)
+      ? rawJurisdiction
+      : case_type === "migratorio"
+        ? "federal"
+        : null;
     // Settable at upload time (rather than only afterward, on the workspace
     // page) so a user who already knows they're auditing a concluded case
     // doesn't have to visit a second page just to set this before running.
     const case_analysis_mode = normalizeCaseAnalysisMode(data.get("case_analysis_mode"));
+    let matter_metadata: Record<string, unknown> = {};
+    if (case_type === "migratorio") {
+      const rawMetadata = String(data.get("matter_metadata") ?? "{}");
+      let parsedMetadata: unknown;
+      try {
+        parsedMetadata = JSON.parse(rawMetadata);
+      } catch {
+        throw new Error("Invalid immigration matter metadata");
+      }
+      const { parseImmigrationMatterMetadata } = await import("@/lib/jurisdiction/immigration");
+      matter_metadata = parseImmigrationMatterMetadata(parsedMetadata);
+    }
     const files = data.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length === 0) throw new Error("No files uploaded");
 
@@ -153,6 +169,7 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
         case_type,
         jurisdiction,
         case_analysis_mode,
+        matter_metadata,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .select("id")
@@ -170,6 +187,10 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
           case_type,
           jurisdiction,
           case_analysis_mode,
+          immigration_subtype:
+            case_type === "migratorio" ? String(matter_metadata.immigration_subtype ?? "") : null,
+          has_protected_identity_metadata:
+            case_type === "migratorio" && Boolean(matter_metadata.passport_number),
         },
       });
       throw new Error(error?.message ?? "Failed to create case");
@@ -773,7 +794,13 @@ export const runFullPipelineStep = createServerFn({ method: "POST" })
 export const queueCaseForPipeline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ caseId: z.string().uuid(), reset: z.boolean().optional() }).parse(d),
+    z
+      .object({
+        caseId: z.string().uuid(),
+        reset: z.boolean().optional(),
+        startFrom: z.enum(["extraction", "analyzers"]).optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "QueueCase");
@@ -922,7 +949,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
         worker_lease_until: null,
         status: "queued",
         status_message: data.reset ? "Queued for full rerun" : "Queued",
-        next_stage: data.reset ? "reset" : "extraction",
+        next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
         cancel_requested: false,
       })
       .eq("id", data.caseId);
@@ -933,7 +960,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
       status: error ? "error" : "ok",
       error: error?.message ?? null,
       detail: {
-        next_stage: data.reset ? "reset" : "extraction",
+        next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
         pg_code: error?.code ?? null,
         pg_details: error?.details ?? null,
       },
@@ -974,7 +1001,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
         previous_status: existing.status ?? null,
         new_status: "queued",
         previous_next_stage: null,
-        new_next_stage: data.reset ? "reset" : "extraction",
+        new_next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
       })}`,
     );
     return { ok: true, queued: true };
@@ -4171,13 +4198,15 @@ export const uploadCaseEvidence = createServerFn({ method: "POST" })
     }
     if (total > MAX_TOTAL_BYTES) throw new Error("Total upload exceeds 200 MB");
 
-    const { data: owns } = await supabase
+    // The authenticated Supabase client already enforces case access through
+    // RLS. Do not add an owner-only predicate here: authorized organization
+    // members must be able to add evidence according to their role.
+    const { data: accessibleCase, error: accessError } = await supabase
       .from("cases")
       .select("id")
       .eq("id", caseId)
-      .eq("user_id", userId)
       .maybeSingle();
-    if (!owns) throw new Error("Case not found");
+    if (accessError || !accessibleCase) throw new Error("Case not found");
 
     const uploads = await Promise.all(
       files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
@@ -4421,13 +4450,19 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
     }
     if (total > MAX_TOTAL_BYTES) throw new Error("Total upload exceeds 200 MB");
 
-    const { data: owns } = await supabase
+    // Authorization is the existing case RLS policy. This admits authorized
+    // organization members while still hiding matters they cannot access.
+    const { data: accessibleCase, error: accessError } = await supabase
       .from("cases")
       .select("id")
       .eq("id", caseId)
-      .eq("user_id", userId)
       .maybeSingle();
-    if (!owns) throw new Error("Case not found");
+    if (accessError || !accessibleCase) throw new Error("Case not found");
+
+    const rerunScopeRaw = String(data.get("rerunScope") ?? "affected_analysis");
+    const rerunScope = z
+      .enum(["new_documents_only", "affected_analysis", "full_case"])
+      .parse(rerunScopeRaw);
 
     // 1. Snapshot the current report so we can diff against it later.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4484,19 +4519,23 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
       files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
     );
     const { uploadFiles } = await import("@/lib/pipeline.server");
-    await uploadFiles({ db: supabase, caseId, userId, uploads });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: newDocsRows } = await (supabase as any)
-      .from("documents")
-      .select("id,filename")
-      .eq("case_id", caseId)
-      .in(
-        "filename",
-        files.map((f) => f.name),
-      )
-      .order("created_at", { ascending: false })
-      .limit(files.length * 2);
-    const newDocIds = ((newDocsRows ?? []) as Array<{ id: string }>).map((d) => d.id);
+    const uploadResult = await uploadFiles({ db: supabase, caseId, userId, uploads });
+    const newDocIds = uploadResult.uploadedDocumentIds;
+    if (uploadResult.uploaded === 0) {
+      return {
+        ok: true,
+        uploaded: 0,
+        skipped: uploadResult.skipped,
+        excludedNonEvidentiary: uploadResult.excludedNonEvidentiary,
+        revisedDocuments: uploadResult.revisedDocuments,
+        newDocumentIds: [],
+        snapshottedVersion: null,
+        nextVersion: baselineVersion || null,
+        rerunScope,
+        startFrom: null,
+        affectedStages: [],
+      };
+    }
 
     // 3. Run extraction synchronously for the new docs. runExtraction is
     // idempotent: already-extracted documents are skipped, so only the
@@ -4522,13 +4561,21 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
 
     return {
       ok: true,
-      uploaded: files.length,
+      uploaded: uploadResult.uploaded,
+      skipped: uploadResult.skipped,
+      excludedNonEvidentiary: uploadResult.excludedNonEvidentiary,
+      revisedDocuments: uploadResult.revisedDocuments,
       newDocumentIds: newDocIds,
       snapshottedVersion: baselineVersion || null,
       nextVersion: baselineVersion + 1,
+      rerunScope,
+      startFrom: rerunScope === "new_documents_only" ? null : "analyzers",
       // Whole-corpus engines that must rerun because a new doc can shift
       // cross-document outputs (contradictions, timeline, witness, etc.).
-      affectedStages: [
+      affectedStages:
+        rerunScope === "new_documents_only"
+          ? []
+          : [
         "analyzers",
         "agents",
         "timeline",
@@ -4551,166 +4598,173 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
 
 // Compute "What's Changed" between the latest snapshot in report_versions and
 // the current report, then persist it on reports.change_log.
+export async function finalizeReportChangeLogForCase(
+  supabase: Db,
+  caseId: string,
+) {
+    const [reportRes, snapRes, findingsRes, witnessRes, docsRes] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("reports").select("*").eq("case_id", caseId).maybeSingle(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("report_versions")
+      .select("snapshot,version")
+      .eq("case_id", caseId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("case_findings")
+      .select("id,title")
+      .eq("case_id", caseId)
+      .not("source_module", "like", PROJECTION_LIKE),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("case_witnesses").select("id,name,credibility").eq("case_id", caseId),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("documents").select("id").eq("case_id", caseId),
+  ]);
+  const report = reportRes.data as Record<string, unknown> | null;
+  const snap = snapRes.data as { snapshot: Record<string, unknown>; version: number } | null;
+  if (!report) return { ok: false, reason: "no report" };
+  if (!snap?.snapshot) return { ok: false, reason: "no prior snapshot" };
+
+  const prev = snap.snapshot;
+  const cur = report;
+  const countContradictions = (r: Record<string, unknown> | null) =>
+    r && Array.isArray(r.contradictions_struct)
+      ? (r.contradictions_struct as unknown[]).length
+      : 0;
+
+  // Which narrative sections actually changed, and why. Deterministic
+  // string diff over the prose columns — no AI, no guessing.
+  const NARRATIVE_KEYS = [
+    "executive_summary",
+    "attorney_summary",
+    "investigator_summary",
+    "case_overview",
+    "facts",
+    "timeline_summary",
+    "evidence_summary",
+    "witness_analysis",
+    "contradiction_report",
+    "discovery_analysis",
+    "missing_evidence_report",
+    "constitutional_issues",
+    "procedural_issues_report",
+    "prosecution_theory_report",
+    "defense_theory_report",
+    "alternative_theory_report",
+    "risk_analysis",
+    "score_breakdown",
+    "recommendations",
+    "appendix_sources",
+  ] as const;
+  const asText = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const sectionsChanged = NARRATIVE_KEYS.filter((k) => asText(prev[k]) !== asText(cur[k])).map(
+    (k) => ({
+      section: k,
+      status: !asText(prev[k]) ? "added" : !asText(cur[k]) ? "removed" : "revised",
+      prev_chars: asText(prev[k]).length,
+      now_chars: asText(cur[k]).length,
+    }),
+  );
+
+  const prevDocs = Number(
+    (prev.full_report as Record<string, unknown> | null)?.documents_total ?? NaN,
+  );
+  const nowDocs = (docsRes.data ?? []).length;
+  const drivers: string[] = [];
+  if (Number.isFinite(prevDocs) && nowDocs > prevDocs) {
+    drivers.push(`${nowDocs - prevDocs} nuevo(s) documento(s) ingresado(s) al expediente.`);
+  }
+  const cDelta = countContradictions(cur) - countContradictions(prev);
+  if (cDelta !== 0) {
+    drivers.push(
+      cDelta > 0
+        ? `${cDelta} contradicción(es) adicional(es) verificada(s).`
+        : `${Math.abs(cDelta)} contradicción(es) dejaron de verificarse.`,
+    );
+  }
+  const sPrev = typeof prev.case_strength_score === "number" ? prev.case_strength_score : null;
+  const sNow = typeof cur.case_strength_score === "number" ? cur.case_strength_score : null;
+  if (sPrev != null && sNow != null && sPrev !== sNow) {
+    drivers.push(
+      `La fuerza del caso pasó de ${sPrev} a ${sNow} tras la nueva evidencia verificada.`,
+    );
+  }
+  if (!!prev.scores_suppressed !== !!cur.scores_suppressed) {
+    drivers.push(
+      cur.scores_suppressed
+        ? "La suficiencia probatoria cayó por debajo del umbral: se suprimieron los puntajes."
+        : "La suficiencia probatoria alcanzó el umbral: se reactivaron los puntajes.",
+    );
+  }
+
+  const currentVersion = Number(cur.version ?? Number(snap.version ?? 1) + 1);
+
+  // Addendum §24/§26 — per-finding delta classification underneath the
+  // existing quantitative diff above. Snapshot current findings first so
+  // classifyFindingDeltas has this version's rows to compare the NEXT
+  // regeneration against; both are pure DB ops, no AI calls, and neither
+  // touches the report/report_versions tables this function already
+  // writes to above.
+  const { snapshotFindingVersions, classifyFindingDeltas } =
+    await import("@/lib/intelligence/finding-version-snapshot.server");
+  await snapshotFindingVersions(supabase, { caseId, reportVersion: currentVersion });
+  const findingDeltas = await classifyFindingDeltas(supabase, { caseId, currentVersion });
+
+  // §24's "no unexplained changes" rule: if the score moved but nothing
+  // in `drivers` (the existing quantitative diff above) or the finding
+  // deltas explains it, flag it rather than silently presenting the new
+  // number as settled.
+  const scoreChanged = sPrev != null && sNow != null && sPrev !== sNow;
+  const hasFindingLevelExplanation =
+    findingDeltas.new.length +
+      findingDeltas.strengthened.length +
+      findingDeltas.weakened.length +
+      findingDeltas.resolved.length >
+    0;
+  const unexplainedScoreChange =
+    scoreChanged && drivers.length === 0 && !hasFindingLevelExplanation;
+
+  const changeLog = {
+    generated_at: new Date().toISOString(),
+    previous_version: Number(snap.version ?? 1),
+    current_version: currentVersion,
+    documents_total: nowDocs,
+    score_delta: {
+      strength: { prev: prev.case_strength_score ?? null, now: cur.case_strength_score ?? null },
+      risk: { prev: prev.risk_score ?? null, now: cur.risk_score ?? null },
+    },
+    ess: {
+      prev_suppressed: !!prev.scores_suppressed,
+      now_suppressed: !!cur.scores_suppressed,
+    },
+    contradictions: { prev: countContradictions(prev), now: countContradictions(cur) },
+    findings_total: (findingsRes.data ?? []).length,
+    witnesses_total: (witnessRes.data ?? []).length,
+    sections_changed: sectionsChanged,
+    drivers,
+    // Addendum §24/§26 additions — per-finding classification and an
+    // explicit fail-safe flag rather than a silent unexplained move.
+    finding_deltas: findingDeltas,
+    unexplained_score_change: unexplainedScoreChange,
+    note: "Quantitative diff vs. the snapshot captured before the most recent Add Evidence run. Review narrative sections for qualitative changes.",
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("reports").update({ change_log: changeLog }).eq("case_id", caseId);
+  return { ok: true, change_log: changeLog };
+
+}
+
 export const finalizeReportChangeLog = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = await getAuthedContext(context, "FinalizeChangeLog");
-    const caseId = data.caseId;
-    const [reportRes, snapRes, findingsRes, witnessRes, docsRes] = await Promise.all([
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any).from("reports").select("*").eq("case_id", caseId).maybeSingle(),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any)
-        .from("report_versions")
-        .select("snapshot,version")
-        .eq("case_id", caseId)
-        .order("version", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any)
-        .from("case_findings")
-        .select("id,title")
-        .eq("case_id", caseId)
-        .not("source_module", "like", PROJECTION_LIKE),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any).from("case_witnesses").select("id,name,credibility").eq("case_id", caseId),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any).from("documents").select("id").eq("case_id", caseId),
-    ]);
-    const report = reportRes.data as Record<string, unknown> | null;
-    const snap = snapRes.data as { snapshot: Record<string, unknown>; version: number } | null;
-    if (!report) return { ok: false, reason: "no report" };
-    if (!snap?.snapshot) return { ok: false, reason: "no prior snapshot" };
-
-    const prev = snap.snapshot;
-    const cur = report;
-    const countContradictions = (r: Record<string, unknown> | null) =>
-      r && Array.isArray(r.contradictions_struct)
-        ? (r.contradictions_struct as unknown[]).length
-        : 0;
-
-    // Which narrative sections actually changed, and why. Deterministic
-    // string diff over the prose columns — no AI, no guessing.
-    const NARRATIVE_KEYS = [
-      "executive_summary",
-      "attorney_summary",
-      "investigator_summary",
-      "case_overview",
-      "facts",
-      "timeline_summary",
-      "evidence_summary",
-      "witness_analysis",
-      "contradiction_report",
-      "discovery_analysis",
-      "missing_evidence_report",
-      "constitutional_issues",
-      "procedural_issues_report",
-      "prosecution_theory_report",
-      "defense_theory_report",
-      "alternative_theory_report",
-      "risk_analysis",
-      "score_breakdown",
-      "recommendations",
-      "appendix_sources",
-    ] as const;
-    const asText = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-    const sectionsChanged = NARRATIVE_KEYS.filter((k) => asText(prev[k]) !== asText(cur[k])).map(
-      (k) => ({
-        section: k,
-        status: !asText(prev[k]) ? "added" : !asText(cur[k]) ? "removed" : "revised",
-        prev_chars: asText(prev[k]).length,
-        now_chars: asText(cur[k]).length,
-      }),
-    );
-
-    const prevDocs = Number(
-      (prev.full_report as Record<string, unknown> | null)?.documents_total ?? NaN,
-    );
-    const nowDocs = (docsRes.data ?? []).length;
-    const drivers: string[] = [];
-    if (Number.isFinite(prevDocs) && nowDocs > prevDocs) {
-      drivers.push(`${nowDocs - prevDocs} nuevo(s) documento(s) ingresado(s) al expediente.`);
-    }
-    const cDelta = countContradictions(cur) - countContradictions(prev);
-    if (cDelta !== 0) {
-      drivers.push(
-        cDelta > 0
-          ? `${cDelta} contradicción(es) adicional(es) verificada(s).`
-          : `${Math.abs(cDelta)} contradicción(es) dejaron de verificarse.`,
-      );
-    }
-    const sPrev = typeof prev.case_strength_score === "number" ? prev.case_strength_score : null;
-    const sNow = typeof cur.case_strength_score === "number" ? cur.case_strength_score : null;
-    if (sPrev != null && sNow != null && sPrev !== sNow) {
-      drivers.push(
-        `La fuerza del caso pasó de ${sPrev} a ${sNow} tras la nueva evidencia verificada.`,
-      );
-    }
-    if (!!prev.scores_suppressed !== !!cur.scores_suppressed) {
-      drivers.push(
-        cur.scores_suppressed
-          ? "La suficiencia probatoria cayó por debajo del umbral: se suprimieron los puntajes."
-          : "La suficiencia probatoria alcanzó el umbral: se reactivaron los puntajes.",
-      );
-    }
-
-    const currentVersion = Number(cur.version ?? Number(snap.version ?? 1) + 1);
-
-    // Addendum §24/§26 — per-finding delta classification underneath the
-    // existing quantitative diff above. Snapshot current findings first so
-    // classifyFindingDeltas has this version's rows to compare the NEXT
-    // regeneration against; both are pure DB ops, no AI calls, and neither
-    // touches the report/report_versions tables this function already
-    // writes to above.
-    const { snapshotFindingVersions, classifyFindingDeltas } =
-      await import("@/lib/intelligence/finding-version-snapshot.server");
-    await snapshotFindingVersions(supabase, { caseId, reportVersion: currentVersion });
-    const findingDeltas = await classifyFindingDeltas(supabase, { caseId, currentVersion });
-
-    // §24's "no unexplained changes" rule: if the score moved but nothing
-    // in `drivers` (the existing quantitative diff above) or the finding
-    // deltas explains it, flag it rather than silently presenting the new
-    // number as settled.
-    const scoreChanged = sPrev != null && sNow != null && sPrev !== sNow;
-    const hasFindingLevelExplanation =
-      findingDeltas.new.length +
-        findingDeltas.strengthened.length +
-        findingDeltas.weakened.length +
-        findingDeltas.resolved.length >
-      0;
-    const unexplainedScoreChange =
-      scoreChanged && drivers.length === 0 && !hasFindingLevelExplanation;
-
-    const changeLog = {
-      generated_at: new Date().toISOString(),
-      previous_version: Number(snap.version ?? 1),
-      current_version: currentVersion,
-      documents_total: nowDocs,
-      score_delta: {
-        strength: { prev: prev.case_strength_score ?? null, now: cur.case_strength_score ?? null },
-        risk: { prev: prev.risk_score ?? null, now: cur.risk_score ?? null },
-      },
-      ess: {
-        prev_suppressed: !!prev.scores_suppressed,
-        now_suppressed: !!cur.scores_suppressed,
-      },
-      contradictions: { prev: countContradictions(prev), now: countContradictions(cur) },
-      findings_total: (findingsRes.data ?? []).length,
-      witnesses_total: (witnessRes.data ?? []).length,
-      sections_changed: sectionsChanged,
-      drivers,
-      // Addendum §24/§26 additions — per-finding classification and an
-      // explicit fail-safe flag rather than a silent unexplained move.
-      finding_deltas: findingDeltas,
-      unexplained_score_change: unexplainedScoreChange,
-      note: "Quantitative diff vs. the snapshot captured before the most recent Add Evidence run. Review narrative sections for qualitative changes.",
-    };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("reports").update({ change_log: changeLog }).eq("case_id", caseId);
-    return { ok: true, change_log: changeLog };
+    return finalizeReportChangeLogForCase(supabase, data.caseId);
   });
 
 // -------- Talk-to-Case "Push to Report" — patch, don't rerun --------

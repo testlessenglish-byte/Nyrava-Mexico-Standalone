@@ -24,6 +24,7 @@ export const MX_CASE_TYPES = [
   "constitucional",
   "ambiental",
   "inmobiliario",
+  "migratorio",
 ] as const;
 
 export type MexicanCaseType = (typeof MX_CASE_TYPES)[number];
@@ -46,6 +47,10 @@ export const MX_CASE_TYPE_LABELS: Record<MexicanCaseType, { es: string; en: stri
   // classification. The internal slug ("inmobiliario") already used the
   // correct legal term; only the display label lagged behind it.
   inmobiliario: { es: "Derecho Inmobiliario", en: "Real Estate Law" },
+  migratorio: {
+    es: "Derecho Migratorio, Refugio y Nacionalidad",
+    en: "Mexican Immigration, Refugee and Nationality Law",
+  },
 };
 
 export function isMexicanCaseType(v: unknown): v is MexicanCaseType {

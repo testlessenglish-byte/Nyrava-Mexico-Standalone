@@ -286,6 +286,39 @@ export const EXECUTION_PROFILES: Record<MexicanCaseType, ExecutionProfile> = {
       "No aplica en sentido procesal — las partes de la transacción son comprador y vendedor (o sus representantes con poder notarial).",
     precedentGuidance: "No aplica jurisprudencia contenciosa — verificar criterios registrales y catastrales locales vigentes.",
   },
+  migratorio: {
+    jurisdictionLevels: ["federal", "internacional"],
+    governingLaws: [
+      { code: "LM", title_es: "Ley de Migración" },
+      { code: "RLM", title_es: "Reglamento de la Ley de Migración" },
+      { code: "LRPCAP", title_es: "Ley sobre Refugiados, Protección Complementaria y Asilo Político" },
+      { code: "LN", title_es: "Ley de Nacionalidad" },
+      { code: "LFPA / LFPCA", title_es: "Procedimiento administrativo y contencioso administrativo federal" },
+      { code: "LA", title_es: "Ley de Amparo" },
+      { code: "LGDNNA", title_es: "Ley General de los Derechos de Niñas, Niños y Adolescentes" },
+    ],
+    constitutionalArticles: [
+      { article: "Art. 1", title_es: "Derechos humanos, principio pro persona y no discriminación" },
+      { article: "Art. 4", title_es: "Unidad familiar e interés superior de la niñez" },
+      { article: "Art. 11", title_es: "Libertad de tránsito, asilo y refugio" },
+      { article: "Arts. 14 y 16", title_es: "Debido proceso, fundamentación y motivación" },
+      { article: "Art. 33", title_es: "Personas extranjeras y expulsión constitucional" },
+    ],
+    treaties: [
+      { short: "CADH", title_es: "Convención Americana sobre Derechos Humanos" },
+      { short: "Convención de 1951", title_es: "Convención sobre el Estatuto de los Refugiados y Protocolo de 1967" },
+      { short: "CDN", title_es: "Convención sobre los Derechos del Niño" },
+      { short: "CAT", title_es: "Convención contra la Tortura" },
+      { short: "CTM", title_es: "Convención sobre Trabajadores Migratorios y sus Familiares" },
+    ],
+    burdenOfProof:
+      "La persona aporta los hechos y documentos a su alcance; la autoridad debe integrar, conservar, fundar y motivar el expediente. En refugio y no devolución se exige valoración integral, compartida y sensible a vulnerabilidad.",
+    standing:
+      "La persona afectada, solicitante, familiar o representante acreditado; en niñez intervienen las autoridades de protección. La legitimación para nulidad o amparo depende del acto, afectación y vía concreta.",
+    precedentGuidance:
+      "Consultar únicamente jurisprudencia vigente y verificable de la SCJN/PJF y, para nulidad, precedentes aplicables del TFJA. Confirmar registro, órgano, época, vigencia y texto oficial antes de citar.",
+  },
+
 };
 
 export function executionProfileFor(caseType: MexicanCaseType): ExecutionProfile {

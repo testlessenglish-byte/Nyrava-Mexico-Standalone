@@ -83,6 +83,48 @@ export type ComplianceReport = {
 };
 
 const CHECKLISTS: Record<MxPipelineProfile, readonly ComplianceItem[]> = {
+  migratorio: [
+    {
+      id: "autoridad_competente",
+      label_es: "Autoridad mexicana competente identificada",
+      label_en: "Competent Mexican authority identified",
+      authority: "Ley de Migración, Ley de Nacionalidad o ley de refugio aplicable",
+      requirement: "required",
+      patterns: ["instituto nacional de migracion", "inm", "secretaria de relaciones exteriores", "sre", "comar"],
+    },
+    {
+      id: "acuse_expediente",
+      label_es: "Acuse y número de expediente o trámite documentados",
+      label_en: "Filing receipt and matter number documented",
+      authority: "Ficha oficial vigente y norma especial del trámite",
+      requirement: "required",
+      patterns: ["acuse de recibo", "numero de tramite", "número de trámite", "numero de expediente"],
+    },
+    {
+      id: "identidad_condicion",
+      label_es: "Identidad y condición migratoria sustentadas en documentos",
+      label_en: "Identity and immigration status supported by records",
+      authority: "Ley de Migración y Reglamento de la Ley de Migración",
+      requirement: "required",
+      patterns: ["pasaporte", "documento de viaje", "tarjeta de residente", "condicion de estancia"],
+    },
+    {
+      id: "notificacion_acto",
+      label_es: "Acto y fecha de notificación documentados antes de calcular plazos",
+      label_en: "Act and service date documented before calculating deadlines",
+      authority: "CPEUM Arts. 14 y 16; procedimiento aplicable",
+      requirement: "required",
+      patterns: ["resolucion", "resolución", "constancia de notificacion", "fecha de notificacion"],
+    },
+    {
+      id: "proteccion_reforzada",
+      label_es: "Protección reforzada evaluada cuando hay niñez, familia o riesgo de devolución",
+      label_en: "Heightened protection assessed for children, family unity or non-refoulement risk",
+      authority: "CPEUM Art. 1º; ley de refugio y legislación de niñez aplicables",
+      requirement: "recommended",
+      patterns: ["interes superior", "interés superior", "unidad familiar", "no devolucion", "proteccion complementaria"],
+    },
+  ],
   penal: [
     {
       id: "carpeta_investigacion",

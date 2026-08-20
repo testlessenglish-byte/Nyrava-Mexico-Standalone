@@ -153,6 +153,10 @@ type DeadlineRule = {
 };
 
 const RULES: Record<MxPipelineProfile, readonly DeadlineRule[]> = {
+  // Immigration terms vary by procedure, notice method, exception and
+  // current administrative rule. Until a verified rule is selected for the
+  // documented trigger, return no computed date instead of inventing one.
+  migratorio: [],
   amparo: [
     {
       id: "plazo_demanda_amparo",

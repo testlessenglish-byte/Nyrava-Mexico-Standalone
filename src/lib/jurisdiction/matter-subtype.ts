@@ -83,6 +83,48 @@ export const MATTER_SUBTYPE_RULES: Record<string, readonly SubtypeRule[]> = {
       ],
     },
   ],
+  migratorio: [
+    {
+      key: "refugio_proteccion",
+      label: "Refugio y protección complementaria",
+      signals: /\b(refugio|refugiado|comar|proteccion complementaria|no devolucion|asilo politico)\b/,
+      excludedEngines: ["agent:nationality_naturalization_analysis"],
+    },
+    {
+      key: "nacionalidad_naturalizacion",
+      label: "Nacionalidad y naturalización",
+      signals: /\b(nacionalidad|naturalizacion|doble nacionalidad|declaratoria de nacionalidad|certificado de nacionalidad)\b/,
+      excludedEngines: [
+        "agent:refugee_non_refoulement_analysis",
+        "agent:immigration_deadline_continuity",
+      ],
+    },
+    {
+      key: "detencion_retorno_deportacion",
+      label: "Detención, retorno, deportación o expulsión",
+      signals: /\b(estacion migratoria|detencion migratoria|retorno asistido|deportacion|expulsion|orden de salida|restriccion de reingreso)\b/,
+      excludedEngines: ["agent:nationality_naturalization_analysis"],
+    },
+    {
+      key: "empleador_movilidad",
+      label: "Empleador, trabajo y movilidad corporativa",
+      signals: /\b(empleador|oferta de empleo|actividades remuneradas|permiso para trabajar|movilidad corporativa|personal extranjero)\b/,
+      excludedEngines: [
+        "agent:refugee_non_refoulement_analysis",
+        "agent:nationality_naturalization_analysis",
+      ],
+    },
+    {
+      key: "estancia_regularizacion",
+      label: "Estancia, residencia y regularización",
+      signals: /\b(residencia temporal|residencia permanente|condicion de estancia|regularizacion migratoria|canje de visa|renovacion migratoria)\b/,
+      excludedEngines: [
+        "agent:refugee_non_refoulement_analysis",
+        "agent:nationality_naturalization_analysis",
+      ],
+    },
+  ],
+
 };
 
 /**

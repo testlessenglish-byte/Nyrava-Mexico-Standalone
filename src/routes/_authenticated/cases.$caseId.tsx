@@ -36,7 +36,6 @@ import {
   retryDocumentExtraction,
   rollbackDocumentExtraction,
   addEvidenceAndRerun,
-  finalizeReportChangeLog,
   queueCaseForPipeline,
   sweepStalledCasesForMe,
   listReportVersions,
@@ -1733,10 +1732,12 @@ function AddEvidenceBlock({ caseId, invalidate }: { caseId: string; invalidate: 
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState<string>("");
+  const [rerunScope, setRerunScope] = useState<"new_documents_only" | "affected_analysis" | "full_case">(
+    "affected_analysis",
+  );
   const fileRef = useRef<HTMLInputElement | null>(null);
   const addFn = useServerFn(addEvidenceAndRerun);
   const queueFn = useServerFn(queueCaseForPipeline);
-  const finalizeFn = useServerFn(finalizeReportChangeLog);
 
   async function handleFiles(files: FileList | File[]) {
     const arr = Array.from(files);
@@ -1746,20 +1747,51 @@ function AddEvidenceBlock({ caseId, invalidate }: { caseId: string; invalidate: 
       setProgress(`Uploading ${arr.length} file(s) and extracting…`);
       const fd = new FormData();
       fd.append("caseId", caseId);
+      fd.append("rerunScope", rerunScope);
       for (const f of arr) fd.append("files", f);
       // useServerFn for createServerFn with FormData input passes the FormData directly.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await (addFn as any)({ data: fd });
-      toast.success(`Uploaded ${res?.uploaded ?? arr.length} file(s). Re-queuing analyzers…`);
       await invalidate();
 
-      setProgress("Re-queuing analyzers so the worker re-runs them…");
-      await queueFn({ data: { caseId } });
+      if (!res?.uploaded) {
+        toast.info(
+          res?.skipped
+            ? "No new evidence was added; exact duplicate files were skipped."
+            : "No evidentiary files were added.",
+        );
+        return;
+      }
 
-      setProgress("Computing What's Changed…");
-      await finalizeFn({ data: { caseId } });
+      const revisionCount = Array.isArray(res.revisedDocuments) ? res.revisedDocuments.length : 0;
+      toast.success(
+        `Uploaded ${res.uploaded} file(s)${revisionCount ? ` (${revisionCount} preserved as revisions)` : ""}.`,
+      );
 
-      toast.success(`Report v${res?.nextVersion ?? "?"} generated with change log`);
+      if (rerunScope === "new_documents_only") {
+        toast.success("New documents extracted. Existing analysis and report were left unchanged.");
+        return;
+      }
+
+      setProgress(
+        rerunScope === "full_case"
+          ? "Queueing full-case analysis…"
+          : "Queueing affected analysis from analyzers…",
+      );
+      const queued = await queueFn({
+        data: { caseId, startFrom: (res?.startFrom ?? "analyzers") as "analyzers" },
+      });
+      if (!queued?.queued) {
+        throw new Error(
+          queued?.alreadyRunning
+            ? "This case is already running."
+            : queued?.usageMessage ?? "The analysis could not be queued.",
+        );
+      }
+
+      toast.success(
+        `Report v${res?.nextVersion ?? "?"} queued. What's Changed will be calculated after the report is saved.`,
+      );
       await invalidate();
     } catch (e) {
       toast.error(`Add evidence failed: ${String(e)}`);
@@ -1796,7 +1828,25 @@ function AddEvidenceBlock({ caseId, invalidate }: { caseId: string; invalidate: 
             Changed" diff.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="evidence-rerun-scope">
+            Analysis scope
+          </label>
+          <select
+            id="evidence-rerun-scope"
+            value={rerunScope}
+            disabled={busy}
+            onChange={(e) =>
+              setRerunScope(
+                e.target.value as "new_documents_only" | "affected_analysis" | "full_case",
+              )
+            }
+            className="rounded border border-border bg-background px-2 py-1.5 text-xs"
+          >
+            <option value="new_documents_only">Extract new documents only</option>
+            <option value="affected_analysis">Re-run affected analysis</option>
+            <option value="full_case">Full case re-analysis</option>
+          </select>
           <input
             ref={fileRef}
             type="file"

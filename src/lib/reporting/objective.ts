@@ -289,6 +289,26 @@ export const MATERIA_OBJECTIVES: Record<MexicanCaseType, MateriaObjective> = {
     },
     actionFrame: { es: "Paso previo al cierre", en: "Pre-closing step" },
   },
+  migratorio: {
+    question: {
+      es: "¿Cuál es la condición migratoria o protección solicitada, qué autoridad decide y qué actuación debe realizarse dentro de plazo?",
+      en: "What immigration status or protection is sought, which authority decides, and what action is required within the applicable deadline?",
+    },
+    favorable: {
+      es: "Los documentos verificados sostienen los requisitos centrales y la vía propuesta.",
+      en: "Verified documents support the core requirements and proposed route.",
+    },
+    adverse: {
+      es: "El expediente verificado no acredita todavía requisitos indispensables o muestra un impedimento que debe atenderse.",
+      en: "The verified record does not yet establish essential requirements or shows an issue that must be addressed.",
+    },
+    mixed: {
+      es: "La vía es potencialmente procedente, pero faltan documentos, fechas o requisitos que impiden confirmarla.",
+      en: "The route may be available, but missing documents, dates, or requirements prevent confirmation.",
+    },
+    actionFrame: { es: "Siguiente actuación migratoria", en: "Next immigration action" },
+  },
+
 };
 
 const AMPARO_DECISION_OBJECTIVE: MateriaObjective = {

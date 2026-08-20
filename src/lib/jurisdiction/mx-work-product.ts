@@ -73,6 +73,36 @@ const UNIVERSAL: MxWorkProductVehicle[] = [
 ];
 
 const BY_PROFILE: Record<MxPipelineProfile, MxWorkProductVehicle[]> = {
+  migratorio: [
+    {
+      id: "memorandum_migratorio",
+      es: "Memorándum de estrategia migratoria mexicana",
+      en: "Mexican immigration strategy memorandum",
+      basis: "Ley de Migración, su Reglamento y fuente oficial vigente del trámite",
+      when: "cuando estén identificados el trámite, la autoridad y los hechos acreditados",
+    },
+    {
+      id: "promocion_autoridad_migratoria",
+      es: "Promoción ante la autoridad migratoria competente",
+      en: "Filing before the competent Mexican immigration authority",
+      basis: "Ley Federal de Procedimiento Administrativo y norma especial aplicable",
+      when: "cuando el expediente documente autoridad, número de trámite y petición concreta",
+    },
+    {
+      id: "solicitud_refugio_proteccion",
+      es: "Solicitud o escrito de seguimiento en materia de refugio o protección complementaria",
+      en: "Refugee or complementary-protection filing",
+      basis: "Ley sobre Refugiados, Protección Complementaria y Asilo Político",
+      when: "cuando el expediente contenga hechos y documentos pertinentes a COMAR",
+    },
+    {
+      id: "medio_defensa_migratorio",
+      es: "Proyecto de medio de defensa migratorio",
+      en: "Draft Mexican immigration remedy",
+      basis: "Ley especial, LFPCA y Ley de Amparo según el acto y la procedencia verificados",
+      when: "sólo cuando consten el acto, la notificación, la autoridad y la regla vigente aplicable",
+    },
+  ],
   penal: [
     {
       id: "teoria_del_caso",

@@ -135,6 +135,18 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
     "theories",
   ],
   inmobiliario: ["opportunities", "perspectives", "recommendations", "risk", "scorecard", "transaction_center"],
+  migratorio: [
+    "constitutional",
+    "cross_exam",
+    "discovery",
+    "opportunities",
+    "perspectives",
+    "recommendations",
+    "risk",
+    "scorecard",
+    "strategy_synthesis",
+    "theories",
+  ],
 };
 
 export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
@@ -151,6 +163,7 @@ export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
   agrario: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
   ambiental: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
   inmobiliario: ["opportunities", "perspectives", "scorecard", "transaction_center"],
+  migratorio: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
 };
 
 // NOTE (2026-08-04): `trial_prep` was removed entirely from CANONICAL_STAGES
@@ -273,6 +286,17 @@ export const MX_ENGINES: Record<MexicanCaseType, readonly string[]> = {
     "agent:protected_species_areas_review",
   ],
   inmobiliario: ["property_verification", "closing_readiness_scoring"],
+  migratorio: [
+    "constitutional_compliance",
+    "cross_examination",
+    "procedural_violations",
+    "agent:immigration_eligibility_analysis",
+    "agent:immigration_deadline_continuity",
+    "agent:refugee_non_refoulement_analysis",
+    "agent:nationality_naturalization_analysis",
+    "agent:immigration_due_process_remedies",
+    "agent:child_vulnerability_protection",
+  ],
 };
 
 export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
@@ -805,6 +829,34 @@ export const MX_FINDING_MODULES: Record<MexicanCaseType, readonly string[]> = {
     "poder_notarial",
     "uso_de_suelo",
   ],
+  migratorio: [
+    "immigration_eligibility_analysis",
+    "immigration_deadline_continuity",
+    "refugee_non_refoulement_analysis",
+    "nationality_naturalization_analysis",
+    "immigration_due_process_remedies",
+    "child_vulnerability_protection",
+    "condicion_de_estancia",
+    "continuidad_migratoria",
+    "documento_migratorio",
+    "familia_y_filiacion",
+    "empleador_y_actividad_remunerada",
+    "verificacion_migratoria",
+    "detencion_migratoria",
+    "deportacion_y_retorno",
+    "refugio",
+    "proteccion_complementaria",
+    "principio_de_no_devolucion",
+    "interes_superior_de_la_ninez",
+    "debido_proceso_administrativo",
+    "competencia_y_notificacion",
+    "remedio_administrativo",
+    "juicio_de_nulidad_tfja",
+    "amparo_migratorio",
+    "nacionalidad",
+    "naturalizacion",
+    "vigencia_fuente_legal",
+  ],
 };
 
 export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
@@ -1005,6 +1057,18 @@ export const MX_MOTION_TYPES: Record<MexicanCaseType, readonly string[]> = {
   // Deliberately empty: a closing has no motions. If a real estate matter
   // ever needs one, it has become a dispute — i.e. civil, not inmobiliario.
   inmobiliario: [],
+  migratorio: [
+    "recurso_administrativo_migratorio",
+    "juicio_de_nulidad_tfja_migratorio",
+    "amparo_indirecto_migratorio",
+    "amparo_directo_migratorio",
+    "incidente_de_suspension_migratoria",
+    "solicitud_de_libertad_o_alternativa_a_detencion",
+    "impugnacion_negativa_comar",
+    "impugnacion_negativa_naturalizacion",
+    "queja_cndh",
+    "ofrecimiento_pruebas",
+  ],
 };
 
 export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
@@ -1247,6 +1311,20 @@ export const MX_BLOCKED_TERMS: Record<MexicanCaseType, readonly string[]> = {
     "trial strategy",
     "wrongful termination",
   ],
+  migratorio: [
+    "uscis",
+    "ice immigration",
+    "green card",
+    "removal court",
+    "i-130",
+    "i-485",
+    "adjustment of status",
+    "american asylum court",
+    "u.s. visa classification",
+    "jury",
+    "grand jury",
+    "plea bargain",
+  ],
 };
 
 export const MX_FORBIDDEN_REPORT_FIELDS: Record<MexicanCaseType, readonly string[]> = {
@@ -1263,4 +1341,11 @@ export const MX_FORBIDDEN_REPORT_FIELDS: Record<MexicanCaseType, readonly string
   agrario: ["constitutional_issues", "constitutional_issues_struct"],
   ambiental: [],
   inmobiliario: ["constitutional_issues", "constitutional_issues_struct", "cross_examination"],
+  migratorio: [
+    "jury_instructions",
+    "sentencing_guidelines",
+    "plea_bargain",
+    "uscis_form",
+    "us_visa_classification",
+  ],
 };

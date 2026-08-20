@@ -44,6 +44,17 @@ export type Replacement = { from: string; to: string };
 
 /** Procedural party roles that legitimately exist in each materia. */
 export const PARTY_ROLES_BY_PROFILE: Record<MxPipelineProfile, readonly string[]> = {
+  migratorio: [
+    "persona solicitante",
+    "persona extranjera",
+    "persona refugiada",
+    "autoridad migratoria",
+    "INM",
+    "SRE",
+    "COMAR",
+    "tercero interesado",
+    "niña, niño o adolescente",
+  ],
   penal: ["imputado", "víctima", "ofendido", "Ministerio Público", "Fiscalía", "defensa", "asesor jurídico"],
   amparo: ["quejoso", "quejosa", "autoridad responsable", "tercero interesado", "Ministerio Público Federal"],
   derechos_humanos: ["víctima", "quejoso", "autoridad responsable", "Comisión de Derechos Humanos"],
@@ -69,6 +80,13 @@ export const PARTY_ROLES_BY_PROFILE: Record<MxPipelineProfile, readonly string[]
 
 /** Materia-appropriate substitution for each US party-role label. */
 const PARTY_ROLE_SUBSTITUTIONS: Record<MxPipelineProfile, Record<string, string>> = {
+  migratorio: {
+    prosecution: "autoridad migratoria",
+    prosecutor: "autoridad migratoria",
+    "district attorney": "autoridad migratoria",
+    plaintiff: "persona solicitante",
+    defendant: "autoridad migratoria",
+  },
   penal: {
     prosecution: "Ministerio Público",
     prosecutor: "Ministerio Público",

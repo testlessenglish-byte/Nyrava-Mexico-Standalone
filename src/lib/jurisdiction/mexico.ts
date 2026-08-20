@@ -157,6 +157,23 @@ const MX_ALIASES: Record<string, MexicanCaseType> = {
   "controversia constitucional": "constitucional",
   "accion de inconstitucionalidad": "constitucional",
   "acción de inconstitucionalidad": "constitucional",
+  // migratorio, refugio y nacionalidad
+  immigration: "migratorio",
+  inmigracion: "migratorio",
+  "inmigración": "migratorio",
+  migracion: "migratorio",
+  "migración": "migratorio",
+  "derecho migratorio": "migratorio",
+  "materia migratoria": "migratorio",
+  extranjeria: "migratorio",
+  "extranjería": "migratorio",
+  refugio: "migratorio",
+  refugiados: "migratorio",
+  "proteccion complementaria": "migratorio",
+  "protección complementaria": "migratorio",
+  nacionalidad: "migratorio",
+  naturalizacion: "migratorio",
+  "naturalización": "migratorio",
 };
 
 /**
@@ -341,6 +358,28 @@ const PROCEDURAL: Record<MexicanCaseType, MxProceduralRules> = {
     ],
     oral: false,
   },
+  migratorio: {
+    procedural_code: "Ley de Migración / LRPCAP / Ley de Nacionalidad",
+    procedural_code_name:
+      "Ley de Migración y su Reglamento; Ley sobre Refugiados, Protección Complementaria y Asilo Político; Ley de Nacionalidad; LFPA, LFPCA y Ley de Amparo según la vía",
+    substantive_codes: [
+      "CPEUM Arts. 1, 4, 11, 14, 16 y 33",
+      "Ley de Migración y Reglamento de la Ley de Migración",
+      "Ley sobre Refugiados, Protección Complementaria y Asilo Político y su Reglamento",
+      "Ley de Nacionalidad y Reglamento de la Ley de Nacionalidad",
+      "Ley General de los Derechos de Niñas, Niños y Adolescentes",
+      "tratados internacionales vinculantes para México",
+    ],
+    stages: [
+      "solicitud o inicio del procedimiento ante INM, SRE o COMAR",
+      "prevención, entrevista o verificación",
+      "resolución administrativa",
+      "recurso administrativo cuando proceda",
+      "juicio contencioso administrativo ante el TFJA",
+      "amparo y suspensión cuando procedan",
+    ],
+    oral: false,
+  },
 };
 
 export function getProceduralRules(caseType: unknown): MxProceduralRules {
@@ -426,6 +465,16 @@ const COURTS: Record<MexicanCaseType, MxCourtHierarchy> = {
     ladder: [
       "Registro Público de la Propiedad de la entidad (inscripción y oponibilidad frente a terceros)",
       "Si surge controversia: Juez de lo Civil de primera instancia (el asunto deja de ser inmobiliario y se convierte en civil)",
+    ],
+  },
+  migratorio: {
+    court_level: "federal",
+    first_instance:
+      "INM, SRE o COMAR según el trámite; Sala Regional del TFJA para nulidad; Juzgado de Distrito para amparo indirecto",
+    ladder: [
+      "Sala Superior del TFJA cuando proceda",
+      "Tribunal Colegiado de Circuito",
+      "Suprema Corte de Justicia de la Nación en los supuestos constitucionales de su competencia",
     ],
   },
 };
@@ -541,6 +590,24 @@ const EVIDENCE: Record<MexicanCaseType, MxEvidenceRules> = {
     ],
     carga_probatoria: "No aplica carga procesal — el comprador y su abogado asumen el riesgo de una verificación insuficiente; de ahí el rol del Verification Center.",
   },
+  migratorio: {
+    valoracion:
+      "Valoración del expediente administrativo y documentos de identidad, viaje, estancia, vínculos familiares, empleo y protección; ninguna fecha o condición se trata como confirmada sin documento fuente vigente.",
+    medios: [
+      "pasaporte o documento de identidad",
+      "forma migratoria, visa y tarjeta de residencia",
+      "acuse, prevención, constancia o resolución del INM",
+      "expediente y resolución de COMAR",
+      "documentos de filiación y estado civil",
+      "oferta de empleo y constancia de inscripción de empleador",
+      "constancias consulares o de SRE",
+      "notificaciones y constancias de fecha",
+      "certificados médicos, psicológicos y de vulnerabilidad",
+      "expediente administrativo remitido al TFJA o al Poder Judicial de la Federación",
+    ],
+    carga_probatoria:
+      "La persona solicitante aporta identidad y supuestos del beneficio; la autoridad debe fundar y motivar sus actos y conservar el expediente. En protección internacional rigen no devolución, enfoque diferenciado y valoración integral.",
+  },
 };
 
 export function getEvidenceRules(caseType: unknown): MxEvidenceRules {
@@ -575,6 +642,7 @@ const PARTY_ROLES: Record<MexicanCaseType, { a: string; b: string; neutral: stri
   constitucional: { a: "promovente", b: "autoridad_responsable", neutral: "ambas" },
   ambiental: { a: "particular", b: "autoridad_ambiental", neutral: "ambas" },
   inmobiliario: { a: "comprador", b: "vendedor", neutral: "ambas" },
+  migratorio: { a: "persona_migrante", b: "autoridad_responsable", neutral: "ambas" },
 };
 
 export function getPartyRoles(caseType: unknown) {
