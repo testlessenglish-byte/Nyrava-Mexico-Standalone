@@ -34,7 +34,11 @@ import {
   adminDeleteBillingPlan,
   type BillingPlanRow,
 } from "@/lib/billing-plans.functions";
-import { adminGetMercadoPagoConfigStatus, adminListWebhookEvents } from "@/lib/billing.functions";
+import {
+  adminGetBillingProviderStatus,
+  adminSetBillingProviderEnabled,
+  adminListWebhookEvents,
+} from "@/lib/billing.functions";
 import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/_authenticated/admin/billing")({
@@ -960,49 +964,73 @@ function fmtWhen(s: string) {
   });
 }
 
-/** Mercado Pago config status + recent webhook deliveries, so an admin can
- * see at a glance whether Mercado Pago is actually wired up end-to-end:
- * access token present, webhook secret present, and events actually
- * arriving — not just that env vars exist. Configure the endpoint in
- * Mercado Pago → Your integrations → Webhooks as
- * https://<your-domain>/api/public/hooks/mercadopago-webhook, subscribed to
- * subscription_preapproval and subscription_authorized_payment. */
+/** Independent, server-enforced provider controls. Secret values never reach this page. */
 function MercadoPagoConfigPanel() {
-  const { t } = useI18n();
-  const statusFn = useServerFn(adminGetMercadoPagoConfigStatus);
+  const { locale } = useI18n();
+  const qc = useQueryClient();
+  const statusFn = useServerFn(adminGetBillingProviderStatus);
+  const toggleFn = useServerFn(adminSetBillingProviderEnabled);
   const eventsFn = useServerFn(adminListWebhookEvents);
-
-  const statusQ = useQuery({ queryKey: ["admin-mercadopago-status"], queryFn: () => statusFn() });
+  const statusQ = useQuery({
+    queryKey: ["admin-billing-provider-status"],
+    queryFn: () => statusFn(),
+  });
   const eventsQ = useQuery({
     queryKey: ["admin-webhook-events"],
     queryFn: () => eventsFn(),
     refetchInterval: 15000,
   });
-
-  const s = statusQ.data;
-  const events = eventsQ.data ?? [];
-  const bothConfigured = Boolean(s?.hasAccessToken && s?.hasWebhookSecret);
+  const toggle = useMutation({
+    mutationFn: (input: { provider: "mercadopago" | "stripe"; enabled: boolean }) =>
+      toggleFn({ data: input }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["admin-billing-provider-status"] });
+      toast.success(locale === "es" ? "Proveedor de pago actualizado" : "Payment provider updated");
+    },
+    onError: (error: unknown) =>
+      toast.error(error instanceof Error ? error.message : String(error)),
+  });
+  const copyUrl = (path: string) => {
+    const value = `${window.location.origin}${path}`;
+    void navigator.clipboard.writeText(value);
+    toast.success(locale === "es" ? "URL copiada" : "URL copied");
+  };
+  const providers = statusQ.data
+    ? [
+        {
+          id: "mercadopago" as const,
+          name: "Mercado Pago",
+          status: statusQ.data.mercadopago,
+          secretLabel: "MERCADOPAGO_ACCESS_TOKEN",
+          webhookLabel: "MERCADOPAGO_WEBHOOK_SECRET",
+          dashboard: "https://www.mercadopago.com.mx/developers/panel/webhooks",
+          events: "subscription_preapproval, subscription_authorized_payment",
+        },
+        {
+          id: "stripe" as const,
+          name: "Stripe",
+          status: statusQ.data.stripe,
+          secretLabel: "STRIPE_SECRET_KEY",
+          webhookLabel: "STRIPE_WEBHOOK_SECRET",
+          dashboard: "https://dashboard.stripe.com/webhooks",
+          events:
+            "checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed",
+        },
+      ]
+    : [];
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 md:p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldCheck
-            className={`h-4 w-4 ${bothConfigured ? "text-success" : "text-muted-foreground"}`}
-          />
-          <h2 className="font-semibold">{t("admin.billing.mp.heading")}</h2>
-          {/* Nyrava ↔ Mercado Pago connection indicator — a quick "is this
-              actually wired end-to-end" read before scanning the two chips
-              below. */}
-          <div className="ml-1 flex items-center gap-1.5" aria-hidden="true">
-            <span
-              className={`h-2 w-2 rounded-full ${bothConfigured ? "bg-success" : "bg-destructive"}`}
-            />
-            <span className="h-px w-6 bg-border" />
-            <span
-              className={`h-2 w-2 rounded-full ${bothConfigured ? "bg-success" : "bg-muted"}`}
-            />
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold">
+            {locale === "es" ? "Proveedores de pago" : "Payment providers"}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {locale === "es"
+              ? "Stripe y Mercado Pago se configuran y activan de forma independiente."
+              : "Stripe and Mercado Pago are configured and enabled independently."}
+          </p>
         </div>
         <button
           onClick={() => {
@@ -1011,95 +1039,139 @@ function MercadoPagoConfigPanel() {
           }}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
         >
-          <RefreshCw className="h-3 w-3" /> {t("admin.billing.mp.refresh")}
+          <RefreshCw className="h-3 w-3" />
+          {locale === "es" ? "Actualizar" : "Refresh"}
         </button>
       </div>
 
       {statusQ.isLoading && (
-        <div className="text-sm text-muted-foreground">{t("admin.billing.mp.checking")}</div>
-      )}
-      {s && (
-        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <StatusChip
-            ok={s.hasAccessToken}
-            label={t("admin.billing.mp.accessTokenLabel")}
-            detail={
-              s.accessTokenMode
-                ? t("admin.billing.mp.mode", { mode: s.accessTokenMode })
-                : s.hasAccessToken
-                  ? t("admin.billing.mp.unrecognizedPrefix")
-                  : undefined
-            }
-          />
-          <StatusChip
-            ok={s.hasWebhookSecret}
-            label={t("admin.billing.mp.webhookSecretLabel")}
-            detail={
-              s.webhookSecretLast4
-                ? t("admin.billing.mp.endsWith", { last4: s.webhookSecretLast4 })
-                : undefined
-            }
-          />
+        <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+          {locale === "es" ? "Comprobando configuración…" : "Checking configuration…"}
         </div>
       )}
 
-      <WebhookSetupBox />
+      <div className="grid gap-4 xl:grid-cols-2">
+        {providers.map((provider) => {
+          const configured = provider.status.hasSecretKey && provider.status.hasWebhookSecret;
+          return (
+            <section key={provider.id} className="rounded-xl border border-border bg-card p-5 md:p-6">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck
+                    className={`h-4 w-4 ${configured ? "text-success" : "text-muted-foreground"}`}
+                  />
+                  <div>
+                    <h3 className="font-semibold">{provider.name}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {provider.status.enabled
+                        ? locale === "es" ? "Aceptando nuevos pagos" : "Accepting new payments"
+                        : locale === "es" ? "Nuevos pagos desactivados" : "New payments disabled"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={toggle.isPending}
+                  aria-pressed={provider.status.enabled}
+                  onClick={() =>
+                    toggle.mutate({ provider: provider.id, enabled: !provider.status.enabled })
+                  }
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${provider.status.enabled
+                    ? "bg-success/15 text-success"
+                    : "bg-muted text-muted-foreground"}`}
+                >
+                  {provider.status.enabled
+                    ? locale === "es" ? "Activo" : "Enabled"
+                    : locale === "es" ? "Inactivo" : "Disabled"}
+                </button>
+              </div>
 
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {t("admin.billing.mp.recentDeliveries")}
-      </h3>
-      {eventsQ.isLoading && (
-        <div className="text-sm text-muted-foreground">
-          {t("admin.billing.mp.loadingDeliveries")}
-        </div>
-      )}
-      {!eventsQ.isLoading && events.length === 0 && (
-        <div className="text-sm text-muted-foreground">{t("admin.billing.mp.noDeliveries")}</div>
-      )}
-      {events.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-border">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-secondary/50 text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-3 py-2 text-left font-medium">
-                  {t("admin.billing.mp.table.event")}
-                </th>
-                <th className="px-3 py-2 text-left font-medium">
-                  {t("admin.billing.mp.table.status")}
-                </th>
-                <th className="px-3 py-2 text-left font-medium">
-                  {t("admin.billing.mp.table.detail")}
-                </th>
-                <th className="px-3 py-2 text-left font-medium">
-                  {t("admin.billing.mp.table.received")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.slice(0, 15).map((e) => (
-                <tr key={e.id} className="border-t border-border">
-                  <td className="px-3 py-1.5 font-mono">{e.event_type}</td>
-                  <td className="px-3 py-1.5">
-                    <span
-                      className={
-                        e.status === "processed"
-                          ? "text-success"
-                          : e.status === "error"
-                            ? "text-destructive"
-                            : "text-muted-foreground"
-                      }
-                    >
-                      {e.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-1.5 text-muted-foreground">{e.detail ?? "—"}</td>
-                  <td className="px-3 py-1.5 text-muted-foreground">{fmtWhen(e.created_at)}</td>
+              <div className="mb-4 grid gap-3 sm:grid-cols-2">
+                <StatusChip
+                  ok={provider.status.hasSecretKey}
+                  label={provider.secretLabel}
+                  detail={provider.status.keyMode ?? undefined}
+                />
+                <StatusChip
+                  ok={provider.status.hasWebhookSecret}
+                  label={provider.webhookLabel}
+                  detail={provider.status.webhookSecretLast4
+                    ? `••••${provider.status.webhookSecretLast4}`
+                    : undefined}
+                />
+              </div>
+
+              <div className="rounded-lg border border-border bg-secondary/25 p-3">
+                <div className="mb-2 flex items-center gap-2 text-xs font-medium">
+                  <Webhook className="h-3.5 w-3.5" />
+                  {locale === "es" ? "Webhook firmado" : "Signed webhook"}
+                </div>
+                <div className="flex gap-2">
+                  <code className="min-w-0 flex-1 overflow-x-auto rounded bg-background px-2 py-2 text-xs">
+                    {typeof window === "undefined"
+                      ? provider.status.webhookUrl
+                      : `${window.location.origin}${provider.status.webhookUrl}`}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => copyUrl(provider.status.webhookUrl)}
+                    className="rounded-md border border-border px-2"
+                    aria-label={locale === "es" ? "Copiar URL" : "Copy URL"}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {locale === "es" ? "Eventos: " : "Events: "}{provider.events}
+                </p>
+                <a
+                  href={provider.dashboard}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
+                >
+                  {locale === "es" ? "Abrir configuración" : "Open setup"}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      <section className="rounded-xl border border-border bg-card p-5 md:p-6">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {locale === "es" ? "Entregas recientes" : "Recent deliveries"}
+        </h3>
+        {(eventsQ.data ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {locale === "es" ? "Aún no hay eventos de webhook." : "No webhook events yet."}
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-secondary/50 text-muted-foreground">
+                  <th className="px-3 py-2 text-left">Event</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Detail</th>
+                  <th className="px-3 py-2 text-left">Received</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {(eventsQ.data ?? []).slice(0, 20).map((event) => (
+                  <tr key={event.id} className="border-t border-border">
+                    <td className="px-3 py-2 font-mono">{event.event_type}</td>
+                    <td className="px-3 py-2">{event.status}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{event.detail ?? "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{fmtWhen(event.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
