@@ -4208,11 +4208,6 @@ export const uploadCaseEvidence = createServerFn({ method: "POST" })
       .maybeSingle();
     if (accessError || !accessibleCase) throw new Error("Case not found");
 
-    const rerunScopeRaw = String(data.get("rerunScope") ?? "affected_analysis");
-    const rerunScope = z
-      .enum(["new_documents_only", "affected_analysis", "full_case"])
-      .parse(rerunScopeRaw);
-
     const uploads = await Promise.all(
       files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
     );
@@ -4455,13 +4450,19 @@ export const addEvidenceAndRerun = createServerFn({ method: "POST" })
     }
     if (total > MAX_TOTAL_BYTES) throw new Error("Total upload exceeds 200 MB");
 
-    const { data: owns } = await supabase
+    // Authorization is the existing case RLS policy. This admits authorized
+    // organization members while still hiding matters they cannot access.
+    const { data: accessibleCase, error: accessError } = await supabase
       .from("cases")
       .select("id")
       .eq("id", caseId)
-      .eq("user_id", userId)
       .maybeSingle();
-    if (!owns) throw new Error("Case not found");
+    if (accessError || !accessibleCase) throw new Error("Case not found");
+
+    const rerunScopeRaw = String(data.get("rerunScope") ?? "affected_analysis");
+    const rerunScope = z
+      .enum(["new_documents_only", "affected_analysis", "full_case"])
+      .parse(rerunScopeRaw);
 
     // 1. Snapshot the current report so we can diff against it later.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
