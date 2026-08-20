@@ -295,12 +295,18 @@ function sharesEvidence(a: Prepared, b: Prepared): boolean {
   return false;
 }
 
+function sharesExactQuoteEvidence(a: Prepared, b: Prepared): boolean {
+  if (a.evidenceQuotes.size === 0 || b.evidenceQuotes.size === 0) return false;
+  for (const q of a.evidenceQuotes) if (b.evidenceQuotes.has(q)) return true;
+  return false;
+}
+
 function sharesQuoteEvidence(a: Prepared, b: Prepared): boolean {
   if (a.evidenceQuotes.size === 0 || b.evidenceQuotes.size === 0) return false;
   for (const q of a.evidenceQuotes) {
     for (const other of b.evidenceQuotes) {
       // Engines often quote the same holding at different lengths. Treat a
-      // meaningful verbatim containment as the same evidence anchor.
+      // meaningful verbatim containment as a candidate evidence anchor.
       if (q === other || (Math.min(q.length, other.length) >= MIN_QUOTE_LEN && (q.includes(other) || other.includes(q)))) return true;
     }
   }
@@ -362,7 +368,16 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
   // "Competencia de la autoridad" citing one identical sentence) — unlike a
   // shared source document, a verbatim shared quote of meaningful length
   // cannot be coincidental.
-  if (sharesQuoteEvidence(a, b)) return true;
+  if (sharesQuoteEvidence(a, b)) {
+    // An exact normalized quote is a strong same-proposition signal. For mere
+    // containment, require textual agreement as well: one judgment paragraph
+    // can contain several independent holdings and must not collapse them.
+    if (sharesExactQuoteEvidence(a, b)) return true;
+    return (
+      jaccard(a.titleTokens, b.titleTokens) >= opts.titleFallbackThreshold ||
+      jaccard(a.descTokens, b.descTokens) >= opts.descriptionThreshold
+    );
+  }
   return false;
 }
 
