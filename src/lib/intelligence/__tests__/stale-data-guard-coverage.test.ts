@@ -17,6 +17,7 @@ describe("stale-data and persistence guard coverage", () => {
     expect(sql).toContain("trg_nyrava_sanitize_agent_finding_personal_notice");
     expect(sql).toContain("trg_nyrava_sanitize_agent_log_personal_notice");
     expect(sql).toContain("trg_nyrava_enforce_released_case_terminal_state");
+    expect(sql).toContain("next_stage, worker_lease_until ON public.cases");
   });
 
   it("factory reset includes current provenance and stale-derived tables", () => {
