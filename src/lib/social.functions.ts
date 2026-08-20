@@ -346,3 +346,57 @@ export const ensureSocialProgram=createServerFn({method:"POST"})
       p_org:data.orgId,p_name_es:data.nameEs,p_name_en:data.nameEn,p_prefix:data.prefix,
     });fail(error);return program;
   });
+
+
+export const approveSocialCarePlan=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({planId:uuid,version:z.number().int().min(1)}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("approve_social_care_plan",{p_plan:data.planId,p_version:data.version});fail(error);return {ok:true};});
+
+export const assignSocialCaseManager=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid,userId:uuid,role:z.enum(["case_manager","supervisor","attorney","psychologist","social_worker"])}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("assign_social_case_manager",{p_case:data.caseId,p_user:data.userId,p_role:data.role});fail(error);return {ok:true};});
+
+export const sendSocialReferral=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({referralId:uuid,purpose:z.string().trim().min(2).max(240),sharedFields:z.record(z.string(),z.unknown()),expiresAt:z.string().datetime().optional()}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("send_social_referral",{p_referral:data.referralId,p_purpose:data.purpose,p_shared_fields:data.sharedFields,p_expires:data.expiresAt??null});fail(error);return {ok:true};});
+
+export const verifySocialReferralResult=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({referralId:uuid,result:z.string().trim().min(2).max(5000),response:z.string().trim().max(5000).optional(),closureReason:z.string().trim().max(1000).optional()}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("verify_social_referral_result",{p_referral:data.referralId,p_result:data.result,p_response:data.response??null,p_closure_reason:data.closureReason??null});fail(error);return {ok:true};});
+
+export const advanceSocialTransfer=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({transferId:uuid,action:z.enum(["approve","send","reject"])}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("advance_social_transfer",{p_transfer:data.transferId,p_action:data.action});fail(error);return {ok:true};});
+
+export const refreshSocialAlerts=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {data:created,error}=await supabase.rpc("refresh_social_case_alerts",{p_case:data.caseId});fail(error);return {created:created??0};});
+
+export const acknowledgeSocialAlert=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({alertId:uuid,resolve:z.boolean().default(false)}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const now=new Date().toISOString();const {error}=await supabase.from("social_alerts").update({acknowledged_at:now,...(data.resolve?{resolved_at:now}:{})}).eq("id",data.alertId);fail(error);return {ok:true};});
+
+export const createSocialAppointment=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({socialCaseId:uuid,title:z.string().trim().min(2).max(300),scheduledAt:z.string().datetime(),durationMinutes:z.number().int().min(5).max(1440).optional(),locationMethod:z.string().trim().max(300).optional(),personId:uuid.optional()}).parse(d))
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,person_id").eq("id",data.socialCaseId).single();fail(caseError);const {data:row,error}=await supabase.from("social_appointments").insert({org_id:c.org_id,social_case_id:data.socialCaseId,person_id:data.personId??c.person_id,title:data.title,scheduled_at:data.scheduledAt,duration_minutes:data.durationMinutes??null,location_method:data.locationMethod??null,professional_id:userId,status:"scheduled",created_by:userId}).select("id").single();fail(error);return row;});
+
+export const finalizeSocialDocumentUpload=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({socialCaseId:uuid,path:z.string().min(20).max(1000),title:z.string().trim().min(1).max(300),documentType:z.string().trim().max(120).optional(),recordType:recordType,sensitivity:z.enum(["standard","confidential","restricted","highly_restricted"]).default("confidential"),consentId:uuid.optional(),extractionAuthorized:z.boolean().default(false),mimeType:z.string().trim().max(200).optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:c,error:caseError}=await supabase.from("social_cases").select("person_id,family_id").eq("id",data.socialCaseId).single();fail(caseError);
+    const {data:file,error:downloadError}=await supabase.storage.from("social-case-files").download(data.path);fail(downloadError);
+    const bytes=await file.arrayBuffer();const digest=await crypto.subtle.digest("SHA-256",bytes);
+    const checksum=Array.from(new Uint8Array(digest)).map((b)=>b.toString(16).padStart(2,"0")).join("");
+    const {data:documentId,error}=await supabase.rpc("register_social_document",{p_case:data.socialCaseId,p_person:c.person_id,p_family:c.family_id,p_title:data.title,p_document_type:data.documentType??null,p_record_type:data.recordType,p_sensitivity:data.sensitivity,p_consent:data.consentId??null,p_storage_path:data.path,p_checksum:checksum,p_mime:data.mimeType||file.type||null,p_size:file.size,p_extraction_authorized:data.extractionAuthorized});
+    fail(error);return {documentId,checksum,size:file.size};
+  });
