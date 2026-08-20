@@ -118,6 +118,18 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     // page) so a user who already knows they're auditing a concluded case
     // doesn't have to visit a second page just to set this before running.
     const case_analysis_mode = normalizeCaseAnalysisMode(data.get("case_analysis_mode"));
+    let matter_metadata: Record<string, unknown> = {};
+    if (case_type === "migratorio") {
+      const rawMetadata = String(data.get("matter_metadata") ?? "{}");
+      let parsedMetadata: unknown;
+      try {
+        parsedMetadata = JSON.parse(rawMetadata);
+      } catch {
+        throw new Error("Invalid immigration matter metadata");
+      }
+      const { parseImmigrationMatterMetadata } = await import("@/lib/jurisdiction/immigration");
+      matter_metadata = parseImmigrationMatterMetadata(parsedMetadata);
+    }
     const files = data.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length === 0) throw new Error("No files uploaded");
 
@@ -153,6 +165,7 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
         case_type,
         jurisdiction,
         case_analysis_mode,
+        matter_metadata,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .select("id")
@@ -170,6 +183,10 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
           case_type,
           jurisdiction,
           case_analysis_mode,
+          immigration_subtype:
+            case_type === "migratorio" ? String(matter_metadata.immigration_subtype ?? "") : null,
+          has_protected_identity_metadata:
+            case_type === "migratorio" && Boolean(matter_metadata.passport_number),
         },
       });
       throw new Error(error?.message ?? "Failed to create case");
