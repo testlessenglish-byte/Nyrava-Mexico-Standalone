@@ -90,6 +90,28 @@ type MateriaLaw = {
 };
 
 const MATERIA_LAW: Record<MxPipelineProfile, MateriaLaw> = {
+  migratorio: {
+    fuero: "federal",
+    courts: [
+      "Instituto Nacional de Migración (INM)",
+      "Secretaría de Relaciones Exteriores (SRE)",
+      "Comisión Mexicana de Ayuda a Refugiados (COMAR)",
+      "Tribunal Federal de Justicia Administrativa (TFJA)",
+      "Poder Judicial de la Federación",
+    ],
+    substantive: [
+      "Ley de Migración",
+      "Ley sobre Refugiados, Protección Complementaria y Asilo Político",
+      "Ley de Nacionalidad",
+      "CPEUM",
+    ],
+    procedural: [
+      "Reglamento de la Ley de Migración",
+      "Ley Federal de Procedimiento Administrativo",
+      "Ley Federal de Procedimiento Contencioso Administrativo",
+      "Ley de Amparo",
+    ],
+  },
   penal: {
     fuero: "mixto",
     courts: ["Juez de Control", "Tribunal de Enjuiciamiento", "Tribunal de Alzada"],
@@ -212,6 +234,7 @@ const MATERIA_LAW: Record<MxPipelineProfile, MateriaLaw> = {
 };
 
 const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
+  migratorio: ["CPEUM Art. 1º", "Art. 11", "Art. 14", "Art. 16", "Art. 30", "Art. 33"],
   penal: ["CPEUM Art. 1º", "Art. 14", "Art. 16", "Art. 19", "Art. 20", "Art. 21"],
   amparo: ["CPEUM Art. 1º", "Art. 103", "Art. 107"],
   derechos_humanos: ["CPEUM Art. 1º", "Art. 102 apartado B"],
@@ -231,6 +254,7 @@ const CONSTITUTIONAL_BASIS: Record<MxPipelineProfile, readonly string[]> = {
 };
 
 const MATERIA_LABEL_ES: Record<MxPipelineProfile, string> = {
+  migratorio: "migratoria, de refugio y nacionalidad",
   penal: "penal",
   amparo: "amparo",
   derechos_humanos: "derechos humanos",
