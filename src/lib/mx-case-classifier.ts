@@ -18,7 +18,8 @@ export type MxCaseType =
   | "administrativo"
   | "fiscal"
   | "constitucional"
-  | "inmobiliario";
+  | "inmobiliario"
+  | "migratorio";
 
 export interface MxClassification {
   caseType: MxCaseType;
@@ -142,6 +143,17 @@ const SIGNALS: Record<MxCaseType, Array<[RegExp, number]>> = {
     [/\bderechos humanos\b|\bcontrol de convencionalidad\b/gi, 1],
     [/\bjurisprudencia de la scjn\b/gi, 1],
   ],
+  migratorio: [
+    [/\bley de migraci[oó]n\b|\breglamento de la ley de migraci[oó]n\b/gi, 3],
+    [/\binstituto nacional de migraci[oó]n\b|\bINM\b/g, 3],
+    [/\bCOMAR\b|\bcondici[oó]n de refugiad[oa]\b|\bprotecci[oó]n complementaria\b/gi, 3],
+    [/\bcondici[oó]n de estancia\b|\bresidencia (?:temporal|permanente)\b/gi, 3],
+    [/\bestaci[oó]n migratoria\b|\bretorno asistido\b|\bdeportaci[oó]n\b/gi, 3],
+    [/\bprincipio de no devoluci[oó]n\b|\bno[- ]refoulement\b/gi, 3],
+    [/\bnaturalizaci[oó]n\b|\bley de nacionalidad\b/gi, 3],
+    [/\bunidad familiar\b|\bregularizaci[oó]n migratoria\b/gi, 2],
+    [/\bvisa\b|\bpasaporte\b|\bconsulado de m[eé]xico\b/gi, 1],
+  ],
   inmobiliario: [
     [/\bcompraventa\b/gi, 2],
     [/\bescritura p[uú]blica\b/gi, 3],
@@ -179,6 +191,9 @@ const AREA_ALIASES: Record<string, MxCaseType> = {
   constitutional: "constitucional",
   inmobiliario: "inmobiliario",
   real_estate: "inmobiliario",
+  migratorio: "migratorio",
+  immigration: "migratorio",
+  refugee: "migratorio",
 };
 
 export function mxCaseTypeFromArea(area: string | null | undefined): MxCaseType | null {
@@ -279,4 +294,5 @@ export const MX_CASE_TYPE_LABELS: Record<MxCaseType, { es: string; en: string }>
   fiscal: { es: "Fiscal", en: "Tax" },
   constitucional: { es: "Constitucional", en: "Constitutional" },
   inmobiliario: { es: "Bienes Raíces", en: "Real Estate" },
+  migratorio: { es: "Migratorio, Refugio y Nacionalidad", en: "Immigration, Refugee and Nationality" },
 };
