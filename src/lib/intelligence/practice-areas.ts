@@ -192,6 +192,13 @@ export const PRACTICE_GATED_ENGINES = new Set<string>([
   "agent:conagua_water_rights_review",
   "agent:pollution_remediation_analysis",
   "agent:protected_species_areas_review",
+  // Migratorio, refugio y nacionalidad:
+  "agent:immigration_eligibility_analysis",
+  "agent:immigration_deadline_continuity",
+  "agent:refugee_non_refoulement_analysis",
+  "agent:nationality_naturalization_analysis",
+  "agent:immigration_due_process_remedies",
+  "agent:child_vulnerability_protection",
   // Real estate (inmobiliario) only:
   "property_verification",
   "closing_readiness_scoring",
@@ -607,6 +614,16 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
       // structure has changed before) — describe the subject matter instead.
       { value: "agrario", label: "Derecho Agrario (núcleos agrarios, ejidos, comunidades, tierras ejidales)" },
       { value: "ambiental", label: "Derecho Ambiental (LGEEPA, PROFEPA, impacto ambiental)" },
+    ],
+  },
+  {
+    group: "Migratorio, Refugio y Nacionalidad",
+    options: [
+      {
+        value: "migratorio",
+        label:
+          "Derecho Migratorio, Refugio y Nacionalidad (INM, SRE, COMAR, TFJA y amparo federal)",
+      },
     ],
   },
   {
