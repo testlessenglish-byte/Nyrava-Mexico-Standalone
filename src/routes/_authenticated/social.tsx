@@ -145,6 +145,16 @@ function SocialCarePage(){
         </div>}
 
         {area==="cases"&&<section>
+          <div className="mb-4 rounded-xl border border-border bg-card p-4">
+            <h2 className="mb-3 font-semibold">{es?"Abrir caso social":"Open social case"}</h2>
+            {!programs.length?<p className="text-sm text-warning">{es?"Un administrador debe crear un programa social y su prefijo antes de abrir casos.":"An administrator must create a social program and case-number prefix before opening cases."}</p>:<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <select value={caseDraft.programId||programs[0]?.id||""} onChange={e=>setCaseDraft({...caseDraft,programId:e.target.value})} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">{programs.map((p:any)=><option key={p.id} value={p.id}>{es?p.name_es:p.name_en} · {p.case_prefix}</option>)}</select>
+              <select value={caseDraft.personId} onChange={e=>setCaseDraft({...caseDraft,personId:e.target.value})} className="rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Seleccione persona":"Select person"}</option>{visiblePeople.map((p:any)=><option key={p.id} value={p.id}>{p.person_number} · {p.legal_name}</option>)}</select>
+              <input value={caseDraft.caseType} onChange={e=>setCaseDraft({...caseDraft,caseType:e.target.value})} className="rounded-lg border border-border bg-background px-3 py-2 text-sm" aria-label={es?"Tipo de caso":"Case type"}/>
+              <select value={caseDraft.priority} onChange={e=>setCaseDraft({...caseDraft,priority:e.target.value as typeof caseDraft.priority})} className="rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="normal">{es?"Prioridad normal":"Normal priority"}</option><option value="high">{es?"Alta":"High"}</option><option value="urgent">{es?"Urgente":"Urgent"}</option><option value="low">{es?"Baja":"Low"}</option></select>
+              <button disabled={!caseDraft.personId||createCaseMutation.isPending} onClick={()=>createCaseMutation.mutate()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{createCaseMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Crear folio":"Create case"}</button>
+            </div>}
+          </div>
           <div className="mb-4 flex flex-wrap gap-2"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={es?"Buscar por nombre, folio, teléfono, estado…":"Search name, ID, phone, status…"} className="min-w-[260px] flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm"/><button onClick={()=>search.mutate()} disabled={!resolvedOrg||search.isPending} className="rounded-lg border border-border px-4 py-2 text-sm"><Search className="mr-2 inline h-4 w-4"/>{es?"Búsqueda amplia":"Broad search"}</button></div>
           {search.data&&<div className="mb-4 rounded-lg border border-border bg-card p-3 text-sm">{es?"Resultados autorizados":"Authorized results"}: {search.data.length}</div>}
           <CaseTable cases={filtered} es={es}/>
