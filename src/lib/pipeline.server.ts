@@ -9514,7 +9514,7 @@ ${paginationTail}`;
     // A saved report is still a DRAFT until the post-report agents approve
     // it. Never expose an intermediate "complete / ready" state between the
     // report write and runFinalReleaseReview().
-    status: "generating_report",
+    status: "reporting",
     status_message: "Report saved — final release review in progress",
     progress: 99,
     report_at: null,
