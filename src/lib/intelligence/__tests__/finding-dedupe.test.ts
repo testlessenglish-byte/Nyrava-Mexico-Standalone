@@ -396,3 +396,54 @@ describe("isGroundedByTextOverlap", () => {
     expect(isGroundedByTextOverlap(text, [candidate], SOFT_GROUNDING_THRESHOLD)).toBe(true);
   });
 });
+
+describe("finding dedupe — contained quote boundaries", () => {
+  it("does not merge distinct holdings merely because one quote contains the other", () => {
+    const sharedSentence =
+      "El Pleno de la Suprema Corte es competente para conocer del presente asunto.";
+    const out = consolidateFindings([
+      f({
+        id: "competence",
+        category: "Amparo",
+        title: "Competencia de la Suprema Corte",
+        description: "Se establece qué órgano jurisdiccional conoce del recurso.",
+        evidence_refs: [{ quote: sharedSentence, document_id: "doc-1" }],
+      }),
+      f({
+        id: "tax",
+        category: "Amparo",
+        title: "Tratamiento fiscal del organismo",
+        description: "Se analiza si el organismo público está sujeto al impuesto predial.",
+        evidence_refs: [{
+          quote: `${sharedSentence} En un apartado distinto se estudian las obligaciones fiscales del organismo.`,
+          document_id: "doc-1",
+        }],
+      }),
+    ]);
+
+    expect(out.map((row) => row.id)).toEqual(["competence", "tax"]);
+  });
+
+  it("still merges contained quotes when the propositions also agree", () => {
+    const shortQuote =
+      "La autoridad omitió notificar personalmente la resolución al quejoso.";
+    const out = consolidateFindings([
+      f({
+        id: "a",
+        category: "Amparo",
+        title: "Omisión de notificación personal",
+        description: "La resolución no fue notificada personalmente.",
+        evidence_refs: [{ quote: shortQuote }],
+      }),
+      f({
+        id: "b",
+        category: "Amparo",
+        title: "Falta de notificación personal",
+        description: "Se omitió la notificación personal de la resolución.",
+        evidence_refs: [{ quote: `${shortQuote} La omisión consta en autos.` }],
+      }),
+    ]);
+
+    expect(out).toHaveLength(1);
+  });
+});
