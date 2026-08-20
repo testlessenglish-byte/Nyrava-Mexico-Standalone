@@ -132,6 +132,17 @@ export function canonicalEvidenceIntegrityIssue(f: SelectableFinding): string | 
     )
   ) return "competence_quote_does_not_establish_admissibility";
 
+  // An adhesive/cross-review is a different party and remedy from the
+  // principal appeal. ADR5829 showed a quote expressly limited to "la
+  // adherente / revisión adhesiva" being retitled as the principal
+  // appellant's grievances, reversing who lost that issue.
+  const adhesiveEvidence = evidenceSegments.some((quote) =>
+    /\b(?:adherente|adhesiv[oa]|revisi[oó]n\s+adhesiva)\b/i.test(quote),
+  );
+  const acknowledgesAdhesiveParty = /\b(?:adherente|adhesiv[oa]|recurrente\s+adhesiva)\b/i.test(claim);
+  const principalOnlyClaim = /\b(?:parte\s+)?recurrente\b/i.test(claim) && !acknowledgesAdhesiveParty;
+  if (adhesiveEvidence && principalOnlyClaim) return "adhesive_party_misattributed_to_principal_appellant";
+
   return null;
 }
 

@@ -214,6 +214,15 @@ export function getCaseAnalysisObjective(mode: CaseAnalysisMode, locale: "es" | 
     es
       ? "No prometas que el caso puede ganarse ni que un hallazgo revertirá la resolución. El abogado toma la determinación jurídica final."
       : "Do not promise the case can be won or that a finding will overturn the decision. The attorney makes the final legal determination.",
+    es
+      ? "POSTURA TEMPORAL OBLIGATORIA: antes de sugerir una vía futura, reconstruye qué recursos ya fueron interpuestos y resueltos. Un recurso de revisión que la propia resolución ya decidió es un HECHO HISTÓRICO, no una vía disponible. No lo presentes como posibilidad futura ni digas que falta interponerlo."
+      : "MANDATORY TEMPORAL POSTURE: before suggesting any future route, reconstruct which remedies were already filed and decided. A review petition the decision itself already resolved is a HISTORICAL FACT, not an available route. Do not present it as a future possibility or say it still must be filed.",
+    es
+      ? "RESULTADO OBLIGATORIO: identifica y conserva por separado (1) todos los puntos resolutivos, (2) quién obtuvo o perdió cada determinación y (3) los efectos exactos y cualquier reenvío. Un reporte de sentencia no puede omitir la concesión/negativa del amparo ni sustituirla por una descripción genérica de la revocación."
+      : "MANDATORY OUTCOME: separately identify and preserve (1) every dispositive holding, (2) who won or lost each determination, and (3) the exact effects and any remand. A judgment report may not omit the grant/denial of relief or replace it with a generic description of reversal.",
+    es
+      ? "IDENTIDAD DE PARTES: conserva literalmente la calidad procesal de la fuente. 'Recurrente', 'recurrente adhesiva/adherente', 'quejosa', 'autoridad responsable' y 'tercero interesado' no son intercambiables. Si la cita dice adherente o revisión adhesiva, el título, la descripción, el impacto y affected_party deben atribuirlo a esa parte, nunca a la recurrente principal."
+      : "PARTY IDENTITY: preserve the source's exact procedural role. Principal appellant, adhesive/cross-appellant, complainant, responsible authority, and interested third party are not interchangeable. If the quote says adhesive appellant/cross-review, the title, description, impact, and affected_party must attribute it to that party, never the principal appellant.",
   ].join("\n");
 }
 

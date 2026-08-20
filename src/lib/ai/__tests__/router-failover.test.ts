@@ -38,7 +38,7 @@ vi.mock("@/lib/canonical/encryption.server", () => ({
 import { createHash } from "node:crypto";
 import { buildProvider } from "@/lib/ai/providers/factory";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { routeAI, invalidateProviderCaches } from "@/lib/ai/router.server";
+import { routeAI, invalidateProviderCaches, rotateProviderGroups } from "@/lib/ai/router.server";
 import { clearProviderCooldowns, markProviderCooldown } from "@/lib/ai/cooldown.server";
 
 /** Mirrors router.server.ts's private keyFingerprint() so a test can seed a
@@ -53,6 +53,19 @@ const GROQ_KEY_1 = "groq-key-1";
 const GROQ_KEY_2 = "groq-key-2";
 const GEMINI_KEY_1 = "gemini-key-1";
 const GEMINI_KEY_2 = "gemini-key-2";
+
+describe("provider-group round robin", () => {
+  it("rotates healthy providers while preserving fallback order", () => {
+    const groups = [
+      { provider: "openrouter" as const, keys: ["o"] },
+      { provider: "groq" as const, keys: ["g"] },
+      { provider: "gemini" as const, keys: ["m"] },
+    ];
+    expect(rotateProviderGroups(groups, 0).map((g) => g.provider)).toEqual(["openrouter", "groq", "gemini"]);
+    expect(rotateProviderGroups(groups, 1).map((g) => g.provider)).toEqual(["groq", "gemini", "openrouter"]);
+    expect(rotateProviderGroups(groups, 2).map((g) => g.provider)).toEqual(["gemini", "openrouter", "groq"]);
+  });
+});
 
 // audit B8 (stale mock → real bug this masked): the round-robin cursor is
 // keyed by key fingerprint and persists across tests in this file (see

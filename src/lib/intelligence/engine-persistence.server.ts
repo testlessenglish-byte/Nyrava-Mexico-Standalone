@@ -209,6 +209,27 @@ export async function runVerifiedEngine<T>(
         fell_back_from: telemetry.fellBackFrom,
         cached_calls: telemetry.cached,
         errors: telemetry.errors,
+        // Sanitized per-attempt ledger. Never persist API-key material: the
+        // router's masked keyLabel still contains key fragments, so the UI
+        // receives only provider, model, key ordinal/fingerprint prefix and
+        // call outcome. This is the source of truth for provider usage; one
+        // engine row may contain many routed/fallback calls.
+        provider_calls: scope.calls.map((call) => ({
+          ts: call.ts,
+          provider: call.provider,
+          model: call.model,
+          ok: call.ok,
+          latency_ms: call.latencyMs,
+          input_tokens: call.inputTokens ?? 0,
+          output_tokens: call.outputTokens ?? 0,
+          retry_count: call.retryCount ?? 0,
+          key_index: call.keyIndex ?? null,
+          key_label: call.keyIndex != null ? `key #${call.keyIndex + 1}` : "server key",
+          key_fingerprint: call.keyFingerprint?.slice(0, 8) ?? null,
+          error_kind: call.errorKind ?? null,
+          error: call.error?.slice(0, 240) ?? null,
+          fell_back_from: call.fellBackFrom ?? [],
+        })),
       },
       // Explicit JSON validation state — never inferred.
       validation: {

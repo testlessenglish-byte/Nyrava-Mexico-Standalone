@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { selectFindings } from "../finding-selection";
+import { canonicalEvidenceIntegrityIssue, selectFindings } from "../finding-selection";
 import { computeESS, detectDocTypeSignals } from "../sufficiency.server";
 
 describe("post-169 report correctness", () => {
@@ -67,5 +67,23 @@ describe("post-169 report correctness", () => {
     expect(selected).toHaveLength(1);
     const merged = selected[0] as Record<string, unknown>;
     expect(Array.isArray(merged.supporting_engines)).toBe(true);
+  });
+
+  it("rejects an adhesive-review holding attributed to the principal appellant", () => {
+    expect(canonicalEvidenceIntegrityIssue({
+      title: "Inoperancia de los agravios de la parte recurrente",
+      description: "La parte recurrente no combatió la sentencia.",
+      source_module: "agent:chain_of_custody",
+      source_quote: "Resultan inoperantes los agravios esgrimidos por la adherente y se declara infundado el recurso de revisión adhesiva.",
+    })).toBe("adhesive_party_misattributed_to_principal_appellant");
+  });
+
+  it("accepts the same holding when the adhesive party is preserved", () => {
+    expect(canonicalEvidenceIntegrityIssue({
+      title: "Inoperancia de los agravios de la recurrente adhesiva",
+      description: "La recurrente adhesiva no combatió la sentencia.",
+      source_module: "agent:chain_of_custody",
+      source_quote: "Resultan inoperantes los agravios esgrimidos por la adherente y se declara infundado el recurso de revisión adhesiva.",
+    })).toBeNull();
   });
 });

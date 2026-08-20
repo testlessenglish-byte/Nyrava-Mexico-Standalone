@@ -210,7 +210,11 @@ export function CommandCenterDashboard({
   // null report.case_strength_score instead.
   const liveScore = (score?.overall_confidence ?? score?.case_quality) ?? null;
   const reportScore = scores.strength ?? (scores.risk != null ? 100 - scores.risk : null);
-  const rawCaseScore = liveScore ?? reportScore;
+  // ESS suppression is authoritative. A stale/live case_scores row must not
+  // resurrect a numeric badge beside a report that explicitly withheld
+  // quantitative scoring (the ADR5829 run showed 86 while its PDF said the
+  // score was suppressed).
+  const rawCaseScore = ess.scoresSuppressed ? null : liveScore ?? reportScore;
   const caseScore = rawCaseScore == null ? 0 : Math.max(0, Math.min(100, Math.round(rawCaseScore)));
   const caseBand = scoreBand(caseScore);
   const scoreLabel = rawCaseScore != null ? t(caseBand.labelKey) : t("score.pending");
@@ -293,6 +297,8 @@ export function CommandCenterDashboard({
   ).length;
   const totalEngines = COMMAND_CENTER_ENGINES.length;
   const hasReport = !!caseRow?.report_at || !!report;
+  const reportReleased = hasReport && status === "released";
+  const reportBlocked = hasReport && status === "needs_revision";
 
   return (
     <div className="space-y-4">
@@ -493,17 +499,25 @@ export function CommandCenterDashboard({
 
       {/* ============ REPORT READY ============ */}
       {hasReport && (
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-success/30 bg-success/10 p-4">
-          <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
+        <div className={`flex flex-wrap items-center gap-3 rounded-2xl border p-4 ${reportReleased ? "border-success/30 bg-success/10" : "border-warning/40 bg-warning/10"}`}>
+          {reportReleased
+            ? <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
+            : <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />}
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-success">{t("cc.reportReady.title")}</div>
-            <p className="text-xs text-muted-foreground">{t("cc.reportReady.subtitle")}</p>
+            <div className={`text-sm font-semibold ${reportReleased ? "text-success" : "text-warning"}`}>
+              {reportReleased ? t("cc.reportReady.title") : t("cases.status.needs_revision")}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {reportReleased
+                ? t("cc.reportReady.subtitle")
+                : String(caseRow?.status_message ?? (reportBlocked ? "Final release review blocked this draft." : "Final release review is pending."))}
+            </p>
           </div>
           {onOpenTab && (
             <button
               type="button"
               onClick={() => onOpenTab("report")}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-success/40 bg-success/10 px-3 py-1.5 text-xs font-medium text-success hover:bg-success/20"
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium ${reportReleased ? "border-success/40 bg-success/10 text-success hover:bg-success/20" : "border-warning/40 bg-warning/10 text-warning hover:bg-warning/20"}`}
             >
               {t("cc.reportReady.view")} <ArrowRight className="h-3.5 w-3.5" />
             </button>
