@@ -223,7 +223,7 @@ export function CommandCenterDashboard({
   const progressPct = engineRows.length > 0 ? execProgress.percent : Math.max(0, Math.min(100, progress ?? 0));
   const running =
     isRunning ||
-    (!!status && ["extracting", "ocr", "analyzing", "running", "generating_report", "queued"].includes(status));
+    (!!status && ["extracting", "ocr", "analyzing", "running", "reporting", "queued"].includes(status));
 
   // A worker holds a time-boxed lease while actively processing a stage; if
   // the lease expired while the case is still incomplete, the run died
