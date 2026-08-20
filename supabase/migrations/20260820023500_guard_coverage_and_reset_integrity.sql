@@ -41,9 +41,6 @@ AS $$
       '(defect|irregular|error procesal|nulidad|invalid|afect.{0,100}(procedencia|defensa|debido proceso)|desestim|debilidad|riesgo|perjuicio|garanti[cz]|asegurar|deb[ií][oa].{0,100}realiz|motivo.{0,100}impug|incidente_de_nulidad)';
 $$;
 
--- Recursive JSON sanitizer. It only removes finding-like objects; container
--- objects are preserved and recursively cleaned so one bad theory never
--- blanks an otherwise useful agent/report payload.
 CREATE OR REPLACE FUNCTION public.nyrava_sanitize_personal_notice_json_value(
   p_value jsonb,
   p_deny_personal_notice_duty boolean
@@ -110,8 +107,6 @@ AS $$
 BEGIN
   IF public.nyrava_case_denies_personal_notice_duty(NEW.case_id)
      AND public.nyrava_is_personal_notice_defect_text(to_jsonb(NEW)::text) THEN
-    -- INSERT: suppress the row. UPDATE: preserve the previously-valid row
-    -- rather than replacing it with an invalid reinterpretation.
     IF TG_OP = 'UPDATE' THEN
       RETURN OLD;
     END IF;
@@ -196,8 +191,6 @@ CREATE TRIGGER trg_nyrava_sanitize_agent_log_personal_notice
 BEFORE INSERT OR UPDATE ON public.agent_logs
 FOR EACH ROW EXECUTE FUNCTION public.nyrava_sanitize_agent_log_personal_notice();
 
--- Terminal lifecycle invariant. A released case must never appear as 90%,
--- unfinished, or still queued to a later stage.
 CREATE OR REPLACE FUNCTION public.nyrava_enforce_released_case_terminal_state()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -218,12 +211,13 @@ CREATE TRIGGER trg_nyrava_enforce_released_case_terminal_state
 BEFORE INSERT OR UPDATE OF status, progress, completed_at, next_stage ON public.cases
 FOR EACH ROW EXECUTE FUNCTION public.nyrava_enforce_released_case_terminal_state();
 
--- Keep the admin factory reset target list synchronized with the full-rerun
--- reset. This replaces the original 2026-07-25 function with the same API.
+-- Preserve the CURRENT service-role-only factory-reset API, including the
+-- p_actor_id parameter used by src/lib/factory-reset.functions.ts.
 CREATE OR REPLACE FUNCTION public.admin_factory_reset_case_data(
   p_include_demo boolean DEFAULT false,
   p_include_audit boolean DEFAULT false,
-  p_include_ai_usage boolean DEFAULT false
+  p_include_ai_usage boolean DEFAULT false,
+  p_actor_id uuid DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -248,8 +242,11 @@ DECLARE
     'matter_parties','matter_tasks','matters','cases'
   ];
 BEGIN
-  IF NOT public.is_super_admin(auth.uid()) THEN
-    RAISE EXCEPTION 'Forbidden — super admin required.';
+  -- This RPC is invoked only with the server-side service-role client after
+  -- factory-reset.functions.ts has independently verified the real actor is
+  -- a super admin. Do not re-open this destructive RPC to browser clients.
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'Forbidden — service role required.';
   END IF;
 
   IF p_include_demo THEN
@@ -277,7 +274,7 @@ BEGIN
 
   INSERT INTO public.admin_audit_log (actor_id, action, target, meta)
   VALUES (
-    auth.uid(),
+    p_actor_id,
     'factory_reset_case_data',
     'operational_case_data',
     jsonb_build_object(
@@ -292,7 +289,8 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.admin_factory_reset_case_data(boolean, boolean, boolean) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.admin_factory_reset_case_data(boolean, boolean, boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.admin_factory_reset_case_data(boolean, boolean, boolean, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_factory_reset_case_data(boolean, boolean, boolean, uuid) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_factory_reset_case_data(boolean, boolean, boolean, uuid) TO service_role;
 
 COMMIT;
