@@ -142,10 +142,12 @@ export const getMyBillingStatus = createServerFn({ method: "GET" })
       providers: {
         mercadopago:
           providerFlags.mercadopago !== false &&
-          Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN),
+          Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN) &&
+          Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET),
         stripe:
           providerFlags.stripe === true &&
-          Boolean(process.env.STRIPE_SECRET_KEY),
+          Boolean(process.env.STRIPE_SECRET_KEY) &&
+          Boolean(process.env.STRIPE_WEBHOOK_SECRET),
       },
       plan: access.plan,
       status: access.status,
@@ -194,6 +196,18 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       (enabled.has("mercadopago") ? "mercadopago" : enabled.has("stripe") ? "stripe" : null);
     if (!provider || !enabled.has(provider)) {
       throw new Error("The selected payment provider is currently disabled.");
+    }
+    if (
+      provider === "stripe" &&
+      (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET)
+    ) {
+      throw new Error("Stripe requires both STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET before checkout can be enabled.");
+    }
+    if (
+      provider === "mercadopago" &&
+      (!process.env.MERCADOPAGO_ACCESS_TOKEN || !process.env.MERCADOPAGO_WEBHOOK_SECRET)
+    ) {
+      throw new Error("Mercado Pago requires both its access token and webhook secret before checkout can be enabled.");
     }
 
     const { data: userResp } = await admin.auth.admin.getUserById(userId);
