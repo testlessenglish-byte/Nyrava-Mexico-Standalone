@@ -25,7 +25,7 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
     if(!orgIds.length) return {organizations:[],programs:[],offices:[],cases:[],people:[],alerts:[],stats:{active:0,critical:0,overdue:0,unverifiedReferrals:0},userId};
     const [programs,offices,cases,people,alerts,referrals,tasks]=await Promise.all([
       supabase.from("social_programs").select("id,org_id,name_es,name_en,case_prefix,active").in("org_id",orgIds).eq("active",true).order("name_es"),
-      supabase.from("social_offices").select("id,org_id,name,location,active").in("org_id",orgIds).eq("active",true).order("name"),
+      supabase.from("social_offices").select("id,org_id,name,address,active").in("org_id",orgIds).eq("active",true).order("name"),
       supabase.from("social_cases").select("id,org_id,program_id,case_number,case_type,status,priority,risk_level,last_activity_at,next_required_action,person_id,family_id,assigned_case_manager").in("org_id",orgIds).is("deleted_at",null).order("last_activity_at",{ascending:false}).limit(100),
       supabase.from("social_people").select("id,org_id,person_number,legal_name,preferred_name,telephone,email,consent_status,record_status").in("org_id",orgIds).is("deleted_at",null).order("updated_at",{ascending:false}).limit(100),
       supabase.from("social_alerts").select("id,org_id,social_case_id,alert_type,severity,title_es,title_en,due_at").in("org_id",orgIds).is("resolved_at",null).order("due_at",{ascending:true}).limit(100),
@@ -323,4 +323,19 @@ export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
     const path=`${data.orgId}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
     const {data:signed,error}=await supabase.storage.from("social-case-files").createSignedUploadUrl(path);fail(error);
     return {path,token:signed.token,signedUrl:signed.signedUrl};
+  });
+
+
+export const ensureSocialProgram=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    orgId:uuid,nameEs:z.string().trim().min(2).max(160).default("Atención Integral"),
+    nameEn:z.string().trim().min(2).max(160).default("Comprehensive Care"),
+    prefix:z.string().trim().regex(/^[A-Z0-9-]{2,20}$/).default("NYR-SOC"),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:program,error}=await supabase.rpc("ensure_social_program_for_org",{
+      p_org:data.orgId,p_name_es:data.nameEs,p_name_en:data.nameEn,p_prefix:data.prefix,
+    });fail(error);return program;
   });
