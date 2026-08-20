@@ -347,6 +347,7 @@ export function effectiveMxProfile(
  * gone for that reason, not because it was re-included.
  */
 const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
+  migratorio: ["witness"],
   // Proceso penal acusatorio (CNPP): everything is relevant, including
   // audiencia/juicio oral preparation and control constitucional.
   penal: [],
@@ -503,6 +504,7 @@ export const MX_PARTY_ROLES: Record<
   MxPipelineProfile,
   { a: string; b: string; c?: string; neutral: string }
 > = {
+  migratorio: { a: "persona_solicitante", b: "autoridad_migratoria", c: "tercero_interesado", neutral: "ambas" },
   penal: { a: "ministerio_publico", b: "defensa", neutral: "ambas" },
   // Amparo routinely has a tercero interesado (e.g. the beneficiary of the
   // challenged act) distinct from both quejoso and autoridad responsable —
