@@ -1,0 +1,87 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const migration=(name:string)=>readFileSync(join(process.cwd(),"supabase","migrations",name),"utf8");
+const foundation=migration("20260820230000_social_case_management_foundation.sql");
+const workflows=migration("20260820231000_social_case_workflows.sql");
+const hardening=migration("20260820232000_social_case_management_hardening.sql");
+const billing=migration("20260820233000_billing_provider_controls.sql");
+const sql=[foundation,workflows,hardening].join("\n").toLowerCase();
+
+describe("social-care migration security coverage",()=>{
+  it.each([
+    "social_people","social_families","social_family_members","social_cases",
+    "social_case_assignments","social_assessments","social_assessment_versions",
+    "social_care_plans","social_care_plan_goals","social_interventions",
+    "social_referrals","social_referral_updates","social_consents","social_consent_versions",
+    "social_documents","social_document_versions","social_tasks","social_appointments",
+    "social_alerts","social_case_transfers","social_case_transfer_items","social_case_closures",
+    "social_record_grants","social_activity_events","social_indicator_definitions",
+    "social_indicator_snapshots","social_retention_actions","social_support_access_grants",
+  ])("creates and protects %s",(table)=>{
+    expect(sql).toContain(`create table if not exists public.${table}`);
+    expect(sql).toContain(`alter table public.${table} enable row level security`);
+  });
+
+  it("uses non-reusable immutable case numbering",()=>{
+    expect(sql).toContain("social_case_number_counters");
+    expect(sql).toContain("prevent_social_case_number_change");
+    expect(sql).toContain("lpad(v_next::text,6,'0')");
+  });
+  it("versions assessments, care plans, consents and documents immutably",()=>{
+    for(const table of ["social_assessment_versions","social_care_plan_versions","social_consent_versions","social_document_versions"]){
+      expect(workflows).toContain(`'${table}'`);
+    }
+    expect(workflows).toContain("prevent_social_immutable_mutation");
+  });
+  it("requires exact recipient, purpose, information and validity for sharing",()=>{
+    expect(sql).toContain("social_consent_covers");
+    expect(sql).toContain("p_information <@ v.permitted_information");
+    expect(workflows).toContain("validate_social_referral_share");
+    expect(workflows).toContain("validate_social_document_share");
+  });
+  it("separates immigration linking and validates a Mexican immigration matter",()=>{
+    expect(sql).toContain("social_immigration_links");
+    expect(workflows).toContain("validate_social_immigration_link");
+    expect(workflows).toContain("case_type");
+    expect(workflows).toContain("'migratorio'");
+  });
+  it("does not treat sent referrals as completed",()=>{
+    expect(sql).toContain("result_verified_at");
+    expect(workflows).toContain("enforce_social_referral_completion");
+  });
+  it("keeps closed cases read-only and preserves reopen history",()=>{
+    expect(workflows).toContain("protect_closed_social_case");
+    expect(workflows).toContain("reopen_social_case");
+    expect(sql).toContain("closure_version");
+  });
+  it("enforces restricted legal, psychosocial, medical and child-protection boundaries",()=>{
+    for(const recordType of ["legal_privileged_record","psychosocial_restricted_record","medical_restricted_record","child_protection_restricted_record"]){
+      expect(sql).toContain(recordType);
+    }
+    expect(sql).toContain("social_record_grants");
+  });
+  it("limits support access by scope, record type and eight-hour expiry",()=>{
+    expect(hardening).toContain("social_support_access_grants");
+    expect(hardening).toContain("interval '8 hours'");
+    expect(hardening).toContain("not p_write and public.social_support_access_active");
+  });
+  it("uses private storage and never grants authenticated delete",()=>{
+    expect(hardening).toContain("values('social-case-files','social-case-files',false");
+    expect(hardening).not.toMatch(/create policy social_case_files_delete/i);
+  });
+  it("preserves append-only activity history",()=>{
+    expect(sql).toContain("prevent_social_activity_mutation");
+    expect(sql).toContain("social_activity_no_update");
+  });
+  it("suppresses small institutional groups",()=>{
+    expect(workflows).toContain("social_indicator_summary");
+    expect(sql).toContain("small_group_threshold");
+  });
+  it("controls Stripe and Mercado Pago independently while keeping one enabled",()=>{
+    expect(billing).toContain("'mercadopago','stripe'");
+    expect(billing).toContain("prevent_disabling_all_billing_providers");
+    expect(billing).toContain("billing_provider_events");
+  });
+});
