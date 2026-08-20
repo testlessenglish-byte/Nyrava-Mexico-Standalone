@@ -93,20 +93,12 @@ export const createSocialFamily=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>socialFamilyInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);
-    const {data:family,error}=await supabase.from("social_families").insert({
-      org_id:data.orgId,family_number:null,family_name:data.familyName,
-      primary_contact_person_id:data.primaryContactPersonId??null,
-      current_location:data.currentLocation,created_by:userId,
-    }).select("id,family_number,family_name").single();
-    fail(error);
-    if(data.memberIds.length){
-      const {error:memberError}=await supabase.from("social_family_members").insert(data.memberIds.map((personId)=>({
-        org_id:data.orgId,family_id:family.id,person_id:personId,
-      })));
-      fail(memberError);
-    }
-    return family;
+    const {supabase}=ctx(context);
+    const {data:family,error}=await supabase.rpc("create_social_family",{
+      p_org:data.orgId,p_name:data.familyName,p_primary:data.primaryContactPersonId??null,
+      p_location:data.currentLocation,p_members:data.memberIds,
+    });
+    fail(error);return family;
   });
 
 export const createSocialCase=createServerFn({method:"POST"})
@@ -154,9 +146,11 @@ export const recordSocialAssessment=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>assessmentInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);
-    const {data:caseRow,error:caseError}=await supabase.from("social_cases").select("id,org_id").eq("id",data.socialCaseId).single();fail(caseError);
-    const {data:existing,error:existingError}=await supabase.from("social_assessments").select("id,current_version").eq("social_case_id",data.socialCaseId).order("created_at",{ascending:false}).limit(1).maybeSingle();fail(existingError);
+    const {supabase}=ctx(context);
+    const {data:existing,error:existingError}=await supabase.from("social_assessments")
+      .select("id,current_version").eq("social_case_id",data.socialCaseId)
+      .order("created_at",{ascending:false}).limit(1).maybeSingle();
+    fail(existingError);
     if(existing){
       const {data:version,error}=await supabase.rpc("record_social_assessment",{
         p_assessment:existing.id,p_risk_level:data.riskLevel,p_evidence:data.evidenceObservations??null,
@@ -166,41 +160,41 @@ export const recordSocialAssessment=createServerFn({method:"POST"})
         p_override_explanation:data.overrideExplanation??null,
       });fail(error);return {assessmentId:existing.id,version};
     }
-    const {data:assessment,error}=await supabase.from("social_assessments").insert({
-      org_id:caseRow.org_id,social_case_id:data.socialCaseId,template_id:data.templateId??null,
-      assessor_id:userId,risk_level:data.riskLevel,professional_override:data.professionalOverride,
-      override_explanation:data.overrideExplanation??null,next_review_date:data.nextReviewDate??null,
-    }).select("id").single();fail(error);
-    const {error:versionError}=await supabase.from("social_assessment_versions").insert({
-      org_id:caseRow.org_id,assessment_id:assessment.id,version:1,
-      evidence_observations:data.evidenceObservations??null,reason:data.reason,
-      protective_factors:data.protectiveFactors??null,immediate_actions:data.immediateActions??null,
-      required_follow_up:data.requiredFollowUp??null,answers:data.answers,
-      risk_level:data.riskLevel,created_by:userId,
-    });fail(versionError);
-    return {assessmentId:assessment.id,version:1};
+    const {data:assessmentId,error}=await supabase.rpc("create_social_assessment_initial",{
+      p_case:data.socialCaseId,p_template:data.templateId??null,p_risk:data.riskLevel,
+      p_evidence:data.evidenceObservations??null,p_reason:data.reason,
+      p_protective:data.protectiveFactors??null,p_actions:data.immediateActions??null,
+      p_follow_up:data.requiredFollowUp??null,p_answers:data.answers,
+      p_review:data.nextReviewDate??null,p_override:data.professionalOverride,
+      p_override_explanation:data.overrideExplanation??null,
+    });fail(error);return {assessmentId,version:1};
   });
 
 export const createSocialCarePlan=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>carePlanInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);
-    const {data:caseRow,error:caseError}=await supabase.from("social_cases").select("org_id,family_id").eq("id",data.socialCaseId).single();fail(caseError);
-    const {data:plan,error}=await supabase.from("social_care_plans").insert({org_id:caseRow.org_id,social_case_id:data.socialCaseId,family_id:caseRow.family_id,status:data.status,created_by:userId}).select("id").single();fail(error);
-    const {data:version,error:versionError}=await supabase.from("social_care_plan_versions").insert({org_id:caseRow.org_id,care_plan_id:plan.id,version:1,summary:data.summary,status:data.status,submitted_by:userId}).select("id").single();fail(versionError);
-    const {error:goalError}=await supabase.from("social_care_plan_goals").insert(data.goals.map((g)=>({org_id:caseRow.org_id,care_plan_version_id:version.id,identified_need:g.identifiedNeed,goal:g.goal,planned_action:g.plannedAction,target_date:g.targetDate??null,priority:g.priority,expected_outcome:g.expectedOutcome??null,review_date:g.reviewDate??null,status:"draft"})));fail(goalError);
-    return {planId:plan.id,version:1};
+    const {supabase}=ctx(context);
+    const {data:planId,error}=await supabase.rpc("create_social_care_plan",{
+      p_case:data.socialCaseId,p_summary:data.summary,p_status:data.status,p_goals:data.goals,
+    });
+    fail(error);return {planId,version:1};
   });
 
 export const createSocialConsent=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>consentInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);
-    const {data:consent,error}=await supabase.from("social_consents").insert({org_id:data.orgId,person_id:data.personId??null,family_id:data.familyId??null,consent_type:data.consentType,status:"active",expires_at:data.expiresAt??null,created_by:userId}).select("id").single();fail(error);
-    const {error:versionError}=await supabase.from("social_consent_versions").insert({org_id:data.orgId,consent_id:consent.id,version:1,language:data.language,consented_by_name:data.consentedByName,guardian_representative:data.guardianRepresentative??null,permitted_purpose:data.permittedPurposes,permitted_recipients:data.permittedRecipients,permitted_information:data.permittedInformation,restrictions:data.restrictions??null,confirmation:{method:"recorded_in_app",confirmed_at:new Date().toISOString()},created_by:userId});fail(versionError);
-    return {consentId:consent.id,version:1};
+    const {supabase}=ctx(context);
+    const {data:consentId,error}=await supabase.rpc("create_social_consent",{
+      p_org:data.orgId,p_person:data.personId??null,p_family:data.familyId??null,
+      p_type:data.consentType,p_language:data.language,p_consented_by:data.consentedByName,
+      p_guardian:data.guardianRepresentative??null,p_purposes:data.permittedPurposes,
+      p_recipients:data.permittedRecipients,p_information:data.permittedInformation,
+      p_restrictions:data.restrictions??null,p_expires:data.expiresAt??null,
+      p_confirmation:{method:"recorded_in_app",confirmed_at:new Date().toISOString()},
+    });
+    fail(error);return {consentId,version:1};
   });
 
 export const createSocialReferral=createServerFn({method:"POST"})
