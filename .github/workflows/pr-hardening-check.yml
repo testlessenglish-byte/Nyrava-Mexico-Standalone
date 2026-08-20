@@ -39,6 +39,8 @@ jobs:
           src/lib/reporting/attorney-workproduct.test.ts
           src/lib/reporting/objective.test.ts
           src/lib/canonical/__tests__/rendered-report-release.test.ts
+          src/lib/social/__tests__/social-domain.test.ts
+          src/lib/social/__tests__/social-migrations.test.ts
 
       - name: TypeScript integrity check
         run: bunx tsc --noEmit
