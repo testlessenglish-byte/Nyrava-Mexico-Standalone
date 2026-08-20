@@ -2352,7 +2352,7 @@ export type Database = {
           additional_domains?: string[]
           agents_at?: string | null
           analysis_at?: string | null
-          analysis_mode?: string
+          analysis_mode: string
           archived_at?: string | null
           attack_surface?: Json
           cancel_requested?: boolean
