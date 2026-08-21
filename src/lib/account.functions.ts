@@ -74,9 +74,47 @@ export const updateProfile = createServerFn({ method: "POST" })
       if (data[k] !== undefined) settingsPatch[k] = data[k] || null;
     }
     if (Object.keys(settingsPatch).length) {
-      await supabase.from("user_settings").upsert({ user_id: userId, ...settingsPatch });
+      const { error } = await supabase.from("user_settings").upsert({ user_id: userId, ...settingsPatch });
+      if (error) throw new Error(error.message);
     }
-    return { ok: true };
+
+    let organizationCreated = false;
+    let organizationId: string | null = null;
+    const firmName = data.firm_name?.trim();
+    if (firmName) {
+      const { data: membership, error: membershipError } = await supabase
+        .from("org_memberships")
+        .select("org_id")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+      if (membershipError) throw new Error(membershipError.message);
+      if (!membership?.org_id) {
+        const slugBase = firmName
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "")
+          .slice(0, 40) || "organization";
+        const { data: organization, error: organizationError } = await supabase.rpc(
+          "create_account_organization",
+          {
+            p_name: firmName,
+            p_slug: `${slugBase}-${crypto.randomUUID().slice(0, 8)}`,
+            p_prefix: "NYR-SOC",
+          },
+        );
+        if (organizationError) throw new Error(organizationError.message);
+        const result = organization as { id?: string } | null;
+        organizationId = result?.id ?? null;
+        organizationCreated = true;
+      } else {
+        organizationId = membership.org_id;
+      }
+    }
+    return { ok: true, organizationCreated, organizationId };
   });
 
 // ----- Beta / professional profile intake ---------------------------------
