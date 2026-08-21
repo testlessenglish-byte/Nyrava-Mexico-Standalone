@@ -134,7 +134,7 @@ describe("social-care migration security coverage",()=>{
     expect(workspaceSource).toContain("Ethical-screen record access");
   });
   it("keeps audit logging safe for INSERT, UPDATE and DELETE",()=>{
-    expect(workflowReliability).toContain("if tg_op=\'DELETE\' then v_row:=to_jsonb(old)");
+    expect(workflowReliability).toContain("if tg_op='DELETE' then v_row:=to_jsonb(old)");
     expect(workflowReliability).toContain("else v_row:=to_jsonb(new)");
     expect(workflowReliability).not.toContain("coalesce(new.org_id,old.org_id)");
   });
@@ -150,7 +150,7 @@ describe("social-care migration security coverage",()=>{
   });
   it("uses direct active memberships and canonical document organizations",()=>{
     expect(workflowReliability).toContain("from public.org_memberships m");
-    expect(workflowReliability).toContain("m.status=\'active\'");
+    expect(workflowReliability).toContain("m.status='active'");
     expect(workflowReliability).toContain("c.org_id=((storage.foldername(name))[1])::uuid");
     expect(serverSource).toContain('.select("org_id").eq("id",data.socialCaseId).single()');
   });
