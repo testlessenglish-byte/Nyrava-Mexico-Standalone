@@ -698,8 +698,26 @@ create table if not exists public.social_indicator_snapshots (
   unique (org_id, program_id, office_id, period_start, period_end, indicator_code, filters)
 );
 
+create or replace function public.social_people_search_document(
+  p_legal_name text,
+  p_preferred_name text,
+  p_aliases text[]
+) returns tsvector
+language sql
+immutable
+parallel safe
+set search_path = public
+as $
+  select to_tsvector(
+    'simple'::regconfig,
+    coalesce(p_legal_name,'') || ' ' ||
+    coalesce(p_preferred_name,'') || ' ' ||
+    coalesce(array_to_string(p_aliases,' '),'')
+  );
+$;
+
 create index if not exists social_people_search_idx on public.social_people using gin (
-  to_tsvector('simple', coalesce(legal_name,'') || ' ' || coalesce(preferred_name,'') || ' ' || array_to_string(aliases,' '))
+  public.social_people_search_document(legal_name,preferred_name,aliases)
 );
 create index if not exists social_cases_queue_idx on public.social_cases(org_id,status,risk_level,last_activity_at);
 create index if not exists social_assignments_user_idx on public.social_case_assignments(user_id,social_case_id) where active;
