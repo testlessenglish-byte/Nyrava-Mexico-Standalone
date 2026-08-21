@@ -133,6 +133,16 @@ describe("social-care migration security coverage",()=>{
     expect(foundation).toContain("public.can_manage_org(c.org_id,p_user)");
     expect(firstRun).toContain("public.can_manage_org(p_org,auth.uid())");
   });
+  it("provides self-service organization onboarding before Social intake",()=>{
+    expect(routeSource).toContain('createOrganization({name,slug:');
+    expect(routeSource).toContain('setCurrentOrgId(org.id)');
+    expect(routeSource).toContain('ensureProgramFn({data:{orgId:org.id');
+    expect(routeSource).toContain('role:"organization_owner"');
+    expect(routeSource).toContain('queryKey:["memberships"]');
+    expect(routeSource.indexOf("createOrganization({name,slug:")).toBeLessThan(
+      routeSource.indexOf("ensureProgramFn({data:{orgId:org.id"),
+    );
+  });
   it("controls Stripe and Mercado Pago independently while keeping one enabled",()=>{
     expect(billing).toContain("'mercadopago','stripe'");
     expect(billing).toContain("prevent_disabling_all_billing_providers");
