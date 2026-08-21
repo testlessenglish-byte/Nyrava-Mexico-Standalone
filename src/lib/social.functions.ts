@@ -82,17 +82,16 @@ export const createSocialPerson=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>socialPersonInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);
-    const {data:row,error}=await supabase.from("social_people").insert({
-      org_id:data.orgId,person_number:null,legal_name:data.legalName,
-      preferred_name:data.preferredName||null,aliases:data.aliases,
-      date_of_birth:data.dateOfBirth||null,approximate_age:data.approximateAge??null,
-      nationality:data.nationality||null,languages:data.languages,telephone:data.telephone||null,
-      email:data.email||null,current_location:data.currentLocation,
-      immigration_identifiers:data.immigrationIdentifiers,is_minor:data.isMinor??null,
-      unaccompanied_minor:data.unaccompaniedMinor,separated_minor:data.separatedMinor,
-      created_by:userId,
-    }).select("id,person_number,legal_name").single();
+    const {supabase}=ctx(context);
+    const {data:row,error}=await supabase.rpc("create_social_person",{
+      p_org:data.orgId,p_legal_name:data.legalName,p_preferred_name:data.preferredName??null,
+      p_aliases:data.aliases,p_date_of_birth:data.dateOfBirth??null,
+      p_approximate_age:data.approximateAge??null,p_nationality:data.nationality??null,
+      p_languages:data.languages,p_telephone:data.telephone??null,p_email:data.email||null,
+      p_current_location:data.currentLocation,p_immigration_identifiers:data.immigrationIdentifiers,
+      p_is_minor:data.isMinor??null,p_unaccompanied_minor:data.unaccompaniedMinor,
+      p_separated_minor:data.separatedMinor,
+    });
     fail(error);return row;
   });
 
@@ -112,15 +111,14 @@ export const createSocialCase=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>socialCaseInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);
-    const {data:row,error}=await supabase.from("social_cases").insert({
-      org_id:data.orgId,program_id:data.programId,case_number:null,
-      person_id:data.personId??null,family_id:data.familyId??null,case_type:data.caseType,
-      referral_source:data.referralSource||null,service_areas:data.serviceAreas,
-      priority:data.priority,risk_level:data.riskLevel,
-      confidentiality_level:data.confidentialityLevel,tags:data.tags,
-      assigned_case_manager:userId,created_by:userId,
-    }).select("id,case_number,status").single();
+    const {supabase}=ctx(context);
+    const {data:row,error}=await supabase.rpc("create_social_case",{
+      p_org:data.orgId,p_program:data.programId,p_person:data.personId??null,
+      p_family:data.familyId??null,p_case_type:data.caseType,
+      p_referral_source:data.referralSource??null,p_service_areas:data.serviceAreas,
+      p_priority:data.priority,p_risk_level:data.riskLevel,
+      p_confidentiality_level:data.confidentialityLevel,p_tags:data.tags,
+    });
     fail(error);return row;
   });
 
@@ -326,8 +324,12 @@ export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({orgId:uuid,socialCaseId:uuid,recordType:recordType,fileName:z.string().trim().min(1).max(240)}).parse(d))
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
+    const {data:socialCase,error:caseError}=await supabase.from("social_cases")
+      .select("org_id").eq("id",data.socialCaseId).single();
+    fail(caseError);
+    if(!socialCase?.org_id||socialCase.org_id!==data.orgId) throw new Error("Case does not belong to the selected organization");
     const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");
-    const path=`${data.orgId}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
+    const path=`${socialCase.org_id}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
     const {data:signed,error}=await supabase.storage.from("social-case-files").createSignedUploadUrl(path);fail(error);
     return {path,token:signed.token,signedUrl:signed.signedUrl};
   });
