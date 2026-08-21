@@ -136,7 +136,10 @@ describe("social-care migration security coverage",()=>{
     expect(authorizationRepair).toContain("public.is_org_member(p_user,p_org)");
     expect(authorizationRepair).toContain("public.can_manage_org(p_user,p_org)");
     expect(authorizationRepair).toContain("public.social_is_platform_admin(p_user)");
-    expect(authorizationRepair).toContain("create policy social_people_create");
+    expect(authorizationRepair).toContain("alter policy social_people_create");
+    expect(authorizationRepair).toContain("begin;");
+    expect(authorizationRepair).toContain("commit;");
+    expect(authorizationRepair).not.toContain("create policy social_programs_read");
     expect(authorizationRepair).toContain("public.social_is_org_member(org_id,auth.uid())");
     expect(authorizationRepair).toContain("public.social_can_manage_org(org_id,auth.uid())");
     expect(authorizationRepair).not.toMatch(/[\w.+-]+@[\w.-]+/);
