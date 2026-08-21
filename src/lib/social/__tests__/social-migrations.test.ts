@@ -10,10 +10,11 @@ const billing=migration("20260820233000_billing_provider_controls.sql");
 const transactional=migration("20260820234000_social_transactional_workflows.sql");
 const firstRun=migration("20260820235000_social_first_run_setup.sql");
 const operational=migration("20260820236000_social_operational_completion.sql");
+const searchRepair=migration("20260821000000_social_search_index_immutability.sql");
 const serverSource=readFileSync(join(process.cwd(),"src","lib","social.functions.ts"),"utf8");
 const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","social.tsx"),"utf8");
 const workspaceSource=readFileSync(join(process.cwd(),"src","components","social","SocialCaseWorkspace.tsx"),"utf8");
-const sql=[foundation,workflows,hardening,transactional,firstRun,operational].join("\n").toLowerCase();
+const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair].join("\n").toLowerCase();
 
 describe("social-care migration security coverage",()=>{
   it.each([
@@ -35,6 +36,12 @@ describe("social-care migration security coverage",()=>{
     expect(protectedByFoundationLoop || protectedByHardening).toBe(true);
   });
 
+  it("uses an explicitly immutable wrapper for the people search index",()=>{
+    expect(foundation).toContain("language sql\nimmutable\nparallel safe");
+    expect(foundation).toContain("public.social_people_search_document(legal_name,preferred_name,aliases)");
+    expect(searchRepair).toContain("drop index if exists public.social_people_search_idx");
+    expect(searchRepair).not.toMatch(/to_tsvector\([^;]+array_to_string\([^;]+\)\s*\)/s);
+  });
   it("uses non-reusable immutable case numbering",()=>{
     expect(sql).toContain("social_case_number_counters");
     expect(sql).toContain("prevent_social_case_number_change");
