@@ -12,12 +12,13 @@ const firstRun=migration("20260820235000_social_first_run_setup.sql");
 const operational=migration("20260820236000_social_operational_completion.sql");
 const searchRepair=migration("20260821000000_social_search_index_immutability.sql");
 const organizationOnboarding=migration("20260821010000_social_organization_onboarding.sql");
+const authorizationRepair=migration("20260821020000_social_authorization_argument_order.sql");
 const serverSource=readFileSync(join(process.cwd(),"src","lib","social.functions.ts"),"utf8");
 const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","social.tsx"),"utf8");
 const accountRouteSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","account.tsx"),"utf8");
 const accountServerSource=readFileSync(join(process.cwd(),"src","lib","account.functions.ts"),"utf8");
 const workspaceSource=readFileSync(join(process.cwd(),"src","components","social","SocialCaseWorkspace.tsx"),"utf8");
-const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair,organizationOnboarding].join("\n").toLowerCase();
+const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair,organizationOnboarding,authorizationRepair].join("\n").toLowerCase();
 
 describe("social-care migration security coverage",()=>{
   it.each([
@@ -131,10 +132,16 @@ describe("social-care migration security coverage",()=>{
     expect(workspaceSource).toContain("Selective sharing");
     expect(workspaceSource).toContain("Ethical-screen record access");
   });
-  it("keeps organization managers as full Social administrators",()=>{
-    expect(foundation).toContain("public.can_manage_org(p_org,p_user)");
-    expect(foundation).toContain("public.can_manage_org(c.org_id,p_user)");
-    expect(firstRun).toContain("public.can_manage_org(p_org,auth.uid())");
+  it("repairs Social authorization argument order without email-specific access",()=>{
+    expect(authorizationRepair).toContain("public.is_org_member(p_user,p_org)");
+    expect(authorizationRepair).toContain("public.can_manage_org(p_user,p_org)");
+    expect(authorizationRepair).toContain("public.social_is_platform_admin(p_user)");
+    expect(authorizationRepair).toContain("create policy social_people_create");
+    expect(authorizationRepair).toContain("public.social_is_org_member(org_id,auth.uid())");
+    expect(authorizationRepair).toContain("public.social_can_manage_org(org_id,auth.uid())");
+    expect(authorizationRepair).not.toMatch(/[\w.+-]+@[\w.-]+/);
+    expect(authorizationRepair).not.toContain("social_family_members_access");
+    expect(authorizationRepair).not.toContain("social_consents_access");
   });
   it("creates the organization from Account before Social intake",()=>{
     expect(accountRouteSource).toContain("Firm / law firm / organization");
