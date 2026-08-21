@@ -400,3 +400,36 @@ export const finalizeSocialDocumentUpload=createServerFn({method:"POST"})
     const {data:documentId,error}=await supabase.rpc("register_social_document",{p_case:data.socialCaseId,p_person:c.person_id,p_family:c.family_id,p_title:data.title,p_document_type:data.documentType??null,p_record_type:data.recordType,p_sensitivity:data.sensitivity,p_consent:data.consentId??null,p_storage_path:data.path,p_checksum:checksum,p_mime:data.mimeType||file.type||null,p_size:file.size,p_extraction_authorized:data.extractionAuthorized});
     fail(error);return {documentId,checksum,size:file.size};
   });
+
+
+const socialRole=z.enum(["organization_owner","program_director","case_management_supervisor","case_manager","social_worker","attorney","legal_assistant","psychologist","medical_professional","referral_coordinator","data_analyst","auditor","read_only_reviewer","external_partner"]);
+
+export const upsertSocialRoleAssignment=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({orgId:uuid,userId:uuid,role:socialRole,scopeType:z.enum(["organization","program","office","case"]).default("organization"),scopeId:uuid.optional(),endsAt:z.string().datetime().optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);
+    let existing=supabase.from("social_role_assignments").select("id").eq("org_id",data.orgId).eq("user_id",data.userId).eq("role",data.role).eq("scope_type",data.scopeType);
+    existing=data.scopeId?existing.eq("scope_id",data.scopeId):existing.is("scope_id",null);
+    const {data:row,error:lookupError}=await existing.maybeSingle();fail(lookupError);
+    if(row?.id){const {error}=await supabase.from("social_role_assignments").update({active:true,ends_at:data.endsAt??null,assigned_by:userId}).eq("id",row.id);fail(error);return {id:row.id};}
+    const {data:created,error}=await supabase.from("social_role_assignments").insert({org_id:data.orgId,user_id:data.userId,role:data.role,scope_type:data.scopeType,scope_id:data.scopeId??null,active:true,ends_at:data.endsAt??null,assigned_by:userId}).select("id").single();fail(error);return created;
+  });
+
+export const grantSocialRecordAccess=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid,userId:uuid,recordType:recordType,canWrite:z.boolean().default(false),reason:z.string().trim().min(5).max(1000),expiresAt:z.string().datetime().optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);
+    const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id").eq("id",data.caseId).single();fail(caseError);
+    const {data:row,error}=await supabase.from("social_record_grants").insert({org_id:c.org_id,social_case_id:data.caseId,user_id:data.userId,record_type:data.recordType,can_read:true,can_write:data.canWrite,expires_at:data.expiresAt??null,granted_by:userId,reason:data.reason}).select("id").single();fail(error);return row;
+  });
+
+export const shareSocialDocument=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({documentId:uuid,receivingOrgId:uuid,consentId:uuid,purpose:z.string().trim().min(2).max(300),expiresAt:z.string().datetime().optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);
+    const {data:document,error:documentError}=await supabase.from("social_documents").select("org_id").eq("id",data.documentId).single();fail(documentError);
+    const {data:row,error}=await supabase.from("social_document_shares").insert({org_id:document.org_id,document_id:data.documentId,receiving_org_id:data.receivingOrgId,consent_id:data.consentId,purpose:data.purpose,expires_at:data.expiresAt??null,created_by:userId}).select("id").single();fail(error);return row;
+  });
