@@ -1,3 +1,5 @@
+begin;
+
 -- Correct Social authorization helper argument order and preserve tenant isolation.
 -- Core organization helpers are defined as (user_id, organization_id). Earlier
 -- Social migrations called them as (organization_id, user_id), denying valid access.
@@ -375,42 +377,34 @@ begin
   else raise exception 'Invalid transfer action'; end if;
 end $$;
 
--- Recreate only policies still active after all prior Social migrations.
+-- Alter only policies still active after all prior Social migrations.
 
-drop policy if exists social_programs_read on public.social_programs;
-create policy social_programs_read on public.social_programs for select
+alter policy social_programs_read on public.social_programs
 using (public.social_is_org_member(org_id,auth.uid()));
 
-drop policy if exists social_programs_manage on public.social_programs;
-create policy social_programs_manage on public.social_programs for all
+alter policy social_programs_manage on public.social_programs
 using (public.social_can_manage_org(org_id,auth.uid()))
 with check (public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_offices_read on public.social_offices;
-create policy social_offices_read on public.social_offices for select
+alter policy social_offices_read on public.social_offices
 using (public.social_is_org_member(org_id,auth.uid()));
 
-drop policy if exists social_offices_manage on public.social_offices;
-create policy social_offices_manage on public.social_offices for all
+alter policy social_offices_manage on public.social_offices
 using (public.social_can_manage_org(org_id,auth.uid()))
 with check (public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_roles_self_read on public.social_role_assignments;
-create policy social_roles_self_read on public.social_role_assignments for select
+alter policy social_roles_self_read on public.social_role_assignments
 using (user_id=auth.uid() or public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_roles_manage on public.social_role_assignments;
-create policy social_roles_manage on public.social_role_assignments for all
+alter policy social_roles_manage on public.social_role_assignments
 using (public.social_can_manage_org(org_id,auth.uid()))
 with check (public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_people_create on public.social_people;
-create policy social_people_create on public.social_people for insert
+alter policy social_people_create on public.social_people
 with check (public.social_is_org_member(org_id,auth.uid()) and created_by=auth.uid()
   and (public.social_has_capability(org_id,'person.manage',auth.uid()) or public.social_can_manage_org(org_id,auth.uid())));
 
-drop policy if exists social_people_update on public.social_people;
-create policy social_people_update on public.social_people for update
+alter policy social_people_update on public.social_people
 using (public.social_can_access_person(id,auth.uid()) and (
   public.social_can_manage_org(org_id,auth.uid())
   or public.social_has_capability(org_id,'person.manage',auth.uid())
@@ -420,16 +414,14 @@ with check (public.social_can_access_person(id,auth.uid()) and (
   or public.social_has_capability(org_id,'person.manage',auth.uid())
 ));
 
-drop policy if exists social_families_read on public.social_families;
-create policy social_families_read on public.social_families for select
+alter policy social_families_read on public.social_families
 using (public.social_is_org_member(org_id,auth.uid()) and (
   public.social_can_manage_org(org_id,auth.uid()) or created_by=auth.uid()
   or assigned_case_manager=auth.uid()
   or exists(select 1 from public.social_cases c where c.family_id=id and public.social_can_access_case(c.id,'general_case_record',false,auth.uid()))
 ));
 
-drop policy if exists social_families_write on public.social_families;
-create policy social_families_write on public.social_families for all
+alter policy social_families_write on public.social_families
 using (public.social_is_org_member(org_id,auth.uid()) and (
   public.social_can_manage_org(org_id,auth.uid())
   or public.social_has_capability(org_id,'person.manage',auth.uid())
@@ -439,88 +431,72 @@ with check (public.social_is_org_member(org_id,auth.uid()) and (
   or public.social_has_capability(org_id,'person.manage',auth.uid())
 ));
 
-drop policy if exists social_cases_create on public.social_cases;
-create policy social_cases_create on public.social_cases for insert
+alter policy social_cases_create on public.social_cases
 with check (public.social_is_org_member(org_id,auth.uid()) and created_by=auth.uid()
   and (public.social_has_capability(org_id,'case.create',auth.uid()) or public.social_can_manage_org(org_id,auth.uid())));
 
-drop policy if exists social_assignments_manage on public.social_case_assignments;
-create policy social_assignments_manage on public.social_case_assignments for all
+alter policy social_assignments_manage on public.social_case_assignments
 using (public.social_can_manage_org(org_id,auth.uid()) or public.social_has_capability(org_id,'case.view_all',auth.uid()))
 with check (public.social_can_manage_org(org_id,auth.uid()) or public.social_has_capability(org_id,'case.view_all',auth.uid()));
 
-drop policy if exists social_grants_read on public.social_record_grants;
-create policy social_grants_read on public.social_record_grants for select
+alter policy social_grants_read on public.social_record_grants
 using (user_id=auth.uid() or public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_grants_manage on public.social_record_grants;
-create policy social_grants_manage on public.social_record_grants for all
+alter policy social_grants_manage on public.social_record_grants
 using (public.social_can_manage_org(org_id,auth.uid()))
 with check (public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_institutions_read on public.social_institutions;
-create policy social_institutions_read on public.social_institutions for select
+alter policy social_institutions_read on public.social_institutions
 using (org_id is null or public.social_is_org_member(org_id,auth.uid()));
 
-drop policy if exists social_institutions_manage on public.social_institutions;
-create policy social_institutions_manage on public.social_institutions for all
+alter policy social_institutions_manage on public.social_institutions
 using (org_id is not null and public.social_can_manage_org(org_id,auth.uid()))
 with check (org_id is not null and public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_templates_read on public.social_assessment_templates;
-create policy social_templates_read on public.social_assessment_templates for select
+alter policy social_templates_read on public.social_assessment_templates
 using (org_id is null or public.social_is_org_member(org_id,auth.uid()));
 
-drop policy if exists social_templates_manage on public.social_assessment_templates;
-create policy social_templates_manage on public.social_assessment_templates for all
+alter policy social_templates_manage on public.social_assessment_templates
 using (org_id is not null and public.social_can_manage_org(org_id,auth.uid()))
 with check (org_id is not null and public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_packets_sender on public.social_referral_shared_packets;
-create policy social_packets_sender on public.social_referral_shared_packets for all
+alter policy social_packets_sender on public.social_referral_shared_packets
 using (public.social_is_org_member(org_id,auth.uid()))
 with check (public.social_is_org_member(org_id,auth.uid()) and public.social_consent_covers(consent_id,receiving_org_id::text,purpose,array(select jsonb_object_keys(shared_fields))));
 
-drop policy if exists social_packets_receiver_read on public.social_referral_shared_packets;
-create policy social_packets_receiver_read on public.social_referral_shared_packets for select
+alter policy social_packets_receiver_read on public.social_referral_shared_packets
 using (public.social_is_org_member(receiving_org_id,auth.uid()) and revoked_at is null and (expires_at is null or expires_at>now()));
 
-drop policy if exists social_document_shares_sender on public.social_document_shares;
-create policy social_document_shares_sender on public.social_document_shares for all
+alter policy social_document_shares_sender on public.social_document_shares
 using (public.social_is_org_member(org_id,auth.uid()))
 with check (public.social_is_org_member(org_id,auth.uid()) and public.social_consent_covers(consent_id,receiving_org_id::text,purpose,array['document']));
 
-drop policy if exists social_document_shares_receiver_read on public.social_document_shares;
-create policy social_document_shares_receiver_read on public.social_document_shares for select
+alter policy social_document_shares_receiver_read on public.social_document_shares
 using (public.social_is_org_member(receiving_org_id,auth.uid()) and revoked_at is null and (expires_at is null or expires_at>now()));
 
-drop policy if exists social_activity_read on public.social_activity_events;
-create policy social_activity_read on public.social_activity_events for select
+alter policy social_activity_read on public.social_activity_events
 using (public.social_is_org_member(org_id,auth.uid()) and (
   public.social_can_manage_org(org_id,auth.uid())
   or actor_id=auth.uid()
   or public.social_has_capability(org_id,'audit.view',auth.uid())
 ));
 
-drop policy if exists social_activity_insert on public.social_activity_events;
-create policy social_activity_insert on public.social_activity_events for insert
+alter policy social_activity_insert on public.social_activity_events
 with check (public.social_is_org_member(org_id,auth.uid()) and actor_id=auth.uid());
 
-drop policy if exists social_indicators_read on public.social_indicator_snapshots;
-create policy social_indicators_read on public.social_indicator_snapshots for select
+alter policy social_indicators_read on public.social_indicator_snapshots
 using (public.social_is_org_member(org_id,auth.uid()) and (
   public.social_can_manage_org(org_id,auth.uid())
   or public.social_has_capability(org_id,'indicators.view',auth.uid())
   or public.social_has_capability(org_id,'indicators.deidentified',auth.uid())
 ));
 
-drop policy if exists social_indicators_manage on public.social_indicator_snapshots;
-create policy social_indicators_manage on public.social_indicator_snapshots for all
+alter policy social_indicators_manage on public.social_indicator_snapshots
 using (public.social_can_manage_org(org_id,auth.uid()))
 with check (public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_family_members_read on public.social_family_members;
-create policy social_family_members_read on public.social_family_members for select using (
+alter policy social_family_members_read on public.social_family_members
+using (
   public.social_can_manage_org(org_id,auth.uid())
   or exists(select 1 from public.social_families f where f.id=family_id and (
     f.created_by=auth.uid() or f.assigned_case_manager=auth.uid()
@@ -528,8 +504,8 @@ create policy social_family_members_read on public.social_family_members for sel
   ))
 );
 
-drop policy if exists social_family_members_write on public.social_family_members;
-create policy social_family_members_write on public.social_family_members for all using (
+alter policy social_family_members_write on public.social_family_members
+using (
   public.social_can_manage_org(org_id,auth.uid())
   or (public.social_has_capability(org_id,'person.manage',auth.uid())
       and exists(select 1 from public.social_families f where f.id=family_id and (
@@ -543,15 +519,15 @@ create policy social_family_members_write on public.social_family_members for al
   and exists(select 1 from public.social_families f where f.id=family_id and f.org_id=org_id)
 );
 
-drop policy if exists social_consents_read on public.social_consents;
-create policy social_consents_read on public.social_consents for select using (
+alter policy social_consents_read on public.social_consents
+using (
   public.social_can_manage_org(org_id,auth.uid())
   or exists(select 1 from public.social_cases c where (c.person_id=person_id or c.family_id=family_id)
       and public.social_can_access_case(c.id,'general_case_record',false,auth.uid()))
 );
 
-drop policy if exists social_consents_insert on public.social_consents;
-create policy social_consents_insert on public.social_consents for insert with check (
+alter policy social_consents_insert on public.social_consents
+with check (
   created_by=auth.uid() and public.social_is_org_member(org_id,auth.uid())
   and (public.social_can_manage_org(org_id,auth.uid())
     or public.social_has_capability(org_id,'case.update_assigned',auth.uid())
@@ -563,8 +539,8 @@ create policy social_consents_insert on public.social_consents for insert with c
     ))))
 );
 
-drop policy if exists social_consents_update on public.social_consents;
-create policy social_consents_update on public.social_consents for update using (
+alter policy social_consents_update on public.social_consents
+using (
   public.social_can_manage_org(org_id,auth.uid())
   or exists(select 1 from public.social_cases c where (c.person_id=person_id or c.family_id=family_id)
       and public.social_can_access_case(c.id,'general_case_record',true,auth.uid()))
@@ -574,30 +550,24 @@ create policy social_consents_update on public.social_consents for update using 
       and public.social_can_access_case(c.id,'general_case_record',true,auth.uid()))
 );
 
-drop policy if exists social_indicator_definitions_read on public.social_indicator_definitions;
-create policy social_indicator_definitions_read on public.social_indicator_definitions for select
+alter policy social_indicator_definitions_read on public.social_indicator_definitions
 using (org_id is null or public.social_is_org_member(org_id,auth.uid()));
 
-drop policy if exists social_indicator_definitions_manage on public.social_indicator_definitions;
-create policy social_indicator_definitions_manage on public.social_indicator_definitions for all
+alter policy social_indicator_definitions_manage on public.social_indicator_definitions
 using (org_id is not null and public.social_can_manage_org(org_id,auth.uid()))
 with check (org_id is not null and public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_retention_read on public.social_retention_actions;
-create policy social_retention_read on public.social_retention_actions for select
+alter policy social_retention_read on public.social_retention_actions
 using (public.social_can_manage_org(org_id,auth.uid()) or public.social_has_capability(org_id,'audit.view',auth.uid()));
 
-drop policy if exists social_retention_write on public.social_retention_actions;
-create policy social_retention_write on public.social_retention_actions for insert
+alter policy social_retention_write on public.social_retention_actions
 with check (requested_by=auth.uid() and public.social_can_manage_org(org_id,auth.uid())
   and public.social_can_access_case(social_case_id,'general_case_record',true,auth.uid()));
 
-drop policy if exists social_support_grants_read on public.social_support_access_grants;
-create policy social_support_grants_read on public.social_support_access_grants for select
+alter policy social_support_grants_read on public.social_support_access_grants
 using (support_user_id=auth.uid() or public.social_can_manage_org(org_id,auth.uid()));
 
-drop policy if exists social_support_grants_manage on public.social_support_access_grants;
-create policy social_support_grants_manage on public.social_support_access_grants for all
+alter policy social_support_grants_manage on public.social_support_access_grants
 using (public.social_can_manage_org(org_id,auth.uid()))
 with check (approved_by=auth.uid() and public.social_can_manage_org(org_id,auth.uid()));
 
@@ -605,4 +575,4 @@ with check (approved_by=auth.uid() and public.social_can_manage_org(org_id,auth.
 -- delete policy. Organization isolation, record restrictions, and audit/retention
 -- controls remain enforced; platform super administrators use the explicit wrapper.
 
-
+commit;
