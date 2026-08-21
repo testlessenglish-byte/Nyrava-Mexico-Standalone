@@ -47,6 +47,17 @@ const AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
   {id:"administration",es:"Administración",en:"Administration",icon:ShieldCheck},
 ];
 
+function errorMessage(error:unknown):string{
+  if(error instanceof Error&&error.message)return error.message;
+  if(error&&typeof error==="object"){
+    const candidate=error as {message?:unknown;data?:{message?:unknown};cause?:unknown};
+    if(typeof candidate.message==="string"&&candidate.message)return candidate.message;
+    if(typeof candidate.data?.message==="string"&&candidate.data.message)return candidate.data.message;
+    if(candidate.cause)return errorMessage(candidate.cause);
+  }
+  return typeof error==="string"?error:"The Social operation could not be completed";
+}
+
 function SocialCarePage(){
   const {locale}=useI18n(); const es=locale==="es"; const qc=useQueryClient();
   const workspaceFn=useServerFn(getSocialWorkspace);
@@ -77,44 +88,44 @@ function SocialCarePage(){
   const visibleAlerts=(workspace.data?.alerts??[]).filter((x:any)=>x.org_id===resolvedOrg);
   const search=useMutation({
     mutationFn:()=>searchFn({data:{orgId:resolvedOrg,query,limit:50}}),
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const [person,setPerson]=useState({legalName:"",preferredName:"",telephone:"",email:"",nationality:""});
   const [caseDraft,setCaseDraft]=useState({programId:"",personId:"",caseType:"atencion_integral",priority:"normal" as "low"|"normal"|"high"|"urgent"});
   const duplicates=useMutation({
     mutationFn:()=>duplicateFn({data:{orgId:resolvedOrg,name:person.legalName,phone:person.telephone||undefined,email:person.email||undefined,limit:10}}),
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const createPersonMutation=useMutation({
     mutationFn:()=>createPersonFn({data:{orgId:resolvedOrg,legalName:person.legalName,preferredName:person.preferredName||undefined,telephone:person.telephone||undefined,email:person.email||undefined,nationality:person.nationality||undefined,aliases:[],languages:[],currentLocation:{},immigrationIdentifiers:{},unaccompaniedMinor:false,separatedMinor:false}}),
     onSuccess:(row:any)=>{toast.success(es?`Persona ${row.person_number} registrada`:`Person ${row.person_number} registered`);setPerson({legalName:"",preferredName:"",telephone:"",email:"",nationality:""});qc.invalidateQueries({queryKey:["social-workspace"]});},
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const createCaseMutation=useMutation({
     mutationFn:()=>createCaseFn({data:{orgId:resolvedOrg,programId:caseDraft.programId||programs[0]?.id,personId:caseDraft.personId,caseType:caseDraft.caseType,serviceAreas:[],priority:caseDraft.priority,riskLevel:"unknown",confidentialityLevel:"standard",tags:[]}}),
     onSuccess:(row:any)=>{toast.success(es?`Caso ${row.case_number} creado`:`Case ${row.case_number} created`);qc.invalidateQueries({queryKey:["social-workspace"]});setArea("cases");},
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const programMutation=useMutation({
     mutationFn:()=>ensureProgramFn({data:{orgId:resolvedOrg,...programSetup}}),
     onSuccess:()=>{toast.success(es?"Programa social actualizado":"Social program updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const familyMutation=useMutation({
     mutationFn:()=>createFamilyFn({data:{orgId:resolvedOrg,familyName:family.name,primaryContactPersonId:family.primaryId||undefined,currentLocation:{},memberIds:family.memberIds}}),
     onSuccess:()=>{toast.success(es?"Familia registrada":"Family registered");setFamily({name:"",primaryId:"",memberIds:[]});qc.invalidateQueries({queryKey:["social-workspace"]});},
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const indicators=useQuery({queryKey:["social-indicators",resolvedOrg,indicatorRange],queryFn:()=>indicatorsFn({data:{orgId:resolvedOrg,from:indicatorRange.from,to:indicatorRange.to}}),enabled:area==="indicators"&&!!resolvedOrg});
   const acknowledgeMutation=useMutation({
     mutationFn:(id:string)=>acknowledgeAlertFn({data:{alertId:id,resolve:true}}),
     onSuccess:()=>{toast.success(es?"Alerta resuelta":"Alert resolved");qc.invalidateQueries({queryKey:["social-workspace"]});},
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const roleMutation=useMutation({
     mutationFn:(selfOwner:boolean)=>roleAssignmentFn({data:{orgId:resolvedOrg,userId:selfOwner?(workspace.data?.userId??""):roleDraft.userId,role:(selfOwner?"organization_owner":roleDraft.role) as any,scopeType:"organization"}}),
     onSuccess:()=>{toast.success(es?"Acceso social actualizado":"Social access updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const stats=workspace.data?.stats;
   const filtered=useMemo(()=>{
@@ -169,6 +180,7 @@ function SocialCarePage(){
           <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-4">
             <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 text-warning"/><div><p className="text-sm font-semibold">{es?"Guía de escalamiento":"Escalation guidance"}</p><p className="text-sm text-muted-foreground">{EMERGENCY_GUIDANCE[locale]}</p></div></div>
           </div>
+          {!visiblePeople.length&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="text-sm font-semibold">{es?"Comience registrando a la primera persona":"Start by registering the first person"}</p><p className="text-xs text-muted-foreground">{es?"Después podrá crear su caso y continuar con la valoración.":"Then create the case and continue with assessment."}</p></div><button type="button" onClick={()=>setArea("people")} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar persona":"Register person"}</button></div>}
           <CaseTable cases={visibleCases.slice(0,12)} es={es} onOpen={setSelectedCaseId}/>
         </>}
 
@@ -236,7 +248,7 @@ function SocialCarePage(){
 function Metric({label,value,danger=false}:{label:string;value:number;danger?:boolean}){return <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-1 text-3xl font-semibold ${danger&&value>0?"text-destructive":""}`}>{value}</p></div>}
 function Field({label,value,onChange,type="text"}:{label:string;value:string;onChange:(v:string)=>void;type?:string}){return <label className="block text-xs font-medium text-muted-foreground">{label}<input type={type} value={value} onChange={e=>onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>}
 function CaseTable({cases,es,onOpen}:{cases:any[];es:boolean;onOpen:(id:string)=>void}){return <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground"><th className="px-4 py-3">{es?"Folio":"Case no."}</th><th className="px-4 py-3">{es?"Tipo":"Type"}</th><th className="px-4 py-3">{es?"Estado":"Status"}</th><th className="px-4 py-3">{es?"Riesgo":"Risk"}</th><th className="px-4 py-3">{es?"Última actividad":"Last activity"}</th><th className="px-4 py-3"></th></tr></thead><tbody>{cases.map(c=><tr key={c.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{c.case_number}</td><td className="px-4 py-3">{c.case_type}</td><td className="px-4 py-3">{c.status}</td><td className={`px-4 py-3 ${c.risk_level==="critical"?"font-semibold text-destructive":""}`}>{c.risk_level}</td><td className="px-4 py-3 text-muted-foreground">{new Date(c.last_activity_at).toLocaleDateString()}</td><td className="px-4 py-3 text-right"><button type="button" onClick={()=>onOpen(c.id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{es?"Abrir":"Open"}</button></td></tr>)}{!cases.length&&<tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{es?"Sin casos autorizados":"No authorized cases"}</td></tr>}</tbody></table></div>}
-function PeopleTable({people,es}:{people:any[];es:boolean}){return <div className="overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-4 py-3">{es?"ID":"ID"}</th><th className="px-4 py-3">{es?"Persona":"Person"}</th><th className="px-4 py-3">{es?"Consentimiento":"Consent"}</th></tr></thead><tbody>{people.map(p=><tr key={p.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{p.person_number}</td><td className="px-4 py-3">{p.legal_name}<span className="block text-xs text-muted-foreground">{p.preferred_name}</span></td><td className="px-4 py-3">{p.consent_status}</td></tr>)}</tbody></table></div>}
+function PeopleTable({people,es}:{people:any[];es:boolean}){return <div className="overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-4 py-3">{es?"ID":"ID"}</th><th className="px-4 py-3">{es?"Persona":"Person"}</th><th className="px-4 py-3">{es?"Consentimiento":"Consent"}</th></tr></thead><tbody>{people.map(p=><tr key={p.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{p.person_number}</td><td className="px-4 py-3">{p.legal_name}<span className="block text-xs text-muted-foreground">{p.preferred_name}</span></td><td className="px-4 py-3">{p.consent_status}</td></tr>)}{!people.length&&<tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">{es?"Aún no hay personas registradas":"No people registered yet"}</td></tr>}</tbody></table></div>}
 function Empty({title,text}:{title:string;text:string}){return <section className="rounded-xl border border-border bg-card p-6"><h2 className="text-lg font-semibold">{title}</h2><p className="mt-2 max-w-3xl text-sm text-muted-foreground">{text}</p></section>}
 function OperationalArea({area,es,cases,onOpen}:{area:string;es:boolean;cases:any[];onOpen:(id:string)=>void}){const labels:Record<string,[string,string,string,string]>={
 assessments:["Evaluaciones versionadas","Versioned assessments","Cada clasificación requiere evidencia, razón, factores protectores, acciones y revisión.","Every classification requires evidence, reason, protective factors, actions and review."],
