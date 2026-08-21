@@ -11,10 +11,13 @@ const transactional=migration("20260820234000_social_transactional_workflows.sql
 const firstRun=migration("20260820235000_social_first_run_setup.sql");
 const operational=migration("20260820236000_social_operational_completion.sql");
 const searchRepair=migration("20260821000000_social_search_index_immutability.sql");
+const organizationOnboarding=migration("20260821010000_social_organization_onboarding.sql");
 const serverSource=readFileSync(join(process.cwd(),"src","lib","social.functions.ts"),"utf8");
 const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","social.tsx"),"utf8");
+const accountRouteSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","account.tsx"),"utf8");
+const accountServerSource=readFileSync(join(process.cwd(),"src","lib","account.functions.ts"),"utf8");
 const workspaceSource=readFileSync(join(process.cwd(),"src","components","social","SocialCaseWorkspace.tsx"),"utf8");
-const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair].join("\n").toLowerCase();
+const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair,organizationOnboarding].join("\n").toLowerCase();
 
 describe("social-care migration security coverage",()=>{
   it.each([
@@ -133,15 +136,15 @@ describe("social-care migration security coverage",()=>{
     expect(foundation).toContain("public.can_manage_org(c.org_id,p_user)");
     expect(firstRun).toContain("public.can_manage_org(p_org,auth.uid())");
   });
-  it("provides self-service organization onboarding before Social intake",()=>{
-    expect(routeSource).toContain('createOrganization({name,slug:');
-    expect(routeSource).toContain('setCurrentOrgId(org.id)');
-    expect(routeSource).toContain('ensureProgramFn({data:{orgId:org.id');
-    expect(routeSource).toContain('role:"organization_owner"');
-    expect(routeSource).toContain('queryKey:["memberships"]');
-    expect(routeSource.indexOf("createOrganization({name,slug:")).toBeLessThan(
-      routeSource.indexOf("ensureProgramFn({data:{orgId:org.id"),
-    );
+  it("creates the organization from Account before Social intake",()=>{
+    expect(accountRouteSource).toContain("Firm / law firm / organization");
+    expect(accountServerSource).toContain('"create_account_organization"');
+    expect(accountServerSource).toContain('.from("org_memberships")');
+    expect(organizationOnboarding).toContain("function public.create_account_organization");
+    expect(organizationOnboarding).toContain("'organization_owner'");
+    expect(organizationOnboarding).toContain("'Atención Integral'");
+    expect(routeSource).toContain('to="/account"');
+    expect(routeSource).not.toContain("createOrganization({name,slug:");
   });
   it("controls Stripe and Mercado Pago independently while keeping one enabled",()=>{
     expect(billing).toContain("'mercadopago','stripe'");
