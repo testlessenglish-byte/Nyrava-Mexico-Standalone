@@ -1,7 +1,7 @@
 // Account Administration Panel — every signed-in user.
 // Profile · Email · Password · Voice · Notifications · AI Companion · Activity
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -79,7 +79,9 @@ function AccountPage() {
 // ============================================================ Profile
 
 function ProfileCard({ acc, onSaved }: { acc: { profile: { full_name?: string | null; avatar_url?: string | null } | null; settings: Record<string, unknown> | null }; onSaved: () => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const es = locale === "es";
+  const qc = useQueryClient();
   const update = useServerFn(updateProfile);
   const s = (acc.settings ?? {}) as Record<string, string | null>;
   const [form, setForm] = useState({
@@ -92,7 +94,7 @@ function ProfileCard({ acc, onSaved }: { acc: { profile: { full_name?: string | 
   });
   const m = useMutation({
     mutationFn: () => update({ data: form }),
-    onSuccess: () => { toast.success(t("acct.profile.saved")); onSaved(); },
+    onSuccess: (result: { organizationCreated?: boolean }) => { toast.success(result.organizationCreated ? (es ? "Despacho y organización creados. Atención Integral está habilitada." : "Firm and organization created. Comprehensive Care is enabled.") : t("acct.profile.saved")); void qc.invalidateQueries({ queryKey: ["social-workspace"] }); void qc.invalidateQueries({ queryKey: ["memberships"] }); onSaved(); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t("acct.saveFailed")),
   });
   return (
@@ -101,7 +103,7 @@ function ProfileCard({ acc, onSaved }: { acc: { profile: { full_name?: string | 
         <Field label={t("acct.profile.fullName")}    value={form.full_name}    onChange={(v) => setForm({ ...form, full_name: v })} />
         <Field label={t("acct.profile.displayName")} value={form.display_name} onChange={(v) => setForm({ ...form, display_name: v })} />
         <Field label={t("acct.profile.phone")}       value={form.phone}        onChange={(v) => setForm({ ...form, phone: v })} />
-        <Field label={t("acct.profile.firm")}        value={form.firm_name}    onChange={(v) => setForm({ ...form, firm_name: v })} />
+        <div><Field label={es ? "Despacho / organización" : "Firm / law firm / organization"} value={form.firm_name} onChange={(v) => setForm({ ...form, firm_name: v })} /><p className="mt-1 text-[11px] text-muted-foreground">{es ? "Al guardar su primer despacho se crea su organización y se habilita Atención Integral." : "Saving your first firm creates your organization and enables Comprehensive Care."}</p></div>
         <Field label={t("acct.profile.title")}       value={form.title}        onChange={(v) => setForm({ ...form, title: v })} />
         <Field label={t("acct.profile.avatar")}      value={form.avatar_url}   onChange={(v) => setForm({ ...form, avatar_url: v })} />
       </div>
