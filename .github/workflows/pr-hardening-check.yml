@@ -50,6 +50,7 @@ jobs:
           src/lib/social/__tests__/social-domain.test.ts
           src/lib/social/__tests__/social-migrations.test.ts
           src/routes/_authenticated/social.tsx
+          src/components/social/SocialCaseWorkspace.tsx
           src/lib/billing.functions.ts
           src/routes/_authenticated/admin.billing.tsx
           src/routes/_authenticated/billing.tsx
