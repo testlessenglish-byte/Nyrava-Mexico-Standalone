@@ -13,12 +13,13 @@ const operational=migration("20260820236000_social_operational_completion.sql");
 const searchRepair=migration("20260821000000_social_search_index_immutability.sql");
 const organizationOnboarding=migration("20260821010000_social_organization_onboarding.sql");
 const authorizationRepair=migration("20260821020000_social_authorization_argument_order.sql");
+const workflowReliability=migration("20260821030000_social_core_workflow_reliability.sql");
 const serverSource=readFileSync(join(process.cwd(),"src","lib","social.functions.ts"),"utf8");
 const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","social.tsx"),"utf8");
 const accountRouteSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","account.tsx"),"utf8");
 const accountServerSource=readFileSync(join(process.cwd(),"src","lib","account.functions.ts"),"utf8");
 const workspaceSource=readFileSync(join(process.cwd(),"src","components","social","SocialCaseWorkspace.tsx"),"utf8");
-const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair,organizationOnboarding,authorizationRepair].join("\n").toLowerCase();
+const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair,organizationOnboarding,authorizationRepair,workflowReliability].join("\n").toLowerCase();
 
 describe("social-care migration security coverage",()=>{
   it.each([
@@ -131,6 +132,36 @@ describe("social-care migration security coverage",()=>{
     expect(serverSource).toContain("export const grantSocialRecordAccess");
     expect(workspaceSource).toContain("Selective sharing");
     expect(workspaceSource).toContain("Ethical-screen record access");
+  });
+  it("keeps audit logging safe for INSERT, UPDATE and DELETE",()=>{
+    expect(workflowReliability).toContain("if tg_op='DELETE' then v_row:=to_jsonb(old)");
+    expect(workflowReliability).toContain("else v_row:=to_jsonb(new)");
+    expect(workflowReliability).not.toContain("coalesce(new.org_id,old.org_id)");
+  });
+  it("creates people, families and cases through explicitly authorized transactions",()=>{
+    for(const fn of ["create_social_person","create_social_family","create_social_case"]){
+      expect(workflowReliability).toContain(`function public.${fn}`);
+    }
+    expect(workflowReliability).toContain("security definer");
+    expect(serverSource).toContain('.rpc("create_social_person"');
+    expect(serverSource).toContain('.rpc("create_social_case"');
+    expect(serverSource).not.toMatch(/from\("social_people"\)\.insert/);
+    expect(serverSource).not.toMatch(/from\("social_cases"\)\.insert/);
+  });
+  it("uses direct active memberships and canonical document organizations",()=>{
+    expect(workflowReliability).toContain("from public.org_memberships m");
+    expect(workflowReliability).toContain("m.status='active'");
+    expect(workflowReliability).toContain("c.org_id=((storage.foldername(name))[1])::uuid");
+    expect(serverSource).toContain('.select("org_id").eq("id",data.socialCaseId).single()');
+  });
+  it("matches the five-argument institutional indicator RPC",()=>{
+    expect(workflowReliability).toContain("p_org uuid,p_from date,p_to date,p_program uuid,p_office uuid");
+    expect(serverSource).toContain("p_program:data.programId??null,p_office:data.officeId??null");
+  });
+  it("surfaces actionable Social errors and an empty-workspace creation path",()=>{
+    expect(routeSource).toContain("function errorMessage");
+    expect(routeSource).toContain("Start by registering the first person");
+    expect(routeSource).toContain("No people registered yet");
   });
   it("repairs Social authorization argument order without email-specific access",()=>{
     expect(authorizationRepair).toContain("public.is_org_member(p_user,p_org)");
