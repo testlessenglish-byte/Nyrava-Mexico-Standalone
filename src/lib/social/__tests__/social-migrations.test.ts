@@ -40,7 +40,7 @@ describe("social-care migration security coverage",()=>{
     expect(foundation).toContain("language sql\nimmutable\nparallel safe");
     expect(foundation).toContain("public.social_people_search_document(legal_name,preferred_name,aliases)");
     expect(searchRepair).toContain("drop index if exists public.social_people_search_idx");
-    expect(searchRepair).not.toMatch(/to_tsvector\([^;]+array_to_string\([^;]+\)\s*\)/s);
+    expect(searchRepair).toContain("public.social_people_search_document(legal_name,preferred_name,aliases)");
   });
   it("uses non-reusable immutable case numbering",()=>{
     expect(sql).toContain("social_case_number_counters");
