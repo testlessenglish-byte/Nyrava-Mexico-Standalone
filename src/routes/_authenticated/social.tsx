@@ -12,7 +12,7 @@ import { useI18n } from "@/i18n";
 import {
   acknowledgeSocialAlert, createSocialCase, createSocialFamily, createSocialPerson,
   findPossibleSocialPeople, ensureSocialProgram, getSocialIndicators,
-  getSocialWorkspace, searchSocialRecords,
+  getSocialWorkspace, searchSocialRecords, upsertSocialRoleAssignment,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
 import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
@@ -58,6 +58,7 @@ function SocialCarePage(){
   const createFamilyFn=useServerFn(createSocialFamily);
   const indicatorsFn=useServerFn(getSocialIndicators);
   const acknowledgeAlertFn=useServerFn(acknowledgeSocialAlert);
+  const roleAssignmentFn=useServerFn(upsertSocialRoleAssignment);
   const [area,setArea]=useState<Area>("dashboard");
   const [selectedCaseId,setSelectedCaseId]=useState("");
   const [orgId,setOrgId]=useState("");
@@ -66,6 +67,7 @@ function SocialCarePage(){
   const [family,setFamily]=useState({name:"",primaryId:"",memberIds:[] as string[]});
   const today=new Date().toISOString().slice(0,10);const yearStart=`${today.slice(0,4)}-01-01`;
   const [indicatorRange,setIndicatorRange]=useState({from:yearStart,to:today});
+  const [roleDraft,setRoleDraft]=useState({userId:"",role:"case_manager"});
   const workspace=useQuery({queryKey:["social-workspace"],queryFn:()=>workspaceFn()});
   const resolvedOrg=orgId||workspace.data?.organizations?.[0]?.id||"";
   const programs=(workspace.data?.programs??[]).filter((p:any)=>p.org_id===resolvedOrg);
@@ -107,6 +109,11 @@ function SocialCarePage(){
   const acknowledgeMutation=useMutation({
     mutationFn:(id:string)=>acknowledgeAlertFn({data:{alertId:id,resolve:true}}),
     onSuccess:()=>{toast.success(es?"Alerta resuelta":"Alert resolved");qc.invalidateQueries({queryKey:["social-workspace"]});},
+    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
+  });
+  const roleMutation=useMutation({
+    mutationFn:(selfOwner=false)=>roleAssignmentFn({data:{orgId:resolvedOrg,userId:selfOwner?(workspace.data?.userId??""):roleDraft.userId,role:(selfOwner?"organization_owner":roleDraft.role) as any,scopeType:"organization"}}),
+    onSuccess:()=>{toast.success(es?"Acceso social actualizado":"Social access updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
     onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
   });
   const stats=workspace.data?.stats;
@@ -213,6 +220,7 @@ function SocialCarePage(){
             <Field label={es?"Prefijo de folio":"Case prefix"} value={programSetup.prefix} onChange={v=>setProgramSetup({...programSetup,prefix:v.toUpperCase().replace(/[^A-Z0-9-]/g,"")})}/>
             <button disabled={!resolvedOrg||programMutation.isPending} onClick={()=>programMutation.mutate()} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{programMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Guardar programa":"Save program"}</button>
           </div>
+          <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4"><h3 className="font-semibold">{es?"Acceso y funciones sociales":"Social access and roles"}</h3><p className="mt-1 text-xs text-muted-foreground">{es?"Los superadministradores y administradores de la organización conservan acceso total mediante la autoridad existente. Esta asignación explícita también identifica al responsable social.":"Super administrators and organization administrators retain full access through existing authority. This explicit assignment also identifies the Social owner."}</p><div className="mt-3 grid gap-3 md:grid-cols-3"><button disabled={!workspace.data?.userId||roleMutation.isPending} onClick={()=>roleMutation.mutate(true)} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">{es?"Asignarme como propietario social":"Assign me as Social owner"}</button><Field label={es?"UUID del usuario":"User UUID"} value={roleDraft.userId} onChange={v=>setRoleDraft({...roleDraft,userId:v})}/><label className="block text-xs font-medium text-muted-foreground">{es?"Función":"Role"}<select value={roleDraft.role} onChange={e=>setRoleDraft({...roleDraft,role:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{["program_director","case_management_supervisor","case_manager","social_worker","attorney","legal_assistant","psychologist","medical_professional","referral_coordinator","data_analyst","auditor","read_only_reviewer"].map(x=><option key={x} value={x}>{x}</option>)}</select></label></div><button disabled={!roleDraft.userId||roleMutation.isPending} onClick={()=>roleMutation.mutate(false)} className="mt-3 rounded-lg border border-border px-4 py-2 text-sm">{es?"Guardar función":"Save role"}</button><div className="mt-4 space-y-1">{(workspace.data?.roleAssignments??[]).filter((x:any)=>x.org_id===resolvedOrg).map((x:any)=><div key={x.id} className="rounded border border-border p-2 text-xs font-mono">{x.user_id} · {x.role} · {x.scope_type}</div>)}</div></div>
         </section>}
         {area==="tasks"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Alertas operativas":"Operational alerts"}</h2><div className="mt-3 space-y-2">{visibleAlerts.map((x:any)=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className={x.severity==="critical"?"font-semibold text-destructive":"font-medium"}>{es?x.title_es:x.title_en}</p><p className="text-xs text-muted-foreground">{x.alert_type} · {x.due_at?new Date(x.due_at).toLocaleString():"—"}</p></div><button disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(x.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs">{es?"Resolver":"Resolve"}</button></div>)}{!visibleAlerts.length&&<p className="text-sm text-muted-foreground">{es?"No hay alertas pendientes.":"No pending alerts."}</p>}</div></section>}
         {area==="indicators"&&<section className="rounded-xl border border-border bg-card p-5"><div className="flex flex-wrap items-end gap-3"><div><h2 className="font-semibold">{es?"Indicadores institucionales":"Institutional indicators"}</h2><p className="text-xs text-muted-foreground">{es?"Solo agregados; grupos pequeños se suprimen automáticamente.":"Aggregates only; small groups are automatically suppressed."}</p></div><Field label={es?"Desde":"From"} type="date" value={indicatorRange.from} onChange={v=>setIndicatorRange({...indicatorRange,from:v})}/><Field label={es?"Hasta":"To"} type="date" value={indicatorRange.to} onChange={v=>setIndicatorRange({...indicatorRange,to:v})}/></div><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(indicators.data??[]).map((x:any,i:number)=><div key={x.id??i} className="rounded-lg border border-border p-4"><p className="text-xs uppercase text-muted-foreground">{x.name_es??x.indicator_code??x.code??(es?"Indicador":"Indicator")}</p><p className="mt-1 text-2xl font-semibold">{x.suppressed?(es?"Suprimido":"Suppressed"):(x.value??x.count??"—")}</p></div>)}{indicators.isLoading&&<Loader2 className="h-5 w-5 animate-spin"/>}{!indicators.isLoading&&!(indicators.data??[]).length&&<p className="text-sm text-muted-foreground">{es?"Sin datos agregados para el periodo.":"No aggregate data for this period."}</p>}</div></section>}
@@ -229,6 +237,8 @@ function CaseTable({cases,es,onOpen}:{cases:any[];es:boolean;onOpen:(id:string)=
 function PeopleTable({people,es}:{people:any[];es:boolean}){return <div className="overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-4 py-3">{es?"ID":"ID"}</th><th className="px-4 py-3">{es?"Persona":"Person"}</th><th className="px-4 py-3">{es?"Consentimiento":"Consent"}</th></tr></thead><tbody>{people.map(p=><tr key={p.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{p.person_number}</td><td className="px-4 py-3">{p.legal_name}<span className="block text-xs text-muted-foreground">{p.preferred_name}</span></td><td className="px-4 py-3">{p.consent_status}</td></tr>)}</tbody></table></div>}
 function Empty({title,text}:{title:string;text:string}){return <section className="rounded-xl border border-border bg-card p-6"><h2 className="text-lg font-semibold">{title}</h2><p className="mt-2 max-w-3xl text-sm text-muted-foreground">{text}</p></section>}
 function OperationalArea({area,es,cases,onOpen}:{area:string;es:boolean;cases:any[];onOpen:(id:string)=>void}){const labels:Record<string,[string,string,string,string]>={
+assessments:["Evaluaciones versionadas","Versioned assessments","Cada clasificación requiere evidencia, razón, factores protectores, acciones y revisión.","Every classification requires evidence, reason, protective factors, actions and review."],
+plans:["Planes de atención","Care plans","Las versiones aprobadas son inmutables y las revisiones crean una nueva versión.","Approved versions are immutable and revisions create a new version."],
 interventions:["Intervenciones","Interventions","Registros estructurados por servicio y nivel de confidencialidad.","Structured records by service and confidentiality."],
 legal:["Servicios jurídicos","Legal services","Las notas privilegiadas requieren permiso jurídico específico.","Privileged notes require specific legal permission."],
 psychosocial:["Servicios psicosociales","Psychosocial services","Los expedientes clínicos completos permanecen restringidos.","Full clinical records remain restricted."],
