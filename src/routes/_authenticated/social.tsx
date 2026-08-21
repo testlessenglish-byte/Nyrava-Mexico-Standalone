@@ -112,7 +112,7 @@ function SocialCarePage(){
     onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
   });
   const roleMutation=useMutation({
-    mutationFn:(selfOwner=false)=>roleAssignmentFn({data:{orgId:resolvedOrg,userId:selfOwner?(workspace.data?.userId??""):roleDraft.userId,role:(selfOwner?"organization_owner":roleDraft.role) as any,scopeType:"organization"}}),
+    mutationFn:(selfOwner:boolean)=>roleAssignmentFn({data:{orgId:resolvedOrg,userId:selfOwner?(workspace.data?.userId??""):roleDraft.userId,role:(selfOwner?"organization_owner":roleDraft.role) as any,scopeType:"organization"}}),
     onSuccess:()=>{toast.success(es?"Acceso social actualizado":"Social access updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
     onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
   });
