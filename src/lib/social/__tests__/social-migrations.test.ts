@@ -8,7 +8,12 @@ const workflows=migration("20260820231000_social_case_workflows.sql");
 const hardening=migration("20260820232000_social_case_management_hardening.sql");
 const billing=migration("20260820233000_billing_provider_controls.sql");
 const transactional=migration("20260820234000_social_transactional_workflows.sql");
-const sql=[foundation,workflows,hardening,transactional].join("\n").toLowerCase();
+const firstRun=migration("20260820235000_social_first_run_setup.sql");
+const operational=migration("20260820236000_social_operational_completion.sql");
+const serverSource=readFileSync(join(process.cwd(),"src","lib","social.functions.ts"),"utf8");
+const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","social.tsx"),"utf8");
+const workspaceSource=readFileSync(join(process.cwd(),"src","components","social","SocialCaseWorkspace.tsx"),"utf8");
+const sql=[foundation,workflows,hardening,transactional,firstRun,operational].join("\n").toLowerCase();
 
 describe("social-care migration security coverage",()=>{
   it.each([
@@ -91,6 +96,35 @@ describe("social-care migration security coverage",()=>{
   it("suppresses small institutional groups",()=>{
     expect(workflows).toContain("social_indicator_summary");
     expect(sql).toContain("small_group_threshold");
+  });
+  it("implements guarded referral, transfer, assignment, alert and document transitions",()=>{
+    for(const fn of ["assign_social_case_manager","send_social_referral","verify_social_referral_result","advance_social_transfer","accept_social_transfer","register_social_document","refresh_social_case_alerts"]){
+      expect(operational).toContain(`function public.${fn}`);
+      expect(operational).toContain(`revoke all on function public.${fn}`);
+    }
+  });
+  it("wires every operational case stage into the case workspace",()=>{
+    for(const tab of ["assessment","plan","intervention","consent","referral","tasks","documents","transfer","closure","immigration","activity"]){
+      expect(workspaceSource).toContain(`tab==="${tab}"`);
+    }
+    expect(routeSource).toContain("SocialCaseWorkspace");
+    expect(routeSource).toContain("onOpen={setSelectedCaseId}");
+  });
+  it("provides working family, alert, indicator, activity and role administration screens",()=>{
+    for(const marker of ["createSocialFamily","getSocialIndicators","acknowledgeSocialAlert","upsertSocialRoleAssignment"]){
+      expect(routeSource).toContain(marker);
+    }
+  });
+  it("exposes consent-checked sharing and ethical-screen access grants",()=>{
+    expect(serverSource).toContain("export const shareSocialDocument");
+    expect(serverSource).toContain("export const grantSocialRecordAccess");
+    expect(workspaceSource).toContain("Selective sharing");
+    expect(workspaceSource).toContain("Ethical-screen record access");
+  });
+  it("keeps organization managers as full Social administrators",()=>{
+    expect(foundation).toContain("public.can_manage_org(p_org,p_user)");
+    expect(foundation).toContain("public.can_manage_org(c.org_id,p_user)");
+    expect(firstRun).toContain("public.can_manage_org(p_org,auth.uid())");
   });
   it("controls Stripe and Mercado Pago independently while keeping one enabled",()=>{
     expect(billing).toContain("'mercadopago','stripe'");
