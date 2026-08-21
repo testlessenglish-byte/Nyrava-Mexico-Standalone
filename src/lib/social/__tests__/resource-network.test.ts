@@ -30,14 +30,14 @@ describe("resource and institutional knowledge network",()=>{
     expect(migration).toContain("resource_internal_experiences");
     const search=migration.slice(migration.indexOf("function public.search_resource_network"),migration.indexOf("revoke all on function public.search_resource_network"));
     expect(search).not.toContain("internal_notes");
-    expect(migration).toContain("Internal operational knowledge; never include");
+    expect(migration).toContain("Organization-only operational knowledge; never include");
   });
   it("requires verification history and preserves unsuccessful referral states",()=>{
     expect(migration).toContain("resource_verifications");
     expect(migration).toContain("verify_resource");
     expect(migration).toContain("service_in_progress");
     expect(migration).toContain("unable_to_contact");
-    expect(migration).toContain("result_verified_at");
+    expect(migration).toContain("'completed'");
   });
   it("wires directory, knowledge, administration, and case-aware recommendations",()=>{
     for(const marker of ['id:"resources"','id:"knowledge"','id:"resourceAdmin"','mode="resources"','mode="knowledge"','mode="admin"'])expect(route).toContain(marker);
