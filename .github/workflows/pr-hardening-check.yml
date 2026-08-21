@@ -39,6 +39,23 @@ jobs:
           src/lib/reporting/attorney-workproduct.test.ts
           src/lib/reporting/objective.test.ts
           src/lib/canonical/__tests__/rendered-report-release.test.ts
+          src/lib/social/__tests__/social-domain.test.ts
+          src/lib/social/__tests__/social-migrations.test.ts
+
+      - name: Lint changed social-care and billing code
+        run: >-
+          bunx eslint
+          src/lib/social.functions.ts
+          src/lib/social/types.ts
+          src/lib/social/__tests__/social-domain.test.ts
+          src/lib/social/__tests__/social-migrations.test.ts
+          src/routes/_authenticated/social.tsx
+          src/components/social/SocialCaseWorkspace.tsx
+          src/lib/billing.functions.ts
+          src/routes/_authenticated/admin.billing.tsx
+          src/routes/_authenticated/billing.tsx
+          --rule "prettier/prettier: off"
+          --rule "@typescript-eslint/no-explicit-any: off"
 
       - name: TypeScript integrity check
         run: bunx tsc --noEmit

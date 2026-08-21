@@ -58,6 +58,7 @@ import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/ne
 import { Route as AuthenticatedMotionRouteImport } from './routes/_authenticated/motion'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
 import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated/health'
+import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated/social'
 import { Route as AuthenticatedEvidenceRouteImport } from './routes/_authenticated/evidence'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCasesRouteImport } from './routes/_authenticated/cases'
@@ -338,6 +339,11 @@ const AuthenticatedHealthRoute = AuthenticatedHealthRouteImport.update({
   path: '/health',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSocialRoute = AuthenticatedSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedEvidenceRoute = AuthenticatedEvidenceRouteImport.update({
   id: '/evidence',
   path: '/evidence',
@@ -558,6 +564,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/evidence': typeof AuthenticatedEvidenceRoute
   '/health': typeof AuthenticatedHealthRoute
+  '/social': typeof AuthenticatedSocialRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/motion': typeof AuthenticatedMotionRoute
   '/new': typeof AuthenticatedNewRoute
@@ -640,6 +647,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/evidence': typeof AuthenticatedEvidenceRoute
   '/health': typeof AuthenticatedHealthRoute
+  '/social': typeof AuthenticatedSocialRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/motion': typeof AuthenticatedMotionRoute
   '/new': typeof AuthenticatedNewRoute
@@ -725,6 +733,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/evidence': typeof AuthenticatedEvidenceRoute
   '/_authenticated/health': typeof AuthenticatedHealthRoute
+  '/_authenticated/social': typeof AuthenticatedSocialRoute
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/motion': typeof AuthenticatedMotionRoute
   '/_authenticated/new': typeof AuthenticatedNewRoute
@@ -1411,6 +1420,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHealthRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/social': {
+      id: '/_authenticated/social'
+      path: '/social'
+      fullPath: '/social'
+      preLoaderRoute: typeof AuthenticatedSocialRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/evidence': {
       id: '/_authenticated/evidence'
       path: '/evidence'
@@ -1703,6 +1719,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEvidenceRoute: typeof AuthenticatedEvidenceRoute
   AuthenticatedHealthRoute: typeof AuthenticatedHealthRoute
+  AuthenticatedSocialRoute: typeof AuthenticatedSocialRoute
   AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
   AuthenticatedMotionRoute: typeof AuthenticatedMotionRoute
   AuthenticatedNewRoute: typeof AuthenticatedNewRoute
@@ -1728,6 +1745,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEvidenceRoute: AuthenticatedEvidenceRoute,
   AuthenticatedHealthRoute: AuthenticatedHealthRoute,
+  AuthenticatedSocialRoute: AuthenticatedSocialRoute,
   AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
   AuthenticatedMotionRoute: AuthenticatedMotionRoute,
   AuthenticatedNewRoute: AuthenticatedNewRoute,
