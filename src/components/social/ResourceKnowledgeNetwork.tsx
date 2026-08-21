@@ -5,7 +5,7 @@ import { AlertTriangle, BookOpen, CheckCircle2, ExternalLink, Map, MapPin, Searc
 import { toast } from "sonner";
 import { useI18n } from "@/i18n";
 import {
-  getResourceNetworkMetadata, saveResourceInstitution, saveResourceKnowledge,
+  findResourcesForSocialCase, getResourceNetworkMetadata, saveResourceInstitution, saveResourceKnowledge,
   searchResourceNetwork, submitResourceCorrection, verifyResourceInstitution,
 } from "@/lib/social.functions";
 
@@ -62,3 +62,11 @@ function Input({label,value,onChange,type="text"}:{label:string;value:string;onC
 function Text({label,value,onChange}:{label:string;value:string;onChange:(v:string)=>void}){return <label className="block text-xs font-medium text-muted-foreground">{label}<textarea value={value} onChange={e=>onChange(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>}
 function Select({label,value,onChange,options}:{label:string;value:string;onChange:(v:string)=>void;options:Array<readonly string[]>}){return <label className="block text-xs font-medium text-muted-foreground">{label}<select value={value} onChange={e=>onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="">—</option>{options.map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label>}
 
+
+
+export function CaseResourceRecommendations({caseId}:{caseId:string}){
+  const {locale}=useI18n();const es=locale==="es";const findFn=useServerFn(findResourcesForSocialCase);
+  const [service,setService]=useState("");const [urgency,setUrgency]=useState("");const [started,setStarted]=useState(false);
+  const recommendations=useQuery({queryKey:["case-resource-recommendations",caseId,service,urgency],queryFn:()=>findFn({data:{caseId,service:service||undefined,urgency:(urgency||undefined) as any}}),enabled:started});
+  return <section className="space-y-4"><div className="rounded-xl border border-primary/30 bg-primary/5 p-5"><h3 className="font-semibold">{es?"Buscar recursos para esta persona":"Find Resources for This Client"}</h3><p className="mt-1 text-sm text-muted-foreground">{es?"La ubicación, necesidades e idioma autorizados se usan únicamente para ordenar resultados. Ningún dato identificable se envía al directorio. La decisión final corresponde al personal.":"Authorized location, needs, and language are used only to rank results. No identifying data is sent to the directory. Staff makes the final decision."}</p><div className="mt-3 grid gap-3 md:grid-cols-3"><Input label={es?"Servicio necesario":"Needed service"} value={service} onChange={setService}/><Select label={es?"Urgencia":"Urgency"} value={urgency} onChange={setUrgency} options={[["standard",es?"Estándar":"Standard"],["urgent",es?"Urgente":"Urgent"],["emergency",es?"Emergencia":"Emergency"]]}/><button onClick={()=>setStarted(true)} className="self-end rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground"><Search className="mr-2 inline h-4 w-4"/>{es?"Obtener recomendaciones":"Get recommendations"}</button></div></div>{recommendations.data&&<div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs"><AlertTriangle className="mr-2 inline h-4 w-4"/>{es?"Revise elegibilidad, cupo, consentimiento y documentos antes de canalizar. Un envío no equivale a un resultado exitoso.":"Review eligibility, capacity, consent, and documents before referral. Sending does not equal a successful outcome."}</div>}<div className="space-y-3">{(recommendations.data?.recommendations??[]).map((r:any)=><ResourceCard key={r.id} resource={r} es={es} map={false}/>)}</div>{started&&!recommendations.isLoading&&!(recommendations.data?.recommendations??[]).length&&<p className="text-sm text-muted-foreground">{es?"No hay recomendaciones autorizadas con estos criterios.":"No authorized recommendations matched these criteria."}</p>}</section>;
+}
