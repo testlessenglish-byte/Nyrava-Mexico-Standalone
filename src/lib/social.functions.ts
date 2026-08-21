@@ -435,3 +435,111 @@ export const shareSocialDocument=createServerFn({method:"POST"})
     const {data:document,error:documentError}=await supabase.from("social_documents").select("org_id").eq("id",data.documentId).single();fail(documentError);
     const {data:row,error}=await supabase.from("social_document_shares").insert({org_id:document.org_id,document_id:data.documentId,receiving_org_id:data.receivingOrgId,consent_id:data.consentId,purpose:data.purpose,expires_at:data.expiresAt??null,created_by:userId}).select("id").single();fail(error);return row;
   });
+
+
+const resourceSearchInput=z.object({
+  query:z.string().trim().max(200).optional(),state:z.string().trim().max(10).optional(),municipality:z.string().trim().max(120).optional(),
+  latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional(),radiusKm:z.number().positive().max(1000).optional(),
+  service:z.string().trim().max(100).optional(),urgency:z.enum(["standard","urgent","emergency"]).optional(),
+  population:z.string().trim().max(100).optional(),language:z.string().trim().max(80).optional(),
+  costType:z.enum(["free","sliding_scale","paid","public_coverage","unknown"]).optional(),availability:z.string().trim().max(60).optional(),
+});
+
+export const searchResourceNetwork=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>resourceSearchInput.parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:rows,error}=await supabase.rpc("search_resource_network",{
+      p_query:data.query||null,p_state:data.state||null,p_municipality:data.municipality||null,
+      p_latitude:data.latitude??null,p_longitude:data.longitude??null,p_radius_km:data.radiusKm??null,
+      p_service:data.service||null,p_urgency:data.urgency||null,p_population:data.population||null,
+      p_language:data.language||null,p_cost_type:data.costType||null,p_availability:data.availability||null,p_limit:60,
+    });
+    fail(error);return rows??[];
+  });
+
+export const findResourcesForSocialCase=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid,service:z.string().trim().max(100).optional(),urgency:z.enum(["standard","urgent","emergency"]).optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:c,error:caseError}=await supabase.from("social_cases").select("id,org_id,service_areas,risk_level,person_id,family_id").eq("id",data.caseId).single();fail(caseError);
+    const {data:person,error:personError}=await supabase.from("social_people").select("current_location,languages,nationality").eq("id",c.person_id).maybeSingle();
+    if(personError&&personError.code!=="PGRST116")fail(personError);
+    const location=(person?.current_location??{}) as Record<string,unknown>;
+    const service=data.service||c.service_areas?.[0]||undefined;
+    const urgency=data.urgency||(c.risk_level==="critical"?"emergency":c.risk_level==="high"?"urgent":"standard");
+    const {data:rows,error}=await supabase.rpc("search_resource_network",{
+      p_query:null,p_state:typeof location.state_code==="string"?location.state_code:null,
+      p_municipality:typeof location.municipality==="string"?location.municipality:null,
+      p_latitude:typeof location.latitude==="number"?location.latitude:null,p_longitude:typeof location.longitude==="number"?location.longitude:null,
+      p_radius_km:null,p_service:service??null,p_urgency:urgency,p_population:null,
+      p_language:Array.isArray(person?.languages)?person.languages[0]??null:null,p_cost_type:null,p_availability:null,p_limit:25,
+    });
+    fail(error);
+    return {recommendations:rows??[],context:{service,urgency,locationUsed:Boolean(location.state_code||location.municipality)},notice:"Recommendations are ranked from authorized case fields. Staff must review eligibility, availability, consent, and final suitability."};
+  });
+
+export const getResourceNetworkMetadata=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .handler(async({context})=>{
+    const {supabase}=ctx(context);
+    const [categories,knowledge,organizations]=await Promise.all([
+      supabase.from("resource_service_categories").select("id,org_id,code,name_es,name_en,description_es,description_en,sort_order").eq("active",true).order("sort_order"),
+      supabase.from("resource_knowledge_records").select("id,org_id,title_es,title_en,summary_es,summary_en,knowledge_type,service_categories,state_codes,municipality,population_tags,source_url,document_path,version,approval_status,effective_at,review_due_at,internal_only,updated_at").order("updated_at",{ascending:false}).limit(250),
+      supabase.from("organizations").select("id,name").order("name"),
+    ]);
+    fail(categories.error);fail(knowledge.error);fail(organizations.error);
+    return {categories:categories.data??[],knowledge:knowledge.data??[],organizations:organizations.data??[]};
+  });
+
+const resourceAdminInput=z.object({
+  id:uuid.optional(),orgId:uuid.nullable().optional(),officialName:z.string().trim().min(2).max(240),institutionType:z.string().trim().min(2).max(100),
+  description:z.string().trim().max(3000).optional(),services:z.array(z.string().trim().min(1).max(100)).max(50).default([]),stateCode:z.string().trim().max(10).optional(),
+  municipality:z.string().trim().max(120).optional(),address:z.string().trim().max(500).optional(),latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional(),
+  phone:z.string().trim().max(80).optional(),whatsapp:z.string().trim().max(80).optional(),email:z.string().email().optional().or(z.literal("")),website:z.string().url().optional().or(z.literal("")),
+  languages:z.array(z.string()).max(30).default([]),populations:z.array(z.string()).max(50).default([]),eligibility:z.string().max(3000).optional(),requiredDocuments:z.array(z.string()).max(50).default([]),
+  costType:z.enum(["free","sliding_scale","paid","public_coverage","unknown"]).default("unknown"),appointmentRequired:z.boolean().default(false),walkInAvailable:z.boolean().default(false),
+  emergencyAvailable:z.boolean().default(false),remoteAvailable:z.boolean().default(false),referralMethods:z.array(z.string()).max(30).default([]),coverageLevels:z.array(z.string()).max(10).default([]),
+  capacityStatus:z.string().max(60).default("unknown"),locationConfidential:z.boolean().default(false),publicNotes:z.string().max(3000).optional(),internalNotes:z.string().max(5000).optional(),
+});
+
+export const saveResourceInstitution=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>resourceAdminInput.parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const payload={org_id:data.orgId??null,name:data.officialName,official_name:data.officialName,institution_type:data.institutionType,description:data.description||null,services:data.services,
+      state_code:data.stateCode||null,municipality:data.municipality||null,address:data.address||null,latitude:data.latitude??null,longitude:data.longitude??null,phone:data.phone||null,whatsapp:data.whatsapp||null,
+      email:data.email||null,website:data.website||null,languages:data.languages,populations:data.populations,eligibility:data.eligibility||null,required_documents:data.requiredDocuments,cost_type:data.costType,
+      appointment_required:data.appointmentRequired,walk_in_available:data.walkInAvailable,emergency_available:data.emergencyAvailable,remote_available:data.remoteAvailable,
+      referral_methods:data.referralMethods,coverage_levels:data.coverageLevels,capacity_status:data.capacityStatus,location_confidential:data.locationConfidential,
+      public_notes:data.publicNotes||null,internal_notes:data.internalNotes||null,active:true,updated_at:new Date().toISOString()};
+    const query=data.id?supabase.from("social_institutions").update(payload).eq("id",data.id):supabase.from("social_institutions").insert(payload);
+    const {data:row,error}=await query.select("id,official_name,status").single();fail(error);return row;
+  });
+
+export const verifyResourceInstitution=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({institutionId:uuid,status:z.enum(["verified","verification_due","unverified","temporarily_unavailable","at_capacity","closed","archived"]),source:z.string().trim().min(2).max(500),evidenceUrl:z.string().url().optional().or(z.literal("")),notes:z.string().max(2000).optional(),nextVerificationAt:z.string().datetime().optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);const {data:id,error}=await supabase.rpc("verify_resource",{p_institution:data.institutionId,p_status:data.status,p_source:data.source,p_evidence_url:data.evidenceUrl||null,p_notes:data.notes||null,p_next_verification:data.nextVerificationAt||null});fail(error);return {verificationId:id};
+  });
+
+export const submitResourceCorrection=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({institutionId:uuid,orgId:uuid.nullable().optional(),fieldName:z.string().max(100).optional(),suggestedValue:z.string().max(2000).optional(),reason:z.string().trim().min(5).max(2000)}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);const {data:row,error}=await supabase.from("resource_corrections").insert({institution_id:data.institutionId,org_id:data.orgId??null,field_name:data.fieldName||null,suggested_value:data.suggestedValue||null,reason:data.reason,submitted_by:userId}).select("id,status").single();fail(error);return row;
+  });
+
+export const saveResourceKnowledge=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({id:uuid.optional(),orgId:uuid.nullable().optional(),titleEs:z.string().trim().min(2).max(240),titleEn:z.string().trim().min(2).max(240),summaryEs:z.string().max(5000).optional(),summaryEn:z.string().max(5000).optional(),knowledgeType:z.enum(["procedure","protocol","manual","form","legal_update","service_guide","institution_note"]),serviceCategories:z.array(z.string()).max(50).default([]),stateCodes:z.array(z.string()).max(40).default([]),sourceUrl:z.string().url().optional().or(z.literal("")),approvalStatus:z.enum(["draft","in_review","approved","retired"]).default("draft"),reviewDueAt:z.string().datetime().optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);const payload={org_id:data.orgId??null,title_es:data.titleEs,title_en:data.titleEn,summary_es:data.summaryEs||null,summary_en:data.summaryEn||null,knowledge_type:data.knowledgeType,service_categories:data.serviceCategories,state_codes:data.stateCodes,source_url:data.sourceUrl||null,approval_status:data.approvalStatus,review_due_at:data.reviewDueAt||null,created_by:userId,approved_by:data.approvalStatus==="approved"?userId:null,approved_at:data.approvalStatus==="approved"?new Date().toISOString():null,updated_at:new Date().toISOString()};
+    const query=data.id?supabase.from("resource_knowledge_records").update(payload).eq("id",data.id):supabase.from("resource_knowledge_records").insert(payload);
+    const {data:row,error}=await query.select("id,version,approval_status").single();fail(error);return row;
+  });
+
