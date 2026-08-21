@@ -98,7 +98,7 @@ export const updateProfile = createServerFn({ method: "POST" })
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/(^-|-$)/g, "")
           .slice(0, 40) || "organization";
-        const { data: organization, error: organizationError } = await supabase.rpc(
+        const { data: organization, error: organizationError } = await (supabase as any).rpc(
           "create_account_organization",
           {
             p_name: firmName,
