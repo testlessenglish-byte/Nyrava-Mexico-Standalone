@@ -16,6 +16,7 @@ import {
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
 import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
+import { ResourceKnowledgeNetwork } from "@/components/social/ResourceKnowledgeNetwork";
 
 export const Route=createFileRoute("/_authenticated/social")({
   head:()=>({meta:[
@@ -25,7 +26,7 @@ export const Route=createFileRoute("/_authenticated/social")({
   component:SocialCarePage,
 });
 
-type Area="dashboard"|"people"|"families"|"cases"|"intake"|"assessments"|"plans"|"interventions"|"legal"|"psychosocial"|"referrals"|"tasks"|"documents"|"transfers"|"closure"|"indicators"|"activity"|"administration";
+type Area="dashboard"|"people"|"families"|"cases"|"intake"|"assessments"|"plans"|"interventions"|"legal"|"psychosocial"|"referrals"|"resources"|"knowledge"|"resourceAdmin"|"tasks"|"documents"|"transfers"|"closure"|"indicators"|"activity"|"administration";
 const AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
   {id:"dashboard",es:"Resumen",en:"Overview",icon:Activity},
   {id:"people",es:"Personas",en:"People",icon:Users},
@@ -38,6 +39,8 @@ const AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
   {id:"legal",es:"Servicios jurídicos",en:"Legal services",icon:ShieldCheck},
   {id:"psychosocial",es:"Servicios psicosociales",en:"Psychosocial services",icon:HeartHandshake},
   {id:"referrals",es:"Canalizaciones",en:"Referrals",icon:ArrowRight},
+  {id:"resources",es:"Red de Recursos",en:"Resource Network",icon:Search},
+  {id:"knowledge",es:"Centro de Conocimiento",en:"Knowledge Center",icon:FileText},
   {id:"tasks",es:"Tareas y alertas",en:"Tasks and alerts",icon:CalendarClock},
   {id:"documents",es:"Documentos y consentimiento",en:"Documents and consent",icon:FileText},
   {id:"transfers",es:"Transferencias",en:"Case transfers",icon:ArrowRight},
@@ -45,6 +48,7 @@ const AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
   {id:"indicators",es:"Indicadores institucionales",en:"Institutional indicators",icon:Activity},
   {id:"activity",es:"Actividad del equipo",en:"Team activity",icon:Users},
   {id:"administration",es:"Administración",en:"Administration",icon:ShieldCheck},
+  {id:"resourceAdmin",es:"Administrar recursos",en:"Manage Resources",icon:ShieldCheck},
 ];
 
 function errorMessage(error:unknown):string{
@@ -239,7 +243,7 @@ function SocialCarePage(){
         {area==="tasks"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Alertas operativas":"Operational alerts"}</h2><div className="mt-3 space-y-2">{visibleAlerts.map((x:any)=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className={x.severity==="critical"?"font-semibold text-destructive":"font-medium"}>{es?x.title_es:x.title_en}</p><p className="text-xs text-muted-foreground">{x.alert_type} · {x.due_at?new Date(x.due_at).toLocaleString():"—"}</p></div><button disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(x.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs">{es?"Resolver":"Resolve"}</button></div>)}{!visibleAlerts.length&&<p className="text-sm text-muted-foreground">{es?"No hay alertas pendientes.":"No pending alerts."}</p>}</div></section>}
         {area==="indicators"&&<section className="rounded-xl border border-border bg-card p-5"><div className="flex flex-wrap items-end gap-3"><div><h2 className="font-semibold">{es?"Indicadores institucionales":"Institutional indicators"}</h2><p className="text-xs text-muted-foreground">{es?"Solo agregados; grupos pequeños se suprimen automáticamente.":"Aggregates only; small groups are automatically suppressed."}</p></div><Field label={es?"Desde":"From"} type="date" value={indicatorRange.from} onChange={v=>setIndicatorRange({...indicatorRange,from:v})}/><Field label={es?"Hasta":"To"} type="date" value={indicatorRange.to} onChange={v=>setIndicatorRange({...indicatorRange,to:v})}/></div><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(indicators.data??[]).map((x:any,i:number)=><div key={x.id??i} className="rounded-lg border border-border p-4"><p className="text-xs uppercase text-muted-foreground">{x.name_es??x.indicator_code??x.code??(es?"Indicador":"Indicator")}</p><p className="mt-1 text-2xl font-semibold">{x.suppressed?(es?"Suprimido":"Suppressed"):(x.value??x.count??"—")}</p></div>)}{indicators.isLoading&&<Loader2 className="h-5 w-5 animate-spin"/>}{!indicators.isLoading&&!(indicators.data??[]).length&&<p className="text-sm text-muted-foreground">{es?"Sin datos agregados para el periodo.":"No aggregate data for this period."}</p>}</div></section>}
         {area==="activity"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Actividad del equipo":"Team activity"}</h2><div className="mt-3 space-y-2">{(workspace.data?.recentActivity??[]).filter((x:any)=>x.org_id===resolvedOrg).map((x:any)=><div key={x.id} className="rounded-lg border border-border p-3 text-sm">{new Date(x.occurred_at).toLocaleString()} · {x.event_type} · {x.entity_type}</div>)}</div></section>}
-        {["interventions","legal","psychosocial","referrals","documents","transfers","closure"].includes(area)&&<OperationalArea area={area} es={es} cases={visibleCases} onOpen={setSelectedCaseId}/>} 
+        {area==="resources"&&<ResourceKnowledgeNetwork mode="resources" orgId={resolvedOrg}/>}\n        {area==="knowledge"&&<ResourceKnowledgeNetwork mode="knowledge" orgId={resolvedOrg}/>}\n        {area==="resourceAdmin"&&<ResourceKnowledgeNetwork mode="admin" orgId={resolvedOrg}/>}\n        {["interventions","legal","psychosocial","referrals","documents","transfers","closure"].includes(area)&&<OperationalArea area={area} es={es} cases={visibleCases} onOpen={setSelectedCaseId}/>} 
       </main>
     </div>
   </div>;
