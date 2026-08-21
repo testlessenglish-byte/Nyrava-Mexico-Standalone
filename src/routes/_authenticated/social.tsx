@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
@@ -15,7 +15,6 @@ import {
   getSocialWorkspace, searchSocialRecords, upsertSocialRoleAssignment,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
-import { createOrganization, setCurrentOrgId } from "@/lib/workspace";
 import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
 
 export const Route=createFileRoute("/_authenticated/social")({
@@ -65,7 +64,6 @@ function SocialCarePage(){
   const [orgId,setOrgId]=useState("");
   const [query,setQuery]=useState("");
   const [programSetup,setProgramSetup]=useState({nameEs:"Atención Integral",nameEn:"Comprehensive Care",prefix:"NYR-SOC"});
-  const [organizationSetup,setOrganizationSetup]=useState({name:"",prefix:"NYR-SOC"});
   const [family,setFamily]=useState({name:"",primaryId:"",memberIds:[] as string[]});
   const today=new Date().toISOString().slice(0,10);const yearStart=`${today.slice(0,4)}-01-01`;
   const [indicatorRange,setIndicatorRange]=useState({from:yearStart,to:today});
@@ -100,21 +98,6 @@ function SocialCarePage(){
   const programMutation=useMutation({
     mutationFn:()=>ensureProgramFn({data:{orgId:resolvedOrg,...programSetup}}),
     onSuccess:()=>{toast.success(es?"Programa social actualizado":"Social program updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
-    onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
-  });
-  const organizationMutation=useMutation({
-    mutationFn:async()=>{
-      const name=organizationSetup.name.trim();
-      const slugBase=name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,40)||"organization";
-      const org=await createOrganization({name,slug:`${slugBase}-${Math.random().toString(36).slice(2,7)}`});
-      setCurrentOrgId(org.id);
-      await ensureProgramFn({data:{orgId:org.id,nameEs:"Atención Integral",nameEn:"Comprehensive Care",prefix:organizationSetup.prefix}});
-      const userId=workspace.data?.userId;
-      if(!userId)throw new Error(es?"No se pudo identificar la cuenta autenticada.":"The authenticated account could not be identified.");
-      await roleAssignmentFn({data:{orgId:org.id,userId,role:"organization_owner",scopeType:"organization"}});
-      return org;
-    },
-    onSuccess:(org)=>{setOrgId(org.id);toast.success(es?"Organización y Atención Integral configuradas":"Organization and Comprehensive Care configured");void Promise.all([qc.invalidateQueries({queryKey:["social-workspace"]}),qc.invalidateQueries({queryKey:["memberships"]})]);},
     onError:(e:unknown)=>toast.error(e instanceof Error?e.message:String(e)),
   });
   const familyMutation=useMutation({
@@ -165,8 +148,7 @@ function SocialCarePage(){
     </header>
 
     {!workspace.data?.organizations?.length&&<section className="mt-5 rounded-xl border border-warning/40 bg-warning/10 p-5">
-      <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-5 w-5 text-warning"/><div><h2 className="font-semibold">{es?"Configure su organización":"Set up your organization"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"Las cuentas nuevas y los superadministradores pueden crear su organización aquí. Usted quedará como propietario y Atención Integral se habilitará automáticamente.":"New accounts and super administrators can create their organization here. You will become its owner and Comprehensive Care will be enabled automatically."}</p></div></div>
-      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_auto]"><Field label={es?"Nombre de la organización":"Organization name"} value={organizationSetup.name} onChange={v=>setOrganizationSetup({...organizationSetup,name:v})}/><Field label={es?"Prefijo de folio":"Case prefix"} value={organizationSetup.prefix} onChange={v=>setOrganizationSetup({...organizationSetup,prefix:v.toUpperCase().replace(/[^A-Z0-9-]/g,"").slice(0,20)})}/><button disabled={organizationMutation.isPending||organizationSetup.name.trim().length<2||organizationSetup.prefix.length<2} onClick={()=>organizationMutation.mutate()} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{organizationMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Crear y habilitar":"Create and enable"}</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-4"><div className="flex gap-2"><AlertTriangle className="mt-0.5 h-5 w-5 text-warning"/><div><h2 className="font-semibold">{es?"Guarde su despacho en Cuenta":"Save your firm in Account"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"Primero abra Cuenta, capture Despacho / organización y guarde los cambios. Después podrá registrar personas y abrir casos aquí.":"First open Account, enter Firm / law firm / organization, and save changes. You can then register people and open cases here."}</p></div></div><Link to="/account" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Abrir Cuenta":"Open Account"}</Link></div>
     </section>}
 
     <div className="mt-5 grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
