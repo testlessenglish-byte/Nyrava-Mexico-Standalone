@@ -142,7 +142,15 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
   </div>;
 }
 
-function showError(e:unknown){toast.error(e instanceof Error?e.message:String(e))}
+function showError(e:unknown){
+  if(e instanceof Error&&e.message){toast.error(e.message);return;}
+  if(e&&typeof e==="object"){
+    const x=e as {message?:unknown;data?:{message?:unknown}};
+    const message=typeof x.message==="string"?x.message:typeof x.data?.message==="string"?x.data.message:null;
+    if(message){toast.error(message);return;}
+  }
+  toast.error(typeof e==="string"?e:"The Social operation could not be completed");
+}
 function split(v:string){return v.split(",").map(x=>x.trim()).filter(Boolean)}
 const recordOptions=["general_case_record","social_work_record","legal_privileged_record","psychosocial_restricted_record","medical_restricted_record","child_protection_restricted_record"].map(v=>({value:v,label:v}));
 function Panel({children}:{children:ReactNode}){return <section className="space-y-3 rounded-xl border border-border bg-card p-4">{children}</section>}
