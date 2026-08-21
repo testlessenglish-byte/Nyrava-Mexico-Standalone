@@ -1,8 +1,8 @@
--- Atomic self-service organization setup for Atención Integral.
+-- Atomic account-level law-firm/organization setup.
 -- Replaces the browser-side multi-call flow so organization, ownership,
 -- program configuration and Social authority either all save or all roll back.
 
-create or replace function public.create_social_organization_workspace(
+create or replace function public.create_account_organization(
   p_name text,
   p_slug text,
   p_prefix text default 'NYR-SOC'
@@ -65,5 +65,5 @@ exception
 end;
 $$;
 
-revoke all on function public.create_social_organization_workspace(text,text,text) from public;
-grant execute on function public.create_social_organization_workspace(text,text,text) to authenticated;
+revoke all on function public.create_account_organization(text,text,text) from public;
+grant execute on function public.create_account_organization(text,text,text) to authenticated;
