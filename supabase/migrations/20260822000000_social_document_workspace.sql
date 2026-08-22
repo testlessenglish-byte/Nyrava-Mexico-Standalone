@@ -46,7 +46,27 @@ create index if not exists social_document_access_document_idx
 create index if not exists social_documents_dashboard_idx
   on public.social_documents(social_case_id,document_status,classification_status,created_at desc);
 
+create table if not exists public.social_case_document_requirements (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id),
+  social_case_id uuid not null references public.social_cases(id),
+  document_type text not null,
+  status text not null default 'missing' check(status in ('missing','received','waived')),
+  due_at timestamptz,
+  notes text,
+  created_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(social_case_id,document_type)
+);
+
 alter table public.social_document_access_events enable row level security;
+alter table public.social_case_document_requirements enable row level security;
+
+drop policy if exists social_case_document_requirements_access on public.social_case_document_requirements;
+create policy social_case_document_requirements_access on public.social_case_document_requirements for all to authenticated
+using (public.social_can_access_case(social_case_id,'general_case_record',false,auth.uid()))
+with check (public.social_can_access_case(social_case_id,'general_case_record',true,auth.uid()));
 
 drop policy if exists social_document_access_events_read on public.social_document_access_events;
 create policy social_document_access_events_read on public.social_document_access_events for select to authenticated
@@ -70,6 +90,26 @@ drop trigger if exists audit_social_document_access_events on public.social_docu
 create trigger audit_social_document_access_events
 after insert or update or delete on public.social_document_access_events
 for each row execute function public.audit_social_change();
+
+create or replace function public.social_media_upload_allowed(
+  p_case uuid,p_mime text,p_user uuid default auth.uid()
+) returns boolean
+language sql stable security definer set search_path=public,pg_temp
+as $media_upload$
+  select
+    lower(coalesce(p_mime,'')) not like 'audio/%'
+    and lower(coalesce(p_mime,'')) not like 'video/%'
+    or exists(
+      select 1 from public.social_cases c
+      join public.social_programs p on p.id=c.program_id and p.org_id=c.org_id
+      where c.id=p_case and c.deleted_at is null and p.active
+        and coalesce((p.settings->>'allow_media_uploads')::boolean,false)
+        and public.social_is_org_member(c.org_id,p_user)
+    )
+$media_upload$;
+
+revoke all on function public.social_media_upload_allowed(uuid,text,uuid) from public,anon;
+grant execute on function public.social_media_upload_allowed(uuid,text,uuid) to authenticated;
 
 -- Storage authorization must use the record type embedded in the third path segment.
 -- Object paths remain <org>/<case>/<record_type>/<uuid>-<filename>.
@@ -99,6 +139,9 @@ create policy social_case_files_insert on storage.objects for insert to authenti
   and public.social_can_access_case(
     ((storage.foldername(name))[2])::uuid,(storage.foldername(name))[3],true,auth.uid()
   )
+  and public.social_media_upload_allowed(
+    ((storage.foldername(name))[2])::uuid,metadata->>'mimetype',auth.uid()
+  )
 );
 
 drop policy if exists social_case_files_update on storage.objects;
@@ -120,7 +163,15 @@ create policy social_case_files_update on storage.objects for update to authenti
   and public.social_can_access_case(
     ((storage.foldername(name))[2])::uuid,(storage.foldername(name))[3],true,auth.uid()
   )
+  and public.social_media_upload_allowed(
+    ((storage.foldername(name))[2])::uuid,metadata->>'mimetype',auth.uid()
+  )
 );
+
+drop trigger if exists audit_social_case_document_requirements on public.social_case_document_requirements;
+create trigger audit_social_case_document_requirements
+after insert or update or delete on public.social_case_document_requirements
+for each row execute function public.audit_social_change();
 
 update storage.buckets
 set file_size_limit=104857600,
