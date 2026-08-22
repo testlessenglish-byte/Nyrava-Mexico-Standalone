@@ -141,7 +141,7 @@ function SocialCarePage(){
   },[visibleCases,query]);
 
   if(workspace.isLoading)return <div className="p-8 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>{es?"Cargando Atención Integral…":"Loading Comprehensive Care…"}</div>;
-  if(selectedCaseId)return <div className="mx-auto max-w-[1600px] p-4 md:p-6"><SocialCaseWorkspace
+  if(selectedCaseId)return <div data-social-care-root className="mx-auto max-w-[1600px] p-4 md:p-6"><EscapedTextNormalizer/><SocialCaseWorkspace
     caseId={selectedCaseId}
     people={workspace.data?.people??[]}
     institutions={workspace.data?.institutions??[]}
