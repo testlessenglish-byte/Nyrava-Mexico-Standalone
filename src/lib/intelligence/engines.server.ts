@@ -1729,6 +1729,30 @@ export async function runWorkProductEngine(args: {
     }
   }
 
+  // A retrospective concluded-case or judgment audit is not authorization to
+  // draft a new pleading. The old prompt-only warning still allowed the model
+  // to generate a new recurso for an appeal that the supplied judgment had
+  // already resolved. Only the explicit appeal_routes objective may reach
+  // drafting, and it remains subject to ESS/source verification below.
+  {
+    const { getCaseAnalysisMode } = await import("./case-analysis-mode");
+    const caseAnalysisMode = await getCaseAnalysisMode(db, caseId);
+    if (caseAnalysisMode === "concluded_audit" || caseAnalysisMode === "judgment_audit") {
+      console.info(
+        `[case-analysis-mode:${caseAnalysisMode}] work product skipped — retrospective audit only`,
+      );
+      await setCase(db, caseId, {
+        status_message: `Work product skipped (${caseAnalysisMode} is retrospective audit only)`,
+        progress: 90,
+      });
+      return {
+        documents: [],
+        failed: 0,
+        verification: { total: 0, clean: 0, flagged: 0, rejected: 0, empty: 0 },
+      };
+    }
+  }
+
   await setCase(db, caseId, { status_message: "Drafting attorney work product", progress: 90 });
 
   const ctx = await buildContext(db, caseId);
