@@ -1,7 +1,7 @@
 import { useMemo, useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, Eye, FilePlus2, FileUp, FolderOpen, Loader2, Search, ShieldAlert } from "lucide-react";
+import { Download, Eye, FileUp, FolderOpen, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/i18n";
