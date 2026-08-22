@@ -22,7 +22,7 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
     const {data:organizations,error:orgError}=await supabase.from("organizations").select("id,name").order("name");
     fail(orgError);
     const orgIds=(organizations??[]).map((o:any)=>o.id);
-    const empty={organizations:[],programs:[],offices:[],cases:[],people:[],families:[],alerts:[],institutions:[],templates:[],roleAssignments:[],recentActivity:[],stats:{active:0,critical:0,overdue:0,unverifiedReferrals:0},userId};
+    const empty={organizations:[],organizationAccounts:[],programs:[],offices:[],cases:[],people:[],families:[],alerts:[],institutions:[],templates:[],roleAssignments:[],recentActivity:[],stats:{active:0,critical:0,overdue:0,unverifiedReferrals:0},userId};
     if(!orgIds.length)return empty;
     const [programs,offices,cases,people,families,alerts,referrals,tasks,institutions,templates,roleAssignments,recentActivity]=await Promise.all([
       supabase.from("social_programs").select("id,org_id,name_es,name_en,case_prefix,active,settings").in("org_id",orgIds).eq("active",true).order("name_es"),
@@ -39,9 +39,13 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
       supabase.from("social_activity_events").select("id,org_id,social_case_id,actor_id,event_type,entity_type,occurred_at").in("org_id",orgIds).order("occurred_at",{ascending:false}).limit(100),
     ]);
     [programs,offices,cases,people,families,alerts,referrals,tasks,institutions,templates,roleAssignments,recentActivity].forEach((r:any)=>fail(r.error));
+    const organizationAccounts=await Promise.all(orgIds.map(async(orgId:string)=>{
+      const {data,error}=await supabase.rpc("get_social_organization_account",{p_org:orgId});
+      fail(error);return {orgId,...(data??{})};
+    }));
     const now=Date.now();const caseRows=cases.data??[];
     return {
-      organizations:organizations??[],programs:programs.data??[],offices:offices.data??[],
+      organizations:organizations??[],organizationAccounts,programs:programs.data??[],offices:offices.data??[],
       cases:caseRows,people:people.data??[],families:families.data??[],alerts:alerts.data??[],
       institutions:institutions.data??[],templates:templates.data??[],
       roleAssignments:roleAssignments.data??[],recentActivity:recentActivity.data??[],userId,
@@ -738,3 +742,40 @@ export const confirmCareAssistantAction=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({proposalId:uuid,confirm:z.literal(true)}).parse(d))
   .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const row=await supabase.from("social_care_action_proposals").update({status:"confirmed",confirmed_by:userId,confirmed_at:new Date().toISOString()}).eq("id",data.proposalId).eq("status","proposed").select("id,status,action_type,preview").single();fail(row.error);return row.data;});
+
+
+const organizationSeatRole=z.enum(["firm_manager","supervisor","case_worker","legal_provider","psychosocial_provider","read_only"]);
+
+export const inviteSocialOrganizationMember=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({orgId:uuid,email:z.string().trim().email(),role:organizationSeatRole}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:invitation,error}=await supabase.rpc("invite_social_organization_member",{
+      p_org:data.orgId,p_email:data.email,p_role:data.role,
+    });
+    fail(error);return invitation;
+  });
+
+export const updateSocialOrganizationMember=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    orgId:uuid,userId:uuid,role:organizationSeatRole,
+    status:z.enum(["active","suspended","removed"]),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:member,error}=await supabase.rpc("set_social_organization_member",{
+      p_org:data.orgId,p_user:data.userId,p_role:data.role,p_status:data.status,
+    });
+    fail(error);return member;
+  });
+
+export const acceptSocialOrganizationInvitation=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({token:z.string().trim().min(32).max(200)}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:membership,error}=await supabase.rpc("accept_social_organization_invitation",{p_token:data.token});
+    fail(error);return membership;
+  });

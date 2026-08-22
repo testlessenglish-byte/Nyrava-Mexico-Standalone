@@ -14,6 +14,7 @@ const searchRepair=migration("20260821000000_social_search_index_immutability.sq
 const organizationOnboarding=migration("20260821010000_social_organization_onboarding.sql");
 const authorizationRepair=migration("20260821020000_social_authorization_argument_order.sql");
 const workflowReliability=migration("20260821030000_social_core_workflow_reliability.sql");
+const organizationAccount=migration("20260822143000_social_organization_account.sql");
 const serverSource=readFileSync(join(process.cwd(),"src","lib","social.functions.ts"),"utf8");
 const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","social.tsx"),"utf8");
 const accountRouteSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","account.tsx"),"utf8");
@@ -123,7 +124,7 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).toContain("onOpen={setSelectedCaseId}");
   });
   it("provides working family, alert, indicator, activity and role administration screens",()=>{
-    for(const marker of ["createSocialFamily","getSocialIndicators","acknowledgeSocialAlert","upsertSocialRoleAssignment"]){
+    for(const marker of ["createSocialFamily","getSocialIndicators","acknowledgeSocialAlert","inviteSocialOrganizationMember","updateSocialOrganizationMember"]){
       expect(routeSource).toContain(marker);
     }
   });
@@ -186,6 +187,25 @@ describe("social-care migration security coverage",()=>{
     expect(organizationOnboarding).toContain("'Atención Integral'");
     expect(routeSource).toContain('to="/account"');
     expect(routeSource).not.toContain("createOrganization({name,slug:");
+  });
+  it("uses one organization subscription for employee seats and assignment-scoped work",()=>{
+    expect(organizationAccount).toContain("create table if not exists public.organization_invitations");
+    expect(organizationAccount).toContain("public.org_subscriptions");
+    expect(organizationAccount).toContain("public.billing_plans");
+    expect(organizationAccount).toContain("Organization seat limit reached");
+    expect(organizationAccount).toContain("update public.social_case_assignments set active=false,ended_at=now()");
+    expect(organizationAccount).toContain("update public.social_role_assignments set active=false,ends_at=now()");
+    expect(organizationAccount).toContain("public.social_org_role_to_care_role");
+    expect(organizationAccount).not.toContain("create table if not exists public.organizations");
+    expect(organizationAccount).not.toContain("create table if not exists public.firms");
+    expect(routeSource).toContain("OrganizationSeatAdmin");
+    expect(routeSource).toContain("TeamActivity");
+    expect(workspaceSource).toContain("organizationMembers");
+  });
+  it("keeps employee passwords outside manager-controlled data",()=>{
+    expect(organizationAccount).not.toMatch(/password|credential/i);
+    expect(organizationAccount).toContain("Invitation email does not match the signed-in account");
+    expect(organizationAccount).toContain("extensions.digest(p_token,'sha256')");
   });
   it("controls Stripe and Mercado Pago independently while keeping one enabled",()=>{
     expect(billing).toContain("'mercadopago','stripe'");
