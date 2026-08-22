@@ -611,3 +611,73 @@ export const moveSocialDocument=createServerFn({method:"POST"})
     const {error}=await supabase.rpc("move_social_document",{p_document:data.documentId,p_target_case:data.targetCaseId,p_new_storage_path:targetPath,p_checksum:document.data.checksum,p_mime:document.data.mime_type||file.type||null,p_size:document.data.size_bytes||file.size,p_reason:data.reason});fail(error);
     return {ok:true};
   });
+
+
+const knowledgeStatus=z.enum(["draft","pending_review","approved","published","revision_required","expired","archived"]);
+const knowledgeType=z.enum(["procedure","protocol","intake_manual","risk_guidance","care_plan_instruction","consent_template","referral_instruction","emergency_procedure","immigration_guidance","state_municipal_guidance","official_form","training_material","document_checklist","legal_update","institutional_policy","faq","manual","form","service_guide","institution_note"]);
+
+export const getKnowledgeCenter=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .handler(async({context})=>{
+    const {supabase}=ctx(context);
+    const [records,cases,corrections,usage]=await Promise.all([
+      supabase.from("resource_knowledge_records").select("*").order("updated_at",{ascending:false}).limit(500),
+      supabase.from("social_cases").select("id,case_number,status").order("last_activity_at",{ascending:false}).limit(250),
+      supabase.from("resource_knowledge_corrections").select("*").order("created_at",{ascending:false}).limit(250),
+      supabase.from("resource_knowledge_usage").select("knowledge_id,action,created_at").order("created_at",{ascending:false}).limit(1000),
+    ]);
+    [records,cases,corrections,usage].forEach((x:any)=>fail(x.error));
+    return {records:records.data??[],cases:cases.data??[],corrections:corrections.data??[],usage:usage.data??[]};
+  });
+
+export const saveKnowledgeRecord=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    id:uuid.optional(),orgId:uuid,titleEs:z.string().trim().min(2).max(240),titleEn:z.string().trim().min(2).max(240),
+    summaryEs:z.string().max(5000).optional(),summaryEn:z.string().max(5000).optional(),contentEs:z.string().max(50000).optional(),contentEn:z.string().max(50000).optional(),
+    knowledgeType,serviceCategories:z.array(z.string()).max(50).default([]),stateCodes:z.array(z.string()).max(40).default([]),municipality:z.string().max(120).optional(),
+    authority:z.string().max(300).optional(),languageCodes:z.array(z.string()).max(20).default(["es"]),effectiveAt:z.string().datetime().optional(),
+    reviewDueAt:z.string().datetime().optional(),approvalStatus:knowledgeStatus,audience:z.enum(["internal_staff","official_government","client_facing","case_evidence_reference"]),
+    sourceUrl:z.string().url().optional().or(z.literal("")),purpose:z.string().max(5000).optional(),whenToUse:z.string().max(5000).optional(),
+    applicablePrograms:z.array(z.string()).max(50).default([]),requiredSteps:z.array(z.string()).max(100).default([]),officialSources:z.array(z.object({title:z.string().max(300),url:z.string().url()})).max(50).default([]),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);const now=new Date().toISOString();
+    const payload={org_id:data.orgId,title_es:data.titleEs,title_en:data.titleEn,summary_es:data.summaryEs||null,summary_en:data.summaryEn||null,
+      content_es:data.contentEs||null,content_en:data.contentEn||null,knowledge_type:data.knowledgeType,service_categories:data.serviceCategories,
+      state_codes:data.stateCodes,municipality:data.municipality||null,authority:data.authority||null,language_codes:data.languageCodes,
+      effective_at:data.effectiveAt||null,review_due_at:data.reviewDueAt||null,approval_status:data.approvalStatus,audience:data.audience,
+      source_url:data.sourceUrl||null,purpose:data.purpose||null,when_to_use:data.whenToUse||null,applicable_programs:data.applicablePrograms,
+      required_steps:data.requiredSteps,official_sources:data.officialSources,owner_id:userId,updated_at:now,
+      approved_by:["approved","published"].includes(data.approvalStatus)?userId:null,approved_at:["approved","published"].includes(data.approvalStatus)?now:null,
+      archived_at:data.approvalStatus==="archived"?now:null};
+    const query=data.id?supabase.from("resource_knowledge_records").update(payload).eq("id",data.id):supabase.from("resource_knowledge_records").insert({...payload,created_by:userId});
+    const {data:row,error}=await query.select("id,version,approval_status").single();fail(error);
+    if(data.id){const version=await supabase.from("resource_knowledge_versions").insert({knowledge_id:data.id,version:row.version,snapshot:payload,change_summary:"Knowledge record updated",created_by:userId});fail(version.error);}
+    return row;
+  });
+
+export const prepareKnowledgeUpload=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({orgId:uuid,recordId:uuid,fileName:z.string().min(1).max(255)}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");const path=`${data.orgId}/${data.recordId}/${crypto.randomUUID()}-${safe}`;const signed=await supabase.storage.from("social-knowledge-files").createSignedUploadUrl(path);fail(signed.error);return {path,token:signed.data.token};});
+
+export const finalizeKnowledgeUpload=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({recordId:uuid,path:z.string().min(20).max(1000),fileType:z.string().max(120)}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.from("resource_knowledge_records").update({document_path:data.path,file_type:data.fileType,updated_at:new Date().toISOString()}).eq("id",data.recordId);fail(error);return {ok:true};});
+
+export const openKnowledgeRecord=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({recordId:uuid,download:z.boolean().default(false)}).parse(d))
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("id,org_id,document_path,title_es").eq("id",data.recordId).single();fail(rec.error);let url:string|null=null;if(rec.data.document_path){const signed=await supabase.storage.from("social-knowledge-files").createSignedUrl(rec.data.document_path,120,{download:data.download?rec.data.title_es:undefined});fail(signed.error);url=signed.data.signedUrl;}const log=await supabase.from("resource_knowledge_usage").insert({knowledge_id:data.recordId,org_id:rec.data.org_id,action:data.download?"download":"open",actor_id:userId});fail(log.error);return {url};});
+
+export const actOnKnowledgeRecord=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({recordId:uuid,caseId:uuid,action:z.enum(["attach_reference","add_required_form","create_checklist","create_task","find_related_resources","start_referral","share_client_version","ask_talk_to_case"]),details:z.record(z.string(),z.unknown()).default({})}).parse(d))
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id,audience,approval_status").eq("id",data.recordId).single();fail(rec.error);if(!["approved","published"].includes(rec.data.approval_status))throw new Error("Only approved knowledge can be used with a case");if(data.action==="share_client_version"&&rec.data.audience!=="client_facing")throw new Error("Only client-facing material may be shared");const row=await supabase.from("resource_knowledge_case_actions").insert({knowledge_id:data.recordId,org_id:rec.data.org_id,social_case_id:data.caseId,action_type:data.action,details:{...data.details,legal_evidence:false},created_by:userId});fail(row.error);return {ok:true};});
+
+export const submitKnowledgeCorrection=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({recordId:uuid,suggestion:z.string().trim().min(5).max(5000)}).parse(d))
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id").eq("id",data.recordId).single();fail(rec.error);const row=await supabase.from("resource_knowledge_corrections").insert({knowledge_id:data.recordId,org_id:rec.data.org_id,suggestion:data.suggestion,submitted_by:userId});fail(row.error);return {ok:true};});
