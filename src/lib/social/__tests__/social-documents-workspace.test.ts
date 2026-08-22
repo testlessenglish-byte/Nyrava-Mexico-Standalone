@@ -19,7 +19,7 @@ describe("case-scoped Social Documents and Consent workspace",()=>{
     expect(migration).toContain("(storage.foldername(name))[3]");
     expect(migration).toContain("social_can_access_case(");
     expect(migration).not.toContain("::uuid,'general_case_record',false,auth.uid()");
-    expect(server).toContain("Target storage path boundary mismatch");
+    expect(migration).toContain("Target storage path boundary mismatch");
     expect(migration).toContain("Case move:");
   });
   it("preserves originals, detects duplicates, and versions replacements",()=>{
