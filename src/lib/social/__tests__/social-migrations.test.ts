@@ -192,7 +192,7 @@ describe("social-care migration security coverage",()=>{
     expect(organizationAccount).toContain("create table if not exists public.organization_invitations");
     expect(organizationAccount).toContain("public.org_subscriptions");
     expect(organizationAccount).toContain("public.billing_plans");
-    expect(organizationAccount).toContain("organization seat limit reached");
+    expect(organizationAccount).toContain("Organization seat limit reached");
     expect(organizationAccount).toContain("update public.social_case_assignments set active=false,ended_at=now()");
     expect(organizationAccount).toContain("update public.social_role_assignments set active=false,ends_at=now()");
     expect(organizationAccount).toContain("public.social_org_role_to_care_role");
@@ -204,7 +204,7 @@ describe("social-care migration security coverage",()=>{
   });
   it("keeps employee passwords outside manager-controlled data",()=>{
     expect(organizationAccount).not.toMatch(/password|credential/i);
-    expect(organizationAccount).toContain("invitation email does not match the signed-in account");
+    expect(organizationAccount).toContain("Invitation email does not match the signed-in account");
     expect(organizationAccount).toContain("digest(p_token,'sha256')");
   });
   it("controls Stripe and Mercado Pago independently while keeping one enabled",()=>{
