@@ -599,4 +599,14 @@ export const getSocialDocumentAccessUrl=createServerFn({method:"POST"})
 export const moveSocialDocument=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({documentId:uuid,targetCaseId:uuid,reason:z.string().trim().min(3).max(1000)}).parse(d))
-  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("move_social_document",{p_document:data.documentId,p_target_case:data.targetCaseId,p_reason:data.reason});fail(error);return {ok:true};});
+  .handler(async({data,context})=>{const {supabase}=ctx(context);
+    const document=await supabase.from("social_documents").select("id,org_id,social_case_id,record_type,storage_path,checksum,mime_type,size_bytes").eq("id",data.documentId).single();fail(document.error);
+    const target=await supabase.from("social_cases").select("id,org_id").eq("id",data.targetCaseId).single();fail(target.error);
+    if(document.data.org_id!==target.data.org_id) throw new Error("Document cannot move outside its organization");
+    const downloaded=await supabase.storage.from("social-case-files").download(document.data.storage_path);fail(downloaded.error);
+    const file=downloaded.data;const name=document.data.storage_path.split("/").pop()?.replace(/^[^-]+-/,"")||"document";
+    const targetPath=`${document.data.org_id}/${target.data.id}/${document.data.record_type}/${crypto.randomUUID()}-${name.replace(/[^a-zA-Z0-9._-]+/g,"_")}`;
+    const uploaded=await supabase.storage.from("social-case-files").upload(targetPath,file,{contentType:document.data.mime_type||file.type||undefined,upsert:false});fail(uploaded.error);
+    const {error}=await supabase.rpc("move_social_document",{p_document:data.documentId,p_target_case:data.targetCaseId,p_new_storage_path:targetPath,p_checksum:document.data.checksum,p_mime:document.data.mime_type||file.type||null,p_size:document.data.size_bytes||file.size,p_reason:data.reason});fail(error);
+    return {ok:true};
+  });
