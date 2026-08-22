@@ -277,7 +277,9 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         mercadopago_preapproval_id: preapproval.id,
         mercadopago_payer_email: payerEmail,
         plan: isPlanKey(planRow.key) ? planRow.key : null,
-        status: preapproval.status === "authorized" ? "active" : "incomplete",
+        // The checkout response is not an authorization boundary. Only the
+        // independently signed webhook may activate organization access.
+        status: "incomplete",
       },
       { onConflict: "user_id" },
     );
