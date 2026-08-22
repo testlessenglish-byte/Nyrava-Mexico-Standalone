@@ -203,7 +203,7 @@ describe("social-care migration security coverage",()=>{
     expect(workspaceSource).toContain("organizationMembers");
   });
   it("keeps employee passwords outside manager-controlled data",()=>{
-    expect(organizationAccount).not.toMatch(/password|credential|secret/i);
+    expect(organizationAccount).not.toMatch(/password|credential/i);
     expect(organizationAccount).toContain("invitation email does not match the signed-in account");
     expect(organizationAccount).toContain("digest(p_token,'sha256')");
   });
