@@ -85,6 +85,34 @@ alter policy social_families_read on public.social_families using (
  )
 );
 
+alter policy social_families_write on public.social_families
+ using (public.social_sales_demo_owner_allows('social_families',id,auth.uid()) and public.is_org_member(org_id,auth.uid())
+   and (public.can_manage_org(org_id,auth.uid()) or public.social_has_capability(org_id,'person.manage',auth.uid())))
+ with check (public.social_sales_demo_owner_allows('social_families',id,auth.uid()) and public.is_org_member(org_id,auth.uid())
+   and (public.can_manage_org(org_id,auth.uid()) or public.social_has_capability(org_id,'person.manage',auth.uid())));
+
+alter policy social_institutions_read on public.social_institutions
+ using (public.social_sales_demo_owner_allows('social_institutions',id,auth.uid())
+   and (org_id is null or public.is_org_member(org_id,auth.uid()) or public.is_platform_admin(auth.uid())));
+alter policy social_institutions_manage on public.social_institutions
+ using (public.social_sales_demo_owner_allows('social_institutions',id,auth.uid())
+   and (public.is_platform_admin(auth.uid()) or (org_id is not null and public.can_manage_org(org_id,auth.uid()))))
+ with check (public.social_sales_demo_owner_allows('social_institutions',id,auth.uid())
+   and (public.is_platform_admin(auth.uid()) or (org_id is not null and public.can_manage_org(org_id,auth.uid()))));
+
+create or replace function public.social_sales_demo_any_owner_allows(p_id uuid,p_user uuid default auth.uid())
+returns boolean language sql stable security definer set search_path=public,pg_temp as $$
+ select not exists(select 1 from public.social_sales_demo_records d where d.record_id=p_id and d.synthetic and d.sales_demo)
+ or exists(select 1 from public.social_sales_demo_records d where d.record_id=p_id and d.synthetic and d.sales_demo and d.owner_user_id=p_user)
+$$;
+revoke all on function public.social_sales_demo_any_owner_allows(uuid,uuid) from public,anon;
+grant execute on function public.social_sales_demo_any_owner_allows(uuid,uuid) to authenticated,service_role;
+alter policy social_activity_read on public.social_activity_events
+ using (public.social_sales_demo_any_owner_allows(entity_id,auth.uid())
+  and (social_case_id is null or public.social_can_access_case(social_case_id,'general_case_record',false,auth.uid()))
+  and public.is_org_member(org_id,auth.uid())
+  and (public.can_manage_org(org_id,auth.uid()) or actor_id=auth.uid() or public.social_has_capability(org_id,'audit.view',auth.uid())));
+
 create or replace function public.assert_existing_account_care_demo_owner()
 returns void language plpgsql stable security definer set search_path=public,auth,pg_temp as $$
 declare v_owner constant uuid:='d1c91a8d-de47-48c9-95b4-519c60ae8e04';
@@ -122,6 +150,7 @@ declare
  c3 constant uuid:='d3000000-0000-4000-8000-000000000271';c4 constant uuid:='d3000000-0000-4000-8000-000000000199';
  a1 constant uuid:='d3000000-0000-4000-8001-000000000001';a2 constant uuid:='d3000000-0000-4000-8001-000000000002';
  cp constant uuid:='d3000000-0000-4000-8002-000000000001';cpv constant uuid:='d3000000-0000-4000-8002-000000000002';
+ i integer;
  co constant uuid:='d3000000-0000-4000-8003-000000000001';
 begin
  perform public.assert_existing_account_care_demo_owner();
@@ -233,8 +262,8 @@ begin
 
  insert into public.social_referrals(id,org_id,social_case_id,referral_number,person_id,family_id,receiving_institution_id,service_requested,reason,urgency,consent_id,authorized_information,referral_date,status,response,follow_up_date,created_by)
  values
- ('d3000000-0000-4000-8600-000000000001',o,c1,'REF-2026-000417-01',null,f,'d3000000-0000-4000-8500-000000000001','Family shelter','Urgent safe accommodation','urgent',co,array['family composition','minimum needs'],'2026-07-28','completed','Placement confirmed','2026-08-05',u),
- ('d3000000-0000-4000-8600-000000000002',o,c1,'REF-2026-000417-02',null,f,'d3000000-0000-4000-8500-000000000002','Medical care','Primary care screening','high','d3000000-0000-4000-8003-000000000003',array['minimum medical referral'],'2026-08-03','completed','Attendance confirmed','2026-08-10',u),
+ ('d3000000-0000-4000-8600-000000000001',o,c1,'REF-2026-000417-01',null,f,'d3000000-0000-4000-8500-000000000001','Family shelter','Urgent safe accommodation','urgent',co,array['family composition','minimum needs'],'2026-07-28','received','Placement confirmed','2026-08-05',u),
+ ('d3000000-0000-4000-8600-000000000002',o,c1,'REF-2026-000417-02',null,f,'d3000000-0000-4000-8500-000000000002','Medical care','Primary care screening','high','d3000000-0000-4000-8003-000000000003',array['minimum medical referral'],'2026-08-03','received','Attendance confirmed','2026-08-10',u),
  ('d3000000-0000-4000-8600-000000000003',o,c1,'REF-2026-000417-03',null,f,'d3000000-0000-4000-8500-000000000005','Immigration legal orientation','Mexico-only legal and refugee options','high',co,array['identity summary','intake summary'],'2026-07-30','in_progress',null,'2026-08-25',u),
  ('d3000000-0000-4000-8600-000000000004',o,c1,'REF-2026-000417-04',null,f,'d3000000-0000-4000-8500-000000000004','Family tracing','Assess safe tracing of spouse/father','high','d3000000-0000-4000-8003-000000000003',array['minimum tracing facts'],'2026-08-08','awaiting_consent',null,'2026-08-25',u),
  ('d3000000-0000-4000-8600-000000000005',o,c1,'REF-2026-000417-05',null,f,'d3000000-0000-4000-8500-000000000003','Education','School enrollment for two children','normal',co,array['child identity summary'],'2026-08-05','sent',null,'2026-08-22',u)
@@ -271,6 +300,7 @@ begin
  ('d3000000-0000-4000-8b00-000000000001',o,c3,1,'services_completed','All planned services completed','None','low','All referrals completed','None','None','Client notified','Retained under policy','active retention',u,u,'2026-08-02','2026-08-02','2026-08-02'),
  ('d3000000-0000-4000-8b00-000000000002',o,c4,1,'unable_to_contact','Initial stabilization completed','Follow-up interrupted','moderate','Initial referral closed','Monitoring required','Re-contact if client returns','Notice attempted','Retained under policy','reopened',u,u,'2026-06-01','2026-06-01','2026-06-01')
  on conflict(social_case_id,closure_version) do update set reopened_at=case when excluded.social_case_id=c4 then '2026-08-20' else null end,reopened_by=case when excluded.social_case_id=c4 then u else null end,reopen_reason=case when excluded.social_case_id=c4 then 'Client returned and requested continued support' else null end;
+ update public.social_case_closures set reopened_at='2026-08-20',reopened_by=u,reopen_reason='Client returned and requested continued support' where id='d3000000-0000-4000-8b00-000000000002';
 
  insert into public.resource_knowledge_records(id,org_id,title_es,title_en,summary_es,summary_en,knowledge_type,service_categories,state_codes,municipality,population_tags,version,approval_status,approved_by,approved_at,effective_at,review_due_at,internal_only,created_by)
  select ('d3000000-0000-4000-8c00-'||lpad(n::text,12,'0'))::uuid,o,es,en,es,en,kind,cats,states,muni,pops,1,status,u,'2026-07-01','2026-07-01','2027-01-01',true,u
