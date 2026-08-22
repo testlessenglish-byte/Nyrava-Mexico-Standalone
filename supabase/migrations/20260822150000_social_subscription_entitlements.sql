@@ -197,7 +197,7 @@ $$;
 
 create or replace function public.enforce_social_invitation_subscription()
 returns trigger language plpgsql security definer
-set search_path=public,pg_temp as $
+set search_path=public,pg_temp as $invitation$
 begin
   if new.status in ('invited','accepted')
      and not public.social_org_subscription_active(new.org_id) then
@@ -205,7 +205,7 @@ begin
   end if;
   return new;
 end
-$;
+$invitation$;
 
 drop trigger if exists organization_invitations_require_subscription
   on public.organization_invitations;
