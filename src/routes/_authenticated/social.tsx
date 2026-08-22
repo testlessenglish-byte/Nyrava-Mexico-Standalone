@@ -19,6 +19,7 @@ import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
 import { SocialDocumentsHub } from "@/components/social/SocialDocumentsHub";
 import { ResourceKnowledgeNetwork } from "@/components/social/ResourceKnowledgeNetwork";
 import { KnowledgeCenter } from "@/components/social/KnowledgeCenter";
+import { EscapedTextNormalizer } from "@/components/social/EscapedTextNormalizer";
 
 export const Route=createFileRoute("/_authenticated/social")({
   head:()=>({meta:[
@@ -148,7 +149,7 @@ function SocialCarePage(){
     roleAssignments={workspace.data?.roleAssignments??[]}
     onClose={()=>{setSelectedCaseId("");void qc.invalidateQueries({queryKey:["social-workspace"]});}}
   /></div>;
-  return <div className="mx-auto max-w-[1500px] p-4 md:p-6">
+  return <div data-social-care-root className="mx-auto max-w-[1500px] p-4 md:p-6"><EscapedTextNormalizer/>
     <header className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/10 p-5 md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex gap-3">
