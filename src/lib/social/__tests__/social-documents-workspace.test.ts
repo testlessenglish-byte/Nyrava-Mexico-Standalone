@@ -51,6 +51,16 @@ describe("case-scoped Social Documents and Consent workspace",()=>{
     expect(hub).toContain("Confirm express link");
     expect(hub).toContain("linkSocialImmigrationMatter");
   });
+  it("supports explicit consent forms and links documents to case records",()=>{
+    for(const action of ["Add Consent","Generate Consent Form","Link referral","Link assessment","Link care plan"])expect(hub).toContain(action);
+    expect(migration).toContain("linked_entities jsonb");
+    expect(server).toContain("p_linked_entities");
+  });
+  it("requires explicit external-shareability before consent-based sharing",()=>{
+    expect(server).toContain("Document must be explicitly marked external-shareable");
+    expect(hub).toContain("External-shareable with consent");
+    expect(hub).toContain('x.status==="active"');
+  });
   it("gates audio and video by organization setting",()=>{
     expect(server).toContain("allow_media_uploads");
     expect(server).toContain("Audio and video uploads are not enabled");
