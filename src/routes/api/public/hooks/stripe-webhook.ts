@@ -43,24 +43,45 @@ async function resolveUserId(
   return data?.user_id ?? null;
 }
 
-/** After a subscription's plan is known, propagate it to the user's firm so
- * seat limits (firm_seat_usage / plan_seat_limit) reflect what they're
- * actually paying for. No-op for solo users with no firm_id. */
-async function syncFirmPlan(admin: ReturnType<typeof getAdmin>, userId: string, plan: string | null) {
-  if (!plan) return;
-  const { data: settings } = await admin.from("user_settings").select("firm_id").eq("user_id", userId).maybeSingle();
-  const firmId = settings?.firm_id;
-  if (!firmId) return;
-  const { data: seatData } = await admin.rpc("plan_seat_limit", { _plan: plan });
-  const seatLimit = typeof seatData === "number" ? seatData : 1;
-  await admin
-    .from("firms")
-    .update({ plan_key: plan, seat_limit: seatLimit, owner_user_id: userId })
-    .eq("id", firmId);
-  log("firm_plan_synced", { firmId, plan, seatLimit, ownerUserId: userId });
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-
+async function provisionOrganizationSubscription(
+  admin: ReturnType<typeof getAdmin>,
+  input: {
+    eventId: string;
+    eventType: string;
+    userId: string;
+    orgId?: string | null;
+    plan?: string | null;
+    customerId?: string | null;
+    subscriptionId?: string | null;
+    status: string;
+    interval?: string | null;
+    periodStart?: string | null;
+    periodEnd?: string | null;
+    payloadHash: string;
+  },
+) {
+  const { error } = await (admin as any).rpc("provision_organization_subscription_from_webhook", {
+    p_provider: "stripe",
+    p_provider_event_id: input.eventId,
+    p_event_type: input.eventType,
+    p_user_id: input.userId,
+    p_org_id: input.orgId ?? null,
+    p_plan_key: input.plan ?? null,
+    p_provider_customer_id: input.customerId ?? null,
+    p_provider_subscription_id: input.subscriptionId ?? null,
+    p_status: input.status,
+    p_billing_interval: input.interval ?? "month",
+    p_period_start: input.periodStart ?? null,
+    p_period_end: input.periodEnd ?? null,
+    p_payload_hash: input.payloadHash,
+  });
+  if (error) throw new Error(`Organization subscription provisioning failed: ${error.message}`);
+}
 
 export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
   server: {
@@ -92,6 +113,7 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
           });
         }
 
+        const payloadHash = await sha256Hex(rawBody);
         const admin = getAdmin();
         let resolvedUserId: string | null = null;
         let logStatus: "processed" | "ignored" | "error" = "processed";
@@ -132,8 +154,18 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 },
                 { onConflict: "user_id" },
               );
+              await provisionOrganizationSubscription(admin, {
+                eventId: event.id,
+                eventType: event.type,
+                userId,
+                orgId: session.metadata?.org_id ?? null,
+                plan,
+                customerId,
+                subscriptionId,
+                status: "active",
+                payloadHash,
+              });
               log("checkout_completed", { userId, plan, subscriptionId });
-              await syncFirmPlan(admin, userId, plan);
               break;
             }
 
@@ -171,8 +203,20 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 },
                 { onConflict: "user_id" },
               );
+              await provisionOrganizationSubscription(admin, {
+                eventId: event.id,
+                eventType: event.type,
+                userId,
+                orgId: sub.metadata?.org_id ?? null,
+                plan: plan ?? null,
+                customerId,
+                subscriptionId: sub.id,
+                status,
+                interval: sub.items.data[0]?.price.recurring?.interval ?? "month",
+                periodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+                payloadHash,
+              });
               log("subscription_updated", { userId, status, plan });
-              if (plan) await syncFirmPlan(admin, userId, plan);
               break;
             }
 
@@ -188,6 +232,17 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 break;
               }
               await admin.from("subscriptions").update({ status: "canceled" }).eq("user_id", userId);
+              await provisionOrganizationSubscription(admin, {
+                eventId: event.id,
+                eventType: event.type,
+                userId,
+                orgId: sub.metadata?.org_id ?? null,
+                plan: isPlanKey(sub.metadata?.plan) ? sub.metadata.plan : null,
+                customerId,
+                subscriptionId: sub.id,
+                status: "canceled",
+                payloadHash,
+              });
               log("subscription_deleted", { userId });
               break;
             }
@@ -205,6 +260,14 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 break;
               }
               await admin.from("subscriptions").update({ status: "past_due" }).eq("user_id", userId);
+              await provisionOrganizationSubscription(admin, {
+                eventId: event.id,
+                eventType: event.type,
+                userId,
+                customerId,
+                status: "past_due",
+                payloadHash,
+              });
               log("payment_failed", { userId });
               break;
             }
