@@ -54,7 +54,7 @@ const WEBSITE_JSON_LD = JSON.stringify({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Nyrava México — Sistema Operativo de Inteligencia Jurídica" },
+      { title: "Nyrava México" },
       { property: "og:url", content: `${SITE_URL}/` },
       { name: "twitter:url", content: `${SITE_URL}/` },
       {
