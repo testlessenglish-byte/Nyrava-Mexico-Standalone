@@ -6,6 +6,7 @@ import { CheckCircle2, FileUp, Loader2, RefreshCw, ShieldAlert } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/i18n";
 import { CaseResourceRecommendations } from "@/components/social/ResourceKnowledgeNetwork";
+import { TalkToCareCase } from "@/components/social/TalkToCareCase";
 import {
   acceptSocialTransfer, advanceSocialTransfer, approveSocialCarePlan,
   assignSocialCaseManager, closeSocialCase, createSocialAppointment,
@@ -26,7 +27,7 @@ type Props={
   roleAssignments:any[];
   onClose:()=>void;
 };
-type Tab="overview"|"assessment"|"plan"|"intervention"|"consent"|"referral"|"resources"|"tasks"|"documents"|"transfer"|"closure"|"immigration"|"activity";
+type Tab="overview"|"assessment"|"plan"|"intervention"|"consent"|"referral"|"resources"|"tasks"|"documents"|"transfer"|"closure"|"immigration"|"assistant"|"activity";
 const TABS:Array<{id:Tab;es:string;en:string}>=[
   {id:"overview",es:"Resumen",en:"Overview"},{id:"assessment",es:"Evaluación",en:"Assessment"},
   {id:"plan",es:"Plan",en:"Care plan"},{id:"intervention",es:"Intervención",en:"Intervention"},
@@ -34,7 +35,7 @@ const TABS:Array<{id:Tab;es:string;en:string}>=[
   {id:"resources",es:"Buscar recursos",en:"Find resources"},
   {id:"tasks",es:"Tareas y citas",en:"Tasks & appointments"},{id:"documents",es:"Documentos",en:"Documents"},
   {id:"transfer",es:"Transferencia",en:"Transfer"},{id:"closure",es:"Cierre",en:"Closure"},
-  {id:"immigration",es:"Vínculo migratorio",en:"Immigration link"},{id:"activity",es:"Auditoría",en:"Audit"},
+  {id:"immigration",es:"Vínculo migratorio",en:"Immigration link"},{id:"assistant",es:"Consultar Caso de Atención",en:"Talk to Care Case"},{id:"activity",es:"Auditoría",en:"Audit"},
 ];
 
 export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAssignments,onClose}:Props){
@@ -113,7 +114,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
   return <div className="rounded-2xl border border-primary/25 bg-card shadow-xl">
     <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-5">
       <div><p className="font-mono text-sm text-primary">{caseLabel}</p><h2 className="text-xl font-semibold">{person?.legal_name??(es?"Caso familiar":"Family case")}</h2><p className="text-xs text-muted-foreground">{c?.status} · {c.risk_level} · {c.confidentiality_level}</p></div>
-      <button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button>
+      <div className="flex gap-2"><button onClick={()=>setTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
     </div>
     <div className="flex gap-1 overflow-x-auto border-b border-border p-2">{TABS.map(x=><button key={x.id} onClick={()=>setTab(x.id)} className={`shrink-0 rounded-md px-3 py-2 text-xs ${tab===x.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}>{es?x.es:x.en}</button>)}</div>
     <div className="p-5">
@@ -139,7 +140,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
 
       {tab==="immigration"&&<Panel><div className="mb-3 flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"><ShieldAlert className="h-4 w-4"/>{es?"Solo asuntos mexicanos de Derecho Migratorio, Refugio y Nacionalidad. Se comparte exactamente lo seleccionado.":"Mexican Immigration, Refugee and Nationality matters only. Exactly the selected information is shared."}</div><Input label={es?"ID del asunto migratorio":"Immigration matter ID"} value={immigration.matterId} onChange={v=>setImmigration({...immigration,matterId:v})}/><Select label={es?"Consentimiento específico":"Specific consent"} value={immigration.consentId} onChange={v=>setImmigration({...immigration,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/><Input label={es?"Campos de estado recibidos":"Status fields received"} value={immigration.statusFields} onChange={v=>setImmigration({...immigration,statusFields:v})}/><Input label={es?"Campos sociales compartidos":"Social fields shared"} value={immigration.socialFields} onChange={v=>setImmigration({...immigration,socialFields:v})}/><Action busy={immigrationM.isPending} disabled={!immigration.matterId||!immigration.consentId} onClick={()=>immigrationM.mutate()}>{es?"Crear vínculo autorizado":"Create authorized link"}</Action></Panel>}
 
-      {tab==="activity"&&<History title={es?"Libro de auditoría inmutable":"Immutable audit ledger"} rows={caseData.activity} render={(x)=><p>{new Date(x.occurred_at).toLocaleString()} · {x.event_type} · {x.entity_type}</p>}/>}
+      {tab==="assistant"&&<TalkToCareCase caseId={caseId}/>}\n\n      {tab==="activity"&&<History title={es?"Libro de auditoría inmutable":"Immutable audit ledger"} rows={caseData.activity} render={(x)=><p>{new Date(x.occurred_at).toLocaleString()} · {x.event_type} · {x.entity_type}</p>}/>}
     </div>
   </div>;
 }
