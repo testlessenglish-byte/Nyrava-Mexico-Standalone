@@ -85,6 +85,13 @@ export function isCompletedCaseMode(mode: CaseAnalysisMode): boolean {
   return mode !== "ongoing";
 }
 
+/** Retrospective audit modes may analyze an existing pleading but must not
+ * generate a new one. A user must explicitly choose appeal_routes before
+ * prospective attorney work product is eligible for generation. */
+export function allowsProspectiveWorkProduct(mode: CaseAnalysisMode): boolean {
+  return mode === "ongoing" || mode === "appeal_routes";
+}
+
 /** Strict normalization — an unrecognized value is treated as "ongoing", the
  *  same default every existing case already has (this column is additive,
  *  NOT NULL DEFAULT 'ongoing' — see the migration). Never invents a
