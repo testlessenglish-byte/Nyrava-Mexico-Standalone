@@ -18,6 +18,7 @@ import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
 import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
 import { SocialDocumentsHub } from "@/components/social/SocialDocumentsHub";
 import { ResourceKnowledgeNetwork } from "@/components/social/ResourceKnowledgeNetwork";
+import { KnowledgeCenter } from "@/components/social/KnowledgeCenter";
 
 export const Route=createFileRoute("/_authenticated/social")({
   head:()=>({meta:[
@@ -246,8 +247,8 @@ function SocialCarePage(){
         {area==="activity"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Actividad del equipo":"Team activity"}</h2><div className="mt-3 space-y-2">{(workspace.data?.recentActivity??[]).filter((x:any)=>x.org_id===resolvedOrg).map((x:any)=><div key={x.id} className="rounded-lg border border-border p-3 text-sm">{new Date(x.occurred_at).toLocaleString()} · {x.event_type} · {x.entity_type}</div>)}</div></section>}
         {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setArea("people")} onOpenNewCase={()=>setArea("cases")}/>}
         {area==="resources"&&<ResourceKnowledgeNetwork mode="resources" orgId={resolvedOrg}/>}
-        {area==="knowledge"&&<ResourceKnowledgeNetwork mode="knowledge" orgId={resolvedOrg}/>}
-        {area==="resourceAdmin"&&<ResourceKnowledgeNetwork mode="admin" orgId={resolvedOrg}/>}
+        {area==="knowledge"&&<KnowledgeCenter orgId={resolvedOrg}/>}
+        {area==="resourceAdmin"&&<><ResourceKnowledgeNetwork mode="admin" orgId={resolvedOrg}/><KnowledgeCenter orgId={resolvedOrg} admin/></>}
         {["interventions","legal","psychosocial","referrals","transfers","closure"].includes(area)&&<OperationalArea area={area} es={es} cases={visibleCases} onOpen={setSelectedCaseId}/>} 
       </main>
     </div>
