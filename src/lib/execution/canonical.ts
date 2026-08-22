@@ -446,9 +446,11 @@ export const REPORT_BLOCKING_ENGINES: readonly string[] = CANONICAL_STAGES.filte
   (s) => s.engine !== "report_generator",
 ).map((s) => s.engine);
 
-/** Engines whose stage is requirement:"optional". A failure here must not
- * permanently block the report — the gate accepts them in any terminal
- * state, including `failed`. */
+/** Engines whose stage is requirement:"optional".
+ * Optional controls pipeline scheduling/failure propagation only. It does not
+ * authorize an attorney-facing report to release after that engine failed.
+ * completed_negative or an audited skipped state represent legitimate no-result
+ * outcomes; failed/blocked require revision. */
 export const OPTIONAL_ENGINES: ReadonlySet<string> = new Set(
   CANONICAL_STAGES.filter((s) => s.requirement === "optional").map((s) => s.engine),
 );
