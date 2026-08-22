@@ -189,7 +189,7 @@ create or replace function public.social_document_inventory(p_case uuid)
 returns table(
   id uuid,title text,document_type text,record_type text,sensitivity text,current_version integer,
   checksum text,mime_type text,size_bytes bigint,description text,tags text[],document_status text,
-  classification_status text,expires_at timestamptz,external_shareable boolean,uploaded_by uuid,
+  classification_status text,expires_at timestamptz,external_shareable boolean,linked_entities jsonb,uploaded_by uuid,
   created_at timestamptz,updated_at timestamptz,content_access boolean,restricted_metadata boolean
 )
 language sql stable security definer set search_path=public,pg_temp
@@ -207,6 +207,7 @@ as $document_inventory$
     case when a.allowed then d.tags else '{}'::text[] end,
     d.document_status,d.classification_status,d.expires_at,
     case when a.allowed then d.external_shareable else false end,
+    case when a.allowed then d.linked_entities else '{}'::jsonb end,
     d.uploaded_by,d.created_at,d.updated_at,a.allowed,not a.allowed
   from public.social_documents d
   cross join lateral (
