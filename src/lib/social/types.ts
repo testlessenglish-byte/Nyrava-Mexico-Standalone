@@ -51,17 +51,13 @@ export const socialFamilyInput = z.object({
 export const socialCaseInput = z.object({
   orgId: z.string().uuid(),
   programId: z.string().uuid(),
-  personId: z.string().uuid().optional(),
+  personId: z.string().uuid(),
   familyId: z.string().uuid().optional(),
-  caseType: z.string().trim().min(2).max(120),
-  referralSource: z.string().trim().max(300).optional(),
-  serviceAreas: z.array(z.string().trim().min(1).max(100)).max(30).default([]),
-  priority: z.enum(["low","normal","high","urgent"]).default("normal"),
-  riskLevel: z.enum(SOCIAL_RISK_LEVELS).default("unknown"),
-  confidentialityLevel: z.enum(["standard","confidential","restricted","highly_restricted"]).default("standard"),
-  tags: z.array(z.string().trim().min(1).max(60)).max(30).default([]),
-}).refine((v) => Boolean(v.personId || v.familyId), {
-  message: "A person or family is required",
+  assignedUserId: z.string().uuid().optional(),
+  caseType: z.enum(["individual","minor_child","family"]),
+  priority: z.enum(["standard","urgent","emergency"]).default("standard"),
+}).refine((v) => v.caseType !== "family" || Boolean(v.familyId), {
+  message: "A family record is required for a family case",
 });
 
 export const socialSearchInput = z.object({
