@@ -39,6 +39,7 @@ create or replace function public.create_and_assign_care_case(
   p_org uuid,
   p_program uuid,
   p_person uuid,
+  p_client_name text,
   p_family uuid,
   p_case_type text,
   p_priority text,
@@ -54,6 +55,7 @@ declare
   v_client_name text;
   v_assignee_name text;
   v_due timestamptz;
+  v_person_id uuid:=p_person;
 begin
   if v_actor is null then raise exception 'Authentication required' using errcode='42501'; end if;
   if not public.social_is_org_member(p_org,v_actor) then
@@ -67,9 +69,21 @@ begin
     where id=p_program and org_id=p_org and active) then
     raise exception 'Invalid or inactive Comprehensive Care program';
   end if;
-  if p_person is null or not exists(select 1 from public.social_people
-    where id=p_person and org_id=p_org and deleted_at is null) then
-    raise exception 'Select a client from this organization';
+  if v_person_id is null then
+    if length(btrim(coalesce(p_client_name,'')))<2 then
+      raise exception 'Select an existing client or enter the new client legal name';
+    end if;
+    insert into public.social_people(
+      org_id,person_number,legal_name,aliases,languages,current_location,
+      immigration_identifiers,unaccompanied_minor,separated_minor,
+      assigned_case_manager,created_by
+    ) values(
+      p_org,null,btrim(p_client_name),'{}'::text[],'{}'::text[],'{}'::jsonb,
+      '{}'::jsonb,false,false,coalesce(p_assigned_user,v_actor),v_actor
+    ) returning id into v_person_id;
+  elsif not exists(select 1 from public.social_people
+    where id=v_person_id and org_id=p_org and deleted_at is null) then
+    raise exception 'The selected client is outside this organization';
   end if;
   if p_family is not null and not exists(select 1 from public.social_families
     where id=p_family and org_id=p_org and deleted_at is null) then
@@ -87,7 +101,7 @@ begin
       and m.status='active' and m.deleted_at is null
   ) then raise exception 'The selected team member is not active in this organization'; end if;
 
-  select legal_name into v_client_name from public.social_people where id=p_person;
+  select legal_name into v_client_name from public.social_people where id=v_person_id;
   if p_assigned_user is not null then
     select coalesce(p.display_name,p.full_name,p.email,'Team member')
       into v_assignee_name from public.profiles p where p.id=p_assigned_user;
@@ -98,7 +112,7 @@ begin
     supervising_manager,status,priority,risk_level,confidentiality_level,
     service_areas,tags,created_by
   ) values(
-    p_org,p_program,p_person,p_family,p_case_type,p_assigned_user,v_actor,
+    p_org,p_program,v_person_id,p_family,p_case_type,p_assigned_user,v_actor,
     'intake',p_priority,'unknown','standard','{}'::text[],'{}'::text[],v_actor
   ) returning * into v_case;
 
@@ -182,10 +196,10 @@ revoke all on function public.create_social_case(
   uuid,uuid,uuid,uuid,text,text,text[],text,text,text,text[]
 ) from authenticated,anon,public;
 revoke all on function public.create_and_assign_care_case(
-  uuid,uuid,uuid,uuid,text,text,uuid
+  uuid,uuid,uuid,text,uuid,text,text,uuid
 ) from public,anon;
 grant execute on function public.create_and_assign_care_case(
-  uuid,uuid,uuid,uuid,text,text,uuid
+  uuid,uuid,uuid,text,uuid,text,text,uuid
 ) to authenticated,service_role;
 
 -- Correct the old team summary's stale social_tasks.assigned_to reference
