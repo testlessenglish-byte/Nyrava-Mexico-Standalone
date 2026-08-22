@@ -76,8 +76,6 @@ function SocialCarePage(){
   const createFamilyFn=useServerFn(createSocialFamily);
   const indicatorsFn=useServerFn(getSocialIndicators);
   const acknowledgeAlertFn=useServerFn(acknowledgeSocialAlert);
-  const inviteMemberFn=useServerFn(inviteSocialOrganizationMember);
-  const updateMemberFn=useServerFn(updateSocialOrganizationMember);
   const acceptInvitationFn=useServerFn(acceptSocialOrganizationInvitation);
   const [area,setArea]=useState<Area>("dashboard");
   const [selectedCaseId,setSelectedCaseId]=useState("");
