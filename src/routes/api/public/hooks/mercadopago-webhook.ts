@@ -171,15 +171,16 @@ export const Route = createFileRoute("/api/public/hooks/mercadopago-webhook")({
               // Plan key isn't carried on the preapproval itself — look it
               // up from which billing_plans row has this preapproval_plan_id,
               // same role Stripe's session.metadata.plan played.
-              let plan: string | null = null;
+              let organizationPlan: string | null = null;
               if (preapproval.preapproval_plan_id) {
                 const { data: planRow } = await admin
                   .from("billing_plans")
                   .select("key")
                   .eq("mercadopago_plan_id", preapproval.preapproval_plan_id)
                   .maybeSingle();
-                plan = isPlanKey(planRow?.key) ? planRow!.key : null;
+                organizationPlan = planRow?.key?.trim() || null;
               }
+              const plan = isPlanKey(organizationPlan) ? organizationPlan : null;
               await admin.from("subscriptions").upsert(
                 {
                   user_id: userId,
@@ -196,7 +197,7 @@ export const Route = createFileRoute("/api/public/hooks/mercadopago-webhook")({
                 eventId: `${type ?? "subscription_preapproval"}:${dataId}`,
                 eventType: type ?? "subscription_preapproval",
                 userId,
-                plan,
+                plan: organizationPlan,
                 customerId: preapproval.payer_id != null ? String(preapproval.payer_id) : null,
                 subscriptionId: preapproval.id,
                 status: mapPreapprovalStatus(preapproval.status),
