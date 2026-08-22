@@ -205,7 +205,7 @@ describe("social-care migration security coverage",()=>{
   it("keeps employee passwords outside manager-controlled data",()=>{
     expect(organizationAccount).not.toMatch(/password|credential/i);
     expect(organizationAccount).toContain("Invitation email does not match the signed-in account");
-    expect(organizationAccount).toContain("digest(p_token,'sha256')");
+    expect(organizationAccount).toContain("extensions.digest(p_token,'sha256')");
   });
   it("controls Stripe and Mercado Pago independently while keeping one enabled",()=>{
     expect(billing).toContain("'mercadopago','stripe'");
