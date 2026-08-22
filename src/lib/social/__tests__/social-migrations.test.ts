@@ -16,6 +16,7 @@ const authorizationRepair=migration("20260821020000_social_authorization_argumen
 const workflowReliability=migration("20260821030000_social_core_workflow_reliability.sql");
 const organizationAccount=migration("20260822143000_social_organization_account.sql");
 const subscriptionEntitlements=migration("20260822150000_social_subscription_entitlements.sql");
+const caseAssignmentWorkflow=migration("20260822233000_care_case_assignment_workflow.sql");
 const stripeWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","stripe-webhook.ts"),"utf8");
 const mercadoPagoWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","mercadopago-webhook.ts"),"utf8");
 const billingServerSource=readFileSync(join(process.cwd(),"src","lib","billing.functions.ts"),"utf8");
@@ -24,7 +25,7 @@ const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated
 const accountRouteSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","account.tsx"),"utf8");
 const accountServerSource=readFileSync(join(process.cwd(),"src","lib","account.functions.ts"),"utf8");
 const workspaceSource=readFileSync(join(process.cwd(),"src","components","social","SocialCaseWorkspace.tsx"),"utf8");
-const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair,organizationOnboarding,authorizationRepair,workflowReliability].join("\n").toLowerCase();
+const sql=[foundation,workflows,hardening,transactional,firstRun,operational,searchRepair,organizationOnboarding,authorizationRepair,workflowReliability,caseAssignmentWorkflow].join("\n").toLowerCase();
 
 describe("social-care migration security coverage",()=>{
   it.each([
@@ -127,9 +128,12 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).toContain("SocialCaseWorkspace");
     expect(routeSource).toContain("onOpen={setSelectedCaseId}");
   });
-  it("provides working family, alert, indicator, activity and role administration screens",()=>{
-    for(const marker of ["createSocialFamily","getSocialIndicators","acknowledgeSocialAlert","inviteSocialOrganizationMember","updateSocialOrganizationMember"]){
+  it("provides working family, alert, indicator, activity and Account team administration screens",()=>{
+    for(const marker of ["createSocialFamily","getSocialIndicators","acknowledgeSocialAlert"]){
       expect(routeSource).toContain(marker);
+    }
+    for(const marker of ["inviteSocialOrganizationMember","updateSocialOrganizationMember","OrganizationTeamCard"]){
+      expect(accountRouteSource).toContain(marker);
     }
   });
   it("exposes consent-checked sharing and ethical-screen access grants",()=>{
@@ -143,14 +147,19 @@ describe("social-care migration security coverage",()=>{
     expect(workflowReliability).toContain("else v_row:=to_jsonb(new)");
     expect(workflowReliability).not.toContain("coalesce(new.org_id,old.org_id)");
   });
-  it("creates people, families and cases through explicitly authorized transactions",()=>{
-    for(const fn of ["create_social_person","create_social_family","create_social_case"]){
+  it("creates clients and assigned cases through authorized transactions",()=>{
+    for(const fn of ["create_social_person","create_social_family"]){
       expect(workflowReliability).toContain(`function public.${fn}`);
     }
-    expect(workflowReliability).toContain("security definer");
+    expect(caseAssignmentWorkflow).toContain("function public.create_and_assign_care_case");
+    expect(caseAssignmentWorkflow).toContain("insert into public.social_case_assignments");
+    expect(caseAssignmentWorkflow).toContain("insert into public.social_case_status_history");
+    expect(caseAssignmentWorkflow).toContain("insert into public.social_alerts");
+    expect(caseAssignmentWorkflow).toContain("insert into public.social_tasks");
+    expect(caseAssignmentWorkflow).toContain("revoke all on function public.create_social_case");
     expect(serverSource).toContain('.rpc("create_social_person"');
-    expect(serverSource).toContain('.rpc("create_social_case"');
-    expect(serverSource).not.toMatch(/from\("social_people"\)\.insert/);
+    expect(serverSource).toContain('.rpc("create_and_assign_care_case"');
+    expect(serverSource).not.toContain('.rpc("create_social_case"');
     expect(serverSource).not.toMatch(/from\("social_cases"\)\.insert/);
   });
   it("uses direct active memberships and canonical document organizations",()=>{
@@ -165,8 +174,9 @@ describe("social-care migration security coverage",()=>{
   });
   it("surfaces actionable Social errors and an empty-workspace creation path",()=>{
     expect(routeSource).toContain("function errorMessage");
-    expect(routeSource).toContain("Start by registering the first person");
-    expect(routeSource).toContain("No people registered yet");
+    expect(routeSource).toContain("Register New Case");
+    expect(routeSource).toContain("Open and Assign Case");
+    expect(routeSource).not.toContain("Start by registering the first person");
   });
   it("repairs Social authorization argument order without email-specific access",()=>{
     expect(authorizationRepair).toContain("public.is_org_member(p_user,p_org)");
@@ -189,7 +199,8 @@ describe("social-care migration security coverage",()=>{
     expect(organizationOnboarding).toContain("function public.create_account_organization");
     expect(organizationOnboarding).toContain("'organization_owner'");
     expect(organizationOnboarding).toContain("'Atención Integral'");
-    expect(routeSource).toContain('to="/account"');
+    expect(accountServerSource).toContain("Profile completion is the organization onboarding boundary");
+    expect(routeSource).not.toContain('to="/account"');
     expect(routeSource).not.toContain("createOrganization({name,slug:");
   });
   it("uses one organization subscription for employee seats and assignment-scoped work",()=>{
@@ -202,7 +213,9 @@ describe("social-care migration security coverage",()=>{
     expect(organizationAccount).toContain("public.social_org_role_to_care_role");
     expect(organizationAccount).not.toContain("create table if not exists public.organizations");
     expect(organizationAccount).not.toContain("create table if not exists public.firms");
-    expect(routeSource).toContain("OrganizationSeatAdmin");
+    expect(accountRouteSource).toContain("OrganizationTeamCard");
+    expect(accountRouteSource).toContain("Invite team member");
+    expect(routeSource).not.toContain("OrganizationSeatAdmin");
     expect(routeSource).toContain("TeamActivity");
     expect(workspaceSource).toContain("organizationMembers");
   });

@@ -9,9 +9,10 @@ import {
   getAccount, updateProfile, updateVoicePrefs, updateNotificationPrefs,
   updateAIPrefs, changePassword, changeEmail, getRecentActivity,
 } from "@/lib/account.functions";
+import { getSocialWorkspace, inviteSocialOrganizationMember, updateSocialOrganizationMember } from "@/lib/social.functions";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  User, Mail, Lock, Mic, Bell, Bot, History, Save, Loader2, Volume2, PlayCircle,
+  User, Mail, Lock, Mic, Bell, Bot, History, Save, Loader2, Volume2, PlayCircle, Users, UserPlus,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
 
@@ -40,8 +41,10 @@ function AccountPage() {
   const { t } = useI18n();
   const getAcc = useServerFn(getAccount);
   const getAct = useServerFn(getRecentActivity);
+  const getWorkspace = useServerFn(getSocialWorkspace);
   const accQ = useQuery({ queryKey: ["account"], queryFn: () => getAcc() });
   const actQ = useQuery({ queryKey: ["account-activity"], queryFn: () => getAct() });
+  const workspaceQ = useQuery({ queryKey: ["social-workspace"], queryFn: () => getWorkspace() });
 
   if (accQ.isLoading) {
     return <div className="p-10 text-center text-sm text-muted-foreground">{t("acct.loading")}</div>;
@@ -67,6 +70,7 @@ function AccountPage() {
       </header>
 
       <ProfileCard acc={acc} onSaved={() => accQ.refetch()} />
+      <OrganizationTeamCard workspace={workspaceQ.data} loading={workspaceQ.isLoading} />
       <SecurityCard email={acc.email ?? ""} />
       <VoiceCard settings={acc.settings} onSaved={() => accQ.refetch()} />
       <NotificationCard settings={acc.settings} onSaved={() => accQ.refetch()} />
@@ -74,6 +78,40 @@ function AccountPage() {
       <ActivityCard data={actQ.data} loading={actQ.isLoading} />
     </div>
   );
+}
+
+const TEAM_ROLES=["firm_manager","supervisor","case_worker","legal_provider","psychosocial_provider","read_only"] as const;
+const teamRoleLabel=(role:string,es:boolean)=>({
+  firm_manager:["Gerente del despacho","Firm manager"],supervisor:["Supervisor","Supervisor"],case_worker:["Gestor del caso","Case worker"],
+  legal_provider:["Profesional jurídico","Legal provider"],psychosocial_provider:["Profesional psicosocial","Psychosocial provider"],
+  read_only:["Solo lectura","Read only"],owner:["Propietario","Owner"],admin:["Administrador","Administrator"],
+} as Record<string,[string,string]>)[role]?.[es?0:1]??role.replaceAll("_"," ");
+
+function OrganizationTeamCard({workspace,loading}:{workspace:any;loading:boolean}){
+  const {locale}=useI18n();const es=locale==="es";const qc=useQueryClient();
+  const inviteFn=useServerFn(inviteSocialOrganizationMember);
+  const updateFn=useServerFn(updateSocialOrganizationMember);
+  const org=workspace?.organizations?.[0];const account=workspace?.organizationAccounts?.find((x:any)=>x.orgId===org?.id);
+  const [invite,setInvite]=useState({name:"",email:"",title:"",role:"case_worker"});
+  const [link,setLink]=useState("");
+  const inviteMutation=useMutation({
+    mutationFn:()=>inviteFn({data:{orgId:org.id,...invite,role:invite.role as typeof TEAM_ROLES[number]}}),
+    onSuccess:(result:any)=>{setLink(`${window.location.origin}/social?invite=${result.token}`);setInvite({...invite,name:"",email:"",title:""});toast.success(es?"Invitación creada":"Invitation created");void qc.invalidateQueries({queryKey:["social-workspace"]});},
+    onError:(e:any)=>toast.error(e?.message??String(e)),
+  });
+  const updateMutation=useMutation({
+    mutationFn:(value:{userId:string;role:string;status:"active"|"suspended"|"removed"})=>updateFn({data:{orgId:org.id,userId:value.userId,role:value.role as typeof TEAM_ROLES[number],status:value.status}}),
+    onSuccess:()=>{toast.success(es?"Miembro actualizado":"Team member updated");void qc.invalidateQueries({queryKey:["social-workspace"]});},
+    onError:(e:any)=>toast.error(e?.message??String(e)),
+  });
+  return <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex gap-3"><div className="rounded-xl bg-primary/10 p-2 text-primary"><Users className="h-5 w-5"/></div><div><h2 className="font-semibold">{es?"Equipo de la organización":"Organization team"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"Invite empleados a la suscripción del despacho y defina su función. No compran otra suscripción.":"Invite employees under the firm subscription and define their role. They do not buy a separate subscription."}</p></div></div>{account&&<div className="rounded-lg border border-border px-3 py-2 text-sm"><strong>{account.seats_used??0}</strong> / {account.seat_limit??1} {es?"asientos":"seats"}</div>}</div>
+    {loading&&<p className="mt-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>{es?"Cargando equipo…":"Loading team…"}</p>}
+    {!loading&&!org&&<p className="mt-4 text-sm text-warning">{es?"La organización todavía no fue aprovisionada. Complete el perfil o revise el webhook de la suscripción.":"The organization has not been provisioned. Complete the profile or inspect the subscription webhook."}</p>}
+    {account?.can_manage&&<div className="mt-5 grid gap-3 md:grid-cols-2"><label className="text-xs font-medium text-muted-foreground">{es?"Nombre":"Name"}<input value={invite.name} onChange={e=>setInvite({...invite,name:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/></label><label className="text-xs font-medium text-muted-foreground">Email<input type="email" value={invite.email} onChange={e=>setInvite({...invite,email:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/></label><label className="text-xs font-medium text-muted-foreground">{es?"Título / puesto":"Title"}<input value={invite.title} onChange={e=>setInvite({...invite,title:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"/></label><label className="text-xs font-medium text-muted-foreground">{es?"Función":"Role"}<select value={invite.role} onChange={e=>setInvite({...invite,role:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{TEAM_ROLES.map(role=><option key={role} value={role}>{teamRoleLabel(role,es)}</option>)}</select></label><button type="button" disabled={inviteMutation.isPending||!invite.name||!invite.email||!invite.title} onClick={()=>inviteMutation.mutate()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50 md:col-span-2"><UserPlus className="mr-2 inline h-4 w-4"/>{es?"Invitar miembro del equipo":"Invite team member"}</button></div>}
+    {link&&<div className="mt-4 rounded-lg border border-success/30 bg-success/10 p-3 text-xs"><p className="font-semibold">{es?"Enlace seguro de invitación":"Secure invitation link"}</p><div className="mt-2 flex gap-2"><input readOnly value={link} className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1"/><button type="button" onClick={()=>void navigator.clipboard.writeText(link)} className="rounded border border-border px-3">{es?"Copiar":"Copy"}</button></div></div>}
+    {!!account?.members?.length&&<div className="mt-5 overflow-x-auto rounded-lg border border-border"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-3 py-2">{es?"Nombre":"Name"}</th><th className="px-3 py-2">Email</th><th className="px-3 py-2">{es?"Título":"Title"}</th><th className="px-3 py-2">{es?"Función":"Role"}</th><th className="px-3 py-2">{es?"Casos":"Cases"}</th><th className="px-3 py-2"></th></tr></thead><tbody>{account.members.map((m:any)=><tr key={m.id} className="border-t border-border"><td className="px-3 py-2 font-medium">{m.name}</td><td className="px-3 py-2">{m.email??"—"}</td><td className="px-3 py-2">{m.title??"—"}</td><td className="px-3 py-2">{account.can_manage&&m.role!=="owner"?<select value={TEAM_ROLES.includes(m.role)?m.role:"read_only"} onChange={e=>updateMutation.mutate({userId:m.user_id,role:e.target.value,status:"active"})} className="rounded border border-border bg-background px-2 py-1">{TEAM_ROLES.map(role=><option key={role} value={role}>{teamRoleLabel(role,es)}</option>)}</select>:teamRoleLabel(m.role,es)}</td><td className="px-3 py-2">{m.assigned_cases??0}</td><td className="px-3 py-2 text-right">{account.can_manage&&m.role!=="owner"&&<button type="button" onClick={()=>updateMutation.mutate({userId:m.user_id,role:TEAM_ROLES.includes(m.role)?m.role:"read_only",status:m.status==="suspended"?"active":"suspended"})} className="text-xs text-primary underline">{m.status==="suspended"?(es?"Reactivar":"Reactivate"):(es?"Suspender":"Suspend")}</button>}</td></tr>)}</tbody></table></div>}
+  </section>;
 }
 
 // ============================================================ Profile

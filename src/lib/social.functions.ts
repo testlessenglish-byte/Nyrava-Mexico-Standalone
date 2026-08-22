@@ -111,17 +111,15 @@ export const createSocialFamily=createServerFn({method:"POST"})
     fail(error);return family;
   });
 
-export const createSocialCase=createServerFn({method:"POST"})
+export const createAndAssignCareCase=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>socialCaseInput.parse(d))
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
-    const {data:row,error}=await supabase.rpc("create_social_case",{
+    const {data:row,error}=await supabase.rpc("create_and_assign_care_case",{
       p_org:data.orgId,p_program:data.programId,p_person:data.personId??null,
-      p_family:data.familyId??null,p_case_type:data.caseType,
-      p_referral_source:data.referralSource??null,p_service_areas:data.serviceAreas,
-      p_priority:data.priority,p_risk_level:data.riskLevel,
-      p_confidentiality_level:data.confidentialityLevel,p_tags:data.tags,
+      p_client_name:data.newClientName??null,p_family:data.familyId??null,p_case_type:data.caseType,
+      p_priority:data.priority,p_assigned_user:data.assignedUserId??null,
     });
     fail(error);return row;
   });
@@ -748,11 +746,11 @@ const organizationSeatRole=z.enum(["firm_manager","supervisor","case_worker","le
 
 export const inviteSocialOrganizationMember=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
-  .inputValidator((d:unknown)=>z.object({orgId:uuid,email:z.string().trim().email(),role:organizationSeatRole}).parse(d))
+  .inputValidator((d:unknown)=>z.object({orgId:uuid,email:z.string().trim().email(),name:z.string().trim().min(2).max(160),title:z.string().trim().min(2).max(160),role:organizationSeatRole}).parse(d))
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
     const {data:invitation,error}=await supabase.rpc("invite_social_organization_member",{
-      p_org:data.orgId,p_email:data.email,p_role:data.role,
+      p_org:data.orgId,p_email:data.email,p_role:data.role,p_name:data.name,p_title:data.title,
     });
     fail(error);return invitation;
   });

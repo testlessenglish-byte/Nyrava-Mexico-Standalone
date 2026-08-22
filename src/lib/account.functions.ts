@@ -220,6 +220,39 @@ export const completeProfileSetup = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
 
+    // Profile completion is the organization onboarding boundary. New subscribers
+    // must not be sent back to Account to create a second workspace.
+    let organizationId: string | null = null;
+    const { data: membership, error: membershipError } = await supabase
+      .from("org_memberships")
+      .select("org_id")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+    if (membershipError) throw new Error(membershipError.message);
+    if (membership?.org_id) {
+      organizationId = membership.org_id;
+    } else {
+      const slugBase = data.firm_name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 40) || "organization";
+      const { data: organization, error: organizationError } = await (supabase as any).rpc(
+        "create_account_organization",
+        {
+          p_name: data.firm_name,
+          p_slug: `${slugBase}-${crypto.randomUUID().slice(0, 8)}`,
+          p_prefix: "NYR-SOC",
+        },
+      );
+      if (organizationError) throw new Error(organizationError.message);
+      organizationId = (organization as { id?: string } | null)?.id ?? null;
+    }
+
     // Every account lands in the workspace with two ready-to-run amparo
     // matters (~24 documents each) so a tester can execute the full pipeline
     // immediately, without uploading anything and without adding an API key —
@@ -233,7 +266,7 @@ export const completeProfileSetup = createServerFn({ method: "POST" })
       console.error("[profile-setup] starter case seeding failed", e);
     }
 
-    return { ok: true, starterCases };
+    return { ok: true, starterCases, organizationId };
   });
 
 /**

@@ -113,9 +113,17 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
 
   if(detail.isLoading||!caseData||!c)return <Panel><Loader2 className="h-5 w-5 animate-spin"/></Panel>;
   return <div className="rounded-2xl border border-primary/25 bg-card shadow-xl">
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-5">
-      <div><p className="font-mono text-sm text-primary">{caseLabel}</p><h2 className="text-xl font-semibold">{person?.legal_name??(es?"Caso familiar":"Family case")}</h2><p className="text-xs text-muted-foreground">{c?.status} · {c.risk_level} · {c.confidentiality_level}</p></div>
-      <div className="flex gap-2"><button onClick={()=>setTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
+    <div className="border-b border-border p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><p className="font-mono text-sm text-primary">{caseLabel}</p><h2 className="text-xl font-semibold">{person?.legal_name??(es?"Caso familiar":"Family case")}</h2><p className="text-xs text-muted-foreground">{localizedEnum(c?.case_type,es)} · {c?.status==="intake"?(es?"Nuevo":"New"):localizedEnum(c?.status,es)} · {localizedEnum(c?.priority,es)}</p></div>
+        <div className="flex flex-wrap gap-2"><button onClick={()=>setTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>setTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button onClick={()=>setTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
+      </div>
+      <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+        <span>{es?"Responsable":"Assigned"}: <strong className="text-foreground">{organizationMembers.find((m:any)=>m.user_id===c?.assigned_case_manager)?.name??(es?"Sin asignar":"Unassigned")}</strong></span>
+        <span>{es?"Supervisor":"Supervisor"}: <strong className="text-foreground">{organizationMembers.find((m:any)=>m.user_id===c?.supervising_manager)?.name??"—"}</strong></span>
+        <span>{es?"Riesgo":"Risk"}: <strong className="text-foreground">{localizedEnum(c?.risk_level,es)}</strong></span>
+        <span>{es?"Última actividad":"Last activity"}: <strong className="text-foreground">{c?.last_activity_at?new Date(c.last_activity_at).toLocaleString():"—"}</strong></span>
+      </div>
     </div>
     <div className="flex gap-1 overflow-x-auto border-b border-border p-2">{TABS.map(x=><button key={x.id} onClick={()=>setTab(x.id)} className={`shrink-0 rounded-md px-3 py-2 text-xs ${tab===x.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}>{es?x.es:x.en}</button>)}</div>
     <div className="p-5">
