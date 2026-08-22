@@ -299,7 +299,7 @@ begin
  values
  ('d3000000-0000-4000-8b00-000000000001',o,c3,1,'services_completed','All planned services completed','None','low','All referrals completed','None','None','Client notified','Retained under policy','active retention',u,u,'2026-08-02','2026-08-02','2026-08-02'),
  ('d3000000-0000-4000-8b00-000000000002',o,c4,1,'unable_to_contact','Initial stabilization completed','Follow-up interrupted','moderate','Initial referral closed','Monitoring required','Re-contact if client returns','Notice attempted','Retained under policy','reopened',u,u,'2026-06-01','2026-06-01','2026-06-01')
- on conflict(social_case_id,closure_version) do update set reopened_at=case when excluded.social_case_id=c4 then '2026-08-20' else null end,reopened_by=case when excluded.social_case_id=c4 then u else null end,reopen_reason=case when excluded.social_case_id=c4 then 'Client returned and requested continued support' else null end;
+ on conflict(social_case_id,closure_version) do update set reopened_at=case when excluded.social_case_id=c4 then '2026-08-20'::timestamptz else null::timestamptz end,reopened_by=case when excluded.social_case_id=c4 then u else null::uuid end,reopen_reason=case when excluded.social_case_id=c4 then 'Client returned and requested continued support' else null end;
  update public.social_case_closures set reopened_at='2026-08-20',reopened_by=u,reopen_reason='Client returned and requested continued support' where id='d3000000-0000-4000-8b00-000000000002';
 
  insert into public.resource_knowledge_records(id,org_id,title_es,title_en,summary_es,summary_en,knowledge_type,service_categories,state_codes,municipality,population_tags,version,approval_status,approved_by,approved_at,effective_at,review_due_at,internal_only,created_by)
