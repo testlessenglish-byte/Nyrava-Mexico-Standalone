@@ -52,24 +52,42 @@ async function resolveUserId(
   return data?.user_id ?? null;
 }
 
-/** Same firm seat-sync behavior the Stripe webhook had — kept unchanged,
- * this has nothing to do with which processor billed the card. */
-async function syncFirmPlan(admin: Admin, userId: string, plan: string | null) {
-  if (!plan) return;
-  const { data: settings } = await admin
-    .from("user_settings")
-    .select("firm_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-  const firmId = settings?.firm_id;
-  if (!firmId) return;
-  const { data: seatData } = await admin.rpc("plan_seat_limit", { _plan: plan });
-  const seatLimit = typeof seatData === "number" ? seatData : 1;
-  await admin
-    .from("firms")
-    .update({ plan_key: plan, seat_limit: seatLimit, owner_user_id: userId })
-    .eq("id", firmId);
-  log("firm_plan_synced", { firmId, plan, seatLimit, ownerUserId: userId });
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function provisionOrganizationSubscription(
+  admin: Admin,
+  input: {
+    eventId: string;
+    eventType: string;
+    userId: string;
+    plan?: string | null;
+    customerId?: string | null;
+    subscriptionId?: string | null;
+    status: string;
+    periodStart?: string | null;
+    periodEnd?: string | null;
+    payloadHash: string;
+  },
+) {
+  const { error } = await (admin as any).rpc("provision_organization_subscription_from_webhook", {
+    p_provider: "mercadopago",
+    p_provider_event_id: input.eventId,
+    p_event_type: input.eventType,
+    p_user_id: input.userId,
+    p_org_id: null,
+    p_plan_key: input.plan ?? null,
+    p_provider_customer_id: input.customerId ?? null,
+    p_provider_subscription_id: input.subscriptionId ?? null,
+    p_status: input.status,
+    p_billing_interval: "month",
+    p_period_start: input.periodStart ?? null,
+    p_period_end: input.periodEnd ?? null,
+    p_payload_hash: input.payloadHash,
+  });
+  if (error) throw new Error(`Organization subscription provisioning failed: ${error.message}`);
 }
 
 function mapPreapprovalStatus(
@@ -126,6 +144,7 @@ export const Route = createFileRoute("/api/public/hooks/mercadopago-webhook")({
           });
         }
 
+        const payloadHash = await sha256Hex(rawBody);
         const admin = getAdmin();
         let resolvedUserId: string | null = null;
         let logStatus: "processed" | "ignored" | "error" = "processed";
@@ -173,8 +192,17 @@ export const Route = createFileRoute("/api/public/hooks/mercadopago-webhook")({
                 },
                 { onConflict: "user_id" },
               );
+              await provisionOrganizationSubscription(admin, {
+                eventId: `${type ?? "subscription_preapproval"}:${dataId}`,
+                eventType: type ?? "subscription_preapproval",
+                userId,
+                plan,
+                customerId: preapproval.payer_id != null ? String(preapproval.payer_id) : null,
+                subscriptionId: preapproval.id,
+                status: mapPreapprovalStatus(preapproval.status),
+                payloadHash,
+              });
               log("preapproval_updated", { userId, status: preapproval.status, plan });
-              if (plan) await syncFirmPlan(admin, userId, plan);
             }
           } else if (type === "subscription_authorized_payment" || type === "payment") {
             const { getPayment } = await import("@/lib/mercadopago.server");
@@ -190,6 +218,13 @@ export const Route = createFileRoute("/api/public/hooks/mercadopago-webhook")({
                 .from("subscriptions")
                 .update({ status: "past_due" })
                 .eq("user_id", userId);
+              await provisionOrganizationSubscription(admin, {
+                eventId: `${type ?? "payment"}:${dataId}`,
+                eventType: type ?? "payment",
+                userId,
+                status: "past_due",
+                payloadHash,
+              });
               log("payment_failed", { userId });
             } else {
               logStatus = "ignored";
