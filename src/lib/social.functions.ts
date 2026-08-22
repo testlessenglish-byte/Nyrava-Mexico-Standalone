@@ -710,7 +710,7 @@ export const askTalkToCareCase=createServerFn({method:"POST"})
       supabase.from("social_people").select("id,person_number,legal_name,consent_status").eq("id",sc.person_id).maybeSingle(),
       sc.family_id?supabase.from("social_families").select("id,family_number,family_name").eq("id",sc.family_id).maybeSingle():Promise.resolve({data:null,error:null}),
       supabase.from("social_assessments").select("id,risk_level,assessment_date,current_version").eq("social_case_id",data.caseId).order("assessment_date",{ascending:false}),
-      supabase.from("social_care_plans").select("id,status,current_version,social_care_plan_versions(version,summary,social_care_plan_goals(id,status,goal,target_date,assigned_to))").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
+      supabase.from("social_care_plans").select("id,status,current_version,social_care_plan_versions(version,summary,social_care_plan_goals(id,status,goal,target_date))").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
       supabase.from("social_interventions").select("id,service_type,occurred_at,reason,actions_taken,outcome,follow_up_required").eq("social_case_id",data.caseId).eq("record_type","general_case_record").order("occurred_at",{ascending:false}).limit(50),
       supabase.from("social_tasks").select("id,title,status,priority,due_at,assigned_to").eq("social_case_id",data.caseId).order("due_at",{ascending:true}),
       supabase.from("social_referrals").select("id,referral_number,status,service_requested,created_at,updated_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
