@@ -25,7 +25,7 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
     const empty={organizations:[],programs:[],offices:[],cases:[],people:[],families:[],alerts:[],institutions:[],templates:[],roleAssignments:[],recentActivity:[],stats:{active:0,critical:0,overdue:0,unverifiedReferrals:0},userId};
     if(!orgIds.length)return empty;
     const [programs,offices,cases,people,families,alerts,referrals,tasks,institutions,templates,roleAssignments,recentActivity]=await Promise.all([
-      supabase.from("social_programs").select("id,org_id,name_es,name_en,case_prefix,active").in("org_id",orgIds).eq("active",true).order("name_es"),
+      supabase.from("social_programs").select("id,org_id,name_es,name_en,case_prefix,active,settings").in("org_id",orgIds).eq("active",true).order("name_es"),
       supabase.from("social_offices").select("id,org_id,name,address,active").in("org_id",orgIds).eq("active",true).order("name"),
       supabase.from("social_cases").select("id,org_id,program_id,case_number,case_type,status,priority,risk_level,last_activity_at,next_required_action,person_id,family_id,assigned_case_manager,supervising_manager,service_areas,confidentiality_level,consent_status").in("org_id",orgIds).is("deleted_at",null).order("last_activity_at",{ascending:false}).limit(250),
       supabase.from("social_people").select("id,org_id,person_number,legal_name,preferred_name,telephone,email,consent_status,record_status").in("org_id",orgIds).is("deleted_at",null).order("updated_at",{ascending:false}).limit(250),
@@ -321,13 +321,20 @@ export const getSocialIndicators=createServerFn({method:"GET"})
 
 export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
-  .inputValidator((d:unknown)=>z.object({orgId:uuid,socialCaseId:uuid,recordType:recordType,fileName:z.string().trim().min(1).max(240)}).parse(d))
+  .inputValidator((d:unknown)=>z.object({orgId:uuid,socialCaseId:uuid,recordType:recordType,fileName:z.string().trim().min(1).max(240),mimeType:z.string().trim().max(200).optional(),sizeBytes:z.number().int().positive().max(104857600).optional()}).parse(d))
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
     const {data:socialCase,error:caseError}=await supabase.from("social_cases")
       .select("org_id").eq("id",data.socialCaseId).single();
     fail(caseError);
     if(!socialCase?.org_id||socialCase.org_id!==data.orgId) throw new Error("Case does not belong to the selected organization");
+    const allowed=["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","image/jpeg","image/png","image/webp","image/tiff","application/zip"];
+    const media=["audio/mpeg","audio/wav","audio/mp4","video/mp4","video/quicktime","video/webm"];
+    if(data.mimeType&&!allowed.includes(data.mimeType)&&!media.includes(data.mimeType)) throw new Error("Unsupported Social document format");
+    if(data.mimeType&&media.includes(data.mimeType)){
+      const {data:programs,error:settingsError}=await supabase.from("social_programs").select("settings").eq("org_id",data.orgId).eq("active",true);fail(settingsError);
+      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads===true)) throw new Error("Audio and video uploads are not enabled for this organization");
+    }
     const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");
     const path=`${socialCase.org_id}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
     const {data:signed,error}=await supabase.storage.from("social-case-files").createSignedUploadUrl(path);fail(error);
@@ -399,8 +406,10 @@ export const finalizeSocialDocumentUpload=createServerFn({method:"POST"})
     const {data:file,error:downloadError}=await supabase.storage.from("social-case-files").download(data.path);fail(downloadError);
     const bytes=await file.arrayBuffer();const digest=await crypto.subtle.digest("SHA-256",bytes);
     const checksum=Array.from(new Uint8Array(digest)).map((b)=>b.toString(16).padStart(2,"0")).join("");
+    const {data:duplicate,error:duplicateError}=await supabase.from("social_documents").select("id,title,current_version").eq("social_case_id",data.socialCaseId).eq("checksum",checksum).is("deleted_at",null).maybeSingle();fail(duplicateError);
+    if(duplicate){await supabase.storage.from("social-case-files").remove([data.path]);return {documentId:duplicate.id,checksum,size:file.size,duplicate:true,duplicateTitle:duplicate.title};}
     const {data:documentId,error}=await supabase.rpc("register_social_document",{p_case:data.socialCaseId,p_person:c.person_id,p_family:c.family_id,p_title:data.title,p_document_type:data.documentType??null,p_record_type:data.recordType,p_sensitivity:data.sensitivity,p_consent:data.consentId??null,p_storage_path:data.path,p_checksum:checksum,p_mime:data.mimeType||file.type||null,p_size:file.size,p_extraction_authorized:data.extractionAuthorized});
-    fail(error);return {documentId,checksum,size:file.size};
+    fail(error);return {documentId,checksum,size:file.size,duplicate:false};
   });
 
 
@@ -543,3 +552,51 @@ export const saveResourceKnowledge=createServerFn({method:"POST"})
     const {data:row,error}=await query.select("id,version,approval_status").single();fail(error);return row;
   });
 
+
+
+export const getSocialDocumentWorkspace=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const caseRow=await supabase.from("social_cases").select("id,org_id,case_number,status,risk_level,assigned_case_manager,consent_status,person_id,family_id,program_id").eq("id",data.caseId).single();fail(caseRow.error);
+    const c=caseRow.data;
+    const [person,family,inventory,consents,shares,events,versions,referrals,assessments,plans]=await Promise.all([
+      c.person_id?supabase.from("social_people").select("id,legal_name,preferred_name,consent_status").eq("id",c.person_id).maybeSingle():Promise.resolve({data:null,error:null}),
+      c.family_id?supabase.from("social_families").select("id,family_name,family_number").eq("id",c.family_id).maybeSingle():Promise.resolve({data:null,error:null}),
+      supabase.rpc("social_document_inventory",{p_case:data.caseId}),
+      supabase.from("social_consents").select("*,social_consent_versions(*)").or([c.person_id?`person_id.eq.${c.person_id}`:null,c.family_id?`family_id.eq.${c.family_id}`:null].filter(Boolean).join(",")).order("created_at",{ascending:false}),
+      supabase.from("social_document_shares").select("*").eq("org_id",c.org_id).order("created_at",{ascending:false}),
+      supabase.from("social_document_access_events").select("*").eq("social_case_id",data.caseId).order("occurred_at",{ascending:false}).limit(300),
+      supabase.from("social_document_versions").select("*").eq("org_id",c.org_id).order("created_at",{ascending:false}),
+      supabase.from("social_referrals").select("id,referral_number,status,service_requested").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
+      supabase.from("social_assessments").select("id,risk_level,assessment_date").eq("social_case_id",data.caseId).order("assessment_date",{ascending:false}),
+      supabase.from("social_care_plans").select("id,status,created_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
+    ]);
+    [person,family,inventory,consents,shares,events,versions,referrals,assessments,plans].forEach((x:any)=>fail(x.error));
+    const docs=inventory.data??[];const ids=new Set(docs.map((x:any)=>x.id));
+    return {case:c,person:person.data,family:family.data,documents:docs,
+      consents:consents.data??[],shares:(shares.data??[]).filter((x:any)=>ids.has(x.document_id)),
+      events:events.data??[],versions:(versions.data??[]).filter((x:any)=>ids.has(x.document_id)),
+      referrals:referrals.data??[],assessments:assessments.data??[],plans:plans.data??[]};
+  });
+
+export const updateSocialDocumentMetadata=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({documentId:uuid,title:z.string().trim().min(1).max(300),documentType:z.string().trim().min(1).max(120),recordType:recordType,sensitivity:z.enum(["standard","confidential","restricted","highly_restricted"]),description:z.string().max(3000).optional(),tags:z.array(z.string().trim().min(1).max(80)).max(50).default([]),status:z.enum(["active","superseded","archived"]),classificationStatus:z.enum(["suggested","classified","needs_review"]),expiresAt:z.string().datetime().optional(),externalShareable:z.boolean().default(false),linkedEntities:z.record(z.string(),z.unknown()).default({})}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("update_social_document_metadata",{p_document:data.documentId,p_title:data.title,p_document_type:data.documentType,p_record_type:data.recordType,p_sensitivity:data.sensitivity,p_description:data.description??null,p_tags:data.tags,p_status:data.status,p_classification_status:data.classificationStatus,p_expires_at:data.expiresAt??null,p_external_shareable:data.externalShareable,p_linked_entities:data.linkedEntities});fail(error);return {ok:true};});
+
+export const finalizeSocialDocumentVersionUpload=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({documentId:uuid,path:z.string().min(20).max(1000),notes:z.string().trim().min(2).max(1000),mimeType:z.string().max(200).optional()}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const downloaded=await supabase.storage.from("social-case-files").download(data.path);fail(downloaded.error);const file=downloaded.data;const bytes=await file.arrayBuffer();const digest=await crypto.subtle.digest("SHA-256",bytes);const checksum=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");const {data:version,error}=await supabase.rpc("add_social_document_version",{p_document:data.documentId,p_storage_path:data.path,p_checksum:checksum,p_mime:data.mimeType||file.type||null,p_size:file.size,p_notes:data.notes});fail(error);return {version,checksum,size:file.size};});
+
+export const getSocialDocumentAccessUrl=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({documentId:uuid,action:z.enum(["preview","download"]),reason:z.string().trim().max(500).optional()}).parse(d))
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const document=await supabase.from("social_documents").select("id,org_id,social_case_id,current_version,storage_path,title").eq("id",data.documentId).single();fail(document.error);const signed=await supabase.storage.from("social-case-files").createSignedUrl(document.data.storage_path,120,{download:data.action==="download"?document.data.title:undefined});fail(signed.error);const event=await supabase.from("social_document_access_events").insert({org_id:document.data.org_id,social_case_id:document.data.social_case_id,document_id:document.data.id,version:document.data.current_version,action:data.action,reason:data.reason??null,actor_id:userId});fail(event.error);return {url:signed.data.signedUrl,expiresIn:120};});
+
+export const moveSocialDocument=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({documentId:uuid,targetCaseId:uuid,reason:z.string().trim().min(3).max(1000)}).parse(d))
+  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.rpc("move_social_document",{p_document:data.documentId,p_target_case:data.targetCaseId,p_reason:data.reason});fail(error);return {ok:true};});
