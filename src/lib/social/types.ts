@@ -51,11 +51,14 @@ export const socialFamilyInput = z.object({
 export const socialCaseInput = z.object({
   orgId: z.string().uuid(),
   programId: z.string().uuid(),
-  personId: z.string().uuid(),
+  personId: z.string().uuid().optional(),
+  newClientName: z.string().trim().min(2).max(240).optional(),
   familyId: z.string().uuid().optional(),
   assignedUserId: z.string().uuid().optional(),
   caseType: z.enum(["individual","minor_child","family"]),
   priority: z.enum(["standard","urgent","emergency"]).default("standard"),
+}).refine((v) => Boolean(v.personId || v.newClientName), {
+  message: "Select an existing client or enter a new client legal name",
 }).refine((v) => v.caseType !== "family" || Boolean(v.familyId), {
   message: "A family record is required for a family case",
 });
