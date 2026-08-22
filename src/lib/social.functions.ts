@@ -746,11 +746,11 @@ const organizationSeatRole=z.enum(["firm_manager","supervisor","case_worker","le
 
 export const inviteSocialOrganizationMember=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
-  .inputValidator((d:unknown)=>z.object({orgId:uuid,email:z.string().trim().email(),role:organizationSeatRole}).parse(d))
+  .inputValidator((d:unknown)=>z.object({orgId:uuid,email:z.string().trim().email(),name:z.string().trim().min(2).max(160),title:z.string().trim().min(2).max(160),role:organizationSeatRole}).parse(d))
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
     const {data:invitation,error}=await supabase.rpc("invite_social_organization_member",{
-      p_org:data.orgId,p_email:data.email,p_role:data.role,
+      p_org:data.orgId,p_email:data.email,p_role:data.role,p_name:data.name,p_title:data.title,
     });
     fail(error);return invitation;
   });
