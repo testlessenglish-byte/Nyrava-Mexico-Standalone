@@ -441,7 +441,7 @@ export const shareSocialDocument=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({documentId:uuid,receivingOrgId:uuid,consentId:uuid,purpose:z.string().trim().min(2).max(300),expiresAt:z.string().datetime().optional()}).parse(d))
   .handler(async({data,context})=>{
     const {supabase,userId}=ctx(context);
-    const {data:document,error:documentError}=await supabase.from("social_documents").select("org_id").eq("id",data.documentId).single();fail(documentError);
+    const {data:document,error:documentError}=await supabase.from("social_documents").select("org_id,external_shareable").eq("id",data.documentId).single();fail(documentError);if(!document.external_shareable) throw new Error("Document must be explicitly marked external-shareable before consent-based sharing");
     const {data:row,error}=await supabase.from("social_document_shares").insert({org_id:document.org_id,document_id:data.documentId,receiving_org_id:data.receivingOrgId,consent_id:data.consentId,purpose:data.purpose,expires_at:data.expiresAt??null,created_by:userId}).select("id").single();fail(error);return row;
   });
 
