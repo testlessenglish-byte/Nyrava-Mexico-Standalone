@@ -128,9 +128,12 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).toContain("SocialCaseWorkspace");
     expect(routeSource).toContain("onOpen={setSelectedCaseId}");
   });
-  it("provides working family, alert, indicator, activity and role administration screens",()=>{
-    for(const marker of ["createSocialFamily","getSocialIndicators","acknowledgeSocialAlert","inviteSocialOrganizationMember","updateSocialOrganizationMember"]){
+  it("provides working family, alert, indicator, activity and Account team administration screens",()=>{
+    for(const marker of ["createSocialFamily","getSocialIndicators","acknowledgeSocialAlert"]){
       expect(routeSource).toContain(marker);
+    }
+    for(const marker of ["inviteSocialOrganizationMember","updateSocialOrganizationMember","OrganizationTeamCard"]){
+      expect(accountRouteSource).toContain(marker);
     }
   });
   it("exposes consent-checked sharing and ethical-screen access grants",()=>{
