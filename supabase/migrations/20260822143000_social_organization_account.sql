@@ -147,7 +147,7 @@ begin
     where org_id=p_org and email=v_email and status='invited';
   insert into public.organization_invitations(
     org_id,email,role,token_hash,invited_by
-  ) values(p_org,v_email,p_role,encode(digest(v_token,'sha256'),'hex'),auth.uid())
+  ) values(p_org,v_email,p_role,encode(extensions.digest(v_token,'sha256'),'hex'),auth.uid())
   returning id into v_id;
 
   insert into public.social_activity_events(
@@ -175,7 +175,7 @@ begin
   if v_user is null then raise exception 'Authentication required'; end if;
   select lower(email) into v_email from auth.users where id=v_user;
   select * into v_inv from public.organization_invitations
-    where token_hash=encode(digest(p_token,'sha256'),'hex')
+    where token_hash=encode(extensions.digest(p_token,'sha256'),'hex')
       and status='invited' and expires_at>now() for update;
   if not found then raise exception 'Invitation is invalid or expired'; end if;
   if v_email is distinct from lower(v_inv.email) then
