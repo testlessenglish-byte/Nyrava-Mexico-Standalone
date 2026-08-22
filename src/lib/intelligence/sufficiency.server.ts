@@ -12,6 +12,8 @@ export type ESSInputs = {
   highWeightDocTypeCount?: number;
   distinctDocTypeCount?: number;
   locale?: "en" | "es";
+  /** True when the corpus contains a public draft/fragment but no complete judgment. */
+  hasOnlyIncompleteJudicialPublication?: boolean;
 };
 
 export type ESSResult = {
@@ -60,6 +62,13 @@ const HIGH_WEIGHT_PATTERNS: DocPattern[] = [
     rx: /\b(sentencia\s+(?:definitiva|ejecutoria)|amparo\s+directo\s+en\s+revisi[oó]n|engrose|puntos?\s+resolutivos?)\b/i,
   },
 ];
+
+// SCJN public-list documents often identify themselves as a fragment of a
+// proyecto and expressly publish only one analytical section. A caption such
+// as "amparo directo en revisión" does not turn that fragment into the signed
+// engrose or a complete judgment.
+export const INCOMPLETE_JUDICIAL_PUBLICATION_RE =
+  /\b(fragmento\s+del\s+proyecto|versi[oó]n\s+p[uú]blica\s+parcial|[uú]nicamente\s+se\s+publica|s[oó]lo\s+se\s+publica|se\s+publica\s+(?:exclusivamente|[uú]nicamente)\s+el\s+(?:estudio|an[aá]lisis))\b/i;
 
 const CHARGING_DOC_PATTERNS: RegExp[] = [
   /\bindictment\b/i,
@@ -136,6 +145,7 @@ export type DocTypeSignals = {
   distinctDocTypeCount: number;
   highWeightTypes: string[];
   distinctTypes: string[];
+  hasOnlyIncompleteJudicialPublication: boolean;
 };
 
 export function detectDocTypeSignals(
@@ -144,12 +154,18 @@ export function detectDocTypeSignals(
   const highWeight = new Set<string>();
   const distinct = new Set<string>();
   let hasCharging = false;
+  let sawIncompleteJudicialPublication = false;
   for (const d of docs) {
     const name = String(d.filename ?? "");
     const head = String(d.extracted_text ?? "").slice(0, 4000);
     const normalizedName = name.replace(/[_-]+/g, " ");
     const hay = `${normalizedName}\n${head}`;
-    for (const p of HIGH_WEIGHT_PATTERNS) if (p.rx.test(hay)) highWeight.add(p.type);
+    const incompleteJudicialPublication = INCOMPLETE_JUDICIAL_PUBLICATION_RE.test(hay);
+    if (incompleteJudicialPublication) sawIncompleteJudicialPublication = true;
+    for (const p of HIGH_WEIGHT_PATTERNS) {
+      if (p.type === "final_judgment" && incompleteJudicialPublication) continue;
+      if (p.rx.test(hay)) highWeight.add(p.type);
+    }
     for (const p of DOC_TYPE_PATTERNS) if (p.rx.test(hay)) distinct.add(p.type);
     if (!hasCharging) hasCharging = CHARGING_DOC_PATTERNS.some((rx) => rx.test(hay));
   }
@@ -159,6 +175,8 @@ export function detectDocTypeSignals(
     distinctDocTypeCount: distinct.size,
     highWeightTypes: [...highWeight],
     distinctTypes: [...distinct],
+    hasOnlyIncompleteJudicialPublication:
+      sawIncompleteJudicialPublication && !highWeight.has("final_judgment"),
   };
 }
 
@@ -173,6 +191,7 @@ export function computeESS(inputs: ESSInputs): ESSResult {
     highWeightDocTypeCount = 0,
     distinctDocTypeCount = 0,
     locale = "en",
+    hasOnlyIncompleteJudicialPublication = false,
   } = inputs;
   const reasons: string[] = [];
 
@@ -208,7 +227,8 @@ export function computeESS(inputs: ESSInputs): ESSResult {
 
   const substantialCorpus = documentCount >= 15;
   const overrideTriggered =
-    hasChargingDocument || highWeightDocTypeCount > 0 || distinctDocTypeCount >= 3 || substantialCorpus;
+    !hasOnlyIncompleteJudicialPublication &&
+    (hasChargingDocument || highWeightDocTypeCount > 0 || distinctDocTypeCount >= 3 || substantialCorpus);
 
   if (overrideTriggered && (bin === "minimal" || bin === "low")) {
     bin = "medium";
@@ -219,11 +239,18 @@ export function computeESS(inputs: ESSInputs): ESSResult {
     );
   }
 
-  const allowQuantitativeScores = overrideTriggered ? true : bin !== "minimal" && factCount >= 5;
-  const allowMotionGeneration = overrideTriggered ? true : bin !== "minimal" && factCount >= 4;
-  const allowLegalTheories = overrideTriggered ? true : bin !== "minimal";
+  const allowQuantitativeScores =
+    !hasOnlyIncompleteJudicialPublication && (overrideTriggered ? true : bin !== "minimal" && factCount >= 5);
+  const allowMotionGeneration =
+    !hasOnlyIncompleteJudicialPublication && (overrideTriggered ? true : bin !== "minimal" && factCount >= 4);
+  const allowLegalTheories =
+    !hasOnlyIncompleteJudicialPublication && (overrideTriggered ? true : bin !== "minimal");
   const insufficientEvidenceNotice =
-    !overrideTriggered && bin === "minimal"
+    hasOnlyIncompleteJudicialPublication
+      ? locale === "es"
+        ? "El documento judicial disponible es un fragmento o proyecto público, no la sentencia completa. El análisis se limita al contenido efectivamente publicado; se suprimen puntuaciones, teorías, promociones y conclusiones sobre puntos resolutivos hasta aportar el engrose o resolución íntegra."
+        : "The available judicial document is a public fragment or draft, not the complete judgment. Analysis is limited to the published content; scores, theories, motions, and dispositive conclusions are suppressed until the complete signed decision is supplied."
+      : !overrideTriggered && bin === "minimal"
       ? locale === "es"
         ? "Evidencia insuficiente para un análisis legal completo. Este reporte se limita a hechos verificados y avisos de evidencia faltante. Generar teorías, promociones o puntuaciones cuantitativas a partir de este acervo no cumple con el estándar actual de la plataforma para un análisis completo."
         : "Insufficient evidence for full legal intelligence. This report is limited to verified facts and missing-evidence notices. Generating theories, motions, or quantitative scores from this corpus does not meet this platform's current bar for full analysis."
@@ -263,6 +290,7 @@ export function computeWorkProductEss(
     hasChargingDocument: docTypeSignals.hasChargingDocument,
     highWeightDocTypeCount: docTypeSignals.highWeightDocTypeCount,
     distinctDocTypeCount: docTypeSignals.distinctDocTypeCount,
+    hasOnlyIncompleteJudicialPublication: docTypeSignals.hasOnlyIncompleteJudicialPublication,
   });
 }
 

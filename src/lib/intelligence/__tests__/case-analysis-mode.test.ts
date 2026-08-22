@@ -4,7 +4,10 @@
 // generic new amparo or a criminal-procedure intake. Exercises the REAL
 // pure getProceduralTypeLock() from case-analysis-mode.ts.
 import { describe, it, expect } from "vitest";
-import { getProceduralTypeLock } from "@/lib/intelligence/case-analysis-mode";
+import {
+  allowsProspectiveWorkProduct,
+  getProceduralTypeLock,
+} from "@/lib/intelligence/case-analysis-mode";
 
 describe("getProceduralTypeLock", () => {
   it("is a no-op (null) when there is no source-confirmed proceeding type", () => {
@@ -25,5 +28,18 @@ describe("getProceduralTypeLock", () => {
     expect(lock).toContain('"AMPARO DIRECTO EN REVISIÓN"');
     expect(lock).toMatch(/MANDATORY CONSTRAINT/);
     expect(lock).toMatch(/generic amparo\/criminal checklist/);
+  });
+});
+
+
+describe("allowsProspectiveWorkProduct", () => {
+  it("blocks new pleadings in retrospective concluded and judgment audits", () => {
+    expect(allowsProspectiveWorkProduct("concluded_audit")).toBe(false);
+    expect(allowsProspectiveWorkProduct("judgment_audit")).toBe(false);
+  });
+
+  it("allows prospective work only for ongoing matters or explicit appeal-route analysis", () => {
+    expect(allowsProspectiveWorkProduct("ongoing")).toBe(true);
+    expect(allowsProspectiveWorkProduct("appeal_routes")).toBe(true);
   });
 });

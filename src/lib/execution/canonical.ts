@@ -446,9 +446,11 @@ export const REPORT_BLOCKING_ENGINES: readonly string[] = CANONICAL_STAGES.filte
   (s) => s.engine !== "report_generator",
 ).map((s) => s.engine);
 
-/** Engines whose stage is requirement:"optional". A failure here must not
- * permanently block the report — the gate accepts them in any terminal
- * state, including `failed`. */
+/** Engines whose stage is requirement:"optional".
+ * Optional controls pipeline scheduling/failure propagation only. It does not
+ * authorize an attorney-facing report to release after that engine failed.
+ * completed_negative or an audited skipped state represent legitimate no-result
+ * outcomes; failed/blocked require revision. */
 export const OPTIONAL_ENGINES: ReadonlySet<string> = new Set(
   CANONICAL_STAGES.filter((s) => s.requirement === "optional").map((s) => s.engine),
 );
@@ -677,8 +679,13 @@ export function canGenerateReport(rows: ExecutionRow[]): ReportGate {
     engines.filter((e) => {
       const s = latest.get(e)?.status;
       if (s === "completed" || s === "completed_negative" || s === "skipped") return false;
-      // Optional stages only need to be *finished*, not successful.
-      if (OPTIONAL_ENGINES.has(e) && (s === "failed" || s === "blocked")) return false;
+      // A failed or blocked substantive stage is terminal for orchestration,
+      // but it is NOT acceptable evidence for an attorney-facing release.
+      // Previously optional stages were treated as satisfied here, allowing
+      // FULL/released reports with empty perspectives, theories, opportunities,
+      // strategy, work product, hallucination, or multi-agent output. Legitimate
+      // no-result runs must finish as completed_negative or skipped with an
+      // audited reason; failed/blocked always requires revision.
       return true;
     });
   const blocking = missing(REPORT_BLOCKING_ENGINES);

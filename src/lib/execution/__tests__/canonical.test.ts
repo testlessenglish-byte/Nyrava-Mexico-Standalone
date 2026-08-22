@@ -117,11 +117,13 @@ describe("canonical execution architecture", () => {
     expect(canGenerateReport(rows).ok).toBe(true);
   });
 
-  it("an optional engine already 'failed' or 'blocked' was already exempted before this fix — unaffected", () => {
+  it("blocks release when an optional substantive engine failed or was blocked", () => {
     const rows = REPORT_BLOCKING_ENGINES.map((e) =>
       e === "perspectives" ? row(e, "failed") : e === "strategy" ? row(e, "blocked") : row(e, "completed"),
     );
-    expect(canGenerateReport(rows).ok).toBe(true);
+    const gate = canGenerateReport(rows);
+    expect(gate.ok).toBe(false);
+    expect(gate.missingBlocking).toEqual(expect.arrayContaining(["perspectives", "strategy"]));
   });
 
   it("a BLOCKING-tier engine with no row still blocks — this fix is scoped to optional engines only", () => {
