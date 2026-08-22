@@ -19,6 +19,9 @@ alter table public.resource_knowledge_records
   add column if not exists archived_at timestamptz,
   add column if not exists file_type text;
 
+update public.resource_knowledge_records set approval_status='archived' where approval_status='retired';
+update public.resource_knowledge_records set approval_status='pending_review' where approval_status='in_review';
+
 alter table public.resource_knowledge_records drop constraint if exists resource_knowledge_records_approval_status_check;
 alter table public.resource_knowledge_records add constraint resource_knowledge_records_approval_status_check
   check(approval_status in ('draft','pending_review','approved','published','revision_required','expired','archived'));
@@ -32,9 +35,6 @@ alter table public.resource_knowledge_records add constraint resource_knowledge_
   ));
 alter table public.resource_knowledge_records add constraint resource_knowledge_records_audience_check
   check(audience in ('internal_staff','official_government','client_facing','case_evidence_reference'));
-
-update public.resource_knowledge_records set approval_status='archived' where approval_status='retired';
-update public.resource_knowledge_records set approval_status='pending_review' where approval_status='in_review';
 
 create table if not exists public.resource_knowledge_corrections (
   id uuid primary key default gen_random_uuid(),
