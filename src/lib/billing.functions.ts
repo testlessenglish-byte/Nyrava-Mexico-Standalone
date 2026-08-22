@@ -171,6 +171,15 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const userId = await getAuthedUserId(context as { supabase?: Db; userId?: string });
     const admin = getAdminClient();
+    const { data: organizationMembership } = await admin
+      .from("org_memberships")
+      .select("org_id")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+    const organizationId = organizationMembership?.org_id ?? null;
 
     // Look up the admin-managed plan row for this key.
     const { data: planRow, error: planErr } = await admin
@@ -227,8 +236,18 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         line_items: [{ price: planRow.stripe_price_id, quantity: 1 }],
         success_url: `${data.origin}/billing?checkout=success&provider=stripe`,
         cancel_url: `${data.origin}/billing?checkout=cancelled`,
-        metadata: { user_id: userId, plan: planRow.key },
-        subscription_data: { metadata: { user_id: userId, plan: planRow.key } },
+        metadata: {
+          user_id: userId,
+          plan: planRow.key,
+          ...(organizationId ? { org_id: organizationId } : {}),
+        },
+        subscription_data: {
+          metadata: {
+            user_id: userId,
+            plan: planRow.key,
+            ...(organizationId ? { org_id: organizationId } : {}),
+          },
+        },
       });
       if (!session.url) throw new Error("Stripe did not return a checkout URL.");
       return { url: session.url, provider };
@@ -258,7 +277,9 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         mercadopago_preapproval_id: preapproval.id,
         mercadopago_payer_email: payerEmail,
         plan: isPlanKey(planRow.key) ? planRow.key : null,
-        status: preapproval.status === "authorized" ? "active" : "incomplete",
+        // The checkout response is not an authorization boundary. Only the
+        // independently signed webhook may activate organization access.
+        status: "incomplete",
       },
       { onConflict: "user_id" },
     );

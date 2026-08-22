@@ -15,6 +15,10 @@ const organizationOnboarding=migration("20260821010000_social_organization_onboa
 const authorizationRepair=migration("20260821020000_social_authorization_argument_order.sql");
 const workflowReliability=migration("20260821030000_social_core_workflow_reliability.sql");
 const organizationAccount=migration("20260822143000_social_organization_account.sql");
+const subscriptionEntitlements=migration("20260822150000_social_subscription_entitlements.sql");
+const stripeWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","stripe-webhook.ts"),"utf8");
+const mercadoPagoWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","mercadopago-webhook.ts"),"utf8");
+const billingServerSource=readFileSync(join(process.cwd(),"src","lib","billing.functions.ts"),"utf8");
 const serverSource=readFileSync(join(process.cwd(),"src","lib","social.functions.ts"),"utf8");
 const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","social.tsx"),"utf8");
 const accountRouteSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","account.tsx"),"utf8");
@@ -211,5 +215,38 @@ describe("social-care migration security coverage",()=>{
     expect(billing).toContain("'mercadopago','stripe'");
     expect(billing).toContain("prevent_disabling_all_billing_providers");
     expect(billing).toContain("billing_provider_events");
+  });
+  it("defines Basic as one owner plus three employee seats without counting clients",()=>{
+    expect(subscriptionEntitlements).toContain("owner_seats=1");
+    expect(subscriptionEntitlements).toContain("employee_seats=3");
+    expect(subscriptionEntitlements).toContain("total_user_limit=4");
+    expect(subscriptionEntitlements).toContain("'client_records_consume_seats',false");
+    expect(subscriptionEntitlements).toContain("role_in_org::text<>'owner'");
+    expect(subscriptionEntitlements).toContain("organization_invitations_require_subscription");
+  });
+  it("uses one provider-neutral and idempotent entitlement materialization path",()=>{
+    for(const marker of [
+      "organization_entitlements","organization_usage_periods",
+      "organization_usage_events","billing_webhook_events",
+      "provision_organization_subscription_from_webhook",
+      "unique(provider,provider_event_id)",
+    ]) expect(subscriptionEntitlements).toContain(marker);
+    expect(subscriptionEntitlements).toContain("on conflict(provider,provider_event_id) do nothing");
+    expect(subscriptionEntitlements).not.toContain("create table if not exists public.organizations");
+  });
+  it("activates organization access only after verified Stripe or Mercado Pago webhooks",()=>{
+    expect(stripeWebhookSource.indexOf("constructEvent")).toBeLessThan(
+      stripeWebhookSource.indexOf("provisionOrganizationSubscription(admin"),
+    );
+    expect(mercadoPagoWebhookSource.indexOf("if (!verified)")).toBeLessThan(
+      mercadoPagoWebhookSource.indexOf("provisionOrganizationSubscription(admin"),
+    );
+    for(const source of [stripeWebhookSource,mercadoPagoWebhookSource]){
+      expect(source).toContain('"provision_organization_subscription_from_webhook"');
+      expect(source).toContain("p_payload_hash");
+    }
+    expect(billingServerSource).toContain("Only the");
+    expect(billingServerSource).toContain('status: "incomplete"');
+    expect(billingServerSource).toContain("org_id: organizationId");
   });
 });
