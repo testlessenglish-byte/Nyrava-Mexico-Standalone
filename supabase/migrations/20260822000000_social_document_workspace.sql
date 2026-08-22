@@ -207,11 +207,12 @@ revoke all on function public.update_social_document_metadata(uuid,text,text,tex
 grant execute on function public.update_social_document_metadata(uuid,text,text,text,text,text,text[],text,text,timestamptz,boolean,jsonb) to authenticated;
 
 create or replace function public.move_social_document(
-  p_document uuid,p_target_case uuid,p_reason text
+  p_document uuid,p_target_case uuid,p_new_storage_path text,p_checksum text,
+  p_mime text,p_size bigint,p_reason text
 ) returns void
 language plpgsql security invoker set search_path=public,pg_temp
 as $move_document$
-declare d public.social_documents%rowtype; target_case public.social_cases%rowtype;
+declare d public.social_documents%rowtype; target_case public.social_cases%rowtype; next_version integer;
 begin
   select * into d from public.social_documents where id=p_document for update;
   select * into target_case from public.social_cases where id=p_target_case;
@@ -221,15 +222,23 @@ begin
     raise exception 'Document move denied';
   end if;
   if nullif(btrim(p_reason),'') is null then raise exception 'Move reason is required'; end if;
+  if p_new_storage_path not like d.org_id::text||'/'||target_case.id::text||'/'||d.record_type||'/%' then
+    raise exception 'Target storage path boundary mismatch';
+  end if;
+  if lower(p_checksum)<>lower(d.checksum) then raise exception 'Moved original checksum mismatch'; end if;
+  next_version:=d.current_version+1;
+  insert into public.social_document_versions(org_id,document_id,version,checksum,storage_path,mime_type,size_bytes,uploaded_by,notes)
+  values(d.org_id,d.id,next_version,lower(p_checksum),p_new_storage_path,p_mime,p_size,auth.uid(),'Case move: '||p_reason);
   update public.social_documents set social_case_id=target_case.id,person_id=target_case.person_id,
-    family_id=target_case.family_id,updated_at=now() where id=d.id;
+    family_id=target_case.family_id,current_version=next_version,storage_path=p_new_storage_path,
+    mime_type=p_mime,size_bytes=p_size,updated_at=now() where id=d.id;
   insert into public.social_document_access_events(org_id,social_case_id,document_id,version,action,reason,actor_id)
-  values(d.org_id,target_case.id,d.id,d.current_version,'move_case',p_reason,auth.uid());
+  values(d.org_id,target_case.id,d.id,next_version,'move_case',p_reason,auth.uid());
 end
 $move_document$;
 
-revoke all on function public.move_social_document(uuid,uuid,text) from public,anon;
-grant execute on function public.move_social_document(uuid,uuid,text) to authenticated;
+revoke all on function public.move_social_document(uuid,uuid,text,text,text,bigint,text) from public,anon;
+grant execute on function public.move_social_document(uuid,uuid,text,text,text,bigint,text) to authenticated;
 
 -- No function here creates a legal matter or sends files to Legal Intelligence.
 -- Those actions remain explicit, consent-checked application workflows.
