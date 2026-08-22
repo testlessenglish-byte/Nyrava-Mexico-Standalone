@@ -241,6 +241,18 @@ begin
     raise exception 'Document metadata update denied';
   end if;
   if nullif(btrim(p_title),'') is null then raise exception 'Document title is required'; end if;
+  if coalesce(p_linked_entities,'{}'::jsonb) - array['referral_id','assessment_id','care_plan_id'] <> '{}'::jsonb then
+    raise exception 'Unsupported document link type';
+  end if;
+  if p_linked_entities ? 'referral_id' and not exists(
+    select 1 from public.social_referrals r where r.id=(p_linked_entities->>'referral_id')::uuid and r.social_case_id=d.social_case_id
+  ) then raise exception 'Referral link must belong to this case'; end if;
+  if p_linked_entities ? 'assessment_id' and not exists(
+    select 1 from public.social_assessments a where a.id=(p_linked_entities->>'assessment_id')::uuid and a.social_case_id=d.social_case_id
+  ) then raise exception 'Assessment link must belong to this case'; end if;
+  if p_linked_entities ? 'care_plan_id' and not exists(
+    select 1 from public.social_care_plans p where p.id=(p_linked_entities->>'care_plan_id')::uuid and p.social_case_id=d.social_case_id
+  ) then raise exception 'Care plan link must belong to this case'; end if;
   update public.social_documents set
     title=btrim(p_title),document_type=p_document_type,record_type=p_record_type,
     sensitivity=p_sensitivity,description=nullif(btrim(p_description),''),
