@@ -139,7 +139,8 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 logDetail = "no matching user_id";
                 break;
               }
-              const plan = isPlanKey(session.metadata?.plan) ? session.metadata!.plan : null;
+              const organizationPlan = session.metadata?.plan?.trim() || null;
+              const plan = isPlanKey(organizationPlan) ? organizationPlan : null;
               const customerId =
                 typeof session.customer === "string" ? session.customer : (session.customer?.id ?? null);
               const subscriptionId =
@@ -159,7 +160,7 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 eventType: event.type,
                 userId,
                 orgId: session.metadata?.org_id ?? null,
-                plan,
+                plan: organizationPlan,
                 customerId,
                 subscriptionId,
                 status: "active",
@@ -181,7 +182,8 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 logDetail = "no matching user_id";
                 break;
               }
-              const plan = isPlanKey(sub.metadata?.plan) ? sub.metadata.plan : undefined;
+              const organizationPlan = sub.metadata?.plan?.trim() || null;
+              const plan = isPlanKey(organizationPlan) ? organizationPlan : undefined;
               const status: Database["public"]["Tables"]["subscriptions"]["Row"]["status"] =
                 sub.status === "active" || sub.status === "trialing"
                   ? "active"
@@ -208,7 +210,7 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 eventType: event.type,
                 userId,
                 orgId: sub.metadata?.org_id ?? null,
-                plan: plan ?? null,
+                plan: organizationPlan,
                 customerId,
                 subscriptionId: sub.id,
                 status,
@@ -237,7 +239,7 @@ export const Route = createFileRoute("/api/public/hooks/stripe-webhook")({
                 eventType: event.type,
                 userId,
                 orgId: sub.metadata?.org_id ?? null,
-                plan: isPlanKey(sub.metadata?.plan) ? sub.metadata.plan : null,
+                plan: sub.metadata?.plan?.trim() || null,
                 customerId,
                 subscriptionId: sub.id,
                 status: "canceled",
