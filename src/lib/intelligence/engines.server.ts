@@ -1735,9 +1735,10 @@ export async function runWorkProductEngine(args: {
   // already resolved. Only the explicit appeal_routes objective may reach
   // drafting, and it remains subject to ESS/source verification below.
   {
-    const { getCaseAnalysisMode } = await import("./case-analysis-mode");
+    const { getCaseAnalysisMode, allowsProspectiveWorkProduct } =
+      await import("./case-analysis-mode");
     const caseAnalysisMode = await getCaseAnalysisMode(db, caseId);
-    if (caseAnalysisMode === "concluded_audit" || caseAnalysisMode === "judgment_audit") {
+    if (!allowsProspectiveWorkProduct(caseAnalysisMode)) {
       console.info(
         `[case-analysis-mode:${caseAnalysisMode}] work product skipped — retrospective audit only`,
       );
