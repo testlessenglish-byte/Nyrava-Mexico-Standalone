@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Activity, AlertTriangle, ArrowRight, BriefcaseMedical, CalendarClock,
@@ -10,9 +10,10 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import {
-  acknowledgeSocialAlert, createSocialCase, createSocialFamily, createSocialPerson,
+  acceptSocialOrganizationInvitation, acknowledgeSocialAlert, createSocialCase, createSocialFamily, createSocialPerson,
   findPossibleSocialPeople, ensureSocialProgram, getSocialIndicators,
-  getSocialWorkspace, searchSocialRecords, upsertSocialRoleAssignment,
+  getSocialWorkspace, inviteSocialOrganizationMember, searchSocialRecords,
+  updateSocialOrganizationMember, upsertSocialRoleAssignment,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
 import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
@@ -77,6 +78,9 @@ function SocialCarePage(){
   const indicatorsFn=useServerFn(getSocialIndicators);
   const acknowledgeAlertFn=useServerFn(acknowledgeSocialAlert);
   const roleAssignmentFn=useServerFn(upsertSocialRoleAssignment);
+  const inviteMemberFn=useServerFn(inviteSocialOrganizationMember);
+  const updateMemberFn=useServerFn(updateSocialOrganizationMember);
+  const acceptInvitationFn=useServerFn(acceptSocialOrganizationInvitation);
   const [area,setArea]=useState<Area>("dashboard");
   const [selectedCaseId,setSelectedCaseId]=useState("");
   const [orgId,setOrgId]=useState("");
@@ -86,8 +90,13 @@ function SocialCarePage(){
   const today=new Date().toISOString().slice(0,10);const yearStart=`${today.slice(0,4)}-01-01`;
   const [indicatorRange,setIndicatorRange]=useState({from:yearStart,to:today});
   const [roleDraft,setRoleDraft]=useState({userId:"",role:"case_manager"});
+  const [memberInvite,setMemberInvite]=useState({email:"",role:"case_worker"});
+  const [invitationLink,setInvitationLink]=useState("");
+  const [acceptedInvite,setAcceptedInvite]=useState("");
   const workspace=useQuery({queryKey:["social-workspace"],queryFn:()=>workspaceFn()});
   const resolvedOrg=orgId||workspace.data?.organizations?.[0]?.id||"";
+  const organizationAccount=(workspace.data?.organizationAccounts??[]).find((x:any)=>x.orgId===resolvedOrg);
+  const organizationMembers=organizationAccount?.members??[];
   const programs=(workspace.data?.programs??[]).filter((p:any)=>p.org_id===resolvedOrg);
   const visibleCases=(workspace.data?.cases??[]).filter((c:any)=>c.org_id===resolvedOrg);
   const visiblePeople=(workspace.data?.people??[]).filter((p:any)=>p.org_id===resolvedOrg);
@@ -134,6 +143,32 @@ function SocialCarePage(){
     onSuccess:()=>{toast.success(es?"Acceso social actualizado":"Social access updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
     onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
+  const inviteMemberMutation=useMutation({
+    mutationFn:()=>inviteMemberFn({data:{orgId:resolvedOrg,email:memberInvite.email,role:memberInvite.role as any}}),
+    onSuccess:(result:any)=>{
+      const link=`${window.location.origin}/social?invite=${result.token}`;
+      setInvitationLink(link);setMemberInvite({...memberInvite,email:""});
+      toast.success(es?"Invitación creada; comparta el enlace seguro":"Invitation created; share the secure link");
+      void qc.invalidateQueries({queryKey:["social-workspace"]});
+    },
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
+  });
+  const updateMemberMutation=useMutation({
+    mutationFn:(input:{userId:string;role:string;status:"active"|"suspended"|"removed"})=>updateMemberFn({data:{orgId:resolvedOrg,...input,role:input.role as any}}),
+    onSuccess:()=>{toast.success(es?"Miembro actualizado":"Member updated");void qc.invalidateQueries({queryKey:["social-workspace"]});},
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
+  });
+  const acceptInvitationMutation=useMutation({
+    mutationFn:(token:string)=>acceptInvitationFn({data:{token}}),
+    onSuccess:()=>{toast.success(es?"Se unió a la organización":"You joined the organization");void qc.invalidateQueries({queryKey:["social-workspace"]});window.history.replaceState({},document.title,"/social");},
+    onError:(e:unknown)=>toast.error(errorMessage(e)),
+  });
+  useEffect(()=>{
+    const token=new URLSearchParams(window.location.search).get("invite");
+    if(token&&token!==acceptedInvite&&!acceptInvitationMutation.isPending){
+      setAcceptedInvite(token);acceptInvitationMutation.mutate(token);
+    }
+  },[acceptedInvite]);
   const stats=workspace.data?.stats;
   const filtered=useMemo(()=>{
     const q=query.trim().toLocaleLowerCase("es-MX"); if(!q)return visibleCases;
@@ -147,6 +182,7 @@ function SocialCarePage(){
     institutions={workspace.data?.institutions??[]}
     templates={workspace.data?.templates??[]}
     roleAssignments={workspace.data?.roleAssignments??[]}
+    organizationMembers={organizationMembers}
     onClose={()=>{setSelectedCaseId("");void qc.invalidateQueries({queryKey:["social-workspace"]});}}
   /></div>;
   return <div data-social-care-root className="mx-auto max-w-[1500px] p-4 md:p-6"><EscapedTextNormalizer/>
@@ -241,11 +277,21 @@ function SocialCarePage(){
             <Field label={es?"Prefijo de folio":"Case prefix"} value={programSetup.prefix} onChange={v=>setProgramSetup({...programSetup,prefix:v.toUpperCase().replace(/[^A-Z0-9-]/g,"")})}/>
             <button disabled={!resolvedOrg||programMutation.isPending} onClick={()=>programMutation.mutate()} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{programMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Guardar programa":"Save program"}</button>
           </div>
-          <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4"><h3 className="font-semibold">{es?"Acceso y funciones sociales":"Social access and roles"}</h3><p className="mt-1 text-xs text-muted-foreground">{es?"Los superadministradores y administradores de la organización conservan acceso total mediante la autoridad existente. Esta asignación explícita también identifica al responsable social.":"Super administrators and organization administrators retain full access through existing authority. This explicit assignment also identifies the Social owner."}</p><div className="mt-3 grid gap-3 md:grid-cols-3"><button disabled={!workspace.data?.userId||roleMutation.isPending} onClick={()=>roleMutation.mutate(true)} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">{es?"Asignarme como propietario social":"Assign me as Social owner"}</button><Field label={es?"UUID del usuario":"User UUID"} value={roleDraft.userId} onChange={v=>setRoleDraft({...roleDraft,userId:v})}/><label className="block text-xs font-medium text-muted-foreground">{es?"Función":"Role"}<select value={roleDraft.role} onChange={e=>setRoleDraft({...roleDraft,role:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{["program_director","case_management_supervisor","case_manager","social_worker","attorney","legal_assistant","psychologist","medical_professional","referral_coordinator","data_analyst","auditor","read_only_reviewer"].map(x=><option key={x} value={x}>{x}</option>)}</select></label></div><button disabled={!roleDraft.userId||roleMutation.isPending} onClick={()=>roleMutation.mutate(false)} className="mt-3 rounded-lg border border-border px-4 py-2 text-sm">{es?"Guardar función":"Save role"}</button><div className="mt-4 space-y-1">{(workspace.data?.roleAssignments??[]).filter((x:any)=>x.org_id===resolvedOrg).map((x:any)=><div key={x.id} className="rounded border border-border p-2 text-xs font-mono">{x.user_id} · {x.role} · {x.scope_type}</div>)}</div></div>
+          <OrganizationSeatAdmin
+            es={es}
+            account={organizationAccount}
+            invite={memberInvite}
+            setInvite={setMemberInvite}
+            invitationLink={invitationLink}
+            inviting={inviteMemberMutation.isPending}
+            onInvite={()=>inviteMemberMutation.mutate()}
+            updating={updateMemberMutation.isPending}
+            onUpdate={(userId,role,status)=>updateMemberMutation.mutate({userId,role,status})}
+          />
         </section>}
         {area==="tasks"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Alertas operativas":"Operational alerts"}</h2><div className="mt-3 space-y-2">{visibleAlerts.map((x:any)=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className={x.severity==="critical"?"font-semibold text-destructive":"font-medium"}>{es?x.title_es:x.title_en}</p><p className="text-xs text-muted-foreground">{x.alert_type} · {x.due_at?new Date(x.due_at).toLocaleString():"—"}</p></div><button disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(x.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs">{es?"Resolver":"Resolve"}</button></div>)}{!visibleAlerts.length&&<p className="text-sm text-muted-foreground">{es?"No hay alertas pendientes.":"No pending alerts."}</p>}</div></section>}
         {area==="indicators"&&<section className="rounded-xl border border-border bg-card p-5"><div className="flex flex-wrap items-end gap-3"><div><h2 className="font-semibold">{es?"Indicadores institucionales":"Institutional indicators"}</h2><p className="text-xs text-muted-foreground">{es?"Solo agregados; grupos pequeños se suprimen automáticamente.":"Aggregates only; small groups are automatically suppressed."}</p></div><Field label={es?"Desde":"From"} type="date" value={indicatorRange.from} onChange={v=>setIndicatorRange({...indicatorRange,from:v})}/><Field label={es?"Hasta":"To"} type="date" value={indicatorRange.to} onChange={v=>setIndicatorRange({...indicatorRange,to:v})}/></div><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(indicators.data??[]).map((x:any,i:number)=><div key={x.id??i} className="rounded-lg border border-border p-4"><p className="text-xs uppercase text-muted-foreground">{x.name_es??x.indicator_code??x.code??(es?"Indicador":"Indicator")}</p><p className="mt-1 text-2xl font-semibold">{x.suppressed?(es?"Suprimido":"Suppressed"):(x.value??x.count??"—")}</p></div>)}{indicators.isLoading&&<Loader2 className="h-5 w-5 animate-spin"/>}{!indicators.isLoading&&!(indicators.data??[]).length&&<p className="text-sm text-muted-foreground">{es?"Sin datos agregados para el periodo.":"No aggregate data for this period."}</p>}</div></section>}
-        {area==="activity"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Actividad del equipo":"Team activity"}</h2><div className="mt-3 space-y-2">{(workspace.data?.recentActivity??[]).filter((x:any)=>x.org_id===resolvedOrg).map((x:any)=><div key={x.id} className="rounded-lg border border-border p-3 text-sm">{new Date(x.occurred_at).toLocaleString()} · {x.event_type} · {x.entity_type}</div>)}</div></section>}
+        {area==="activity"&&<TeamActivity es={es} account={organizationAccount}/>}
         {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setArea("people")} onOpenNewCase={()=>setArea("cases")}/>}
         {area==="resources"&&<ResourceKnowledgeNetwork mode="resources" orgId={resolvedOrg}/>}
         {area==="knowledge"&&<KnowledgeCenter orgId={resolvedOrg}/>}
@@ -254,6 +300,38 @@ function SocialCarePage(){
       </main>
     </div>
   </div>;
+}
+
+const MEMBER_ROLES=["firm_manager","supervisor","case_worker","legal_provider","psychosocial_provider","read_only"] as const;
+const memberRoleLabel=(role:string,es:boolean)=>({
+  firm_manager:[ "Gerente del despacho","Firm manager" ],
+  supervisor:[ "Supervisor","Supervisor" ],
+  case_worker:[ "Gestor del caso","Case worker" ],
+  legal_provider:[ "Profesional jurídico","Legal provider" ],
+  psychosocial_provider:[ "Profesional psicosocial","Psychosocial provider" ],
+  read_only:[ "Solo lectura","Read only" ],
+  owner:[ "Propietario","Owner" ],
+  admin:[ "Administrador","Administrator" ],
+} as Record<string,[string,string]>)[role]?.[es?0:1]??role.replaceAll("_"," ");
+
+function OrganizationSeatAdmin({es,account,invite,setInvite,invitationLink,inviting,onInvite,updating,onUpdate}:{
+  es:boolean;account:any;invite:{email:string;role:string};setInvite:(x:{email:string;role:string})=>void;
+  invitationLink:string;inviting:boolean;onInvite:()=>void;updating:boolean;
+  onUpdate:(userId:string,role:string,status:"active"|"suspended"|"removed")=>void;
+}){
+  if(!account)return <p className="mt-6 text-sm text-muted-foreground">{es?"Cargando cuenta de organización…":"Loading organization account…"}</p>;
+  return <div className="mt-6 space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">{es?"Cuenta de organización y asientos":"Organization account and seats"}</h3><p className="mt-1 text-xs text-muted-foreground">{es?"Una suscripción del despacho cubre al propietario y a sus empleados. Cada persona inicia sesión con su propia contraseña.":"One firm subscription covers the owner and employees. Every person signs in with their own password."}</p></div><div className="rounded-lg border border-border bg-card px-4 py-2 text-sm"><strong>{account.seats_used??0}</strong> / {account.seat_limit??1} {es?"asientos activos":"active seats"}</div></div>
+    {account.can_manage&&<div className="grid gap-3 md:grid-cols-[1fr_220px_auto]"><Field label={es?"Correo del empleado":"Employee email"} type="email" value={invite.email} onChange={v=>setInvite({...invite,email:v})}/><label className="block text-xs font-medium text-muted-foreground">{es?"Función":"Role"}<select value={invite.role} onChange={e=>setInvite({...invite,role:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{MEMBER_ROLES.map(role=><option key={role} value={role}>{memberRoleLabel(role,es)}</option>)}</select></label><button disabled={!invite.email||inviting} onClick={onInvite} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{inviting&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Invitar":"Invite"}</button></div>}
+    {invitationLink&&<div className="rounded-lg border border-success/30 bg-success/10 p-3 text-xs"><p className="font-semibold">{es?"Enlace seguro de invitación":"Secure invitation link"}</p><div className="mt-2 flex gap-2"><input readOnly value={invitationLink} className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1"/><button onClick={()=>void navigator.clipboard.writeText(invitationLink)} className="rounded border border-border px-3">{es?"Copiar":"Copy"}</button></div></div>}
+    <div className="overflow-x-auto rounded-lg border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-3 py-2">{es?"Miembro":"Member"}</th><th className="px-3 py-2">{es?"Función":"Role"}</th><th className="px-3 py-2">{es?"Estado":"Status"}</th><th className="px-3 py-2">{es?"Casos":"Cases"}</th><th className="px-3 py-2"></th></tr></thead><tbody>{(account.members??[]).map((m:any)=><tr key={m.id} className="border-t border-border"><td className="px-3 py-2">{m.name}<span className="block text-xs text-muted-foreground">{m.email}</span></td><td className="px-3 py-2">{account.can_manage&&!["owner"].includes(m.role)?<select value={MEMBER_ROLES.includes(m.role)?m.role:"read_only"} onChange={e=>onUpdate(m.user_id,e.target.value,"active")} disabled={updating} className="rounded border border-border bg-background px-2 py-1">{MEMBER_ROLES.map(role=><option key={role} value={role}>{memberRoleLabel(role,es)}</option>)}</select>:memberRoleLabel(m.role,es)}</td><td className="px-3 py-2">{m.status}</td><td className="px-3 py-2">{m.assigned_cases??0}</td><td className="px-3 py-2 text-right">{account.can_manage&&!["owner"].includes(m.role)&&<div className="flex justify-end gap-2">{m.status!=="suspended"&&<button disabled={updating} onClick={()=>onUpdate(m.user_id,MEMBER_ROLES.includes(m.role)?m.role:"read_only","suspended")} className="text-xs text-warning underline">{es?"Suspender":"Suspend"}</button>}{m.status==="suspended"&&<button disabled={updating} onClick={()=>onUpdate(m.user_id,MEMBER_ROLES.includes(m.role)?m.role:"read_only","active")} className="text-xs text-primary underline">{es?"Reactivar":"Reactivate"}</button>}<button disabled={updating} onClick={()=>onUpdate(m.user_id,MEMBER_ROLES.includes(m.role)?m.role:"read_only","removed")} className="text-xs text-destructive underline">{es?"Quitar":"Remove"}</button></div>}</td></tr>)}</tbody></table></div>
+    {!!(account.invitations??[]).filter((i:any)=>i.status==="invited").length&&<div><h4 className="text-sm font-semibold">{es?"Invitaciones pendientes":"Pending invitations"}</h4>{account.invitations.filter((i:any)=>i.status==="invited").map((i:any)=><p key={i.id} className="mt-1 text-xs text-muted-foreground">{i.email} · {memberRoleLabel(i.role,es)} · {new Date(i.expires_at).toLocaleDateString()}</p>)}</div>}
+  </div>;
+}
+
+function TeamActivity({es,account}:{es:boolean;account:any}){
+  const members=account?.members??[];const activity=account?.recent_activity??[];
+  return <section className="space-y-4"><div className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Actividad del equipo":"Team activity"}</h2><p className="mt-1 text-xs text-muted-foreground">{es?"Carga, vencimientos y actividad dentro de la organización seleccionada. Los eventos sensibles muestran metadatos, no contenido protegido.":"Workload, deadlines and activity inside the selected organization. Sensitive events show metadata, not protected content."}</p><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{members.map((m:any)=><div key={m.id} className="rounded-lg border border-border p-3"><p className="font-medium">{m.name}</p><p className="text-xs text-muted-foreground">{memberRoleLabel(m.role,es)}</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><span>{es?"Casos":"Cases"}: <strong>{m.assigned_cases??0}</strong></span><span>{es?"Pendientes":"Open"}: <strong>{m.open_tasks??0}</strong></span><span className={(m.overdue_tasks??0)>0?"text-destructive":""}>{es?"Vencidas":"Overdue"}: <strong>{m.overdue_tasks??0}</strong></span><span>{es?"Completadas":"Done"}: <strong>{m.completed_tasks??0}</strong></span><span>{es?"Canalizaciones":"Referrals"}: <strong>{m.referrals??0}</strong></span></div></div>)}</div></div><div className="rounded-xl border border-border bg-card p-5"><h3 className="font-semibold">{es?"Actividad reciente":"Recent activity"}</h3><div className="mt-3 space-y-2">{activity.map((e:any)=><div key={e.id} className="rounded-lg border border-border p-3 text-sm">{new Date(e.occurred_at).toLocaleString()} · {e.event_type} · {e.entity_type}{e.case_number?` · ${e.case_number}`:""}</div>)}{!activity.length&&<p className="text-sm text-muted-foreground">—</p>}</div></div></section>;
 }
 
 function Metric({label,value,danger=false}:{label:string;value:number;danger?:boolean}){return <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-1 text-3xl font-semibold ${danger&&value>0?"text-destructive":""}`}>{value}</p></div>}
