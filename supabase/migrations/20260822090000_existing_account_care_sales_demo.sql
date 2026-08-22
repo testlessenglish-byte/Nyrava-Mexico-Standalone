@@ -93,12 +93,12 @@ alter policy social_families_write on public.social_families
 
 alter policy social_institutions_read on public.social_institutions
  using (public.social_sales_demo_owner_allows('social_institutions',id,auth.uid())
-   and (org_id is null or public.is_org_member(org_id,auth.uid()) or public.is_platform_admin(auth.uid())));
+   and (org_id is null or public.is_org_member(org_id,auth.uid())));
 alter policy social_institutions_manage on public.social_institutions
  using (public.social_sales_demo_owner_allows('social_institutions',id,auth.uid())
-   and (public.is_platform_admin(auth.uid()) or (org_id is not null and public.can_manage_org(org_id,auth.uid()))))
+   and org_id is not null and public.can_manage_org(org_id,auth.uid()))
  with check (public.social_sales_demo_owner_allows('social_institutions',id,auth.uid())
-   and (public.is_platform_admin(auth.uid()) or (org_id is not null and public.can_manage_org(org_id,auth.uid()))));
+   and org_id is not null and public.can_manage_org(org_id,auth.uid()));
 
 create or replace function public.social_sales_demo_any_owner_allows(p_id uuid,p_user uuid default auth.uid())
 returns boolean language sql stable security definer set search_path=public,pg_temp as $$
