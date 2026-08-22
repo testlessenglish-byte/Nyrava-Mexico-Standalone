@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
@@ -10,10 +10,9 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import {
-  acceptSocialOrganizationInvitation, acknowledgeSocialAlert, createSocialCase, createSocialFamily, createSocialPerson,
+  acceptSocialOrganizationInvitation, acknowledgeSocialAlert, createAndAssignCareCase, createSocialFamily, createSocialPerson,
   findPossibleSocialPeople, ensureSocialProgram, getSocialIndicators,
-  getSocialWorkspace, inviteSocialOrganizationMember, searchSocialRecords,
-  updateSocialOrganizationMember,
+  getSocialWorkspace, searchSocialRecords,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
 import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
@@ -70,7 +69,7 @@ function SocialCarePage(){
   const {locale}=useI18n(); const es=locale==="es"; const qc=useQueryClient();
   const workspaceFn=useServerFn(getSocialWorkspace);
   const createPersonFn=useServerFn(createSocialPerson);
-  const createCaseFn=useServerFn(createSocialCase);
+  const createCaseFn=useServerFn(createAndAssignCareCase);
   const duplicateFn=useServerFn(findPossibleSocialPeople);
   const searchFn=useServerFn(searchSocialRecords);
   const ensureProgramFn=useServerFn(ensureSocialProgram);
@@ -88,9 +87,8 @@ function SocialCarePage(){
   const [family,setFamily]=useState({name:"",primaryId:"",memberIds:[] as string[]});
   const today=new Date().toISOString().slice(0,10);const yearStart=`${today.slice(0,4)}-01-01`;
   const [indicatorRange,setIndicatorRange]=useState({from:yearStart,to:today});
-  const [memberInvite,setMemberInvite]=useState({email:"",role:"case_worker"});
-  const [invitationLink,setInvitationLink]=useState("");
   const [acceptedInvite,setAcceptedInvite]=useState("");
+  const [caseModalOpen,setCaseModalOpen]=useState(false);
   const workspace=useQuery({queryKey:["social-workspace"],queryFn:()=>workspaceFn()});
   const resolvedOrg=orgId||workspace.data?.organizations?.[0]?.id||"";
   const organizationAccount=(workspace.data?.organizationAccounts??[]).find((x:any)=>x.orgId===resolvedOrg);
@@ -105,7 +103,11 @@ function SocialCarePage(){
     onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const [person,setPerson]=useState({legalName:"",preferredName:"",telephone:"",email:"",nationality:""});
-  const [caseDraft,setCaseDraft]=useState({programId:"",personId:"",caseType:"atencion_integral",priority:"normal" as "low"|"normal"|"high"|"urgent"});
+  const [caseDraft,setCaseDraft]=useState({
+    programId:"",personId:"",newClientName:"",familyId:"",assignedUserId:"",
+    caseType:"individual" as "individual"|"minor_child"|"family",
+    priority:"standard" as "standard"|"urgent"|"emergency",
+  });
   const duplicates=useMutation({
     mutationFn:()=>duplicateFn({data:{orgId:resolvedOrg,name:person.legalName,phone:person.telephone||undefined,email:person.email||undefined,limit:10}}),
     onError:(e:unknown)=>toast.error(errorMessage(e)),
@@ -116,8 +118,17 @@ function SocialCarePage(){
     onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const createCaseMutation=useMutation({
-    mutationFn:()=>createCaseFn({data:{orgId:resolvedOrg,programId:caseDraft.programId||programs[0]?.id,personId:caseDraft.personId,caseType:caseDraft.caseType,serviceAreas:[],priority:caseDraft.priority,riskLevel:"unknown",confidentialityLevel:"standard",tags:[]}}),
-    onSuccess:(row:any)=>{toast.success(es?`Caso ${row.case_number} creado`:`Case ${row.case_number} created`);qc.invalidateQueries({queryKey:["social-workspace"]});setArea("cases");},
+    mutationFn:()=>createCaseFn({data:{
+      orgId:resolvedOrg,programId:caseDraft.programId||programs[0]?.id,
+      personId:caseDraft.personId||undefined,newClientName:caseDraft.personId?undefined:caseDraft.newClientName,
+      familyId:caseDraft.familyId||undefined,assignedUserId:caseDraft.assignedUserId||undefined,
+      caseType:caseDraft.caseType,priority:caseDraft.priority,
+    }}),
+    onSuccess:(row:any)=>{
+      toast.success(es?`Caso ${row.case_number} abierto y asignado`:`Case ${row.case_number} opened and assigned`);
+      setCaseModalOpen(false);setCaseDraft({...caseDraft,personId:"",newClientName:"",familyId:"",assignedUserId:"",priority:"standard"});
+      void qc.invalidateQueries({queryKey:["social-workspace"]});setSelectedCaseId(row.id);
+    },
     onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const programMutation=useMutation({
@@ -134,21 +145,6 @@ function SocialCarePage(){
   const acknowledgeMutation=useMutation({
     mutationFn:(id:string)=>acknowledgeAlertFn({data:{alertId:id,resolve:true}}),
     onSuccess:()=>{toast.success(es?"Alerta resuelta":"Alert resolved");qc.invalidateQueries({queryKey:["social-workspace"]});},
-    onError:(e:unknown)=>toast.error(errorMessage(e)),
-  });
-  const inviteMemberMutation=useMutation({
-    mutationFn:()=>inviteMemberFn({data:{orgId:resolvedOrg,email:memberInvite.email,role:memberInvite.role as any}}),
-    onSuccess:(result:any)=>{
-      const link=`${window.location.origin}/social?invite=${result.token}`;
-      setInvitationLink(link);setMemberInvite({...memberInvite,email:""});
-      toast.success(es?"Invitación creada; comparta el enlace seguro":"Invitation created; share the secure link");
-      void qc.invalidateQueries({queryKey:["social-workspace"]});
-    },
-    onError:(e:unknown)=>toast.error(errorMessage(e)),
-  });
-  const updateMemberMutation=useMutation({
-    mutationFn:(input:{userId:string;role:string;status:"active"|"suspended"|"removed"})=>updateMemberFn({data:{orgId:resolvedOrg,...input,role:input.role as any}}),
-    onSuccess:()=>{toast.success(es?"Miembro actualizado":"Member updated");void qc.invalidateQueries({queryKey:["social-workspace"]});},
     onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const acceptInvitationMutation=useMutation({
@@ -195,9 +191,13 @@ function SocialCarePage(){
     </header>
 
     {!workspace.data?.organizations?.length&&<section className="mt-5 rounded-xl border border-warning/40 bg-warning/10 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-4"><div className="flex gap-2"><AlertTriangle className="mt-0.5 h-5 w-5 text-warning"/><div><h2 className="font-semibold">{es?"Guarde su despacho en Cuenta":"Save your firm in Account"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"Primero abra Cuenta, capture Despacho / organización y guarde los cambios. Después podrá registrar personas y abrir casos aquí.":"First open Account, enter Firm / law firm / organization, and save changes. You can then register people and open cases here."}</p></div></div><Link to="/account" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Abrir Cuenta":"Open Account"}</Link></div>
+      <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-5 w-5 text-warning"/><div><h2 className="font-semibold">{es?"La organización aún no está disponible":"Organization is not available yet"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"La suscripción y el perfil deben crear la organización automáticamente. Actualice la página; si continúa, un administrador debe revisar el evento de aprovisionamiento.":"Subscription and profile completion create the organization automatically. Refresh the page; if this remains, an administrator should inspect the provisioning event."}</p></div></div>
     </section>}
 
+    <OpenAndAssignCaseModal open={caseModalOpen} es={es} draft={caseDraft} setDraft={setCaseDraft}
+      programs={programs} people={visiblePeople} families={visibleFamilies} members={organizationMembers}
+      currentUserId={workspace.data?.userId??""} pending={createCaseMutation.isPending}
+      onClose={()=>setCaseModalOpen(false)} onSubmit={()=>createCaseMutation.mutate()}/>
     <div className="mt-5 grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="h-fit rounded-xl border border-border bg-card p-2 lg:sticky lg:top-4">
         <nav className="max-h-[72vh] space-y-1 overflow-y-auto">
@@ -216,7 +216,7 @@ function SocialCarePage(){
           <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-4">
             <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 text-warning"/><div><p className="text-sm font-semibold">{es?"Guía de escalamiento":"Escalation guidance"}</p><p className="text-sm text-muted-foreground">{EMERGENCY_GUIDANCE[locale]}</p></div></div>
           </div>
-          {!visiblePeople.length&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="text-sm font-semibold">{es?"Comience registrando a la primera persona":"Start by registering the first person"}</p><p className="text-xs text-muted-foreground">{es?"Después podrá crear su caso y continuar con la valoración.":"Then create the case and continue with assessment."}</p></div><button type="button" onClick={()=>setArea("people")} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar persona":"Register person"}</button></div>}
+          {!visibleCases.length&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="text-sm font-semibold">{es?"Registre su primer caso":"Register your first case"}</p><p className="text-xs text-muted-foreground">{es?"Registre o seleccione al cliente, defina el tipo y asigne al responsable en un solo flujo.":"Register or select the client, choose the case type, and assign responsibility in one workflow."}</p></div><button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button></div>}
           <CaseTable cases={visibleCases.slice(0,12)} es={es} onOpen={setSelectedCaseId}/>
         </>}
 
@@ -239,15 +239,9 @@ function SocialCarePage(){
         </div>}
 
         {area==="cases"&&<section>
-          <div className="mb-4 rounded-xl border border-border bg-card p-4">
-            <h2 className="mb-3 font-semibold">{es?"Abrir caso social":"Open social case"}</h2>
-            {!programs.length?<p className="text-sm text-warning">{es?"Un administrador debe crear un programa social y su prefijo antes de abrir casos.":"An administrator must create a social program and case-number prefix before opening cases."}</p>:<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <select value={caseDraft.programId||programs[0]?.id||""} onChange={e=>setCaseDraft({...caseDraft,programId:e.target.value})} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">{programs.map((p:any)=><option key={p.id} value={p.id}>{es?p.name_es:p.name_en} · {p.case_prefix}</option>)}</select>
-              <select value={caseDraft.personId} onChange={e=>setCaseDraft({...caseDraft,personId:e.target.value})} className="rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Seleccione persona":"Select person"}</option>{visiblePeople.map((p:any)=><option key={p.id} value={p.id}>{p.person_number} · {p.legal_name}</option>)}</select>
-              <input value={caseDraft.caseType} onChange={e=>setCaseDraft({...caseDraft,caseType:e.target.value})} className="rounded-lg border border-border bg-background px-3 py-2 text-sm" aria-label={es?"Tipo de caso":"Case type"}/>
-              <select value={caseDraft.priority} onChange={e=>setCaseDraft({...caseDraft,priority:e.target.value as typeof caseDraft.priority})} className="rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="normal">{es?"Prioridad normal":"Normal priority"}</option><option value="high">{es?"Alta":"High"}</option><option value="urgent">{es?"Urgente":"Urgent"}</option><option value="low">{es?"Baja":"Low"}</option></select>
-              <button disabled={!caseDraft.personId||createCaseMutation.isPending} onClick={()=>createCaseMutation.mutate()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{createCaseMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Crear folio":"Create case"}</button>
-            </div>}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+            <div><h2 className="font-semibold">{es?"Casos de Atención Integral":"Comprehensive Care cases"}</h2><p className="text-xs text-muted-foreground">{es?"Cada caso se abre y asigna mediante una sola transacción auditable.":"Every case is opened and assigned through one auditable transaction."}</p></div>
+            <button type="button" onClick={()=>setCaseModalOpen(true)} disabled={!resolvedOrg||!programs.length} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{es?"Registrar nuevo caso":"Register New Case"}</button>
           </div>
           <div className="mb-4 flex flex-wrap gap-2"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={es?"Buscar por nombre, folio, teléfono, estado…":"Search name, ID, phone, status…"} className="min-w-[260px] flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm"/><button onClick={()=>search.mutate()} disabled={!resolvedOrg||search.isPending} className="rounded-lg border border-border px-4 py-2 text-sm"><Search className="mr-2 inline h-4 w-4"/>{es?"Búsqueda amplia":"Broad search"}</button></div>
           {search.data&&<div className="mb-4 rounded-lg border border-border bg-card p-3 text-sm">{es?"Resultados autorizados":"Authorized results"}: {search.data.length}</div>}
@@ -270,17 +264,6 @@ function SocialCarePage(){
             <Field label={es?"Prefijo de folio":"Case prefix"} value={programSetup.prefix} onChange={v=>setProgramSetup({...programSetup,prefix:v.toUpperCase().replace(/[^A-Z0-9-]/g,"")})}/>
             <button disabled={!resolvedOrg||programMutation.isPending} onClick={()=>programMutation.mutate()} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{programMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Guardar programa":"Save program"}</button>
           </div>
-          <OrganizationSeatAdmin
-            es={es}
-            account={organizationAccount}
-            invite={memberInvite}
-            setInvite={setMemberInvite}
-            invitationLink={invitationLink}
-            inviting={inviteMemberMutation.isPending}
-            onInvite={()=>inviteMemberMutation.mutate()}
-            updating={updateMemberMutation.isPending}
-            onUpdate={(userId,role,status)=>updateMemberMutation.mutate({userId,role,status})}
-          />
         </section>}
         {area==="tasks"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Alertas operativas":"Operational alerts"}</h2><div className="mt-3 space-y-2">{visibleAlerts.map((x:any)=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className={x.severity==="critical"?"font-semibold text-destructive":"font-medium"}>{es?x.title_es:x.title_en}</p><p className="text-xs text-muted-foreground">{x.alert_type} · {x.due_at?new Date(x.due_at).toLocaleString():"—"}</p></div><button disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(x.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs">{es?"Resolver":"Resolve"}</button></div>)}{!visibleAlerts.length&&<p className="text-sm text-muted-foreground">{es?"No hay alertas pendientes.":"No pending alerts."}</p>}</div></section>}
         {area==="indicators"&&<section className="rounded-xl border border-border bg-card p-5"><div className="flex flex-wrap items-end gap-3"><div><h2 className="font-semibold">{es?"Indicadores institucionales":"Institutional indicators"}</h2><p className="text-xs text-muted-foreground">{es?"Solo agregados; grupos pequeños se suprimen automáticamente.":"Aggregates only; small groups are automatically suppressed."}</p></div><Field label={es?"Desde":"From"} type="date" value={indicatorRange.from} onChange={v=>setIndicatorRange({...indicatorRange,from:v})}/><Field label={es?"Hasta":"To"} type="date" value={indicatorRange.to} onChange={v=>setIndicatorRange({...indicatorRange,to:v})}/></div><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(indicators.data??[]).map((x:any,i:number)=><div key={x.id??i} className="rounded-lg border border-border p-4"><p className="text-xs uppercase text-muted-foreground">{x.name_es??x.indicator_code??x.code??(es?"Indicador":"Indicator")}</p><p className="mt-1 text-2xl font-semibold">{x.suppressed?(es?"Suprimido":"Suppressed"):(x.value??x.count??"—")}</p></div>)}{indicators.isLoading&&<Loader2 className="h-5 w-5 animate-spin"/>}{!indicators.isLoading&&!(indicators.data??[]).length&&<p className="text-sm text-muted-foreground">{es?"Sin datos agregados para el periodo.":"No aggregate data for this period."}</p>}</div></section>}
@@ -295,32 +278,40 @@ function SocialCarePage(){
   </div>;
 }
 
-const MEMBER_ROLES=["firm_manager","supervisor","case_worker","legal_provider","psychosocial_provider","read_only"] as const;
-const memberRoleLabel=(role:string,es:boolean)=>({
-  firm_manager:[ "Gerente del despacho","Firm manager" ],
-  supervisor:[ "Supervisor","Supervisor" ],
-  case_worker:[ "Gestor del caso","Case worker" ],
-  legal_provider:[ "Profesional jurídico","Legal provider" ],
-  psychosocial_provider:[ "Profesional psicosocial","Psychosocial provider" ],
-  read_only:[ "Solo lectura","Read only" ],
-  owner:[ "Propietario","Owner" ],
-  admin:[ "Administrador","Administrator" ],
-} as Record<string,[string,string]>)[role]?.[es?0:1]??role.replaceAll("_"," ");
-
-function OrganizationSeatAdmin({es,account,invite,setInvite,invitationLink,inviting,onInvite,updating,onUpdate}:{
-  es:boolean;account:any;invite:{email:string;role:string};setInvite:(x:{email:string;role:string})=>void;
-  invitationLink:string;inviting:boolean;onInvite:()=>void;updating:boolean;
-  onUpdate:(userId:string,role:string,status:"active"|"suspended"|"removed")=>void;
+function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families,members,currentUserId,pending,onClose,onSubmit}:{
+  open:boolean;es:boolean;draft:any;setDraft:(value:any)=>void;programs:any[];people:any[];families:any[];members:any[];
+  currentUserId:string;pending:boolean;onClose:()=>void;onSubmit:()=>void;
 }){
-  if(!account)return <p className="mt-6 text-sm text-muted-foreground">{es?"Cargando cuenta de organización…":"Loading organization account…"}</p>;
-  return <div className="mt-6 space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">{es?"Cuenta de organización y asientos":"Organization account and seats"}</h3><p className="mt-1 text-xs text-muted-foreground">{es?"Una suscripción del despacho cubre al propietario y a sus empleados. Cada persona inicia sesión con su propia contraseña.":"One firm subscription covers the owner and employees. Every person signs in with their own password."}</p></div><div className="rounded-lg border border-border bg-card px-4 py-2 text-sm"><strong>{account.seats_used??0}</strong> / {account.seat_limit??1} {es?"asientos activos":"active seats"}</div></div>
-    {account.can_manage&&<div className="grid gap-3 md:grid-cols-[1fr_220px_auto]"><Field label={es?"Correo del empleado":"Employee email"} type="email" value={invite.email} onChange={v=>setInvite({...invite,email:v})}/><label className="block text-xs font-medium text-muted-foreground">{es?"Función":"Role"}<select value={invite.role} onChange={e=>setInvite({...invite,role:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{MEMBER_ROLES.map(role=><option key={role} value={role}>{memberRoleLabel(role,es)}</option>)}</select></label><button disabled={!invite.email||inviting} onClick={onInvite} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{inviting&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Invitar":"Invite"}</button></div>}
-    {invitationLink&&<div className="rounded-lg border border-success/30 bg-success/10 p-3 text-xs"><p className="font-semibold">{es?"Enlace seguro de invitación":"Secure invitation link"}</p><div className="mt-2 flex gap-2"><input readOnly value={invitationLink} className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1"/><button onClick={()=>void navigator.clipboard.writeText(invitationLink)} className="rounded border border-border px-3">{es?"Copiar":"Copy"}</button></div></div>}
-    <div className="overflow-x-auto rounded-lg border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-3 py-2">{es?"Miembro":"Member"}</th><th className="px-3 py-2">{es?"Función":"Role"}</th><th className="px-3 py-2">{es?"Estado":"Status"}</th><th className="px-3 py-2">{es?"Casos":"Cases"}</th><th className="px-3 py-2"></th></tr></thead><tbody>{(account.members??[]).map((m:any)=><tr key={m.id} className="border-t border-border"><td className="px-3 py-2">{m.name}<span className="block text-xs text-muted-foreground">{m.email}</span></td><td className="px-3 py-2">{account.can_manage&&!["owner"].includes(m.role)?<select value={MEMBER_ROLES.includes(m.role)?m.role:"read_only"} onChange={e=>onUpdate(m.user_id,e.target.value,"active")} disabled={updating} className="rounded border border-border bg-background px-2 py-1">{MEMBER_ROLES.map(role=><option key={role} value={role}>{memberRoleLabel(role,es)}</option>)}</select>:memberRoleLabel(m.role,es)}</td><td className="px-3 py-2">{m.status}</td><td className="px-3 py-2">{m.assigned_cases??0}</td><td className="px-3 py-2 text-right">{account.can_manage&&!["owner"].includes(m.role)&&<div className="flex justify-end gap-2">{m.status!=="suspended"&&<button disabled={updating} onClick={()=>onUpdate(m.user_id,MEMBER_ROLES.includes(m.role)?m.role:"read_only","suspended")} className="text-xs text-warning underline">{es?"Suspender":"Suspend"}</button>}{m.status==="suspended"&&<button disabled={updating} onClick={()=>onUpdate(m.user_id,MEMBER_ROLES.includes(m.role)?m.role:"read_only","active")} className="text-xs text-primary underline">{es?"Reactivar":"Reactivate"}</button>}<button disabled={updating} onClick={()=>onUpdate(m.user_id,MEMBER_ROLES.includes(m.role)?m.role:"read_only","removed")} className="text-xs text-destructive underline">{es?"Quitar":"Remove"}</button></div>}</td></tr>)}</tbody></table></div>
-    {!!(account.invitations??[]).filter((i:any)=>i.status==="invited").length&&<div><h4 className="text-sm font-semibold">{es?"Invitaciones pendientes":"Pending invitations"}</h4>{account.invitations.filter((i:any)=>i.status==="invited").map((i:any)=><p key={i.id} className="mt-1 text-xs text-muted-foreground">{i.email} · {memberRoleLabel(i.role,es)} · {new Date(i.expires_at).toLocaleDateString()}</p>)}</div>}
+  if(!open)return null;
+  const selected=people.find((p:any)=>p.id===draft.personId);
+  const activeMembers=members.filter((m:any)=>m.status==="active");
+  const validClient=Boolean(draft.personId||draft.newClientName.trim().length>=2);
+  const validFamily=draft.caseType!=="family"||Boolean(draft.familyId);
+  return <div role="dialog" aria-modal="true" aria-label={es?"Abrir y asignar caso":"Open and Assign Case"} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <section className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-primary">{es?"Nuevo expediente":"New case"}</p><h2 className="text-xl font-semibold">{es?"Abrir y asignar caso":"Open and Assign Case"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"El cliente, el caso, la asignación, el historial y las alertas se guardan juntos.":"Client, case, assignment, history, and alerts are saved together."}</p></div><button type="button" onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-sm">{es?"Cerrar":"Close"}</button></div>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <label className="text-xs font-medium text-muted-foreground">{es?"Cliente existente":"Existing client"}<select value={draft.personId} onChange={e=>setDraft({...draft,personId:e.target.value,newClientName:""})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Registrar cliente nuevo":"Register new client"}</option>{people.map((p:any)=><option key={p.id} value={p.id}>{p.person_number} · {p.legal_name}</option>)}</select></label>
+        {!draft.personId&&<Field label={es?"Nombre legal del cliente nuevo":"New client legal name"} value={draft.newClientName} onChange={v=>setDraft({...draft,newClientName:v})}/>}
+        {selected&&<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm md:col-span-2"><span className="font-semibold">{selected.legal_name}</span><span className="ml-2 text-muted-foreground">{selected.person_number}</span></div>}
+        <label className="text-xs font-medium text-muted-foreground">{es?"Programa":"Program"}<select value={draft.programId||programs[0]?.id||""} onChange={e=>setDraft({...draft,programId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{programs.map((p:any)=><option key={p.id} value={p.id}>{es?p.name_es:p.name_en} · {p.case_prefix}</option>)}</select></label>
+        <label className="text-xs font-medium text-muted-foreground">{es?"Asignado a":"Assigned to"}<select value={draft.assignedUserId} onChange={e=>setDraft({...draft,assignedUserId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Sin asignar":"Unassigned"}</option>{activeMembers.map((m:any)=><option key={m.user_id} value={m.user_id}>{m.user_id===currentUserId?(es?"Yo":"Me"):m.name} · {memberRoleLabel(m.role,es)}</option>)}</select></label>
+        <label className="text-xs font-medium text-muted-foreground">{es?"Tipo de caso":"Case type"}<select value={draft.caseType} onChange={e=>setDraft({...draft,caseType:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="individual">{es?"Individual":"Individual"}</option><option value="minor_child">{es?"Menor / protección infantil":"Minor / Child"}</option><option value="family">{es?"Familia":"Family"}</option></select></label>
+        {draft.caseType==="family"&&<label className="text-xs font-medium text-muted-foreground">{es?"Familia vinculada":"Linked family"}<select value={draft.familyId} onChange={e=>setDraft({...draft,familyId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">—</option>{families.map((x:any)=><option key={x.id} value={x.id}>{x.family_number} · {x.family_name}</option>)}</select></label>}
+        <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={draft.priority} onChange={e=>setDraft({...draft,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="standard">{es?"Estándar":"Standard"}</option><option value="urgent">{es?"Urgente":"Urgent"}</option><option value="emergency">{es?"Emergencia":"Emergency"}</option></select></label>
+      </div>
+      {draft.priority==="emergency"&&<div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{es?"Emergencia crea alertas y una tarea de respuesta inmediata. Nyrava no sustituye a los servicios de emergencia.":"Emergency creates alerts and an immediate-response task. Nyrava does not replace emergency services."}</div>}
+      <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm">{es?"Cancelar":"Cancel"}</button><button type="button" disabled={pending||!programs.length||!validClient||!validFamily} onClick={onSubmit} className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{pending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Abrir y asignar":"Open and assign"}</button></div>
+    </section>
   </div>;
 }
+
+const MEMBER_ROLES=["firm_manager","supervisor","case_worker","legal_provider","psychosocial_provider","read_only"] as const;
+const memberRoleLabel=(role:string,es:boolean)=>({
+  firm_manager:["Gerente del despacho","Firm manager"],supervisor:["Supervisor","Supervisor"],case_worker:["Gestor del caso","Case worker"],
+  legal_provider:["Profesional jurídico","Legal provider"],psychosocial_provider:["Profesional psicosocial","Psychosocial provider"],
+  read_only:["Solo lectura","Read only"],owner:["Propietario","Owner"],admin:["Administrador","Administrator"],
+} as Record<string,[string,string]>)[role]?.[es?0:1]??role.replaceAll("_"," ");
 
 function TeamActivity({es,account}:{es:boolean;account:any}){
   const members=account?.members??[];const activity=account?.recent_activity??[];
