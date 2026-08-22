@@ -677,6 +677,7 @@ export type Database = {
         Row: {
           active: boolean
           ai_requests_monthly: number | null
+          annual_price_cents: number | null
           byok_allowed: boolean
           case_limit: number | null
           code: string
@@ -684,6 +685,7 @@ export type Database = {
           created_at: string
           currency: string
           description: string | null
+          employee_seats: number
           feature_flags: Json
           features: Json
           id: string
@@ -691,24 +693,32 @@ export type Database = {
           interval: string
           key: string | null
           label: string | null
+          max_upload_size_bytes: number | null
+          mercadopago_annual_plan_id: string | null
           mercadopago_plan_id: string | null
+          monthly_document_pages: number | null
           name: string
           overage_price_cents: number | null
+          owner_seats: number
           per_seat_price_cents: number | null
           per_seat_stripe_price_id: string | null
           price_cents: number
           self_serve: boolean
           sort_order: number
           storage_gb_limit: number | null
+          storage_limit_bytes: number | null
+          stripe_annual_price_id: string | null
           stripe_price_id: string | null
           tagline: string | null
           talk_to_case_monthly: number | null
           team_member_limit: number | null
+          total_user_limit: number | null
           updated_at: string
         }
         Insert: {
           active?: boolean
           ai_requests_monthly?: number | null
+          annual_price_cents?: number | null
           byok_allowed?: boolean
           case_limit?: number | null
           code: string
@@ -716,6 +726,7 @@ export type Database = {
           created_at?: string
           currency?: string
           description?: string | null
+          employee_seats?: number
           feature_flags?: Json
           features?: Json
           id?: string
@@ -723,24 +734,32 @@ export type Database = {
           interval?: string
           key?: string | null
           label?: string | null
+          max_upload_size_bytes?: number | null
+          mercadopago_annual_plan_id?: string | null
           mercadopago_plan_id?: string | null
+          monthly_document_pages?: number | null
           name: string
           overage_price_cents?: number | null
+          owner_seats?: number
           per_seat_price_cents?: number | null
           per_seat_stripe_price_id?: string | null
           price_cents?: number
           self_serve?: boolean
           sort_order?: number
           storage_gb_limit?: number | null
+          storage_limit_bytes?: number | null
+          stripe_annual_price_id?: string | null
           stripe_price_id?: string | null
           tagline?: string | null
           talk_to_case_monthly?: number | null
           team_member_limit?: number | null
+          total_user_limit?: number | null
           updated_at?: string
         }
         Update: {
           active?: boolean
           ai_requests_monthly?: number | null
+          annual_price_cents?: number | null
           byok_allowed?: boolean
           case_limit?: number | null
           code?: string
@@ -748,6 +767,7 @@ export type Database = {
           created_at?: string
           currency?: string
           description?: string | null
+          employee_seats?: number
           feature_flags?: Json
           features?: Json
           id?: string
@@ -755,22 +775,130 @@ export type Database = {
           interval?: string
           key?: string | null
           label?: string | null
+          max_upload_size_bytes?: number | null
+          mercadopago_annual_plan_id?: string | null
           mercadopago_plan_id?: string | null
+          monthly_document_pages?: number | null
           name?: string
           overage_price_cents?: number | null
+          owner_seats?: number
           per_seat_price_cents?: number | null
           per_seat_stripe_price_id?: string | null
           price_cents?: number
           self_serve?: boolean
           sort_order?: number
           storage_gb_limit?: number | null
+          storage_limit_bytes?: number | null
+          stripe_annual_price_id?: string | null
           stripe_price_id?: string | null
           tagline?: string | null
           talk_to_case_monthly?: number | null
           team_member_limit?: number | null
+          total_user_limit?: number | null
           updated_at?: string
         }
         Relationships: []
+      }
+      billing_provider_events: {
+        Row: {
+          actor_id: string | null
+          enabled: boolean
+          id: string
+          occurred_at: string
+          provider: string
+        }
+        Insert: {
+          actor_id?: string | null
+          enabled: boolean
+          id?: string
+          occurred_at?: string
+          provider: string
+        }
+        Update: {
+          actor_id?: string | null
+          enabled?: boolean
+          id?: string
+          occurred_at?: string
+          provider?: string
+        }
+        Relationships: []
+      }
+      billing_provider_settings: {
+        Row: {
+          enabled: boolean
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          provider: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      billing_webhook_events: {
+        Row: {
+          error_detail: string | null
+          event_type: string | null
+          id: string
+          org_id: string | null
+          payload_hash: string | null
+          processed_at: string | null
+          processing_status: string
+          provider: string
+          provider_event_id: string
+          provider_subscription_id: string | null
+          received_at: string
+          user_id: string | null
+          verified: boolean
+        }
+        Insert: {
+          error_detail?: string | null
+          event_type?: string | null
+          id?: string
+          org_id?: string | null
+          payload_hash?: string | null
+          processed_at?: string | null
+          processing_status?: string
+          provider: string
+          provider_event_id: string
+          provider_subscription_id?: string | null
+          received_at?: string
+          user_id?: string | null
+          verified?: boolean
+        }
+        Update: {
+          error_detail?: string | null
+          event_type?: string | null
+          id?: string
+          org_id?: string | null
+          payload_hash?: string | null
+          processed_at?: string | null
+          processing_status?: string
+          provider?: string
+          provider_event_id?: string
+          provider_subscription_id?: string | null
+          received_at?: string
+          user_id?: string | null
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_webhook_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       canonical_analysis: {
         Row: {
@@ -4977,45 +5105,69 @@ export type Database = {
       }
       org_subscriptions: {
         Row: {
+          billing_interval: string
           cancel_at: string | null
+          cancel_at_period_end: boolean
+          cancelled_at: string | null
           created_at: string
+          currency: string | null
           current_period_end: string | null
           current_period_start: string | null
+          grace_period_ends_at: string | null
           id: string
           metadata: Json
           org_id: string
           plan_id: string
+          primary_subscription: boolean
           provider: string
+          provider_customer_id: string | null
           provider_subscription_id: string | null
           status: string
+          trial_ends_at: string | null
           updated_at: string
         }
         Insert: {
+          billing_interval?: string
           cancel_at?: string | null
+          cancel_at_period_end?: boolean
+          cancelled_at?: string | null
           created_at?: string
+          currency?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          grace_period_ends_at?: string | null
           id?: string
           metadata?: Json
           org_id: string
           plan_id: string
+          primary_subscription?: boolean
           provider?: string
+          provider_customer_id?: string | null
           provider_subscription_id?: string | null
           status?: string
+          trial_ends_at?: string | null
           updated_at?: string
         }
         Update: {
+          billing_interval?: string
           cancel_at?: string | null
+          cancel_at_period_end?: boolean
+          cancelled_at?: string | null
           created_at?: string
+          currency?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          grace_period_ends_at?: string | null
           id?: string
           metadata?: Json
           org_id?: string
           plan_id?: string
+          primary_subscription?: boolean
           provider?: string
+          provider_customer_id?: string | null
           provider_subscription_id?: string | null
           status?: string
+          trial_ends_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -5031,6 +5183,258 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_entitlements: {
+        Row: {
+          ai_requests_monthly: number | null
+          byok_allowed: boolean
+          case_limit: number | null
+          employee_seats: number
+          feature_flags: Json
+          max_upload_size_bytes: number | null
+          monthly_document_pages: number | null
+          org_id: string
+          owner_seats: number
+          plan_id: string
+          status: string
+          storage_limit_bytes: number | null
+          subscription_id: string | null
+          talk_to_case_monthly: number | null
+          total_user_limit: number
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          ai_requests_monthly?: number | null
+          byok_allowed?: boolean
+          case_limit?: number | null
+          employee_seats?: number
+          feature_flags?: Json
+          max_upload_size_bytes?: number | null
+          monthly_document_pages?: number | null
+          org_id: string
+          owner_seats?: number
+          plan_id: string
+          status?: string
+          storage_limit_bytes?: number | null
+          subscription_id?: string | null
+          talk_to_case_monthly?: number | null
+          total_user_limit?: number
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          ai_requests_monthly?: number | null
+          byok_allowed?: boolean
+          case_limit?: number | null
+          employee_seats?: number
+          feature_flags?: Json
+          max_upload_size_bytes?: number | null
+          monthly_document_pages?: number | null
+          org_id?: string
+          owner_seats?: number
+          plan_id?: string
+          status?: string
+          storage_limit_bytes?: number | null
+          subscription_id?: string | null
+          talk_to_case_monthly?: number | null
+          total_user_limit?: number
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_entitlements_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_entitlements_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_entitlements_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "org_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          email: string
+          expires_at: string
+          id: string
+          invited_at: string
+          invited_by: string
+          org_id: string
+          revoked_at: string | null
+          role: string
+          status: string
+          token_hash: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          invited_at?: string
+          invited_by: string
+          org_id: string
+          revoked_at?: string | null
+          role: string
+          status?: string
+          token_hash: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string
+          org_id?: string
+          revoked_at?: string | null
+          role?: string
+          status?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_invitations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_usage_events: {
+        Row: {
+          id: string
+          idempotency_key: string | null
+          metadata: Json
+          model: string | null
+          occurred_at: string
+          org_id: string
+          provider: string | null
+          quantity: number
+          social_case_id: string | null
+          usage_type: string
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          model?: string | null
+          occurred_at?: string
+          org_id: string
+          provider?: string | null
+          quantity?: number
+          social_case_id?: string | null
+          usage_type: string
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          model?: string | null
+          occurred_at?: string
+          org_id?: string
+          provider?: string | null
+          quantity?: number
+          social_case_id?: string | null
+          usage_type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_usage_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_usage_events_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_usage_periods: {
+        Row: {
+          ai_requests_used: number
+          created_at: string
+          document_pages_used: number
+          id: string
+          org_id: string
+          period_end: string
+          period_start: string
+          storage_bytes_used: number
+          subscription_id: string | null
+          talk_to_case_used: number
+          updated_at: string
+        }
+        Insert: {
+          ai_requests_used?: number
+          created_at?: string
+          document_pages_used?: number
+          id?: string
+          org_id: string
+          period_end: string
+          period_start: string
+          storage_bytes_used?: number
+          subscription_id?: string | null
+          talk_to_case_used?: number
+          updated_at?: string
+        }
+        Update: {
+          ai_requests_used?: number
+          created_at?: string
+          document_pages_used?: number
+          id?: string
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          storage_bytes_used?: number
+          subscription_id?: string | null
+          talk_to_case_used?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_usage_periods_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_usage_periods_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "org_subscriptions"
             referencedColumns: ["id"]
           },
         ]
@@ -5690,6 +6094,551 @@ export type Database = {
           },
         ]
       }
+      resource_corrections: {
+        Row: {
+          created_at: string
+          field_name: string | null
+          id: string
+          institution_id: string
+          org_id: string | null
+          reason: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_by: string
+          suggested_value: string | null
+        }
+        Insert: {
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          institution_id: string
+          org_id?: string | null
+          reason: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_by: string
+          suggested_value?: string | null
+        }
+        Update: {
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          institution_id?: string
+          org_id?: string | null
+          reason?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_by?: string
+          suggested_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_corrections_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "social_institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_corrections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_internal_experiences: {
+        Row: {
+          accessibility_notes: string | null
+          created_at: string
+          created_by: string
+          id: string
+          institution_id: string
+          org_id: string
+          outcome: string | null
+          staff_notes: string
+          updated_at: string
+          wait_time_notes: string | null
+        }
+        Insert: {
+          accessibility_notes?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          institution_id: string
+          org_id: string
+          outcome?: string | null
+          staff_notes: string
+          updated_at?: string
+          wait_time_notes?: string | null
+        }
+        Update: {
+          accessibility_notes?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          institution_id?: string
+          org_id?: string
+          outcome?: string | null
+          staff_notes?: string
+          updated_at?: string
+          wait_time_notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_internal_experiences_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "social_institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_internal_experiences_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_knowledge_case_actions: {
+        Row: {
+          action_type: string
+          created_at: string
+          created_by: string
+          details: Json
+          id: string
+          knowledge_id: string
+          org_id: string
+          social_case_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          created_by: string
+          details?: Json
+          id?: string
+          knowledge_id: string
+          org_id: string
+          social_case_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          created_by?: string
+          details?: Json
+          id?: string
+          knowledge_id?: string
+          org_id?: string
+          social_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_knowledge_case_actions_knowledge_id_fkey"
+            columns: ["knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "resource_knowledge_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_knowledge_case_actions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_knowledge_case_actions_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_knowledge_corrections: {
+        Row: {
+          created_at: string
+          id: string
+          knowledge_id: string
+          org_id: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_by: string
+          suggestion: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          knowledge_id: string
+          org_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_by: string
+          suggestion: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          knowledge_id?: string
+          org_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_by?: string
+          suggestion?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_knowledge_corrections_knowledge_id_fkey"
+            columns: ["knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "resource_knowledge_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_knowledge_corrections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_knowledge_records: {
+        Row: {
+          applicable_programs: string[]
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          archived_at: string | null
+          audience: string
+          authority: string | null
+          content_en: string | null
+          content_es: string | null
+          created_at: string
+          created_by: string
+          document_path: string | null
+          effective_at: string | null
+          file_type: string | null
+          id: string
+          internal_only: boolean
+          knowledge_type: string
+          language_codes: string[]
+          last_verified_at: string | null
+          municipality: string | null
+          official_sources: Json
+          org_id: string | null
+          owner_id: string | null
+          population_tags: string[]
+          purpose: string | null
+          related_forms: string[]
+          related_resources: string[]
+          required_steps: Json
+          review_due_at: string | null
+          service_categories: string[]
+          source_url: string | null
+          state_codes: string[]
+          summary_en: string | null
+          summary_es: string | null
+          title_en: string
+          title_es: string
+          updated_at: string
+          version: number
+          when_to_use: string | null
+        }
+        Insert: {
+          applicable_programs?: string[]
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          archived_at?: string | null
+          audience?: string
+          authority?: string | null
+          content_en?: string | null
+          content_es?: string | null
+          created_at?: string
+          created_by: string
+          document_path?: string | null
+          effective_at?: string | null
+          file_type?: string | null
+          id?: string
+          internal_only?: boolean
+          knowledge_type: string
+          language_codes?: string[]
+          last_verified_at?: string | null
+          municipality?: string | null
+          official_sources?: Json
+          org_id?: string | null
+          owner_id?: string | null
+          population_tags?: string[]
+          purpose?: string | null
+          related_forms?: string[]
+          related_resources?: string[]
+          required_steps?: Json
+          review_due_at?: string | null
+          service_categories?: string[]
+          source_url?: string | null
+          state_codes?: string[]
+          summary_en?: string | null
+          summary_es?: string | null
+          title_en: string
+          title_es: string
+          updated_at?: string
+          version?: number
+          when_to_use?: string | null
+        }
+        Update: {
+          applicable_programs?: string[]
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          archived_at?: string | null
+          audience?: string
+          authority?: string | null
+          content_en?: string | null
+          content_es?: string | null
+          created_at?: string
+          created_by?: string
+          document_path?: string | null
+          effective_at?: string | null
+          file_type?: string | null
+          id?: string
+          internal_only?: boolean
+          knowledge_type?: string
+          language_codes?: string[]
+          last_verified_at?: string | null
+          municipality?: string | null
+          official_sources?: Json
+          org_id?: string | null
+          owner_id?: string | null
+          population_tags?: string[]
+          purpose?: string | null
+          related_forms?: string[]
+          related_resources?: string[]
+          required_steps?: Json
+          review_due_at?: string | null
+          service_categories?: string[]
+          source_url?: string | null
+          state_codes?: string[]
+          summary_en?: string | null
+          summary_es?: string | null
+          title_en?: string
+          title_es?: string
+          updated_at?: string
+          version?: number
+          when_to_use?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_knowledge_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_knowledge_usage: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          id: string
+          knowledge_id: string
+          org_id: string | null
+          social_case_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          id?: string
+          knowledge_id: string
+          org_id?: string | null
+          social_case_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          id?: string
+          knowledge_id?: string
+          org_id?: string | null
+          social_case_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_knowledge_usage_knowledge_id_fkey"
+            columns: ["knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "resource_knowledge_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_knowledge_usage_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_knowledge_usage_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_knowledge_versions: {
+        Row: {
+          change_summary: string
+          created_at: string
+          created_by: string
+          id: string
+          knowledge_id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          change_summary: string
+          created_at?: string
+          created_by: string
+          id?: string
+          knowledge_id: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          change_summary?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          knowledge_id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_knowledge_versions_knowledge_id_fkey"
+            columns: ["knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "resource_knowledge_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_service_categories: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description_en: string | null
+          description_es: string | null
+          id: string
+          name_en: string
+          name_es: string
+          org_id: string | null
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description_en?: string | null
+          description_es?: string | null
+          id?: string
+          name_en: string
+          name_es: string
+          org_id?: string | null
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description_en?: string | null
+          description_es?: string | null
+          id?: string
+          name_en?: string
+          name_es?: string
+          org_id?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_service_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_verifications: {
+        Row: {
+          created_at: string
+          evidence_url: string | null
+          id: string
+          institution_id: string
+          next_verification_at: string | null
+          notes: string | null
+          org_id: string | null
+          source: string
+          status: string
+          verified_at: string
+          verified_by: string
+        }
+        Insert: {
+          created_at?: string
+          evidence_url?: string | null
+          id?: string
+          institution_id: string
+          next_verification_at?: string | null
+          notes?: string | null
+          org_id?: string | null
+          source: string
+          status: string
+          verified_at?: string
+          verified_by: string
+        }
+        Update: {
+          created_at?: string
+          evidence_url?: string | null
+          id?: string
+          institution_id?: string
+          next_verification_at?: string | null
+          notes?: string | null
+          org_id?: string | null
+          source?: string
+          status?: string
+          verified_at?: string
+          verified_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_verifications_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "social_institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_verifications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           created_at: string
@@ -5716,6 +6665,3168 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "permissions"
             referencedColumns: ["code"]
+          },
+        ]
+      }
+      social_activity_events: {
+        Row: {
+          actor_id: string | null
+          entity_id: string | null
+          entity_type: string
+          event_type: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          org_id: string
+          social_case_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          entity_id?: string | null
+          entity_type: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          org_id: string
+          social_case_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          org_id?: string
+          social_case_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_activity_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_activity_events_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          alert_type: string
+          assigned_to: string | null
+          created_at: string
+          due_at: string | null
+          id: string
+          metadata: Json
+          org_id: string
+          resolved_at: string | null
+          severity: string
+          social_case_id: string | null
+          title_en: string
+          title_es: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          alert_type: string
+          assigned_to?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          metadata?: Json
+          org_id: string
+          resolved_at?: string | null
+          severity?: string
+          social_case_id?: string | null
+          title_en: string
+          title_es: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          alert_type?: string
+          assigned_to?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          metadata?: Json
+          org_id?: string
+          resolved_at?: string | null
+          severity?: string
+          social_case_id?: string | null
+          title_en?: string
+          title_es?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_alerts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_alerts_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_appointments: {
+        Row: {
+          created_at: string
+          created_by: string
+          duration_minutes: number | null
+          id: string
+          location_method: string | null
+          missed_reason: string | null
+          org_id: string
+          person_id: string | null
+          professional_id: string | null
+          scheduled_at: string
+          social_case_id: string
+          status: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          duration_minutes?: number | null
+          id?: string
+          location_method?: string | null
+          missed_reason?: string | null
+          org_id: string
+          person_id?: string | null
+          professional_id?: string | null
+          scheduled_at: string
+          social_case_id: string
+          status?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          duration_minutes?: number | null
+          id?: string
+          location_method?: string | null
+          missed_reason?: string | null
+          org_id?: string
+          person_id?: string | null
+          professional_id?: string | null
+          scheduled_at?: string
+          social_case_id?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_appointments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_appointments_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_appointments_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_assessment_templates: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name_en: string
+          name_es: string
+          org_id: string | null
+          schema: Json
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name_en: string
+          name_es: string
+          org_id?: string | null
+          schema: Json
+          version?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name_en?: string
+          name_es?: string
+          org_id?: string | null
+          schema?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_assessment_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_assessment_versions: {
+        Row: {
+          answers: Json
+          assessment_id: string
+          created_at: string
+          created_by: string
+          evidence_observations: string | null
+          id: string
+          immediate_actions: string | null
+          org_id: string
+          protective_factors: string | null
+          reason: string
+          required_follow_up: string | null
+          risk_level: string
+          version: number
+        }
+        Insert: {
+          answers?: Json
+          assessment_id: string
+          created_at?: string
+          created_by: string
+          evidence_observations?: string | null
+          id?: string
+          immediate_actions?: string | null
+          org_id: string
+          protective_factors?: string | null
+          reason: string
+          required_follow_up?: string | null
+          risk_level: string
+          version: number
+        }
+        Update: {
+          answers?: Json
+          assessment_id?: string
+          created_at?: string
+          created_by?: string
+          evidence_observations?: string | null
+          id?: string
+          immediate_actions?: string | null
+          org_id?: string
+          protective_factors?: string | null
+          reason?: string
+          required_follow_up?: string | null
+          risk_level?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_assessment_versions_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "social_assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_assessment_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_assessments: {
+        Row: {
+          assessment_date: string
+          assessor_id: string
+          created_at: string
+          current_version: number
+          id: string
+          next_review_date: string | null
+          org_id: string
+          override_explanation: string | null
+          professional_override: boolean
+          risk_level: string
+          social_case_id: string
+          template_id: string | null
+        }
+        Insert: {
+          assessment_date?: string
+          assessor_id: string
+          created_at?: string
+          current_version?: number
+          id?: string
+          next_review_date?: string | null
+          org_id: string
+          override_explanation?: string | null
+          professional_override?: boolean
+          risk_level?: string
+          social_case_id: string
+          template_id?: string | null
+        }
+        Update: {
+          assessment_date?: string
+          assessor_id?: string
+          created_at?: string
+          current_version?: number
+          id?: string
+          next_review_date?: string | null
+          org_id?: string
+          override_explanation?: string | null
+          professional_override?: boolean
+          risk_level?: string
+          social_case_id?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_assessments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_assessments_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_assessments_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "social_assessment_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_care_action_proposals: {
+        Row: {
+          action_type: string
+          assistant_run_id: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          id: string
+          org_id: string
+          preview: Json
+          proposed_by: string
+          social_case_id: string
+          status: string
+        }
+        Insert: {
+          action_type: string
+          assistant_run_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          org_id: string
+          preview: Json
+          proposed_by: string
+          social_case_id: string
+          status?: string
+        }
+        Update: {
+          action_type?: string
+          assistant_run_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          org_id?: string
+          preview?: Json
+          proposed_by?: string
+          social_case_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_care_action_proposals_assistant_run_id_fkey"
+            columns: ["assistant_run_id"]
+            isOneToOne: false
+            referencedRelation: "social_care_assistant_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_care_action_proposals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_care_action_proposals_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_care_assistant_runs: {
+        Row: {
+          actor_id: string
+          created_at: string
+          health_check: boolean
+          id: string
+          language: string
+          org_id: string
+          question: string
+          response: Json
+          retrieval_manifest: Json
+          social_case_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          health_check?: boolean
+          id?: string
+          language?: string
+          org_id: string
+          question: string
+          response: Json
+          retrieval_manifest?: Json
+          social_case_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          health_check?: boolean
+          id?: string
+          language?: string
+          org_id?: string
+          question?: string
+          response?: Json
+          retrieval_manifest?: Json
+          social_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_care_assistant_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_care_assistant_runs_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_care_plan_goals: {
+        Row: {
+          care_plan_version_id: string
+          completion_evidence: string | null
+          created_at: string
+          expected_outcome: string | null
+          external_institution_id: string | null
+          goal: string
+          id: string
+          identified_need: string
+          org_id: string
+          planned_action: string
+          priority: string
+          required_consent: string | null
+          responsible_person: string | null
+          responsible_service_area: string | null
+          review_date: string | null
+          status: string
+          target_date: string | null
+        }
+        Insert: {
+          care_plan_version_id: string
+          completion_evidence?: string | null
+          created_at?: string
+          expected_outcome?: string | null
+          external_institution_id?: string | null
+          goal: string
+          id?: string
+          identified_need: string
+          org_id: string
+          planned_action: string
+          priority?: string
+          required_consent?: string | null
+          responsible_person?: string | null
+          responsible_service_area?: string | null
+          review_date?: string | null
+          status?: string
+          target_date?: string | null
+        }
+        Update: {
+          care_plan_version_id?: string
+          completion_evidence?: string | null
+          created_at?: string
+          expected_outcome?: string | null
+          external_institution_id?: string | null
+          goal?: string
+          id?: string
+          identified_need?: string
+          org_id?: string
+          planned_action?: string
+          priority?: string
+          required_consent?: string | null
+          responsible_person?: string | null
+          responsible_service_area?: string | null
+          review_date?: string | null
+          status?: string
+          target_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_care_plan_goals_care_plan_version_id_fkey"
+            columns: ["care_plan_version_id"]
+            isOneToOne: false
+            referencedRelation: "social_care_plan_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_care_plan_goals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_care_plan_versions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          care_plan_id: string
+          created_at: string
+          id: string
+          org_id: string
+          status: string
+          submitted_by: string
+          summary: string | null
+          version: number
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          care_plan_id: string
+          created_at?: string
+          id?: string
+          org_id: string
+          status: string
+          submitted_by: string
+          summary?: string | null
+          version: number
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          care_plan_id?: string
+          created_at?: string
+          id?: string
+          org_id?: string
+          status?: string
+          submitted_by?: string
+          summary?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_care_plan_versions_care_plan_id_fkey"
+            columns: ["care_plan_id"]
+            isOneToOne: false
+            referencedRelation: "social_care_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_care_plan_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_care_plans: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string
+          current_version: number
+          family_id: string | null
+          id: string
+          org_id: string
+          social_case_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by: string
+          current_version?: number
+          family_id?: string | null
+          id?: string
+          org_id: string
+          social_case_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string
+          current_version?: number
+          family_id?: string | null
+          id?: string
+          org_id?: string
+          social_case_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_care_plans_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "social_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_care_plans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_care_plans_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_case_assignments: {
+        Row: {
+          active: boolean
+          assigned_at: string
+          assigned_by: string
+          assignment_role: string
+          ended_at: string | null
+          id: string
+          org_id: string
+          social_case_id: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by: string
+          assignment_role: string
+          ended_at?: string | null
+          id?: string
+          org_id: string
+          social_case_id: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string
+          assignment_role?: string
+          ended_at?: string | null
+          id?: string
+          org_id?: string
+          social_case_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_case_assignments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_assignments_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_case_closures: {
+        Row: {
+          client_notification: string | null
+          closing_professional: string
+          closure_date: string | null
+          closure_reason: string
+          closure_version: number
+          created_at: string
+          document_disposition: string | null
+          final_risk_level: string
+          goals_completed: string | null
+          goals_incomplete: string | null
+          id: string
+          org_id: string
+          outstanding_deadlines: string | null
+          pending_referrals: string | null
+          referrals_completed: string | null
+          reopen_reason: string | null
+          reopened_at: string | null
+          reopened_by: string | null
+          retention_status: string | null
+          social_case_id: string
+          supervisor_approval_by: string | null
+          supervisor_approved_at: string | null
+        }
+        Insert: {
+          client_notification?: string | null
+          closing_professional: string
+          closure_date?: string | null
+          closure_reason: string
+          closure_version?: number
+          created_at?: string
+          document_disposition?: string | null
+          final_risk_level: string
+          goals_completed?: string | null
+          goals_incomplete?: string | null
+          id?: string
+          org_id: string
+          outstanding_deadlines?: string | null
+          pending_referrals?: string | null
+          referrals_completed?: string | null
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
+          retention_status?: string | null
+          social_case_id: string
+          supervisor_approval_by?: string | null
+          supervisor_approved_at?: string | null
+        }
+        Update: {
+          client_notification?: string | null
+          closing_professional?: string
+          closure_date?: string | null
+          closure_reason?: string
+          closure_version?: number
+          created_at?: string
+          document_disposition?: string | null
+          final_risk_level?: string
+          goals_completed?: string | null
+          goals_incomplete?: string | null
+          id?: string
+          org_id?: string
+          outstanding_deadlines?: string | null
+          pending_referrals?: string | null
+          referrals_completed?: string | null
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
+          retention_status?: string | null
+          social_case_id?: string
+          supervisor_approval_by?: string | null
+          supervisor_approved_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_case_closures_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_closures_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_case_document_requirements: {
+        Row: {
+          created_at: string
+          created_by: string
+          document_type: string
+          due_at: string | null
+          id: string
+          notes: string | null
+          org_id: string
+          social_case_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          document_type: string
+          due_at?: string | null
+          id?: string
+          notes?: string | null
+          org_id: string
+          social_case_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          document_type?: string
+          due_at?: string | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          social_case_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_case_document_requirements_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_document_requirements_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_case_number_counters: {
+        Row: {
+          calendar_year: number
+          last_number: number
+          org_id: string
+          program_id: string
+        }
+        Insert: {
+          calendar_year: number
+          last_number?: number
+          org_id: string
+          program_id: string
+        }
+        Update: {
+          calendar_year?: number
+          last_number?: number
+          org_id?: string
+          program_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_case_number_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_number_counters_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "social_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_case_transfer_items: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          exclusion_reason: string | null
+          id: string
+          included: boolean
+          item_id: string | null
+          item_type: string
+          org_id: string
+          record_type: string
+          transfer_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          exclusion_reason?: string | null
+          id?: string
+          included?: boolean
+          item_id?: string | null
+          item_type: string
+          org_id: string
+          record_type?: string
+          transfer_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          exclusion_reason?: string | null
+          id?: string
+          included?: boolean
+          item_id?: string | null
+          item_type?: string
+          org_id?: string
+          record_type?: string
+          transfer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_case_transfer_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "social_case_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_case_transfers: {
+        Row: {
+          consent_id: string | null
+          created_at: string
+          created_by: string
+          deadlines: Json
+          from_office_id: string | null
+          from_user_id: string | null
+          id: string
+          org_id: string
+          received_at: string | null
+          received_by: string | null
+          receiving_org_id: string | null
+          restricted_information: Json
+          selected_information: Json
+          sent_at: string | null
+          social_case_id: string
+          status: string
+          to_office_id: string | null
+          to_user_id: string | null
+          transfer_summary: string
+          transfer_type: string
+        }
+        Insert: {
+          consent_id?: string | null
+          created_at?: string
+          created_by: string
+          deadlines?: Json
+          from_office_id?: string | null
+          from_user_id?: string | null
+          id?: string
+          org_id: string
+          received_at?: string | null
+          received_by?: string | null
+          receiving_org_id?: string | null
+          restricted_information?: Json
+          selected_information?: Json
+          sent_at?: string | null
+          social_case_id: string
+          status?: string
+          to_office_id?: string | null
+          to_user_id?: string | null
+          transfer_summary: string
+          transfer_type: string
+        }
+        Update: {
+          consent_id?: string | null
+          created_at?: string
+          created_by?: string
+          deadlines?: Json
+          from_office_id?: string | null
+          from_user_id?: string | null
+          id?: string
+          org_id?: string
+          received_at?: string | null
+          received_by?: string | null
+          receiving_org_id?: string | null
+          restricted_information?: Json
+          selected_information?: Json
+          sent_at?: string | null
+          social_case_id?: string
+          status?: string
+          to_office_id?: string | null
+          to_user_id?: string | null
+          transfer_summary?: string
+          transfer_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_case_transfers_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "social_consents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_transfers_from_office_id_fkey"
+            columns: ["from_office_id"]
+            isOneToOne: false
+            referencedRelation: "social_offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_transfers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_transfers_receiving_org_id_fkey"
+            columns: ["receiving_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_transfers_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_transfers_to_office_id_fkey"
+            columns: ["to_office_id"]
+            isOneToOne: false
+            referencedRelation: "social_offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_cases: {
+        Row: {
+          assigned_case_manager: string | null
+          case_number: string
+          case_type: string
+          closure_date: string | null
+          confidentiality_level: string
+          consent_status: string
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          family_id: string | null
+          id: string
+          intake_date: string
+          last_activity_at: string
+          next_required_action: string | null
+          office_id: string | null
+          opened_at: string
+          org_id: string
+          person_id: string | null
+          priority: string
+          program_id: string
+          referral_source: string | null
+          risk_level: string
+          service_areas: string[]
+          status: string
+          supervising_manager: string | null
+          tags: string[]
+          transfer_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_case_manager?: string | null
+          case_number: string
+          case_type: string
+          closure_date?: string | null
+          confidentiality_level?: string
+          consent_status?: string
+          created_at?: string
+          created_by: string
+          deleted_at?: string | null
+          family_id?: string | null
+          id?: string
+          intake_date?: string
+          last_activity_at?: string
+          next_required_action?: string | null
+          office_id?: string | null
+          opened_at?: string
+          org_id: string
+          person_id?: string | null
+          priority?: string
+          program_id: string
+          referral_source?: string | null
+          risk_level?: string
+          service_areas?: string[]
+          status?: string
+          supervising_manager?: string | null
+          tags?: string[]
+          transfer_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_case_manager?: string | null
+          case_number?: string
+          case_type?: string
+          closure_date?: string | null
+          confidentiality_level?: string
+          consent_status?: string
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          family_id?: string | null
+          id?: string
+          intake_date?: string
+          last_activity_at?: string
+          next_required_action?: string | null
+          office_id?: string | null
+          opened_at?: string
+          org_id?: string
+          person_id?: string | null
+          priority?: string
+          program_id?: string
+          referral_source?: string | null
+          risk_level?: string
+          service_areas?: string[]
+          status?: string
+          supervising_manager?: string | null
+          tags?: string[]
+          transfer_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_cases_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "social_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_cases_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "social_offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_cases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_cases_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_cases_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "social_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_consent_versions: {
+        Row: {
+          confirmation: Json
+          consent_id: string
+          consented_by_name: string
+          created_at: string
+          created_by: string
+          guardian_representative: string | null
+          id: string
+          language: string
+          org_id: string
+          permitted_information: string[]
+          permitted_purpose: string[]
+          permitted_recipients: string[]
+          restrictions: string | null
+          version: number
+        }
+        Insert: {
+          confirmation?: Json
+          consent_id: string
+          consented_by_name: string
+          created_at?: string
+          created_by: string
+          guardian_representative?: string | null
+          id?: string
+          language?: string
+          org_id: string
+          permitted_information?: string[]
+          permitted_purpose?: string[]
+          permitted_recipients?: string[]
+          restrictions?: string | null
+          version: number
+        }
+        Update: {
+          confirmation?: Json
+          consent_id?: string
+          consented_by_name?: string
+          created_at?: string
+          created_by?: string
+          guardian_representative?: string | null
+          id?: string
+          language?: string
+          org_id?: string
+          permitted_information?: string[]
+          permitted_purpose?: string[]
+          permitted_recipients?: string[]
+          restrictions?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_consent_versions_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "social_consents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_consent_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_consents: {
+        Row: {
+          consent_type: string
+          created_at: string
+          created_by: string
+          current_version: number
+          expires_at: string | null
+          family_id: string | null
+          id: string
+          org_id: string
+          person_id: string | null
+          revoked_at: string | null
+          status: string
+          valid_from: string
+        }
+        Insert: {
+          consent_type: string
+          created_at?: string
+          created_by: string
+          current_version?: number
+          expires_at?: string | null
+          family_id?: string | null
+          id?: string
+          org_id: string
+          person_id?: string | null
+          revoked_at?: string | null
+          status?: string
+          valid_from?: string
+        }
+        Update: {
+          consent_type?: string
+          created_at?: string
+          created_by?: string
+          current_version?: number
+          expires_at?: string | null
+          family_id?: string | null
+          id?: string
+          org_id?: string
+          person_id?: string | null
+          revoked_at?: string | null
+          status?: string
+          valid_from?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_consents_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "social_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_consents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_consents_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_document_access_events: {
+        Row: {
+          action: string
+          actor_id: string
+          document_id: string
+          id: string
+          occurred_at: string
+          org_id: string
+          reason: string | null
+          social_case_id: string
+          version: number
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          document_id: string
+          id?: string
+          occurred_at?: string
+          org_id: string
+          reason?: string | null
+          social_case_id: string
+          version: number
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          document_id?: string
+          id?: string
+          occurred_at?: string
+          org_id?: string
+          reason?: string | null
+          social_case_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_document_access_events_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "social_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_document_access_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_document_access_events_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_document_shares: {
+        Row: {
+          consent_id: string
+          created_at: string
+          created_by: string
+          document_id: string
+          expires_at: string | null
+          id: string
+          org_id: string
+          purpose: string
+          receiving_org_id: string
+          revoked_at: string | null
+        }
+        Insert: {
+          consent_id: string
+          created_at?: string
+          created_by: string
+          document_id: string
+          expires_at?: string | null
+          id?: string
+          org_id: string
+          purpose: string
+          receiving_org_id: string
+          revoked_at?: string | null
+        }
+        Update: {
+          consent_id?: string
+          created_at?: string
+          created_by?: string
+          document_id?: string
+          expires_at?: string | null
+          id?: string
+          org_id?: string
+          purpose?: string
+          receiving_org_id?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_document_shares_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "social_consents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_document_shares_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "social_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_document_shares_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_document_shares_receiving_org_id_fkey"
+            columns: ["receiving_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_document_versions: {
+        Row: {
+          checksum: string
+          created_at: string
+          document_id: string
+          id: string
+          mime_type: string | null
+          notes: string | null
+          org_id: string
+          size_bytes: number | null
+          storage_path: string
+          uploaded_by: string
+          version: number
+        }
+        Insert: {
+          checksum: string
+          created_at?: string
+          document_id: string
+          id?: string
+          mime_type?: string | null
+          notes?: string | null
+          org_id: string
+          size_bytes?: number | null
+          storage_path: string
+          uploaded_by: string
+          version: number
+        }
+        Update: {
+          checksum?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+          mime_type?: string | null
+          notes?: string | null
+          org_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+          uploaded_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "social_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_document_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_documents: {
+        Row: {
+          checksum: string | null
+          classification_status: string
+          consent_id: string | null
+          created_at: string
+          current_version: number
+          deleted_at: string | null
+          description: string | null
+          document_status: string
+          document_type: string | null
+          expires_at: string | null
+          external_shareable: boolean
+          extracted_text: string | null
+          extraction_authorized: boolean
+          family_id: string | null
+          id: string
+          linked_entities: Json
+          mime_type: string | null
+          org_id: string
+          person_id: string | null
+          record_type: string
+          sensitivity: string
+          size_bytes: number | null
+          social_case_id: string
+          storage_path: string
+          superseded_by: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          checksum?: string | null
+          classification_status?: string
+          consent_id?: string | null
+          created_at?: string
+          current_version?: number
+          deleted_at?: string | null
+          description?: string | null
+          document_status?: string
+          document_type?: string | null
+          expires_at?: string | null
+          external_shareable?: boolean
+          extracted_text?: string | null
+          extraction_authorized?: boolean
+          family_id?: string | null
+          id?: string
+          linked_entities?: Json
+          mime_type?: string | null
+          org_id: string
+          person_id?: string | null
+          record_type?: string
+          sensitivity?: string
+          size_bytes?: number | null
+          social_case_id: string
+          storage_path: string
+          superseded_by?: string | null
+          tags?: string[]
+          title: string
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          checksum?: string | null
+          classification_status?: string
+          consent_id?: string | null
+          created_at?: string
+          current_version?: number
+          deleted_at?: string | null
+          description?: string | null
+          document_status?: string
+          document_type?: string | null
+          expires_at?: string | null
+          external_shareable?: boolean
+          extracted_text?: string | null
+          extraction_authorized?: boolean
+          family_id?: string | null
+          id?: string
+          linked_entities?: Json
+          mime_type?: string | null
+          org_id?: string
+          person_id?: string | null
+          record_type?: string
+          sensitivity?: string
+          size_bytes?: number | null
+          social_case_id?: string
+          storage_path?: string
+          superseded_by?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_documents_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "social_consents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_documents_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "social_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_documents_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_documents_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_documents_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "social_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_families: {
+        Row: {
+          assigned_case_manager: string | null
+          created_at: string
+          created_by: string
+          current_location: Json
+          data_sharing_permissions: Json
+          deleted_at: string | null
+          family_name: string
+          family_number: string
+          id: string
+          office_id: string | null
+          org_id: string
+          primary_contact_person_id: string | null
+          shared_needs: Json
+          shared_risks: Json
+          updated_at: string
+        }
+        Insert: {
+          assigned_case_manager?: string | null
+          created_at?: string
+          created_by: string
+          current_location?: Json
+          data_sharing_permissions?: Json
+          deleted_at?: string | null
+          family_name: string
+          family_number: string
+          id?: string
+          office_id?: string | null
+          org_id: string
+          primary_contact_person_id?: string | null
+          shared_needs?: Json
+          shared_risks?: Json
+          updated_at?: string
+        }
+        Update: {
+          assigned_case_manager?: string | null
+          created_at?: string
+          created_by?: string
+          current_location?: Json
+          data_sharing_permissions?: Json
+          deleted_at?: string | null
+          family_name?: string
+          family_number?: string
+          id?: string
+          office_id?: string | null
+          org_id?: string
+          primary_contact_person_id?: string | null
+          shared_needs?: Json
+          shared_risks?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_families_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "social_offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_families_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_families_primary_contact_person_id_fkey"
+            columns: ["primary_contact_person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_family_members: {
+        Row: {
+          family_id: string
+          id: string
+          is_child: boolean
+          is_dependent: boolean
+          is_guardian: boolean
+          joined_at: string
+          left_at: string | null
+          org_id: string
+          person_id: string
+          relationship: string | null
+        }
+        Insert: {
+          family_id: string
+          id?: string
+          is_child?: boolean
+          is_dependent?: boolean
+          is_guardian?: boolean
+          joined_at?: string
+          left_at?: string | null
+          org_id: string
+          person_id: string
+          relationship?: string | null
+        }
+        Update: {
+          family_id?: string
+          id?: string
+          is_child?: boolean
+          is_dependent?: boolean
+          is_guardian?: boolean
+          joined_at?: string
+          left_at?: string | null
+          org_id?: string
+          person_id?: string
+          relationship?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_family_members_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "social_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_family_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_family_members_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_identifier_counters: {
+        Row: {
+          calendar_year: number
+          entity_type: string
+          last_number: number
+          org_id: string
+        }
+        Insert: {
+          calendar_year: number
+          entity_type: string
+          last_number?: number
+          org_id: string
+        }
+        Update: {
+          calendar_year?: number
+          entity_type?: string
+          last_number?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_identifier_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_immigration_links: {
+        Row: {
+          consent_id: string
+          created_at: string
+          created_by: string
+          detention_deportation_risk: boolean
+          id: string
+          immigration_case_id: string
+          non_refoulement_concern: boolean
+          org_id: string
+          permitted_status_fields: string[]
+          revoked_at: string | null
+          shared_document_ids: string[]
+          shared_social_fields: string[]
+          social_case_id: string
+        }
+        Insert: {
+          consent_id: string
+          created_at?: string
+          created_by: string
+          detention_deportation_risk?: boolean
+          id?: string
+          immigration_case_id: string
+          non_refoulement_concern?: boolean
+          org_id: string
+          permitted_status_fields?: string[]
+          revoked_at?: string | null
+          shared_document_ids?: string[]
+          shared_social_fields?: string[]
+          social_case_id: string
+        }
+        Update: {
+          consent_id?: string
+          created_at?: string
+          created_by?: string
+          detention_deportation_risk?: boolean
+          id?: string
+          immigration_case_id?: string
+          non_refoulement_concern?: boolean
+          org_id?: string
+          permitted_status_fields?: string[]
+          revoked_at?: string | null
+          shared_document_ids?: string[]
+          shared_social_fields?: string[]
+          social_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_immigration_links_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "social_consents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_immigration_links_immigration_case_id_fkey"
+            columns: ["immigration_case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_immigration_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_immigration_links_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_indicator_definitions: {
+        Row: {
+          active: boolean
+          aggregation: string
+          code: string
+          created_at: string
+          created_by: string | null
+          denominator_filter: Json | null
+          description_en: string | null
+          description_es: string | null
+          id: string
+          name_en: string
+          name_es: string
+          numerator_filter: Json
+          org_id: string | null
+          small_group_threshold: number
+          source_entity: string
+        }
+        Insert: {
+          active?: boolean
+          aggregation: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          denominator_filter?: Json | null
+          description_en?: string | null
+          description_es?: string | null
+          id?: string
+          name_en: string
+          name_es: string
+          numerator_filter?: Json
+          org_id?: string | null
+          small_group_threshold?: number
+          source_entity: string
+        }
+        Update: {
+          active?: boolean
+          aggregation?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          denominator_filter?: Json | null
+          description_en?: string | null
+          description_es?: string | null
+          id?: string
+          name_en?: string
+          name_es?: string
+          numerator_filter?: Json
+          org_id?: string | null
+          small_group_threshold?: number
+          source_entity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_indicator_definitions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_indicator_snapshots: {
+        Row: {
+          definition_id: string | null
+          filters: Json
+          generated_at: string
+          id: string
+          indicator_code: string
+          office_id: string | null
+          org_id: string
+          period_end: string
+          period_start: string
+          program_id: string | null
+          suppressed: boolean
+          suppression_reason: string | null
+          value: number
+        }
+        Insert: {
+          definition_id?: string | null
+          filters?: Json
+          generated_at?: string
+          id?: string
+          indicator_code: string
+          office_id?: string | null
+          org_id: string
+          period_end: string
+          period_start: string
+          program_id?: string | null
+          suppressed?: boolean
+          suppression_reason?: string | null
+          value: number
+        }
+        Update: {
+          definition_id?: string | null
+          filters?: Json
+          generated_at?: string
+          id?: string
+          indicator_code?: string
+          office_id?: string | null
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          program_id?: string | null
+          suppressed?: boolean
+          suppression_reason?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_indicator_snapshots_definition_id_fkey"
+            columns: ["definition_id"]
+            isOneToOne: false
+            referencedRelation: "social_indicator_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_indicator_snapshots_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "social_offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_indicator_snapshots_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_indicator_snapshots_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "social_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_institutions: {
+        Row: {
+          accessibility: string[]
+          active: boolean
+          address: string | null
+          appointment_required: boolean
+          approved_at: string | null
+          approved_by: string | null
+          capacity_status: string
+          confidentiality_level: string
+          contact: Json
+          contact_person: string | null
+          cost_notes: string | null
+          cost_type: string
+          coverage_levels: string[]
+          coverage_municipalities: string[]
+          coverage_states: string[]
+          created_at: string
+          description: string | null
+          eligibility: string | null
+          email: string | null
+          emergency_available: boolean
+          hours: Json
+          id: string
+          institution_type: string
+          internal_notes: string | null
+          jurisdiction_level: string | null
+          languages: string[]
+          latitude: number | null
+          location_confidential: boolean
+          longitude: number | null
+          municipality: string | null
+          name: string
+          next_verification_at: string | null
+          official_name: string | null
+          org_id: string | null
+          phone: string | null
+          populations: string[]
+          public_notes: string | null
+          referral_methods: string[]
+          remote_available: boolean
+          required_documents: string[]
+          services: string[]
+          state_code: string | null
+          status: string
+          updated_at: string
+          verification_evidence_url: string | null
+          verification_source: string | null
+          verification_status: string
+          verified_at: string | null
+          verified_by: string | null
+          walk_in_available: boolean
+          website: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          accessibility?: string[]
+          active?: boolean
+          address?: string | null
+          appointment_required?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          capacity_status?: string
+          confidentiality_level?: string
+          contact?: Json
+          contact_person?: string | null
+          cost_notes?: string | null
+          cost_type?: string
+          coverage_levels?: string[]
+          coverage_municipalities?: string[]
+          coverage_states?: string[]
+          created_at?: string
+          description?: string | null
+          eligibility?: string | null
+          email?: string | null
+          emergency_available?: boolean
+          hours?: Json
+          id?: string
+          institution_type: string
+          internal_notes?: string | null
+          jurisdiction_level?: string | null
+          languages?: string[]
+          latitude?: number | null
+          location_confidential?: boolean
+          longitude?: number | null
+          municipality?: string | null
+          name: string
+          next_verification_at?: string | null
+          official_name?: string | null
+          org_id?: string | null
+          phone?: string | null
+          populations?: string[]
+          public_notes?: string | null
+          referral_methods?: string[]
+          remote_available?: boolean
+          required_documents?: string[]
+          services?: string[]
+          state_code?: string | null
+          status?: string
+          updated_at?: string
+          verification_evidence_url?: string | null
+          verification_source?: string | null
+          verification_status?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          walk_in_available?: boolean
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          accessibility?: string[]
+          active?: boolean
+          address?: string | null
+          appointment_required?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          capacity_status?: string
+          confidentiality_level?: string
+          contact?: Json
+          contact_person?: string | null
+          cost_notes?: string | null
+          cost_type?: string
+          coverage_levels?: string[]
+          coverage_municipalities?: string[]
+          coverage_states?: string[]
+          created_at?: string
+          description?: string | null
+          eligibility?: string | null
+          email?: string | null
+          emergency_available?: boolean
+          hours?: Json
+          id?: string
+          institution_type?: string
+          internal_notes?: string | null
+          jurisdiction_level?: string | null
+          languages?: string[]
+          latitude?: number | null
+          location_confidential?: boolean
+          longitude?: number | null
+          municipality?: string | null
+          name?: string
+          next_verification_at?: string | null
+          official_name?: string | null
+          org_id?: string | null
+          phone?: string | null
+          populations?: string[]
+          public_notes?: string | null
+          referral_methods?: string[]
+          remote_available?: boolean
+          required_documents?: string[]
+          services?: string[]
+          state_code?: string | null
+          status?: string
+          updated_at?: string
+          verification_evidence_url?: string | null
+          verification_source?: string | null
+          verification_status?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          walk_in_available?: boolean
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_institutions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_interventions: {
+        Row: {
+          actions_taken: string
+          care_plan_goal_id: string | null
+          confidentiality_level: string
+          created_at: string
+          family_id: string | null
+          follow_up_required: boolean
+          id: string
+          location_method: string | null
+          next_appointment: string | null
+          occurred_at: string
+          org_id: string
+          outcome: string | null
+          person_id: string | null
+          professional_id: string
+          reason: string
+          record_type: string
+          service_type: string
+          social_case_id: string
+        }
+        Insert: {
+          actions_taken: string
+          care_plan_goal_id?: string | null
+          confidentiality_level?: string
+          created_at?: string
+          family_id?: string | null
+          follow_up_required?: boolean
+          id?: string
+          location_method?: string | null
+          next_appointment?: string | null
+          occurred_at: string
+          org_id: string
+          outcome?: string | null
+          person_id?: string | null
+          professional_id: string
+          reason: string
+          record_type?: string
+          service_type: string
+          social_case_id: string
+        }
+        Update: {
+          actions_taken?: string
+          care_plan_goal_id?: string | null
+          confidentiality_level?: string
+          created_at?: string
+          family_id?: string | null
+          follow_up_required?: boolean
+          id?: string
+          location_method?: string | null
+          next_appointment?: string | null
+          occurred_at?: string
+          org_id?: string
+          outcome?: string | null
+          person_id?: string | null
+          professional_id?: string
+          reason?: string
+          record_type?: string
+          service_type?: string
+          social_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_interventions_care_plan_goal_id_fkey"
+            columns: ["care_plan_goal_id"]
+            isOneToOne: false
+            referencedRelation: "social_care_plan_goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_interventions_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "social_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_interventions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_interventions_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_interventions_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_offices: {
+        Row: {
+          active: boolean
+          address: Json
+          code: string
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          program_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          address?: Json
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          program_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          address?: Json
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          program_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_offices_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_offices_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "social_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_people: {
+        Row: {
+          accessibility_needs: string | null
+          aliases: string[]
+          approximate_age: number | null
+          assigned_case_manager: string | null
+          consent_status: string
+          country_of_origin: string | null
+          created_at: string
+          created_by: string
+          current_location: Json
+          data_sharing_restrictions: string | null
+          date_of_birth: string | null
+          deleted_at: string | null
+          email: string | null
+          emergency_contact: Json
+          gender_identity: string | null
+          id: string
+          identity_documents: Json
+          immigration_identifiers: Json
+          interpreter_required: boolean
+          is_minor: boolean | null
+          languages: string[]
+          legal_name: string
+          nationality: string | null
+          office_id: string | null
+          org_id: string
+          person_number: string
+          place_of_origin: string | null
+          preferred_name: string | null
+          record_status: string
+          safety_restrictions: string | null
+          separated_minor: boolean
+          sex: string | null
+          telephone: string | null
+          unaccompanied_minor: boolean
+          updated_at: string
+        }
+        Insert: {
+          accessibility_needs?: string | null
+          aliases?: string[]
+          approximate_age?: number | null
+          assigned_case_manager?: string | null
+          consent_status?: string
+          country_of_origin?: string | null
+          created_at?: string
+          created_by: string
+          current_location?: Json
+          data_sharing_restrictions?: string | null
+          date_of_birth?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          emergency_contact?: Json
+          gender_identity?: string | null
+          id?: string
+          identity_documents?: Json
+          immigration_identifiers?: Json
+          interpreter_required?: boolean
+          is_minor?: boolean | null
+          languages?: string[]
+          legal_name: string
+          nationality?: string | null
+          office_id?: string | null
+          org_id: string
+          person_number: string
+          place_of_origin?: string | null
+          preferred_name?: string | null
+          record_status?: string
+          safety_restrictions?: string | null
+          separated_minor?: boolean
+          sex?: string | null
+          telephone?: string | null
+          unaccompanied_minor?: boolean
+          updated_at?: string
+        }
+        Update: {
+          accessibility_needs?: string | null
+          aliases?: string[]
+          approximate_age?: number | null
+          assigned_case_manager?: string | null
+          consent_status?: string
+          country_of_origin?: string | null
+          created_at?: string
+          created_by?: string
+          current_location?: Json
+          data_sharing_restrictions?: string | null
+          date_of_birth?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          emergency_contact?: Json
+          gender_identity?: string | null
+          id?: string
+          identity_documents?: Json
+          immigration_identifiers?: Json
+          interpreter_required?: boolean
+          is_minor?: boolean | null
+          languages?: string[]
+          legal_name?: string
+          nationality?: string | null
+          office_id?: string | null
+          org_id?: string
+          person_number?: string
+          place_of_origin?: string | null
+          preferred_name?: string | null
+          record_status?: string
+          safety_restrictions?: string | null
+          separated_minor?: boolean
+          sex?: string | null
+          telephone?: string | null
+          unaccompanied_minor?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_people_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "social_offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_people_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_programs: {
+        Row: {
+          active: boolean
+          case_prefix: string
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          name_en: string
+          name_es: string
+          org_id: string
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          case_prefix?: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          name_en: string
+          name_es: string
+          org_id: string
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          case_prefix?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          name_en?: string
+          name_es?: string
+          org_id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_programs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_record_grants: {
+        Row: {
+          can_read: boolean
+          can_write: boolean
+          created_at: string
+          expires_at: string | null
+          granted_by: string
+          id: string
+          org_id: string
+          reason: string
+          record_type: string
+          revoked_at: string | null
+          social_case_id: string
+          team_role: string | null
+          user_id: string | null
+        }
+        Insert: {
+          can_read?: boolean
+          can_write?: boolean
+          created_at?: string
+          expires_at?: string | null
+          granted_by: string
+          id?: string
+          org_id: string
+          reason: string
+          record_type: string
+          revoked_at?: string | null
+          social_case_id: string
+          team_role?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          can_read?: boolean
+          can_write?: boolean
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string
+          id?: string
+          org_id?: string
+          reason?: string
+          record_type?: string
+          revoked_at?: string | null
+          social_case_id?: string
+          team_role?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_record_grants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_record_grants_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_referral_shared_packets: {
+        Row: {
+          consent_id: string
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          org_id: string
+          purpose: string
+          receiving_org_id: string
+          referral_id: string
+          revoked_at: string | null
+          shared_fields: Json
+        }
+        Insert: {
+          consent_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          org_id: string
+          purpose: string
+          receiving_org_id: string
+          referral_id: string
+          revoked_at?: string | null
+          shared_fields?: Json
+        }
+        Update: {
+          consent_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          org_id?: string
+          purpose?: string
+          receiving_org_id?: string
+          referral_id?: string
+          revoked_at?: string | null
+          shared_fields?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_referral_shared_packets_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "social_consents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referral_shared_packets_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referral_shared_packets_receiving_org_id_fkey"
+            columns: ["receiving_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referral_shared_packets_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "social_referrals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_referral_updates: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          note: string | null
+          org_id: string
+          referral_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          note?: string | null
+          org_id: string
+          referral_id: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          referral_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_referral_updates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referral_updates_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "social_referrals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_referrals: {
+        Row: {
+          appointment_at: string | null
+          authorized_document_ids: string[]
+          authorized_information: string[]
+          closure_reason: string | null
+          consent_id: string | null
+          contact_person: string | null
+          created_at: string
+          created_by: string
+          family_id: string | null
+          follow_up_date: string | null
+          id: string
+          org_id: string
+          person_id: string | null
+          reason: string
+          receiving_institution_id: string
+          receiving_org_id: string | null
+          referral_date: string | null
+          referral_number: string
+          response: string | null
+          result: string | null
+          result_verified_at: string | null
+          result_verified_by: string | null
+          service_requested: string
+          social_case_id: string
+          status: string
+          updated_at: string
+          urgency: string
+        }
+        Insert: {
+          appointment_at?: string | null
+          authorized_document_ids?: string[]
+          authorized_information?: string[]
+          closure_reason?: string | null
+          consent_id?: string | null
+          contact_person?: string | null
+          created_at?: string
+          created_by: string
+          family_id?: string | null
+          follow_up_date?: string | null
+          id?: string
+          org_id: string
+          person_id?: string | null
+          reason: string
+          receiving_institution_id: string
+          receiving_org_id?: string | null
+          referral_date?: string | null
+          referral_number: string
+          response?: string | null
+          result?: string | null
+          result_verified_at?: string | null
+          result_verified_by?: string | null
+          service_requested: string
+          social_case_id: string
+          status?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Update: {
+          appointment_at?: string | null
+          authorized_document_ids?: string[]
+          authorized_information?: string[]
+          closure_reason?: string | null
+          consent_id?: string | null
+          contact_person?: string | null
+          created_at?: string
+          created_by?: string
+          family_id?: string | null
+          follow_up_date?: string | null
+          id?: string
+          org_id?: string
+          person_id?: string | null
+          reason?: string
+          receiving_institution_id?: string
+          receiving_org_id?: string | null
+          referral_date?: string | null
+          referral_number?: string
+          response?: string | null
+          result?: string | null
+          result_verified_at?: string | null
+          result_verified_by?: string | null
+          service_requested?: string
+          social_case_id?: string
+          status?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_referrals_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "social_consents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referrals_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "social_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referrals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referrals_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referrals_receiving_institution_id_fkey"
+            columns: ["receiving_institution_id"]
+            isOneToOne: false
+            referencedRelation: "social_institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referrals_receiving_org_id_fkey"
+            columns: ["receiving_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_referrals_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_retention_actions: {
+        Row: {
+          action_type: string
+          approved_at: string | null
+          approved_by: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          id: string
+          manifest: Json
+          org_id: string
+          reason: string
+          requested_by: string
+          retention_until: string | null
+          social_case_id: string
+        }
+        Insert: {
+          action_type: string
+          approved_at?: string | null
+          approved_by?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          manifest?: Json
+          org_id: string
+          reason: string
+          requested_by: string
+          retention_until?: string | null
+          social_case_id: string
+        }
+        Update: {
+          action_type?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          manifest?: Json
+          org_id?: string
+          reason?: string
+          requested_by?: string
+          retention_until?: string | null
+          social_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_retention_actions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_retention_actions_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_role_assignments: {
+        Row: {
+          active: boolean
+          assigned_by: string | null
+          created_at: string
+          ends_at: string | null
+          id: string
+          org_id: string
+          role: string
+          scope_id: string | null
+          scope_type: string
+          starts_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_by?: string | null
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          org_id: string
+          role: string
+          scope_id?: string | null
+          scope_type?: string
+          starts_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          assigned_by?: string | null
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          org_id?: string
+          role?: string
+          scope_id?: string | null
+          scope_type?: string
+          starts_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_role_assignments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_role_capabilities: {
+        Row: {
+          capability: string
+          created_at: string
+          role: string
+        }
+        Insert: {
+          capability: string
+          created_at?: string
+          role: string
+        }
+        Update: {
+          capability?: string
+          created_at?: string
+          role?: string
+        }
+        Relationships: []
+      }
+      social_sales_demo_records: {
+        Row: {
+          created_at: string
+          external_key: string
+          fixture_version: string
+          id: string
+          org_id: string
+          original_state: Json | null
+          owner_user_id: string
+          record_id: string
+          sales_demo: boolean
+          synthetic: boolean
+          table_name: string
+        }
+        Insert: {
+          created_at?: string
+          external_key: string
+          fixture_version: string
+          id?: string
+          org_id: string
+          original_state?: Json | null
+          owner_user_id: string
+          record_id: string
+          sales_demo?: boolean
+          synthetic?: boolean
+          table_name: string
+        }
+        Update: {
+          created_at?: string
+          external_key?: string
+          fixture_version?: string
+          id?: string
+          org_id?: string
+          original_state?: Json | null
+          owner_user_id?: string
+          record_id?: string
+          sales_demo?: boolean
+          synthetic?: boolean
+          table_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_sales_demo_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_support_access_grants: {
+        Row: {
+          approved_by: string
+          created_at: string
+          expires_at: string
+          id: string
+          org_id: string
+          reason: string
+          record_types: string[]
+          revoked_at: string | null
+          social_case_ids: string[]
+          starts_at: string
+          support_user_id: string
+        }
+        Insert: {
+          approved_by: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          org_id: string
+          reason: string
+          record_types?: string[]
+          revoked_at?: string | null
+          social_case_ids: string[]
+          starts_at?: string
+          support_user_id: string
+        }
+        Update: {
+          approved_by?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          org_id?: string
+          reason?: string
+          record_types?: string[]
+          revoked_at?: string | null
+          social_case_ids?: string[]
+          starts_at?: string
+          support_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_support_access_grants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_tasks: {
+        Row: {
+          assignee_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_at: string | null
+          id: string
+          org_id: string
+          priority: string
+          recurrence: Json | null
+          reminder_at: string | null
+          social_case_id: string
+          status: string
+          supervisor_escalation_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          org_id: string
+          priority?: string
+          recurrence?: Json | null
+          reminder_at?: string | null
+          social_case_id: string
+          status?: string
+          supervisor_escalation_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          org_id?: string
+          priority?: string
+          recurrence?: Json | null
+          reminder_at?: string | null
+          social_case_id?: string
+          status?: string
+          supervisor_escalation_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_tasks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_tasks_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6392,6 +10503,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_social_organization_invitation: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      accept_social_transfer: {
+        Args: { p_transfer: string }
+        Returns: undefined
+      }
+      add_social_document_version: {
+        Args: {
+          p_checksum: string
+          p_document: string
+          p_mime: string
+          p_notes: string
+          p_size: number
+          p_storage_path: string
+        }
+        Returns: number
+      }
       admin_factory_reset_case_data: {
         Args: {
           p_actor_id?: string
@@ -6443,6 +10573,22 @@ export type Database = {
           user_id: string
         }[]
       }
+      advance_social_transfer: {
+        Args: { p_action: string; p_transfer: string }
+        Returns: undefined
+      }
+      approve_social_care_plan: {
+        Args: { p_plan: string; p_version: number }
+        Returns: undefined
+      }
+      assert_existing_account_care_demo_owner: {
+        Args: never
+        Returns: undefined
+      }
+      assign_social_case_manager: {
+        Args: { p_case: string; p_role?: string; p_user: string }
+        Returns: undefined
+      }
       can_contribute_org: {
         Args: { _org: string; _user: string }
         Returns: boolean
@@ -6460,6 +10606,15 @@ export type Database = {
         }
         Returns: string
       }
+      close_social_case: {
+        Args: {
+          p_case: string
+          p_final_risk: string
+          p_reason: string
+          p_summary: Json
+        }
+        Returns: string
+      }
       closing_readiness: { Args: { p_case_id: string }; Returns: number }
       consume_usage: {
         Args: {
@@ -6474,6 +10629,253 @@ export type Database = {
           used: number
         }[]
       }
+      create_account_organization: {
+        Args: { p_name: string; p_prefix?: string; p_slug: string }
+        Returns: Json
+      }
+      create_social_assessment_initial: {
+        Args: {
+          p_actions: string
+          p_answers: Json
+          p_case: string
+          p_evidence: string
+          p_follow_up: string
+          p_override: boolean
+          p_override_explanation: string
+          p_protective: string
+          p_reason: string
+          p_review: string
+          p_risk: string
+          p_template: string
+        }
+        Returns: string
+      }
+      create_social_care_plan: {
+        Args: {
+          p_case: string
+          p_goals: Json
+          p_status: string
+          p_summary: string
+        }
+        Returns: string
+      }
+      create_social_case: {
+        Args: {
+          p_case_type: string
+          p_confidentiality_level?: string
+          p_family: string
+          p_org: string
+          p_person: string
+          p_priority?: string
+          p_program: string
+          p_referral_source?: string
+          p_risk_level?: string
+          p_service_areas?: string[]
+          p_tags?: string[]
+        }
+        Returns: {
+          assigned_case_manager: string | null
+          case_number: string
+          case_type: string
+          closure_date: string | null
+          confidentiality_level: string
+          consent_status: string
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          family_id: string | null
+          id: string
+          intake_date: string
+          last_activity_at: string
+          next_required_action: string | null
+          office_id: string | null
+          opened_at: string
+          org_id: string
+          person_id: string | null
+          priority: string
+          program_id: string
+          referral_source: string | null
+          risk_level: string
+          service_areas: string[]
+          status: string
+          supervising_manager: string | null
+          tags: string[]
+          transfer_date: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "social_cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_social_consent: {
+        Args: {
+          p_confirmation: Json
+          p_consented_by: string
+          p_expires: string
+          p_family: string
+          p_guardian: string
+          p_information: string[]
+          p_language: string
+          p_org: string
+          p_person: string
+          p_purposes: string[]
+          p_recipients: string[]
+          p_restrictions: string
+          p_type: string
+        }
+        Returns: string
+      }
+      create_social_family: {
+        Args: {
+          p_location: Json
+          p_members: string[]
+          p_name: string
+          p_org: string
+          p_primary: string
+        }
+        Returns: {
+          assigned_case_manager: string | null
+          created_at: string
+          created_by: string
+          current_location: Json
+          data_sharing_permissions: Json
+          deleted_at: string | null
+          family_name: string
+          family_number: string
+          id: string
+          office_id: string | null
+          org_id: string
+          primary_contact_person_id: string | null
+          shared_needs: Json
+          shared_risks: Json
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "social_families"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_social_person: {
+        Args: {
+          p_aliases?: string[]
+          p_approximate_age?: number
+          p_current_location?: Json
+          p_date_of_birth?: string
+          p_email?: string
+          p_immigration_identifiers?: Json
+          p_is_minor?: boolean
+          p_languages?: string[]
+          p_legal_name: string
+          p_nationality?: string
+          p_org: string
+          p_preferred_name?: string
+          p_separated_minor?: boolean
+          p_telephone?: string
+          p_unaccompanied_minor?: boolean
+        }
+        Returns: {
+          accessibility_needs: string | null
+          aliases: string[]
+          approximate_age: number | null
+          assigned_case_manager: string | null
+          consent_status: string
+          country_of_origin: string | null
+          created_at: string
+          created_by: string
+          current_location: Json
+          data_sharing_restrictions: string | null
+          date_of_birth: string | null
+          deleted_at: string | null
+          email: string | null
+          emergency_contact: Json
+          gender_identity: string | null
+          id: string
+          identity_documents: Json
+          immigration_identifiers: Json
+          interpreter_required: boolean
+          is_minor: boolean | null
+          languages: string[]
+          legal_name: string
+          nationality: string | null
+          office_id: string | null
+          org_id: string
+          person_number: string
+          place_of_origin: string | null
+          preferred_name: string | null
+          record_status: string
+          safety_restrictions: string | null
+          separated_minor: boolean
+          sex: string | null
+          telephone: string | null
+          unaccompanied_minor: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "social_people"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      demo_manifest: {
+        Args: { p_id: string; p_key: string; p_table: string }
+        Returns: undefined
+      }
+      ensure_social_program_for_org: {
+        Args: {
+          p_name_en?: string
+          p_name_es?: string
+          p_org: string
+          p_prefix?: string
+        }
+        Returns: {
+          active: boolean
+          case_prefix: string
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          name_en: string
+          name_es: string
+          org_id: string
+          settings: Json
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "social_programs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      existing_account_care_demo_dry_run: { Args: never; Returns: Json }
+      existing_account_care_demo_storage_paths: {
+        Args: never
+        Returns: string[]
+      }
+      find_possible_social_people: {
+        Args: {
+          p_date_of_birth?: string
+          p_email?: string
+          p_limit?: number
+          p_name: string
+          p_org: string
+          p_phone?: string
+        }
+        Returns: {
+          date_of_birth: string
+          display_name: string
+          match_reasons: string[]
+          person_id: string
+          person_number: string
+        }[]
+      }
       firm_seat_usage: {
         Args: { _firm_id: string }
         Returns: {
@@ -6481,6 +10883,10 @@ export type Database = {
           seat_limit: number
           seats_used: number
         }[]
+      }
+      get_social_organization_account: {
+        Args: { p_org: string }
+        Returns: Json
       }
       has_permission: {
         Args: { _org: string; _perm: string; _user: string }
@@ -6497,6 +10903,10 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: undefined
       }
+      invite_social_organization_member: {
+        Args: { p_email: string; p_org: string; p_role: string }
+        Returns: Json
+      }
       is_admin_tier: { Args: { _user_id: string }; Returns: boolean }
       is_case_manager: { Args: { _user_id: string }; Returns: boolean }
       is_member_of_firm: {
@@ -6505,19 +10915,403 @@ export type Database = {
       }
       is_org_member: { Args: { _org: string; _user: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      move_social_document: {
+        Args: {
+          p_checksum: string
+          p_document: string
+          p_mime: string
+          p_new_storage_path: string
+          p_reason: string
+          p_size: number
+          p_target_case: string
+        }
+        Returns: undefined
+      }
+      normalize_mx_search: { Args: { value: string }; Returns: string }
+      normalize_social_search: { Args: { value: string }; Returns: string }
       org_role_of: {
         Args: { _org: string; _user: string }
         Returns: Database["public"]["Enums"]["org_role"]
       }
       plan_seat_limit: { Args: { _plan: string }; Returns: number }
+      populate_existing_account_comprehensive_care_demo: {
+        Args: never
+        Returns: Json
+      }
       project_case_findings: {
         Args: { p_case_id: string; p_rows: Json }
         Returns: number
       }
+      provision_organization_subscription_from_webhook: {
+        Args: {
+          p_billing_interval?: string
+          p_event_type: string
+          p_org_id: string
+          p_payload_hash?: string
+          p_period_end?: string
+          p_period_start?: string
+          p_plan_key: string
+          p_provider: string
+          p_provider_customer_id: string
+          p_provider_event_id: string
+          p_provider_subscription_id: string
+          p_status: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      record_social_assessment: {
+        Args: {
+          p_answers: Json
+          p_assessment: string
+          p_evidence: string
+          p_immediate_actions: string
+          p_next_review: string
+          p_override?: boolean
+          p_override_explanation?: string
+          p_protective_factors: string
+          p_reason: string
+          p_required_follow_up: string
+          p_risk_level: string
+        }
+        Returns: number
+      }
+      refresh_social_case_alerts: { Args: { p_case: string }; Returns: number }
+      register_existing_account_care_demo_document: {
+        Args: {
+          p_checksum: string
+          p_key: string
+          p_path: string
+          p_record_type: string
+          p_size: number
+          p_title: string
+          p_type: string
+        }
+        Returns: string
+      }
+      register_existing_account_care_demo_document_version: {
+        Args: {
+          p_checksum: string
+          p_key: string
+          p_path: string
+          p_size: number
+        }
+        Returns: string
+      }
+      register_social_document: {
+        Args: {
+          p_case: string
+          p_checksum: string
+          p_consent: string
+          p_document_type: string
+          p_extraction_authorized: boolean
+          p_family: string
+          p_mime: string
+          p_person: string
+          p_record_type: string
+          p_sensitivity: string
+          p_size: number
+          p_storage_path: string
+          p_title: string
+        }
+        Returns: string
+      }
+      remove_existing_account_comprehensive_care_demo: {
+        Args: never
+        Returns: Json
+      }
+      reopen_social_case: {
+        Args: { p_case: string; p_reason: string }
+        Returns: undefined
+      }
+      reset_existing_account_comprehensive_care_demo: {
+        Args: never
+        Returns: Json
+      }
       resolve_firm_for_email: { Args: { _email: string }; Returns: string }
+      resource_search_document: {
+        Args: { p_description: string; p_name: string; p_services: string[] }
+        Returns: unknown
+      }
       same_firm: { Args: { _a: string; _b: string }; Returns: boolean }
+      search_immigration_cases: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          case_id: string
+          case_name: string
+          client_name: string
+          immigration_subtype: string
+          internal_matter_number: string
+          matched_document_filename: string
+          matter_status: string
+          nationality: string
+          passport_masked: string
+          responsible_authority: string
+          updated_at: string
+        }[]
+      }
+      search_resource_network: {
+        Args: {
+          p_availability?: string
+          p_cost_type?: string
+          p_language?: string
+          p_latitude?: number
+          p_limit?: number
+          p_longitude?: number
+          p_municipality?: string
+          p_population?: string
+          p_query?: string
+          p_radius_km?: number
+          p_service?: string
+          p_state?: string
+          p_urgency?: string
+        }
+        Returns: {
+          address: string
+          appointment_required: boolean
+          capacity_status: string
+          cost_type: string
+          coverage_levels: string[]
+          description: string
+          distance_km: number
+          eligibility: string
+          email: string
+          emergency_available: boolean
+          hours: Json
+          id: string
+          institution_type: string
+          languages: string[]
+          latitude: number
+          longitude: number
+          match_explanation: string[]
+          match_score: number
+          municipality: string
+          next_verification_at: string
+          official_name: string
+          phone: string
+          populations: string[]
+          referral_methods: string[]
+          remote_available: boolean
+          required_documents: string[]
+          services: string[]
+          state_code: string
+          status: string
+          verification_status: string
+          verified_at: string
+          walk_in_available: boolean
+          website: string
+          whatsapp: string
+        }[]
+      }
+      search_social_case_management: {
+        Args: {
+          p_assignee?: string
+          p_limit?: number
+          p_org: string
+          p_query?: string
+          p_risk?: string
+          p_status?: string
+        }
+        Returns: {
+          assigned_case_manager: string
+          display_name: string
+          entity_id: string
+          entity_type: string
+          reference_number: string
+          risk_level: string
+          status: string
+          updated_at: string
+        }[]
+      }
+      send_social_referral: {
+        Args: {
+          p_expires?: string
+          p_purpose: string
+          p_referral: string
+          p_shared_fields: Json
+        }
+        Returns: undefined
+      }
+      set_social_organization_member: {
+        Args: {
+          p_org: string
+          p_role: string
+          p_status: string
+          p_user: string
+        }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      social_can_access_case: {
+        Args: {
+          p_case: string
+          p_record_type?: string
+          p_user?: string
+          p_write?: boolean
+        }
+        Returns: boolean
+      }
+      social_can_access_person: {
+        Args: { p_person: string; p_user?: string }
+        Returns: boolean
+      }
+      social_can_contribute_org: {
+        Args: { p_org: string; p_user?: string }
+        Returns: boolean
+      }
+      social_can_manage_org: {
+        Args: { p_org: string; p_user?: string }
+        Returns: boolean
+      }
+      social_consent_covers: {
+        Args: {
+          p_consent: string
+          p_information: string[]
+          p_purpose: string
+          p_recipient: string
+        }
+        Returns: boolean
+      }
+      social_document_inventory: {
+        Args: { p_case: string }
+        Returns: {
+          checksum: string
+          classification_status: string
+          content_access: boolean
+          created_at: string
+          current_version: number
+          description: string
+          document_status: string
+          document_type: string
+          expires_at: string
+          external_shareable: boolean
+          id: string
+          linked_entities: Json
+          mime_type: string
+          record_type: string
+          restricted_metadata: boolean
+          sensitivity: string
+          size_bytes: number
+          tags: string[]
+          title: string
+          updated_at: string
+          uploaded_by: string
+        }[]
+      }
+      social_has_capability: {
+        Args: { p_capability: string; p_org: string; p_user?: string }
+        Returns: boolean
+      }
+      social_indicator_summary:
+        | {
+            Args: { p_from: string; p_org: string; p_to: string }
+            Returns: {
+              dimension: string
+              indicator_code: string
+              suppressed: boolean
+              value: number
+            }[]
+          }
+        | {
+            Args: {
+              p_from: string
+              p_office: string
+              p_org: string
+              p_program: string
+              p_to: string
+            }
+            Returns: {
+              dimension: string
+              indicator_code: string
+              suppressed: boolean
+              value: number
+            }[]
+          }
+      social_is_org_member: {
+        Args: { p_org: string; p_user?: string }
+        Returns: boolean
+      }
+      social_is_platform_admin: { Args: { p_user?: string }; Returns: boolean }
+      social_media_upload_allowed: {
+        Args: { p_case: string; p_mime: string; p_user?: string }
+        Returns: boolean
+      }
+      social_org_employee_seat_limit: {
+        Args: { p_org: string }
+        Returns: number
+      }
+      social_org_employee_seats_used: {
+        Args: { p_org: string }
+        Returns: number
+      }
+      social_org_role_to_care_role: {
+        Args: { p_role: string }
+        Returns: string
+      }
+      social_org_seat_limit: { Args: { p_org: string }; Returns: number }
+      social_org_seats_used: { Args: { p_org: string }; Returns: number }
+      social_org_subscription_active: {
+        Args: { p_org: string }
+        Returns: boolean
+      }
+      social_people_search_document: {
+        Args: {
+          p_aliases: string[]
+          p_legal_name: string
+          p_preferred_name: string
+        }
+        Returns: unknown
+      }
+      social_sales_demo_any_owner_allows: {
+        Args: { p_id: string; p_user?: string }
+        Returns: boolean
+      }
+      social_sales_demo_owner_allows: {
+        Args: { p_id: string; p_table: string; p_user?: string }
+        Returns: boolean
+      }
+      social_support_access_active: {
+        Args: { p_case: string; p_record_type: string; p_user?: string }
+        Returns: boolean
+      }
+      update_social_document_metadata: {
+        Args: {
+          p_classification_status: string
+          p_description: string
+          p_document: string
+          p_document_type: string
+          p_expires_at: string
+          p_external_shareable: boolean
+          p_linked_entities: Json
+          p_record_type: string
+          p_sensitivity: string
+          p_status: string
+          p_tags: string[]
+          p_title: string
+        }
+        Returns: undefined
+      }
+      verify_resource: {
+        Args: {
+          p_evidence_url?: string
+          p_institution: string
+          p_next_verification?: string
+          p_notes?: string
+          p_source: string
+          p_status: string
+        }
+        Returns: string
+      }
+      verify_social_referral_result: {
+        Args: {
+          p_closure_reason?: string
+          p_referral: string
+          p_response: string
+          p_result: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       ai_provider: "groq" | "openai" | "gemini" | "anthropic" | "openrouter"
@@ -6648,7 +11442,7 @@ export type Database = {
         | "advisory"
         | "compliance"
         | "transaction"
-      membership_status: "active" | "invited" | "suspended"
+      membership_status: "active" | "invited" | "suspended" | "removed"
       org_role:
         | "owner"
         | "admin"
@@ -6661,6 +11455,11 @@ export type Database = {
         | "legal_assistant"
         | "client"
         | "read_only"
+        | "firm_manager"
+        | "supervisor"
+        | "case_worker"
+        | "legal_provider"
+        | "psychosocial_provider"
       task_status: "todo" | "in_progress" | "blocked" | "done" | "cancelled"
       verification_category:
         | "ownership"
@@ -6943,7 +11742,7 @@ export const Constants = {
         "compliance",
         "transaction",
       ],
-      membership_status: ["active", "invited", "suspended"],
+      membership_status: ["active", "invited", "suspended", "removed"],
       org_role: [
         "owner",
         "admin",
@@ -6956,6 +11755,11 @@ export const Constants = {
         "legal_assistant",
         "client",
         "read_only",
+        "firm_manager",
+        "supervisor",
+        "case_worker",
+        "legal_provider",
+        "psychosocial_provider",
       ],
       task_status: ["todo", "in_progress", "blocked", "done", "cancelled"],
       verification_category: [

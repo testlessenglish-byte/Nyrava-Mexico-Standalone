@@ -49,6 +49,7 @@ import { Route as AuthenticatedUsageRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTimelineRouteImport } from './routes/_authenticated/timeline'
 import { Route as AuthenticatedTalkRouteImport } from './routes/_authenticated/talk'
 import { Route as AuthenticatedStrategyRouteImport } from './routes/_authenticated/strategy'
+import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated/social'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSecurityDashboardRouteImport } from './routes/_authenticated/security-dashboard'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
@@ -58,7 +59,6 @@ import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/ne
 import { Route as AuthenticatedMotionRouteImport } from './routes/_authenticated/motion'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
 import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated/health'
-import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated/social'
 import { Route as AuthenticatedEvidenceRouteImport } from './routes/_authenticated/evidence'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCasesRouteImport } from './routes/_authenticated/cases'
@@ -292,6 +292,11 @@ const AuthenticatedStrategyRoute = AuthenticatedStrategyRouteImport.update({
   path: '/strategy',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSocialRoute = AuthenticatedSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -337,11 +342,6 @@ const AuthenticatedMessagesRoute = AuthenticatedMessagesRouteImport.update({
 const AuthenticatedHealthRoute = AuthenticatedHealthRouteImport.update({
   id: '/health',
   path: '/health',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedSocialRoute = AuthenticatedSocialRouteImport.update({
-  id: '/social',
-  path: '/social',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedEvidenceRoute = AuthenticatedEvidenceRouteImport.update({
@@ -564,7 +564,6 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/evidence': typeof AuthenticatedEvidenceRoute
   '/health': typeof AuthenticatedHealthRoute
-  '/social': typeof AuthenticatedSocialRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/motion': typeof AuthenticatedMotionRoute
   '/new': typeof AuthenticatedNewRoute
@@ -573,6 +572,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof AuthenticatedReportsRoute
   '/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/social': typeof AuthenticatedSocialRoute
   '/strategy': typeof AuthenticatedStrategyRoute
   '/talk': typeof AuthenticatedTalkRoute
   '/timeline': typeof AuthenticatedTimelineRoute
@@ -647,7 +647,6 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/evidence': typeof AuthenticatedEvidenceRoute
   '/health': typeof AuthenticatedHealthRoute
-  '/social': typeof AuthenticatedSocialRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/motion': typeof AuthenticatedMotionRoute
   '/new': typeof AuthenticatedNewRoute
@@ -656,6 +655,7 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthenticatedReportsRoute
   '/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/social': typeof AuthenticatedSocialRoute
   '/strategy': typeof AuthenticatedStrategyRoute
   '/talk': typeof AuthenticatedTalkRoute
   '/timeline': typeof AuthenticatedTimelineRoute
@@ -733,7 +733,6 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/evidence': typeof AuthenticatedEvidenceRoute
   '/_authenticated/health': typeof AuthenticatedHealthRoute
-  '/_authenticated/social': typeof AuthenticatedSocialRoute
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/motion': typeof AuthenticatedMotionRoute
   '/_authenticated/new': typeof AuthenticatedNewRoute
@@ -742,6 +741,7 @@ export interface FileRoutesById {
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/security-dashboard': typeof AuthenticatedSecurityDashboardRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/social': typeof AuthenticatedSocialRoute
   '/_authenticated/strategy': typeof AuthenticatedStrategyRoute
   '/_authenticated/talk': typeof AuthenticatedTalkRoute
   '/_authenticated/timeline': typeof AuthenticatedTimelineRoute
@@ -827,6 +827,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/security-dashboard'
     | '/settings'
+    | '/social'
     | '/strategy'
     | '/talk'
     | '/timeline'
@@ -909,6 +910,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/security-dashboard'
     | '/settings'
+    | '/social'
     | '/strategy'
     | '/talk'
     | '/timeline'
@@ -993,6 +995,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reports'
     | '/_authenticated/security-dashboard'
     | '/_authenticated/settings'
+    | '/_authenticated/social'
     | '/_authenticated/strategy'
     | '/_authenticated/talk'
     | '/_authenticated/timeline'
@@ -1357,6 +1360,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStrategyRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/social': {
+      id: '/_authenticated/social'
+      path: '/social'
+      fullPath: '/social'
+      preLoaderRoute: typeof AuthenticatedSocialRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -1418,13 +1428,6 @@ declare module '@tanstack/react-router' {
       path: '/health'
       fullPath: '/health'
       preLoaderRoute: typeof AuthenticatedHealthRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/social': {
-      id: '/_authenticated/social'
-      path: '/social'
-      fullPath: '/social'
-      preLoaderRoute: typeof AuthenticatedSocialRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/evidence': {
@@ -1719,7 +1722,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEvidenceRoute: typeof AuthenticatedEvidenceRoute
   AuthenticatedHealthRoute: typeof AuthenticatedHealthRoute
-  AuthenticatedSocialRoute: typeof AuthenticatedSocialRoute
   AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
   AuthenticatedMotionRoute: typeof AuthenticatedMotionRoute
   AuthenticatedNewRoute: typeof AuthenticatedNewRoute
@@ -1728,6 +1730,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSecurityDashboardRoute: typeof AuthenticatedSecurityDashboardRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedSocialRoute: typeof AuthenticatedSocialRoute
   AuthenticatedStrategyRoute: typeof AuthenticatedStrategyRoute
   AuthenticatedTalkRoute: typeof AuthenticatedTalkRoute
   AuthenticatedTimelineRoute: typeof AuthenticatedTimelineRoute
@@ -1745,7 +1748,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEvidenceRoute: AuthenticatedEvidenceRoute,
   AuthenticatedHealthRoute: AuthenticatedHealthRoute,
-  AuthenticatedSocialRoute: AuthenticatedSocialRoute,
   AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
   AuthenticatedMotionRoute: AuthenticatedMotionRoute,
   AuthenticatedNewRoute: AuthenticatedNewRoute,
@@ -1754,6 +1756,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSecurityDashboardRoute: AuthenticatedSecurityDashboardRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedSocialRoute: AuthenticatedSocialRoute,
   AuthenticatedStrategyRoute: AuthenticatedStrategyRoute,
   AuthenticatedTalkRoute: AuthenticatedTalkRoute,
   AuthenticatedTimelineRoute: AuthenticatedTimelineRoute,
