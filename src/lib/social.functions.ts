@@ -561,7 +561,7 @@ export const getSocialDocumentWorkspace=createServerFn({method:"GET"})
     const {supabase}=ctx(context);
     const caseRow=await supabase.from("social_cases").select("id,org_id,case_number,status,risk_level,assigned_case_manager,consent_status,person_id,family_id,program_id").eq("id",data.caseId).single();fail(caseRow.error);
     const c=caseRow.data;
-    const [person,family,inventory,consents,shares,events,versions,referrals,assessments,plans]=await Promise.all([
+    const [person,family,inventory,consents,shares,events,versions,referrals,assessments,plans,requirements]=await Promise.all([
       c.person_id?supabase.from("social_people").select("id,legal_name,preferred_name,consent_status").eq("id",c.person_id).maybeSingle():Promise.resolve({data:null,error:null}),
       c.family_id?supabase.from("social_families").select("id,family_name,family_number").eq("id",c.family_id).maybeSingle():Promise.resolve({data:null,error:null}),
       supabase.rpc("social_document_inventory",{p_case:data.caseId}),
@@ -572,13 +572,14 @@ export const getSocialDocumentWorkspace=createServerFn({method:"GET"})
       supabase.from("social_referrals").select("id,referral_number,status,service_requested").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
       supabase.from("social_assessments").select("id,risk_level,assessment_date").eq("social_case_id",data.caseId).order("assessment_date",{ascending:false}),
       supabase.from("social_care_plans").select("id,status,created_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
+      supabase.from("social_case_document_requirements").select("*").eq("social_case_id",data.caseId).order("due_at",{ascending:true}),
     ]);
-    [person,family,inventory,consents,shares,events,versions,referrals,assessments,plans].forEach((x:any)=>fail(x.error));
+    [person,family,inventory,consents,shares,events,versions,referrals,assessments,plans,requirements].forEach((x:any)=>fail(x.error));
     const docs=inventory.data??[];const ids=new Set(docs.map((x:any)=>x.id));
     return {case:c,person:person.data,family:family.data,documents:docs,
       consents:consents.data??[],shares:(shares.data??[]).filter((x:any)=>ids.has(x.document_id)),
       events:events.data??[],versions:(versions.data??[]).filter((x:any)=>ids.has(x.document_id)),
-      referrals:referrals.data??[],assessments:assessments.data??[],plans:plans.data??[]};
+      referrals:referrals.data??[],assessments:assessments.data??[],plans:plans.data??[],requirements:requirements.data??[]};
   });
 
 export const updateSocialDocumentMetadata=createServerFn({method:"POST"})
