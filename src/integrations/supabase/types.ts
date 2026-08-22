@@ -10915,6 +10915,23 @@ export type Database = {
       }
       is_org_member: { Args: { _org: string; _user: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      list_public_billing_plans: {
+        Args: never
+        Returns: {
+          contact_url: string
+          currency: string
+          features: Json
+          included_seats: number
+          interval: string
+          key: string
+          label: string
+          per_seat_price_cents: number
+          price_cents: number
+          self_serve: boolean
+          sort_order: number
+          tagline: string
+        }[]
+      }
       move_social_document: {
         Args: {
           p_checksum: string
