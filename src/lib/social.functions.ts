@@ -682,3 +682,59 @@ export const submitKnowledgeCorrection=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({recordId:uuid,suggestion:z.string().trim().min(5).max(5000)}).parse(d))
   .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id").eq("id",data.recordId).single();fail(rec.error);const row=await supabase.from("resource_knowledge_corrections").insert({knowledge_id:data.recordId,org_id:rec.data.org_id,suggestion:data.suggestion,submitted_by:userId});fail(row.error);return {ok:true};});
+
+
+const careActionType=z.enum(["create_task","add_to_care_plan","request_document","start_risk_reassessment","find_resource","create_referral","schedule_follow_up","supervisor_review","request_legal_review","draft_case_summary","prepare_closure_checklist"]);
+
+const buildCareHealth=(x:any)=>{
+  const now=Date.now(),days=(n:number)=>n*86400000;const critical:any[]=[],actionRequired:any[]=[],incomplete:any[]=[],monitor:any[]=[],complete:any[]=[];
+  const add=(bucket:any[],code:string,message:string,source:string)=>bucket.push({code,message,source});
+  if(x.case.risk_level==="critical"||x.case.risk_level==="high")add(critical,"risk_review",`Current risk is ${x.case.risk_level}; professional review required.`,`Case ${x.case.case_number}`);
+  const assessment=x.assessments[0];if(!assessment)add(incomplete,"assessment_missing","No risk assessment is recorded.","Risk assessments");else if(now-new Date(assessment.assessment_date).getTime()>days(30))add(actionRequired,"assessment_stale","Risk assessment is older than 30 days.","Assessment "+assessment.id+" v"+assessment.current_version);else add(complete,"assessment_current","Risk assessment is current.","Assessment "+assessment.id+" v"+assessment.current_version);
+  const activeConsent=x.consents.find((v:any)=>v.status==="active"&&(!v.expires_at||new Date(v.expires_at).getTime()>now));if(!activeConsent)add(actionRequired,"consent","No active unexpired consent is recorded.","Consent records");else add(complete,"consent","Active consent is recorded.","Consent "+activeConsent.id);
+  if(!x.plans.length)add(incomplete,"care_plan","No care plan is recorded.","Care plans");else {const goals=x.plans[0].social_care_plan_versions?.flatMap((v:any)=>v.social_care_plan_goals??[])??[];const open=goals.filter((g:any)=>!["completed","cancelled"].includes(g.status));add(open.length?actionRequired:complete,"care_goals",open.length?`${open.length} care-plan goals remain open.`:"Care-plan goals are complete.",`Care plan ${x.plans[0].id} v${x.plans[0].current_version}`);}
+  const overdue=x.tasks.filter((t:any)=>!["completed","cancelled"].includes(t.status)&&t.due_at&&new Date(t.due_at).getTime()<now);if(overdue.length)add(actionRequired,"overdue_tasks",`${overdue.length} tasks are overdue.`,"Tasks");else add(complete,"tasks","No overdue tasks were found.","Tasks");
+  const awaiting=x.referrals.filter((v:any)=>["created","sent","pending","awaiting_response"].includes(v.status));if(awaiting.length)add(actionRequired,"referrals",`${awaiting.length} referrals await response or follow-up.`,"Referrals");else add(monitor,"referrals","No unanswered referral was detected.","Referrals");
+  const missing=x.requirements.filter((v:any)=>v.status==="missing");if(missing.length)add(incomplete,"documents",`${missing.length} required documents are missing.`,"Document requirements");else add(complete,"documents","No configured required document is missing.","Document requirements");
+  const last=x.interventions[0]?.occurred_at||x.case.last_activity_at;if(last&&now-new Date(last).getTime()>days(14))add(actionRequired,"recent_contact","No intervention/contact is recorded in the last 14 days.","Interventions");else add(complete,"recent_contact","Recent activity is recorded.","Interventions");
+  if(x.case.status==="closed")add(monitor,"closure","Case is closed; verify read-only posture and reopening authority.","Case status");
+  return {critical,action_required:actionRequired,incomplete,monitor,complete,generated_at:new Date().toISOString()};
+};
+
+export const askTalkToCareCase=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid,question:z.string().trim().min(2).max(3000),language:z.enum(["es","en"]).default("es"),healthCheck:z.boolean().default(false)}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);const caseRow=await supabase.from("social_cases").select("*").eq("id",data.caseId).single();fail(caseRow.error);const sc=caseRow.data;
+    const [person,family,assessments,plans,interventions,tasks,referrals,documents,consents,requirements,knowledge,resources]=await Promise.all([
+      supabase.from("social_people").select("id,person_number,legal_name,consent_status").eq("id",sc.person_id).maybeSingle(),
+      sc.family_id?supabase.from("social_families").select("id,family_number,family_name").eq("id",sc.family_id).maybeSingle():Promise.resolve({data:null,error:null}),
+      supabase.from("social_assessments").select("id,risk_level,assessment_date,current_version,next_review_date").eq("social_case_id",data.caseId).order("assessment_date",{ascending:false}),
+      supabase.from("social_care_plans").select("id,status,current_version,social_care_plan_versions(version,summary,social_care_plan_goals(id,status,goal,target_date,assigned_to))").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
+      supabase.from("social_interventions").select("id,service_type,occurred_at,reason,actions_taken,outcome,follow_up_required").eq("social_case_id",data.caseId).eq("record_type","general_case_record").order("occurred_at",{ascending:false}).limit(50),
+      supabase.from("social_tasks").select("id,title,status,priority,due_at,assigned_to").eq("social_case_id",data.caseId).order("due_at",{ascending:true}),
+      supabase.from("social_referrals").select("id,referral_number,status,service_requested,created_at,updated_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
+      supabase.from("social_documents").select("id,title,document_type,current_version,created_at").eq("social_case_id",data.caseId).eq("record_type","general_case_record").is("deleted_at",null),
+      supabase.from("social_consents").select("id,consent_type,status,expires_at,current_version").or(`person_id.eq.${sc.person_id}${sc.family_id?",family_id.eq."+sc.family_id:""}`).order("created_at",{ascending:false}),
+      supabase.from("social_case_document_requirements").select("id,document_type,status,due_at").eq("social_case_id",data.caseId),
+      supabase.from("resource_knowledge_records").select("id,title_es,title_en,version,effective_at,state_codes,approval_status").in("approval_status",["approved","published"]).limit(20),
+      supabase.from("social_institutions").select("id,official_name,services,state_code,municipality,languages,cost_type,required_documents,capacity_status,status,next_verification_at").neq("status","archived").limit(20),
+    ]);
+    [person,family,assessments,plans,interventions,tasks,referrals,documents,consents,requirements,knowledge,resources].forEach((v:any)=>fail(v.error));
+    const x={case:sc,person:person.data,family:family.data,assessments:assessments.data??[],plans:plans.data??[],interventions:interventions.data??[],tasks:tasks.data??[],referrals:referrals.data??[],documents:documents.data??[],consents:consents.data??[],requirements:requirements.data??[],knowledge:knowledge.data??[],resources:resources.data??[]};
+    const health=buildCareHealth(x);const openTasks=x.tasks.filter((t:any)=>!["completed","cancelled"].includes(t.status));const openReferrals=x.referrals.filter((v:any)=>!["completed","closed","verified"].includes(v.status));
+    const sources=[`Case ${sc.case_number}`,...x.assessments.slice(0,1).map((v:any)=>`Assessment ${v.id} v${v.current_version}, ${v.assessment_date}`),...x.plans.slice(0,1).map((v:any)=>`Care plan ${v.id} v${v.current_version}`),...x.interventions.slice(0,3).map((v:any)=>`Intervention ${v.id}, ${v.occurred_at}`),...x.referrals.slice(0,3).map((v:any)=>`Referral ${v.referral_number}, status ${v.status}`),...x.knowledge.slice(0,3).map((v:any)=>`Knowledge Center: ${data.language==="es"?v.title_es:v.title_en}, v${v.version}, effective ${v.effective_at??"not recorded"}`)];
+    const response={current_case_status:{summary:`${sc.case_number}: ${sc.status}; risk ${sc.risk_level}. ${x.interventions.length} interventions, ${openTasks.length} open tasks, ${openReferrals.length} open referrals.`,last_activity:sc.last_activity_at},missing_or_incomplete:[...health.critical,...health.action_required,...health.incomplete],risks_requiring_review:health.critical,recommended_next_steps:[...health.critical,...health.action_required,...health.incomplete].slice(0,8).map((v:any)=>({action:v.message,responsible_role:v.code==="risk_review"?"supervisor":"case_manager",suggested_due_date:new Date(Date.now()+7*86400000).toISOString().slice(0,10),reason:v.code,supporting_record:v.source,consent_required:["consent","documents","referrals"].includes(v.code)})),sources,health_check:health,resource_recommendations:x.resources.slice(0,10).map((v:any)=>({...v,warning:v.next_verification_at&&new Date(v.next_verification_at)<new Date()?"Verification is overdue":null})),professional_review_notice:"Indicators and proposed next steps require review by the responsible professional. No allegation or diagnosis is confirmed by this assistant."};
+    const manifest={authenticated_user:userId,organization:sc.org_id,selected_case:data.caseId,case_assignment:sc.assigned_case_manager,record_types:["general_case_record"],excluded:["legal_privileged_record","psychosocial_restricted_record","medical_restricted_record","child_protection_restricted_record"],language:data.language,retrieved_at:new Date().toISOString()};
+    const run=await supabase.from("social_care_assistant_runs").insert({org_id:sc.org_id,social_case_id:data.caseId,actor_id:userId,language:data.language,question:data.question,response,retrieval_manifest:manifest,health_check:data.healthCheck}).select("id").single();fail(run.error);return {runId:run.data.id,response,manifest};
+  });
+
+export const proposeCareAssistantAction=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid,runId:uuid.optional(),actionType:careActionType,title:z.string().trim().min(2).max(300),details:z.record(z.string(),z.unknown()).default({})}).parse(d))
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const sc=await supabase.from("social_cases").select("org_id").eq("id",data.caseId).single();fail(sc.error);const preview={title:data.title,details:data.details,warning:"Confirmation is required. No material case state has changed."};const row=await supabase.from("social_care_action_proposals").insert({org_id:sc.data.org_id,social_case_id:data.caseId,assistant_run_id:data.runId??null,action_type:data.actionType,preview,proposed_by:userId}).select("id,status,preview").single();fail(row.error);return row.data;});
+
+export const confirmCareAssistantAction=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({proposalId:uuid,confirm:z.literal(true)}).parse(d))
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const row=await supabase.from("social_care_action_proposals").update({status:"confirmed",confirmed_by:userId,confirmed_at:new Date().toISOString()}).eq("id",data.proposalId).eq("status","proposed").select("id,status,action_type,preview").single();fail(row.error);return row.data;});
