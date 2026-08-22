@@ -677,8 +677,13 @@ export function canGenerateReport(rows: ExecutionRow[]): ReportGate {
     engines.filter((e) => {
       const s = latest.get(e)?.status;
       if (s === "completed" || s === "completed_negative" || s === "skipped") return false;
-      // Optional stages only need to be *finished*, not successful.
-      if (OPTIONAL_ENGINES.has(e) && (s === "failed" || s === "blocked")) return false;
+      // A failed or blocked substantive stage is terminal for orchestration,
+      // but it is NOT acceptable evidence for an attorney-facing release.
+      // Previously optional stages were treated as satisfied here, allowing
+      // FULL/released reports with empty perspectives, theories, opportunities,
+      // strategy, work product, hallucination, or multi-agent output. Legitimate
+      // no-result runs must finish as completed_negative or skipped with an
+      // audited reason; failed/blocked always requires revision.
       return true;
     });
   const blocking = missing(REPORT_BLOCKING_ENGINES);
