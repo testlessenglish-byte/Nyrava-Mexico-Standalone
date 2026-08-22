@@ -111,17 +111,15 @@ export const createSocialFamily=createServerFn({method:"POST"})
     fail(error);return family;
   });
 
-export const createSocialCase=createServerFn({method:"POST"})
+export const createAndAssignCareCase=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>socialCaseInput.parse(d))
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
-    const {data:row,error}=await supabase.rpc("create_social_case",{
-      p_org:data.orgId,p_program:data.programId,p_person:data.personId??null,
+    const {data:row,error}=await supabase.rpc("create_and_assign_care_case",{
+      p_org:data.orgId,p_program:data.programId,p_person:data.personId,
       p_family:data.familyId??null,p_case_type:data.caseType,
-      p_referral_source:data.referralSource??null,p_service_areas:data.serviceAreas,
-      p_priority:data.priority,p_risk_level:data.riskLevel,
-      p_confidentiality_level:data.confidentialityLevel,p_tags:data.tags,
+      p_priority:data.priority,p_assigned_user:data.assignedUserId??null,
     });
     fail(error);return row;
   });
