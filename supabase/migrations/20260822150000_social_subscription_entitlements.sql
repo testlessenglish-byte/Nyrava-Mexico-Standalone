@@ -45,6 +45,15 @@ create unique index if not exists org_subscriptions_provider_subscription_uidx
   on public.org_subscriptions(provider,provider_subscription_id)
   where provider_subscription_id is not null;
 
+-- Existing installations may have more than one historical row per organization.
+-- Keep only the newest one primary before enforcing the invariant.
+with ranked as (
+  select id,row_number() over(partition by org_id order by updated_at desc,created_at desc,id desc) as rn
+  from public.org_subscriptions where primary_subscription
+)
+update public.org_subscriptions s set primary_subscription=false
+from ranked r where s.id=r.id and r.rn>1;
+
 create unique index if not exists org_subscriptions_one_primary_uidx
   on public.org_subscriptions(org_id)
   where primary_subscription;
@@ -185,6 +194,24 @@ set search_path=public,pg_temp as $$
     1+public.social_org_employee_seat_limit(p_org)
   ))
 $$;
+
+create or replace function public.enforce_social_invitation_subscription()
+returns trigger language plpgsql security definer
+set search_path=public,pg_temp as $
+begin
+  if new.status in ('invited','accepted')
+     and not public.social_org_subscription_active(new.org_id) then
+    raise exception 'An active organization subscription is required to use employee seats';
+  end if;
+  return new;
+end
+$;
+
+drop trigger if exists organization_invitations_require_subscription
+  on public.organization_invitations;
+create trigger organization_invitations_require_subscription
+before insert or update of status on public.organization_invitations
+for each row execute function public.enforce_social_invitation_subscription();
 
 create or replace function public.provision_organization_subscription_from_webhook(
   p_provider text,
