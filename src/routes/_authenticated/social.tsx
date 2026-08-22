@@ -13,7 +13,7 @@ import {
   acceptSocialOrganizationInvitation, acknowledgeSocialAlert, createSocialCase, createSocialFamily, createSocialPerson,
   findPossibleSocialPeople, ensureSocialProgram, getSocialIndicators,
   getSocialWorkspace, inviteSocialOrganizationMember, searchSocialRecords,
-  updateSocialOrganizationMember, upsertSocialRoleAssignment,
+  updateSocialOrganizationMember,
 } from "@/lib/social.functions";
 import { EMERGENCY_GUIDANCE } from "@/lib/social/types";
 import { SocialCaseWorkspace } from "@/components/social/SocialCaseWorkspace";
@@ -77,7 +77,6 @@ function SocialCarePage(){
   const createFamilyFn=useServerFn(createSocialFamily);
   const indicatorsFn=useServerFn(getSocialIndicators);
   const acknowledgeAlertFn=useServerFn(acknowledgeSocialAlert);
-  const roleAssignmentFn=useServerFn(upsertSocialRoleAssignment);
   const inviteMemberFn=useServerFn(inviteSocialOrganizationMember);
   const updateMemberFn=useServerFn(updateSocialOrganizationMember);
   const acceptInvitationFn=useServerFn(acceptSocialOrganizationInvitation);
@@ -89,7 +88,6 @@ function SocialCarePage(){
   const [family,setFamily]=useState({name:"",primaryId:"",memberIds:[] as string[]});
   const today=new Date().toISOString().slice(0,10);const yearStart=`${today.slice(0,4)}-01-01`;
   const [indicatorRange,setIndicatorRange]=useState({from:yearStart,to:today});
-  const [roleDraft,setRoleDraft]=useState({userId:"",role:"case_manager"});
   const [memberInvite,setMemberInvite]=useState({email:"",role:"case_worker"});
   const [invitationLink,setInvitationLink]=useState("");
   const [acceptedInvite,setAcceptedInvite]=useState("");
@@ -136,11 +134,6 @@ function SocialCarePage(){
   const acknowledgeMutation=useMutation({
     mutationFn:(id:string)=>acknowledgeAlertFn({data:{alertId:id,resolve:true}}),
     onSuccess:()=>{toast.success(es?"Alerta resuelta":"Alert resolved");qc.invalidateQueries({queryKey:["social-workspace"]});},
-    onError:(e:unknown)=>toast.error(errorMessage(e)),
-  });
-  const roleMutation=useMutation({
-    mutationFn:(selfOwner:boolean)=>roleAssignmentFn({data:{orgId:resolvedOrg,userId:selfOwner?(workspace.data?.userId??""):roleDraft.userId,role:(selfOwner?"organization_owner":roleDraft.role) as any,scopeType:"organization"}}),
-    onSuccess:()=>{toast.success(es?"Acceso social actualizado":"Social access updated");qc.invalidateQueries({queryKey:["social-workspace"]});},
     onError:(e:unknown)=>toast.error(errorMessage(e)),
   });
   const inviteMemberMutation=useMutation({
