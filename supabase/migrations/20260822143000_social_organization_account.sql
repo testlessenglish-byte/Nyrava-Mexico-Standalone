@@ -27,9 +27,11 @@ create table if not exists public.organization_invitations (
   invited_at timestamptz not null default now(),
   expires_at timestamptz not null default (now()+interval '7 days'),
   accepted_at timestamptz,
-  revoked_at timestamptz,
-  unique (org_id,email,status)
+  revoked_at timestamptz
 );
+
+create unique index if not exists organization_invitations_one_pending
+  on public.organization_invitations(org_id,lower(email)) where status='invited';
 
 create index if not exists organization_invitations_org_status_idx
   on public.organization_invitations(org_id,status,expires_at);
@@ -93,7 +95,7 @@ create or replace function public.social_org_seats_used(p_org uuid)
 returns integer language sql stable security definer
 set search_path=public,pg_temp as $$
   select count(*)::integer from public.org_memberships
-  where org_id=p_org and status in ('active','invited') and deleted_at is null
+  where org_id=p_org and status='active' and deleted_at is null
 $$;
 
 create or replace function public.social_org_role_to_care_role(p_role text)
