@@ -35,10 +35,14 @@ describe("supabase security findings — no public billing or demo exposure", ()
   });
 
   it("exposes only approved marketing fields through the restricted pricing function", () => {
-    const fn = exposure.slice(
-      exposure.indexOf("create or replace function public.list_public_billing_plans"),
-      exposure.indexOf("revoke all on function public.list_public_billing_plans"),
-    );
+    const fn = exposure
+      .slice(
+        exposure.indexOf("create or replace function public.list_public_billing_plans"),
+        exposure.indexOf("revoke all on function public.list_public_billing_plans"),
+      )
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("--"))
+      .join("\n");
     expect(fn).toContain("set search_path = public, pg_temp");
     for (const secret of [
       "stripe_price_id",
