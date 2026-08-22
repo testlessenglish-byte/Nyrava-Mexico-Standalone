@@ -643,7 +643,8 @@ export const saveKnowledgeRecord=createServerFn({method:"POST"})
   }).parse(d))
   .handler(async({data,context})=>{
     const {supabase,userId}=ctx(context);const now=new Date().toISOString();
-    const payload={org_id:data.orgId,title_es:data.titleEs,title_en:data.titleEn,summary_es:data.summaryEs||null,summary_en:data.summaryEn||null,
+    const current=data.id?await supabase.from("resource_knowledge_records").select("version").eq("id",data.id).single():null;if(current)fail(current.error);const nextVersion=data.id?(current!.data.version+1):1;
+    const payload={org_id:data.orgId,version:nextVersion,title_es:data.titleEs,title_en:data.titleEn,summary_es:data.summaryEs||null,summary_en:data.summaryEn||null,
       content_es:data.contentEs||null,content_en:data.contentEn||null,knowledge_type:data.knowledgeType,service_categories:data.serviceCategories,
       state_codes:data.stateCodes,municipality:data.municipality||null,authority:data.authority||null,language_codes:data.languageCodes,
       effective_at:data.effectiveAt||null,review_due_at:data.reviewDueAt||null,approval_status:data.approvalStatus,audience:data.audience,
