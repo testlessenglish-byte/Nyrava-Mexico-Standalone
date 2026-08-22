@@ -7939,6 +7939,8 @@ ${paginationTail}`;
     hasChargingDocument: docTypeSignals.hasChargingDocument,
     highWeightDocTypeCount: docTypeSignals.highWeightDocTypeCount,
     distinctDocTypeCount: docTypeSignals.distinctDocTypeCount,
+    hasOnlyIncompleteJudicialPublication:
+      docTypeSignals.hasOnlyIncompleteJudicialPublication,
     // CONFIRMED LIVE (ADR5829/2025): omitting this made a "minimal" bin
     // unconditionally prepend the English insufficientEvidenceNotice onto a
     // Spanish executive_summary, tripping QA's language-drift check ("Report
