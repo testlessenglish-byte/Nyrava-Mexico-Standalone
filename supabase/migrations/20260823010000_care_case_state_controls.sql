@@ -67,7 +67,13 @@ begin
   v_status := coalesce(nullif(btrim(p_status), ''), v_case.status);
   v_priority := coalesce(nullif(btrim(p_priority), ''), v_case.priority);
 
-  if v_status in ('closed','reopened','transferred','archived') then
+  if v_case.status in ('transferred','archived') then
+    raise exception 'Transferred or archived cases cannot be changed from the case header';
+  end if;
+
+  if v_status in ('closed','reopened','transferred','archived')
+    and v_status is distinct from v_case.status
+  then
     raise exception 'Use the dedicated closure, reopening, transfer, or archive workflow';
   end if;
 
