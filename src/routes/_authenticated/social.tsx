@@ -30,28 +30,22 @@ export const Route=createFileRoute("/_authenticated/social")({
   component:SocialCarePage,
 });
 
-type Area="dashboard"|"people"|"families"|"cases"|"intake"|"assessments"|"plans"|"interventions"|"legal"|"psychosocial"|"referrals"|"resources"|"knowledge"|"resourceAdmin"|"tasks"|"documents"|"transfers"|"closure"|"indicators"|"activity"|"administration";
-const AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
+type Area="dashboard"|"people"|"families"|"cases"|"caseWork"|"intake"|"assessments"|"plans"|"interventions"|"legal"|"psychosocial"|"referrals"|"resources"|"knowledge"|"resourceAdmin"|"tasks"|"documents"|"transfers"|"closure"|"indicators"|"activity"|"administration";
+const PRIMARY_AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
   {id:"dashboard",es:"Resumen",en:"Overview",icon:Activity},
-  {id:"people",es:"Personas",en:"People",icon:Users},
-  {id:"families",es:"Familias",en:"Families",icon:HeartHandshake},
+  {id:"people",es:"Personas y familias",en:"People and Families",icon:Users},
   {id:"cases",es:"Casos",en:"Cases",icon:FileHeart},
-  {id:"intake",es:"Ingreso",en:"Intake",icon:UserPlus},
-  {id:"assessments",es:"Evaluaciones de riesgo",en:"Risk assessments",icon:ClipboardCheck},
-  {id:"plans",es:"Planes de atención",en:"Care plans",icon:CheckCircle2},
-  {id:"interventions",es:"Intervenciones",en:"Interventions",icon:BriefcaseMedical},
-  {id:"legal",es:"Servicios jurídicos",en:"Legal services",icon:ShieldCheck},
-  {id:"psychosocial",es:"Servicios psicosociales",en:"Psychosocial services",icon:HeartHandshake},
-  {id:"referrals",es:"Canalizaciones",en:"Referrals",icon:ArrowRight},
+  {id:"caseWork",es:"Trabajo del caso",en:"Case Work",icon:BriefcaseMedical},
+  {id:"tasks",es:"Tareas y alertas",en:"Tasks and Alerts",icon:CalendarClock},
+  {id:"documents",es:"Documentos y consentimiento",en:"Documents and Consent",icon:FileText},
+  {id:"activity",es:"Actividad del equipo",en:"Team Activity",icon:Users},
+  {id:"administration",es:"Configuración de la organización",en:"Organization Settings",icon:ShieldCheck},
+];
+const CONTEXT_AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
+  {id:"intake",es:"Gestión de ingresos",en:"Intake Management",icon:UserPlus},
   {id:"resources",es:"Red de Recursos",en:"Resource Network",icon:Search},
   {id:"knowledge",es:"Centro de Conocimiento",en:"Knowledge Center",icon:FileText},
-  {id:"tasks",es:"Tareas y alertas",en:"Tasks and alerts",icon:CalendarClock},
-  {id:"documents",es:"Documentos y consentimiento",en:"Documents and consent",icon:FileText},
-  {id:"transfers",es:"Transferencias",en:"Case transfers",icon:ArrowRight},
-  {id:"closure",es:"Cierre de caso",en:"Case closure",icon:CheckCircle2},
-  {id:"indicators",es:"Indicadores institucionales",en:"Institutional indicators",icon:Activity},
-  {id:"activity",es:"Actividad del equipo",en:"Team activity",icon:Users},
-  {id:"administration",es:"Administración",en:"Administration",icon:ShieldCheck},
+  {id:"indicators",es:"Indicadores institucionales",en:"Institutional Indicators",icon:Activity},
   {id:"resourceAdmin",es:"Administrar recursos",en:"Manage Resources",icon:ShieldCheck},
 ];
 
@@ -199,8 +193,12 @@ function SocialCarePage(){
       onClose={()=>setCaseModalOpen(false)} onSubmit={()=>createCaseMutation.mutate()}/>
     <div className="mt-5 grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="h-fit rounded-xl border border-border bg-card p-2 lg:sticky lg:top-4">
-        <nav className="max-h-[72vh] space-y-1 overflow-y-auto">
-          {AREAS.map(a=>{const Icon=a.icon;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${area===a.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}
+        <nav aria-label={es?"Navegación de Atención Integral":"Comprehensive Care navigation"} className="max-h-[72vh] space-y-1 overflow-y-auto">
+          {PRIMARY_AREAS.map(a=>{const Icon=a.icon;const active=a.id==="people"?area==="people"||area==="families":area===a.id;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}
+          <details className="border-t border-border pt-2">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{es?"Herramientas y recursos":"Tools and resources"}</summary>
+            <div className="mt-1 space-y-1">{CONTEXT_AREAS.map(a=>{const Icon=a.icon;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${area===a.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}</div>
+          </details>
         </nav>
       </aside>
 
@@ -218,6 +216,19 @@ function SocialCarePage(){
           {!visibleCases.length&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="text-sm font-semibold">{es?"Registre su primer caso":"Register your first case"}</p><p className="text-xs text-muted-foreground">{es?"Registre o seleccione al cliente, defina el tipo y asigne al responsable en un solo flujo.":"Register or select the client, choose the case type, and assign responsibility in one workflow."}</p></div><button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button></div>}
           <CaseTable cases={visibleCases.slice(0,12)} es={es} onOpen={setSelectedCaseId}/>
         </>}
+
+        {(area==="people"||area==="families")&&<div className="mb-4 flex gap-2 rounded-xl border border-border bg-card p-2">
+          <button type="button" onClick={()=>setArea("people")} className={`rounded-lg px-4 py-2 text-sm font-medium ${area==="people"?"bg-primary text-primary-foreground":"hover:bg-muted"}`}>{es?"Personas":"People"}</button>
+          <button type="button" onClick={()=>setArea("families")} className={`rounded-lg px-4 py-2 text-sm font-medium ${area==="families"?"bg-primary text-primary-foreground":"hover:bg-muted"}`}>{es?"Familias":"Families"}</button>
+        </div>}
+
+        {area==="caseWork"&&<section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-5">
+            <div><h2 className="font-semibold">{es?"Trabajo del caso":"Case Work"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"Abra un caso autorizado para trabajar ingreso, riesgo, plan, intervenciones, servicios, canalizaciones, documentos, actividad y cierre con el mismo expediente.":"Open an authorized case to work intake, risk, care plan, interventions, services, referrals, documents, activity, and closure in one continuous record."}</p></div>
+            <button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button>
+          </div>
+          <CaseTable cases={visibleCases} es={es} onOpen={setSelectedCaseId}/>
+        </section>}
 
         {area==="people"&&<div className="grid gap-4 xl:grid-cols-[minmax(0,420px)_1fr]">
           <section className="rounded-xl border border-border bg-card p-5">
