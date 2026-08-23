@@ -848,7 +848,7 @@ export const updateCareCaseState=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({
     caseId:uuid,
-    status:z.enum(["intake","assessment","active","monitoring","pending_referral"]),
+    status:z.enum(["intake","assessment","active","monitoring","pending_referral","reopened"]),
     priority:z.enum(["standard","urgent","emergency"]),
     reason:z.string().trim().min(5).max(2000),
   }).parse(d))
