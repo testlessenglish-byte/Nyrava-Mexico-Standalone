@@ -40,6 +40,18 @@ select
   ) is null as demo_document_version_registration_disabled;
 
 select
+  count(*) = 4 as immutable_version_triggers_enabled
+from pg_trigger
+where tgname in (
+  'immutable_social_assessment_versions',
+  'immutable_social_care_plan_versions',
+  'immutable_social_consent_versions',
+  'immutable_social_document_versions'
+)
+and tgenabled = 'O'
+and not tgisinternal;
+
+select
   exists (
     select 1
     from pg_proc p
