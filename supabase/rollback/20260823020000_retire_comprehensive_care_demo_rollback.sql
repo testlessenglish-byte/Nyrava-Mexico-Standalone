@@ -1,0 +1,7 @@
+-- No automatic rollback is provided.
+--
+-- This migration intentionally removes synthetic sales-demo records and disables
+-- the functions that recreated them. Restoring those records would repopulate
+-- test data in the production Comprehensive Care workspace, contrary to the
+-- migration's purpose. The real case, intake, assignment, and state workflows
+-- are not changed by the migration.
