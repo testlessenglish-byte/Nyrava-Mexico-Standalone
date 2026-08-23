@@ -843,3 +843,19 @@ export const openCareCaseFromIntake=createServerFn({method:"POST"})
     });
     fail(error);return row;
   });
+
+export const updateCareCaseState=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    caseId:uuid,
+    status:z.enum(["intake","assessment","active","monitoring","pending_referral","reopened"]),
+    priority:z.enum(["standard","urgent","emergency"]),
+    reason:z.string().trim().min(5).max(2000),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:row,error}=await supabase.rpc("update_care_case_state",{
+      p_case:data.caseId,p_status:data.status,p_priority:data.priority,p_reason:data.reason,
+    });
+    fail(error);return row;
+  });
