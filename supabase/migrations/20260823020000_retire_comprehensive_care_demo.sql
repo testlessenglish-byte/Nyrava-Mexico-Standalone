@@ -4,6 +4,20 @@ begin;
 -- validation. This removes only records registered by the fixture manifest and
 -- leaves organization, subscription, membership, program, and real case data
 -- untouched.
+
+-- Historical versions are immutable during normal operation. Disable only the
+-- four named immutability triggers inside this transaction so the retired,
+-- manifest-scoped synthetic fixture can be deleted. PostgreSQL rolls these
+-- ALTER TABLE statements back automatically if any cleanup step fails.
+alter table public.social_assessment_versions
+  disable trigger immutable_social_assessment_versions;
+alter table public.social_care_plan_versions
+  disable trigger immutable_social_care_plan_versions;
+alter table public.social_consent_versions
+  disable trigger immutable_social_consent_versions;
+alter table public.social_document_versions
+  disable trigger immutable_social_document_versions;
+
 do $cleanup$
 declare
   v_owner constant uuid := 'd1c91a8d-de47-48c9-95b4-519c60ae8e04';
@@ -64,6 +78,16 @@ begin
   end if;
 end
 $cleanup$;
+
+-- Restore immutable-history protection before committing.
+alter table public.social_assessment_versions
+  enable trigger immutable_social_assessment_versions;
+alter table public.social_care_plan_versions
+  enable trigger immutable_social_care_plan_versions;
+alter table public.social_consent_versions
+  enable trigger immutable_social_consent_versions;
+alter table public.social_document_versions
+  enable trigger immutable_social_document_versions;
 
 -- Remove all entry points that could recreate or mutate the retired fixture.
 drop function if exists public.reset_existing_account_comprehensive_care_demo();
