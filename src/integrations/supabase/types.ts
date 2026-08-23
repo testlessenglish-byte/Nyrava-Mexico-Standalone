@@ -8933,6 +8933,140 @@ export type Database = {
           },
         ]
       }
+      social_intake_number_counters: {
+        Row: {
+          intake_year: number
+          next_value: number
+          org_id: string
+        }
+        Insert: {
+          intake_year: number
+          next_value?: number
+          org_id: string
+        }
+        Update: {
+          intake_year?: number
+          next_value?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_intake_number_counters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_intakes: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string
+          disposition: string
+          disposition_reason: string | null
+          duplicate_check_completed_at: string | null
+          duplicate_check_completed_by: string | null
+          family_id: string | null
+          id: string
+          intake_number: string
+          org_id: string
+          person_id: string
+          presenting_needs: string[]
+          program_id: string
+          social_case_id: string | null
+          source: string
+          status: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by: string
+          disposition?: string
+          disposition_reason?: string | null
+          duplicate_check_completed_at?: string | null
+          duplicate_check_completed_by?: string | null
+          family_id?: string | null
+          id?: string
+          intake_number: string
+          org_id: string
+          person_id: string
+          presenting_needs?: string[]
+          program_id: string
+          social_case_id?: string | null
+          source?: string
+          status?: string
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string
+          disposition?: string
+          disposition_reason?: string | null
+          duplicate_check_completed_at?: string | null
+          duplicate_check_completed_by?: string | null
+          family_id?: string | null
+          id?: string
+          intake_number?: string
+          org_id?: string
+          person_id?: string
+          presenting_needs?: string[]
+          program_id?: string
+          social_case_id?: string | null
+          source?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_intakes_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "social_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_intakes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_intakes_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "social_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_intakes_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "social_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_intakes_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_interventions: {
         Row: {
           actions_taken: string
@@ -10670,6 +10804,10 @@ export type Database = {
         Returns: string
       }
       closing_readiness: { Args: { p_case_id: string }; Returns: number }
+      complete_social_intake: {
+        Args: { p_disposition: string; p_intake: string; p_reason: string }
+        Returns: Json
+      }
       consume_usage: {
         Args: {
           p_amount?: number
@@ -10826,6 +10964,19 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      create_social_intake: {
+        Args: {
+          p_assigned_user?: string
+          p_family: string
+          p_org: string
+          p_person: string
+          p_presenting_needs: string[]
+          p_program: string
+          p_source: string
+          p_summary: string
+        }
+        Returns: Json
       }
       create_social_person: {
         Args: {
@@ -11024,6 +11175,15 @@ export type Database = {
       }
       normalize_mx_search: { Args: { value: string }; Returns: string }
       normalize_social_search: { Args: { value: string }; Returns: string }
+      open_care_case_from_intake: {
+        Args: {
+          p_assigned_user?: string
+          p_case_type: string
+          p_intake: string
+          p_priority: string
+        }
+        Returns: Json
+      }
       org_role_of: {
         Args: { _org: string; _user: string }
         Returns: Database["public"]["Enums"]["org_role"]
