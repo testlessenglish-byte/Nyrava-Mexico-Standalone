@@ -16,7 +16,7 @@ import {
   grantSocialRecordAccess, recordSocialAssessment, recordSocialIntervention,
   refreshSocialAlerts, reopenSocialCase, revokeSocialConsent,
   sendSocialReferral, shareSocialDocument, upsertSocialTask,
-  verifySocialReferralResult,
+  updateCareCaseState, verifySocialReferralResult,
 } from "@/lib/social.functions";
 
 type Props={
@@ -38,6 +38,18 @@ const TABS:Array<{id:Tab;es:string;en:string}>=[
   {id:"transfer",es:"Transferencia",en:"Transfer"},{id:"closure",es:"Cierre",en:"Closure"},
   {id:"immigration",es:"Vínculo migratorio",en:"Immigration link"},{id:"assistant",es:"Consultar Caso de Atención",en:"Talk to Care Case"},{id:"activity",es:"Auditoría",en:"Audit"},
 ];
+
+function nextStatuses(status:string){
+  const transitions:Record<string,string[]>={
+    intake:["intake","assessment","active"],
+    assessment:["assessment","active","monitoring"],
+    active:["active","monitoring","pending_referral"],
+    monitoring:["monitoring","active","pending_referral"],
+    pending_referral:["pending_referral","active","monitoring"],
+    reopened:["reopened","assessment","active"],
+  };
+  return transitions[status]??[status];
+}
 
 export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAssignments,organizationMembers,onClose}:Props){
   const {locale}=useI18n();const es=locale==="es";const qc=useQueryClient();
@@ -106,6 +118,10 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
 
   const assignFn=useServerFn(assignSocialCaseManager);const [assignment,setAssignment]=useState({userId:"",role:"case_manager" as any});
   const assignM=useMutation({mutationFn:()=>assignFn({data:{caseId,userId:assignment.userId,role:assignment.role}}),onSuccess:()=>success(es?"Asignación actualizada":"Assignment updated"),onError:showError});
+  const stateFn=useServerFn(updateCareCaseState);
+  const [showStateEditor,setShowStateEditor]=useState(false);
+  const [stateEditor,setStateEditor]=useState({status:"",priority:"",reason:""});
+  const stateM=useMutation({mutationFn:()=>stateFn({data:{caseId,status:(stateEditor.status||c?.status||"intake") as any,priority:(stateEditor.priority||c?.priority||"standard") as any,reason:stateEditor.reason}}),onSuccess:()=>{setShowStateEditor(false);setStateEditor({status:"",priority:"",reason:""});success(es?"Estado del caso actualizado":"Case state updated");},onError:showError});
   const grantFn=useServerFn(grantSocialRecordAccess);const [grant,setGrant]=useState({userId:"",recordType:"legal_privileged_record" as any,reason:"",canWrite:false});
   const grantM=useMutation({mutationFn:()=>grantFn({data:{caseId,userId:grant.userId,recordType:grant.recordType,reason:grant.reason,canWrite:grant.canWrite}}),onSuccess:()=>success(es?"Acceso restringido concedido y auditado":"Restricted access granted and audited"),onError:showError});
   const shareFn=useServerFn(shareSocialDocument);const [share,setShare]=useState({documentId:"",receivingOrgId:"",consentId:"",purpose:"case_coordination"});
@@ -116,7 +132,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
     <div className="border-b border-border p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><p className="font-mono text-sm text-primary">{caseLabel}</p><h2 className="text-xl font-semibold">{person?.legal_name??(es?"Caso familiar":"Family case")}</h2><p className="text-xs text-muted-foreground">{localizedEnum(c?.case_type,es)} · {c?.status==="intake"?(es?"Nuevo":"New"):localizedEnum(c?.status,es)} · {localizedEnum(c?.priority,es)}</p></div>
-        <div className="flex flex-wrap gap-2"><button onClick={()=>setTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>setTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button onClick={()=>setTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
+        <div className="flex flex-wrap gap-2"><button onClick={()=>c?.status==="closed"?setTab("closure"):setShowStateEditor(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-sm">{c?.status==="closed"?(es?"Reabrir en Cierre":"Reopen in Closure"):(es?"Cambiar estado":"Change state")}</button><button onClick={()=>setTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>setTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button onClick={()=>setTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
       </div>
       <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
         <span>{es?"Responsable":"Assigned"}: <strong className="text-foreground">{organizationMembers.find((m:any)=>m.user_id===c?.assigned_case_manager)?.name??(es?"Sin asignar":"Unassigned")}</strong></span>
@@ -124,6 +140,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
         <span>{es?"Riesgo":"Risk"}: <strong className="text-foreground">{localizedEnum(c?.risk_level,es)}</strong></span>
         <span>{es?"Última actividad":"Last activity"}: <strong className="text-foreground">{c?.last_activity_at?new Date(c.last_activity_at).toLocaleString():"—"}</strong></span>
       </div>
+      {showStateEditor&&c?.status!=="closed"&&<div className="mt-4 rounded-xl border border-primary/25 bg-primary/5 p-4"><div className="grid gap-3 md:grid-cols-3"><Select label={es?"Estado operativo":"Operational status"} value={stateEditor.status||c.status} onChange={v=>setStateEditor({...stateEditor,status:v})} options={nextStatuses(c.status).map(v=>({value:v,label:localizedEnum(v,es)}))}/><Select label={es?"Prioridad":"Priority"} value={stateEditor.priority||c.priority} onChange={v=>setStateEditor({...stateEditor,priority:v})} options={["standard","urgent","emergency"].map(v=>({value:v,label:localizedEnum(v,es)}))}/><Input label={es?"Razón documentada":"Documented reason"} value={stateEditor.reason} onChange={v=>setStateEditor({...stateEditor,reason:v})}/></div>{(stateEditor.priority||c.priority)==="emergency"&&c.priority!=="emergency"&&<p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{es?"La prioridad de emergencia crea una alerta crítica y una tarea inmediata. No sustituye servicios de emergencia.":"Emergency priority creates a critical alert and immediate task. It does not replace emergency services."}</p>}<div className="mt-3 flex gap-2"><Action busy={stateM.isPending} disabled={stateEditor.reason.trim().length<5||((stateEditor.status||c.status)===c.status&&(stateEditor.priority||c.priority)===c.priority)} onClick={()=>stateM.mutate()}>{es?"Guardar cambio":"Save change"}</Action><button type="button" onClick={()=>setShowStateEditor(false)} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cancelar":"Cancel"}</button></div></div>}
     </div>
     <div className="flex gap-1 overflow-x-auto border-b border-border p-2">{TABS.map(x=><button key={x.id} onClick={()=>setTab(x.id)} className={`shrink-0 rounded-md px-3 py-2 text-xs ${tab===x.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}>{es?x.es:x.en}</button>)}</div>
     <div className="p-5">
