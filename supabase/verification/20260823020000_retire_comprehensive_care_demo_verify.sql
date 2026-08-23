@@ -51,6 +51,18 @@ where tgname in (
 and tgenabled = 'O'
 and not tgisinternal;
 
+select exists (
+  select 1
+  from pg_trigger t
+  join pg_class c on c.oid = t.tgrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname = 'social_cases'
+    and t.tgname = 'audit_social_cases'
+    and t.tgenabled = 'O'
+    and not t.tgisinternal
+) as social_case_audit_trigger_enabled;
+
 select
   exists (
     select 1
