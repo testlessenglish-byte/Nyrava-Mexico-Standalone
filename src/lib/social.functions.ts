@@ -777,3 +777,69 @@ export const acceptSocialOrganizationInvitation=createServerFn({method:"POST"})
     const {data:membership,error}=await supabase.rpc("accept_social_organization_invitation",{p_token:data.token});
     fail(error);return membership;
   });
+
+const socialIntakeSource=z.enum(["direct","phone","email","walk_in","outreach","referral","emergency","other"]);
+const socialIntakeDisposition=z.enum(["refer_only","information_only","ineligible","duplicate","no_follow_up"]);
+
+export const getSocialIntakes=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({orgId:uuid}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:rows,error}=await supabase.from("social_intakes")
+      .select("id,org_id,program_id,intake_number,person_id,family_id,source,status,disposition,summary,presenting_needs,assigned_to,social_case_id,disposition_reason,created_at,completed_at")
+      .eq("org_id",data.orgId)
+      .order("created_at",{ascending:false})
+      .limit(250);
+    fail(error);return rows??[];
+  });
+
+export const createSocialIntake=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    orgId:uuid,programId:uuid,personId:uuid,familyId:uuid.optional(),
+    source:socialIntakeSource.default("direct"),
+    summary:z.string().trim().min(3).max(10000),
+    presentingNeeds:z.array(z.string().trim().min(1).max(200)).max(50).default([]),
+    assignedUserId:uuid.optional(),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:row,error}=await supabase.rpc("create_social_intake",{
+      p_org:data.orgId,p_program:data.programId,p_person:data.personId,
+      p_family:data.familyId??null,p_source:data.source,p_summary:data.summary,
+      p_presenting_needs:data.presentingNeeds,p_assigned_user:data.assignedUserId??null,
+    });
+    fail(error);return row;
+  });
+
+export const completeSocialIntake=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    intakeId:uuid,disposition:socialIntakeDisposition,
+    reason:z.string().trim().min(3).max(5000),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:row,error}=await supabase.rpc("complete_social_intake",{
+      p_intake:data.intakeId,p_disposition:data.disposition,p_reason:data.reason,
+    });
+    fail(error);return row;
+  });
+
+export const openCareCaseFromIntake=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    intakeId:uuid,
+    caseType:z.enum(["individual","minor_child","family"]),
+    priority:z.enum(["standard","urgent","emergency"]).default("standard"),
+    assignedUserId:uuid.optional(),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:row,error}=await supabase.rpc("open_care_case_from_intake",{
+      p_intake:data.intakeId,p_case_type:data.caseType,p_priority:data.priority,
+      p_assigned_user:data.assignedUserId??null,
+    });
+    fail(error);return row;
+  });
