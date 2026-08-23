@@ -18,6 +18,12 @@ alter table public.social_consent_versions
 alter table public.social_document_versions
   disable trigger immutable_social_document_versions;
 
+-- The generic case audit trigger writes a post-delete event whose foreign key
+-- necessarily points at the just-deleted case. Disable only that trigger for
+-- this manifest-scoped retirement transaction.
+alter table public.social_cases
+  disable trigger audit_social_cases;
+
 do $cleanup$
 declare
   v_owner constant uuid := 'd1c91a8d-de47-48c9-95b4-519c60ae8e04';
@@ -79,7 +85,11 @@ begin
 end
 $cleanup$;
 
--- Restore immutable-history protection before committing.
+-- Restore the case audit trigger and immutable-history protection before
+-- committing. Transaction rollback also restores them automatically on error.
+alter table public.social_cases
+  enable trigger audit_social_cases;
+
 alter table public.social_assessment_versions
   enable trigger immutable_social_assessment_versions;
 alter table public.social_care_plan_versions
