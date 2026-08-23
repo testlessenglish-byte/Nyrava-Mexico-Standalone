@@ -20,6 +20,7 @@ import { SocialDocumentsHub } from "@/components/social/SocialDocumentsHub";
 import { ResourceKnowledgeNetwork } from "@/components/social/ResourceKnowledgeNetwork";
 import { KnowledgeCenter } from "@/components/social/KnowledgeCenter";
 import { EscapedTextNormalizer } from "@/components/social/EscapedTextNormalizer";
+import { SocialIntakeManager } from "@/components/social/SocialIntakeManager";
 
 export const Route=createFileRoute("/_authenticated/social")({
   head:()=>({meta:[
@@ -218,7 +219,7 @@ function SocialCarePage(){
           <CaseTable cases={visibleCases.slice(0,12)} es={es} onOpen={setSelectedCaseId}/>
         </>}
 
-        {(area==="people"||area==="intake")&&<div className="grid gap-4 xl:grid-cols-[minmax(0,420px)_1fr]">
+        {area==="people"&&<div className="grid gap-4 xl:grid-cols-[minmax(0,420px)_1fr]">
           <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="font-semibold">{es?"Registrar persona":"Register person"}</h2>
             <p className="mb-4 text-xs text-muted-foreground">{es?"Capture únicamente los datos necesarios para el servicio.":"Collect only data necessary for the service."}</p>
@@ -246,7 +247,7 @@ function SocialCarePage(){
           <CaseTable cases={filtered} es={es} onOpen={setSelectedCaseId}/>
         </section>}
 
-        {area==="intake"&&null}
+        {area==="intake"&&<SocialIntakeManager orgId={resolvedOrg} programs={programs} people={visiblePeople} families={visibleFamilies} members={organizationMembers} onCaseOpened={setSelectedCaseId}/>}
         {area==="families"&&<div className="grid gap-4 xl:grid-cols-[420px_1fr]">
           <section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Registrar familia u hogar":"Register family or household"}</h2><p className="mb-4 text-xs text-muted-foreground">{es?"Cada integrante conserva su expediente individual y sus permisos.":"Each member keeps an individual record and permissions."}</p><div className="space-y-3"><Field label={es?"Nombre familiar":"Family name"} value={family.name} onChange={v=>setFamily({...family,name:v})}/><label className="block text-xs font-medium text-muted-foreground">{es?"Contacto principal":"Primary contact"}<select value={family.primaryId} onChange={e=>setFamily({...family,primaryId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">—</option>{visiblePeople.map((p:any)=><option key={p.id} value={p.id}>{p.person_number} · {p.legal_name}</option>)}</select></label><div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-2"><p className="mb-2 text-xs font-medium text-muted-foreground">{es?"Integrantes":"Members"}</p>{visiblePeople.map((p:any)=><label key={p.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={family.memberIds.includes(p.id)} onChange={e=>setFamily({...family,memberIds:e.target.checked?[...family.memberIds,p.id]:family.memberIds.filter(id=>id!==p.id)})}/>{p.person_number} · {p.legal_name}</label>)}</div><button disabled={!family.name||!family.memberIds.length||familyMutation.isPending} onClick={()=>familyMutation.mutate()} className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{familyMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Guardar familia":"Save family"}</button></div></section>
           <div className="overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-4 py-3">{es?"Folio":"Number"}</th><th className="px-4 py-3">{es?"Familia":"Family"}</th><th className="px-4 py-3">{es?"Contacto":"Primary contact"}</th></tr></thead><tbody>{visibleFamilies.map((x:any)=><tr key={x.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{x.family_number}</td><td className="px-4 py-3">{x.family_name}</td><td className="px-4 py-3">{visiblePeople.find((p:any)=>p.id===x.primary_contact_person_id)?.legal_name??"—"}</td></tr>)}{!visibleFamilies.length&&<tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">—</td></tr>}</tbody></table></div>
