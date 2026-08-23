@@ -5281,6 +5281,8 @@ export type Database = {
           id: string
           invited_at: string
           invited_by: string
+          invitee_name: string | null
+          invitee_title: string | null
           org_id: string
           revoked_at: string | null
           role: string
@@ -5295,6 +5297,8 @@ export type Database = {
           id?: string
           invited_at?: string
           invited_by: string
+          invitee_name?: string | null
+          invitee_title?: string | null
           org_id: string
           revoked_at?: string | null
           role: string
@@ -5309,6 +5313,8 @@ export type Database = {
           id?: string
           invited_at?: string
           invited_by?: string
+          invitee_name?: string | null
+          invitee_title?: string | null
           org_id?: string
           revoked_at?: string | null
           role?: string
@@ -7567,6 +7573,54 @@ export type Database = {
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "social_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_case_status_history: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          from_status: string | null
+          id: string
+          org_id: string
+          reason: string
+          social_case_id: string
+          to_status: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          from_status?: string | null
+          id?: string
+          org_id: string
+          reason: string
+          social_case_id: string
+          to_status: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          from_status?: string | null
+          id?: string
+          org_id?: string
+          reason?: string
+          social_case_id?: string
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_case_status_history_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_case_status_history_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
             referencedColumns: ["id"]
           },
         ]
@@ -10633,6 +10687,19 @@ export type Database = {
         Args: { p_name: string; p_prefix?: string; p_slug: string }
         Returns: Json
       }
+      create_and_assign_care_case: {
+        Args: {
+          p_assigned_user?: string
+          p_case_type: string
+          p_client_name: string
+          p_family: string
+          p_org: string
+          p_person: string
+          p_priority: string
+          p_program: string
+        }
+        Returns: Json
+      }
       create_social_assessment_initial: {
         Args: {
           p_actions: string
@@ -10903,10 +10970,21 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: undefined
       }
-      invite_social_organization_member: {
-        Args: { p_email: string; p_org: string; p_role: string }
-        Returns: Json
-      }
+      invite_social_organization_member:
+        | {
+            Args: { p_email: string; p_org: string; p_role: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_email: string
+              p_name: string
+              p_org: string
+              p_role: string
+              p_title: string
+            }
+            Returns: Json
+          }
       is_admin_tier: { Args: { _user_id: string }; Returns: boolean }
       is_case_manager: { Args: { _user_id: string }; Returns: boolean }
       is_member_of_firm: {
