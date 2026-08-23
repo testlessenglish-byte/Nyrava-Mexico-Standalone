@@ -239,12 +239,19 @@ export const recordSocialIntervention=createServerFn({method:"POST"})
   .handler(async({data,context})=>{
     const {supabase,userId}=ctx(context);
     const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,person_id,family_id").eq("id",data.socialCaseId).single();fail(caseError);
+    const legalServices=new Set(["legal_assistance","immigration_assistance","institutional_advocacy"]);
+    const psychosocialServices=new Set(["psychological_support","medical_referral","child_protection"]);
+    const protectedRecord=legalServices.has(data.serviceType)
+      ?{recordType:"legal_privileged_record",confidentialityLevel:"highly_restricted"}
+      :psychosocialServices.has(data.serviceType)
+        ?{recordType:"psychosocial_restricted_record",confidentialityLevel:"restricted"}
+        :{recordType:data.recordType,confidentialityLevel:data.confidentialityLevel};
     const {data:row,error}=await supabase.from("social_interventions").insert({
       org_id:c.org_id,social_case_id:data.socialCaseId,person_id:c.person_id,family_id:c.family_id,
       occurred_at:data.occurredAt,service_type:data.serviceType,professional_id:userId,
       location_method:data.locationMethod??null,reason:data.reason,actions_taken:data.actionsTaken,
-      outcome:data.outcome??null,follow_up_required:data.followUpRequired,record_type:data.recordType,
-      confidentiality_level:data.confidentialityLevel,next_appointment:data.nextAppointment??null,
+      outcome:data.outcome??null,follow_up_required:data.followUpRequired,record_type:protectedRecord.recordType,
+      confidentiality_level:protectedRecord.confidentialityLevel,next_appointment:data.nextAppointment??null,
     }).select("id").single();fail(error);return row;
   });
 
