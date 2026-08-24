@@ -244,12 +244,31 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
       meta: { role: data.role },
     });
 
-    // NOTE: no outbound email is sent yet — there's no transactional email
-    // provider wired up in this project. The invite is recorded and takes
-    // effect the moment the invitee signs up with this email address. If
-    // you want an actual email to go out, wire a provider (Resend, Postmark,
-    // etc.) here and send a "you've been invited" message pointing at /auth.
-    return { ok: true, emailSent: false };
+    // Send the invitation email so the invitee can click through and create
+    // an account. Delivery failures never roll back the recorded invite.
+    let emailSent = false;
+    try {
+      const [{ data: firmRow }, { data: inviterRow }] = await Promise.all([
+        supabaseAdmin.from("firms").select("name").eq("id", caller.firmId).maybeSingle(),
+        supabaseAdmin.from("profiles").select("full_name,email").eq("id", userId).maybeSingle(),
+      ]);
+      const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
+      const res = await sendTemplateEmail("team-invite", data.email.toLowerCase(), {
+        templateData: {
+          firmName: firmRow?.name ?? "tu equipo",
+          inviterName: inviterRow?.full_name ?? inviterRow?.email ?? undefined,
+          roleLabel: data.role,
+          inviteEmail: data.email.toLowerCase(),
+          signupUrl: "https://mexico.nyrava.com/auth",
+        },
+        idempotencyKey: `team-invite-${caller.firmId}-${data.email.toLowerCase()}`,
+      });
+      emailSent = res.sent;
+    } catch (e) {
+      console.error("[inviteFirmMember] invite email failed", e);
+    }
+
+    return { ok: true, emailSent };
   });
 
 // ============== Revoke a pending invite ==============
