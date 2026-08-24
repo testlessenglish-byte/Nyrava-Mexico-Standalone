@@ -2,18 +2,29 @@ begin;
 
 -- Historical/demo imports may provide an explicit immutable case number. Those
 -- inserts correctly preserve the number but do not advance the legacy counter.
--- Reconcile every counter with the greatest suffix already present.
+-- Reconcile every counter with the greatest suffix already present. Prefer the
+-- year embedded in a canonical case number so imports with historical intake
+-- dates cannot leave the allocator behind.
 lock table public.social_case_number_counters in share row exclusive mode;
 
 with existing_maximums as (
   select
     c.org_id,
     c.program_id,
-    extract(year from coalesce(c.intake_date,current_date))::integer as calendar_year,
-    max((regexp_match(c.case_number,'([0-9]+)$'))[1]::bigint) as last_number
+    coalesce(
+      substring(c.case_number from '-([0-9]{4})-[0-9]+$')::integer,
+      extract(year from coalesce(c.intake_date,current_date))::integer
+    ) as calendar_year,
+    max(substring(c.case_number from '([0-9]+)$')::bigint) as last_number
   from public.social_cases c
   where c.case_number ~ '[0-9]+$'
-  group by c.org_id,c.program_id,extract(year from coalesce(c.intake_date,current_date))::integer
+  group by
+    c.org_id,
+    c.program_id,
+    coalesce(
+      substring(c.case_number from '-([0-9]{4})-[0-9]+$')::integer,
+      extract(year from coalesce(c.intake_date,current_date))::integer
+    )
 )
 insert into public.social_case_number_counters(org_id,program_id,calendar_year,last_number)
 select org_id,program_id,calendar_year,last_number
