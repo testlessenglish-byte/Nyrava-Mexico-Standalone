@@ -254,6 +254,10 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).toContain("dashboardCasePage");
     expect(routeSource).toContain("Math.ceil(dashboardCases.length/10)");
     expect(routeSource).toContain("Search by name or case number");
+    expect(routeSource).toContain("members={organizationMembers}");
+    expect(routeSource).toContain('es?"Asignado a":"Assigned to"');
+    expect(routeSource).toContain("m.user_id===c.assigned_case_manager");
+    expect(routeSource).toContain('es?"Sin asignar":"Unassigned"');
   });
   it("allows only the assigning manager to soft-delete a case",()=>{
     expect(managerCaseDelete).toContain("delete_social_case_by_assigning_manager");
