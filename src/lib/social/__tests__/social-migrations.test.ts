@@ -21,6 +21,7 @@ const managerOnlyCaseCreation=migration("20260824131000_social_manager_only_case
 const caseNumberAllocatorRepair=migration("20260824150000_social_case_number_allocator_repair.sql");
 const caseReadbackAccess=migration("20260824184500_social_case_readback_access.sql");
 const managerCaseDelete=migration("20260824193000_social_case_manager_delete.sql");
+const caseMultifileUploads=migration("20260824203000_social_case_multifile_uploads.sql");
 const documentsHubSource=readFileSync(join(process.cwd(),"src","components","social","SocialDocumentsHub.tsx"),"utf8");
 const stripeWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","stripe-webhook.ts"),"utf8");
 const mercadoPagoWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","mercadopago-webhook.ts"),"utf8");
@@ -107,6 +108,19 @@ describe("social-care migration security coverage",()=>{
     expect(transactional).toContain("(storage.foldername(name))[3]");
     expect(transactional).toContain("public.social_can_access_case");
     expect(sql).not.toMatch(/create policy social_case_files_delete/i);
+  });
+  it("supports safe multi-file uploads inside a Comprehensive Care case",()=>{
+    expect(caseMultifileUploads).toContain("file_size_limit=104857600");
+    expect(caseMultifileUploads).toContain("application/x-7z-compressed");
+    expect(caseMultifileUploads).toContain("video/x-matroska");
+    expect(caseMultifileUploads).toContain("storage.filename(name) ~*");
+    expect(caseMultifileUploads).not.toMatch(/\|exe\|/i);
+    expect(serverSource).toContain("allowedExtensions=new Set");
+    expect(serverSource).toContain("blockedExtensions=new Set");
+    expect(workspaceSource).toContain("multiple accept={CASE_FILE_ACCEPT}");
+    expect(workspaceSource).toContain("Array.from(e.dataTransfer.files)");
+    expect(workspaceSource).toContain("sizeBytes:file.size");
+    expect(workspaceSource).toContain("Uploading ${uploadProgress.current} of ${uploadProgress.total}");
   });
   it("creates family, consent, assessment and care plan atomically",()=>{
     for(const fn of ["create_social_family","create_social_consent","create_social_assessment_initial","create_social_care_plan"]){

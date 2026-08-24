@@ -384,12 +384,21 @@ export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
       .select("org_id").eq("id",data.socialCaseId).single();
     fail(caseError);
     if(!socialCase?.org_id||socialCase.org_id!==data.orgId) throw new Error("Case does not belong to the selected organization");
-    const allowed=["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","image/jpeg","image/png","image/webp","image/tiff","application/zip"];
-    const media=["audio/mpeg","audio/wav","audio/mp4","video/mp4","video/quicktime","video/webm"];
-    if(data.mimeType&&!allowed.includes(data.mimeType)&&!media.includes(data.mimeType)) throw new Error("Unsupported Social document format");
-    if(data.mimeType&&media.includes(data.mimeType)){
+    const mime=String(data.mimeType??"").toLowerCase().split(";")[0];
+    const extension=data.fileName.toLowerCase().split(".").pop()??"";
+    const allowedExtensions=new Set([
+      "pdf","doc","docx","xls","xlsx","ppt","pptx","odt","ods","odp","rtf","txt","csv","tsv","json","xml",
+      "jpg","jpeg","png","webp","gif","bmp","tif","tiff","heic","heif","svg",
+      "zip","rar","7z","tar","gz","tgz",
+      "mp3","wav","m4a","aac","ogg","oga","flac","mp4","mov","m4v","webm","avi","mpeg","mpg","mkv",
+      "eml","msg","dcm",
+    ]);
+    const blockedExtensions=new Set(["exe","dll","com","bat","cmd","msi","ps1","sh","js","mjs","cjs","html","htm","php","jar","apk","app","scr"]);
+    if(blockedExtensions.has(extension)||!allowedExtensions.has(extension)) throw new Error("Unsupported or unsafe case-file format");
+    const media=mime.startsWith("audio/")||mime.startsWith("video/")||["mp3","wav","m4a","aac","ogg","oga","flac","mp4","mov","m4v","webm","avi","mpeg","mpg","mkv"].includes(extension);
+    if(media){
       const {data:programs,error:settingsError}=await supabase.from("social_programs").select("settings").eq("org_id",data.orgId).eq("active",true);fail(settingsError);
-      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads===true)) throw new Error("Audio and video uploads are not enabled for this organization");
+      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads!==false)) throw new Error("Audio and video uploads are disabled for this organization");
     }
     const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");
     const path=`${socialCase.org_id}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
