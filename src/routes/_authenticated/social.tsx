@@ -82,6 +82,8 @@ function SocialCarePage(){
   const [selectedCaseId,setSelectedCaseId]=useState("");
   const [orgId,setOrgId]=useState("");
   const [query,setQuery]=useState("");
+  const [caseListQuery,setCaseListQuery]=useState("");
+  const [casePage,setCasePage]=useState(1);
   const [programSetup,setProgramSetup]=useState({nameEs:"Atención Integral",nameEn:"Comprehensive Care",prefix:"NYR-SOC"});
   const [family,setFamily]=useState({name:"",primaryId:"",memberIds:[] as string[]});
   const today=new Date().toISOString().slice(0,10);const yearStart=`${today.slice(0,4)}-01-01`;
@@ -191,6 +193,22 @@ function SocialCarePage(){
     const q=query.trim().toLocaleLowerCase("es-MX"); if(!q)return visibleCases;
     return visibleCases.filter((c:any)=>[c.case_number,c.case_type,c.status,c.risk_level].some(v=>String(v??"").toLocaleLowerCase("es-MX").includes(q)));
   },[visibleCases,query]);
+  const dashboardCases=useMemo(()=>{
+    const q=caseListQuery.trim().toLocaleLowerCase("es-MX");
+    if(!q)return visibleCases;
+    return visibleCases.filter((caseRow:any)=>{
+      const person=visiblePeople.find((row:any)=>row.id===caseRow.person_id);
+      const familyRow=visibleFamilies.find((row:any)=>row.id===caseRow.family_id);
+      return [
+        caseRow.case_number,caseRow.case_type,caseRow.status,caseRow.risk_level,
+        person?.legal_name,person?.preferred_name,familyRow?.family_name,
+      ].some(value=>String(value??"").toLocaleLowerCase("es-MX").includes(q));
+    });
+  },[visibleCases,visiblePeople,visibleFamilies,caseListQuery]);
+  const casePageCount=Math.max(1,Math.ceil(dashboardCases.length/10));
+  const safeCasePage=Math.min(casePage,casePageCount);
+  const dashboardCasePage=dashboardCases.slice((safeCasePage-1)*10,safeCasePage*10);
+  useEffect(()=>setCasePage(1),[caseListQuery,resolvedOrg]);
 
   if(workspace.isLoading)return <div className="p-8 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>{es?"Cargando Atención Integral…":"Loading Comprehensive Care…"}</div>;
   if(selectedCaseId)return <div data-social-care-root className="mx-auto max-w-[1600px] p-4 md:p-6"><EscapedTextNormalizer/><SocialCaseWorkspace
@@ -257,8 +275,12 @@ function SocialCarePage(){
             <div className="flex gap-2"><button type="button" onClick={()=>setSelectedCaseId(alert.social_case_id)} className="rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-destructive-foreground">{es?"Abrir caso":"Open case"}</button><button type="button" disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(alert.id)} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold">{es?"Acusar recibo":"Acknowledge"}</button></div>
           </div>)}
           {canManageOrganization&&!visibleCases.length&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="text-sm font-semibold">{es?"Registre su primer caso":"Register your first case"}</p><p className="text-xs text-muted-foreground">{es?"Registre o seleccione al cliente, defina el tipo y asigne al responsable en un solo flujo.":"Register or select the client, choose the case type, and assign responsibility in one workflow."}</p></div><button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button></div>}
-          <h2 className="mt-5 text-base font-semibold">{canManageOrganization?(es?"Casos de la organización":"Organization cases"):(es?"Casos asignados":"Assigned cases")}</h2>
-          <CaseTable cases={visibleCases.slice(0,12)} es={es} onOpen={setSelectedCaseId}/>
+          <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
+            <div><h2 className="text-base font-semibold">{canManageOrganization?(es?"Casos de la organización":"Organization cases"):(es?"Casos asignados":"Assigned cases")}</h2><p className="text-xs text-muted-foreground">{es?`${dashboardCases.length} casos autorizados`:`${dashboardCases.length} authorized cases`}</p></div>
+            <label className="min-w-[260px] text-xs font-medium text-muted-foreground">{es?"Buscar por nombre o folio":"Search by name or case number"}<input value={caseListQuery} onChange={event=>setCaseListQuery(event.target.value)} placeholder={es?"Nombre o NYR-SOC-…":"Name or NYR-SOC-…"} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>
+          </div>
+          <CaseTable cases={dashboardCasePage} es={es} onOpen={setSelectedCaseId}/>
+          {dashboardCases.length>10&&<div className="mt-3 flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm"><span>{es?`Página ${safeCasePage} de ${casePageCount}`:`Page ${safeCasePage} of ${casePageCount}`}</span><div className="flex gap-2"><button type="button" disabled={safeCasePage<=1} onClick={()=>setCasePage(page=>Math.max(1,page-1))} className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-40">{es?"Anterior":"Previous"}</button><button type="button" disabled={safeCasePage>=casePageCount} onClick={()=>setCasePage(page=>Math.min(casePageCount,page+1))} className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-40">{es?"Siguiente":"Next"}</button></div></div>}
         </>}
 
         {(area==="people"||area==="families")&&<div className="mb-4 flex gap-2 rounded-xl border border-border bg-card p-2">
