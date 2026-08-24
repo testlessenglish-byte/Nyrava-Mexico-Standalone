@@ -253,6 +253,15 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).toContain("Math.ceil(dashboardCases.length/10)");
     expect(routeSource).toContain("Search by name or case number");
   });
+  it("opens the core case even when an optional workspace section fails",()=>{
+    expect(serverSource).toContain('fail(caseRow.error)');
+    expect(serverSource).toContain('const optionalRows=');
+    expect(serverSource).toContain('warnings.push');
+    expect(workspaceSource).toContain('retry:1');
+    expect(workspaceSource).toContain('Case could not be opened');
+    expect(workspaceSource).toContain('onClick={()=>void detail.refetch()}');
+    expect(workspaceSource).not.toContain('if(detail.isLoading||!caseData||!c)');
+  });
   it("keeps employee passwords outside manager-controlled data",()=>{
     expect(organizationAccount).not.toMatch(/password|credential/i);
     expect(organizationAccount).toContain("Invitation email does not match the signed-in account");

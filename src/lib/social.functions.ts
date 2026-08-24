@@ -150,10 +150,35 @@ export const getSocialCase=createServerFn({method:"GET"})
       supabase.from("social_case_closures").select("*").eq("social_case_id",data.caseId).order("closure_version",{ascending:false}),
       supabase.from("social_activity_events").select("id,actor_id,event_type,entity_type,entity_id,metadata,occurred_at").eq("social_case_id",data.caseId).order("occurred_at",{ascending:false}).limit(100),
     ]);
-    [caseRow,assessments,plans,interventions,referrals,tasks,appointments,documents,consents,transfers,closures,activity].forEach((r:any)=>fail(r.error));
+    fail(caseRow.error);
     const c=caseRow.data;
-    const consentRows=(consents.data??[]).filter((x:any)=>x.person_id===c.person_id||x.family_id===c.family_id);
-    return {case:c,assessments:assessments.data??[],plans:plans.data??[],interventions:interventions.data??[],referrals:referrals.data??[],tasks:tasks.data??[],appointments:appointments.data??[],documents:documents.data??[],consents:consentRows,transfers:transfers.data??[],closures:closures.data??[],activity:activity.data??[]};
+    if(!c)throw new Error("The selected Comprehensive Care case is unavailable");
+    const warnings:string[]=[];
+    const optionalRows=(label:string,result:any)=>{
+      if(result.error){
+        warnings.push(`${label}: ${result.error.message??"unavailable"}`);
+        return [];
+      }
+      return result.data??[];
+    };
+    const assessmentRows=optionalRows("assessments",assessments);
+    const planRows=optionalRows("care plans",plans);
+    const interventionRows=optionalRows("interventions",interventions);
+    const referralRows=optionalRows("referrals",referrals);
+    const taskRows=optionalRows("tasks",tasks);
+    const appointmentRows=optionalRows("appointments",appointments);
+    const documentRows=optionalRows("documents",documents);
+    const consentRows=optionalRows("consents",consents)
+      .filter((x:any)=>x.person_id===c.person_id||x.family_id===c.family_id);
+    const transferRows=optionalRows("transfers",transfers);
+    const closureRows=optionalRows("closures",closures);
+    const activityRows=optionalRows("activity",activity);
+    return {
+      case:c,assessments:assessmentRows,plans:planRows,interventions:interventionRows,
+      referrals:referralRows,tasks:taskRows,appointments:appointmentRows,
+      documents:documentRows,consents:consentRows,transfers:transferRows,
+      closures:closureRows,activity:activityRows,warnings,
+    };
   });
 
 export const recordSocialAssessment=createServerFn({method:"POST"})

@@ -59,7 +59,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
   const {locale}=useI18n();const es=locale==="es";const qc=useQueryClient();
   const getCaseFn=useServerFn(getSocialCase);
   const [tab,setTab]=useState<Tab>("overview");
-  const detail=useQuery({queryKey:["social-case",caseId],queryFn:()=>getCaseFn({data:{caseId}})});
+  const detail=useQuery({queryKey:["social-case",caseId],queryFn:()=>getCaseFn({data:{caseId}}),retry:1});
   const refresh=()=>qc.invalidateQueries({queryKey:["social-case",caseId]});
   const success=(message:string)=>{toast.success(message);void refresh();};
   const caseData=detail.data;
@@ -150,8 +150,13 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
 
   const isServiceTab=tab==="intervention"||tab==="legal"||tab==="psychosocial";
 
-  if(detail.isLoading||!caseData||!c)return <Panel><Loader2 className="h-5 w-5 animate-spin"/></Panel>;
+  if(detail.isLoading)return <Panel><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin"/>{es?"Abriendo el expediente…":"Opening case workspace…"}</div></Panel>;
+  if(detail.isError||!caseData||!c){
+    const message=detail.error instanceof Error?detail.error.message:(es?"No fue posible abrir el expediente.":"The case workspace could not be opened.");
+    return <Panel><div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-4"><h2 className="font-semibold text-destructive">{es?"No se pudo abrir el caso":"Case could not be opened"}</h2><p className="mt-1 text-sm text-muted-foreground">{message}</p><div className="mt-3 flex gap-2"><button type="button" onClick={()=>void detail.refetch()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Reintentar":"Retry"}</button><button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm">{es?"Volver a casos":"Back to cases"}</button></div></div></Panel>;
+  }
   return <div className="rounded-2xl border border-primary/25 bg-card shadow-xl">
+    {!!caseData.warnings?.length&&<div role="status" className="m-4 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"><p className="font-semibold">{es?"El caso abrió, pero algunas secciones necesitan atención":"The case opened, but some sections need attention"}</p><p className="mt-1 text-xs text-muted-foreground">{caseData.warnings.join(" · ")}</p></div>}
     <div className="border-b border-border p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><p className="font-mono text-sm text-primary">{caseLabel}</p><h2 className="text-xl font-semibold">{person?.legal_name??(es?"Caso familiar":"Family case")}</h2><p className="text-xs text-muted-foreground">{localizedEnum(c?.case_type,es)} · {c?.status==="intake"?(es?"Nuevo":"New"):localizedEnum(c?.status,es)} · {localizedEnum(c?.priority,es)}</p></div>
