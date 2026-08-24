@@ -20,6 +20,7 @@ const caseAssignmentWorkflow=migration("20260822233000_care_case_assignment_work
 const managerOnlyCaseCreation=migration("20260824131000_social_manager_only_case_creation.sql");
 const caseNumberAllocatorRepair=migration("20260824150000_social_case_number_allocator_repair.sql");
 const caseReadbackAccess=migration("20260824184500_social_case_readback_access.sql");
+const managerCaseDelete=migration("20260824193000_social_case_manager_delete.sql");
 const documentsHubSource=readFileSync(join(process.cwd(),"src","components","social","SocialDocumentsHub.tsx"),"utf8");
 const stripeWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","stripe-webhook.ts"),"utf8");
 const mercadoPagoWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","mercadopago-webhook.ts"),"utf8");
@@ -253,6 +254,17 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).toContain("dashboardCasePage");
     expect(routeSource).toContain("Math.ceil(dashboardCases.length/10)");
     expect(routeSource).toContain("Search by name or case number");
+  });
+  it("allows only the assigning manager to soft-delete a case",()=>{
+    expect(managerCaseDelete).toContain("delete_social_case_by_assigning_manager");
+    expect(managerCaseDelete).toContain("v_case.created_by is distinct from v_actor");
+    expect(managerCaseDelete).toContain("v_case.supervising_manager is distinct from v_actor");
+    expect(managerCaseDelete).not.toContain("v_case.assigned_case_manager = v_actor");
+    expect(managerCaseDelete).toContain("set deleted_at=now()");
+    expect(managerCaseDelete).toContain("'case_deleted'");
+    expect(serverSource).toContain("export const deleteSocialCase=");
+    expect(workspaceSource).toContain('es?"Eliminar caso":"Delete case"');
+    expect(routeSource).toContain("currentUserId={currentUserId}");
   });
   it("reads a created case through the authorized core RPC",()=>{
     expect(caseReadbackAccess).toContain("create or replace function public.get_social_case_core");
