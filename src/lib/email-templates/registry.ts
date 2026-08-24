@@ -18,10 +18,12 @@ export interface TemplateEntry {
  *   // then add to TEMPLATES: 'welcome': welcomeTemplate
  */
 import { CaseReminderEmail } from "./case-reminder";
+import { template as teamInviteTemplate } from "./team-invite";
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   "case-reminder": {
     component: CaseReminderEmail,
     subject: (data) => `Recordatorio: ${data.itemTitle ?? "expediente"}`,
   },
+  "team-invite": teamInviteTemplate,
 };
