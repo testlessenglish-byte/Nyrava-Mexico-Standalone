@@ -473,7 +473,7 @@ export const getSocialCaseMediaGallery=createServerFn({method:"GET"})
     fail(caseError);
     const {data:account,error:accountError}=await supabase.rpc("get_social_organization_account",{p_org:c.org_id});
     if(accountError)console.warn("Unable to resolve organization media authority",accountError.message);
-    const canManage=account?.can_manage===true;
+    const canManage=(account as any)?.can_manage===true;
     const isDirectlyAuthorized=[c.created_by,c.assigned_case_manager,c.supervising_manager].filter(Boolean).includes(userId);
     if(!canManage&&!isDirectlyAuthorized)throw new Error("Only the assigning manager and assigned case worker may view case media");
     const {data:documents,error}=await supabase.from("social_documents")
@@ -502,11 +502,11 @@ export const setSocialDocumentAiAccess=createServerFn({method:"POST"})
     fail(caseError);
     const {data:account,error:accountError}=await supabase.rpc("get_social_organization_account",{p_org:document.org_id});
     if(accountError)console.warn("Unable to resolve organization AI authority",accountError.message);
-    const canManage=account?.can_manage===true;
+    const canManage=(account as any)?.can_manage===true;
     const isDirectlyAuthorized=[c.created_by,c.assigned_case_manager,c.supervising_manager].filter(Boolean).includes(userId);
     if(!canManage&&!isDirectlyAuthorized)throw new Error("Only the assigning manager and assigned case worker may authorize case AI");
-    const {error}=await supabase.from("social_documents").update({extraction_authorized:data.allowed}).eq("id",data.documentId);
-    fail(error);
+    const {data:updated,error}=await supabase.from("social_documents").update({extraction_authorized:data.allowed}).eq("id",data.documentId).select("id").single();
+    fail(error);if(!updated)throw new Error("The document AI permission could not be updated");
     await supabase.from("social_activity_events").insert({
       org_id:document.org_id,social_case_id:document.social_case_id,actor_id:userId,
       event_type:"case_media_ai_access_changed",entity_type:"social_document",entity_id:document.id,
