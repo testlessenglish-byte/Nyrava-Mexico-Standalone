@@ -207,17 +207,21 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Enforce the seat limit server-side — never trust a client-computed count.
-    const { data: usage, error: usageErr } = await supabaseAdmin
-      .rpc("firm_seat_usage", { _firm_id: caller.firmId })
-      .maybeSingle();
-    if (usageErr) throw new Error(usageErr.message);
-    const seatLimit = usage?.seat_limit ?? 1;
-    const seatsUsed = usage?.seats_used ?? 0;
-    if (seatsUsed >= seatLimit) {
-      throw new Error(
-        `Seat limit reached (${seatsUsed}/${seatLimit}). Upgrade your plan to invite more teammates.`,
-      );
+    // Platform/firm admins are exempt: admin accounts may invite unlimited members.
+    if (!caller.isPlatformAdmin && !caller.isFirmAdmin) {
+      const { data: usage, error: usageErr } = await supabaseAdmin
+        .rpc("firm_seat_usage", { _firm_id: caller.firmId })
+        .maybeSingle();
+      if (usageErr) throw new Error(usageErr.message);
+      const seatLimit = usage?.seat_limit ?? 1;
+      const seatsUsed = usage?.seats_used ?? 0;
+      if (seatsUsed >= seatLimit) {
+        throw new Error(
+          `Seat limit reached (${seatsUsed}/${seatLimit}). Upgrade your plan to invite more teammates.`,
+        );
+      }
     }
+
 
     const { error } = await supabaseAdmin.from("firm_invites").insert({
       firm_id: caller.firmId,
