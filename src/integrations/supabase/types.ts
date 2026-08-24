@@ -11473,6 +11473,7 @@ export type Database = {
         Args: { p_org: string }
         Returns: boolean
       }
+      social_org_unlimited_seats: { Args: { p_org: string }; Returns: boolean }
       social_people_search_document: {
         Args: {
           p_aliases: string[]
