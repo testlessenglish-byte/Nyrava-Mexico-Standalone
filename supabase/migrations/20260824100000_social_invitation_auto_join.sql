@@ -254,6 +254,8 @@ revoke all on function public.activate_existing_social_invitee(uuid) from public
 grant execute on function public.activate_existing_social_invitee(uuid) to authenticated,service_role;
 revoke all on function public.accept_matching_social_organization_invitations() from public,anon;
 grant execute on function public.accept_matching_social_organization_invitations() to authenticated,service_role;
+revoke all on function public.accept_social_organization_invitation(text) from public,anon;
+grant execute on function public.accept_social_organization_invitation(text) to authenticated,service_role;
 
 notify pgrst,'reload schema';
 commit;
