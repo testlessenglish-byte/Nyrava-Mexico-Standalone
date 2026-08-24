@@ -37,7 +37,7 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
       supabase.from("social_cases").select("id,org_id,program_id,case_number,case_type,status,priority,risk_level,last_activity_at,next_required_action,person_id,family_id,assigned_case_manager,supervising_manager,service_areas,confidentiality_level,consent_status").in("org_id",orgIds).is("deleted_at",null).order("last_activity_at",{ascending:false}).limit(250),
       supabase.from("social_people").select("id,org_id,person_number,legal_name,preferred_name,telephone,email,consent_status,record_status").in("org_id",orgIds).is("deleted_at",null).order("updated_at",{ascending:false}).limit(250),
       supabase.from("social_families").select("id,org_id,family_number,family_name,primary_contact_person_id,assigned_case_manager,current_location").in("org_id",orgIds).is("deleted_at",null).order("updated_at",{ascending:false}).limit(250),
-      supabase.from("social_alerts").select("id,org_id,social_case_id,alert_type,severity,title_es,title_en,due_at,acknowledged_at").in("org_id",orgIds).is("resolved_at",null).order("due_at",{ascending:true}).limit(250),
+      supabase.from("social_alerts").select("id,org_id,social_case_id,alert_type,severity,title_es,title_en,due_at,assigned_to,acknowledged_at").in("org_id",orgIds).is("resolved_at",null).order("due_at",{ascending:true}).limit(250),
       supabase.from("social_referrals").select("id,status").in("org_id",orgIds).neq("status","completed"),
       supabase.from("social_tasks").select("id,status,due_at").in("org_id",orgIds).neq("status","done"),
       supabase.from("social_institutions").select("id,org_id,name,institution_type,services,active").or(`org_id.is.null,org_id.in.(${orgIds.join(",")})`).eq("active",true).order("name"),

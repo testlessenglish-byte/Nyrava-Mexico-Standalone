@@ -23,6 +23,7 @@ const stripeWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","
 const mercadoPagoWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","mercadopago-webhook.ts"),"utf8");
 const billingServerSource=readFileSync(join(process.cwd(),"src","lib","billing.functions.ts"),"utf8");
 const serverSource=readFileSync(join(process.cwd(),"src","lib","social.functions.ts"),"utf8");
+const socialTypesSource=readFileSync(join(process.cwd(),"src","lib","social","types.ts"),"utf8");
 const routeSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","social.tsx"),"utf8");
 const accountRouteSource=readFileSync(join(process.cwd(),"src","routes","_authenticated","account.tsx"),"utf8");
 const accountServerSource=readFileSync(join(process.cwd(),"src","lib","account.functions.ts"),"utf8");
@@ -220,6 +221,15 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).not.toContain("OrganizationSeatAdmin");
     expect(routeSource).toContain("TeamActivity");
     expect(workspaceSource).toContain("organizationMembers");
+  });
+  it("supports assignment visibility and emergency acknowledgement without requiring a linked family",()=>{
+    expect(socialTypesSource).not.toContain("A family record is required for a family case");
+    expect(serverSource).toContain("due_at,assigned_to,acknowledged_at");
+    expect(routeSource).toContain("Assigned emergency case. Immediate attention and acknowledgement are required.");
+    expect(routeSource).toContain('"Assigned cases"');
+    expect(caseAssignmentWorkflow).toContain("'new_case_assignment'");
+    expect(caseAssignmentWorkflow).toContain("'emergency_case_supervision'");
+    expect(caseAssignmentWorkflow).toContain("coalesce(p_assigned_user,v_actor)");
   });
   it("limits case creation and assignment controls to organization managers",()=>{
     expect(managerOnlyCaseCreation).toContain("public.social_can_manage_org(new.org_id,auth.uid())");

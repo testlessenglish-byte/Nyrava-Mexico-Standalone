@@ -59,8 +59,6 @@ export const socialCaseInput = z.object({
   priority: z.enum(["standard","urgent","emergency"]).default("standard"),
 }).refine((v) => Boolean(v.personId || v.newClientName), {
   message: "Select an existing client or enter a new client legal name",
-}).refine((v) => v.caseType !== "family" || Boolean(v.familyId), {
-  message: "A family record is required for a family case",
 });
 
 export const socialSearchInput = z.object({
