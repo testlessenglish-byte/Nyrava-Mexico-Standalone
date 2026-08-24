@@ -169,6 +169,87 @@ begin
 end
 $accept_matching_invitations$;
 
+-- Make token acceptance idempotent because an existing account may already
+-- have been activated by the manager before the invitee opens the email.
+create or replace function public.accept_social_organization_invitation(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path=public,auth,pg_temp
+as $accept_invitation_token$
+declare
+  v_user uuid:=auth.uid();
+  v_email text;
+  v_inv public.organization_invitations%rowtype;
+  v_social_role text;
+begin
+  if v_user is null then raise exception 'Authentication required' using errcode='42501'; end if;
+  select lower(email) into v_email from auth.users where id=v_user;
+
+  select * into v_inv
+  from public.organization_invitations
+  where token_hash=encode(extensions.digest(p_token,'sha256'),'hex')
+  for update;
+
+  if not found or v_inv.expires_at<=now() or v_inv.status in ('revoked','expired') then
+    raise exception 'Invitation is invalid or expired';
+  end if;
+  if v_email is distinct from lower(v_inv.email) then
+    raise exception 'Invitation email does not match the signed-in account';
+  end if;
+
+  if v_inv.status='accepted' then
+    if v_inv.accepted_by is distinct from v_user then
+      raise exception 'Invitation was accepted by another account';
+    end if;
+    return jsonb_build_object(
+      'organization_id',v_inv.org_id,'role',v_inv.role,'status','active',
+      'already_accepted',true
+    );
+  end if;
+
+  if public.social_org_seats_used(v_inv.org_id)>=public.social_org_seat_limit(v_inv.org_id)
+     and not exists(
+       select 1 from public.org_memberships
+       where org_id=v_inv.org_id and user_id=v_user
+         and status='active' and deleted_at is null
+     ) then
+    raise exception 'Organization seat limit reached';
+  end if;
+
+  insert into public.org_memberships(org_id,user_id,role_in_org,status,invited_by,deleted_at)
+  values(v_inv.org_id,v_user,v_inv.role::public.org_role,'active',v_inv.invited_by,null)
+  on conflict (org_id,user_id) do update set
+    role_in_org=excluded.role_in_org,status='active',invited_by=excluded.invited_by,
+    deleted_at=null,updated_at=now();
+
+  v_social_role:=public.social_org_role_to_care_role(v_inv.role);
+  update public.social_role_assignments
+  set active=false,ends_at=now()
+  where org_id=v_inv.org_id and user_id=v_user
+    and scope_type='organization' and active;
+  insert into public.social_role_assignments(
+    org_id,user_id,role,scope_type,active,assigned_by
+  ) values(v_inv.org_id,v_user,v_social_role,'organization',true,v_inv.invited_by);
+
+  update public.organization_invitations
+  set status='accepted',accepted_by=v_user,accepted_at=now()
+  where id=v_inv.id;
+
+  insert into public.social_activity_events(
+    org_id,actor_id,event_type,entity_type,entity_id,metadata
+  ) values(
+    v_inv.org_id,v_user,'member_joined','organization_membership',v_inv.id,
+    jsonb_build_object('role',v_inv.role,'activation','invitation_token')
+  );
+
+  return jsonb_build_object(
+    'organization_id',v_inv.org_id,'role',v_inv.role,'status','active',
+    'already_accepted',false
+  );
+end
+$accept_invitation_token$;
+
 revoke all on function public.activate_existing_social_invitee(uuid) from public,anon;
 grant execute on function public.activate_existing_social_invitee(uuid) to authenticated,service_role;
 revoke all on function public.accept_matching_social_organization_invitations() from public,anon;
