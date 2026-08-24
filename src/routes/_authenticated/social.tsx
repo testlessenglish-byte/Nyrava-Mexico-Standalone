@@ -82,7 +82,12 @@ function SocialCarePage(){
   const [indicatorRange,setIndicatorRange]=useState({from:yearStart,to:today});
   const [acceptedInvite,setAcceptedInvite]=useState("");
   const [caseModalOpen,setCaseModalOpen]=useState(false);
-  const workspace=useQuery({\n    queryKey:["social-workspace"],\n    queryFn:()=>workspaceFn(),\n    refetchInterval:5000,\n    refetchOnWindowFocus:true,\n  });
+  const workspace=useQuery({
+    queryKey:["social-workspace"],
+    queryFn:()=>workspaceFn(),
+    refetchInterval:5000,
+    refetchOnWindowFocus:true,
+  });
   const resolvedOrg=orgId||workspace.data?.organizations?.[0]?.id||"";
   const organizationAccount=(workspace.data?.organizationAccounts??[]).find((x:any)=>x.orgId===resolvedOrg);
   const organizationMembers=organizationAccount?.members??[];
