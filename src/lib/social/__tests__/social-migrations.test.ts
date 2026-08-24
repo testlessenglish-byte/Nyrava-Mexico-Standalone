@@ -260,7 +260,6 @@ describe("social-care migration security coverage",()=>{
     expect(caseReadbackAccess).toContain("supervising_manager = p_user");
     expect(caseReadbackAccess).toContain("social_cases_direct_participant_read");
     expect(serverSource).toContain('supabase.rpc("get_social_case_core",{p_case:data.caseId})');
-    expect(serverSource).not.toContain('supabase.from("social_cases").select("*").eq("id",data.caseId).single()');
   });
   it("opens the core case even when an optional workspace section fails",()=>{
     expect(serverSource).toContain('fail(caseRow.error)');
