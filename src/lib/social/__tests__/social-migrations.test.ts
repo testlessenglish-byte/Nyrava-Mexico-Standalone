@@ -18,6 +18,7 @@ const organizationAccount=migration("20260822143000_social_organization_account.
 const subscriptionEntitlements=migration("20260822150000_social_subscription_entitlements.sql");
 const caseAssignmentWorkflow=migration("20260822233000_care_case_assignment_workflow.sql");
 const managerOnlyCaseCreation=migration("20260824131000_social_manager_only_case_creation.sql");
+const caseNumberAllocatorRepair=migration("20260824150000_social_case_number_allocator_repair.sql");
 const documentsHubSource=readFileSync(join(process.cwd(),"src","components","social","SocialDocumentsHub.tsx"),"utf8");
 const stripeWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","stripe-webhook.ts"),"utf8");
 const mercadoPagoWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","mercadopago-webhook.ts"),"utf8");
@@ -238,6 +239,19 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).toContain("availableOrganizations");
     expect(routeSource).toContain("canCreateCases={canManageOrganization}");
     expect(documentsHubSource).toContain("This is a team-member account");
+  });
+  it("allocates collision-proof case numbers and paginates organization cases",()=>{
+    expect(caseNumberAllocatorRepair).toContain("pg_advisory_xact_lock");
+    expect(caseNumberAllocatorRepair).toContain("hashtext(new.org_id::text||':'||v_prefix||':'||v_year::text)");
+    expect(caseNumberAllocatorRepair).toContain("exit when not exists");
+    expect(caseNumberAllocatorRepair).toContain("c.case_number=v_candidate");
+    expect(caseNumberAllocatorRepair).toContain("greatest(");
+    expect(caseNumberAllocatorRepair).not.toContain("legal_name");
+    expect(caseNumberAllocatorRepair).not.toContain("case_type");
+    expect(routeSource).toContain("caseListQuery");
+    expect(routeSource).toContain("dashboardCasePage");
+    expect(routeSource).toContain("Math.ceil(dashboardCases.length/10)");
+    expect(routeSource).toContain("Search by name or case number");
   });
   it("keeps employee passwords outside manager-controlled data",()=>{
     expect(organizationAccount).not.toMatch(/password|credential/i);
