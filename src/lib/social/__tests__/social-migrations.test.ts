@@ -17,6 +17,8 @@ const workflowReliability=migration("20260821030000_social_core_workflow_reliabi
 const organizationAccount=migration("20260822143000_social_organization_account.sql");
 const subscriptionEntitlements=migration("20260822150000_social_subscription_entitlements.sql");
 const caseAssignmentWorkflow=migration("20260822233000_care_case_assignment_workflow.sql");
+const managerOnlyCaseCreation=migration("20260824131000_social_manager_only_case_creation.sql");
+const documentsHubSource=readFileSync(join(process.cwd(),"src","components","social","SocialDocumentsHub.tsx"),"utf8");
 const stripeWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","stripe-webhook.ts"),"utf8");
 const mercadoPagoWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","mercadopago-webhook.ts"),"utf8");
 const billingServerSource=readFileSync(join(process.cwd(),"src","lib","billing.functions.ts"),"utf8");
@@ -218,6 +220,14 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).not.toContain("OrganizationSeatAdmin");
     expect(routeSource).toContain("TeamActivity");
     expect(workspaceSource).toContain("organizationMembers");
+  });
+  it("limits case creation and assignment controls to organization managers",()=>{
+    expect(managerOnlyCaseCreation).toContain("public.social_can_manage_org(new.org_id,auth.uid())");
+    expect(managerOnlyCaseCreation).toContain("social_cases_manager_only_insert");
+    expect(routeSource).toContain("canManageOrganization");
+    expect(routeSource).toContain("availableOrganizations");
+    expect(routeSource).toContain("canCreateCases={canManageOrganization}");
+    expect(documentsHubSource).toContain("This is a team-member account");
   });
   it("keeps employee passwords outside manager-controlled data",()=>{
     expect(organizationAccount).not.toMatch(/password|credential/i);
