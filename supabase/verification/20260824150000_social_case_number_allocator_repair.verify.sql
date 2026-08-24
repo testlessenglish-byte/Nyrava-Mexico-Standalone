@@ -2,11 +2,20 @@ with expected as (
   select
     c.org_id,
     c.program_id,
-    extract(year from coalesce(c.intake_date,current_date))::integer as calendar_year,
-    max((regexp_match(c.case_number,'([0-9]+)$'))[1]::bigint) as existing_maximum
+    coalesce(
+      substring(c.case_number from '-([0-9]{4})-[0-9]+$')::integer,
+      extract(year from coalesce(c.intake_date,current_date))::integer
+    ) as calendar_year,
+    max(substring(c.case_number from '([0-9]+)$')::bigint) as existing_maximum
   from public.social_cases c
   where c.case_number ~ '[0-9]+$'
-  group by c.org_id,c.program_id,extract(year from coalesce(c.intake_date,current_date))::integer
+  group by
+    c.org_id,
+    c.program_id,
+    coalesce(
+      substring(c.case_number from '-([0-9]{4})-[0-9]+$')::integer,
+      extract(year from coalesce(c.intake_date,current_date))::integer
+    )
 )
 select
   to_regprocedure('public.assign_social_case_number()') is not null
