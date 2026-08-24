@@ -7579,33 +7579,42 @@ export type Database = {
       }
       social_case_status_history: {
         Row: {
+          change_kind: string
           changed_at: string
           changed_by: string
+          from_priority: string | null
           from_status: string | null
           id: string
           org_id: string
           reason: string
           social_case_id: string
+          to_priority: string | null
           to_status: string
         }
         Insert: {
+          change_kind?: string
           changed_at?: string
           changed_by: string
+          from_priority?: string | null
           from_status?: string | null
           id?: string
           org_id: string
           reason: string
           social_case_id: string
+          to_priority?: string | null
           to_status: string
         }
         Update: {
+          change_kind?: string
           changed_at?: string
           changed_by?: string
+          from_priority?: string | null
           from_status?: string | null
           id?: string
           org_id?: string
           reason?: string
           social_case_id?: string
+          to_priority?: string | null
           to_status?: string
         }
         Relationships: [
@@ -10769,10 +10778,6 @@ export type Database = {
         Args: { p_plan: string; p_version: number }
         Returns: undefined
       }
-      assert_existing_account_care_demo_owner: {
-        Args: never
-        Returns: undefined
-      }
       assign_social_case_manager: {
         Args: { p_case: string; p_role?: string; p_user: string }
         Returns: undefined
@@ -11040,10 +11045,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      demo_manifest: {
-        Args: { p_id: string; p_key: string; p_table: string }
-        Returns: undefined
-      }
       ensure_social_program_for_org: {
         Args: {
           p_name_en?: string
@@ -11071,11 +11072,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      existing_account_care_demo_dry_run: { Args: never; Returns: Json }
-      existing_account_care_demo_storage_paths: {
-        Args: never
-        Returns: string[]
       }
       find_possible_social_people: {
         Args: {
@@ -11189,10 +11185,6 @@ export type Database = {
         Returns: Database["public"]["Enums"]["org_role"]
       }
       plan_seat_limit: { Args: { _plan: string }; Returns: number }
-      populate_existing_account_comprehensive_care_demo: {
-        Args: never
-        Returns: Json
-      }
       project_case_findings: {
         Args: { p_case_id: string; p_rows: Json }
         Returns: number
@@ -11232,27 +11224,6 @@ export type Database = {
         Returns: number
       }
       refresh_social_case_alerts: { Args: { p_case: string }; Returns: number }
-      register_existing_account_care_demo_document: {
-        Args: {
-          p_checksum: string
-          p_key: string
-          p_path: string
-          p_record_type: string
-          p_size: number
-          p_title: string
-          p_type: string
-        }
-        Returns: string
-      }
-      register_existing_account_care_demo_document_version: {
-        Args: {
-          p_checksum: string
-          p_key: string
-          p_path: string
-          p_size: number
-        }
-        Returns: string
-      }
       register_social_document: {
         Args: {
           p_case: string
@@ -11271,17 +11242,9 @@ export type Database = {
         }
         Returns: string
       }
-      remove_existing_account_comprehensive_care_demo: {
-        Args: never
-        Returns: Json
-      }
       reopen_social_case: {
         Args: { p_case: string; p_reason: string }
         Returns: undefined
-      }
-      reset_existing_account_comprehensive_care_demo: {
-        Args: never
-        Returns: Json
       }
       resolve_firm_for_email: { Args: { _email: string }; Returns: string }
       resource_search_document: {
@@ -11510,6 +11473,7 @@ export type Database = {
         Args: { p_org: string }
         Returns: boolean
       }
+      social_org_unlimited_seats: { Args: { p_org: string }; Returns: boolean }
       social_people_search_document: {
         Args: {
           p_aliases: string[]
@@ -11529,6 +11493,15 @@ export type Database = {
       social_support_access_active: {
         Args: { p_case: string; p_record_type: string; p_user?: string }
         Returns: boolean
+      }
+      update_care_case_state: {
+        Args: {
+          p_case: string
+          p_priority: string
+          p_reason: string
+          p_status: string
+        }
+        Returns: Json
       }
       update_social_document_metadata: {
         Args: {
