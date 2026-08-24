@@ -218,6 +218,7 @@ function SocialCarePage(){
     templates={workspace.data?.templates??[]}
     roleAssignments={workspace.data?.roleAssignments??[]}
     organizationMembers={organizationMembers}
+    currentUserId={currentUserId}
     onClose={()=>{setSelectedCaseId("");void qc.invalidateQueries({queryKey:["social-workspace"]});}}
   /></div>;
   return <div data-social-care-root className="mx-auto max-w-[1500px] p-4 md:p-6"><EscapedTextNormalizer/>
