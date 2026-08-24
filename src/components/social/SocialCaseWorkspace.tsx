@@ -38,6 +38,9 @@ const PRIMARY_TABS:Array<{id:Tab;es:string;en:string}>=[
   {id:"documents",es:"Documentos",en:"Documents"},{id:"activity",es:"Actividad",en:"Activity"},
   {id:"closure",es:"Cierre",en:"Closure"},
 ];
+const CASE_FILE_ACCEPT=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.csv,.tsv,.json,.xml,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.heic,.heif,.svg,.zip,.rar,.7z,.tar,.gz,.tgz,.mp3,.wav,.m4a,.aac,.ogg,.oga,.flac,.mp4,.mov,.m4v,.webm,.avi,.mpeg,.mpg,.mkv,.eml,.msg,.dcm,image/*,audio/*,video/*";
+const MAX_CASE_FILE_BYTES=100*1024*1024;
+
 const CONTEXT_TABS:Array<{id:Tab;es:string;en:string}>=[
   {id:"consent",es:"Consentimiento",en:"Consent"},{id:"resources",es:"Buscar recursos",en:"Find Resources"},
   {id:"tasks",es:"Tareas y citas",en:"Tasks & Appointments"},{id:"transfer",es:"Transferencia",en:"Transfer"},
@@ -141,8 +144,37 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
   const alertsM=useMutation({mutationFn:()=>alertsFn({data:{caseId}}),onSuccess:()=>success(es?"Alertas actualizadas":"Alerts refreshed"),onError:showError});
 
   const prepareFn=useServerFn(prepareSocialDocumentUpload);const finalizeFn=useServerFn(finalizeSocialDocumentUpload);
-  const [document,setDocument]=useState({file:null as File|null,title:"",type:"supporting_document",recordType:"general_case_record" as any,sensitivity:"confidential" as any,consentId:""});
-  const documentM=useMutation({mutationFn:async()=>{const file=document.file;if(!file)throw new Error(es?"Seleccione un archivo":"Select a file");const prepared=await prepareFn({data:{orgId:caseOrgId,socialCaseId:caseId,recordType:document.recordType,fileName:file.name}});const {error}=await supabase.storage.from("social-case-files").uploadToSignedUrl(prepared.path,prepared.token,file,{contentType:file.type});if(error)throw error;return finalizeFn({data:{socialCaseId:caseId,path:prepared.path,title:document.title||file.name,documentType:document.type,recordType:document.recordType,sensitivity:document.sensitivity,consentId:document.consentId||undefined,extractionAuthorized:false,mimeType:file.type||undefined}});},onSuccess:()=>success(es?"Original protegido y versionado":"Original protected and versioned"),onError:showError});
+  const [document,setDocument]=useState({files:[] as File[],title:"",type:"supporting_document",recordType:"general_case_record" as any,sensitivity:"confidential" as any,consentId:""});
+  const [uploadProgress,setUploadProgress]=useState({current:0,total:0,name:""});
+  const selectCaseFiles=(incoming:File[])=>{
+    const tooLarge=incoming.find(file=>file.size>MAX_CASE_FILE_BYTES);
+    if(tooLarge){toast.error(es?`${tooLarge.name} supera el límite de 100 MB`:`${tooLarge.name} exceeds the 100 MB limit`);return;}
+    setDocument(current=>({...current,files:incoming,title:incoming.length===1?incoming[0].name:""}));
+  };
+  const documentM=useMutation({
+    mutationFn:async()=>{
+      if(!document.files.length)throw new Error(es?"Seleccione uno o más archivos":"Select one or more files");
+      const results=[];
+      for(let index=0;index<document.files.length;index+=1){
+        const file=document.files[index];
+        setUploadProgress({current:index+1,total:document.files.length,name:file.name});
+        const mimeType=file.type||"application/octet-stream";
+        const prepared=await prepareFn({data:{orgId:caseOrgId,socialCaseId:caseId,recordType:document.recordType,fileName:file.name,mimeType,sizeBytes:file.size}});
+        const {error}=await supabase.storage.from("social-case-files").uploadToSignedUrl(prepared.path,prepared.token,file,{contentType:mimeType});
+        if(error)throw error;
+        try{
+          results.push(await finalizeFn({data:{socialCaseId:caseId,path:prepared.path,title:document.files.length===1&&document.title.trim()?document.title.trim():file.name,documentType:document.type,recordType:document.recordType,sensitivity:document.sensitivity,consentId:document.consentId||undefined,extractionAuthorized:false,mimeType}}));
+        }catch(error){await supabase.storage.from("social-case-files").remove([prepared.path]);throw error;}
+      }
+      return results;
+    },
+    onSuccess:(results)=>{
+      const duplicates=results.filter((result:any)=>result.duplicate).length;
+      toast.success(es?`${results.length} archivo(s) procesados${duplicates?` · ${duplicates} duplicado(s) omitidos`:""}`:`${results.length} file(s) processed${duplicates?` · ${duplicates} duplicate(s) skipped`:""}`);
+      setDocument(current=>({...current,files:[],title:""}));setUploadProgress({current:0,total:0,name:""});void refresh();
+    },
+    onError:(error)=>{setUploadProgress({current:0,total:0,name:""});showError(error);},
+  });
 
   const transferFn=useServerFn(createSocialTransfer);const advanceFn=useServerFn(advanceSocialTransfer);const acceptFn=useServerFn(acceptSocialTransfer);
   const [transfer,setTransfer]=useState({type:"case_manager" as any,toUser:"",receivingOrg:"",consentId:"",summary:"",information:"case_summary,tasks,deadlines"});
