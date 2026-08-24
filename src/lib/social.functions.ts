@@ -131,6 +131,21 @@ export const createAndAssignCareCase=createServerFn({method:"POST"})
     fail(error);return row;
   });
 
+export const deleteSocialCase=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({
+    caseId:uuid,
+    reason:z.string().trim().min(5).max(1000),
+  }).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:result,error}=await supabase.rpc(
+      "delete_social_case_by_assigning_manager",
+      {p_case:data.caseId,p_reason:data.reason},
+    );
+    fail(error);return result;
+  });
+
 export const getSocialCase=createServerFn({method:"GET"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({caseId:uuid}).parse(d))
