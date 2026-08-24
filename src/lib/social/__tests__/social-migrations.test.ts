@@ -19,6 +19,7 @@ const subscriptionEntitlements=migration("20260822150000_social_subscription_ent
 const caseAssignmentWorkflow=migration("20260822233000_care_case_assignment_workflow.sql");
 const managerOnlyCaseCreation=migration("20260824131000_social_manager_only_case_creation.sql");
 const caseNumberAllocatorRepair=migration("20260824150000_social_case_number_allocator_repair.sql");
+const caseReadbackAccess=migration("20260824184500_social_case_readback_access.sql");
 const documentsHubSource=readFileSync(join(process.cwd(),"src","components","social","SocialDocumentsHub.tsx"),"utf8");
 const stripeWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","stripe-webhook.ts"),"utf8");
 const mercadoPagoWebhookSource=readFileSync(join(process.cwd(),"src","routes","api","public","hooks","mercadopago-webhook.ts"),"utf8");
@@ -252,6 +253,14 @@ describe("social-care migration security coverage",()=>{
     expect(routeSource).toContain("dashboardCasePage");
     expect(routeSource).toContain("Math.ceil(dashboardCases.length/10)");
     expect(routeSource).toContain("Search by name or case number");
+  });
+  it("reads a created case through the authorized core RPC",()=>{
+    expect(caseReadbackAccess).toContain("create or replace function public.get_social_case_core");
+    expect(caseReadbackAccess).toContain("assigned_case_manager = p_user");
+    expect(caseReadbackAccess).toContain("supervising_manager = p_user");
+    expect(caseReadbackAccess).toContain("social_cases_direct_participant_read");
+    expect(serverSource).toContain('supabase.rpc("get_social_case_core",{p_case:data.caseId})');
+    expect(serverSource).not.toContain('supabase.from("social_cases").select("*").eq("id",data.caseId).single()');
   });
   it("opens the core case even when an optional workspace section fails",()=>{
     expect(serverSource).toContain('fail(caseRow.error)');
