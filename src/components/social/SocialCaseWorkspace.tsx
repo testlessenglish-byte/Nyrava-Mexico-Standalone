@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, FileUp, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
+import { CheckCircle2, FileUp, Loader2, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/i18n";
 import { CaseResourceRecommendations } from "@/components/social/ResourceKnowledgeNetwork";
@@ -11,7 +11,7 @@ import {
   acceptSocialTransfer, advanceSocialTransfer, approveSocialCarePlan,
   assignSocialCaseManager, closeSocialCase, createSocialAppointment,
   createSocialCarePlan, createSocialConsent, createSocialReferral,
-  createSocialTransfer, finalizeSocialDocumentUpload, getSocialCase,
+  createSocialTransfer, deleteSocialCase, finalizeSocialDocumentUpload, getSocialCase,
   linkSocialImmigrationMatter, prepareSocialDocumentUpload,
   grantSocialRecordAccess, recordSocialAssessment, recordSocialIntervention,
   refreshSocialAlerts, reopenSocialCase, revokeSocialConsent,
@@ -26,6 +26,7 @@ type Props={
   templates:any[];
   roleAssignments:any[];
   organizationMembers:any[];
+  currentUserId:string;
   onClose:()=>void;
 };
 type Tab="overview"|"intake"|"assessment"|"plan"|"intervention"|"legal"|"psychosocial"|"consent"|"referral"|"resources"|"tasks"|"documents"|"transfer"|"closure"|"immigration"|"assistant"|"activity";
@@ -55,7 +56,7 @@ function nextStatuses(status:string){
   return transitions[status]??[status];
 }
 
-export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAssignments,organizationMembers,onClose}:Props){
+export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAssignments,organizationMembers,currentUserId,onClose}:Props){
   const {locale}=useI18n();const es=locale==="es";const qc=useQueryClient();
   const getCaseFn=useServerFn(getSocialCase);
   const [tab,setTab]=useState<Tab>("overview");
@@ -69,6 +70,38 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
   const caseOrgId=c?.org_id??"";
   const casePersonId=c?.person_id??undefined;
   const caseFamilyId=c?.family_id??undefined;
+  const canDeleteCase=!!currentUserId&&(
+    c?.created_by===currentUserId||c?.supervising_manager===currentUserId
+  );
+  const deleteFn=useServerFn(deleteSocialCase);
+  const deleteM=useMutation({
+    mutationFn:(reason:string)=>deleteFn({data:{caseId,reason}}),
+    onSuccess:async()=>{
+      toast.success(es?"Caso eliminado":"Case deleted");
+      await qc.invalidateQueries({queryKey:["social-workspace"]});
+      onClose();
+    },
+    onError:showError,
+  });
+  const requestDelete=()=>{
+    const reason=window.prompt(
+      es
+        ?"Explique por qué debe eliminarse este caso. Esta acción se auditará."
+        :"Explain why this case must be deleted. This action will be audited.",
+    )?.trim();
+    if(!reason)return;
+    if(reason.length<5){
+      toast.error(es?"Escriba una razón de al menos 5 caracteres.":"Enter a reason of at least 5 characters.");
+      return;
+    }
+    const confirmed=window.confirm(
+      es
+        ?`¿Eliminar ${caseLabel}? El empleado asignado perderá acceso al caso.`
+        :`Delete ${caseLabel}? The assigned employee will lose access to the case.`,
+    );
+    if(confirmed)deleteM.mutate(reason);
+  };
+
 
   const assessmentFn=useServerFn(recordSocialAssessment);
   const [assessment,setAssessment]=useState({riskLevel:"unknown" as "unknown"|"low"|"moderate"|"high"|"critical",reason:"",evidence:"",protective:"",actions:"",followUp:"",review:"",override:false,overrideExplanation:"",templateId:""});
@@ -160,7 +193,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
     <div className="border-b border-border p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><p className="font-mono text-sm text-primary">{caseLabel}</p><h2 className="text-xl font-semibold">{person?.legal_name??(es?"Caso familiar":"Family case")}</h2><p className="text-xs text-muted-foreground">{localizedEnum(c?.case_type,es)} · {c?.status==="intake"?(es?"Nuevo":"New"):localizedEnum(c?.status,es)} · {localizedEnum(c?.priority,es)}</p></div>
-        <div className="flex flex-wrap gap-2">{!["transferred","archived"].includes(c?.status)&&<button onClick={()=>c?.status==="closed"?setTab("closure"):setShowStateEditor(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-sm">{c?.status==="closed"?(es?"Reabrir en Cierre":"Reopen in Closure"):(es?"Cambiar estado":"Change state")}</button>}<button onClick={()=>setTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>setTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button onClick={()=>setTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
+        <div className="flex flex-wrap gap-2">{canDeleteCase&&<button type="button" onClick={requestDelete} disabled={deleteM.isPending} className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive disabled:opacity-50">{deleteM.isPending?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<Trash2 className="mr-1 inline h-4 w-4"/>}{es?"Eliminar caso":"Delete case"}</button>}{!["transferred","archived"].includes(c?.status)&&<button onClick={()=>c?.status==="closed"?setTab("closure"):setShowStateEditor(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-sm">{c?.status==="closed"?(es?"Reabrir en Cierre":"Reopen in Closure"):(es?"Cambiar estado":"Change state")}</button>}<button onClick={()=>setTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>setTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button onClick={()=>setTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
       </div>
       <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
         <span>{es?"Responsable":"Assigned"}: <strong className="text-foreground">{organizationMembers.find((m:any)=>m.user_id===c?.assigned_case_manager)?.name??(es?"Sin asignar":"Unassigned")}</strong></span>
