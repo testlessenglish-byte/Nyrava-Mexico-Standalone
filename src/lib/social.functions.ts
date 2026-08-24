@@ -759,7 +759,29 @@ export const inviteSocialOrganizationMember=createServerFn({method:"POST"})
     const {data:invitation,error}=await supabase.rpc("invite_social_organization_member",{
       p_org:data.orgId,p_email:data.email,p_role:data.role,p_name:data.name,p_title:data.title,
     });
-    fail(error);return invitation;
+    fail(error);
+    // Email the invitee a clickable link so they can create their account.
+    // Delivery problems never invalidate the recorded invitation.
+    const inv=invitation as Record<string,any>|null;
+    let emailSent=false;
+    try{
+      const token=inv?.token??inv?.invitation_token;
+      if(token){
+        const {data:orgRow}=await supabase.from("organizations").select("name").eq("id",data.orgId).maybeSingle();
+        const {sendTemplateEmail}=await import("@/lib/email-templates/send-email");
+        const res=await sendTemplateEmail("team-invite",data.email.toLowerCase(),{
+          templateData:{
+            firmName:orgRow?.name??"tu equipo",
+            roleLabel:data.role,
+            inviteEmail:data.email.toLowerCase(),
+            signupUrl:`https://mexico.nyrava.com/social?invite=${encodeURIComponent(String(token))}`,
+          },
+          idempotencyKey:`org-invite-${data.orgId}-${data.email.toLowerCase()}`,
+        });
+        emailSent=res.sent;
+      }
+    }catch(e){console.error("[inviteSocialOrganizationMember] invite email failed",e);}
+    return {...(inv??{}),emailSent};
   });
 
 export const updateSocialOrganizationMember=createServerFn({method:"POST"})
