@@ -19,6 +19,13 @@ export const getSocialWorkspace=createServerFn({method:"GET"})
   .middleware([requireSupabaseAuth])
   .handler(async({context})=>{
     const {supabase,userId}=ctx(context);
+    // Claim every still-pending invitation that belongs to this authenticated
+    // email before RLS resolves the user's organization list. This also covers
+    // users who signed in directly instead of preserving the invitation token.
+    const {error:autoJoinError}=await supabase.rpc("accept_matching_social_organization_invitations");
+    if(autoJoinError){
+      console.error("[getSocialWorkspace] automatic invitation acceptance failed",autoJoinError);
+    }
     const {data:organizations,error:orgError}=await supabase.from("organizations").select("id,name").order("name");
     fail(orgError);
     const orgIds=(organizations??[]).map((o:any)=>o.id);
@@ -760,9 +767,28 @@ export const inviteSocialOrganizationMember=createServerFn({method:"POST"})
       p_org:data.orgId,p_email:data.email,p_role:data.role,p_name:data.name,p_title:data.title,
     });
     fail(error);
+    const inv=invitation as Record<string,any>|null;
+
+    // If this email already belongs to an account, activate that account now so
+    // the manager can assign cases immediately. New accounts are activated by
+    // getSocialWorkspace after they sign in with the invited email.
+    let memberActivated=false;
+    try{
+      const invitationId=inv?.id;
+      if(invitationId){
+        const {data:activation,error:activationError}=await supabase.rpc(
+          "activate_existing_social_invitee",
+          {p_invitation:invitationId},
+        );
+        if(activationError) throw activationError;
+        memberActivated=activation?.activated===true;
+      }
+    }catch(e){
+      console.error("[inviteSocialOrganizationMember] existing-account activation failed",e);
+    }
+
     // Email the invitee a clickable link so they can create their account.
     // Delivery problems never invalidate the recorded invitation.
-    const inv=invitation as Record<string,any>|null;
     let emailSent=false;
     try{
       const token=inv?.token??inv?.invitation_token;
@@ -781,7 +807,7 @@ export const inviteSocialOrganizationMember=createServerFn({method:"POST"})
         emailSent=res.sent;
       }
     }catch(e){console.error("[inviteSocialOrganizationMember] invite email failed",e);}
-    return {...(inv??{}),emailSent};
+    return {...(inv??{}),emailSent,memberActivated};
   });
 
 export const updateSocialOrganizationMember=createServerFn({method:"POST"})

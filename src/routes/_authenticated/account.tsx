@@ -96,7 +96,21 @@ function OrganizationTeamCard({workspace,loading}:{workspace:any;loading:boolean
   const [link,setLink]=useState("");
   const inviteMutation=useMutation({
     mutationFn:()=>inviteFn({data:{orgId:org.id,...invite,role:invite.role as typeof TEAM_ROLES[number]}}),
-    onSuccess:(result:any)=>{setLink(`${window.location.origin}/social?invite=${result.token}`);setInvite({...invite,name:"",email:"",title:""});toast.success(es?"Invitación creada":"Invitation created");void qc.invalidateQueries({queryKey:["social-workspace"]});},
+    onSuccess:(result:any)=>{
+      setLink(`${window.location.origin}/social?invite=${result.token}`);
+      setInvite({...invite,name:"",email:"",title:""});
+      const joined=result.memberActivated===true;
+      if(result.emailSent===true){
+        toast.success(joined
+          ?(es?"Invitación enviada; la cuenta existente ya está activa":"Invitation sent; the existing account is now active")
+          :(es?"Invitación creada y correo enviado":"Invitation created and email sent"));
+      }else{
+        toast.warning(joined
+          ?(es?"La cuenta ya está activa; no se confirmó el correo. Copie el enlace seguro.":"The account is active; email delivery was not confirmed. Copy the secure link.")
+          :(es?"Invitación creada; no se confirmó el correo. Copie el enlace seguro.":"Invitation created; email delivery was not confirmed. Copy the secure link."));
+      }
+      void qc.invalidateQueries({queryKey:["social-workspace"]});
+    },
     onError:(e:any)=>toast.error(e?.message??String(e)),
   });
   const updateMutation=useMutation({

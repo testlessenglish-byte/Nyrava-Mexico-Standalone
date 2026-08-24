@@ -177,9 +177,13 @@ function SocialCarePage(){
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{es?"Área independiente de Derecho Migratorio, Refugio y Nacionalidad. Los vínculos jurídicos requieren autorización y consentimiento explícitos.":"A separate practice area from Immigration, Refugee and Nationality Law. Legal links require explicit authorization and consent."}</p>
           </div>
         </div>
-        <select value={resolvedOrg} onChange={e=>setOrgId(e.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-          {(workspace.data?.organizations??[]).map((o:any)=><option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
+        <label className="min-w-[180px] text-xs font-medium text-muted-foreground">
+          {es?"Organización":"Organization"}
+          <select aria-label={es?"Organización activa":"Active organization"} value={resolvedOrg} onChange={e=>setOrgId(e.target.value)} disabled={!workspace.data?.organizations?.length} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground disabled:opacity-60">
+            {!workspace.data?.organizations?.length&&<option value="">{es?"Sin organización":"No organization"}</option>}
+            {(workspace.data?.organizations??[]).map((o:any)=><option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        </label>
       </div>
     </header>
 
@@ -305,7 +309,7 @@ function OpenAndAssignCaseModal({open,es,draft,setDraft,programs,people,families
         {!draft.personId&&<Field label={es?"Nombre legal del cliente nuevo":"New client legal name"} value={draft.newClientName} onChange={v=>setDraft({...draft,newClientName:v})}/>}
         {selected&&<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm md:col-span-2"><span className="font-semibold">{selected.legal_name}</span><span className="ml-2 text-muted-foreground">{selected.person_number}</span></div>}
         <label className="text-xs font-medium text-muted-foreground">{es?"Programa":"Program"}<select value={draft.programId||programs[0]?.id||""} onChange={e=>setDraft({...draft,programId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{programs.map((p:any)=><option key={p.id} value={p.id}>{es?p.name_es:p.name_en} · {p.case_prefix}</option>)}</select></label>
-        <label className="text-xs font-medium text-muted-foreground">{es?"Asignado a":"Assigned to"}<select value={draft.assignedUserId} onChange={e=>setDraft({...draft,assignedUserId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Sin asignar":"Unassigned"}</option>{activeMembers.map((m:any)=><option key={m.user_id} value={m.user_id}>{m.user_id===currentUserId?(es?"Yo":"Me"):m.name} · {memberRoleLabel(m.role,es)}</option>)}</select></label>
+        <label className="text-xs font-medium text-muted-foreground">{es?"Asignado a":"Assigned to"}<select value={draft.assignedUserId} onChange={e=>setDraft({...draft,assignedUserId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">{es?"Sin asignar":"Unassigned"}</option>{activeMembers.map((m:any)=><option key={m.user_id} value={m.user_id}>{m.user_id===currentUserId?(es?"Yo":"Me"):m.name}{m.title?` — ${m.title}`:""} · {memberRoleLabel(m.role,es)}</option>)}</select></label>
         <label className="text-xs font-medium text-muted-foreground">{es?"Tipo de caso":"Case type"}<select value={draft.caseType} onChange={e=>setDraft({...draft,caseType:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="individual">{es?"Individual":"Individual"}</option><option value="minor_child">{es?"Menor / protección infantil":"Minor / Child"}</option><option value="family">{es?"Familia":"Family"}</option></select></label>
         {draft.caseType==="family"&&<label className="text-xs font-medium text-muted-foreground">{es?"Familia vinculada":"Linked family"}<select value={draft.familyId} onChange={e=>setDraft({...draft,familyId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">—</option>{families.map((x:any)=><option key={x.id} value={x.id}>{x.family_number} · {x.family_name}</option>)}</select></label>}
         <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={draft.priority} onChange={e=>setDraft({...draft,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="standard">{es?"Estándar":"Standard"}</option><option value="urgent">{es?"Urgente":"Urgent"}</option><option value="emergency">{es?"Emergencia":"Emergency"}</option></select></label>
