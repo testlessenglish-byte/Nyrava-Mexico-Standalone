@@ -137,7 +137,7 @@ export const getSocialCase=createServerFn({method:"GET"})
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
     const [caseRow,assessments,plans,interventions,referrals,tasks,appointments,documents,consents,transfers,closures,activity]=await Promise.all([
-      supabase.from("social_cases").select("*").eq("id",data.caseId).single(),
+      supabase.rpc("get_social_case_core",{p_case:data.caseId}),
       supabase.from("social_assessments").select("*,social_assessment_versions(*)").eq("social_case_id",data.caseId).order("assessment_date",{ascending:false}),
       supabase.from("social_care_plans").select("*,social_care_plan_versions(*,social_care_plan_goals(*))").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
       supabase.from("social_interventions").select("*").eq("social_case_id",data.caseId).order("occurred_at",{ascending:false}),
