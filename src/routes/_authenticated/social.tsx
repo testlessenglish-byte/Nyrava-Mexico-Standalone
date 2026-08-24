@@ -50,7 +50,13 @@ const CONTEXT_AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
 ];
 
 function errorMessage(error:unknown):string{
-  if(error instanceof Error&&error.message)return error.message;
+  if(error instanceof Error&&error.message){
+    try{
+      const issues=JSON.parse(error.message);
+      if(Array.isArray(issues)&&typeof issues[0]?.message==="string")return issues[0].message;
+    }catch{/* The message is not a serialized validation issue. */}
+    return error.message;
+  }
   if(error&&typeof error==="object"){
     const candidate=error as {message?:unknown;data?:{message?:unknown};cause?:unknown};
     if(typeof candidate.message==="string"&&candidate.message)return candidate.message;
@@ -110,6 +116,11 @@ function SocialCarePage(){
   const visiblePeople=(workspace.data?.people??[]).filter((p:any)=>p.org_id===resolvedOrg);
   const visibleFamilies=(workspace.data?.families??[]).filter((x:any)=>x.org_id===resolvedOrg);
   const visibleAlerts=(workspace.data?.alerts??[]).filter((x:any)=>x.org_id===resolvedOrg);
+  const emergencyAlerts=visibleAlerts.filter((alert:any)=>
+    alert.severity==="critical"
+    && !alert.acknowledged_at
+    && (canManageOrganization||alert.assigned_to===currentUserId)
+  );
   const search=useMutation({
     mutationFn:()=>searchFn({data:{orgId:resolvedOrg,query,limit:50}}),
     onError:(e:unknown)=>toast.error(errorMessage(e)),
@@ -241,6 +252,10 @@ function SocialCarePage(){
           <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-4">
             <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 text-warning"/><div><p className="text-sm font-semibold">{es?"Guía de escalamiento":"Escalation guidance"}</p><p className="text-sm text-muted-foreground">{EMERGENCY_GUIDANCE[locale]}</p></div></div>
           </div>
+          {emergencyAlerts.map((alert:any)=><div key={alert.id} className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4">
+            <div className="flex gap-2"><AlertTriangle className="mt-0.5 h-5 w-5 text-destructive"/><div><p className="text-sm font-semibold text-destructive">{es?alert.title_es:alert.title_en}</p><p className="text-xs text-muted-foreground">{es?"Caso de emergencia asignado. Requiere atención y acuse inmediato.":"Assigned emergency case. Immediate attention and acknowledgement are required."}</p></div></div>
+            <div className="flex gap-2"><button type="button" onClick={()=>setSelectedCaseId(alert.social_case_id)} className="rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-destructive-foreground">{es?"Abrir caso":"Open case"}</button><button type="button" disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(alert.id)} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold">{es?"Acusar recibo":"Acknowledge"}</button></div>
+          </div>)}
           {canManageOrganization&&!visibleCases.length&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><p className="text-sm font-semibold">{es?"Registre su primer caso":"Register your first case"}</p><p className="text-xs text-muted-foreground">{es?"Registre o seleccione al cliente, defina el tipo y asigne al responsable en un solo flujo.":"Register or select the client, choose the case type, and assign responsibility in one workflow."}</p></div><button type="button" onClick={()=>setCaseModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{es?"Registrar nuevo caso":"Register New Case"}</button></div>}
           <CaseTable cases={visibleCases.slice(0,12)} es={es} onOpen={setSelectedCaseId}/>
         </>}
