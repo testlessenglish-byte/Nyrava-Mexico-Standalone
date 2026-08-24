@@ -159,7 +159,7 @@ export const getSocialCase=createServerFn({method:"GET"})
       supabase.from("social_referrals").select("*,social_referral_updates(*)").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
       supabase.from("social_tasks").select("*").eq("social_case_id",data.caseId).order("due_at",{ascending:true}),
       supabase.from("social_appointments").select("*").eq("social_case_id",data.caseId).order("scheduled_at",{ascending:true}),
-      supabase.from("social_documents").select("id,title,document_type,record_type,sensitivity,current_version,checksum,mime_type,size_bytes,created_at").eq("social_case_id",data.caseId).is("deleted_at",null),
+      supabase.from("social_documents").select("id,title,document_type,record_type,sensitivity,current_version,checksum,mime_type,size_bytes,extraction_authorized,created_at").eq("social_case_id",data.caseId).is("deleted_at",null),
       supabase.from("social_consents").select("*,social_consent_versions(*)").order("created_at",{ascending:false}),
       supabase.from("social_case_transfers").select("*,social_case_transfer_items(*)").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
       supabase.from("social_case_closures").select("*").eq("social_case_id",data.caseId).order("closure_version",{ascending:false}),
@@ -461,6 +461,59 @@ export const createSocialAppointment=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({socialCaseId:uuid,title:z.string().trim().min(2).max(300),scheduledAt:z.string().datetime(),durationMinutes:z.number().int().min(5).max(1440).optional(),locationMethod:z.string().trim().max(300).optional(),personId:uuid.optional()}).parse(d))
   .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,person_id").eq("id",data.socialCaseId).single();fail(caseError);const {data:row,error}=await supabase.from("social_appointments").insert({org_id:c.org_id,social_case_id:data.socialCaseId,person_id:data.personId??c.person_id,title:data.title,scheduled_at:data.scheduledAt,duration_minutes:data.durationMinutes??null,location_method:data.locationMethod??null,professional_id:userId,status:"scheduled",created_by:userId}).select("id").single();fail(error);return row;});
+
+export const getSocialCaseMediaGallery=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);
+    const {data:c,error:caseError}=await supabase.from("social_cases")
+      .select("id,org_id,created_by,assigned_case_manager,supervising_manager")
+      .eq("id",data.caseId).single();
+    fail(caseError);
+    const {data:account,error:accountError}=await supabase.rpc("get_social_organization_account",{p_org:c.org_id});
+    if(accountError)console.warn("Unable to resolve organization media authority",accountError.message);
+    const canManage=(account as any)?.can_manage===true;
+    const isDirectlyAuthorized=[c.created_by,c.assigned_case_manager,c.supervising_manager].filter(Boolean).includes(userId);
+    if(!canManage&&!isDirectlyAuthorized)throw new Error("Only the assigning manager and assigned case worker may view case media");
+    const {data:documents,error}=await supabase.from("social_documents")
+      .select("id,title,document_type,record_type,sensitivity,current_version,checksum,mime_type,size_bytes,storage_path,extraction_authorized,created_at")
+      .eq("social_case_id",data.caseId).is("deleted_at",null).order("created_at",{ascending:false});
+    fail(error);
+    const media=(documents??[]).filter((document:any)=>/^(image|video|audio)\//i.test(document.mime_type??""));
+    const signed=await Promise.all(media.map(async(document:any)=>{
+      const {data:signedData,error:signedError}=await supabase.storage.from("social-case-files").createSignedUrl(document.storage_path,300);
+      if(signedError)return null;
+      return {...document,storage_path:undefined,signedUrl:signedData.signedUrl,expiresAt:new Date(Date.now()+300000).toISOString()};
+    }));
+    return signed.filter(Boolean);
+  });
+
+export const setSocialDocumentAiAccess=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({documentId:uuid,allowed:z.boolean()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);
+    const {data:document,error:documentError}=await supabase.from("social_documents")
+      .select("id,org_id,social_case_id").eq("id",data.documentId).is("deleted_at",null).single();
+    fail(documentError);
+    const {data:c,error:caseError}=await supabase.from("social_cases")
+      .select("created_by,assigned_case_manager,supervising_manager").eq("id",document.social_case_id).single();
+    fail(caseError);
+    const {data:account,error:accountError}=await supabase.rpc("get_social_organization_account",{p_org:document.org_id});
+    if(accountError)console.warn("Unable to resolve organization AI authority",accountError.message);
+    const canManage=(account as any)?.can_manage===true;
+    const isDirectlyAuthorized=[c.created_by,c.assigned_case_manager,c.supervising_manager].filter(Boolean).includes(userId);
+    if(!canManage&&!isDirectlyAuthorized)throw new Error("Only the assigning manager and assigned case worker may authorize case AI");
+    const {data:updated,error}=await supabase.from("social_documents").update({extraction_authorized:data.allowed}).eq("id",data.documentId).select("id").single();
+    fail(error);if(!updated)throw new Error("The document AI permission could not be updated");
+    await supabase.from("social_activity_events").insert({
+      org_id:document.org_id,social_case_id:document.social_case_id,actor_id:userId,
+      event_type:"case_media_ai_access_changed",entity_type:"social_document",entity_id:document.id,
+      metadata:{allowed:data.allowed,scope:"comprehensive_care_only"},
+    });
+    return {ok:true,allowed:data.allowed};
+  });
 
 export const finalizeSocialDocumentUpload=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
