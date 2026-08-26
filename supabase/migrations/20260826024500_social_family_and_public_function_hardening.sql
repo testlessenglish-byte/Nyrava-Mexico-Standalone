@@ -1,8 +1,8 @@
 begin;
 
 -- Fix the family-to-case correlation. The previous unqualified "id" inside
--- the subquery resolved to c.id, producing c.family_id = c.id instead of
--- comparing the case family to the outer family row.
+-- the subquery resolved to the inner case id, producing a self-comparison
+-- instead of comparing the case family to the outer family row.
 drop policy if exists social_families_read on public.social_families;
 create policy social_families_read
   on public.social_families
