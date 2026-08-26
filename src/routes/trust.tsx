@@ -316,18 +316,27 @@ function TrustCenter() {
         </ul>
       </DocsSection>
 
-      <DocsSection id="availability" heading="System availability">
+      <DocsSection id="availability" heading="System availability and incident handling">
         <p>
-          Nyrava runs on managed, geographically redundant cloud infrastructure. The application is
-          designed for high availability, with a stateless application tier and a managed database
-          tier that provides continuous backups and point-in-time recovery. Incident status and any
-          planned maintenance windows are communicated to workspace administrators.
+          Nyrava runs on managed cloud infrastructure with a stateless application tier and a
+          managed database tier that takes automated backups. We have not yet performed a
+          documented disaster-recovery restore drill, so we do not publish a recovery-time
+          objective. Planned maintenance and material incidents are communicated to workspace
+          administrators by email.
+        </p>
+        <p>
+          We maintain an internal security incident response runbook covering detection, triage,
+          containment, evidence preservation, scope determination, and notification assessment
+          under Mexican personal-data rules, and every incident is recorded in an internal
+          administrator-only incident register. We do not operate a 24/7 on-call rotation, an
+          automated intrusion-detection system, or a public status page today.
         </p>
         <p>
           Enterprise deployments requiring formal service-level commitments should contact us before
           signing.
         </p>
       </DocsSection>
+
 
       <DocsSection id="limits" heading="AI limitations & human verification">
         <ul className="list-disc space-y-2 pl-5">
