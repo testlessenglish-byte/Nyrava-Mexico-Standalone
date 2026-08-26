@@ -49,6 +49,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useI18n } from "@/i18n";
 import { useGlobalPipelineDriver } from "@/hooks/useGlobalPipelineDriver";
+import { ConsentGate } from "@/components/compliance/ConsentGate";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -559,6 +560,7 @@ function AppLayout() {
         <main className="min-w-0 flex-1 overflow-auto pb-20 md:pb-0">
           <Outlet />
           <TrustStrip />
+          <ConsentGate />
         </main>
 
         {/* Mobile bottom tabs */}

@@ -13,7 +13,7 @@ import { useI18n } from "@/i18n";
  * accounts, teams and cases stay exactly as they are.
  */
 export function ConsentGate() {
-  const { lang } = useI18n();
+  const { locale } = useI18n();
   const qc = useQueryClient();
   const status = useServerFn(getPrivacyConsentStatus);
   const accept = useServerFn(acceptPrivacyConsents);
@@ -30,7 +30,7 @@ export function ConsentGate() {
 
   if (!data?.required) return null;
 
-  const es = lang !== "en";
+  const es = locale !== "en";
 
   async function confirm() {
     setError(null);
