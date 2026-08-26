@@ -120,7 +120,14 @@ export const listMyArcoRequests = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
-const ARCO_TYPES = new Set(["acceso", "rectificacion", "cancelacion", "oposicion", "revocacion"]);
+type ArcoType = "acceso" | "rectificacion" | "cancelacion" | "oposicion" | "revocacion";
+const ARCO_TYPES: readonly ArcoType[] = [
+  "acceso",
+  "rectificacion",
+  "cancelacion",
+  "oposicion",
+  "revocacion",
+];
 
 /**
  * Submit an ARCO request (Acceso, Rectificación, Cancelación, Oposición).
@@ -130,14 +137,14 @@ export const submitArcoRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     (input: {
-      requestType: string;
+      requestType: ArcoType | string;
       requesterName: string;
       requesterEmail: string;
       requesterPhone?: string | null;
       details: string;
     }) => {
-      if (!ARCO_TYPES.has(input?.requestType))
-        throw new Error("requestType must be one of: " + [...ARCO_TYPES].join(", "));
+      if (!ARCO_TYPES.includes(input?.requestType as ArcoType))
+        throw new Error("requestType must be one of: " + ARCO_TYPES.join(", "));
       if (!input.requesterName?.trim()) throw new Error("requesterName is required");
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.requesterEmail ?? ""))
         throw new Error("A valid requesterEmail is required");
@@ -150,7 +157,7 @@ export const submitArcoRequest = createServerFn({ method: "POST" })
     const { data: inserted, error } = await context.supabase
       .from("arco_requests")
       .insert({
-        request_type: data.requestType,
+        request_type: data.requestType as ArcoType,
         requester_name: data.requesterName.trim(),
         requester_email: data.requesterEmail.trim().toLowerCase(),
         requester_phone: data.requesterPhone?.trim() || null,
