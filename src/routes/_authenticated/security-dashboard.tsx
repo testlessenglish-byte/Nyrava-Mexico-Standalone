@@ -160,6 +160,10 @@ function SecurityDashboardPage() {
         />
       </section>
 
+      <MfaEnrollmentCard />
+
+
+
       <section className="rounded-lg border border-border/60 bg-card/40">
         <header className="flex items-center gap-2 border-b border-border/60 px-5 py-3">
           <KeyRound className="h-4 w-4 text-primary" />
