@@ -177,3 +177,90 @@ export const submitArcoRequest = createServerFn({ method: "POST" })
 
     return inserted;
   });
+
+/* ------------------------------------------------------------------ */
+/* Privacy notice acknowledgement (LFPDPPP consent capture)            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Consent status for the signed-in user against the currently active
+ * Spanish Aviso de Privacidad. Read-only: it never blocks anything by itself.
+ */
+export const getPrivacyConsentStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { PRIVACY_DOCUMENT_TYPE, CONSENT_ITEMS } = await import("@/lib/legal/privacy-notice");
+
+    const { data: version, error: versionError } = await context.supabase
+      .from("legal_document_versions")
+      .select("version, document_hash, language, effective_date")
+      .eq("document_type", PRIVACY_DOCUMENT_TYPE)
+      .eq("is_active", true)
+      .order("effective_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (versionError) throw new Error(versionError.message);
+    if (!version) return { required: false as const, version: null, missing: [] as string[] };
+
+    const { data: rows, error } = await context.supabase
+      .from("user_consents")
+      .select("consent_type, document_version, withdrawn_at")
+      .eq("user_id", context.userId)
+      .eq("document_type", PRIVACY_DOCUMENT_TYPE)
+      .eq("document_version", version.version)
+      .is("withdrawn_at", null);
+    if (error) throw new Error(error.message);
+
+    const granted = new Set((rows ?? []).map((r) => r.consent_type));
+    const missing = CONSENT_ITEMS.filter((i) => !granted.has(i.consentType)).map((i) => i.key);
+    return { required: missing.length > 0, version, missing };
+  });
+
+/**
+ * Record acknowledgement of the active privacy notice. One row per consent
+ * item (privacy notice, personal data, sensitive data, AI processing,
+ * international transfer), each stamped with the version and document hash.
+ */
+export const acceptPrivacyConsents = createServerFn({ method: "POST" })
+  .inputValidator((input: { language?: string; source?: string } | undefined) => input ?? {})
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { PRIVACY_DOCUMENT_TYPE, CONSENT_ITEMS } = await import("@/lib/legal/privacy-notice");
+
+    const { data: version, error: versionError } = await context.supabase
+      .from("legal_document_versions")
+      .select("version, document_hash, language")
+      .eq("document_type", PRIVACY_DOCUMENT_TYPE)
+      .eq("is_active", true)
+      .order("effective_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (versionError) throw new Error(versionError.message);
+    if (!version) throw new Error("No hay una versión activa del Aviso de Privacidad.");
+
+    // org_id is recorded when the user already belongs to an organization.
+    const { data: membership } = await context.supabase
+      .from("org_memberships")
+      .select("org_id")
+      .eq("user_id", context.userId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    const language = data.language === "en" ? "en" : "es";
+    const rows = CONSENT_ITEMS.map((item) => ({
+      user_id: context.userId,
+      organization_id: membership?.org_id ?? null,
+      document_type: PRIVACY_DOCUMENT_TYPE,
+      document_version: version.version,
+      document_hash: version.document_hash,
+      language,
+      consent_type: item.consentType,
+      purpose: "Uso de la plataforma Nyrava México conforme al Aviso de Privacidad vigente.",
+      source: data.source ?? "web",
+    }));
+
+    const { error } = await context.supabase.from("user_consents").insert(rows);
+    if (error) throw new Error(error.message);
+    return { ok: true, version: version.version, count: rows.length };
+  });
