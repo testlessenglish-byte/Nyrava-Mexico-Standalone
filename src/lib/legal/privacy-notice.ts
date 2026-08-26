@@ -11,7 +11,7 @@
  * be considered final. Nothing here is invented.
  */
 
-export const PRIVACY_DOCUMENT_TYPE = "privacy_notice";
+export const PRIVACY_DOCUMENT_TYPE = "aviso_privacidad";
 export const PRIVACY_VERSION = "2026.08.1";
 export const PRIVACY_EFFECTIVE_DATE = "2026-08-26";
 /** SHA-256 of canonicalPrivacyText() — regenerate with scripts/privacy-hash.ts */
