@@ -14,6 +14,8 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { getSecurityOverview } from "@/lib/security-dashboard.functions";
+import { MfaEnrollmentCard } from "@/components/security/MfaEnrollmentCard";
+
 
 export const Route = createFileRoute("/_authenticated/security-dashboard")({
   head: () => ({
