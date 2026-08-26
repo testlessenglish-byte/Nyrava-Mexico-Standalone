@@ -191,7 +191,8 @@ function TrustCenter() {
               icon: <Server className="h-4 w-4" />,
               title: "Managed infrastructure",
               description:
-                "Hosted on managed cloud with geographic redundancy, continuous backups, and point-in-time recovery.",
+                "Hosted on managed cloud infrastructure with automated database backups provided by the platform.",
+
             },
             {
               icon: <ShieldCheck className="h-4 w-4" />,
