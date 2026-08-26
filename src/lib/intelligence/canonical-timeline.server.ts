@@ -147,8 +147,10 @@ export function classifyTimelineEvent(
   declaredType?: unknown,
 ): TimelineEventType {
   const context = String(text ?? "").trim();
-  if (AUTHORITY_CONTEXT_RE.test(context)) return "authority_date";
+  // Legislative publication context is more specific than the general
+  // authority/publication pattern and must win for DOF history.
   if (LEGISLATIVE_CONTEXT_RE.test(context)) return "legislative_history";
+  if (AUTHORITY_CONTEXT_RE.test(context)) return "authority_date";
   if (BACKGROUND_CONTEXT_RE.test(context)) return "background_reference";
 
   const declared = String(declaredType ?? "").trim().toLowerCase();

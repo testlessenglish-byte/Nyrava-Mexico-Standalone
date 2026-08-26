@@ -108,8 +108,9 @@ function canonicalAdoption(
 ): AdoptionStatus {
   const raw = norm(rawValue);
   if (proposition === "rejected_holding") return "rejected";
-  if (raw === "adopted" || raw === "rejected" || raw === "historical") return raw;
-  if (raw === "unresolved" || raw === "not_reached") return "not_reached";
+  // The speaker controls party-position semantics. A party submission cannot
+  // become an adopted holding merely because an upstream model emitted the
+  // word "adopted".
   if (
     proposition === "party_argument" ||
     proposition === "prosecution_position" ||
@@ -118,6 +119,8 @@ function canonicalAdoption(
   ) {
     return "party_position";
   }
+  if (raw === "adopted" || raw === "rejected" || raw === "historical") return raw;
+  if (raw === "unresolved" || raw === "not_reached") return "not_reached";
   return "unknown";
 }
 

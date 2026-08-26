@@ -415,6 +415,12 @@ function isCourtHoldingPotentialPair(a: Prepared, b: Prepared): boolean {
 }
 
 export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptions>): boolean {
+  // Once both records carry a canonical legal-issue identity, its adoption
+  // status and operative effect are authoritative. Do not fall through to
+  // lexical/evidence dedupe after semantic incompatibility is established.
+  if (a.legalIssue && b.legalIssue && a.legalIssue === b.legalIssue) {
+    return sameLegalProposition(a, b);
+  }
   if (sameLegalProposition(a, b)) return true;
   if (isCourtHoldingPotentialPair(a, b)) return true;
 
