@@ -16,7 +16,7 @@ export const PRIVACY_VERSION = "2026.08.1";
 export const PRIVACY_EFFECTIVE_DATE = "2026-08-26";
 /** SHA-256 of canonicalPrivacyText() — regenerate with scripts/privacy-hash.ts */
 export const PRIVACY_NOTICE_HASH =
-  "a0353138e06b335d6dd5ef0f6606e0290604c72f8c00bc8b7327fb73276aac8c";
+  "c49cc421e779494995003615c96e2782b0e5a51c442e42f2789d948c618b62cf";
 
 export const PLACEHOLDER_MARK = "[POR CONFIRMAR:";
 
