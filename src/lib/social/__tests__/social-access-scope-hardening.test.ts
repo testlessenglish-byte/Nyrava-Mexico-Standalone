@@ -29,6 +29,24 @@ const verification = readFileSync(
   ),
   "utf8",
 );
+const familyAndPublicFunctionHardening = readFileSync(
+  join(
+    process.cwd(),
+    "supabase",
+    "migrations",
+    "20260826024500_social_family_and_public_function_hardening.sql",
+  ),
+  "utf8",
+);
+const familyAndPublicFunctionVerification = readFileSync(
+  join(
+    process.cwd(),
+    "supabase",
+    "verification",
+    "20260826024500_social_family_and_public_function_hardening_verify.sql",
+  ),
+  "utf8",
+);
 
 const serverOnlyRoutines = [
   "admin_factory_reset_case_data",
@@ -106,6 +124,37 @@ describe("social access-scope correction", () => {
       "not (d.social_case_id is distinct from social_document_access_events.social_case_id)",
     );
     expect(verification).toContain("rollback;");
+  });
+
+  it("correlates family access to the outer family and organization", () => {
+    expect(familyAndPublicFunctionHardening).toContain(
+      "c.family_id = social_families.id",
+    );
+    expect(familyAndPublicFunctionHardening).toContain(
+      "c.org_id = social_families.org_id",
+    );
+    expect(familyAndPublicFunctionHardening).not.toContain(
+      "c.family_id = c.id",
+    );
+    expect(familyAndPublicFunctionVerification).toContain(
+      "Family read policy still contains the self-reference",
+    );
+  });
+
+  it("keeps public pricing available without anonymous definer execution", () => {
+    expect(familyAndPublicFunctionHardening).toContain(
+      "alter function public.list_public_billing_plans()",
+    );
+    expect(familyAndPublicFunctionHardening).toContain("security invoker");
+    expect(familyAndPublicFunctionHardening).toContain(
+      "revoke all on table public.billing_plans from anon",
+    );
+    expect(familyAndPublicFunctionHardening).toContain(
+      "billing_plans_public_marketing_read",
+    );
+    expect(familyAndPublicFunctionVerification).toContain(
+      "An anonymous-executable SECURITY DEFINER routine remains",
+    );
   });
 });
 
