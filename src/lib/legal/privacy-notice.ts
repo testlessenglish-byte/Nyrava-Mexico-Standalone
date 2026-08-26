@@ -239,11 +239,11 @@ export const REQUIRED_BUSINESS_INFO = [
 
 /** Consent items presented at signup / first authenticated session. */
 export const CONSENT_ITEMS = [
-  { key: "privacy_notice", required: true },
-  { key: "personal_data", required: true },
-  { key: "sensitive_data", required: true },
-  { key: "ai_processing", required: true },
-  { key: "international_transfer", required: true },
+  { key: "privacy_notice", consentType: "acknowledgment", required: true },
+  { key: "personal_data", consentType: "acceptance", required: true },
+  { key: "sensitive_data", consentType: "sensitive_data_consent", required: true },
+  { key: "ai_processing", consentType: "explicit_consent", required: true },
+  { key: "international_transfer", consentType: "transfer_consent", required: true },
 ] as const;
 
 export type ConsentKey = (typeof CONSENT_ITEMS)[number]["key"];

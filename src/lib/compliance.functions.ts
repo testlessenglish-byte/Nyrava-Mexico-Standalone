@@ -212,7 +212,7 @@ export const getPrivacyConsentStatus = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
 
     const granted = new Set((rows ?? []).map((r) => r.consent_type));
-    const missing = CONSENT_ITEMS.filter((i) => !granted.has(i.key)).map((i) => i.key);
+    const missing = CONSENT_ITEMS.filter((i) => !granted.has(i.consentType)).map((i) => i.key);
     return { required: missing.length > 0, version, missing };
   });
 
@@ -255,7 +255,7 @@ export const acceptPrivacyConsents = createServerFn({ method: "POST" })
       document_version: version.version,
       document_hash: version.document_hash,
       language,
-      consent_type: item.key,
+      consent_type: item.consentType,
       purpose: "Uso de la plataforma Nyrava México conforme al Aviso de Privacidad vigente.",
       source: data.source ?? "web",
     }));
