@@ -26,6 +26,9 @@ import { getAllowedFindingModules, type AreaInput, type DomainSet } from "./prac
 /** Only a court can issue a holding — a party's own submission is always an
  *  argument until/unless a court adopts it. */
 const JUDICIAL_SPEAKER_ROLES: ReadonlySet<SpeakerRole> = new Set([
+  "juez_control",
+  "tribunal_enjuiciamiento",
+  "tribunal_alzada",
   "tribunal_colegiado",
   "tribunal_local",
   "scjn",
@@ -61,17 +64,21 @@ export function validateFindingClassification<T extends NewFinding>(
   const speakerRole = finding.speaker_role as SpeakerRole | null | undefined;
 
   if (
-    (propositionType === "holding" || propositionType === "rejected_holding") &&
+    (propositionType === "holding" ||
+      propositionType === "court_holding" ||
+      propositionType === "rejected_holding") &&
     speakerRole &&
     !JUDICIAL_SPEAKER_ROLES.has(speakerRole)
   ) {
+    const safeType: PropositionType =
+      propositionType === "court_holding" ? "party_argument" : "argument";
     return {
-      finding: { ...finding, proposition_type: "argument" },
+      finding: { ...finding, proposition_type: safeType },
       downgrades: [
         {
           field: "proposition_type",
           from: propositionType,
-          to: "argument",
+          to: safeType,
           reason: `speaker_role "${speakerRole}" is a party/authority position, not a court — a ${propositionType} cannot be attributed to it`,
         },
       ],

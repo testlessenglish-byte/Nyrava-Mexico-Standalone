@@ -2,6 +2,7 @@
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type AffectedParty = "defense" | "prosecution" | "both" | "neutral";
+export type BenefitedParty = "defense" | "prosecution" | "both" | "neutral";
 
 /** Judicial-hierarchy attribution — see judicial-hierarchy.ts.
  *
@@ -14,6 +15,19 @@ export type AffectedParty = "defense" | "prosecution" | "both" | "neutral";
 export type JudicialSpeakerRole =
   | "quejoso"
   | "autoridad"
+  | "ministerio_publico"
+  | "fiscal"
+  | "defensa"
+  | "imputado"
+  | "acusado"
+  | "sentenciado"
+  | "victima"
+  | "ofendido"
+  | "testigo"
+  | "perito"
+  | "juez_control"
+  | "tribunal_enjuiciamiento"
+  | "tribunal_alzada"
   | "tribunal_colegiado"
   | "tribunal_local"
   | "scjn";
@@ -25,14 +39,38 @@ export type JudicialSpeakerRole =
 export type PropositionType =
   | "argument"
   | "holding"
-  | "rejected_holding"
   | "procedural_fact"
   | "evidence"
-  | "issue";
+  | "issue"
+  | "case_fact"
+  | "allegation"
+  | "party_argument"
+  | "prosecution_position"
+  | "defense_position"
+  | "victim_position"
+  | "witness_statement"
+  | "expert_opinion"
+  | "physical_evidence"
+  | "documentary_evidence"
+  | "digital_evidence"
+  | "legal_rule"
+  | "court_holding"
+  | "rejected_holding"
+  | "procedural_event"
+  | "evidence_gap"
+  | "risk"
+  | "unresolved_question";
 /** Whether the highest instance present in the case adopted this
  * proposition as part of its holding. "unresolved" = raised but not ruled
  * on; "historical" = a superseded position kept only for narrative context. */
-export type AdoptionStatus = "adopted" | "rejected" | "unresolved" | "historical";
+export type AdoptionStatus =
+  | "adopted"
+  | "rejected"
+  | "not_reached"
+  | "party_position"
+  | "historical"
+  | "unknown"
+  | "unresolved";
 
 /** Completed-case audit classification — see case-analysis-mode.ts. Set only
  *  by findings generated under a completed-case analysis mode (concluded_audit
@@ -137,8 +175,12 @@ export type Finding = {
   legal_significance: string | null;
   potential_impact: string | null;
   affected_party: AffectedParty | null;
+  benefited_party?: BenefitedParty | null;
   evidence_type?: EvidenceType | null;
   impact_direction?: ImpactDirection | null;
+  authority_level?: string | null;
+  score_dimension?: string | null;
+  reason_for_score_effect?: string | null;
   strategic_significance?: string | null;
   priority?: number | null;
   speaker_role?: JudicialSpeakerRole | null;

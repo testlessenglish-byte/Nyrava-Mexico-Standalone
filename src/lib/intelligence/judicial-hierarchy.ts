@@ -38,7 +38,20 @@ import type { AdoptionStatus, JudicialSpeakerRole, PropositionType } from "./typ
 export const JUDICIAL_HIERARCHY: readonly JudicialSpeakerRole[] = [
   "quejoso",
   "autoridad",
+  "ministerio_publico",
+  "fiscal",
+  "defensa",
+  "imputado",
+  "acusado",
+  "sentenciado",
+  "victima",
+  "ofendido",
+  "testigo",
+  "perito",
+  "juez_control",
+  "tribunal_enjuiciamiento",
   "tribunal_local",
+  "tribunal_alzada",
   "tribunal_colegiado",
   "scjn",
 ];
@@ -89,10 +102,18 @@ export function isRejectedOrSuperseded(f: AttributedProposition): boolean {
  * value may still exist on the row for backwards compatibility, but it must
  * never make the holding eligible for a severity-ranked dashboard widget. */
 export function isVerifiedCourtHolding(f: AttributedProposition): boolean {
-  return String(f.audit_classification ?? "") === "VERIFIED_COURT_HOLDING";
+  return (
+    String(f.audit_classification ?? "") === "VERIFIED_COURT_HOLDING" ||
+    String(f.proposition_type ?? "") === "court_holding"
+  );
 }
 
-const DASHBOARD_ELIGIBLE_TYPES = new Set<string>(["holding", "procedural_fact"]);
+const DASHBOARD_ELIGIBLE_TYPES = new Set<string>([
+  "holding",
+  "court_holding",
+  "procedural_fact",
+  "procedural_event",
+]);
 
 /**
  * Executive Dashboard rule: once a case carries attributed propositions,

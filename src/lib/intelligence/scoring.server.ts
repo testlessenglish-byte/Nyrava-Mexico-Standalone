@@ -192,17 +192,44 @@ function matches(f: Finding, dimensionKey: string, cats: string[], mods?: string
   return matchesLegacyCategory(f, cats, mods);
 }
 
+function hasPartyAwareScoreMapping(f: Finding): boolean {
+  const affected = String(f.affected_party ?? "").toLowerCase();
+  const benefited = String(f.benefited_party ?? "").toLowerCase();
+  return (
+    (affected === "defense" || affected === "prosecution" || affected === "both") &&
+    (benefited === "defense" || benefited === "prosecution") &&
+    Boolean(String(f.score_dimension ?? "").trim()) &&
+    Boolean(String(f.reason_for_score_effect ?? "").trim()) &&
+    Boolean(f.evidence_refs?.some((ref) => String(ref.quote ?? "").trim()))
+  );
+}
+
 export function findingScoringDirection(f: Finding): "strengthens" | "weakens" | "neutral" | "auto" {
   const explicit = String(f.impact_direction ?? "").toLowerCase();
-  if (explicit === "strengthens" || explicit === "weakens" || explicit === "neutral") return explicit;
-
   const audit = String(f.audit_classification ?? "").toUpperCase();
   const proposition = String(f.proposition_type ?? "").toLowerCase();
   const adoption = String(f.adoption_status ?? "").toLowerCase();
 
+  // Classification takes precedence over producer-supplied polarity. A legal
+  // rule, alleged gap, or adopted holding cannot become negative evidence
+  // merely because the engine that surfaced it used "weakens".
   if (audit === "POTENTIAL_ISSUE" || audit === "EVIDENCE_GAP" || audit === "NOT_FOUND") return "neutral";
-  if (audit === "VERIFIED_LEGAL_RULE") return "neutral";
-  if (audit === "VERIFIED_COURT_HOLDING" || (proposition === "holding" && adoption === "adopted")) return "neutral";
+  if (audit === "VERIFIED_LEGAL_RULE" || proposition === "legal_rule") return "neutral";
+
+  const adoptedHolding =
+    audit === "VERIFIED_COURT_HOLDING" ||
+    ((proposition === "holding" || proposition === "court_holding") && adoption === "adopted");
+  if (adoptedHolding) {
+    if (
+      (explicit === "strengthens" || explicit === "weakens") &&
+      hasPartyAwareScoreMapping(f)
+    ) {
+      return explicit;
+    }
+    return "neutral";
+  }
+
+  if (explicit === "strengthens" || explicit === "weakens" || explicit === "neutral") return explicit;
   return "auto";
 }
 

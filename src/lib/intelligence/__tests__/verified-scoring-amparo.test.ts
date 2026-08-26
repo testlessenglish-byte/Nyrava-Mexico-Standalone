@@ -33,11 +33,27 @@ describe("verified Amparo scoring", () => {
       audit_classification: "VERIFIED_COURT_HOLDING",
       proposition_type: "holding",
       adoption_status: "adopted",
+      impact_direction: "weakens",
     });
     expect(findingScoringDirection(holding)).toBe("neutral");
     const score = computeDeterministicScorecard([holding], "amparo");
     expect(score.dimensions.constitutional_compliance.score).toBe(80);
     expect(score.dimensions.constitutional_compliance.negatives).toHaveLength(0);
+  });
+
+  it("allows a separately sourced, party-aware adopted holding mapping", () => {
+    const holding = finding({
+      id: "f-mapped",
+      audit_classification: "VERIFIED_COURT_HOLDING",
+      proposition_type: "court_holding",
+      adoption_status: "adopted",
+      impact_direction: "weakens",
+      affected_party: "prosecution",
+      benefited_party: "defense",
+      score_dimension: "constitutional_compliance",
+      reason_for_score_effect: "The holding excludes the prosecution's only identification evidence.",
+    });
+    expect(findingScoringDirection(holding)).toBe("weakens");
   });
 
   it("allows an explicitly adverse verified finding to weaken the dimension", () => {

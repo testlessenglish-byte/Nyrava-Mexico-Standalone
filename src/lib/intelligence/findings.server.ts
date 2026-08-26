@@ -66,6 +66,7 @@ import {
 } from "./finding-taxonomy";
 import { clusterBySameIssue } from "./finding-dedupe";
 import { validateFindingClassification, validateFindingCategory } from "./finding-classification-gate";
+import { normalizePenalFinding } from "./penal-legal-normalization";
 
 type Db = SupabaseClient<Database>;
 type J = import("@/integrations/supabase/types").Json;
@@ -780,7 +781,19 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       if (categoryDowngrades.length > 0) {
         console.warn(`[classification-gate] case=${caseId} category downgraded`, categoryDowngrades);
       }
-      validated.push(finding);
+
+      // Legal-meaning boundary. This intentionally runs after generic
+      // module/category validation so producer provenance cannot overwrite
+      // the legal classification of a Penal proposition.
+      const underlyingMatter = Array.from(activeDomains ?? []).find((domain) =>
+        /penal|criminal/i.test(String(domain)),
+      );
+      validated.push(
+        normalizePenalFinding(finding, {
+          matter: area,
+          underlyingMatter: underlyingMatter ? String(underlyingMatter) : null,
+        }),
+      );
     }
   }
 
@@ -804,7 +817,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     if (groupRows.length === 0) continue;
     const { data: existing } = await db
       .from("case_findings")
-      .select("id,category,title,description,evidence_refs,confidence,source_doc_ids,metadata,source_module")
+      .select("id,category,title,description,evidence_refs,confidence,source_doc_ids,metadata,source_module,speaker_role,proposition_type,adoption_status,audit_classification,affected_party,benefited_party,evidence_type,impact_direction,authority_level,score_dimension,reason_for_score_effect")
       .eq("case_id", caseId)
       .not("source_module", "like", PROJECTION_LIKE);
 
@@ -831,6 +844,17 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
           description: e.description ?? "",
           severity: "info",
           confidence: typeof e.confidence === "number" ? e.confidence : 0,
+          affected_party: e.affected_party ?? null,
+          benefited_party: e.benefited_party ?? null,
+          evidence_type: e.evidence_type ?? null,
+          impact_direction: e.impact_direction ?? null,
+          authority_level: e.authority_level ?? null,
+          score_dimension: e.score_dimension ?? null,
+          reason_for_score_effect: e.reason_for_score_effect ?? null,
+          speaker_role: e.speaker_role ?? null,
+          proposition_type: e.proposition_type ?? null,
+          adoption_status: e.adoption_status ?? null,
+          audit_classification: e.audit_classification ?? null,
           source_doc_ids: e.source_doc_ids ?? [],
           evidence_refs: e.evidence_refs ?? [],
           metadata: { ...(e.metadata ?? {}), __existing_id: e.id },
@@ -875,6 +899,14 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
             proposition_type: normPropositionType(entry.proposition_type),
             adoption_status: normAdoptionStatus(entry.adoption_status),
             audit_classification: normAuditClassification(entry.audit_classification),
+            category: entry.category,
+            affected_party: normParty(entry.affected_party),
+            benefited_party: normParty(entry.benefited_party),
+            evidence_type: entry.evidence_type ?? null,
+            impact_direction: entry.impact_direction ?? null,
+            authority_level: entry.authority_level ?? null,
+            score_dimension: entry.score_dimension ?? null,
+            reason_for_score_effect: entry.reason_for_score_effect ?? null,
             // Lifted out of metadata onto the top-level column so the
             // conflicting/unresolved state is queryable without walking
             // JSON — same "metadata → top-level" pattern already used for
@@ -1089,6 +1121,10 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       legal_significance: r.legal_significance,
       potential_impact: r.potential_impact,
       affected_party: normParty(r.affected_party),
+      benefited_party: normParty(r.benefited_party),
+      authority_level: r.authority_level ?? null,
+      score_dimension: r.score_dimension ?? null,
+      reason_for_score_effect: r.reason_for_score_effect ?? null,
       speaker_role: normSpeakerRole(r.speaker_role),
       proposition_type: normPropositionType(r.proposition_type),
       adoption_status: normAdoptionStatus(r.adoption_status),
