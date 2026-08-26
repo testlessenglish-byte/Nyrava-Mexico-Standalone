@@ -14,6 +14,8 @@ import type { ProviderType } from "./ai/providers/types";
 
 import { mexicoLock, getReportLocale, groundingContract } from "@/lib/mexico-lock";
 import { sha256Hex } from "./hash.server";
+import { buildStorageKey, sanitizeStorageFilename } from "@/lib/security/filename";
+import { validateUpload, logRejectedUpload } from "@/lib/security/file-validation";
 import {
   addFindings,
   addGatedFindings,
