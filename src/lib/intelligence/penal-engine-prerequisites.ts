@@ -27,22 +27,36 @@ const PROSPECTIVE_AGENTS = new Set([
   "suspension_analysis",
 ]);
 
+function containsGroundedTerm(text: string, alternatives: string): boolean {
+  // JavaScript's legacy \\b boundary treats accented letters such as the
+  // final "ó" in "declaró" as non-word characters. That made a real,
+  // attributable Spanish statement fail its prerequisite. Use Unicode letter
+  // and number boundaries instead.
+  return new RegExp(
+    `(?:^|[^\\p{L}\\p{N}_])(?:${alternatives})(?=$|[^\\p{L}\\p{N}_])`,
+    "iu",
+  ).test(text);
+}
+
 export function detectPenalEnginePrerequisites(corpusText: string): PenalEnginePrerequisites {
   const text = String(corpusText ?? "");
-  const hasWitnessRole = /\b(testigo|declarante|víctima|victima|ofendido|imputado|acusado)\b/i.test(text);
-  const hasAttributableStatement =
-    /\b(declar[oó]|manifest[oó]|refiri[oó]|señal[oó]|testific[oó]|entrevista|declaraci[oó]n|testimonio)\b/i.test(
-      text,
-    );
+  const hasWitnessRole = containsGroundedTerm(
+    text,
+    "testigo|declarante|víctima|victima|ofendido|imputado|acusado",
+  );
+  const hasAttributableStatement = containsGroundedTerm(
+    text,
+    "declar[oó]|manifest[oó]|refiri[oó]|señal[oó]|testific[oó]|entrevista|declaraci[oó]n|testimonio",
+  );
 
-  const hasEvidence =
-    /\b(indicio|objeto|arma|casquillo|muestra|dispositivo|teléfono|telefono|archivo\s+digital|evidencia\s+(?:física|fisica|digital)|dato\s+de\s+prueba)\b/i.test(
-      text,
-    );
-  const hasHandling =
-    /\b(asegur[oó]|embal[oó]|sell[oó]|etiquet[oó]|recolect[oó]|traslad[oó]|almacen[oó]|resguard[oó]|entreg[oó]|recibi[oó]|cadena\s+de\s+custodia|registro\s+de\s+custodia)\b/i.test(
-      text,
-    );
+  const hasEvidence = containsGroundedTerm(
+    text,
+    "indicio|objeto|arma|casquillo|muestra|dispositivo|teléfono|telefono|archivo\\s+digital|evidencia\\s+(?:física|fisica|digital)|dato\\s+de\\s+prueba",
+  );
+  const hasHandling = containsGroundedTerm(
+    text,
+    "asegur[oó]|embal[oó]|sell[oó]|etiquet[oó]|recolect[oó]|traslad[oó]|almacen[oó]|resguard[oó]|entreg[oó]|recibi[oó]|cadena\\s+de\\s+custodia|registro\\s+de\\s+custodia",
+  );
 
   return {
     hasIdentifiedWitnessStatement: hasWitnessRole && hasAttributableStatement,
