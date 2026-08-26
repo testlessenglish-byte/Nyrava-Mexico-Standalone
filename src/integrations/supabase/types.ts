@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -7814,6 +7814,8 @@ export type Database = {
           created_at: string
           created_by: string
           deleted_at: string | null
+          deleted_by: string | null
+          deletion_reason: string | null
           family_id: string | null
           id: string
           intake_date: string
@@ -7844,6 +7846,8 @@ export type Database = {
           created_at?: string
           created_by: string
           deleted_at?: string | null
+          deleted_by?: string | null
+          deletion_reason?: string | null
           family_id?: string | null
           id?: string
           intake_date?: string
@@ -7874,6 +7878,8 @@ export type Database = {
           created_at?: string
           created_by?: string
           deleted_at?: string | null
+          deleted_by?: string | null
+          deletion_reason?: string | null
           family_id?: string | null
           id?: string
           intake_date?: string
@@ -10700,6 +10706,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_matching_social_organization_invitations: {
+        Args: never
+        Returns: Json
+      }
       accept_social_organization_invitation: {
         Args: { p_token: string }
         Returns: Json
@@ -10707,6 +10717,10 @@ export type Database = {
       accept_social_transfer: {
         Args: { p_transfer: string }
         Returns: undefined
+      }
+      activate_existing_social_invitee: {
+        Args: { p_invitation: string }
+        Returns: Json
       }
       add_social_document_version: {
         Args: {
@@ -10893,6 +10907,8 @@ export type Database = {
           created_at: string
           created_by: string
           deleted_at: string | null
+          deleted_by: string | null
+          deletion_reason: string | null
           family_id: string | null
           id: string
           intake_date: string
@@ -11045,6 +11061,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_social_case_by_assigning_manager: {
+        Args: { p_case: string; p_reason: string }
+        Returns: Json
+      }
       ensure_social_program_for_org: {
         Args: {
           p_name_en?: string
@@ -11098,6 +11118,7 @@ export type Database = {
           seats_used: number
         }[]
       }
+      get_social_case_core: { Args: { p_case: string }; Returns: Json }
       get_social_organization_account: {
         Args: { p_org: string }
         Returns: Json
@@ -11361,6 +11382,15 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      social_activity_entity_visible: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_org: string
+          p_user: string
+        }
+        Returns: boolean
+      }
       social_can_access_case: {
         Args: {
           p_case: string
