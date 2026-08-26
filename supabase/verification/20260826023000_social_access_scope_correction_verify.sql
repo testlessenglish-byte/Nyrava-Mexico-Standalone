@@ -118,7 +118,11 @@ begin
   where schemaname = 'public'
     and tablename = 'social_document_access_events'
     and policyname = 'social_document_access_events_insert';
-  if v_policy not ilike '%is not distinct from%'
+  if (
+    v_policy not ilike '%is not distinct from%'
+    and v_policy not ilike
+      '%not (d.social_case_id is distinct from social_document_access_events.social_case_id)%'
+  )
     or v_policy not ilike '%d.org_id = social_document_access_events.org_id%'
   then
     raise exception 'Document access events can still be misattributed';
