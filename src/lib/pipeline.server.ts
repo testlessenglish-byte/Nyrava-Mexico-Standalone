@@ -14,6 +14,8 @@ import type { ProviderType } from "./ai/providers/types";
 
 import { mexicoLock, getReportLocale, groundingContract } from "@/lib/mexico-lock";
 import { sha256Hex } from "./hash.server";
+import { buildStorageKey, sanitizeStorageFilename } from "@/lib/security/filename";
+import { validateUpload, logRejectedUpload } from "@/lib/security/file-validation";
 import {
   addFindings,
   addGatedFindings,
@@ -292,8 +294,28 @@ export async function uploadFiles(opts: {
       : null;
 
     const mimeType = inferMimeType(file.name);
-    const storagePath =
-      userId + "/" + caseId + "/" + crypto.randomUUID() + "-" + file.name;
+
+    // Phase 1 hardening: server-side signature validation (obvious mismatches
+    // only) and sanitized storage keys for NEW objects. Existing objects are
+    // never renamed. Size/ZIP limits are enforced upstream and unchanged.
+    const validation = validateUpload({ filename: file.name, bytes: file.bytes });
+    if (!validation.ok) {
+      logRejectedUpload({
+        filename: sanitizeStorageFilename(file.name),
+        sizeBytes: file.bytes.byteLength,
+        declaredMime: mimeType,
+        result: validation,
+        caseId,
+        userId,
+      });
+      throw new Error('Rejected "' + file.name + '": ' + validation.message);
+    }
+
+    const storagePath = buildStorageKey({
+      prefixes: [userId, caseId],
+      uniqueId: crypto.randomUUID(),
+      filename: file.name,
+    });
 
     const { error: uploadError } = await db.storage
       .from("case-files")

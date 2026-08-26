@@ -426,6 +426,110 @@ export type Database = {
           },
         ]
       }
+      arco_request_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          notes: string | null
+          request_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          notes?: string | null
+          request_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          notes?: string | null
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arco_request_events_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "arco_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      arco_requests: {
+        Row: {
+          assigned_reviewer: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          identity_verification_notes: string | null
+          identity_verification_status: string
+          organization_id: string | null
+          reference: string
+          request_details: string | null
+          request_type: Database["public"]["Enums"]["arco_request_type"]
+          requester_email: string
+          requester_name: string
+          requester_phone: string | null
+          resolution: string | null
+          resolution_notes: string | null
+          response_deadline: string
+          status: Database["public"]["Enums"]["arco_request_status"]
+          submitted_at: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          assigned_reviewer?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          identity_verification_notes?: string | null
+          identity_verification_status?: string
+          organization_id?: string | null
+          reference?: string
+          request_details?: string | null
+          request_type: Database["public"]["Enums"]["arco_request_type"]
+          requester_email: string
+          requester_name: string
+          requester_phone?: string | null
+          resolution?: string | null
+          resolution_notes?: string | null
+          response_deadline?: string
+          status?: Database["public"]["Enums"]["arco_request_status"]
+          submitted_at?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          assigned_reviewer?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          identity_verification_notes?: string | null
+          identity_verification_status?: string
+          organization_id?: string | null
+          reference?: string
+          request_details?: string | null
+          request_type?: Database["public"]["Enums"]["arco_request_type"]
+          requester_email?: string
+          requester_name?: string
+          requester_phone?: string | null
+          resolution?: string | null
+          resolution_notes?: string | null
+          response_deadline?: string
+          status?: Database["public"]["Enums"]["arco_request_status"]
+          submitted_at?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -4115,6 +4219,51 @@ export type Database = {
           },
         ]
       }
+      legal_document_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          document_hash: string
+          document_type: string
+          effective_date: string
+          id: string
+          is_active: boolean
+          language: string
+          source_url: string | null
+          summary: string | null
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          document_hash: string
+          document_type: string
+          effective_date?: string
+          id?: string
+          is_active?: boolean
+          language?: string
+          source_url?: string | null
+          summary?: string | null
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          document_hash?: string
+          document_type?: string
+          effective_date?: string
+          id?: string
+          is_active?: boolean
+          language?: string
+          source_url?: string | null
+          summary?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       legal_ingest_runs: {
         Row: {
           connector_code: string
@@ -6673,6 +6822,84 @@ export type Database = {
             referencedColumns: ["code"]
           },
         ]
+      }
+      security_incidents: {
+        Row: {
+          affected_systems: string[]
+          category: string
+          containment_notes: string | null
+          containment_status: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discovered_at: string
+          id: string
+          investigation_notes: string | null
+          investigation_status: string
+          notification_notes: string | null
+          notification_required: boolean
+          notification_status: string
+          potentially_affected_user_ids: string[]
+          potentially_affected_users: number | null
+          reference: string
+          reported_at: string | null
+          resolved_at: string | null
+          severity: Database["public"]["Enums"]["security_incident_severity"]
+          status: Database["public"]["Enums"]["security_incident_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          affected_systems?: string[]
+          category?: string
+          containment_notes?: string | null
+          containment_status?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discovered_at?: string
+          id?: string
+          investigation_notes?: string | null
+          investigation_status?: string
+          notification_notes?: string | null
+          notification_required?: boolean
+          notification_status?: string
+          potentially_affected_user_ids?: string[]
+          potentially_affected_users?: number | null
+          reference?: string
+          reported_at?: string | null
+          resolved_at?: string | null
+          severity?: Database["public"]["Enums"]["security_incident_severity"]
+          status?: Database["public"]["Enums"]["security_incident_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          affected_systems?: string[]
+          category?: string
+          containment_notes?: string | null
+          containment_status?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discovered_at?: string
+          id?: string
+          investigation_notes?: string | null
+          investigation_status?: string
+          notification_notes?: string | null
+          notification_required?: boolean
+          notification_status?: string
+          potentially_affected_user_ids?: string[]
+          potentially_affected_users?: number | null
+          reference?: string
+          reported_at?: string | null
+          resolved_at?: string | null
+          severity?: Database["public"]["Enums"]["security_incident_severity"]
+          status?: Database["public"]["Enums"]["security_incident_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       social_activity_events: {
         Row: {
@@ -10324,6 +10551,57 @@ export type Database = {
         }
         Relationships: []
       }
+      user_consents: {
+        Row: {
+          consent_type: string
+          created_at: string
+          document_hash: string | null
+          document_type: string
+          document_version: string
+          granted_at: string
+          id: string
+          language: string
+          organization_id: string | null
+          purpose: string | null
+          source: string | null
+          updated_at: string
+          user_id: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          consent_type?: string
+          created_at?: string
+          document_hash?: string | null
+          document_type: string
+          document_version: string
+          granted_at?: string
+          id?: string
+          language?: string
+          organization_id?: string | null
+          purpose?: string | null
+          source?: string | null
+          updated_at?: string
+          user_id: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          consent_type?: string
+          created_at?: string
+          document_hash?: string | null
+          document_type?: string
+          document_version?: string
+          granted_at?: string
+          id?: string
+          language?: string
+          organization_id?: string | null
+          purpose?: string | null
+          source?: string | null
+          updated_at?: string
+          user_id?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: []
+      }
       user_feedback: {
         Row: {
           admin_note: string | null
@@ -11581,6 +11859,20 @@ export type Database = {
         | "platform_admin"
         | "firm_admin"
         | "case_manager"
+      arco_request_status:
+        | "received"
+        | "identity_pending"
+        | "in_review"
+        | "awaiting_information"
+        | "resolved"
+        | "rejected"
+        | "withdrawn"
+      arco_request_type:
+        | "acceso"
+        | "rectificacion"
+        | "cancelacion"
+        | "oposicion"
+        | "revocacion"
       canonical_status: "orchestrating" | "completed" | "failed" | "validated"
       case_status:
         | "uploaded"
@@ -11718,6 +12010,14 @@ export type Database = {
         | "case_worker"
         | "legal_provider"
         | "psychosocial_provider"
+      security_incident_severity: "low" | "medium" | "high" | "critical"
+      security_incident_status:
+        | "open"
+        | "triage"
+        | "contained"
+        | "investigating"
+        | "resolved"
+        | "closed"
       task_status: "todo" | "in_progress" | "blocked" | "done" | "cancelled"
       verification_category:
         | "ownership"
@@ -11870,6 +12170,22 @@ export const Constants = {
         "firm_admin",
         "case_manager",
       ],
+      arco_request_status: [
+        "received",
+        "identity_pending",
+        "in_review",
+        "awaiting_information",
+        "resolved",
+        "rejected",
+        "withdrawn",
+      ],
+      arco_request_type: [
+        "acceso",
+        "rectificacion",
+        "cancelacion",
+        "oposicion",
+        "revocacion",
+      ],
       canonical_status: ["orchestrating", "completed", "failed", "validated"],
       case_status: [
         "uploaded",
@@ -12018,6 +12334,15 @@ export const Constants = {
         "case_worker",
         "legal_provider",
         "psychosocial_provider",
+      ],
+      security_incident_severity: ["low", "medium", "high", "critical"],
+      security_incident_status: [
+        "open",
+        "triage",
+        "contained",
+        "investigating",
+        "resolved",
+        "closed",
       ],
       task_status: ["todo", "in_progress", "blocked", "done", "cancelled"],
       verification_category: [

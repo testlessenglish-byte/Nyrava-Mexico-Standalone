@@ -14,6 +14,8 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { getSecurityOverview } from "@/lib/security-dashboard.functions";
+import { MfaEnrollmentCard } from "@/components/security/MfaEnrollmentCard";
+
 
 export const Route = createFileRoute("/_authenticated/security-dashboard")({
   head: () => ({
@@ -159,6 +161,10 @@ function SecurityDashboardPage() {
           }
         />
       </section>
+
+      <MfaEnrollmentCard />
+
+
 
       <section className="rounded-lg border border-border/60 bg-card/40">
         <header className="flex items-center gap-2 border-b border-border/60 px-5 py-3">

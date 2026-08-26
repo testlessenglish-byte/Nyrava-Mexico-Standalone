@@ -2,6 +2,21 @@ import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/r
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { withSecurityHeaders } from "./lib/security/security-headers";
+
+// Additive browser security headers. The Content-Security-Policy is emitted
+// in Report-Only mode only — nothing is blocked by it.
+const securityHeadersMiddleware = createMiddleware().server(async ({ request, next }) => {
+  const response = await next();
+  const pathname = new URL(request.url).pathname;
+  const raw = (response as unknown as { response?: Response }).response;
+  if (raw instanceof Response) {
+    withSecurityHeaders(raw, pathname);
+    return response;
+  }
+  if (response instanceof Response) return withSecurityHeaders(response, pathname);
+  return response;
+});
 
 const errorMiddleware = createMiddleware().server(async ({ request, next }) => {
   // Internal Lovable routes (email webhooks, previews, etc.) must bypass app middleware
@@ -32,5 +47,5 @@ const csrfMiddleware = createCsrfMiddleware({
 
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware, csrfMiddleware],
+  requestMiddleware: [securityHeadersMiddleware, errorMiddleware, csrfMiddleware],
 }));
