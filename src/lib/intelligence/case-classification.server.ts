@@ -29,6 +29,8 @@ type Db = SupabaseClient<Database>;
 export const CLASSIFICATION_FIELDS = [
   "case_type",
   "proceeding_type",
+  "procedural_vehicle",
+  "underlying_materia",
   "jurisdiction",
   "matter",
   "procedural_stage",
@@ -155,6 +157,25 @@ const PROCEEDING_CAPTION_PATTERN =
 const EXPEDIENTE_STANDALONE_PATTERN =
   /\bEXPEDIENTE\s+(?:N[ÚU]MERO\s+)?(\d+[A-Z]?(?:\s?BIS)?\s*\/\s*\d{4})\b/gi;
 
+const PENAL_UNDERLYING_PATTERN =
+  /\b(materia\s+penal|proceso\s+penal|causa\s+penal|juicio\s+penal|sentencia\s+penal|averiguaci[óo]n\s+previa|carpeta\s+de\s+investigaci[óo]n|ministerio\s+p[úu]blico|tribunal\s+de\s+enjuiciamiento|juez\s+de\s+control|persona\s+sentenciada)\b/gi;
+
+export function normalizeProceduralVehicle(value: string): string {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const aliases: Record<string, string> = {
+    amparo_directo_en_revision: "amparo_directo_revision",
+    amparo_en_revision: "amparo_revision",
+    recurso_de_apelacion: "apelacion",
+    carpeta_de_investigacion: "carpeta_investigacion",
+  };
+  return aliases[normalized] ?? normalized;
+}
+
 // Court/tribunal — federal and state-level naming conventions.
 const COURT_PATTERN =
   /\b(SUPREMA CORTE DE JUSTICIA DE LA NACI[ÓO]N|TRIBUNAL COLEGIADO[\wÁÉÍÓÚÑ.\s]{0,60}?CIRCUITO|TRIBUNAL DE ALZADA[\wÁÉÍÓÚÑ.\s]{0,40}|JUZGADO[\wÁÉÍÓÚÑ.\s]{0,10}DE DISTRITO[\wÁÉÍÓÚÑ.\s]{0,40}|JUZGADO DE CONTROL[\wÁÉÍÓÚÑ.\s]{0,40}|TRIBUNAL DE ENJUICIAMIENTO[\wÁÉÍÓÚÑ.\s]{0,40}|TRIBUNAL FEDERAL DE JUSTICIA ADMINISTRATIVA|TRIBUNAL UNITARIO AGRARIO[\wÁÉÍÓÚÑ.\s]{0,20}|SALA[\wÁÉÍÓÚÑ.\s]{0,15}DEL TRIBUNAL SUPERIOR DE JUSTICIA[\wÁÉÍÓÚÑ.\s]{0,40}|JUZGADO[\wÁÉÍÓÚÑ.\s]{0,10}DE LO (?:CIVIL|FAMILIAR|PENAL|MERCANTIL|LABORAL)[\wÁÉÍÓÚÑ.\s]{0,40}|TRIBUNAL LABORAL[\wÁÉÍÓÚÑ.\s]{0,40})\b/gi;
@@ -262,23 +283,24 @@ export function classifyCaseFromDocuments(docs: DocInput[]): CaseClassificationR
   }
 
   // ---- proceeding_type + expediente_number (combined caption) ------------
-  fields.push(
-    classifyByPattern("proceeding_type", docs, PROCEEDING_CAPTION_PATTERN, (raw) =>
-      normalizeUpper(raw),
-    ),
+  const proceedingField = classifyByPattern(
+    "proceeding_type",
+    docs,
+    PROCEEDING_CAPTION_PATTERN,
+    (raw) => normalizeUpper(raw),
   );
+  fields.push(proceedingField);
   {
     // Prefer the combined caption's own docket number; fall back to a bare
     // "EXPEDIENTE 123/2024" mention only when no caption matched at all.
-    const captionField = fields[fields.length - 1];
-    if (captionField.status === "CONFIRMED" && captionField.source) {
-      const numMatch = /\d+[A-Z]?(?:\s?BIS)?\s*\/\s*\d{4}/i.exec(captionField.source.quote);
+    if (proceedingField.status === "CONFIRMED" && proceedingField.source) {
+      const numMatch = /\d+[A-Z]?(?:\s?BIS)?\s*\/\s*\d{4}/i.exec(proceedingField.source.quote);
       fields.push({
         field: "expediente_number",
         status: "CONFIRMED",
         value: numMatch ? numMatch[0].replace(/\s+/g, "") : null,
         confidence: numMatch ? 0.9 : null,
-        source: captionField.source,
+        source: proceedingField.source,
         conflicts: [],
       });
     } else {
@@ -289,6 +311,35 @@ export function classifyCaseFromDocuments(docs: DocInput[]): CaseClassificationR
       );
     }
   }
+
+  // Procedural vehicle and underlying materia are intentionally independent.
+  // An ADR/Amparo caption establishes the vehicle; Penal-origin language in
+  // the same grounded corpus establishes the underlying materia.
+  fields.push(
+    proceedingField.status === "CONFIRMED" && proceedingField.value
+      ? {
+          field: "procedural_vehicle",
+          status: "CONFIRMED",
+          value: normalizeProceduralVehicle(proceedingField.value),
+          confidence: proceedingField.confidence,
+          source: proceedingField.source,
+          conflicts: [],
+        }
+      : {
+          field: "procedural_vehicle",
+          status: proceedingField.status,
+          value: null,
+          confidence: null,
+          source: null,
+          conflicts: proceedingField.conflicts.map((conflict) => ({
+            value: normalizeProceduralVehicle(conflict.value),
+            source: conflict.source,
+          })),
+        },
+  );
+  fields.push(
+    classifyByPattern("underlying_materia", docs, PENAL_UNDERLYING_PATTERN, () => "penal"),
+  );
 
   // ---- jurisdiction — reuse buildJurisdictionProfile per document for the
   // VALUE (already deterministic, keyword-based, tested); grounding is
@@ -534,16 +585,20 @@ export async function runCaseClassification(
   // arrives.
   const caseTypeField = result.fields.find((f) => f.field === "case_type");
   const jurisdictionField = result.fields.find((f) => f.field === "jurisdiction");
+  const proceduralVehicleField = result.fields.find((f) => f.field === "procedural_vehicle");
+  const underlyingMateriaField = result.fields.find((f) => f.field === "underlying_materia");
   const { data: caseRow } = await db
     .from("cases")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .select("case_type,jurisdiction,case_type_source" as any)
+    .select("case_type,jurisdiction,case_type_source,procedural_vehicle,underlying_materia" as any)
     .eq("id", caseId)
     .maybeSingle();
   const current = (caseRow ?? {}) as {
     case_type?: string | null;
     jurisdiction?: string | null;
     case_type_source?: string | null;
+    procedural_vehicle?: string | null;
+    underlying_materia?: string | null;
   };
   const isManuallyLocked =
     current.case_type_source === "manual_override" ||
@@ -576,6 +631,12 @@ export async function runCaseClassification(
     !current.jurisdiction
   ) {
     patch.jurisdiction = jurisdictionField.value === "Federal" ? "federal" : current.jurisdiction;
+  }
+  if (proceduralVehicleField?.status === "CONFIRMED" && proceduralVehicleField.value) {
+    patch.procedural_vehicle = proceduralVehicleField.value;
+  }
+  if (underlyingMateriaField?.status === "CONFIRMED" && underlyingMateriaField.value) {
+    patch.underlying_materia = underlyingMateriaField.value;
   }
   if (Object.keys(patch).length > 0) {
     await db
@@ -711,6 +772,8 @@ function emptyIdentity(caseId: string): VerifiedCaseIdentity {
     caseId,
     caseType: null,
     proceedingType: null,
+    proceduralVehicle: null,
+    underlyingMateria: null,
     jurisdiction: null,
     status: "unverified",
     confidence: null,
@@ -731,7 +794,7 @@ export async function resolveCaseIdentityUncached(
     const { data: caseRowRaw, error: caseErr } = await db
       .from("cases")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .select("case_type,case_type_source,jurisdiction" as any)
+      .select("case_type,case_type_source,jurisdiction,procedural_vehicle,underlying_materia" as any)
       .eq("id", caseId)
       .maybeSingle();
     if (caseErr) throw new Error(caseErr.message);
@@ -739,6 +802,8 @@ export async function resolveCaseIdentityUncached(
       case_type?: string | null;
       case_type_source?: string | null;
       jurisdiction?: string | null;
+      procedural_vehicle?: string | null;
+      underlying_materia?: string | null;
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -746,11 +811,19 @@ export async function resolveCaseIdentityUncached(
       .from("case_classification_evidence")
       .select("field,status,value,confidence,source_document_id,source_page,source_quote")
       .eq("case_id", caseId)
-      .in("field", ["case_type", "proceeding_type", "jurisdiction"]);
+      .in("field", [
+        "case_type",
+        "proceeding_type",
+        "procedural_vehicle",
+        "underlying_materia",
+        "jurisdiction",
+      ]);
     if (evErr) throw new Error(evErr.message);
     const evidenceRows = (evidenceRowsRaw ?? []) as EvidenceRow[];
     const caseTypeEvidence = evidenceRows.find((r) => r.field === "case_type");
     const proceedingEvidence = evidenceRows.find((r) => r.field === "proceeding_type");
+    const proceduralVehicleEvidence = evidenceRows.find((r) => r.field === "procedural_vehicle");
+    const underlyingMateriaEvidence = evidenceRows.find((r) => r.field === "underlying_materia");
     const jurisdictionEvidence = evidenceRows.find((r) => r.field === "jurisdiction");
 
     const isManualLock =
@@ -808,6 +881,16 @@ export async function resolveCaseIdentityUncached(
 
     if (proceedingEvidence?.status === "CONFIRMED" && proceedingEvidence.value) {
       result.proceedingType = proceedingEvidence.value;
+    }
+    if (proceduralVehicleEvidence?.status === "CONFIRMED" && proceduralVehicleEvidence.value) {
+      result.proceduralVehicle = proceduralVehicleEvidence.value;
+    } else if (caseRow.procedural_vehicle) {
+      result.proceduralVehicle = caseRow.procedural_vehicle;
+    }
+    if (underlyingMateriaEvidence?.status === "CONFIRMED" && underlyingMateriaEvidence.value) {
+      result.underlyingMateria = underlyingMateriaEvidence.value;
+    } else if (caseRow.underlying_materia) {
+      result.underlyingMateria = caseRow.underlying_materia;
     }
 
     if (jurisdictionEvidence?.status === "CONFIRMED" && jurisdictionEvidence.value) {

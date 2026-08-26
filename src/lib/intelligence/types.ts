@@ -14,6 +14,7 @@ export type BenefitedParty = "defense" | "prosecution" | "both" | "neutral";
  * never a narrowing of the existing Finding contract. */
 export type JudicialSpeakerRole =
   | "quejoso"
+  | "tercero_interesado"
   | "autoridad"
   | "ministerio_publico"
   | "fiscal"

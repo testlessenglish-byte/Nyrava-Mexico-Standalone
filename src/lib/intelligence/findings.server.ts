@@ -785,13 +785,15 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       // Legal-meaning boundary. This intentionally runs after generic
       // module/category validation so producer provenance cannot overwrite
       // the legal classification of a Penal proposition.
-      const underlyingMatter = Array.from(activeDomains ?? []).find((domain) =>
+      const activePenalDomain = Array.from(activeDomains ?? []).find((domain) =>
         /penal|criminal/i.test(String(domain)),
       );
       validated.push(
         normalizePenalFinding(finding, {
           matter: area,
-          underlyingMatter: underlyingMatter ? String(underlyingMatter) : null,
+          underlyingMatter:
+            identity.underlyingMateria ??
+            (activePenalDomain ? String(activePenalDomain) : null),
         }),
       );
     }

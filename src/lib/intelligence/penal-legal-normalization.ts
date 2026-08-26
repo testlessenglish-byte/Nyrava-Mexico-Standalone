@@ -107,6 +107,7 @@ function canonicalAdoption(
   rawValue: unknown,
 ): AdoptionStatus {
   const raw = norm(rawValue);
+  if (proposition === "rejected_holding") return "rejected";
   if (raw === "adopted" || raw === "rejected" || raw === "historical") return raw;
   if (raw === "unresolved" || raw === "not_reached") return "not_reached";
   if (
@@ -203,6 +204,10 @@ export function normalizePenalFinding<T extends NewFinding>(
   };
   let proposition = canonicalProposition(finding);
   let adoption = canonicalAdoption(proposition, finding.adoption_status);
+  if (proposition === "court_holding" && adoption === "rejected") {
+    proposition = "rejected_holding";
+    adoption = "rejected";
+  }
   let category = categoryFor(proposition, finding.category);
   let description = finding.description;
   let impactDirection = finding.impact_direction ?? null;

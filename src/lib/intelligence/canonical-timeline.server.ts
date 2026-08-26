@@ -15,15 +15,24 @@ import { PROJECTION_LIKE } from "@/lib/intelligence/finding-selection";
 
 type Db = SupabaseClient<Database>;
 
+export type TimelineEventType =
+  | "case_event"
+  | "authority_date"
+  | "legislative_history"
+  | "background_reference"
+  | "unknown";
+
 export type CanonicalTimelineEvent = {
   date: string; // ISO 'YYYY-MM-DD' when parseable, else original string
   date_raw: string;
   event: string;
+  event_type: "case_event";
   sources: Array<{
     document_id: string | null;
     finding_id?: string | null;
     origin: "analyzer" | "finding" | "corpus";
     page?: number | null;
+    quote?: string | null;
   }>;
   confidence: "high" | "medium" | "low";
 };
@@ -129,6 +138,30 @@ const ES_WORD_DATE_RE = new RegExp(
 // Used only for deterministic corpus extraction. The event must contain one
 // of these anchors near the date; a naked date is never promoted.
 const PROCEDURAL_EVENT_RE = /\b(interpus[oe]|interpuso|present[oó]|promovi[oó]|notific[oó]|notificada?|resolvi[oó]|resuelve|determin[oó]|revoc[oó]|confirm[oó]|orden[oó]|admiti[oó]|admitida?|desech[oó]|declar[oó]|apel[oó]|impugn[oó]|recurri[oó]|remiti[oó]|turn[oó]|radic[oó]|emplaz[oó]|celebr[oó]|dict[oó]|sentencia|resoluci[oó]n|recurso\s+de\s+revisi[oó]n|demanda|audiencia|acuerdo|engrose|ejecutoria)\b/i;
+const AUTHORITY_CONTEXT_RE = /\b(jurisprudencia|tesis(?:\s+aislada)?|precedente|criterio\s+(?:jurisprudencial|aislado)|registro\s+digital|semanario\s+judicial|novena\s+[ée]poca|d[ée]cima\s+[ée]poca|corte\s+interamericana|caso\s+[A-ZÁÉÍÓÚÑ][^.;]{0,80}\s+vs\.?|publicad[ao]\s+en|gaceta)\b/i;
+const LEGISLATIVE_CONTEXT_RE = /\b(diario\s+oficial|\bDOF\b|decreto|reforma|legislativ[ao]|entr[oó]\s+en\s+vigor|publicaci[oó]n\s+oficial)\b/i;
+const BACKGROUND_CONTEXT_RE = /\b(hist[oó]ric[oa]|antecedente\s+remoto|doctrina|referencia\s+comparada)\b/i;
+
+export function classifyTimelineEvent(
+  text: string,
+  declaredType?: unknown,
+): TimelineEventType {
+  const context = String(text ?? "").trim();
+  if (AUTHORITY_CONTEXT_RE.test(context)) return "authority_date";
+  if (LEGISLATIVE_CONTEXT_RE.test(context)) return "legislative_history";
+  if (BACKGROUND_CONTEXT_RE.test(context)) return "background_reference";
+
+  const declared = String(declaredType ?? "").trim().toLowerCase();
+  if (
+    declared === "authority_date" ||
+    declared === "legislative_history" ||
+    declared === "background_reference"
+  ) {
+    return declared;
+  }
+  if (declared === "case_event") return "case_event";
+  return PROCEDURAL_EVENT_RE.test(context) ? "case_event" : "unknown";
+}
 
 function stripAccents(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -265,7 +298,9 @@ export type CorpusTimelineCandidate = {
   date: string;
   date_raw: string;
   event: string;
+  event_type: "case_event";
   page: number | null;
+  source_quote: string;
 };
 
 /**
@@ -301,12 +336,14 @@ export function extractCorpusTimelineEvents(text: string): CorpusTimelineCandida
       seenOffsets.add(offsetKey);
 
       const event = localEventContext(src, match.index, match.index + raw.length);
-      if (!event || !PROCEDURAL_EVENT_RE.test(event)) continue;
+      if (!event || classifyTimelineEvent(event) !== "case_event") continue;
       out.push({
         date,
         date_raw: raw,
         event,
+        event_type: "case_event",
         page: pageAtOffset(src, match.index),
+        source_quote: event,
       });
     }
   }
@@ -328,7 +365,7 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
     db.from("analyses").select("timeline").eq("case_id", caseId).maybeSingle(),
     db.from("case_findings")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .select("id,title,description,source_document_id,source_page,event_date,occurred_on,date,created_at" as any)
+      .select("id,title,description,source_document_id,source_page,source_quote,event_date,occurred_on,date,created_at,proposition_type" as any)
       .eq("case_id", caseId)
       .not("source_module", "like", PROJECTION_LIKE),
     db.from("documents").select("id,filename,extracted_text").eq("case_id", caseId),
@@ -338,6 +375,7 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
     date: string;
     date_raw: string;
     event: string;
+    event_type: "case_event";
     sources: CanonicalTimelineEvent["sources"];
     key: string;
   };
@@ -378,16 +416,20 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
       const raw = String(e.date ?? e.when ?? "");
       const text = String(e.event ?? e.description ?? "").trim();
       if (!text) continue;
+      const quote = String(e.source_quote ?? text);
+      if (classifyTimelineEvent(`${text} ${quote}`, e.event_type) !== "case_event") continue;
       analyzerCount += 1;
       push({
         date: normalizeTimelineDate(raw),
         date_raw: raw,
         event: text,
+        event_type: "case_event",
         sources: [
           {
             document_id: typeof e.source_document_id === "string" ? e.source_document_id : null,
             origin: "analyzer",
             page: typeof e.page === "number" ? e.page : null,
+            quote,
           },
         ],
       });
@@ -402,17 +444,22 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
     if (!raw) continue;
     const text = String(r.title ?? r.description ?? "").trim();
     if (!text) continue;
+    const quote = String(r.source_quote ?? text);
+    const declaredType = r.proposition_type === "procedural_event" ? "case_event" : undefined;
+    if (classifyTimelineEvent(`${text} ${quote}`, declaredType) !== "case_event") continue;
     findingCount += 1;
     push({
       date: normalizeTimelineDate(raw),
       date_raw: raw,
       event: text,
+      event_type: "case_event",
       sources: [
         {
           document_id: typeof r.source_document_id === "string" ? r.source_document_id : null,
           finding_id: typeof r.id === "string" ? r.id : null,
           origin: "finding",
           page: typeof r.source_page === "number" ? r.source_page : null,
+          quote,
         },
       ],
     });
@@ -430,11 +477,13 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
           date: ev.date,
           date_raw: ev.date_raw,
           event: ev.event,
+          event_type: "case_event",
           sources: [
             {
               document_id: typeof doc.id === "string" ? doc.id : null,
               origin: "corpus",
               page: ev.page,
+              quote: ev.source_quote,
             },
           ],
         });
@@ -447,6 +496,7 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
       date: b.date,
       date_raw: b.date_raw,
       event: b.event,
+      event_type: b.event_type,
       sources: b.sources,
       confidence: (b.sources.length >= 2
         ? "high"
@@ -493,7 +543,7 @@ export async function persistCanonicalTimeline(
 ): Promise<{ inserted: number; superseded: number; unchanged: number }> {
   const { data: activeRows } = await db
     .from("case_timeline_events" as never)
-    .select("id, canonical_id, event_date, description, source_document_id, source_page")
+    .select("id, canonical_id, event_date, description, event_type, source_document_id, source_page, source_quote")
     .eq("case_id", caseId)
     .is("superseded_by", null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -513,8 +563,10 @@ export async function persistCanonicalTimeline(
       canonical_id,
       event_date: ev.date || ev.date_raw || null,
       description: ev.event,
+      event_type: ev.event_type,
       source_document_id: primarySource?.document_id ?? null,
       source_page: primarySource?.page ?? null,
+      source_quote: primarySource?.quote ?? null,
     };
     const existing = activeByCanonical.get(canonical_id);
     if (!existing) {
@@ -533,8 +585,10 @@ export async function persistCanonicalTimeline(
     const same =
       String(existing.event_date ?? "") === String(nextRow.event_date ?? "") &&
       String(existing.description ?? "") === String(nextRow.description ?? "") &&
+      String(existing.event_type ?? "") === String(nextRow.event_type ?? "") &&
       String(existing.source_document_id ?? "") === String(nextRow.source_document_id ?? "") &&
-      (existing.source_page ?? null) === (nextRow.source_page ?? null);
+      (existing.source_page ?? null) === (nextRow.source_page ?? null) &&
+      String(existing.source_quote ?? "") === String(nextRow.source_quote ?? "");
     if (same) {
       unchanged += 1;
       continue;
@@ -570,7 +624,7 @@ export async function persistCanonicalTimeline(
 export async function readActiveTimeline(db: Db, caseId: string) {
   const { data } = await db
     .from("case_timeline_events" as never)
-    .select("id, canonical_id, event_date, description, source_document_id, source_page, created_at")
+    .select("id, canonical_id, event_date, description, event_type, source_document_id, source_page, source_quote, created_at")
     .eq("case_id", caseId)
     .is("superseded_by", null)
     .order("event_date", { ascending: true });

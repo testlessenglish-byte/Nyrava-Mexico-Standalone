@@ -25,6 +25,8 @@ export type VerifiedCaseIdentity = {
   caseId: string;
   caseType: MxCaseType | null;
   proceedingType: string | null;
+  proceduralVehicle: string | null;
+  underlyingMateria: MxCaseType | null;
   jurisdiction: string | null;
   status: CaseIdentityStatus;
   confidence: number | null;

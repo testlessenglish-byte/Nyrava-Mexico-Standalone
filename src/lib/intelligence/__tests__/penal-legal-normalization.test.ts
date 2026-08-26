@@ -21,6 +21,22 @@ const finding = (overrides: Partial<NewFinding>): NewFinding =>
   }) as NewFinding;
 
 describe("Penal legal normalization", () => {
+  it("preserves a rejected lower-court holding as rejected", () => {
+    const result = normalizePenalFinding(
+      finding({
+        speaker_role: "tribunal_local",
+        proposition_type: "rejected_holding",
+        adoption_status: "adopted",
+        impact_direction: "strengthens",
+      }),
+      { matter: "penal" },
+    );
+
+    expect(result.proposition_type).toBe("rejected_holding");
+    expect(result.adoption_status).toBe("rejected");
+    expect(result.category).toBe("rejected_holding");
+  });
+
   it("keeps an adopted court holding neutral despite witness-agent provenance", () => {
     const result = normalizePenalFinding(
       finding({

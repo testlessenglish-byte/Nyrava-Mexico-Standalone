@@ -17,7 +17,7 @@ ALTER TABLE public.case_findings
 ALTER TABLE public.case_findings
   ADD CONSTRAINT case_findings_speaker_role_check CHECK (
     speaker_role IS NULL OR speaker_role IN (
-      'quejoso', 'autoridad', 'ministerio_publico', 'fiscal', 'defensa',
+      'quejoso', 'tercero_interesado', 'autoridad', 'ministerio_publico', 'fiscal', 'defensa',
       'imputado', 'acusado', 'sentenciado', 'victima', 'ofendido',
       'testigo', 'perito', 'juez_control', 'tribunal_enjuiciamiento',
       'tribunal_alzada', 'tribunal_colegiado', 'tribunal_local', 'scjn'

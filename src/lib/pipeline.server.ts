@@ -30,7 +30,10 @@ import {
   extractCsv,
   extractPlainText,
 } from "./intelligence/extract.server";
-import { computeDeterministicScorecard } from "./intelligence/scoring.server";
+import {
+  computeDeterministicScorecard,
+  computePenalPerspectiveScores,
+} from "./intelligence/scoring.server";
 import { parseResolutivos } from "./intelligence/resolutivo-parser";
 import { computeCoverage } from "./intelligence/coverage.server";
 import {
@@ -490,6 +493,97 @@ async function _runPipelineForCase(
   const persist = await import("@/lib/intelligence/engine-persistence.server");
   const audit = await import("@/lib/intelligence/engine-audit.server");
 
+  let penalRoutingContextPromise:
+    | Promise<{
+        penal: boolean;
+        mode: import("./intelligence/case-analysis-mode").CaseAnalysisMode;
+        prerequisites: import("./intelligence/penal-engine-prerequisites").PenalEnginePrerequisites;
+      }>
+    | null = null;
+
+  const getPenalRoutingContext = () => {
+    penalRoutingContextPromise ??= (async () => {
+      const [{ resolveCaseIdentity }, { getCaseAnalysisMode }, prerequisiteModule] =
+        await Promise.all([
+          import("./intelligence/case-classification.server"),
+          import("./intelligence/case-analysis-mode"),
+          import("./intelligence/penal-engine-prerequisites"),
+        ]);
+      const [identity, mode, docsResult, classificationResult] = await Promise.all([
+        resolveCaseIdentity(supabase, caseId),
+        getCaseAnalysisMode(supabase, caseId),
+        supabase.from("documents").select("extracted_text").eq("case_id", caseId),
+        (supabase as any)
+          .from("case_classification_evidence")
+          .select("value,source_quote,conflicting_values")
+          .eq("case_id", caseId)
+          .eq("field", "concluded_status")
+          .maybeSingle(),
+      ]);
+      const corpusText = (docsResult.data ?? [])
+        .map((row) => String((row as { extracted_text?: string | null }).extracted_text ?? ""))
+        .join("\n");
+      const prerequisites = prerequisiteModule.detectPenalEnginePrerequisites(corpusText);
+      prerequisites.hasOpenSubsequentProceeding =
+        prerequisiteModule.classificationSupportsOpenProceeding(classificationResult.data);
+      return {
+        penal: identity.caseType === "penal" || identity.underlyingMateria === "penal",
+        mode,
+        prerequisites,
+      };
+    })();
+    return penalRoutingContextPromise;
+  };
+
+  const clearNotApplicableStageArtifacts = async (stage: string) => {
+    const tableByStage: Record<string, string> = {
+      theories: "case_theories",
+      opportunities: "case_opportunities",
+      strategy: "case_strategy",
+      litigation_strategy_center: "case_strategy_center",
+      work_product: "case_work_product",
+      witness: "case_witnesses",
+    };
+    const table = tableByStage[stage];
+    if (table) await (supabase as any).from(table).delete().eq("case_id", caseId);
+    if (stage === "discovery") {
+      await supabase
+        .from("case_findings")
+        .delete()
+        .eq("case_id", caseId)
+        .like("source_module", "engine:discovery%");
+    }
+  };
+
+  const runPenalModeGatedStage = async (
+    stage: string,
+    engine: string,
+    execute: () => Promise<unknown>,
+  ) => {
+    const context = await getPenalRoutingContext();
+    if (context.penal) {
+      const { penalEngineApplicability } =
+        await import("./intelligence/penal-engine-prerequisites");
+      const decision = penalEngineApplicability(stage, context.mode, context.prerequisites);
+      if (!decision.run) {
+        await clearNotApplicableStageArtifacts(stage);
+        const reason = `skipped_not_applicable:${decision.reason ?? "prerequisites_not_met"}`;
+        await audit.recordSkipped(supabase, {
+          caseId,
+          userId,
+          engine: engine as never,
+          reason,
+        });
+        return { skipped: true, status: "skipped_not_applicable", reason };
+      }
+    }
+    return persist.runCatalogedEngine(
+      supabase,
+      { caseId, userId, engine: engine as never },
+      execute,
+    );
+  };
+
   // Bug 2 (fix A): witness / discovery / evidence_intel are wired to the
   // REAL LLM engines (runWitnessEngine / runDiscoveryGapEngine /
   // runEvidenceIntelEngine). The prior `derive*` stubs counted findings
@@ -627,9 +721,9 @@ async function _runPipelineForCase(
     // that produced legitimate deterministic output.
     witness: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.witness },
+        runPenalModeGatedStage(
+          "witness",
+          ENGINE.witness,
           async () => {
             const value = (await eng.runWitnessEngine(baseArgs)) as {
               witnesses?: unknown[];
@@ -742,9 +836,9 @@ async function _runPipelineForCase(
     },
     discovery: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.discovery },
+        runPenalModeGatedStage(
+          "discovery",
+          ENGINE.discovery,
           async () => {
             const value = (await eng.runDiscoveryGapEngine(baseArgs)) as {
               findings_gate?: unknown;
@@ -798,9 +892,9 @@ async function _runPipelineForCase(
     },
     theories: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.theories },
+        runPenalModeGatedStage(
+          "theories",
+          ENGINE.theories,
           async () => {
             const value = (await eng.runTheoryEngine(baseArgs)) as {
               theories?: unknown[];
@@ -827,9 +921,9 @@ async function _runPipelineForCase(
     },
     opportunities: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.opportunities },
+        runPenalModeGatedStage(
+          "opportunities",
+          ENGINE.opportunities,
           async () => {
             const value = (await eng.runOpportunityEngine(baseArgs)) as {
               opportunities?: unknown[];
@@ -865,9 +959,9 @@ async function _runPipelineForCase(
     },
     strategy: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.strategy },
+        runPenalModeGatedStage(
+          "strategy",
+          ENGINE.strategy,
           async () => {
             const value = await lit.runStrategyEngine(baseArgs);
             const { count } = await supabase
@@ -891,9 +985,9 @@ async function _runPipelineForCase(
     // already present in pipeline-runner.server.ts.
     litigation_strategy_center: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.litigation_strategy_center },
+        runPenalModeGatedStage(
+          "litigation_strategy_center",
+          ENGINE.litigation_strategy_center,
           async () => {
             const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -911,9 +1005,9 @@ async function _runPipelineForCase(
     },
     work_product: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.work_product },
+        runPenalModeGatedStage(
+          "work_product",
+          ENGINE.work_product,
           async () => {
             const value = (await eng.runWorkProductEngine(baseArgs)) as {
               documents?: unknown[];
@@ -4044,6 +4138,18 @@ export async function runAgents(args: {
       await import("./intelligence/case-analysis-mode");
     const caseAnalysisMode = await getCaseAnalysisMode(db, caseId);
     const SKIP_REASON_NOT_COMPLETED_CASE_MODE = "not_applicable_ongoing_case_mode";
+    const prerequisiteModule = await import("./intelligence/penal-engine-prerequisites");
+    const penalPrerequisites = prerequisiteModule.detectPenalEnginePrerequisites(corpus);
+    const { data: concludedClassification } = await (db as any)
+      .from("case_classification_evidence")
+      .select("value,source_quote,conflicting_values")
+      .eq("case_id", caseId)
+      .eq("field", "concluded_status")
+      .maybeSingle();
+    penalPrerequisites.hasOpenSubsequentProceeding =
+      prerequisiteModule.classificationSupportsOpenProceeding(concludedClassification);
+    const isPenalContext =
+      area === "penal" || agentsIdentity.underlyingMateria === "penal";
 
     const activeAgents: typeof AGENTS = [];
     for (const agent of AGENTS) {
@@ -4051,18 +4157,50 @@ export async function runAgents(args: {
       const subtypeBlocked = !isEngineAllowedForSubtype(matterSubtype, engine);
       const auditOnlyBlocked =
         AUDIT_ONLY_AGENT_TYPES.has(agent.type) && !isCompletedCaseMode(caseAnalysisMode);
-      if (!subtypeBlocked && !auditOnlyBlocked && isAnalyzerAllowed(area, engine, activeDomains)) {
+      const prerequisiteDecision = isPenalContext
+        ? prerequisiteModule.penalEngineApplicability(
+            agent.type,
+            caseAnalysisMode,
+            penalPrerequisites,
+          )
+        : { run: true, reason: null };
+      const prerequisiteBlocked = !prerequisiteDecision.run;
+      if (
+        !subtypeBlocked &&
+        !auditOnlyBlocked &&
+        !prerequisiteBlocked &&
+        isAnalyzerAllowed(area, engine, activeDomains)
+      ) {
         activeAgents.push(agent);
       } else {
+        // A prerequisite change must invalidate earlier agent output. Without
+        // this cleanup, a prior active run can leak stale witness/custody or
+        // prospective advice into a concluded-case report even though the
+        // current run correctly marks that agent not applicable.
+        if (prerequisiteBlocked) {
+          assertDbOk(
+            (
+              await db
+                .from("agent_findings")
+                .delete()
+                .eq("case_id", caseId)
+                .eq("agent_type", agent.type)
+            ).error,
+            `Failed to clear stale ${agent.type} agent findings`,
+          );
+          await clearFindingsByModule(db, caseId, `agent:${agent.type}`);
+        }
         await recordSkipped(db, {
           caseId,
           userId,
           engine: engine as never,
-          reason: auditOnlyBlocked
-            ? SKIP_REASON_NOT_COMPLETED_CASE_MODE
-            : subtypeBlocked
-              ? `${SKIP_REASON_SUBTYPE_NOT_APPLICABLE}:${matterSubtype?.key ?? "unknown"}`
-              : SKIP_REASON_NOT_APPLICABLE,
+          reason: prerequisiteBlocked
+            ? `skipped_not_applicable:${prerequisiteDecision.reason}`
+            : auditOnlyBlocked
+              ? SKIP_REASON_NOT_COMPLETED_CASE_MODE
+              : subtypeBlocked
+                ? `${SKIP_REASON_SUBTYPE_NOT_APPLICABLE}:${matterSubtype?.key ?? "unknown"}`
+                : SKIP_REASON_NOT_APPLICABLE,
         });
       }
     }
@@ -5057,6 +5195,11 @@ ${JSON.stringify(findingsForLlm)}`,
     await import("./intelligence/cross-domain.server");
   const activeDomainsForScore = await getActiveDomains(db, caseId);
   const criminalLike = isCriminalEffective(caseTypeForScore, activeDomainsForScore);
+  const penalPerspectiveScores = criminalLike
+    ? computePenalPerspectiveScores(
+        findings as unknown as Parameters<typeof computePenalPerspectiveScores>[0],
+      )
+    : null;
 
   // Strip non-applicable dimensions from the LLM payload BEFORE persistence
   // so renderers (PDF, DOCX, dashboard) cannot show off-domain dimensions
@@ -5142,8 +5285,14 @@ ${JSON.stringify(findingsForLlm)}`,
           // duplicate of it. Falls back to the raw LLM number only when this
           // case type has zero applicable dimensions at all.
           case_quality: caseQualityDeterministic ?? num("case_quality"),
-          conviction_risk: criminalLike ? num("conviction_risk") : null,
-          appeal_risk: criminalLike ? num("appeal_risk") : null,
+          // Perspective-aware Penal scores are deterministic and only move
+          // when a finding supplies a complete party/effect/evidence mapping.
+          // The model's free-form conviction/appeal numbers are comparison
+          // input only and are never persisted as the authority.
+          conviction_risk: criminalLike
+            ? Math.max(0, 100 - penalPerspectiveScores!.conviction_stability.score)
+            : null,
+          appeal_risk: criminalLike ? penalPerspectiveScores!.reversal_risk.score : null,
           overall_confidence: Math.round(det.overall_confidence * 100),
           methodology: det.methodology,
           rationale: { llm: llmDimsScoped, deterministic: det.dimensions } as unknown as J,
@@ -5158,6 +5307,7 @@ ${JSON.stringify(findingsForLlm)}`,
           dimension_breakdowns: {
             llm: llmDimsScoped,
             deterministic: det,
+            penal_perspective: penalPerspectiveScores,
             case_type: caseTypeForScore,
             authoritative: "deterministic",
             applicable_dimensions: Array.from(applicableSet),
@@ -5493,6 +5643,38 @@ async function ensureRequiredEngines(args: {
   const area = String(ensureIdentity.caseType ?? "unverified");
   const activeDomains = await getActiveDomains(db, caseId);
 
+  // The report-time backfill path must honor the exact same Penal
+  // prerequisites as the canonical pipeline runner. Otherwise a concluded
+  // audit can regenerate prospective theory/discovery/witness output that
+  // the main run deliberately skipped and cleared.
+  const { getCaseAnalysisMode } = await import("./intelligence/case-analysis-mode");
+  const prerequisiteModule = await import("./intelligence/penal-engine-prerequisites");
+  const ensureCaseAnalysisMode = await getCaseAnalysisMode(db, caseId);
+  const ensurePenalContext =
+    area === "penal" || ensureIdentity.underlyingMateria === "penal";
+  const ensurePrerequisites = prerequisiteModule.detectPenalEnginePrerequisites(
+    ensurePenalContext
+      ? (
+          await db
+            .from("documents")
+            .select("extracted_text")
+            .eq("case_id", caseId)
+        ).data
+          ?.map((row) => String(row.extracted_text ?? ""))
+          .join("\n") ?? ""
+      : "",
+  );
+  if (ensurePenalContext) {
+    const { data: concludedEvidence } = await (db as any)
+      .from("case_classification_evidence")
+      .select("value,source_quote,conflicting_values")
+      .eq("case_id", caseId)
+      .eq("field", "concluded_status")
+      .maybeSingle();
+    ensurePrerequisites.hasOpenSubsequentProceeding =
+      prerequisiteModule.classificationSupportsOpenProceeding(concludedEvidence);
+  }
+
   // Emit the Case-Type Manifest — what the engine INTENDS to run, before any
   // engine actually executes. Persisted to pipeline_events for the audit trail.
   // buildCaseTypeManifest calls the STRICT normalizePracticeArea internally
@@ -5516,6 +5698,49 @@ async function ensureRequiredEngines(args: {
   const ran: string[] = [];
   const failed: Array<{ engine: string; error: string }> = [];
   for (const engine of ordered) {
+    const penalPrerequisiteKey: Record<string, string> = {
+      discovery_gaps: "discovery",
+      witness_intelligence: "witness",
+      theory: "theories",
+      opportunity: "opportunities",
+    };
+    if (ensurePenalContext) {
+      const decision = prerequisiteModule.penalEngineApplicability(
+        penalPrerequisiteKey[engine] ?? engine,
+        ensureCaseAnalysisMode,
+        ensurePrerequisites,
+      );
+      if (!decision.run) {
+        const staleTable: Record<string, string> = {
+          discovery_gaps: "case_findings",
+          witness_intelligence: "case_witnesses",
+          theory: "case_theories",
+          opportunity: "case_opportunities",
+          strategy: "case_strategy",
+          litigation_strategy_center: "case_strategy_center",
+          work_product: "case_work_product",
+        };
+        const table = staleTable[engine];
+        if (table === "case_findings") {
+          await db
+            .from("case_findings")
+            .delete()
+            .eq("case_id", caseId)
+            .like("source_module", "engine:discovery%");
+        } else if (table) {
+          await (db as any).from(table).delete().eq("case_id", caseId);
+        }
+        await recordSkipped(db, {
+          caseId,
+          userId,
+          engine: engine as never,
+          reason: `skipped_not_applicable:${decision.reason ?? "prerequisites_not_met"}`,
+        });
+        ran.push(`${engine}:skipped_not_applicable`);
+        continue;
+      }
+    }
+
     // isAnalyzerAllowed()/MX_ENGINES is a small, deliberate per-materia
     // allow-list for the handful of engines that are actually practice-area
     // gated (constitutional_compliance, chain_of_custody, procedural_
@@ -6019,6 +6244,24 @@ async function _runReportInner(args: {
     materiaForReport === "amparo" ||
     materiaForReport === "constitucional";
 
+  const { getCaseAnalysisMode: getReportCaseAnalysisMode } =
+    await import("./intelligence/case-analysis-mode");
+  const reportCaseAnalysisMode = await getReportCaseAnalysisMode(db, caseId);
+  const {
+    persistPenalDisposition,
+    renderPenalDisposition,
+  } = await import("./intelligence/penal-disposition.server");
+  const penalDisposition = await persistPenalDisposition(db, caseId, userId);
+  const penalOutcomeHeading =
+    penalDisposition && reportCaseAnalysisMode === "concluded_audit"
+      ? renderPenalDisposition(penalDisposition)
+      : "";
+  const penalDispositionAnchorBlock = penalDisposition
+    ? `\n\nPENAL_DISPOSITION_STRUCTURED (deterministic, grounded, controls outcome rendering):\n${JSON.stringify(
+        penalDisposition,
+      )}\nThe concluded-case executive output MUST begin with "RESULTADO DEL CASO" and accurately render this structure before general findings.`
+    : "";
+
   // Materia-aware Mexican procedural-vehicle catalogue for the "recommended
   // motions" section of the legal memorandum below (audit P0-4). This used
   // to be a hardcoded U.S. motion list (motion to dismiss/suppress/in
@@ -6283,7 +6526,7 @@ ${JSON.stringify({
 }).slice(0, s(35000))}
 
 CORPUS (paginated):
-${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}`;
+${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}${penalDispositionAnchorBlock}`;
   };
 
   const { hasCaseStateUpdateDocs, getCaseStateUpdateNotice } =
@@ -6428,7 +6671,7 @@ PAGINATION RULES:
 - Do NOT fabricate page numbers, quotes, or document ids.
 
 CORPUS (paginated):
-${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}`;
+${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDispositionAnchorBlock}`;
 
   // Canonical Reconciliation Design (2026-08-16), P2 §10 — the field NAMES
   // below ("prosecution_theory_report"/"defense_theory_report") are the
@@ -7950,8 +8193,6 @@ ${paginationTail}`;
     locale: reportLocaleForNotice,
   });
 
-  const { getCaseAnalysisMode: getReportCaseAnalysisMode } = await import("./intelligence/case-analysis-mode");
-  const reportCaseAnalysisMode = await getReportCaseAnalysisMode(db, caseId);
   const allowReportMotionGeneration = reportCaseAnalysisMode === "concluded_audit" ? false : ess.allowMotionGeneration;
 
   // ESS-driven per-finding constraint (report-quality audit, 2026-08-14,
@@ -8587,6 +8828,30 @@ ${paginationTail}`;
     reportDeterministicStrength,
   );
 
+  const reportGeneratedLanguage = await getReportLocale(db, caseId);
+  const reportIsPenal = isCriminalCaseType(caseType);
+  const reportPenalPerspectiveScores = reportIsPenal
+    ? computePenalPerspectiveScores(
+        findings as unknown as Parameters<typeof computePenalPerspectiveScores>[0],
+      )
+    : null;
+  const reportRiskScore = reportIsPenal
+    ? gatedScore(reportPenalPerspectiveScores!.reversal_risk.score)
+    : gatedScore(parsed.risk_score);
+  const { enforceRiskNarrative } = await import("./score-bands");
+  const reportRiskConsistency =
+    typeof reportRiskScore === "number"
+      ? enforceRiskNarrative(
+          reportRiskScore,
+          pick("risk_analysis"),
+          reportGeneratedLanguage === "en" ? "en" : "es",
+        )
+      : {
+          text: pick("risk_analysis"),
+          rewritten: false,
+          band: null,
+        };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reportRow: any = {
     case_id: caseId,
@@ -8594,7 +8859,7 @@ ${paginationTail}`;
     // Stamp the language this report's content was generated in, so exports
     // (PDF/DOCX) render their template in the same language and historical
     // reports keep their original language if the case preference changes.
-    generated_language: await getReportLocale(db, caseId),
+    generated_language: reportGeneratedLanguage,
 
     attorney_summary: pick("attorney_summary"),
     evidence_summary: pick("evidence_summary"),
@@ -8602,9 +8867,13 @@ ${paginationTail}`;
     contradiction_report: pick("contradiction_report"),
     missing_evidence_report: pick("missing_evidence_report"),
     recommendations: pick("recommendations"),
-    executive_summary: pick("executive_summary"),
+    executive_summary: penalOutcomeHeading
+      ? `${penalOutcomeHeading}\n\n${pick("executive_summary")}`
+      : pick("executive_summary"),
     investigator_summary: pick("investigator_summary"),
-    case_overview: pick("case_overview"),
+    case_overview: penalOutcomeHeading
+      ? `${penalOutcomeHeading}\n\n${pick("case_overview")}`
+      : pick("case_overview"),
     facts: pick("facts"),
     witness_analysis: pick("witness_analysis"),
     constitutional_issues: constProseOverride,
@@ -8613,13 +8882,21 @@ ${paginationTail}`;
     prosecution_theory_report: pick("prosecution_theory_report"),
     defense_theory_report: pick("defense_theory_report"),
     alternative_theory_report: pick("alternative_theory_report"),
-    risk_analysis: pick("risk_analysis"),
+    risk_analysis: reportRiskConsistency.text,
     score_breakdown: pick("score_breakdown"),
     appendix_sources: pick("appendix_sources"),
     // Full intelligence package — every engine output the platform produced
     full_report: {
       ...parsed,
       case_type: caseType,
+      case_analysis_mode: reportCaseAnalysisMode,
+      penal_disposition: penalDisposition,
+      penal_perspective_scores: reportPenalPerspectiveScores,
+      risk_consistency: {
+        authoritative_score: reportRiskScore,
+        band: reportRiskConsistency.band,
+        narrative_rewritten: reportRiskConsistency.rewritten,
+      },
       findings_summary: findingsSummary,
       coverage_report: await computeCoverage(db, caseId),
       deterministic_scorecard: reportDeterministicScorecard,
@@ -9004,7 +9281,7 @@ ${paginationTail}`;
     strategy_recommendations: isLimited ? ([] as unknown as J) : (strategy as J),
     next_actions: isLimited ? ([] as unknown as J) : (nextActions as J),
     case_strength_score: reportCaseStrengthScore,
-    risk_score: gatedScore(parsed.risk_score),
+    risk_score: reportRiskScore,
     scores_suppressed: isLimited,
     motions_suppressed: isLimited,
     // FIX (2026-08-04): reports.report_mode and reports.findings_count are
@@ -9056,8 +9333,8 @@ ${paginationTail}`;
         typeof buildObjectiveBlock
       >[0]["missingEvidence"],
       scores: {
-        strength: gatedScore(parsed.case_strength_score) as number | null,
-        risk: gatedScore(parsed.risk_score) as number | null,
+        strength: reportCaseStrengthScore,
+        risk: reportRiskScore,
         suppressed: isLimited,
       },
       documentsTotal: docsTotal ?? 0,
@@ -9559,6 +9836,58 @@ ${paginationTail}`;
     } catch {
       // Release-gate reconciliation must never break report generation.
     }
+  }
+
+  // Independent QA layer statuses. A passing citation audit cannot
+  // overwrite a rendering or release failure (and vice versa); each layer
+  // preserves its own result and evidence count.
+  try {
+    const {
+      auditPenalProceduralSemantics,
+      buildPenalQaStatuses,
+    } = await import("./intelligence/penal-qa-status");
+    const { data: hallucinationRun } = await db
+      .from("pipeline_engine_runs")
+      .select("status")
+      .eq("case_id", caseId)
+      .eq("engine", ENGINE.hallucination)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const fullReport = reportRow.full_report as Record<string, any>;
+    const citationQa = fullReport.citation_audit as
+      | { quarantined?: number }
+      | undefined;
+    const renderedQa = fullReport.rendered_qa as
+      | { critical_count?: number }
+      | undefined;
+    const releaseQa = fullReport.release_gate as
+      | { issues?: unknown[]; ok?: boolean }
+      | undefined;
+    fullReport.qa_statuses = buildPenalQaStatuses({
+      applicable: reportIsPenal,
+      citationQuarantined:
+        typeof citationQa?.quarantined === "number" ? citationQa.quarantined : null,
+      hallucinationEngineStatus:
+        typeof hallucinationRun?.status === "string" ? hallucinationRun.status : null,
+      classificationConflicts: reportMateriaConflict ? 1 : 0,
+      proceduralSemanticIssues: auditPenalProceduralSemantics(
+        findings as unknown as Parameters<typeof auditPenalProceduralSemantics>[0],
+      ),
+      renderedCriticalIssues:
+        typeof renderedQa?.critical_count === "number" ? renderedQa.critical_count : null,
+      releaseGateIssues: Array.isArray(releaseQa?.issues)
+        ? releaseQa.issues.length
+        : releaseQa?.ok === true
+          ? 0
+          : null,
+      qualityBlocked: Boolean(reportRow.quality_blocked),
+    });
+  } catch (qaStatusError) {
+    console.warn(
+      "[penal-qa-status] independent QA status build failed:",
+      qaStatusError instanceof Error ? qaStatusError.message : qaStatusError,
+    );
   }
 
   // Execution identity + stale-row eviction.

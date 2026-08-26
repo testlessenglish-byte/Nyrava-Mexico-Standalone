@@ -187,6 +187,14 @@ type Prepared = {
   fullTitle: string;
   evidence: Set<string>;
   evidenceQuotes: Set<string>;
+  legalIssue: string;
+  controllingRule: Set<string>;
+  speakerRole: string;
+  adoptionStatus: string;
+  operativeEffect: string;
+  affectedParty: string;
+  sourceAuthority: string;
+  sourcePassage: string;
 };
 
 function categoryOf(f: DedupableFinding): string {
@@ -196,6 +204,41 @@ function categoryOf(f: DedupableFinding): string {
 function textOf(f: DedupableFinding, key: string): string {
   const v = f[key];
   return typeof v === "string" ? v : "";
+}
+
+function legalField(f: DedupableFinding, key: string): string {
+  const direct = textOf(f, key);
+  if (direct) return direct;
+  const metadata = f.metadata;
+  if (!metadata || typeof metadata !== "object") return "";
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * Stable legal-issue key. Explicit producer metadata wins; the small alias
+ * layer below is doctrine-level vocabulary, not a case/citation hard-code.
+ */
+export function canonicalLegalIssueKey(f: DedupableFinding): string {
+  const explicit = normalizeText(legalField(f, "normalized_legal_issue"));
+  if (explicit) return explicit;
+
+  const text = normalizeText(
+    `${textOf(f, "title")} ${textOf(f, "description")} ${textOf(f, "legal_significance")}`,
+  );
+  if (
+    /\b(victima|ofendido|victimas|ofendidos)\b/.test(text) &&
+    /\b(legitim|personeria|acceso|justicia|tutela|standing)\b/.test(text)
+  ) {
+    return "victim_access_to_justice";
+  }
+  if (
+    /\b(puesta|presentacion|demora|retencion|detencion)\b/.test(text) &&
+    /\b(disposicion|ministerio publico|sin demora|inmediata)\b/.test(text)
+  ) {
+    return "prompt_presentment_due_process";
+  }
+  return "";
 }
 
 /** Union of the concrete evidence anchors a finding rests on. */
@@ -286,6 +329,16 @@ function prepare(row: DedupableFinding, index: number): Prepared {
     fullTitle: normalizeText(title),
     evidence: evidenceOf(row),
     evidenceQuotes: quoteEvidenceOf(row),
+    legalIssue: canonicalLegalIssueKey(row),
+    controllingRule: tokens(legalField(row, "controlling_rule")),
+    speakerRole: normalizeText(legalField(row, "speaker_role")),
+    adoptionStatus: normalizeText(legalField(row, "adoption_status")),
+    operativeEffect: normalizeText(legalField(row, "operative_effect")),
+    affectedParty: normalizeText(legalField(row, "affected_party")),
+    sourceAuthority: normalizeText(legalField(row, "source_authority")),
+    sourcePassage: normalizeText(
+      legalField(row, "source_passage") || legalField(row, "source_quote"),
+    ),
   };
 }
 
@@ -317,6 +370,38 @@ function auditClass(f: DedupableFinding): string {
   return String(f.audit_classification ?? "").toUpperCase();
 }
 
+function sameLegalProposition(a: Prepared, b: Prepared): boolean {
+  if (!a.legalIssue || a.legalIssue !== b.legalIssue) return false;
+
+  // Similar subject words are not enough when the operative legal result
+  // differs (e.g. admissibility vs exclusion, standing granted vs denied).
+  if (a.operativeEffect && b.operativeEffect && a.operativeEffect !== b.operativeEffect) {
+    return false;
+  }
+  if (a.adoptionStatus && b.adoptionStatus) {
+    const oneRejected = a.adoptionStatus === "rejected";
+    const otherRejected = b.adoptionStatus === "rejected";
+    if (oneRejected !== otherRejected) return false;
+  }
+
+  const sameAuthority =
+    Boolean(a.sourceAuthority) &&
+    Boolean(b.sourceAuthority) &&
+    a.sourceAuthority === b.sourceAuthority;
+  const samePassage =
+    Boolean(a.sourcePassage) &&
+    Boolean(b.sourcePassage) &&
+    (a.sourcePassage === b.sourcePassage ||
+      a.sourcePassage.includes(b.sourcePassage) ||
+      b.sourcePassage.includes(a.sourcePassage));
+  const sameRule =
+    a.controllingRule.size > 0 &&
+    b.controllingRule.size > 0 &&
+    jaccard(a.controllingRule, b.controllingRule) >= 0.55;
+
+  return sameAuthority || samePassage || sameRule || sharesQuoteEvidence(a, b);
+}
+
 function isCourtHoldingPotentialPair(a: Prepared, b: Prepared): boolean {
   const classes = new Set([auditClass(a.row), auditClass(b.row)]);
   if (!classes.has("VERIFIED_COURT_HOLDING") || !classes.has("POTENTIAL_ISSUE")) return false;
@@ -330,6 +415,7 @@ function isCourtHoldingPotentialPair(a: Prepared, b: Prepared): boolean {
 }
 
 export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptions>): boolean {
+  if (sameLegalProposition(a, b)) return true;
   if (isCourtHoldingPotentialPair(a, b)) return true;
 
   if (a.category !== b.category) {
@@ -479,6 +565,28 @@ function clusterPrepared(prepared: Prepared[], opts: Required<DedupeOptions>): P
  * judicial-hierarchy taxonomy fields and prefers an existing DB row as the
  * merge anchor). Clusters are returned in first-member original-order.
  */
+export type LegalIssueHierarchy<T extends DedupableFinding> = {
+  legal_issue: string;
+  findings: T[];
+};
+
+/**
+ * Parent-issue grouping for rendering. Unlike deduplication, this preserves
+ * distinct operative effects as children under one doctrine.
+ */
+export function buildLegalIssueHierarchy<T extends DedupableFinding>(
+  rows: ReadonlyArray<T>,
+): LegalIssueHierarchy<T>[] {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = canonicalLegalIssueKey(row) || normalizeText(row.title).split(" ").slice(0, 6).join(" ");
+    const group = groups.get(key) ?? [];
+    group.push(row);
+    groups.set(key, group);
+  }
+  return [...groups].map(([legal_issue, findings]) => ({ legal_issue, findings }));
+}
+
 export function clusterBySameIssue<T extends DedupableFinding>(
   rows: ReadonlyArray<T>,
   options: DedupeOptions = {},

@@ -233,6 +233,73 @@ export function findingScoringDirection(f: Finding): "strengthens" | "weakens" |
   return "auto";
 }
 
+export const PENAL_PERSPECTIVE_DIMENSIONS = [
+  "prosecution_strength",
+  "defense_strength",
+  "evidentiary_integrity",
+  "procedural_integrity",
+  "constitutional_compliance",
+  "conviction_stability",
+  "reversal_risk",
+  "documentation_reliability",
+] as const;
+export type PenalPerspectiveDimension = (typeof PENAL_PERSPECTIVE_DIMENSIONS)[number];
+
+export type PenalPerspectiveScore = {
+  score: number;
+  contributors: Array<{
+    source_finding_id: string;
+    affected_party: Finding["affected_party"];
+    benefited_party: Finding["benefited_party"];
+    impact_direction: Finding["impact_direction"];
+    reason_for_score_effect: string;
+  }>;
+};
+
+export function computePenalPerspectiveScores(
+  findings: readonly Finding[],
+): Record<PenalPerspectiveDimension, PenalPerspectiveScore> {
+  const baseline: Record<PenalPerspectiveDimension, number> = {
+    prosecution_strength: 50,
+    defense_strength: 50,
+    evidentiary_integrity: 80,
+    procedural_integrity: 80,
+    constitutional_compliance: 80,
+    conviction_stability: 50,
+    reversal_risk: 20,
+    documentation_reliability: 80,
+  };
+  const out = Object.fromEntries(
+    PENAL_PERSPECTIVE_DIMENSIONS.map((dimension) => [
+      dimension,
+      { score: baseline[dimension], contributors: [] },
+    ]),
+  ) as Record<PenalPerspectiveDimension, PenalPerspectiveScore>;
+
+  for (const finding of findings) {
+    const dimension = String(finding.score_dimension ?? "") as PenalPerspectiveDimension;
+    if (!PENAL_PERSPECTIVE_DIMENSIONS.includes(dimension)) continue;
+    const direction = findingScoringDirection(finding);
+    if (direction !== "strengthens" && direction !== "weakens") continue;
+    if (!hasPartyAwareScoreMapping(finding)) continue;
+
+    const confidence = Math.max(0, Math.min(1, Number(finding.confidence ?? 0)));
+    const severity = SEVERITY_WEIGHT[finding.severity] ?? 5;
+    const magnitude = Math.max(1, Math.min(18, Math.round(severity * confidence)));
+    out[dimension].score = clamp(
+      out[dimension].score + (direction === "strengthens" ? magnitude : -magnitude),
+    );
+    out[dimension].contributors.push({
+      source_finding_id: finding.id,
+      affected_party: finding.affected_party,
+      benefited_party: finding.benefited_party,
+      impact_direction: finding.impact_direction,
+      reason_for_score_effect: String(finding.reason_for_score_effect),
+    });
+  }
+  return out;
+}
+
 const CIVIL_DIMENSIONS = [
   "liability_strength", "causation_strength", "damages_exposure", "witness_reliability", "expert_support",
   "timeline_integrity", "documentation_reliability", "discovery_compliance", "litigation_risk",

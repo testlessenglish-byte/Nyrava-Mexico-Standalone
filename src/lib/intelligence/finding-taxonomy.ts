@@ -49,6 +49,7 @@ export type PropositionType = (typeof PROPOSITION_TYPES)[number];
 
 export const SPEAKER_ROLES = [
   "quejoso",
+  "tercero_interesado",
   "autoridad",
   "ministerio_publico",
   "fiscal",
