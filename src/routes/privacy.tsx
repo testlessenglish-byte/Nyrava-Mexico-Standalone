@@ -1,14 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LegalPage, Section } from "@/components/LegalPage";
 import { useI18n } from "@/i18n";
+import {
+  PRIVACY_NOTICE_ES,
+  PRIVACY_NOTICE_EN,
+  PRIVACY_VERSION,
+  PRIVACY_EFFECTIVE_DATE,
+  PRIVACY_NOTICE_HASH,
+} from "@/lib/legal/privacy-notice";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
-      { title: "Privacy Policy — Nyrava" },
-      { name: "description", content: "How Nyrava collects, uses, stores, and protects information." },
-      { property: "og:title", content: "Privacy Policy — Nyrava" },
-      { property: "og:description", content: "How Nyrava collects, uses, stores, and protects information." },
+      { title: "Aviso de Privacidad — Nyrava México" },
+      {
+        name: "description",
+        content:
+          "Aviso de Privacidad Integral de Nyrava México conforme a la LFPDPPP: datos tratados, finalidades, IA, transferencias y derechos ARCO.",
+      },
+      { property: "og:title", content: "Aviso de Privacidad — Nyrava México" },
+      {
+        property: "og:description",
+        content:
+          "Aviso de Privacidad Integral de Nyrava México conforme a la LFPDPPP: datos tratados, finalidades, IA, transferencias y derechos ARCO.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { property: "og:url", content: "https://mexico.nyrava.com/privacy" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/privacy" },
       { name: "robots", content: "index,follow" },
@@ -19,69 +36,56 @@ export const Route = createFileRoute("/privacy")({
 });
 
 function PrivacyPage() {
-  const { t, tList } = useI18n();
+  const { t, locale } = useI18n();
+  const notice = locale === "en" ? PRIVACY_NOTICE_EN : PRIVACY_NOTICE_ES;
+  const es = locale !== "en";
+
   return (
     <LegalPage
       eyebrow={t("footer.section.legal")}
-      title={t("privacy.title")}
-      updated={t("privacy.updated")}
-      intro={<p>{t("privacy.intro")}</p>}
+      title={notice.title}
+      updated={
+        es
+          ? `Versión ${PRIVACY_VERSION} · Vigente desde ${PRIVACY_EFFECTIVE_DATE}`
+          : `Version ${PRIVACY_VERSION} · Effective ${PRIVACY_EFFECTIVE_DATE}`
+      }
+      intro={<p>{notice.intro}</p>}
     >
-      <Section heading={t("privacy.section.collect.heading")}>
-        <p>{t("privacy.section.collect.body")}</p>
-        <ul className="list-disc space-y-1 pl-5">
-          {tList("privacy.section.collect.items").map((item) => {
-            const [label, ...rest] = item.split(" — ");
-            return (
-              <li key={item}>
-                <strong>{label}</strong> — {rest.join(" — ")}
-              </li>
-            );
-          })}
-        </ul>
-      </Section>
+      {notice.sections.map((section) => (
+        <Section key={section.heading} heading={section.heading}>
+          {section.body.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+          {section.bullets && (
+            <ul className="list-disc space-y-1 pl-5">
+              {section.bullets.map((b) => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      ))}
 
-      <Section heading={t("privacy.section.use.heading")}>
-        <p>{t("privacy.section.use.body")}</p>
-      </Section>
-
-      <Section heading={t("privacy.section.ai.heading")}>
+      <Section heading={es ? "Documentos relacionados" : "Related documents"}>
         <p>
-          {t("privacy.section.ai.before")}
-          <a href="/ai-transparency" className="text-primary hover:underline">{t("privacy.section.ai.linkText")}</a>
-          {t("privacy.section.ai.after")}
+          <a href="/ai-transparency" className="text-primary hover:underline">
+            {es ? "Transparencia de IA" : "AI Transparency"}
+          </a>
+          {" · "}
+          <a href="/security" className="text-primary hover:underline">
+            {es ? "Seguridad" : "Security"}
+          </a>
+          {" · "}
+          <a href="/data-control" className="text-primary hover:underline">
+            {es ? "Control de datos y derechos ARCO" : "Data control and ARCO rights"}
+          </a>
+          {" · "}
+          <a href="/contact" className="text-primary hover:underline">
+            {es ? "Contacto" : "Contact"}
+          </a>
         </p>
-      </Section>
-
-      <Section heading={t("privacy.section.storage.heading")}>
-        <p>
-          {t("privacy.section.storage.before")}
-          <a href="/security" className="text-primary hover:underline">{t("privacy.section.storage.linkText")}</a>
-          {t("privacy.section.storage.after")}
-        </p>
-      </Section>
-
-      <Section heading={t("privacy.section.retention.heading")}>
-        <p>
-          {t("privacy.section.retention.before")}
-          <a href="/contact" className="text-primary hover:underline">{t("privacy.section.retention.linkText")}</a>
-          {t("privacy.section.retention.after")}
-        </p>
-      </Section>
-
-      <Section heading={t("privacy.section.rights.heading")}>
-        <p>{t("privacy.section.rights.body")}</p>
-      </Section>
-
-      <Section heading={t("privacy.section.thirdParty.heading")}>
-        <p>{t("privacy.section.thirdParty.body")}</p>
-      </Section>
-
-      <Section heading={t("privacy.section.contact.heading")}>
-        <p>
-          {t("privacy.section.contact.before")}
-          <a href="/contact" className="text-primary hover:underline">{t("privacy.section.contact.linkText")}</a>
-          {t("privacy.section.contact.after")}
+        <p className="font-mono text-xs text-muted-foreground">
+          SHA-256: {PRIVACY_NOTICE_HASH}
         </p>
       </Section>
     </LegalPage>
