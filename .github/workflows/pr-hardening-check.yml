@@ -41,6 +41,7 @@ jobs:
           src/lib/canonical/__tests__/rendered-report-release.test.ts
           src/lib/social/__tests__/social-domain.test.ts
           src/lib/social/__tests__/social-migrations.test.ts
+          src/lib/social/__tests__/social-access-scope-hardening.test.ts
 
       - name: Lint changed social-care and billing code
         run: >-
@@ -49,6 +50,7 @@ jobs:
           src/lib/social/types.ts
           src/lib/social/__tests__/social-domain.test.ts
           src/lib/social/__tests__/social-migrations.test.ts
+          src/lib/social/__tests__/social-access-scope-hardening.test.ts
           src/routes/_authenticated/social.tsx
           src/routes/_authenticated/account.tsx
           src/lib/account.functions.ts
