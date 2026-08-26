@@ -269,12 +269,13 @@ export function computePenalPerspectiveScores(
     reversal_risk: 20,
     documentation_reliability: 80,
   };
-  const out = Object.fromEntries(
-    PENAL_PERSPECTIVE_DIMENSIONS.map((dimension) => [
-      dimension,
-      { score: baseline[dimension], contributors: [] },
-    ]),
-  ) as Record<PenalPerspectiveDimension, PenalPerspectiveScore>;
+  const out = PENAL_PERSPECTIVE_DIMENSIONS.reduce(
+    (scores, dimension) => {
+      scores[dimension] = { score: baseline[dimension], contributors: [] };
+      return scores;
+    },
+    {} as Record<PenalPerspectiveDimension, PenalPerspectiveScore>,
+  );
 
   for (const finding of findings) {
     const dimension = String(finding.score_dimension ?? "") as PenalPerspectiveDimension;

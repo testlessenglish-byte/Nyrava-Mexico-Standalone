@@ -888,9 +888,9 @@ export async function resolveCaseIdentityUncached(
       result.proceduralVehicle = caseRow.procedural_vehicle;
     }
     if (underlyingMateriaEvidence?.status === "CONFIRMED" && underlyingMateriaEvidence.value) {
-      result.underlyingMateria = underlyingMateriaEvidence.value;
+      result.underlyingMateria = underlyingMateriaEvidence.value as MxCaseType;
     } else if (caseRow.underlying_materia) {
-      result.underlyingMateria = caseRow.underlying_materia;
+      result.underlyingMateria = caseRow.underlying_materia as MxCaseType;
     }
 
     if (jurisdictionEvidence?.status === "CONFIRMED" && jurisdictionEvidence.value) {

@@ -33,26 +33,60 @@ function count(value: number | null | undefined): number {
 }
 
 export function auditPenalProceduralSemantics(findings: readonly Finding[]): number {
+  const courtRoles = new Set([
+    "juez_control",
+    "tribunal_enjuiciamiento",
+    "tribunal_alzada",
+    "tribunal_local",
+    "tribunal_colegiado",
+    "scjn",
+  ]);
+  const partyRoles = new Set([
+    "quejoso",
+    "tercero_interesado",
+    "autoridad",
+    "ministerio_publico",
+    "fiscal",
+    "defensa",
+    "imputado",
+    "acusado",
+    "sentenciado",
+    "victima",
+    "ofendido",
+  ]);
+
   let issues = 0;
   for (const finding of findings) {
-    const sourceType = String(finding.source_actor_type ?? "");
+    const role = String(finding.speaker_role ?? "");
+    const proposition = String(finding.proposition_type ?? "");
     const adoption = String(finding.adoption_status ?? "");
-    const polarity = String(finding.holding_polarity ?? "");
-    const effect = String(finding.operative_effect ?? "");
+    const impact = String(finding.impact_direction ?? "");
+    const classification = String(finding.audit_classification ?? "");
 
-    if (sourceType === "court" && finding.classification === "VERIFIED_COURT_HOLDING") {
-      if (!["adopted", "rejected", "limited", "distinguished", "neutral"].includes(adoption)) {
+    if (courtRoles.has(role) && classification === "VERIFIED_COURT_HOLDING") {
+      if (!["court_holding", "rejected_holding"].includes(proposition)) issues += 1;
+      if (!["adopted", "rejected", "not_reached", "historical", "unknown"].includes(adoption)) {
         issues += 1;
       }
-      if (!["favorable", "unfavorable", "mixed", "neutral"].includes(polarity)) {
+      const hasPartyAwareMapping =
+        ["strengthens", "weakens"].includes(impact) &&
+        Boolean(String(finding.benefited_party ?? "")) &&
+        Boolean(String(finding.score_dimension ?? "")) &&
+        Boolean(String(finding.reason_for_score_effect ?? "")) &&
+        finding.evidence_refs.some((ref) => Boolean(String(ref.quote ?? "").trim()));
+      if (
+        proposition === "court_holding" &&
+        adoption === "adopted" &&
+        impact !== "neutral" &&
+        !hasPartyAwareMapping
+      ) {
         issues += 1;
       }
-      if (!effect) issues += 1;
     }
     if (
-      ["party", "prosecution", "defense", "tercero_interesado"].includes(sourceType) &&
+      partyRoles.has(role) &&
       adoption === "adopted" &&
-      finding.classification === "VERIFIED_COURT_HOLDING"
+      classification === "VERIFIED_COURT_HOLDING"
     ) {
       issues += 1;
     }
