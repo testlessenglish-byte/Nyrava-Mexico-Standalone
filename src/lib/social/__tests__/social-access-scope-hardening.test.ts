@@ -102,6 +102,9 @@ describe("social access-scope correction", () => {
     expect(verification).toContain("has_function_privilege");
     expect(verification).toContain("pg_get_functiondef");
     expect(verification).toContain("from pg_policies");
+    expect(verification).toContain(
+      "not (d.social_case_id is distinct from social_document_access_events.social_case_id)",
+    );
     expect(verification).toContain("rollback;");
   });
 });
