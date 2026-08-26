@@ -65,3 +65,80 @@ export function scoreBand(value: number, polarity: "strength" | "risk" = "streng
   if (v >= 50) return BANDS.moderate;
   return BANDS.critical;
 }
+
+
+export type RiskBandId = "low" | "low_moderate" | "moderate" | "high" | "critical";
+
+export type DeterministicRiskBand = {
+  id: RiskBandId;
+  label_es: string;
+  label_en: string;
+  min: number;
+  max: number;
+};
+
+export function deterministicRiskBand(value: number): DeterministicRiskBand {
+  const score = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+  if (score <= 19) return { id: "low", label_es: "bajo", label_en: "low", min: 0, max: 19 };
+  if (score <= 39) {
+    return {
+      id: "low_moderate",
+      label_es: "bajo-moderado",
+      label_en: "low-moderate",
+      min: 20,
+      max: 39,
+    };
+  }
+  if (score <= 59) {
+    return { id: "moderate", label_es: "moderado", label_en: "moderate", min: 40, max: 59 };
+  }
+  if (score <= 79) return { id: "high", label_es: "alto", label_en: "high", min: 60, max: 79 };
+  return { id: "critical", label_es: "crítico", label_en: "critical", min: 80, max: 100 };
+}
+
+const RISK_LANGUAGE: Record<RiskBandId, RegExp> = {
+  low: /\b(bajo|low)\b/i,
+  low_moderate: /\b(bajo[ -]moderado|low[ -]moderate)\b/i,
+  moderate: /\b(moderado|moderate)\b/i,
+  high: /\b(alto|high|significativo|considerable)\b/i,
+  critical: /\b(cr[ií]tico|critical|extremo|severo)\b/i,
+};
+
+export function riskNarrativeContradictsScore(score: number, narrative: string): boolean {
+  const expected = deterministicRiskBand(score);
+  let text = String(narrative ?? "");
+  const mentioned = new Set<RiskBandId>();
+
+  // Compound labels must be consumed first. Otherwise "bajo-moderado" is
+  // incorrectly detected as both "bajo" and "moderado".
+  text = text.replace(
+    /\b(bajo[ -]moderado|low[ -]moderate)\b/gi,
+    (match) => {
+      mentioned.add("low_moderate");
+      return " ".repeat(match.length);
+    },
+  );
+  for (const id of ["critical", "high", "moderate", "low"] as const) {
+    if (RISK_LANGUAGE[id].test(text)) mentioned.add(id);
+  }
+  return mentioned.size > 0 && Array.from(mentioned).some((id) => id !== expected.id);
+}
+
+export function enforceRiskNarrative(
+  score: number,
+  narrative: string,
+  locale: "es" | "en" = "es",
+): { text: string; rewritten: boolean; band: DeterministicRiskBand } {
+  const band = deterministicRiskBand(score);
+  const label = locale === "en" ? band.label_en : band.label_es;
+  const heading =
+    locale === "en"
+      ? `Overall risk: ${label} (${Math.round(score)}/100).`
+      : `Riesgo global: ${label} (${Math.round(score)}/100).`;
+  const rewritten = riskNarrativeContradictsScore(score, narrative);
+  return {
+    text: rewritten ? heading : `${heading}${narrative ? ` ${narrative}` : ""}`,
+    rewritten,
+    band,
+  };
+}

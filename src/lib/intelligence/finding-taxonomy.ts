@@ -19,25 +19,67 @@
 // server functions, the worker, and prompt-building code alike.
 
 export const PROPOSITION_TYPES = [
+  // Legacy values remain accepted for existing rows and non-Penal engines.
   "argument",
   "holding",
-  "rejected_holding",
   "procedural_fact",
   "evidence",
   "issue",
+  // Canonical legal proposition taxonomy.
+  "case_fact",
+  "allegation",
+  "party_argument",
+  "prosecution_position",
+  "defense_position",
+  "victim_position",
+  "witness_statement",
+  "expert_opinion",
+  "physical_evidence",
+  "documentary_evidence",
+  "digital_evidence",
+  "legal_rule",
+  "court_holding",
+  "rejected_holding",
+  "procedural_event",
+  "evidence_gap",
+  "risk",
+  "unresolved_question",
 ] as const;
 export type PropositionType = (typeof PROPOSITION_TYPES)[number];
 
 export const SPEAKER_ROLES = [
   "quejoso",
+  "tercero_interesado",
   "autoridad",
+  "ministerio_publico",
+  "fiscal",
+  "defensa",
+  "imputado",
+  "acusado",
+  "sentenciado",
+  "victima",
+  "ofendido",
+  "testigo",
+  "perito",
+  "juez_control",
+  "tribunal_enjuiciamiento",
+  "tribunal_alzada",
   "tribunal_colegiado",
   "tribunal_local",
   "scjn",
 ] as const;
 export type SpeakerRole = (typeof SPEAKER_ROLES)[number];
 
-export const ADOPTION_STATUSES = ["adopted", "rejected", "unresolved", "historical"] as const;
+export const ADOPTION_STATUSES = [
+  "adopted",
+  "rejected",
+  "not_reached",
+  "party_position",
+  "historical",
+  "unknown",
+  // Legacy read compatibility.
+  "unresolved",
+] as const;
 export type AdoptionStatus = (typeof ADOPTION_STATUSES)[number];
 
 /** Completed-case audit classification — case-analysis-mode.ts's own
@@ -106,5 +148,7 @@ export function judicialHierarchyInstructions(): string {
   "speaker_role": which actor in the document ASSERTED this proposition — "quejoso" (the amparo petitioner's argument), "autoridad" (the responsible authority's position), "tribunal_local" (a local/administrative tribunal below the Tribunal Colegiado), "tribunal_colegiado" (the Tribunal Colegiado de Circuito's own ruling), or "scjn" (the Suprema Corte's own ruling in this document).
   "proposition_type": "argument" (a party merely argued this, it was not ruled on) | "holding" (the speaker_role actor's own ruling on the point) | "rejected_holding" (a LOWER instance's holding that a HIGHER instance in this SAME document expressly revoked, overturned, or declared incorrect/no trascendente) | "procedural_fact" (an undisputed procedural event, e.g. a filing date or notification method) | "evidence" | "issue" (a question the document frames but does not itself resolve).
   "adoption_status": "adopted" (the highest instance in the document affirmed this as part of its final ruling) | "rejected" (the highest instance expressly overturned, revoked, or discarded it — including when it said the point was "no trascendente para la conclusión alcanzada") | "unresolved" (raised but the document does not rule on it, e.g. remanded to a lower instance) | "historical" (a superseded intermediate position kept only for narrative context, e.g. what the trial-level Sala originally held before being reversed on appeal).
+PENAL RULE: classify legal meaning independently from the engine that found it. A court holding remains court_holding even when a witness or chain-of-custody engine surfaced it; a Ministerio Público, defense, victim, witness, or expert statement is never a court holding. An adopted court holding is neutral for scoring unless a separate sourced mapping names the affected party, benefited party, score dimension, and reason.
+
 CRITICAL RULE: if a Tribunal Colegiado's (or any lower instance's) reasoning is quoted or paraphrased ONLY because the higher instance (SCJN) is describing what that lower instance said — as antecedente, as the position under review, or as something the SCJN goes on to revoke/correct/deem not dispositive — the resulting finding's speaker_role MUST be the LOWER instance that actually said it (e.g. "tribunal_colegiado"), NEVER "scjn", even if the surrounding narrative sentence is written in the SCJN's voice ("el Tribunal Pleno determina que..."). Attribute every proposition to whoever is the true logical subject of the ruling being described, not to whichever court's document you are reading. When the case does not involve multi-instance review, omit all three fields entirely — do not force an attribution onto a single-instance matter.`;
 }

@@ -29,6 +29,14 @@ jobs:
           bunx vitest run
           src/lib/intelligence/__tests__/recommendation-grounding.test.ts
           src/lib/intelligence/__tests__/verified-scoring-amparo.test.ts
+          src/lib/intelligence/__tests__/penal-legal-normalization.test.ts
+          src/lib/intelligence/__tests__/penal-procedural-identity.test.ts
+          src/lib/intelligence/__tests__/penal-timeline-event-type.test.ts
+          src/lib/intelligence/__tests__/penal-semantic-dedupe.test.ts
+          src/lib/intelligence/__tests__/penal-engine-prerequisites.test.ts
+          src/lib/intelligence/__tests__/penal-disposition.test.ts
+          src/lib/intelligence/__tests__/penal-risk-consistency.test.ts
+          src/lib/intelligence/__tests__/penal-qa-status.test.ts
           src/lib/intelligence/__tests__/witness-person-safety.test.ts
           src/lib/intelligence/__tests__/report-canonical-context-sanitization.test.ts
           src/lib/intelligence/__tests__/mx_case_type/migratorio_profile_routing.test.ts
@@ -58,6 +66,23 @@ jobs:
           src/lib/billing.functions.ts
           src/routes/_authenticated/admin.billing.tsx
           src/routes/_authenticated/billing.tsx
+          --rule "prettier/prettier: off"
+          --rule "@typescript-eslint/no-explicit-any: off"
+
+      - name: Lint Penal legal-semantics changes
+        run: >-
+          bunx eslint
+          src/lib/intelligence/penal-legal-normalization.ts
+          src/lib/intelligence/penal-engine-prerequisites.ts
+          src/lib/intelligence/penal-disposition.server.ts
+          src/lib/intelligence/penal-qa-status.ts
+          src/lib/intelligence/case-classification.server.ts
+          src/lib/intelligence/canonical-timeline.server.ts
+          src/lib/intelligence/finding-dedupe.ts
+          src/lib/intelligence/scoring.server.ts
+          src/lib/pipeline.server.ts
+          src/lib/pipeline-runner.server.ts
+          src/lib/score-bands.ts
           --rule "prettier/prettier: off"
           --rule "@typescript-eslint/no-explicit-any: off"
 

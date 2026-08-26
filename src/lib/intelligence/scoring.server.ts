@@ -192,18 +192,113 @@ function matches(f: Finding, dimensionKey: string, cats: string[], mods?: string
   return matchesLegacyCategory(f, cats, mods);
 }
 
+function hasPartyAwareScoreMapping(f: Finding): boolean {
+  const affected = String(f.affected_party ?? "").toLowerCase();
+  const benefited = String(f.benefited_party ?? "").toLowerCase();
+  return (
+    (affected === "defense" || affected === "prosecution" || affected === "both") &&
+    (benefited === "defense" || benefited === "prosecution") &&
+    Boolean(String(f.score_dimension ?? "").trim()) &&
+    Boolean(String(f.reason_for_score_effect ?? "").trim()) &&
+    Boolean(f.evidence_refs?.some((ref) => String(ref.quote ?? "").trim()))
+  );
+}
+
 export function findingScoringDirection(f: Finding): "strengthens" | "weakens" | "neutral" | "auto" {
   const explicit = String(f.impact_direction ?? "").toLowerCase();
-  if (explicit === "strengthens" || explicit === "weakens" || explicit === "neutral") return explicit;
-
   const audit = String(f.audit_classification ?? "").toUpperCase();
   const proposition = String(f.proposition_type ?? "").toLowerCase();
   const adoption = String(f.adoption_status ?? "").toLowerCase();
 
+  // Classification takes precedence over producer-supplied polarity. A legal
+  // rule, alleged gap, or adopted holding cannot become negative evidence
+  // merely because the engine that surfaced it used "weakens".
   if (audit === "POTENTIAL_ISSUE" || audit === "EVIDENCE_GAP" || audit === "NOT_FOUND") return "neutral";
-  if (audit === "VERIFIED_LEGAL_RULE") return "neutral";
-  if (audit === "VERIFIED_COURT_HOLDING" || (proposition === "holding" && adoption === "adopted")) return "neutral";
+  if (audit === "VERIFIED_LEGAL_RULE" || proposition === "legal_rule") return "neutral";
+
+  const adoptedHolding =
+    audit === "VERIFIED_COURT_HOLDING" ||
+    ((proposition === "holding" || proposition === "court_holding") && adoption === "adopted");
+  if (adoptedHolding) {
+    if (
+      (explicit === "strengthens" || explicit === "weakens") &&
+      hasPartyAwareScoreMapping(f)
+    ) {
+      return explicit;
+    }
+    return "neutral";
+  }
+
+  if (explicit === "strengthens" || explicit === "weakens" || explicit === "neutral") return explicit;
   return "auto";
+}
+
+export const PENAL_PERSPECTIVE_DIMENSIONS = [
+  "prosecution_strength",
+  "defense_strength",
+  "evidentiary_integrity",
+  "procedural_integrity",
+  "constitutional_compliance",
+  "conviction_stability",
+  "reversal_risk",
+  "documentation_reliability",
+] as const;
+export type PenalPerspectiveDimension = (typeof PENAL_PERSPECTIVE_DIMENSIONS)[number];
+
+export type PenalPerspectiveScore = {
+  score: number;
+  contributors: Array<{
+    source_finding_id: string;
+    affected_party: Finding["affected_party"];
+    benefited_party: Finding["benefited_party"];
+    impact_direction: Finding["impact_direction"];
+    reason_for_score_effect: string;
+  }>;
+};
+
+export function computePenalPerspectiveScores(
+  findings: readonly Finding[],
+): Record<PenalPerspectiveDimension, PenalPerspectiveScore> {
+  const baseline: Record<PenalPerspectiveDimension, number> = {
+    prosecution_strength: 50,
+    defense_strength: 50,
+    evidentiary_integrity: 80,
+    procedural_integrity: 80,
+    constitutional_compliance: 80,
+    conviction_stability: 50,
+    reversal_risk: 20,
+    documentation_reliability: 80,
+  };
+  const out = PENAL_PERSPECTIVE_DIMENSIONS.reduce(
+    (scores, dimension) => {
+      scores[dimension] = { score: baseline[dimension], contributors: [] };
+      return scores;
+    },
+    {} as Record<PenalPerspectiveDimension, PenalPerspectiveScore>,
+  );
+
+  for (const finding of findings) {
+    const dimension = String(finding.score_dimension ?? "") as PenalPerspectiveDimension;
+    if (!PENAL_PERSPECTIVE_DIMENSIONS.includes(dimension)) continue;
+    const direction = findingScoringDirection(finding);
+    if (direction !== "strengthens" && direction !== "weakens") continue;
+    if (!hasPartyAwareScoreMapping(finding)) continue;
+
+    const confidence = Math.max(0, Math.min(1, Number(finding.confidence ?? 0)));
+    const severity = SEVERITY_WEIGHT[finding.severity] ?? 5;
+    const magnitude = Math.max(1, Math.min(18, Math.round(severity * confidence)));
+    out[dimension].score = clamp(
+      out[dimension].score + (direction === "strengthens" ? magnitude : -magnitude),
+    );
+    out[dimension].contributors.push({
+      source_finding_id: finding.id,
+      affected_party: finding.affected_party,
+      benefited_party: finding.benefited_party,
+      impact_direction: finding.impact_direction,
+      reason_for_score_effect: String(finding.reason_for_score_effect),
+    });
+  }
+  return out;
 }
 
 const CIVIL_DIMENSIONS = [

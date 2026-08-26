@@ -315,6 +315,97 @@ async function _runPipelineForCase(
   const persist = await import("@/lib/intelligence/engine-persistence.server");
   const audit = await import("@/lib/intelligence/engine-audit.server");
 
+  let penalRoutingContextPromise:
+    | Promise<{
+        penal: boolean;
+        mode: import("./intelligence/case-analysis-mode").CaseAnalysisMode;
+        prerequisites: import("./intelligence/penal-engine-prerequisites").PenalEnginePrerequisites;
+      }>
+    | null = null;
+
+  const getPenalRoutingContext = () => {
+    penalRoutingContextPromise ??= (async () => {
+      const [{ resolveCaseIdentity }, { getCaseAnalysisMode }, prerequisiteModule] =
+        await Promise.all([
+          import("./intelligence/case-classification.server"),
+          import("./intelligence/case-analysis-mode"),
+          import("./intelligence/penal-engine-prerequisites"),
+        ]);
+      const [identity, mode, docsResult, classificationResult] = await Promise.all([
+        resolveCaseIdentity(supabase, caseId),
+        getCaseAnalysisMode(supabase, caseId),
+        supabase.from("documents").select("extracted_text").eq("case_id", caseId),
+        (supabase as any)
+          .from("case_classification_evidence")
+          .select("value,source_quote,conflicting_values")
+          .eq("case_id", caseId)
+          .eq("field", "concluded_status")
+          .maybeSingle(),
+      ]);
+      const corpusText = (docsResult.data ?? [])
+        .map((row) => String((row as { extracted_text?: string | null }).extracted_text ?? ""))
+        .join("\n");
+      const prerequisites = prerequisiteModule.detectPenalEnginePrerequisites(corpusText);
+      prerequisites.hasOpenSubsequentProceeding =
+        prerequisiteModule.classificationSupportsOpenProceeding(classificationResult.data);
+      return {
+        penal: identity.caseType === "penal" || identity.underlyingMateria === "penal",
+        mode,
+        prerequisites,
+      };
+    })();
+    return penalRoutingContextPromise;
+  };
+
+  const clearNotApplicableStageArtifacts = async (stage: string) => {
+    const tableByStage: Record<string, string> = {
+      theories: "case_theories",
+      opportunities: "case_opportunities",
+      strategy: "case_strategy",
+      litigation_strategy_center: "case_strategy_center",
+      work_product: "case_work_product",
+      witness: "case_witnesses",
+    };
+    const table = tableByStage[stage];
+    if (table) await (supabase as any).from(table).delete().eq("case_id", caseId);
+    if (stage === "discovery") {
+      await supabase
+        .from("case_findings")
+        .delete()
+        .eq("case_id", caseId)
+        .like("source_module", "engine:discovery%");
+    }
+  };
+
+  const runPenalModeGatedStage = async (
+    stage: string,
+    engine: string,
+    execute: () => Promise<unknown>,
+  ) => {
+    const context = await getPenalRoutingContext();
+    if (context.penal) {
+      const { penalEngineApplicability } =
+        await import("./intelligence/penal-engine-prerequisites");
+      const decision = penalEngineApplicability(stage, context.mode, context.prerequisites);
+      if (!decision.run) {
+        await clearNotApplicableStageArtifacts(stage);
+        const reason = `skipped_not_applicable:${decision.reason ?? "prerequisites_not_met"}`;
+        await audit.recordSkipped(supabase, {
+          caseId,
+          userId,
+          engine: engine as never,
+          reason,
+        });
+        return { skipped: true, status: "skipped_not_applicable", reason };
+      }
+    }
+    return persist.runCatalogedEngine(
+      supabase,
+      { caseId, userId, engine: engine as never },
+      execute,
+    );
+  };
+
   // Quota hardening: analyzers/agents already perform the grounded corpus pass
   // that produces witness, missing-document/discovery, evidence, contradiction,
   // and procedural findings. These follow-up stages must therefore summarize
@@ -484,9 +575,9 @@ async function _runPipelineForCase(
     // that produced legitimate deterministic output.
     witness: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.witness },
+        runPenalModeGatedStage(
+          "witness",
+          ENGINE.witness,
           async () => {
             const d = await import("@/lib/intelligence/derived-engines.server");
             const result = await d.deriveWitnessIntel(supabase, caseId);
@@ -587,9 +678,9 @@ async function _runPipelineForCase(
     },
     discovery: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.discovery },
+        runPenalModeGatedStage(
+          "discovery",
+          ENGINE.discovery,
           async () => {
             const d = await import("@/lib/intelligence/derived-engines.server");
             const result = await d.deriveDiscoveryGaps(supabase, caseId);
@@ -628,7 +719,7 @@ async function _runPipelineForCase(
     },
     theories: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.theories }, async () => {
+        runPenalModeGatedStage("theories", ENGINE.theories, async () => {
           const value = (await eng.runTheoryEngine(baseArgs)) as {
             theories?: unknown[];
             audit?: { rejected?: number };
@@ -653,9 +744,9 @@ async function _runPipelineForCase(
     },
     opportunities: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.opportunities },
+        runPenalModeGatedStage(
+          "opportunities",
+          ENGINE.opportunities,
           async () => {
             const value = (await eng.runOpportunityEngine(baseArgs)) as {
               opportunities?: unknown[];
@@ -691,7 +782,7 @@ async function _runPipelineForCase(
     },
     strategy: {
       run: () =>
-        persist.runCatalogedEngine(supabase, { caseId, userId, engine: ENGINE.strategy }, async () => {
+        runPenalModeGatedStage("strategy", ENGINE.strategy, async () => {
           const value = await lit.runStrategyEngine(baseArgs);
           const { count } = await supabase
             .from("case_strategy")
@@ -706,9 +797,9 @@ async function _runPipelineForCase(
     },
     litigation_strategy_center: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.litigation_strategy_center },
+        runPenalModeGatedStage(
+          "litigation_strategy_center",
+          ENGINE.litigation_strategy_center,
           async () => {
             const value = await lit.runLitigationStrategyCenterEngine(baseArgs);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -726,9 +817,9 @@ async function _runPipelineForCase(
     },
     work_product: {
       run: () =>
-        persist.runCatalogedEngine(
-          supabase,
-          { caseId, userId, engine: ENGINE.work_product },
+        runPenalModeGatedStage(
+          "work_product",
+          ENGINE.work_product,
           async () => {
             const value = (await eng.runWorkProductEngine(baseArgs)) as {
               documents?: unknown[];
