@@ -11382,6 +11382,15 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      social_activity_entity_visible: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_org: string
+          p_user: string
+        }
+        Returns: boolean
+      }
       social_can_access_case: {
         Args: {
           p_case: string
