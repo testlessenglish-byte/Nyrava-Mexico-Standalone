@@ -957,20 +957,13 @@ async function _runPipelineForCase(
     }
   }
 
-  // DECISION RECONSTRUCTION — additive, strict/completed-case-audit mode
-  // only (see "Fix the Verified Case Identity Architecture" instructions,
-  // Step 4). Runs BEFORE the findings/contradiction-producing stages below
-  // so an independent, corpus-grounded reconstruction of what the case
-  // actually establishes exists ahead of any ordinary-engine analysis, for
-  // that mode's audit to eventually draw on. Only builds/persists the
-  // reconstruction here — it does NOT change what runCompletedCaseAudit
-  // reads (that consumption switch is explicitly a separate, later
-  // increment per buildDecisionReconstruction's own doc comment). Gated to
-  // run at most once per case (checked via an existing
-  // case_decision_reconstructions row) so a real AI-calling pass never
-  // re-fires on every resume tick. Never fatal — a failure here must not
-  // block the pipeline, same convention as auto-detect/case-classification
-  // above.
+  // DECISION RECONSTRUCTION — strict/completed cases only. This must run
+  // AFTER extraction, but before analyzers/scoring. The old placement here
+  // ran it before OCR and could persist an empty-corpus failure marker that
+  // every later tick treated as final. Keep an initial call for resumes
+  // (where extracted_at is already set), and call it again immediately after
+  // a fresh extraction succeeds below.
+  let decisionCoreEligible = false;
   {
     const { data: caseModeRow } = await (supabase as any)
       .from("cases")
@@ -984,54 +977,41 @@ async function _runPipelineForCase(
       "./intelligence/case-analysis-mode"
     );
     const caseAnalysisMode = normalizeCaseAnalysisMode(rawCaseAnalysisMode);
-    if (evidenceMode === "strict" || isCompletedCaseMode(caseAnalysisMode)) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: existingReconstruction } = await (supabase as any)
-          .from("case_decision_reconstructions")
-          .select("reconstruction")
-          .eq("case_id", caseId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        let reconstruction = existingReconstruction?.reconstruction ?? null;
-        if (!reconstruction) {
-          const { buildDecisionReconstruction } = await import(
-            "./intelligence/decision-reconstruction-extractor.server"
-          );
-          reconstruction = await buildDecisionReconstruction(supabase, caseId, userId);
-          trace("case.decision_reconstruction_built", { built: !!reconstruction });
-        }
-        // The reconstruction used to stop at the database row above. Promote
-        // its verified decision core through the same strict evidence gate as
-        // every other finding so it becomes canonical and report-visible.
-        // This runs on resumes too; addGatedFindings' canonical dedupe makes
-        // the operation idempotent.
-        if (reconstruction) {
-          const {
-            buildMandatoryDecisionCore,
-            mandatoryDecisionCoreToFindings,
-          } = await import("./intelligence/mandatory-decision-core");
-          const { addGatedFindings } = await import("./intelligence/findings.server");
-          const core = buildMandatoryDecisionCore(reconstruction);
-          const promoted = await addGatedFindings(
-            supabase,
-            caseId,
-            mandatoryDecisionCoreToFindings({ core, caseId, userId }),
-          );
-          trace("case.mandatory_decision_core_promoted", {
-            required: core.length,
-            inserted: promoted.inserted,
-            suppressed: promoted.audit
-              ? promoted.audit.input - promoted.audit.accepted
-              : 0,
-          });
-        }
-      } catch (e) {
-        console.warn("[decision-reconstruction] failed", e);
-      }
-    }
+    decisionCoreEligible = evidenceMode === "strict" || isCompletedCaseMode(caseAnalysisMode);
   }
+
+  const ensureAndPromoteDecisionCore = async (): Promise<void> => {
+    if (!decisionCoreEligible) return;
+    try {
+      const { ensureDecisionReconstruction } = await import(
+        "./intelligence/decision-reconstruction-extractor.server"
+      );
+      const reconstruction = await ensureDecisionReconstruction(supabase, caseId, userId);
+      if (!reconstruction) {
+        trace("case.decision_reconstruction_deferred", { reason: "extraction_not_ready_or_failed" });
+        return;
+      }
+      const { buildMandatoryDecisionCore, mandatoryDecisionCoreToFindings } = await import(
+        "./intelligence/mandatory-decision-core"
+      );
+      const { addGatedFindings } = await import("./intelligence/findings.server");
+      const core = buildMandatoryDecisionCore(reconstruction);
+      const promoted = await addGatedFindings(
+        supabase,
+        caseId,
+        mandatoryDecisionCoreToFindings({ core, caseId, userId }),
+      );
+      trace("case.mandatory_decision_core_promoted", {
+        required: core.length,
+        inserted: promoted.inserted,
+        suppressed: promoted.audit ? promoted.audit.input - promoted.audit.accepted : 0,
+      });
+    } catch (e) {
+      console.warn("[decision-reconstruction] failed", e);
+    }
+  };
+
+  await ensureAndPromoteDecisionCore();
 
   // Jurisdiction-aware sequence. Mexican practice doesn't run every engine for
   // every materia (e.g. no jury simulation in an ordinary penal case, no
@@ -1768,6 +1748,9 @@ async function _runPipelineForCase(
     }
 
     const outcome = await runOneStage(s, i);
+    if (key === "extraction" && outcome.kind === "success") {
+      await ensureAndPromoteDecisionCore();
+    }
     if (outcome.kind === "fatal_failed") throw new Error(outcome.message);
     const early = earlyReturnFor(outcome);
     if (early) return early;
