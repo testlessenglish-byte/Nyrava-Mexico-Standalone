@@ -71,6 +71,10 @@ export const runMultiAgentAnalysis = createServerFn({ method: "POST" })
       caseId: data.caseId,
       apiKey,
       apiKeys: keys,
+      // Manual/admin reruns are analytical passes, not final release
+      // reviews. A report may not exist yet; only runFinalReleaseReview()
+      // may assign the terminal case status after Report Writer saves it.
+      deferRelease: true,
     });
   });
 
@@ -116,3 +120,4 @@ export const getAgentLogs = createServerFn({ method: "POST" })
     const runId = (rows?.[0] as { run_id?: string } | undefined)?.run_id;
     return { agents: AGENT_DEFINITIONS, logs, runId };
   });
+
