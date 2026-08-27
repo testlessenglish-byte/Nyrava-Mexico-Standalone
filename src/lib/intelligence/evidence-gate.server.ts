@@ -77,6 +77,10 @@ export type EvidenceItem = {
   narrative?: string;
   title?: string;
   confidence?: number;
+  audit_classification?: string | null;
+  speaker_role?: string | null;
+  proposition_type?: string | null;
+  adoption_status?: string | null;
 };
 
 export type GateOptions = {
@@ -361,6 +365,19 @@ export function diagnoseEvidenceGate<T extends EvidenceItem>(
     let notEstablishedTopic = false;
     if (verified.length > 0) {
       type = classifyFindingType({ hasVerifiedCitation: true, text });
+      // A source-verified, adopted court holding is reportable evidence even
+      // when its prose contains cautious language such as "may" or "could".
+      // Those words can make the holding score-neutral, but must not turn the
+      // court's own verified holding into an unsupported inference. The quote
+      // still has to pass the normal corpus-verification gate above.
+      const verifiedCourtHolding =
+        item.audit_classification === "VERIFIED_COURT_HOLDING" &&
+        item.proposition_type === "holding" &&
+        item.adoption_status === "adopted" &&
+        ["scjn", "tribunal_colegiado", "juzgado_distrito", "court"].includes(
+          String(item.speaker_role ?? ""),
+        );
+      if (verifiedCourtHolding) type = "DIRECT_EVIDENCE";
       if (type === "EVIDENCE_BASED_INFERENCE") audit.downgraded_inference += 1;
       // Backstop for "a legal rule got reported as a case finding": a
       // finding naming a known procedural-defect topic (notification,

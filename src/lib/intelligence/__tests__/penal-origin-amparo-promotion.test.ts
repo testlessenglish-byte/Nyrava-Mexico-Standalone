@@ -11,6 +11,8 @@ import { findingScoringDirection } from "../scoring.server";
 import { selectFindings } from "../finding-selection";
 import { buildPenalQaStatuses } from "../penal-qa-status";
 import { validateRenderedReport } from "../../canonical/prerender-validate.server";
+import { applyEvidenceGate } from "../evidence-gate.server";
+import { buildGroundingCorpus } from "../grounding.server";
 import type { Finding, NewFinding } from "../types";
 
 const base = {
@@ -66,6 +68,39 @@ const finalized = {
 };
 
 describe("Penal-origin Amparo finding promotion", () => {
+  it("reproduces the exported SCJN holding at the real strict evidence-promotion gate", () => {
+    const quote =
+      "la víctima u ofendido del delito tiene el carácter de parte procesal en el procedimiento penal";
+    const corpus = buildGroundingCorpus([
+      { id: "doc-1", filename: "2_244289_4834_firmado.pdf", extracted_text: quote },
+    ]);
+    const valid = {
+      title: "Legitimación de la víctima para promover juicio de amparo directo",
+      description:
+        "La víctima u ofendido tiene legitimación para impugnar la individualización de la pena en un juicio de amparo directo.",
+      confidence: 0.9,
+      evidence_refs: [{ doc_n: 1, quote }],
+      audit_classification: "VERIFIED_COURT_HOLDING",
+      proposition_type: "holding",
+      speaker_role: "scjn",
+      adoption_status: "adopted",
+    };
+    const result = applyEvidenceGate([valid], { mode: "strict", corpus });
+    expect(result.audit.accepted).toBe(1);
+    expect(result.items[0]).toMatchObject({
+      finding_type: "DIRECT_EVIDENCE",
+      source_document_id: "doc-1",
+      source_quote: quote,
+    });
+
+    const unsupported = applyEvidenceGate(
+      [{ ...valid, evidence_refs: [{ doc_n: 1, quote: "texto inventado que no obra en el corpus" }] }],
+      { mode: "strict", corpus },
+    );
+    expect(unsupported.items).toEqual([]);
+    expect(unsupported.audit.rejected_quote_unverified).toBe(1);
+  });
+
   it("promotes the real verified neutral SCJN holding into canonical, visible and report input without moving score", () => {
     const normalized = normalizePenalFinding(base, {
       matter: "amparo",
@@ -146,4 +181,3 @@ describe("Penal-origin Amparo finding promotion", () => {
     expect(canonical[0].audit_classification).toBe("VERIFIED_COURT_HOLDING");
   });
 });
-
