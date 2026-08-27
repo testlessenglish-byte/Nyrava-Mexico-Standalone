@@ -4684,7 +4684,7 @@ export async function runAgents(args: {
             findings: mergedFindings,
           };
           const generated = Array.isArray(parsed.findings) ? parsed.findings.length : 0;
-          // Chain-of-custody grounding gate: every finding must carry a
+          // Agent grounding gate: every finding must carry a
           // verbatim quote traceable to a specific document in the corpus.
           // Findings that fail grounding are dropped BEFORE persistence so
           // the report quality gate isn't blocked by uncited items.
@@ -4699,7 +4699,7 @@ export async function runAgents(args: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let findingsForNormalize: any[] = Array.isArray(parsed.findings) ? parsed.findings : [];
           let groundingDropped = 0;
-          if (agent.type === "chain_of_custody") {
+          {
             const before = findingsForNormalize.length;
             findingsForNormalize = groundItems(findingsForNormalize, agentGroundCorpus, {
               minVerified: 1,
@@ -4746,7 +4746,7 @@ export async function runAgents(args: {
                   status: "complete",
                   summary: parsed.summary ?? "",
                   confidence: typeof parsed.confidence === "number" ? parsed.confidence : null,
-                  findings: (parsed.findings ?? []) as J,
+                  findings: findingsForNormalize as J,
                   latency_ms: Date.now() - t0,
                   error: null,
                   grounding_dropped_count: groundingDropped,
