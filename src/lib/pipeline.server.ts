@@ -6095,9 +6095,26 @@ async function _runReportInner(args: {
       .select("agent_type,findings")
       .eq("case_id", caseId)
       .eq("agent_type", "contradictions"),
-  ]);
-  if (!analysis) throw new Error("Run Analyzers first.");
-  if (!score) throw new Error("Run Score Case first.");
+  // Verify analyzers completed (either findings exist, analysis row exists, or pipeline_engine_runs completed)
+  const hasAnalysisData = Boolean(analysis) || (rawFindings && rawFindings.length > 0);
+  if (!hasAnalysisData) {
+    const { data: analyzerRun } = await db
+      .from("pipeline_engine_runs")
+      .select("status")
+      .eq("case_id", caseId)
+      .eq("engine", "analyzers")
+      .maybeSingle();
+    if (!analyzerRun || analyzerRun.status === "failed") {
+      throw new Error("Run Analyzers first.");
+    }
+  }
+
+  if (!score) {
+    const { data: scoreFallback } = await db.from("case_scores").select("*").eq("case_id", caseId).maybeSingle();
+    if (scoreFallback) {
+      score = scoreFallback;
+    }
+  }
 
   await setCase(db, caseId, { status_message: "Consolidating findings", progress: 35 });
   const allFindings = dedupeFindings(rawFindings);
