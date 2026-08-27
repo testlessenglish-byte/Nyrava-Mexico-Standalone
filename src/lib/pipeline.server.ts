@@ -6277,6 +6277,26 @@ async function _runReportInner(args: {
   const { getCaseAnalysisMode: getReportCaseAnalysisMode } =
     await import("./intelligence/case-analysis-mode");
   const reportCaseAnalysisMode = await getReportCaseAnalysisMode(db, caseId);
+  const { isCompletedCaseMode: isCompletedReportCaseMode } = await import(
+    "./intelligence/case-analysis-mode"
+  );
+  const mandatoryDecisionCoreRequired = isCompletedReportCaseMode(reportCaseAnalysisMode);
+  const { data: decisionReconstructionRow } = await (db as any)
+    .from("case_decision_reconstructions")
+    .select("reconstruction")
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const {
+    buildMandatoryDecisionCore,
+    validateMandatoryDecisionCore,
+  } = await import("./intelligence/mandatory-decision-core");
+  const mandatoryDecisionCore = buildMandatoryDecisionCore(
+    (decisionReconstructionRow?.reconstruction ?? null) as
+      | import("./intelligence/decision-reconstruction").CaseDecisionReconstruction
+      | null,
+  );
   const {
     persistPenalDisposition,
     renderPenalDisposition,
@@ -6290,6 +6310,11 @@ async function _runReportInner(args: {
     ? `\n\nPENAL_DISPOSITION_STRUCTURED (deterministic, grounded, controls outcome rendering):\n${JSON.stringify(
         penalDisposition,
       )}\nThe concluded-case executive output MUST begin with "RESULTADO DEL CASO" and accurately render this structure before general findings.`
+    : "";
+  const mandatoryDecisionCoreAnchorBlock = mandatoryDecisionCoreRequired
+    ? `\n\nMANDATORY_DECISION_CORE (independently reconstructed and source-verified; this block controls report priority):\n${JSON.stringify(
+        mandatoryDecisionCore,
+      )}\nRELEASE INVARIANT: Every item above MUST be represented accurately in prose.executive_summary or in a report finding. Lead with adopted COURT_HOLDING items, then DISPOSITION/REMEDY, then controlling issues; clearly label REJECTED_HOLDING as rejected. A reportable neutral holding remains mandatory even when score_moving=false. Do not substitute secondary facts, party arguments, or generic risks for these propositions.`
     : "";
 
   // Materia-aware Mexican procedural-vehicle catalogue for the "recommended
@@ -6556,7 +6581,7 @@ ${JSON.stringify({
 }).slice(0, s(35000))}
 
 CORPUS (paginated):
-${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}${penalDispositionAnchorBlock}`;
+${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}${penalDispositionAnchorBlock}${mandatoryDecisionCoreAnchorBlock}`;
   };
 
   const { hasCaseStateUpdateDocs, getCaseStateUpdateNotice } =
@@ -6701,7 +6726,7 @@ PAGINATION RULES:
 - Do NOT fabricate page numbers, quotes, or document ids.
 
 CORPUS (paginated):
-${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDispositionAnchorBlock}`;
+${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDispositionAnchorBlock}${mandatoryDecisionCoreAnchorBlock}`;
 
   // Canonical Reconciliation Design (2026-08-16), P2 §10 — the field NAMES
   // below ("prosecution_theory_report"/"defense_theory_report") are the
@@ -9342,6 +9367,25 @@ ${paginationTail}`;
     ).getCurrentIntelligenceVersion(db, userId),
   };
 
+  const mandatoryDecisionCoreValidation = mandatoryDecisionCoreRequired
+    ? validateMandatoryDecisionCore(mandatoryDecisionCore, {
+        executiveSummary: reportRow.executive_summary,
+        findings: findings.map((finding) => ({
+          title: finding.title,
+          description: finding.description,
+        })),
+      })
+    : { required: 0, represented: 0, ok: true, missing: [] };
+  // This is intentionally a first-class report invariant, not another
+  // advisory quality score. Final release re-reads this exact persisted
+  // value and refuses to release a completed-case report when it is absent
+  // or incomplete.
+  (reportRow.full_report as any).mandatory_decision_core = {
+    required_for_release: mandatoryDecisionCoreRequired,
+    items: mandatoryDecisionCore,
+    validation: mandatoryDecisionCoreValidation,
+  };
+
   // Stash disputed-issues inside full_report (no dedicated column).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (reportRow.full_report as any).disputed_issues = disputedIssues;
@@ -9635,6 +9679,16 @@ ${paginationTail}`;
     // the Citation Audit appendix. Only genuinely broken pipeline states
     // (failed OCR) count as blocking quality issues.
     const blockReasons: string[] = [];
+    if (mandatoryDecisionCoreRequired && !mandatoryDecisionCoreValidation.ok) {
+      blockReasons.push(
+        mandatoryDecisionCore.length === 0
+          ? "Mandatory decision core is unavailable for this completed judicial decision."
+          : `Mandatory decision core is incomplete: ${mandatoryDecisionCoreValidation.missing.length}/${mandatoryDecisionCoreValidation.required} verified proposition(s) are absent from the executive summary and findings.`,
+      );
+      pipelineWarnings.push(
+        `mandatory_decision_core: ${mandatoryDecisionCoreValidation.represented}/${mandatoryDecisionCoreValidation.required} represented; release blocked`,
+      );
+    }
     if (citationAudit.quarantined > 0) {
       pipelineWarnings.push(
         `citation_audit: ${citationAudit.quarantined}/${citationAudit.total} finding(s) quarantined — see Citation Audit appendix. supported=${citationAudit.supported_pct}%`,
@@ -9782,7 +9836,9 @@ ${paginationTail}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow.full_report as any).domain_activations = activations;
 
-    const manifest = buildCaseTypeManifest(area, activeDomains);
+    const manifestDomains = new Set(activeDomains);
+    if (reportUnderlyingMateria) manifestDomains.add(reportUnderlyingMateria);
+    const manifest = buildCaseTypeManifest(area, manifestDomains);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow.full_report as any).case_type_manifest = manifest;
 
@@ -10133,3 +10189,4 @@ ${paginationTail}`;
 // exercised directly against a fake db, without invoking the full report
 // assembly this function otherwise performs.
 export { _runReportInner as __test__runReportInner };
+
