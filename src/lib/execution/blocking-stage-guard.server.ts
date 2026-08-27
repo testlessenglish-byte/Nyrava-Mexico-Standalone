@@ -45,15 +45,25 @@ export class StageTimeoutError extends Error {
 
 /**
  * Runs `fn` under the canonical timeout ceiling for `stageKey`.
- * Stages without a declared `timeoutMs` run unbounded (unchanged behaviour).
+ * Passes an AbortSignal to `fn` and aborts it immediately if the stage times out
+ * or if an outer abort signal fires.
  */
 export async function withStageTimeout<T>(
   stageKey: string,
-  fn: () => Promise<T>,
-  opts: { caseId?: string; userId?: string | null } = {},
+  fn: (signal?: AbortSignal) => Promise<T>,
+  opts: { caseId?: string; userId?: string | null; signal?: AbortSignal } = {},
 ): Promise<T> {
   const limit = stageTimeoutMs(stageKey);
   const t0 = Date.now();
+  const controller = new AbortController();
+
+  if (opts.signal) {
+    if (opts.signal.aborted) {
+      controller.abort();
+    } else {
+      opts.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+  }
 
   console.info(`[stage] enter ${stageKey}${limit ? ` (timeout ${limit}ms)` : ""}`);
   traceAsync({
@@ -69,11 +79,14 @@ export async function withStageTimeout<T>(
   try {
     const result =
       limit == null
-        ? await fn()
+        ? await fn(controller.signal)
         : await Promise.race([
-            fn(),
+            fn(controller.signal),
             new Promise<never>((_, reject) => {
-              timer = setTimeout(() => reject(new StageTimeoutError(stageKey, limit)), limit);
+              timer = setTimeout(() => {
+                controller.abort();
+                reject(new StageTimeoutError(stageKey, limit));
+              }, limit);
             }),
           ]);
 
@@ -89,6 +102,7 @@ export async function withStageTimeout<T>(
     });
     return result;
   } catch (e) {
+    controller.abort();
     const durationMs = Date.now() - t0;
     const timedOut = e instanceof StageTimeoutError;
     const reason = e instanceof Error ? e.message : String(e);

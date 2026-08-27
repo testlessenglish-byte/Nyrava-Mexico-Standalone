@@ -17,12 +17,13 @@ import { withStageTimeout } from "@/lib/execution/blocking-stage-guard.server";
 
 type Db = SupabaseClient<Database>;
 
-const RUNNER_LEASE_EXTENSION_MS = 20 * 60 * 1000;
+const RUNNER_LEASE_EXTENSION_MS = 3 * 60 * 1000; // 3 minutes
 
 export type RunPipelineOpts = {
   caseId: string;
   startFrom?: string;
   reset?: boolean;
+  executionId?: string;
 };
 
 export async function runPipelineForCase(
@@ -121,49 +122,93 @@ async function _runPipelineForCase(
     });
   };
 
+  // Execution identity.
+  const isFreshExecution = !reset || !startFrom;
+  let executionId = opts.executionId;
+  if (isFreshExecution) {
+    executionId = executionId ?? crypto.randomUUID();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("cases")
+      .update({
+        execution_id: executionId,
+        execution_started_at: new Date().toISOString(),
+        worker_lease_until: new Date(Date.now() + RUNNER_LEASE_EXTENSION_MS).toISOString(),
+      })
+      .eq("id", caseId);
+    trace("execution.started", { execution_id: executionId, reset: !!reset });
+  } else if (!executionId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: caseRow } = await (supabase as any)
+      .from("cases")
+      .select("execution_id")
+      .eq("id", caseId)
+      .maybeSingle();
+    executionId = (caseRow as { execution_id?: string | null } | null)?.execution_id ?? crypto.randomUUID();
+  }
+
+  let isTerminated = false;
+  const runnerAbortController = new AbortController();
+
+  // 30-second heartbeat lease renewal
+  const heartbeatTimer = setInterval(async () => {
+    if (isTerminated) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: renewed, error: rpcErr } = await (supabase as any).rpc("renew_execution_lease", {
+        p_case_id: caseId,
+        p_execution_id: executionId,
+        p_lease_ms: RUNNER_LEASE_EXTENSION_MS,
+      });
+      if (rpcErr) {
+        // Fallback update
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: directUpd, error: directErr } = await (supabase as any)
+          .from("cases")
+          .update({ worker_lease_until: new Date(Date.now() + RUNNER_LEASE_EXTENSION_MS).toISOString() })
+          .eq("id", caseId)
+          .eq("execution_id", executionId)
+          .select("id");
+        if (directErr || !directUpd?.length) {
+          console.warn(`[pipeline-runner] Heartbeat lost lease for execution ${executionId}. Aborting.`);
+          runnerAbortController.abort();
+        }
+      } else if (!renewed) {
+        console.warn(`[pipeline-runner] Heartbeat renew returned false for execution ${executionId}. Aborting.`);
+        runnerAbortController.abort();
+      }
+    } catch (hbErr) {
+      console.warn("[pipeline-runner] Heartbeat lease renewal failed", hbErr);
+    }
+  }, 30_000);
+
+  try {
+
   // ---------------------------------------------------------------------------
   // Checkpoint loop-breaker.
+  // When a stage throws CheckpointRequired, the runner catches it, records the
+  // checkpoint, and re-queues the case. That is correct for ordinary chunking.
+  // But if a stage keeps checkpointing repeatedly WITHOUT making forward
+  // progress (e.g. all configured AI keys are out of quota, or every provider
+  // in the router failover chain is timing out), the case can loop forever:
+  // queue -> worker -> stage -> CheckpointRequired -> queue -> worker ...
   //
-  // A stage that yields with CheckpointRequired is re-queued and retried on the
-  // next worker tick. When the cause is "no AI capacity left" (every provider
-  // key 429s), the stage burns its whole budget on failing calls and yields
-  // again — forever. Count how many times this stage has already checkpointed
-  // for this case and terminate the run with a truthful message instead of
-  // looping.
+  // Defend against that by counting how many times THIS stage has checkpointed
+  // during this case's execution. If it exceeds MAX_STAGE_CHECKPOINTS, fail
+  // the stage truthfully instead of re-queueing again.
   // ---------------------------------------------------------------------------
-  // 2026-07: this used to count EVERY checkpoint of a stage in the last 6h,
-  // regardless of whether the stage was making progress. A long stage like
-  // `agents` (13 agents × ~15s/call) legitimately needs many worker ticks, so
-  // healthy runs were killed at the 5th tick with a false "sin capacidad de
-  // IA" message while every AI call was actually succeeding. Only checkpoints
-  // that produced NO successful AI call count now — i.e. genuinely stuck.
-  const MAX_STAGE_CHECKPOINTS = 5;
+  const MAX_STAGE_CHECKPOINTS = 8;
   const stageCheckpointCount = async (stageKey: string): Promise<number> => {
     try {
-      // Timestamp of the last successful AI call for this case. Anything the
-      // stage did before that is forward progress, not a stall.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: lastOk } = await (supabase as any)
-        .from("pipeline_trace")
-        .select("created_at")
-        .eq("case_id", caseId)
-        .eq("phase", "ai")
-        .eq("status", "ok")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const since =
-        (lastOk as { created_at?: string } | null)?.created_at ??
-        new Date(Date.now() - 6 * 60 * 60_000).toISOString();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count } = await (supabase as any)
+      // Count "stage.checkpoint" trace events for this case + stage.
+      const { data, error } = await supabase
         .from("pipeline_trace")
         .select("id", { count: "exact", head: true })
         .eq("case_id", caseId)
-        .in("step", ["stage.checkpoint", "stage.checkpoint_before_start"])
-        .contains("detail", { stage: stageKey })
-        .gte("created_at", since);
-      return typeof count === "number" ? count : 0;
+        .eq("step", "stage.checkpoint")
+        .contains("detail", { stage: stageKey });
+      if (error) return 0;
+      return (data as unknown as number) ?? 0;
     } catch {
       return 0;
     }
@@ -194,16 +239,21 @@ async function _runPipelineForCase(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase as any)
         .from("cases")
-        .select("status,status_message,next_stage,queued_at,worker_lease_until")
+        .select("status,status_message,next_stage,queued_at,worker_lease_until,execution_id")
         .eq("id", caseId)
         .maybeSingle();
       before = (data ?? null) as Record<string, unknown> | null;
+      if (before && before.execution_id && before.execution_id !== executionId) {
+        runnerAbortController.abort();
+        throw new Error(`Execution ${executionId} superseded by ${before.execution_id}`);
+      }
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("cases")
       .update(withHeartbeat as any)
-      .eq("id", caseId);
+      .eq("id", caseId)
+      .eq("execution_id", executionId);
     if (error) {
       traceAsync({
         phase: "db",
@@ -265,25 +315,6 @@ async function _runPipelineForCase(
       .eq("id", caseId);
   }
 
-  // Execution identity. A run that starts at the beginning (a reset rerun, or
-  // the first run after a case/benchmark was seeded) is a NEW execution and
-  // gets a brand-new execution_id, which the report it produces carries. A
-  // checkpoint resume (startFrom set, no reset) continues the SAME execution
-  // and must keep the existing id. This is what makes it visible at a glance
-  // whether a report reflects the latest run or an earlier one.
-  const isFreshExecution = !!reset || !startFrom;
-  if (isFreshExecution) {
-    const executionId = crypto.randomUUID();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("cases")
-      .update({ execution_id: executionId, execution_started_at: new Date().toISOString() })
-      .eq("id", caseId);
-    trace("execution.started", { execution_id: executionId, reset: !!reset });
-  }
-
-
-
   // 2026-07 audit: the previous bypass here (apiKey/apiKeys hardcoded empty)
   // was left over from a period when the platform's Groq key was dead. Groq
   // is confirmed healthy again (Admin → AI Providers), so resolve the user's
@@ -305,7 +336,7 @@ async function _runPipelineForCase(
       e,
     );
   }
-  const baseArgs = { db: supabase, caseId, userId, apiKey, apiKeys: keys };
+  const baseArgs = { db: supabase, caseId, userId, apiKey, apiKeys: keys, executionId };
 
   const pipe = await import("@/lib/pipeline.server");
   const eng = await import("@/lib/intelligence/engines.server");
@@ -395,30 +426,18 @@ async function _runPipelineForCase(
           userId,
           engine: engine as never,
           reason,
+          executionId,
         });
         return { skipped: true, status: "skipped_not_applicable", reason };
       }
     }
     return persist.runCatalogedEngine(
       supabase,
-      { caseId, userId, engine: engine as never },
+      { caseId, userId, engine: engine as never, executionId },
       execute,
     );
   };
 
-  // Quota hardening: analyzers/agents already perform the grounded corpus pass
-  // that produces witness, missing-document/discovery, evidence, contradiction,
-  // and procedural findings. These follow-up stages must therefore summarize
-  // persisted outputs deterministically instead of launching new broad LLM
-  // sweeps over the same case. This keeps Mexico runs aligned with the U.S.
-  // one-pass architecture and prevents a single matter from multiplying calls.
-  //
-  // Phase 3 (reliability freeze): every audit.runEngine call for an engine
-  // that writes to the database is routed through persist.runCatalogedEngine,
-  // which re-queries the target table(s) after the engine returns. A silent
-  // insert failure → verification failure → engine marked `failed` →
-  // downstream dependents marked `blocked` by the loop below. No engine may
-  // report `completed` unless its persistence has been confirmed.
   const runners: Record<
     PipelineStageKey,
     {
@@ -427,21 +446,17 @@ async function _runPipelineForCase(
     }
   > = {
     extraction: {
-      run: () => pipe.runExtraction({ ...baseArgs, clearPriorRuns: isFreshExecution }),
+      run: () => pipe.runExtraction({ ...baseArgs, clearPriorRuns: isFreshExecution, executionId }),
     },
 
     agents: { run: () => pipe.runAgents(baseArgs) },
     analyzers: { run: () => pipe.runAnalyzers(baseArgs) },
     scoring: { run: () => pipe.runScoring(baseArgs), engine: ENGINE.scoring },
-    // Inteligencia de Jurisdicción — deterministic resolution of país/estado/
-    // fuero/materia and the codes that govern the matter.
     jurisdiction_intel: {
-      // Stage-level timeout now applied uniformly at the runOneStage call
-      // site (see there for why) — no longer wrapped here individually.
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: ENGINE.jurisdiction_intel },
+          { caseId, userId, engine: ENGINE.jurisdiction_intel, executionId },
           async () => {
             const { runJurisdictionIntelligence } =
               await import("@/lib/intelligence/jurisdiction-intel.server");
@@ -471,7 +486,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: ENGINE.procedural_compliance },
+          { caseId, userId, engine: ENGINE.procedural_compliance, executionId },
           async () => {
             const { runProceduralCompliance } =
               await import("@/lib/intelligence/procedural-compliance.server");
@@ -499,16 +514,12 @@ async function _runPipelineForCase(
     // when a blocking violation survives remediation, which fails this stage
     // and blocks `report` (its dependent).
     legal_qa: {
-      // Stage-level timeout now applied uniformly at the runOneStage call
-      // site (see there for why) — no longer wrapped here individually.
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: ENGINE.legal_qa },
+          { caseId, userId, engine: ENGINE.legal_qa, executionId },
           async () => {
             const { runLegalQaGate } = await import("@/lib/intelligence/legal-qa.server");
-            // userId routes the translation remediation through the
-            // caller's own provider keys instead of platform credits.
             const value = await runLegalQaGate({ db: supabase, caseId, userId });
             return {
               value,
@@ -537,7 +548,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: ENGINE.evidence_map },
+          { caseId, userId, engine: ENGINE.evidence_map, executionId },
           async () => {
             const m = await import("@/lib/intelligence/evidence-map.server");
             const em = await m.buildEvidenceMap(supabase, caseId);
@@ -555,7 +566,7 @@ async function _runPipelineForCase(
       run: () =>
         persist.runCatalogedEngine(
           supabase,
-          { caseId, userId, engine: ENGINE.contradictions },
+          { caseId, userId, engine: ENGINE.contradictions, executionId },
           async () => {
             const d = await import("@/lib/intelligence/derived-engines.server");
             const result = await d.deriveContradictions(supabase, caseId);
@@ -1356,6 +1367,26 @@ async function _runPipelineForCase(
     const pct = Math.floor((i / total) * 95);
 
 
+    // Execution identity check: abort if superseded by newer execution
+    const { data: curCaseRow } = await (supabase as any)
+      .from("cases")
+      .select("execution_id,cancel_requested")
+      .eq("id", caseId)
+      .maybeSingle();
+    if (curCaseRow && curCaseRow.execution_id && curCaseRow.execution_id !== executionId) {
+      trace("execution.superseded", { current: executionId, newer: curCaseRow.execution_id });
+      runnerAbortController.abort();
+      return { kind: "cancelled", index: i };
+    }
+    if (curCaseRow?.cancel_requested || runnerAbortController.signal.aborted) {
+      await updateCase(
+        { status: "cancelled", status_message: `Cancelled at ${s.label}` },
+        `stage.cancelled:${s.key}`,
+      );
+      trace("pipeline.cancelled", { stage: s.key });
+      return { kind: "cancelled", index: i };
+    }
+
     // Idempotence gate — a stage that already reached a terminal
     // success/skipped state on an earlier tick is never re-executed.
     if (alreadyDone(key)) {
@@ -1396,6 +1427,7 @@ async function _runPipelineForCase(
           engine: engineFor(key),
           blockingEngines: unmet.map(engineFor),
           reason,
+          executionId,
         });
       } catch (recErr) {
         console.warn(`[pipeline] failed to record blocked row for ${s.key}`, recErr);
@@ -1459,24 +1491,7 @@ async function _runPipelineForCase(
 
     const stageStart = Date.now();
     try {
-      // Open the AsyncLocalStorage checkpoint scope so router.server.ts's
-      // assertCheckpointBudget / aiCallTimeoutForCheckpoint guards can see a
-      // real deadline and yield with CheckpointRequired before the worker is
-      // killed mid AI call. Without this scope those guards are no-ops and
-      // only the coarse per-stage progress checks fire — which is exactly the
-      // "died mid-Groq-call, never wrote terminal state" symptom.
       const stageBudgetMs = Math.min(budgetFor(s.key), WORKER_INVOCATION_BUDGET_MS);
-      // withHardCheckpointDeadline is cooperative — it lets router.server.ts
-      // yield a clean CheckpointRequired between AI calls, but only if
-      // execution ever gets back to a checkpoint-aware call site. A stage
-      // that hangs INSIDE a single unresolved network call (Storage
-      // download, a Groq request that never returns) never gets there —
-      // confirmed in production for extraction, then again for
-      // perspectives/strategy, each requiring a manual "Limpiar estado"
-      // click to unstick. withStageTimeout is the hard backstop: a
-      // Promise.race that fires regardless of what the inner code is
-      // awaiting. Stages without a declared timeoutMs in canonical.ts run
-      // unbounded, unchanged from before.
       await withStageTimeout(
         s.key,
         () =>
@@ -1488,7 +1503,7 @@ async function _runPipelineForCase(
             },
             () => r.run(),
           ),
-        { caseId, userId },
+        { caseId, userId, signal: runnerAbortController.signal },
       );
       completed.add(key);
       trace("stage.complete", { stage: s.key, runtime_ms: Date.now() - stageStart });
@@ -1988,5 +2003,9 @@ async function _runPipelineForCase(
     blocked: blocked.size,
   });
   return { ok: true, completedStages: total, warnings: stageFailures };
+  } finally {
+    clearInterval(heartbeatTimer);
+    isTerminated = true;
+  }
 }
 

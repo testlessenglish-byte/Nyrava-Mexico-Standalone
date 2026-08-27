@@ -11,7 +11,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
-const LEASE_MS = 20 * 60 * 1000; // 20 minutes
+const LEASE_MS = 3 * 60 * 1000; // 3 minutes
 
 function workerTrace(event: string, extra: Record<string, unknown> = {}) {
   console.info(
@@ -54,24 +54,46 @@ async function workerTracePersist(
 }
 
 async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
+  // 1. Try atomic PostgreSQL RPC with FOR UPDATE SKIP LOCKED
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rpcRows, error: rpcErr } = await (admin as any).rpc("claim_next_queued_case", {
+      p_lease_ms: LEASE_MS,
+      p_worker_id: "pipeline-worker",
+    });
+    if (!rpcErr && Array.isArray(rpcRows) && rpcRows.length > 0 && rpcRows[0]?.claimed) {
+      const row = rpcRows[0];
+      await workerTracePersist(admin, row.case_id, "worker.lease_acquired", "ok", {
+        next_stage: row.next_stage ?? null,
+        execution_id: row.execution_id,
+        lease_ms: LEASE_MS,
+      });
+      return {
+        id: row.case_id as string,
+        user_id: row.user_id as string,
+        next_stage: (row.next_stage as string | null) ?? null,
+        execution_id: row.execution_id as string,
+      };
+    }
+  } catch (rpcEx) {
+    console.warn("[pipeline-worker] claim_next_queued_case rpc exception", rpcEx);
+  }
+
+  // 2. Fallback CAS if RPC is not yet installed
   const now = new Date();
   const leaseUntil = new Date(now.getTime() + LEASE_MS).toISOString();
-  // Pick the oldest queued case whose lease has expired (or never set).
-  // NOTE: PostgREST's `.or()` with sibling `.not()` filters was picking up
-  // zero rows in production even when a matching row existed; splitting the
-  // two "unclaimed" cases into two explicit queries is boring and correct.
   const buildBase = () =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (admin as any)
       .from("cases")
-      .select("id,user_id,worker_lease_until,queued_at,next_stage")
+      .select("id,user_id,worker_lease_until,queued_at,next_stage,execution_id")
       .eq("status", "queued")
       .not("queued_at", "is", null)
       .order("queued_at", { ascending: true })
       .limit(1);
   const nullLease = await buildBase().is("worker_lease_until", null);
   let cand:
-    | { id: string; user_id: string; worker_lease_until: string | null; next_stage: string | null }
+    | { id: string; user_id: string; worker_lease_until: string | null; next_stage: string | null; execution_id: string | null }
     | undefined = Array.isArray(nullLease.data) ? nullLease.data[0] : undefined;
   if (!cand) {
     const expired = await buildBase().lt("worker_lease_until", now.toISOString());
@@ -82,7 +104,7 @@ async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
     return null;
   }
   workerTrace("worker.lease_candidate", { caseId: cand.id, next_stage: cand.next_stage ?? null });
-  // Try to atomically claim it by CAS on worker_lease_until.
+  const executionId = cand.execution_id ?? crypto.randomUUID();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const q = (admin as any)
     .from("cases")
@@ -90,14 +112,16 @@ async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
       worker_lease_until: leaseUntil,
       status: "intelligence_running",
       status_message: "Worker leased",
+      execution_id: executionId,
+      execution_started_at: new Date().toISOString(),
     })
     .eq("id", cand.id);
   const claimed = cand.worker_lease_until
     ? await q
         .eq("worker_lease_until", cand.worker_lease_until)
-        .select("id,user_id,next_stage")
+        .select("id,user_id,next_stage,execution_id")
         .maybeSingle()
-    : await q.is("worker_lease_until", null).select("id,user_id,next_stage").maybeSingle();
+    : await q.is("worker_lease_until", null).select("id,user_id,next_stage,execution_id").maybeSingle();
   if (claimed.error || !claimed.data) {
     await workerTracePersist(
       admin,
@@ -113,11 +137,15 @@ async function leaseOneCase(admin: ReturnType<typeof createClient<Database>>) {
     next_stage: claimed.data.next_stage ?? null,
     lease_until: leaseUntil,
   });
-  return claimed.data as { id: string; user_id: string; next_stage: string | null };
+  return {
+    id: claimed.data.id as string,
+    user_id: claimed.data.user_id as string,
+    next_stage: (claimed.data.next_stage as string | null) ?? null,
+    execution_id: (claimed.data.execution_id as string | null) ?? executionId,
+  };
 }
 
-
-type LeasedCase = { id: string; user_id: string; next_stage: string | null };
+type LeasedCase = { id: string; user_id: string; next_stage: string | null; execution_id?: string };
 
 /**
  * Run ONE leased case end-to-end. Fully scoped to `leased.id`: every read,
@@ -161,11 +189,13 @@ async function processLeasedCase(
     await workerTracePersist(admin, leased.id, "worker.pipeline_start", "start", {
       reset,
       startFrom: startFrom ?? null,
+      executionId: leased.execution_id,
     });
     const result = await runPipelineForCase(admin, leased.user_id, {
       caseId: leased.id,
       reset,
       startFrom,
+      executionId: leased.execution_id,
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const checkpointed = (result as any)?.warnings?.some((w: any) => w?.error === "checkpoint");

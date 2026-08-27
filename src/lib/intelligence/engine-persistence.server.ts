@@ -138,7 +138,13 @@ export type VerificationSpec<T> = (value: T) => PersistenceExpectation[];
  */
 export async function runVerifiedEngine<T>(
   db: Db,
-  args: { caseId: string; userId: string; engine: EngineName; parentEngine?: string },
+  args: {
+    caseId: string;
+    userId: string;
+    engine: EngineName;
+    parentEngine?: string;
+    executionId?: string;
+  },
   spec: VerificationSpec<T>,
   fn: () => Promise<T | EngineResult<T>>,
 ): Promise<T> {
@@ -447,7 +453,13 @@ export const ENGINE_TABLE_SPECS: Record<string, VerificationSpec<any>> = {
  */
 export function runCatalogedEngine<T>(
   db: Db,
-  args: { caseId: string; userId: string; engine: EngineName; parentEngine?: string },
+  args: {
+    caseId: string;
+    userId: string;
+    engine: EngineName;
+    parentEngine?: string;
+    executionId?: string;
+  },
   fn: () => Promise<T | EngineResult<T>>,
 ): Promise<T> {
   const spec = ENGINE_TABLE_SPECS[args.engine as string] ?? (() => []);

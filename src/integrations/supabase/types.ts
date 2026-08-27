@@ -5675,6 +5675,7 @@ export type Database = {
           ended_at: string | null
           engine: string
           error: string | null
+          execution_id: string | null
           generated: number
           id: string
           meta: Json
@@ -5707,6 +5708,7 @@ export type Database = {
           ended_at?: string | null
           engine: string
           error?: string | null
+          execution_id?: string | null
           generated?: number
           id?: string
           meta?: Json
@@ -5739,6 +5741,7 @@ export type Database = {
           ended_at?: string | null
           engine?: string
           error?: string | null
+          execution_id?: string | null
           generated?: number
           id?: string
           meta?: Json

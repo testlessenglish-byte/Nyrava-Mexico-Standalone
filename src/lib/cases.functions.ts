@@ -941,6 +941,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
       return { ok: false, alreadyRunning: true as const, queued: false };
     }
 
+    const executionId = crypto.randomUUID();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("cases")
@@ -951,6 +952,8 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
         status_message: data.reset ? "Queued for full rerun" : "Queued",
         next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
         cancel_requested: false,
+        execution_id: executionId,
+        execution_started_at: new Date().toISOString(),
       })
       .eq("id", data.caseId);
     await trace({
@@ -961,6 +964,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
       error: error?.message ?? null,
       detail: {
         next_stage: data.reset ? "reset" : (data.startFrom ?? "extraction"),
+        execution_id: executionId,
         pg_code: error?.code ?? null,
         pg_details: error?.details ?? null,
       },
@@ -969,17 +973,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
 
     // On an explicit Rerun, also clear derived tables here — synchronously,
     // at click time — rather than only when runPipelineForCase's own reset
-    // branch eventually runs it. That branch only fires once the worker (or
-    // this tab's self-driving tick) actually picks the case up, which is
-    // usually a couple seconds away but isn't guaranteed instant — e.g. if
-    // the tab is backgrounded right after clicking Rerun and cron hasn't
-    // ticked yet. In that window `pipeline_engine_runs` still held the
-    // previous run's completed rows while `cases.status` already said
-    // "queued", which is exactly the stale mixed state Rerun should never
-    // show. Doing it here means the moment this call returns, there is
-    // nothing left from the old run for any query or realtime subscription
-    // to display. Safe to run twice — runPipelineForCase's reset branch
-    // still runs the same deletes; deleting an already-empty set is a no-op.
+    // branch eventually runs it.
     if (data.reset) {
       await clearCaseDerivedData(supabase, data.caseId);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -998,6 +992,7 @@ export const queueCaseForPipeline = createServerFn({ method: "POST" })
         event: "case.status.write",
         source: "queueCaseForPipeline",
         caseId: data.caseId,
+        execution_id: executionId,
         previous_status: existing.status ?? null,
         new_status: "queued",
         previous_next_stage: null,
@@ -1031,95 +1026,46 @@ export const getCaseRunState = createServerFn({ method: "POST" })
     };
   });
 
-// Client-driven pipeline tick — a fallback execution path that does NOT
-// depend on the pg_cron -> pg_net -> worker-hook relay at all. The browser
-// tab calls this repeatedly (see CaseControlPanel's drive-loop effect) while
-// a case is queued or running. Each call claims a short lease (the same
-// worker_lease_until CAS the background worker uses) and executes one
-// checkpointed chunk of the pipeline using the caller's own authenticated
-// Supabase client (RLS-scoped, so a user can only drive their own case).
-//
-// This exists because the "real" worker relies on pg_net actually delivering
-// its queued HTTP requests, which is infra outside this app's control and
-// can silently stop working (dead request queue, wrong URL, extension not
-// draining, etc.) leaving cases stuck at status="queued" forever with no
-// error surfaced anywhere. Driving execution from the tab that's already
-// open removes that single point of failure. If the real cron worker is
-// healthy and already holds the lease, this is a safe no-op (see the
-// worker_lease_until check below), so it's fine to run both in parallel.
+// Client-driven pipeline tick observer — purely observes execution state
+// and NEVER directly executes runPipelineForCase().
+// Background worker is the sole owner of pipeline execution.
 export const driveCasePipelineTick = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ caseId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = await getAuthedContext(context, "DriveTick");
+    const { supabase } = await getAuthedContext(context, "DriveTick");
     const TERMINAL = new Set(["complete", "released", "needs_revision", "failed", "cancelled"]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: row, error: readErr } = await (supabase as any)
       .from("cases")
-      .select("status, next_stage, worker_lease_until")
+      .select("status, next_stage, worker_lease_until, execution_id")
       .eq("id", data.caseId)
       .maybeSingle();
     if (readErr) throw new Error(readErr.message);
     if (!row) throw new Error("Case not found");
 
-    if (TERMINAL.has(String(row.status ?? ""))) {
+    const statusStr = String(row.status ?? "");
+    if (TERMINAL.has(statusStr)) {
       return { done: true as const, status: row.status as string, ran: false };
     }
 
     const leaseUntil = row.worker_lease_until
       ? new Date(row.worker_lease_until as string).getTime()
       : 0;
-    if (leaseUntil > Date.now()) {
-      // Someone else (the real worker, or another open tab) already holds an
-      // active lease on this case — don't double-run, just report status.
-      return { done: false as const, status: row.status as string, ran: false };
+    if (leaseUntil <= Date.now() && (statusStr === "queued" || statusStr === "intelligence_running")) {
+      try {
+        const { sweepStalledCases } = await import("@/lib/pipeline-stall.server");
+        await sweepStalledCases(supabase, { caseId: data.caseId });
+      } catch {
+        /* best-effort observer watchdog */
+      }
     }
-
-    // Per-user concurrency ceiling applies to this browser-driven tick too.
-    const { assertUserPipelineCapacity: assertCapacityTick } =
-      await import("@/lib/pipeline-lease.server");
-    await assertCapacityTick(supabase, userId, data.caseId, "driveCaseTick");
-
-    // Claim a short lease via CAS so a concurrent tick/tab can't grab the
-    // same case out from under us. runPipelineForCase extends this lease
-    // itself (in 20-minute increments) once it starts writing status.
-    const claimUntil = new Date(Date.now() + 60_000).toISOString();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const base = (supabase as any)
-      .from("cases")
-      .update({ worker_lease_until: claimUntil })
-      .eq("id", data.caseId);
-    const claim = row.worker_lease_until
-      ? await base.eq("worker_lease_until", row.worker_lease_until).select("id").maybeSingle()
-      : await base.is("worker_lease_until", null).select("id").maybeSingle();
-    if (claim.error || !claim.data) {
-      return { done: false as const, status: row.status as string, ran: false };
-    }
-
-    const reset = row.next_stage === "reset";
-    const startFrom = reset ? undefined : ((row.next_stage as string | null) ?? undefined);
-
-    const { runPipelineForCase } = await import("@/lib/pipeline-runner.server");
-    const result = await runPipelineForCase(supabase, userId, {
-      caseId: data.caseId,
-      reset,
-      startFrom,
-    });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: after } = await (supabase as any)
-      .from("cases")
-      .select("status")
-      .eq("id", data.caseId)
-      .maybeSingle();
-    const nowStatus = (after?.status as string) ?? row.status;
 
     return {
-      done: TERMINAL.has(String(nowStatus ?? "")),
-      status: nowStatus as string,
-      ran: true,
-      result,
+      done: TERMINAL.has(statusStr),
+      status: row.status as string,
+      ran: false,
     };
   });
 

@@ -1690,27 +1690,17 @@ export async function runExtraction(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
-  /**
-   * Wipe the engine-run ledger before this pass. TRUE only for a genuinely
-   * fresh execution. On a checkpoint RESUME this must stay false: clearing
-   * the ledger erases every terminal row the resume clamp reads, so the
-   * runner concludes nothing has completed, clamps the resume point back to
-   * `extraction`, re-runs the whole pipeline, checkpoints again, and loops
-   * forever without ever finishing scoring/report.
-   */
+  executionId?: string;
   clearPriorRuns?: boolean;
 }) {
-  const { db, caseId, userId, apiKey, apiKeys, clearPriorRuns = true } = args;
+  const { db, caseId, userId, apiKey, apiKeys, executionId } = args;
   await setCase(db, caseId, {
     status: "extracting",
     status_message: "Extracting evidence",
     progress: 5,
     error: null,
   });
-  // Fresh pipeline pass — clear prior engine audit so the dashboard reflects
-  // this run only.
-  if (clearPriorRuns) await clearEngineRuns(db, caseId);
-  return runEngine(db, { caseId, userId, engine: ENGINE.extraction }, async () => {
+  return runEngine(db, { caseId, userId, engine: ENGINE.extraction, executionId }, async () => {
     return _runExtractionInner({ db, caseId, userId, apiKey, apiKeys });
   });
 }
@@ -2356,29 +2346,27 @@ export async function runAnalyzers(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
 }) {
-  const { db, caseId, userId } = args;
+  const { db, caseId, userId, executionId } = args;
   await setCase(db, caseId, {
     status: "analyzing",
     status_message: "Running analyzers",
     progress: 20,
   });
-  // Reset per-engine rows for the sub-engines this stage covers so a re-run
-  // shows fresh counts.
-  await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).in("engine", [
-    "fact_extraction",
-    "analyzer_contradictions",
-    "analyzer_discovery_gaps",
-    "analyzer_evidence_intelligence",
-    // Clear downstream rows too; analyzer re-run makes them stale. They must
-    // NOT be reinserted here, otherwise the UI shows later stages complete
-    // before their own buttons / orchestrated stages actually run.
-    "contradictions",
-    "discovery_gaps",
-    "evidence_intelligence",
-    "analyzers",
-  ]);
-  return runEngine(db, { caseId, userId, engine: ENGINE.analyzers }, async () =>
+  if (executionId) {
+    await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).eq("execution_id", executionId).in("engine", [
+      "fact_extraction",
+      "analyzer_contradictions",
+      "analyzer_discovery_gaps",
+      "analyzer_evidence_intelligence",
+      "contradictions",
+      "discovery_gaps",
+      "evidence_intelligence",
+      "analyzers",
+    ]);
+  }
+  return runEngine(db, { caseId, userId, engine: ENGINE.analyzers, executionId }, async () =>
     _runAnalyzersInner(args),
   );
 }
@@ -4076,8 +4064,9 @@ export async function runAgents(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
 }) {
-  const { db, caseId, userId, apiKey, apiKeys } = args;
+  const { db, caseId, userId, apiKey, apiKeys, executionId } = args;
   await setCase(db, caseId, {
     status: "agents_running",
     status_message: "Dispatching agents",
@@ -4103,15 +4092,16 @@ export async function runAgents(args: {
   const engineWipeList = ["agents", ...Object.values(AGENT_ENGINE)].filter(
     (e) => !completedEngines.includes(e),
   );
-  if (engineWipeList.length > 0) {
+  if (engineWipeList.length > 0 && executionId) {
     await db
       .from("pipeline_engine_runs")
       .delete()
       .eq("case_id", caseId)
+      .eq("execution_id", executionId)
       .in("engine", engineWipeList);
   }
 
-  return runEngine(db, { caseId, userId, engine: ENGINE.agents }, async () => {
+  return runEngine(db, { caseId, userId, engine: ENGINE.agents, executionId }, async () => {
     const { corpus, chunks } = await buildCorpus(db, caseId);
     if (!corpus) throw new Error("No extracted documents. Run Extraction first.");
 
@@ -4989,15 +4979,18 @@ export async function runScoring(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
 }) {
-  const { db, caseId, userId } = args;
+  const { db, caseId, userId, executionId } = args;
   await setCase(db, caseId, {
     status: "scoring",
     status_message: "Computing explainable scorecard",
     progress: 30,
   });
-  await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).eq("engine", "scoring");
-  return runEngine(db, { caseId, userId, engine: ENGINE.scoring }, async () =>
+  if (executionId) {
+    await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).eq("execution_id", executionId).eq("engine", "scoring");
+  }
+  return runEngine(db, { caseId, userId, engine: ENGINE.scoring, executionId }, async () =>
     _runScoringInner(args),
   );
 }
@@ -5877,12 +5870,10 @@ export async function runReport(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
 }) {
-  const { db, caseId, userId } = args;
+  const { db, caseId, userId, executionId } = args;
   // Clear the per-case findings audit accumulator BEFORE any engine runs.
-  // Without this, `_findingsAudit` (module-level Map keyed by caseId) keeps
-  // adding to the prior run's totals on every rerun/regenerate, and the
-  // cover-page "Findings Summary" silently inflates across regenerations.
   const { resetFindingsAudit } = await import("./intelligence/findings.server");
   resetFindingsAudit(caseId);
   await setCase(db, caseId, {
@@ -5891,12 +5882,6 @@ export async function runReport(args: {
     progress: 5,
   });
 
-  // Backstop: if this case has already checkpointed out of the report stage
-  // MAX_REPORT_CHECKPOINTS times without finishing, the raw LLM calls are
-  // not going to succeed on attempt N+1 either — same prompt, same model,
-  // same timeout. Stop retrying and force finalization with whatever
-  // chunks are already cached, via the existing salvage/fallback path,
-  // so the case always terminates instead of checkpointing forever.
   let forceFinalize = false;
   try {
     const { MAX_REPORT_CHECKPOINTS } = await import("./pipeline-checkpoint.server");
@@ -5921,24 +5906,12 @@ export async function runReport(args: {
     console.warn("[report] failed to read report_checkpoint_count — proceeding normally", e);
   }
 
-  // Backfill any missing upstream engines BEFORE we clear report-tier rows,
-  // so the pre-flight gate inside _runReportInner can succeed without
-  // forcing the user to manually click each prior step.
   const ensured = await ensureRequiredEngines(args);
   if (ensured.failed.length) {
     console.warn("[report] some required engines failed during auto-backfill", ensured.failed);
   }
-  // Collect pipeline warnings for inclusion in the final report (Section 10).
   const pipelineWarnings: string[] = ensured.failed.map((f) => `${f.engine}_failed`);
 
-  // Stale-suppression recovery. Scoring may have run at a moment when the
-  // upstream timestamps weren't written yet (out-of-order execution, an
-  // earlier tick that skipped discovery/evidence_intel, a checkpoint), which
-  // persists a null scorecard flagged PIPELINE_NOT_FINALIZED /
-  // INVALID_PIPELINE_ORDER. Backfill above has now completed those stages, so
-  // the suppression is stale — re-score before the report reads it, otherwise
-  // the report is forced to LIMITED with suppressed scores on a case that has
-  // full coverage.
   try {
     const { data: scoreRow } = await db
       .from("case_scores")
@@ -5985,32 +5958,22 @@ export async function runReport(args: {
     status_message: "Building litigation intelligence",
     progress: 20,
   });
-  // 2026-07-31: theory/strategy/opportunity removed from this list. They
-  // were being deleted here immediately after ensureRequiredEngines() (the
-  // auto-backfill, one call above) had just written fresh success rows for
-  // them — so the pre-flight gate inside _runReportInner, which re-queries
-  // this same table, always found them missing and reported "failed to
-  // complete even after auto-backfill" even when they'd genuinely just
-  // succeeded. Confirmed against a real case: pipeline_trace showed all
-  // three completing cleanly (twice — original run and backfill retry),
-  // but pipeline_engine_runs had zero rows for them at gate-check time.
-  // This delete is for *report-tier* rows only — the engines that are
-  // about to run fresh as part of THIS report-generation attempt
-  // (report_generator itself, plus the downstream QA/validator engines) —
-  // not the upstream analysis engines that just fed it.
-  await db
-    .from("pipeline_engine_runs")
-    .delete()
-    .eq("case_id", caseId)
-    .in("engine", [
-      "report_generator",
-      "motion",
-      "ess_validator",
-      "claim_validator",
-      "report_validator",
-    ]);
-  return runEngine(db, { caseId, userId, engine: ENGINE.report }, async () =>
-    _runReportInner({ ...args, pipelineWarnings, forceFinalize }),
+  if (executionId) {
+    await db
+      .from("pipeline_engine_runs")
+      .delete()
+      .eq("case_id", caseId)
+      .eq("execution_id", executionId)
+      .in("engine", [
+        "report_generator",
+        "motion",
+        "ess_validator",
+        "claim_validator",
+        "report_validator",
+      ]);
+  }
+  return runEngine(db, { caseId, userId, engine: ENGINE.report, executionId }, async () =>
+    _runReportInner({ ...args, pipelineWarnings, forceFinalize, executionId }),
   );
 }
 
@@ -6020,10 +5983,11 @@ async function _runReportInner(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
   pipelineWarnings?: string[];
   forceFinalize?: boolean;
 }) {
-  const { db, caseId, userId, apiKey, apiKeys, forceFinalize } = args;
+  const { db, caseId, userId, apiKey, apiKeys, forceFinalize, executionId } = args;
   const pipelineWarnings: string[] = Array.isArray(args.pipelineWarnings)
     ? [...args.pipelineWarnings]
     : [];
@@ -8648,6 +8612,7 @@ ${paginationTail}`;
     rejected: Math.max(0, generated - accepted),
     suppressed_ess,
     suppressed_validator: 0,
+    execution_id: executionId ?? null,
     meta: meta as never,
   });
   const motionsSuppressed = allowReportMotionGeneration ? 0 : motionsGuarded.items.length;
@@ -8750,7 +8715,7 @@ ${paginationTail}`;
   // flip above is untouched. See that function's doc comment for why this
   // half is safe and why leaving it unpatched was showing every completed
   // report as still "generating" on the Reports page forever.
-  const enginesSummary = finalizeEnginesSummaryForEmbed(await buildEnginesSummary(db, caseId));
+  const enginesSummary = finalizeEnginesSummaryForEmbed(await buildEnginesSummary(db, caseId, executionId));
 
   const { buildAgentStatistics } = await import("./agents/statistics.server");
   const agentStatistics = await buildAgentStatistics(db, caseId);
@@ -9984,34 +9949,33 @@ ${paginationTail}`;
   }
 
   // Execution identity + stale-row eviction.
-  // `reports` is keyed by case_id, so an upsert would otherwise MERGE this
-  // run's columns into the row written by the previous execution — leaving
-  // whichever columns this run didn't write (and the old report id) intact.
-  // When the persisted row belongs to a different execution, delete it first
-  // so the new report is a clean insert with its own id.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: caseRow } = await (db as any)
       .from("cases")
       .select("execution_id")
       .eq("id", caseId)
       .maybeSingle();
-    const executionId = (caseRow as { execution_id?: string | null } | null)?.execution_id ?? null;
-    if (executionId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentExecutionId = (caseRow as { execution_id?: string | null } | null)?.execution_id ?? null;
+    if (executionId && currentExecutionId && currentExecutionId !== executionId) {
+      console.warn(`[report] execution ${executionId} superseded by ${currentExecutionId} — cancelling report save`);
+      throw new CancelledError();
+    }
+    const finalExecutionId = executionId ?? currentExecutionId;
+    if (finalExecutionId) {
       const { data: prior } = await (db as any)
         .from("reports")
         .select("id,execution_id")
         .eq("case_id", caseId)
         .maybeSingle();
       const priorExec = (prior as { execution_id?: string | null } | null)?.execution_id ?? null;
-      if (prior && priorExec !== executionId) {
+      if (prior && priorExec !== finalExecutionId) {
         await db.from("report_versions").delete().eq("case_id", caseId);
         await db.from("reports").delete().eq("case_id", caseId);
       }
-      reportRow.execution_id = executionId;
+      reportRow.execution_id = finalExecutionId;
     }
   } catch (execErr) {
+    if (execErr instanceof CancelledError) throw execErr;
     console.warn(
       `[pipeline.report] execution stamping skipped for case ${caseId}: ${
         execErr instanceof Error ? execErr.message : String(execErr)

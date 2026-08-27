@@ -10,8 +10,8 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Db = SupabaseClient<Database>;
 
-// A case that hasn't heartbeat in this long is considered stalled.
-const DEFAULT_STALL_MS = 4 * 60 * 1000;
+// A case that hasn't heartbeat in this long is considered stalled (matches 3-min lease).
+const DEFAULT_STALL_MS = 3 * 60 * 1000;
 
 // A case may be auto-retried this many times before the watchdog stops
 // retrying and falls back to the old "mark failed, wait for a human to click

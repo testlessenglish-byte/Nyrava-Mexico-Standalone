@@ -37,6 +37,7 @@ export type ExecutionRow = {
   suppressed_validator?: number | null;
   skipped_reason?: string | null;
   error?: string | null;
+  execution_id?: string | null;
   meta?: Record<string, unknown> | null;
   // Phase 1 ledger fields — populated best-effort by callers.
   provider?: string | null;

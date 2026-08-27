@@ -111,7 +111,13 @@ function isUniqueViolation(err: { code?: string; message?: string } | null | und
  */
 export async function runEngine<T>(
   db: Db,
-  args: { caseId: string; userId: string; engine: EngineName; parentEngine?: string },
+  args: {
+    caseId: string;
+    userId: string;
+    engine: EngineName;
+    parentEngine?: string;
+    executionId?: string;
+  },
   fn: () => Promise<T | EngineResult<T>>,
 ): Promise<T> {
   const startedAt = new Date().toISOString();
@@ -119,16 +125,23 @@ export async function runEngine<T>(
   const staleCutoff = new Date(Date.now() - 20 * 60_000).toISOString();
 
   // Fast, friendly pre-check (not the real guard — see note above).
-  const { data: activeRun, error: activeRunErr } = await db
+  let activeRunQuery = db
     .from("pipeline_engine_runs")
     .select("id,started_at")
     .eq("case_id", args.caseId)
     .eq("engine", args.engine)
     .eq("status", "running")
-    .gte("started_at", staleCutoff)
+    .gte("started_at", staleCutoff);
+
+  if (args.executionId) {
+    activeRunQuery = activeRunQuery.eq("execution_id", args.executionId);
+  }
+
+  const { data: activeRun, error: activeRunErr } = await activeRunQuery
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
   if (activeRunErr) {
     throw new Error(`runEngine(${args.engine}): duplicate-run guard failed — ${activeRunErr.message}`);
   }
@@ -141,11 +154,7 @@ export async function runEngine<T>(
     meta: { engine: args.engine, status: "running" },
   });
 
-  // Insert running row. This is the real, atomic duplicate-run guard:
-  // the partial unique index on (case_id, engine) WHERE status='running'
-  // means Postgres itself rejects a second concurrent "running" insert
-  // for the same case+engine, closing the race window the SELECT above
-  // can't close on its own.
+  // Insert running row.
   const { data: inserted, error: insertErr } = await db
     .from("pipeline_engine_runs")
     .insert({
@@ -154,6 +163,7 @@ export async function runEngine<T>(
       engine: args.engine,
       status: "running",
       started_at: startedAt,
+      execution_id: args.executionId ?? null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       parent_engine: args.parentEngine ?? null,
     } as never)
@@ -307,6 +317,7 @@ export async function recordBlocked(
     engine: EngineName;
     blockingEngines: string[];
     reason?: string;
+    executionId?: string;
   },
 ) {
   const now = new Date().toISOString();
@@ -320,6 +331,7 @@ export async function recordBlocked(
     ended_at: now,
     runtime_ms: 0,
     error: reason.slice(0, 2000),
+    execution_id: args.executionId ?? null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     blocking_engines: args.blockingEngines,
     dependency_status: "upstream_failed",
@@ -338,7 +350,13 @@ export async function recordBlocked(
 /** Record an engine that was deliberately not run (e.g. case-type gated). */
 export async function recordSkipped(
   db: Db,
-  args: { caseId: string; userId: string; engine: EngineName; reason: string },
+  args: {
+    caseId: string;
+    userId: string;
+    engine: EngineName;
+    reason: string;
+    executionId?: string;
+  },
 ) {
   const now = new Date().toISOString();
   await db.from("pipeline_engine_runs").insert({
@@ -350,7 +368,8 @@ export async function recordSkipped(
     ended_at: now,
     runtime_ms: 0,
     skipped_reason: args.reason,
-  });
+    execution_id: args.executionId ?? null,
+  } as never);
   await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} skipped`, {
     level: "warn",
     meta: { engine: args.engine, status: "skipped", reason: args.reason },
@@ -363,14 +382,23 @@ export async function clearEngineRuns(db: Db, caseId: string) {
 }
 
 /** Build a compact summary keyed by engine name for embedding in reports. */
-export async function buildEnginesSummary(db: Db, caseId: string) {
-  const { data } = await db
+export async function buildEnginesSummary(
+  db: Db,
+  caseId: string,
+  executionId?: string | null,
+) {
+  let query = db
     .from("pipeline_engine_runs")
     .select(
-      "engine,status,runtime_ms,generated,accepted,rejected,suppressed_ess,suppressed_validator,skipped_reason,error,started_at,ended_at",
+      "engine,status,runtime_ms,generated,accepted,rejected,suppressed_ess,suppressed_validator,skipped_reason,error,started_at,ended_at,execution_id",
     )
-    .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
+    .eq("case_id", caseId);
+
+  if (executionId) {
+    query = query.eq("execution_id", executionId);
+  }
+
+  const { data } = await query.order("created_at", { ascending: true });
   const out: Record<string, unknown> = {};
   for (const row of data ?? []) {
     // Last-wins so a successful re-run overwrites prior failure.
