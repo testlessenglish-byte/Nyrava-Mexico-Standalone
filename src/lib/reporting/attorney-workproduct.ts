@@ -38,7 +38,7 @@ function stars(n: number): string { return "★".repeat(n) + "☆".repeat(Math.m
 function weight(n: number, label: string): EvidenceWeight { return { stars: n, glyphs: stars(n), label }; }
 const JUDICIAL_RESOLUTION_WEIGHT = weight(5, "Resolución Judicial");
 const WEIGHT_RULES: Array<{ re: RegExp; w: EvidenceWeight }> = [
-  { re: /(sentencia|resolucion|laudo|auto de|acuerdo judicial|interlocutoria|ejecutoria|firmado|scjn|tcc|tribunal|juzgado|corte|amparo|adr|expediente)/, w: JUDICIAL_RESOLUTION_WEIGHT },
+  { re: /(sentencia|resolucion|laudo|auto de|acuerdo judicial|interlocutoria|ejecutoria|firmado|scjn|tcc|tribunal|juzgado|corte)/, w: JUDICIAL_RESOLUTION_WEIGHT },
   { re: /(escritura publica|registro publico|acta constitutiva|documento publico|oficio|constancia oficial|acta de audiencia|acta circunstanciada|caratula|expediente administrativo)/, w: weight(5, "Documento Público") },
   { re: /(copia certificada|certificad|notarial|fe publica|apostilla)/, w: weight(4, "Documento Certificado") },
   { re: /(dictamen|pericial|peritaje|avaluo)/, w: weight(4, "Dictamen Pericial") },
