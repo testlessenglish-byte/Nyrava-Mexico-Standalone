@@ -976,6 +976,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   // pass it and duplicating one cheap lookup is simpler than widening
   // every call site's signature.
   let classifyMateria: string | undefined;
+  let classifyUnderlyingMateria: string | null | undefined;
   if (classifyCaseId) {
     // VERIFIED CASE IDENTITY — same precedence as the practice-area
     // backstop above (verified/attorney-locked/declared); undefined when
@@ -986,6 +987,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     );
     const classifyIdentity = await resolveClassifyIdentity(db, classifyCaseId);
     classifyMateria = classifyIdentity.caseType ?? undefined;
+    classifyUnderlyingMateria = classifyIdentity.underlyingMateria;
   }
   const classified = rankAndClassify(finalized, classifyLocale, classifyMateria);
 
@@ -1039,7 +1041,11 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
   }> = [];
   const payload: Array<Record<string, unknown>> = [];
   for (const r of classified) {
-    const domainCheck = checkFindingDomainVocabulary(r, classifyMateria);
+    const domainCheck = checkFindingDomainVocabulary(
+      r,
+      classifyMateria,
+      classifyUnderlyingMateria,
+    );
     if (!domainCheck.clean) {
       domainVocabularyRejected.push({
         title: r.title,
@@ -2004,3 +2010,4 @@ export function normalizeReportWriterFindings(args: {
     crossExaminationRows,
   };
 }
+

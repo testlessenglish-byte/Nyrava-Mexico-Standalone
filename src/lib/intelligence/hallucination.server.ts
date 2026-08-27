@@ -184,6 +184,7 @@ function filterConcludedCaseRecommendations(
 function sanitizePerspectiveActions(
   full: Record<string, unknown>,
   caseType: string,
+  underlyingMateria?: string | null,
 ): number {
   const intelligence = full.intelligence;
   if (!intelligence || typeof intelligence !== "object" || Array.isArray(intelligence)) return 0;
@@ -200,7 +201,11 @@ function sanitizePerspectiveActions(
       const text = [row.action, row.title, row.description, row.reason]
         .map((part) => String(part ?? ""))
         .join(" ");
-      const check = checkDomainVocabulary(text, caseType || undefined);
+      const check = checkDomainVocabulary(
+        text,
+        caseType || undefined,
+        underlyingMateria,
+      );
       if (check.clean) return true;
       removed += 1;
       return false;
@@ -306,7 +311,7 @@ async function reconcileSavedReportProse(
       .maybeSingle(),
     (db as any)
       .from("cases")
-      .select("case_type,case_analysis_mode")
+      .select("case_type,underlying_materia,case_analysis_mode")
       .eq("id", caseId)
       .maybeSingle(),
     (db as any)
@@ -403,7 +408,11 @@ async function reconcileSavedReportProse(
       full.canonical_recommendations = filtered.recommendations;
       concludedCaseActionsRemoved = filtered.removed;
     }
-    materiaLeakActionsRemoved = sanitizePerspectiveActions(full, String(caseRow?.case_type ?? ""));
+    materiaLeakActionsRemoved = sanitizePerspectiveActions(
+      full,
+      String(caseRow?.case_type ?? ""),
+      caseRow?.underlying_materia == null ? null : String(caseRow.underlying_materia),
+    );
     falseOrphanCitationsReconciled = reconcileFalseOrphans(
       full,
       (documentsRaw ?? []) as Array<{ metadata?: unknown }>,
@@ -423,7 +432,11 @@ async function reconcileSavedReportProse(
   }
 
   const reconciledReport = { ...saved, ...patch } as Record<string, unknown>;
-  const renderedIssues = validateRenderedReport(reconciledReport, String(caseRow?.case_type ?? ""));
+  const renderedIssues = validateRenderedReport(
+    reconciledReport,
+    String(caseRow?.case_type ?? ""),
+    caseRow?.underlying_materia == null ? null : String(caseRow.underlying_materia),
+  );
   const renderedDecision = decideRenderedReportRelease(renderedIssues);
 
   if (full) {
@@ -574,3 +587,4 @@ export {
   sanitizePerspectiveActions as __test__sanitizePerspectiveActions,
   reconcileFalseOrphans as __test__reconcileFalseOrphans,
 };
+

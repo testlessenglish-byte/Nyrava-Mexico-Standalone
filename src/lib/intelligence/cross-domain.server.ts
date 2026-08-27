@@ -313,6 +313,12 @@ export async function getActiveDomains(db: Db, caseId: string): Promise<Set<stri
   const domainsIdentity = await resolveCaseIdentity(db, caseId);
   const base = resolvePracticeAreaOrNull(domainsIdentity.caseType);
   const out = new Set<string>(base ? [base] : []);
+  // The outer vehicle (notably Amparo) must not erase the substantive
+  // materia. Including the verified underlying materia makes every existing
+  // effective-domain consumer route Penal-origin Amparo through Penal gates
+  // without globally treating ordinary Amparo as Penal.
+  const underlying = resolvePracticeAreaOrNull(domainsIdentity.underlyingMateria);
+  if (underlying) out.add(underlying);
   const { data: rows } = await db.from("case_domain_activations").select("domain").eq("case_id", caseId);
   for (const r of rows ?? []) {
     const d = resolvePracticeAreaOrNull(r.domain);
@@ -320,3 +326,4 @@ export async function getActiveDomains(db: Db, caseId: string): Promise<Set<stri
   }
   return out;
 }
+

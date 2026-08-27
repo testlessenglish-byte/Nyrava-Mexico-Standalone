@@ -218,9 +218,10 @@ function readQualityCriticalIssues(reportContent: Record<string, unknown>): stri
 export function validateRenderedReport(
   reportContent: Record<string, unknown>,
   caseType: string | null | undefined,
+  underlyingMateria?: string | null,
 ): QaIssue[] {
   const issues: QaIssue[] = [];
-  const criminal = isCriminal(caseType);
+  const criminal = isCriminal(caseType) || isCriminal(underlyingMateria);
 
   for (const { path, value } of walkStrings(reportContent, "")) {
     for (const p of PLACEHOLDER_PATTERNS) {
@@ -248,7 +249,11 @@ export function validateRenderedReport(
           });
         }
       }
-      const domainCheck = checkDomainVocabulary(value, caseType ?? undefined);
+      const domainCheck = checkDomainVocabulary(
+        value,
+        caseType ?? undefined,
+        underlyingMateria,
+      );
       if (!domainCheck.clean) {
         for (const label of domainCheck.violations) {
           issues.push({
@@ -293,3 +298,4 @@ export function validateRenderedReport(
 
   return issues;
 }
+

@@ -6129,7 +6129,7 @@ async function _runReportInner(args: {
   // finalized and ordered correctly. If the canonical set is empty or order
   // is wrong, we degrade loudly via a pipeline warning rather than aborting
   // the entire report — scoring already handled the hard-error case.
-  const { getCanonicalScoringFindings, assertPipelineOrder } =
+  const { getCanonicalReportFindings, assertPipelineOrder } =
     await import("./intelligence/scoring-selection");
   const { data: caseTsRow } = await db
     .from("cases")
@@ -6150,7 +6150,7 @@ async function _runReportInner(args: {
   let findings: typeof allFindings;
   try {
     assertPipelineOrder(caseTs, "report");
-    findings = getCanonicalScoringFindings({
+    findings = getCanonicalReportFindings({
       caseRow: caseTs,
       findings: allFindings as unknown as never,
     });
@@ -6259,6 +6259,11 @@ async function _runReportInner(args: {
     caseId,
     String(JSON.stringify(analysis ?? {})).slice(0, 4000),
   );
+  const { resolveCaseIdentity: resolveReportIdentity } = await import(
+    "./intelligence/case-classification.server"
+  );
+  const reportIdentity = await resolveReportIdentity(db, caseId);
+  const reportUnderlyingMateria = reportIdentity.underlyingMateria;
   // Control constitucional aplica en materia penal, amparo y constitucional.
   const materiaForReport = normalizeMexicanCaseType(caseType);
   const isCriminalOrCivilRights =
@@ -8851,7 +8856,8 @@ ${paginationTail}`;
   );
 
   const reportGeneratedLanguage = await getReportLocale(db, caseId);
-  const reportIsPenal = isCriminalCaseType(caseType);
+  const reportIsPenal =
+    isCriminalCaseType(caseType) || isCriminalCaseType(reportUnderlyingMateria);
   const reportPenalPerspectiveScores = reportIsPenal
     ? computePenalPerspectiveScores(
         findings as unknown as Parameters<typeof computePenalPerspectiveScores>[0],
@@ -9692,6 +9698,7 @@ ${paginationTail}`;
       const renderedQaIssues = validateRenderedReport(
         reportRow as unknown as Record<string, unknown>,
         caseType,
+        reportUnderlyingMateria,
       );
       const renderedQaCritical = renderedQaIssues.filter((i) => i.severity === "critical");
       if (renderedQaCritical.length > 0) {

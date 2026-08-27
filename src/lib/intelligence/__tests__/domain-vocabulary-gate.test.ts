@@ -27,6 +27,16 @@ describe("checkFindingDomainVocabulary", () => {
     expect(r.clean).toBe(true);
   });
 
+  it("does NOT suppress Penal vocabulary in Penal-origin Amparo", () => {
+    const r = checkFindingDomainVocabulary(realBadFinding, "amparo", "penal");
+    expect(r.clean).toBe(true);
+  });
+
+  it("still blocks Penal vocabulary in civil-origin Amparo", () => {
+    const r = checkFindingDomainVocabulary(realBadFinding, "amparo", "civil");
+    expect(r.clean).toBe(false);
+  });
+
   it("never flags anything when materia is unknown/unset — this gate only fires when we positively know the case is not penal", () => {
     const r = checkFindingDomainVocabulary(realBadFinding, undefined);
     expect(r.clean).toBe(true);
@@ -54,3 +64,4 @@ describe("checkFindingDomainVocabulary", () => {
     expect(r.violations).toContain("Ministerio Público");
   });
 });
+
