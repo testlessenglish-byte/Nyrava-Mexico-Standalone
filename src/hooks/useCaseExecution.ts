@@ -21,16 +21,29 @@ import {
 } from "@/lib/execution/canonical";
 
 const RUN_COLUMNS =
-  "id,engine,status,runtime_ms,generated,accepted,rejected,suppressed_ess,suppressed_validator,skipped_reason,error,started_at,ended_at,created_at,meta";
+  "id,engine,status,runtime_ms,generated,accepted,rejected,suppressed_ess,suppressed_validator,skipped_reason,error,started_at,ended_at,created_at,execution_id,meta";
 
 async function fetchRuns(caseId: string): Promise<ExecutionRow[]> {
-  const { data, error } = await supabase
-    .from("pipeline_engine_runs")
-    .select(RUN_COLUMNS)
-    .eq("case_id", caseId)
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as unknown as ExecutionRow[];
+  const [runsRes, caseRes] = await Promise.all([
+    supabase
+      .from("pipeline_engine_runs")
+      .select(RUN_COLUMNS)
+      .eq("case_id", caseId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("cases")
+      .select("execution_id")
+      .eq("id", caseId)
+      .maybeSingle(),
+  ]);
+  if (runsRes.error) throw runsRes.error;
+  const currentExecId = (caseRes.data as { execution_id?: string | null } | null)?.execution_id ?? null;
+  const allRuns = (runsRes.data ?? []) as unknown as ExecutionRow[];
+  if (currentExecId) {
+    const scopedRuns = allRuns.filter((r) => !r.execution_id || r.execution_id === currentExecId);
+    if (scopedRuns.length > 0) return scopedRuns;
+  }
+  return allRuns;
 }
 
 export type UseCaseExecutionResult = {
