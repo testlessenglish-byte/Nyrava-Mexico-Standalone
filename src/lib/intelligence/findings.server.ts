@@ -1334,6 +1334,10 @@ export async function addGatedFindings(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     evidence_refs: (r.evidence_refs as any) ?? [],
     confidence: r.confidence,
+    audit_classification: r.audit_classification,
+    speaker_role: r.speaker_role,
+    proposition_type: r.proposition_type,
+    adoption_status: r.adoption_status,
   }));
   const { items: gated, audit } = applyEvidenceGate(items, { mode, corpus });
 
@@ -1387,8 +1391,8 @@ export async function addGatedFindings(
       corpus: corpusAudit,
     },
   );
-  await addFindings(db, kept);
-  return { inserted: kept.length, audit, mode, corpus: corpusAudit };
+  const inserted = await addFindings(db, kept);
+  return { inserted: inserted.length, audit, mode, corpus: corpusAudit };
 }
 
 export async function listFindings(db: Db, caseId: string): Promise<Finding[]> {
@@ -2010,4 +2014,3 @@ export function normalizeReportWriterFindings(args: {
     crossExaminationRows,
   };
 }
-
