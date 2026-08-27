@@ -1911,10 +1911,11 @@ async function _runPipelineForCase(
     postRun?.status === "needs_revision" ||
     (postRun?.status_message && /needs_revision|review required|revisión|blocked by judge/i.test(postRun.status_message));
   const isReleased = postRun?.status === "released";
+  const preserved = Boolean(postReport) && Boolean(isNeedsRevision || isReleased);
 
-  const finalStatus = isNeedsRevision
+  const finalStatus = preserved && isNeedsRevision
     ? "needs_revision"
-    : isReleased
+    : preserved && isReleased
       ? "released"
       : hasFailures
         ? "failed"
