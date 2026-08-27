@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 146756)
-Total output lines: 10133
-
 // Server-only extraction of the full-pipeline runner so it can be invoked
 // both from an authenticated server function (user click) and from the
 // background worker route (cron / queue drain) with an admin client.
@@ -2495,7 +2492,5694 @@ ${judicialHierarchyInstructions()}
 {
   "timeline": [ { "date": string, "event": string, "source_document": string } ],
   "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, ${jhFragment}, ${auditClassificationFragment}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
-  "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote"…96756 tokens truncated…if (typeof value !== "string" || !isFalsePersonalNoticeTheory(value)) continue;
+  "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "procedural_issues": [ { "title": string, "description": string, "rule": string|null, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "evidence_relationships": [ { "from": string, "to": string, "relationship": string } ],
+  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, ${jhFragment}, ${auditClassificationFragment}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
+}
+
+CASE CORPUS:
+${corpusText}`;
+
+  // Batch-level execution with dynamic sizing + 413 auto-split.
+  // The budget is capped by the NARROWEST configured provider so Groq stays in
+  // the fallback chain instead of being skipped as oversize on every call.
+  const { packingCharBudget, PROMPT_OVERHEAD_CHARS } = await import("@/lib/ai/router.server");
+  const analyzerBudgetChars = await packingCharBudget(
+    ANALYZER_CORPUS_BUDGET_CHARS,
+    PROMPT_OVERHEAD_CHARS.analyzers,
+  );
+  const initialBatches = packChunks(chunks, analyzerBudgetChars);
+  console.log(
+    `[analyzers] docs=${chunks.length} totalChars=${corpus.length} batches=${initialBatches.length} budgetChars=${analyzerBudgetChars}`,
+  );
+
+  // Resume support: skip batches already completed in a prior run.
+
+  const { data: priorBatchRuns } = await db
+    .from("pipeline_engine_runs")
+    .select("meta,status" as any)
+    .eq("case_id", caseId)
+    .eq("engine", "analyzers_batch");
+  const completedDocSets = new Set<string>();
+  for (const row of (priorBatchRuns ?? []) as unknown as Array<{
+    status: string;
+    meta: { docIds?: string[] } | null;
+  }>) {
+    if (row.status === "completed" && Array.isArray(row.meta?.docIds)) {
+      completedDocSets.add(row.meta!.docIds!.slice().sort().join("|"));
+    }
+  }
+
+  type AnalyzerBucket = {
+    timeline: unknown[];
+    contradictions: unknown[];
+    missing_evidence: unknown[];
+    procedural_issues: unknown[];
+    evidence_relationships: unknown[];
+    key_findings: unknown[];
+  };
+  const merged: AnalyzerBucket = {
+    timeline: [],
+    contradictions: [],
+    missing_evidence: [],
+    procedural_issues: [],
+    evidence_relationships: [],
+    key_findings: [],
+  };
+  const providerErrors: string[] = [];
+
+  const queue: CorpusChunk[][] = [...initialBatches];
+  let batchIdx = 0;
+  let successes = 0;
+  // Wall-clock checkpoint for the analyzer batch loop. Completed batches
+  // persist their own `analyzers_batch` row and are skipped on resume, so
+  // yielding here loses no work.
+  const { budgetFor: _analyzerBudgetFor, CheckpointRequired: _AnalyzerCheckpoint } =
+    await import("./pipeline-checkpoint.server");
+  const analyzerBudgetMs = _analyzerBudgetFor("analyzers");
+  const analyzerStartedAt = Date.now();
+  // Analyzer batches are independent reads over disjoint corpus slices, so
+  // they run in waves of ANALYZER_BATCH_CONCURRENCY instead of strictly one at
+  // a time. Every provider call goes through the process-wide `withAiSlot`
+  // gate, so total in-flight requests stay bounded. Failure handling (413
+  // split/requeue, cooldown checkpoint, provider-unavailable stop) is applied
+  // sequentially after each wave settles, exactly as before.
+  // ROLLBACK: set ANALYZER_BATCH_CONCURRENCY to 1.
+  const ANALYZER_BATCH_CONCURRENCY = 2;
+  const { withAiSlot: _withAiSlot, mapSettled: _mapSettled } =
+    await import("@/lib/ai/concurrency.server");
+  type AnalyzerFailure = { batch: CorpusChunk[]; batchIdx: number; msg: string };
+
+  const runAnalyzerBatch = async (
+    batch: CorpusChunk[],
+    idx: number,
+  ): Promise<AnalyzerFailure | null> => {
+    const key = batch
+      .map((c) => c.docId)
+      .sort()
+      .join("|");
+    if (completedDocSets.has(key)) {
+      console.log(
+        `[analyzers] batch ${idx} skipped (already completed in prior run) docs=${batch.length}`,
+      );
+      return null;
+    }
+    const batchCorpus = batch.map((c) => c.text).join("\n\n");
+    const startedAt = new Date().toISOString();
+    const t0 = Date.now();
+    try {
+      console.log(
+        `[analyzers] batch ${idx} start docs=${batch.length} chars=${batchCorpus.length}`,
+      );
+      const r = await _withAiSlot(() =>
+        callGroq({
+          apiKey,
+          apiKeys,
+          systemInstruction,
+          userContent: buildPrompt(batchCorpus),
+          json: true,
+          temperature: 0.1,
+        }),
+      );
+      await logUsage(db, {
+        userId,
+        caseId,
+        operation: "analyze",
+        model: r.model,
+        provider: r.provider,
+        inputTokens: r.inputTokens,
+        outputTokens: r.outputTokens,
+        totalTokens: r.totalTokens,
+        latencyMs: r.latencyMs,
+        success: true,
+        keyIndex: r.keyIndex,
+      });
+      const parsed = parseJsonLoose<Record<string, unknown>>(r.text) ?? {};
+      // Real per-batch item count, computed BEFORE pushing into the
+      // shared `merged` accumulator (which multiple concurrent batches
+      // write into) so this stays correct under ANALYZER_BATCH_CONCURRENCY.
+      // Previously this diagnostic row hardcoded generated/accepted/etc to
+      // 0 unconditionally, making pipeline_engine_runs useless for telling
+      // "the model returned nothing" apart from "the model returned plenty
+      // but it was filtered downstream" — see docs incident trace 2026-08-02.
+      const parsedCounts: Partial<Record<keyof AnalyzerBucket, number>> = {};
+      const push = (k: keyof AnalyzerBucket) => {
+        const v = parsed[k];
+        if (Array.isArray(v)) {
+          parsedCounts[k] = v.length;
+          merged[k].push(...v);
+        }
+      };
+      push("timeline");
+      push("contradictions");
+      push("missing_evidence");
+      push("procedural_issues");
+      push("evidence_relationships");
+      push("key_findings");
+      const generatedCount = Object.values(parsedCounts).reduce((a, b) => a + (b ?? 0), 0);
+      successes++;
+
+      await db.from("pipeline_engine_runs").insert({
+        case_id: caseId,
+        user_id: userId,
+        engine: "analyzers_batch",
+        status: "completed",
+        started_at: startedAt,
+        ended_at: new Date().toISOString(),
+        runtime_ms: Date.now() - t0,
+        generated: generatedCount,
+        accepted: generatedCount,
+        rejected: 0,
+        suppressed_ess: 0,
+        suppressed_validator: 0,
+        meta: {
+          batchIdx: idx,
+          docs: batch.length,
+          chars: batchCorpus.length,
+          docIds: batch.map((c) => c.docId),
+          provider: r.provider,
+          model: r.model,
+          outputTokens: r.outputTokens,
+          parsedCounts,
+          rawResponsePreview: (r.text ?? "").slice(0, 2000),
+        } as any,
+      } as any);
+      return null;
+    } catch (e) {
+      rethrowIfCheckpoint(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(
+        `[analyzers] batch ${idx} failed chars=${batchCorpus.length}: ${msg.slice(0, 300)}`,
+      );
+      await db.from("pipeline_engine_runs").insert({
+        case_id: caseId,
+        user_id: userId,
+        engine: "analyzers_batch",
+        status: "failed",
+        started_at: startedAt,
+        ended_at: new Date().toISOString(),
+        runtime_ms: Date.now() - t0,
+        generated: 0,
+        accepted: 0,
+        rejected: 0,
+        suppressed_ess: 0,
+        suppressed_validator: 0,
+        meta: {
+          batchIdx: idx,
+          docs: batch.length,
+          chars: batchCorpus.length,
+          docIds: batch.map((c) => c.docId),
+          error: msg.slice(0, 500),
+        } as any,
+      } as any);
+      return { batch, batchIdx: idx, msg };
+    }
+  };
+
+  let stopAnalyzers = false;
+  // Bounded escape valve for the case the ordinary checkpoint below can't
+  // handle: if the very FIRST batch never completes, `successes` stays 0
+  // forever and the old condition (successes > 0) never yields — the only
+  // backstop was the blunt 240s stage-level timeout, which hard-fails the
+  // whole stage instead of giving a slow-but-working batch more ticks.
+  // Bounded via a pipeline_trace row count (not a schema column) so a
+  // genuinely broken config still fails cleanly after
+  // MAX_ZERO_PROGRESS_CHECKPOINTS attempts instead of yielding forever —
+  // and, as a side effect, this makes the exact scenario a first-class,
+  // queryable trace event going forward instead of something that can only
+  // be diagnosed after the fact from a summary of what happened.
+  const MAX_ZERO_PROGRESS_CHECKPOINTS = 3;
+  while (queue.length && !stopAnalyzers) {
+    if (Date.now() - analyzerStartedAt > analyzerBudgetMs) {
+      if (successes > 0) {
+        console.warn(
+          `[analyzers] checkpoint reached after ${successes} batches — yielding, ${queue.length} remaining`,
+        );
+        throw new _AnalyzerCheckpoint(
+          "analyzers",
+          `${successes} batches done, ${queue.length} remaining`,
+        );
+      }
+      const { count: priorZeroProgress } = await db
+        .from("pipeline_trace")
+        .select("id", { count: "exact", head: true })
+        .eq("case_id", caseId)
+        .eq("step", "analyzers.zero_progress_checkpoint");
+      const attemptNumber = (priorZeroProgress ?? 0) + 1;
+      if (attemptNumber <= MAX_ZERO_PROGRESS_CHECKPOINTS) {
+        const { trace } = await import("./pipeline-trace.server");
+        await trace({
+          phase: "stage",
+          step: "analyzers.zero_progress_checkpoint",
+          status: "warn",
+          db,
+          caseId,
+          userId,
+          detail: {
+            elapsed_ms: Date.now() - analyzerStartedAt,
+            budget_ms: analyzerBudgetMs,
+            queue_remaining: queue.length,
+            attempt: attemptNumber,
+            max_attempts: MAX_ZERO_PROGRESS_CHECKPOINTS,
+          },
+        });
+        console.warn(
+          `[analyzers] zero-progress checkpoint ${attemptNumber}/${MAX_ZERO_PROGRESS_CHECKPOINTS} — first batch never completed within budget, yielding to next tick`,
+        );
+        throw new _AnalyzerCheckpoint(
+          "analyzers",
+          `0 batches done after ${attemptNumber} zero-progress checkpoint(s), ${queue.length} remaining`,
+        );
+      }
+      // Exhausted the zero-progress budget: this is a persistent failure
+      // (bad config, sustained provider outage), not a transient slow
+      // batch. Fail the stage cleanly so it lands in the existing
+      // stall-auto-retry / manual-resume path instead of yielding forever.
+      throw new Error(
+        `Analyzers made zero progress after ${MAX_ZERO_PROGRESS_CHECKPOINTS} consecutive checkpoint cycles ` +
+          `(${Math.round((Date.now() - analyzerStartedAt) / 1000)}s elapsed) — likely a persistent provider ` +
+          `or configuration issue, not a transient timeout.`,
+      );
+    }
+    const wave = queue.splice(0, ANALYZER_BATCH_CONCURRENCY);
+    const startIdx = batchIdx;
+    batchIdx += wave.length;
+    const settled = await _mapSettled(wave, ANALYZER_BATCH_CONCURRENCY, (batch, i) =>
+      runAnalyzerBatch(batch, startIdx + i + 1),
+    );
+    for (const res of settled) {
+      if (!res.ok) throw res.error; // checkpoint / programmer error — propagate
+      const failure = res.value;
+      if (!failure) continue;
+      const { batch, msg } = failure;
+      const payloadTooLarge = isPayloadTooLargeError(msg);
+      const providerUnavailable = isProviderUnavailableError(msg);
+      const retryableTransport = isRetryableTransportError(msg);
+      const nonRetryable = isAuthProviderError(msg);
+      if (payloadTooLarge && !nonRetryable && batch.length > 1) {
+        const mid = Math.ceil(batch.length / 2);
+        queue.unshift(batch.slice(0, mid), batch.slice(mid));
+        console.log(
+          `[analyzers] batch ${failure.batchIdx} split → 2 sub-batches of ${mid}/${batch.length - mid}`,
+        );
+        continue;
+      }
+      if (
+        payloadTooLarge &&
+        !nonRetryable &&
+        batch.length === 1 &&
+        batch[0].size > ANALYZER_MIN_BATCH_CHARS
+      ) {
+        const halves = splitOversizeChunk(batch[0]);
+        if (halves.length > 1) {
+          queue.unshift(...halves.map((h) => [h]));
+          console.log(
+            `[analyzers] batch ${failure.batchIdx} single-doc split by text (${halves.length} halves)`,
+          );
+          continue;
+        }
+      }
+      providerErrors.push(`batch ${failure.batchIdx} (${batch.length} docs): ${msg.slice(0, 300)}`);
+      if (isGroqCooldownOrRateLimit(msg)) {
+        const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
+        console.warn(
+          `[analyzers] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`,
+        );
+        throw new CheckpointRequired(
+          "analyzers",
+          `after ${successes} successful batch(es) — ${msg.slice(0, 300)}`,
+        );
+      }
+      if (providerUnavailable || retryableTransport) {
+        console.warn(
+          `[analyzers] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`,
+        );
+        stopAnalyzers = true;
+        break;
+      }
+    }
+  }
+
+  if (successes === 0) {
+    // Soft-catch: a transient batch failure (malformed JSON, provider capacity,
+    // transport hiccup) must not hard-fail the stage and cascade every
+    // downstream engine into `blocked`. Only a real configuration error
+    // (bad/absent API key) is fatal here.
+    const fatalConfig = providerErrors.some((m) => isAuthProviderError(m));
+    if (fatalConfig) {
+      throw new Error(`Analyzers failed on every batch. Details:\n${providerErrors.join("\n")}`);
+    }
+    console.warn(
+      `[analyzers] every batch failed transiently — continuing with empty analyzer buckets so downstream stages still run. Details:\n${providerErrors.join("\n")}`,
+    );
+  }
+  if (providerErrors.length) {
+    console.warn(
+      `[analyzers] completed with ${providerErrors.length} failed batch(es); ${successes} succeeded`,
+    );
+  }
+
+  // ── Cross-batch synthesis pass ───────────────────────────────────────────
+  // The per-batch loop above only ever shows the model ONE ~60K-char slice
+  // of the corpus at a time. On any case whose corpus exceeds that budget,
+  // a contradiction or finding that requires comparing two documents in
+  // DIFFERENT batches is structurally invisible to every single batch call.
+  // This pass fixes that generically: it builds a SHORT digest of every
+  // document so many more documents fit in one call, and asks the model
+  // specifically to find connections that span documents. Findings from
+  // this pass flow into the SAME merged buckets, so they go through the
+  // same dedupe + grounding/verification as everything else below.
+  const SYNTHESIS_DIGEST_CHARS_PER_DOC = 700;
+  const SYNTHESIS_BATCH_BUDGET_CHARS = 90_000;
+  try {
+    const digestChunks: CorpusChunk[] = chunks.map((c) => {
+      const text = c.text.slice(0, SYNTHESIS_DIGEST_CHARS_PER_DOC);
+      return { ...c, text, size: text.length };
+    });
+    const synthesisBatches = packChunks(digestChunks, SYNTHESIS_BATCH_BUDGET_CHARS);
+    console.log(
+      `[analyzers:synthesis] docs=${digestChunks.length} batches=${synthesisBatches.length}`,
+    );
+
+    const synthesisSystem =
+      `${analyzerPreamble}\n` +
+      "You are a senior legal analyst doing a SECOND PASS over a case. You have already " +
+      "seen detailed single-document analysis; now you are shown SHORT DIGESTS of every " +
+      "document in the case side by side. Your ONLY job is to find contradictions, " +
+      "corroborations, or connections that require comparing details from TWO OR MORE " +
+      "DIFFERENT documents (names, dates, times, amounts, locations, descriptions that " +
+      "conflict or confirm each other across documents). Do NOT report anything observable " +
+      "from a single document alone. Every item MUST cite at least one verbatim quote " +
+      "(<=200 chars) copied EXACTLY from the digest text below, with the source DOCUMENT " +
+      "filename — if you cannot find an exact quote, do not include the finding. Output " +
+      "STRICT JSON only.";
+
+    const buildSynthesisPrompt = (digestText: string) =>
+      `Return STRICT JSON. Every item MUST include an evidence_refs array of ` +
+      `{ doc_id?: string, doc_n?: number, quote: string (verbatim, <=200 chars) }, ` +
+      `citing AT LEAST TWO different documents where possible — that's the point of this pass.
+
+{
+  "contradictions": [ { "title": string, "description": string, "documents": string[], "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "missing_evidence": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ],
+  "key_findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": ${mxPartyRoleEnum(analyzerArea)}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ]
+}
+
+DOCUMENT DIGESTS (short excerpts — full text was already analyzed in a prior pass; you are only cross-referencing):
+${digestText}`;
+
+    let synthesisIdx = 0;
+    for (const batch of synthesisBatches) {
+      synthesisIdx++;
+      const digestText = batch.map((c) => c.text).join("\n\n");
+      const t0 = Date.now();
+      try {
+        const r = await callGroq({
+          apiKey,
+          apiKeys,
+          systemInstruction: synthesisSystem,
+          userContent: buildSynthesisPrompt(digestText),
+          json: true,
+          temperature: 0.1,
+        });
+        await logUsage(db, {
+          userId,
+          caseId,
+          operation: "analyze",
+          model: r.model,
+          provider: r.provider,
+          inputTokens: r.inputTokens,
+          outputTokens: r.outputTokens,
+          totalTokens: r.totalTokens,
+          latencyMs: r.latencyMs,
+          success: true,
+          keyIndex: r.keyIndex,
+        });
+        const parsed = parseJsonLoose<Record<string, unknown>>(r.text) ?? {};
+        const pushSyn = (k: keyof AnalyzerBucket) => {
+          const v = parsed[k];
+          if (Array.isArray(v)) merged[k].push(...v);
+        };
+        pushSyn("contradictions");
+        pushSyn("missing_evidence");
+        pushSyn("key_findings");
+
+        await db.from("pipeline_engine_runs").insert({
+          case_id: caseId,
+          user_id: userId,
+          engine: "analyzers_batch",
+          status: "completed",
+          started_at: new Date(t0).toISOString(),
+          ended_at: new Date().toISOString(),
+          runtime_ms: Date.now() - t0,
+          generated: 0,
+          accepted: 0,
+          rejected: 0,
+          suppressed_ess: 0,
+          suppressed_validator: 0,
+          meta: {
+            synthesis: true,
+            synthesisBatchIdx: synthesisIdx,
+            docs: batch.length,
+            provider: r.provider,
+          } as any,
+        } as any);
+      } catch (e) {
+        // Additive pass — if it fails, the case still has everything the
+        // per-batch pass found. Log and move on instead of failing the run.
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[analyzers:synthesis] batch ${synthesisIdx} failed: ${msg.slice(0, 300)}`);
+      }
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[analyzers:synthesis] pass skipped due to setup error: ${msg.slice(0, 300)}`);
+  }
+
+  // De-dupe merged arrays by (title|description) fingerprint to prevent
+  // near-duplicate findings from overlapping batches.
+  const dedupe = <T extends Record<string, unknown>>(items: T[]): T[] => {
+    const seen = new Set<string>();
+    const out: T[] = [];
+    for (const it of items) {
+      const key = `${String(it.title ?? "")
+        .trim()
+        .toLowerCase()}::${String(it.description ?? "")
+        .trim()
+        .slice(0, 120)
+        .toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(it);
+    }
+    return out;
+  };
+  const a: Record<string, unknown> = {
+    timeline: merged.timeline,
+    contradictions: dedupe(merged.contradictions as Record<string, unknown>[]),
+    missing_evidence: dedupe(merged.missing_evidence as Record<string, unknown>[]),
+    procedural_issues: dedupe(merged.procedural_issues as Record<string, unknown>[]),
+    evidence_relationships: merged.evidence_relationships,
+    key_findings: dedupe(merged.key_findings as Record<string, unknown>[]),
+  };
+
+  const { data: docsForGround } = await db
+    .from("documents")
+    .select("id,filename,extracted_text")
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: true });
+  const { buildGroundingCorpus, groundItems } = await import("./intelligence/grounding.server");
+  const groundCorpus = buildGroundingCorpus(
+    (docsForGround ?? []).map((d) => ({
+      id: d.id as string,
+      filename: d.filename,
+      extracted_text: d.extracted_text,
+    })),
+  );
+  const groundCat = <T extends Record<string, unknown>>(items: T[]) =>
+    groundItems(items, groundCorpus, { minVerified: 1 });
+
+  // Same class of bug fixed in runTrialPrepEngine/case_witnesses/
+  // case_opportunities: Supabase upsert() does NOT throw on its own. This
+  // result was previously discarded entirely, so a rejected write (RLS,
+  // constraint, transient DB error) on the core 4-category analyzer output
+  // — timeline, contradictions, missing_evidence, procedural_issues,
+  // key_findings — left the case silently missing the source data several
+  // report sections and the evidence-gate rely on, with no signal.
+  const { error: analysesUpsertError } = await db.from("analyses").upsert(
+    {
+      case_id: caseId,
+      user_id: userId,
+      timeline: (a.timeline ?? null) as J,
+      contradictions: (a.contradictions ?? null) as J,
+      missing_evidence: (a.missing_evidence ?? null) as J,
+      procedural_issues: (a.procedural_issues ?? null) as J,
+      evidence_relationships: (a.evidence_relationships ?? null) as J,
+      key_findings: (a.key_findings ?? null) as J,
+    },
+    { onConflict: "case_id" },
+  );
+  if (analysesUpsertError) {
+    throw new Error(`analyses upsert failed for case ${caseId}: ${analysesUpsertError.message}`);
+  }
+
+  await clearFindingsByModule(db, caseId, "analyzer:");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const arr = (k: string): any[] => (Array.isArray(a[k]) ? (a[k] as any[]) : []);
+  const rawContradictions = arr("contradictions");
+  const rawMissing = arr("missing_evidence");
+  const rawProcedural = arr("procedural_issues");
+  const rawKey = arr("key_findings");
+  const groundedContradictions = groundCat(rawContradictions);
+  const groundedMissing = groundCat(rawMissing);
+  const groundedProcedural = groundCat(rawProcedural);
+  const groundedKey = groundCat(rawKey);
+  const analyzerRowsRaw = [
+    ...normalizeLlmFindings({
+      caseId,
+      userId,
+      sourceModule: "analyzer:contradiction",
+      defaultCategory: "contradiction",
+      items: groundedContradictions,
+    }),
+    ...normalizeLlmFindings({
+      caseId,
+      userId,
+      sourceModule: "analyzer:missing",
+      defaultCategory: "missing_evidence",
+      items: groundedMissing,
+    }),
+    ...normalizeLlmFindings({
+      caseId,
+      userId,
+      sourceModule: "analyzer:procedural",
+      defaultCategory: "procedural",
+      items: groundedProcedural,
+    }),
+    ...normalizeLlmFindings({
+      caseId,
+      userId,
+      sourceModule: "analyzer:key",
+      defaultCategory: "strength",
+      items: groundedKey,
+    }),
+  ];
+  // Practice-area filter: drop findings whose category resolves to a domain
+  // not allowed for this case type (belt-and-braces if the LLM ignored the
+  // case-type preamble and emitted e.g. a "miranda" key_finding on a civil
+  // case). source_module wrappers like "analyzer:*" carry no domain, so we
+  // re-key the gate on the category token.
+  const analyzerRows = analyzerRowsRaw.filter((row) =>
+    isFindingAllowed(analyzerPolicyArea, `analyzer:${String(row.category ?? "")}`, analyzerDomains),
+  );
+  // FIX (2026-07-29): missing_evidence findings are absence-of-evidence
+  // claims by nature ("this document should exist in the corpus but
+  // doesn't") — they structurally cannot carry a verbatim supporting
+  // quote the same way a contradiction or key finding can. Passing the
+  // whole combined batch through addGatedFindings() with no
+  // exemptCitation meant every missing_evidence item that lacked a
+  // literal quotable passage was silently dropped by the citation gate
+  // (the "else: dropped by strict/balanced gate" branch), even though its
+  // own sub-engine stats reported it as "accepted" — confirmed via a
+  // real case where analyzer_discovery_gaps reported 3 accepted but zero
+  // analyzer:missing rows existed in case_findings afterward. Splitting
+  // the gate call so missing_evidence gets the same AI_THEORY-tagged
+  // exemption addGatedFindings already supports for exactly this
+  // evidentiary shape (see findings.server.ts's addGatedFindings
+  // comment: "discovery-gap, trial risk/strength").
+  const missingRows = analyzerRows.filter(
+    (row) => String(row.category ?? "") === "missing_evidence",
+  );
+  const otherRows = analyzerRows.filter((row) => String(row.category ?? "") !== "missing_evidence");
+  const otherGate = await addGatedFindings(db, caseId, otherRows);
+  const missingGate = await addGatedFindings(db, caseId, missingRows, { exemptCitation: true });
+  const analyzerGate = {
+    inserted: otherGate.inserted + missingGate.inserted,
+    mode: otherGate.mode,
+    corpus: otherGate.corpus,
+    audit:
+      otherGate.audit && missingGate.audit
+        ? {
+            ...otherGate.audit,
+            input: (otherGate.audit.input ?? 0) + (missingGate.audit.input ?? 0),
+            accepted: (otherGate.audit.accepted ?? 0) + (missingGate.audit.accepted ?? 0),
+            rejections: [
+              ...(otherGate.audit.rejections ?? []),
+              ...(missingGate.audit.rejections ?? []),
+            ],
+          }
+        : (otherGate.audit ?? missingGate.audit),
+  };
+  console.log(
+    "[analyzers] evidence-gate audit",
+    analyzerGate.audit,
+    "practice_area_filtered",
+    analyzerRowsRaw.length - analyzerRows.length,
+  );
+
+  // Emit per-sub-engine audit rows so the dashboard shows every engine that
+  // contributed findings, not just the umbrella "analyzers" step.
+  const subRow = (engine: string, raw: unknown[], grounded: unknown[]) => ({
+    case_id: caseId,
+    user_id: userId,
+    engine,
+    status: "completed" as const,
+    started_at: new Date().toISOString(),
+    ended_at: new Date().toISOString(),
+    runtime_ms: 0,
+    generated: raw.length,
+    accepted: grounded.length,
+    rejected: Math.max(0, raw.length - grounded.length),
+    suppressed_ess: 0,
+    suppressed_validator: 0,
+    meta: {} as never,
+  });
+  await db
+    .from("pipeline_engine_runs")
+    .insert([
+      subRow("fact_extraction", rawKey, groundedKey),
+      subRow("analyzer_contradictions", rawContradictions, groundedContradictions),
+      subRow("analyzer_discovery_gaps", rawMissing, groundedMissing),
+      subRow("analyzer_evidence_intelligence", rawProcedural, groundedProcedural),
+    ]);
+
+  await setCase(db, caseId, {
+    status: "analyzed",
+    status_message: "Analyzers complete",
+    progress: 100,
+    analysis_at: new Date().toISOString(),
+  });
+  return {
+    value: undefined,
+    stats: {
+      generated: analyzerRows.length,
+      accepted: analyzerGate.inserted,
+      rejected: Math.max(0, analyzerRows.length - analyzerGate.inserted),
+      meta: {
+        evidence_gate: {
+          mode: analyzerGate.mode,
+          audit: analyzerGate.audit,
+          corpus: analyzerGate.corpus,
+          practice_area_filtered: analyzerRowsRaw.length - analyzerRows.length,
+        },
+        // VERIFIED CASE IDENTITY — surfaced on the ledger row (not silently
+        // swallowed) whenever this run proceeded on an unverified/declared
+        // materia rather than a source-confirmed or attorney-locked one.
+        case_identity: {
+          case_type: analyzerArea,
+          status: analyzerIdentity.status,
+          unverified_classification: !analyzerIdentityVerified,
+        },
+      },
+    },
+  };
+}
+
+// ===== STEP 3: Agents (specialized investigators in parallel) =====
+// Judicial-hierarchy schema fragment/instructions — same shared source
+// (finding-taxonomy.ts) the analyzers stage's contradictions/key_findings
+// buckets use (see buildPrompt above), so an agent's speaker_role/
+// proposition_type/adoption_status output is understood identically by
+// findings.server.ts's normalizers regardless of which engine produced it.
+// Wired into the 11 amparo/constitucional specialized agents below (the
+// ones most likely to encounter multi-instance judicial review — amparo
+// directo en revisión, recurso de revisión, controversia constitucional)
+// per Phase 1 item #1 of the "Universal Completed Case Legal Audit
+// Architecture Fix." The instructions themselves say to omit the fields
+// entirely on a single-instance matter, so this is a no-op addition for
+// every case that isn't multi-instance review.
+const AGENT_JH_FRAGMENT = judicialHierarchySchemaFragment();
+const AGENT_JH_INSTRUCTIONS = judicialHierarchyInstructions();
+const AGENT_AUDIT_CLASSIFICATION_FRAGMENT = auditClassificationSchemaFragment();
+
+const IMMIGRATION_AGENT_GROUNDING =
+  "Output JSON only. Use exclusively Mexican law and authorities (INM, SRE/consulates, COMAR, DIF/protection authorities, TFJA, PJF and CNDH as applicable). Never use USCIS, ICE, green-card, U.S. form, removal-court or U.S. visa concepts. Every finding must include at least one exact, contiguous quote copied from a supplied document; omit any finding that cannot be grounded. Distinguish verified facts from inferences and never present an unverified deadline or remembered legal requirement as current law.";
+
+const IMMIGRATION_AGENT_PROMPT = `Return STRICT JSON:
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "persona_migrante"|"autoridad_responsable"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }
+Each quote must be a single exact contiguous excerpt of at most 200 characters from the cited document. If a trigger date, governing rule, official requirement or current source version is missing, say it is unconfirmed and identify what must be verified; do not calculate or invent it.`;
+
+const IMMIGRATION_AGENTS: { type: string; category: string; system: string; prompt: string }[] = [
+  {
+    type: "immigration_eligibility_analysis",
+    category: "immigration_eligibility_analysis",
+    system:
+      "Analyze requested Mexican immigration status or benefit, current condition of stay, continuity, family/employment basis and document sufficiency. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "immigration_deadline_continuity",
+    category: "immigration_deadline_continuity",
+    system:
+      "Extract notification, entry, expiration, prevention, appeal, TFJA and amparo trigger dates. State the rule, calendar/business-day basis, excluded days, authority and confidence; never confirm a deadline without its trigger and verified rule. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "refugee_non_refoulement_analysis",
+    category: "refugee_non_refoulement_analysis",
+    system:
+      "Analyze refugee eligibility, complementary protection, non-refoulement, humanitarian grounds, family unity and risk on return under Mexican law and treaties binding on Mexico. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "nationality_naturalization_analysis",
+    category: "nationality_naturalization_analysis",
+    system:
+      "Analyze Mexican nationality by birth or filiation, declarations, certificates, dual nationality, naturalization grounds and challenges to SRE decisions. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "immigration_due_process_remedies",
+    category: "immigration_due_process_remedies",
+    system:
+      "Analyze competence, notice, reasons and legal grounds, hearing rights, detention legality, administrative appeal, TFJA nullity, amparo and urgent suspension without assuming a remedy is available. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+  {
+    type: "child_vulnerability_protection",
+    category: "child_vulnerability_protection",
+    system:
+      "Analyze best interests of children, family unity, unaccompanied-child safeguards, vulnerability, DIF/protection-authority intervention and alternatives to detention. " +
+      IMMIGRATION_AGENT_GROUNDING,
+    prompt: IMMIGRATION_AGENT_PROMPT,
+  },
+];
+
+const AGENTS: { type: string; category: string; system: string; prompt: string }[] = [
+  ...IMMIGRATION_AGENTS,
+  {
+    type: "witness_credibility",
+    category: "witness",
+    system:
+      "You are a witness credibility investigator. Examine FIRST-PERSON WITNESS OR PARTY STATEMENTS ONLY — testimony, declarations, sworn statements, interview transcripts — for consistency, motive, bias, and corroboration. A judicial ruling, sentencia, tesis, jurisprudencia, or statutory/constitutional text is NOT witness testimony, even when it quotes or summarizes what a witness said — the court speaking in its own resolutional voice ('esta Sala resuelve...', 'CONSIDERANDO...', 'por unanimidad de votos...') is a judicial decision, not a witness statement, and must NEVER be analyzed as one. If the corpus contains no genuine witness/party statements, emit ZERO findings rather than repurposing judicial or statutory text. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis; a spliced quote will not appear verbatim in the document and will be rejected outright. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely — do not fabricate continuity that isn't in the text. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "subject": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "chain_of_custody",
+    category: "chain_of_custody",
+    system:
+      "You are a chain-of-custody investigator. Examine evidence handling for gaps, breaks, and documentation failures. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis; a spliced quote will not appear verbatim in the document and will be rejected outright. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely — do not fabricate continuity that isn't in the text. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "item": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "constitutional_compliance",
+    category: "constitutional",
+    system:
+      // REBUILT 2026-07-29: previously instructed the model to search for
+      // "4th/5th/6th Amendment issues, Miranda, search/seizure, due
+      // process" — U.S. constitutional doctrine with no standing in a
+      // Mexican proceeding. This platform is built exclusively for
+      // Mexican law. Rebuilt around CPEUM arts. 14, 16, 19, 20.
+      "You are a Mexican constitutional-rights investigator (CPEUM). Examine for violations of Art. 16 (cateo, detención, control judicial), Art. 19 (plazo constitucional, auto de vinculación a proceso), and Art. 20 apartados A/B/C (debido proceso, presunción de inocencia, derecho de defensa adecuada, derecho a guardar silencio, derechos de la víctima). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis; a spliced quote will not appear verbatim in the document and will be rejected outright. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely — do not fabricate continuity that isn't in the text. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "right": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "procedural_violations",
+    category: "procedural",
+    system:
+      // REBUILT 2026-07-29: previously instructed the model to search for
+      // "FRCP/FRCrP/local rule violations" — U.S. Federal Rules of Civil/
+      // Criminal Procedure, inapplicable to a CNPP/CFPC proceeding.
+      "You are a Mexican procedural-rules investigator. Examine for violations of the CNPP (materia penal) or the Código Federal de Procedimientos Civiles / código procesal local aplicable (materia civil, mercantil, familiar), including plazos vencidos, defectos de notificación o emplazamiento, y omisiones en la carpeta de investigación. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis; a spliced quote will not appear verbatim in the document and will be rejected outright. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely — do not fabricate continuity that isn't in the text. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "rule": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Amparo / Constitucional specialized investigators (2026-08-04).
+  // Gated via PRACTICE_GATED_ENGINES + MX_ENGINES.amparo/constitucional —
+  // see AGENT_ENGINE below and the isAnalyzerAllowed() filter at the top of
+  // this stage. Party-role enum matches MX_PARTY_ROLES.amparo (quejoso /
+  // autoridad_responsable / tercero_interesado / ambas), not the generic
+  // parte_actora/parte_demandada pair used by the four materia-agnostic
+  // agents above.
+  // ---------------------------------------------------------------------
+  {
+    type: "standing_procedencia",
+    category: "standing_procedencia",
+    system:
+      "You are a Mexican amparo/constitutional-standing investigator. Examine the record for interés jurídico (afectación a un derecho subjetivo del quejoso), interés legítimo (afectación a una situación jurídica derivada del ordenamiento, sin titularidad de un derecho subjetivo — art. 5, fr. I, Ley de Amparo), el principio de definitividad (agotamiento previo de los recursos ordinarios, salvo las excepciones reconocidas por la Ley de Amparo: actos que afecten a personas extrañas al juicio, actos prohibidos por el art. 22 constitucional, actos de ejecución de imposible reparación, o vulneración directa a derechos humanos que amerite suplencia de la queja) y el principio de subsidiariedad (el amparo no sustituye a los medios ordinarios de defensa). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "procedencia_issue": "interes_juridico"|"interes_legitimo"|"definitividad"|"subsidiariedad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "suspension_analysis",
+    category: "suspension_analysis",
+    system:
+      "You are a Mexican amparo/constitutional-suspension investigator. Examine whether la suspensión de oficio y de plano procede (art. 126 Ley de Amparo: actos que importen peligro de privación de la vida, ataques a la libertad personal fuera de procedimiento, incomunicación, deportación, expulsión, actos prohibidos por el art. 22 constitucional, sometimiento a jurisdicción militar) frente a la suspensión a petición de parte (arts. 128-131: apariencia del buen derecho, no afectación al interés social, no contravención de disposiciones de orden público), y evalúa el daño irreparable que la suspensión busca prevenir. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "suspension_type": "de_oficio_y_de_plano"|"a_peticion_de_parte"|"improcedente", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "conventionality_pro_persona",
+    category: "conventionality_pro_persona",
+    system:
+      "You are a Mexican control-de-convencionalidad and principio-pro-persona investigator, applying art. 1° constitucional (reforma de 2011) and the obligatory control difuso de convencionalidad every Mexican judge must exercise ex officio within their competence, confronting internal norms against the Constitution and the international human-rights treaties ratified by Mexico. Examine whether the acto reclamado or the challenged resolution applied the most favorable interpretation to the person (principio pro persona) when two or more interpretations were available, and whether control de convencionalidad was performed or omitted. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. If the strongest single contiguous span does not fully support the finding, either use a shorter exact span or omit the finding entirely. Do NOT invent a specific SCJN tesis registry number or Corte IDH paragraph citation — name only the doctrine, and flag that the exact citation needs human verification. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "constitutional_rights_mapping",
+    category: "constitutional_rights_mapping",
+    system:
+      "You are a Mexican fundamental-rights mapping investigator. Map which fundamental rights recognized in the CPEUM (Capítulo I, 'De los Derechos Humanos y sus Garantías') and in the international human-rights treaties ratified by Mexico are implicated by the acto reclamado or the controversy, identifying the specific constitutional article or international instrument for each right. Do NOT invent a specific tesis or jurisprudencia citation — identify only the right and its normative source (article or treaty), leaving the exact case-law citation to human research. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "right": string, "normative_source": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "authority_notification_validation",
+    category: "authority_notification_validation",
+    system:
+      "You are a Mexican responsible-authority and notification-validity investigator for amparo and constitutional proceedings. Examine whether the authority named as autoridad responsable had material, temporal, and territorial competence to have issued, ordered, or executed the acto reclamado, and whether notifications of the acto reclamado, the informe justificado, the suspensión, and the sentencia were made in accordance with the Ley de Amparo (arts. 26-33) within the corresponding deadlines. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "competencia_de_la_autoridad"|"notificacion_defectuosa"|"plazo_incumplido", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "international_human_rights_analysis",
+    category: "international_human_rights_analysis",
+    system:
+      "You are an international human-rights-law investigator for Mexican amparo and constitutional matters. Identify which international human-rights treaties ratified by Mexico (e.g. Convención Americana sobre Derechos Humanos, Pacto Internacional de Derechos Civiles y Políticos, Convenio 169 de la OIT sobre Pueblos Indígenas y Tribales, Convención sobre los Derechos del Niño, CEDAW, Convención Interamericana para Prevenir y Sancionar la Tortura — as relevant to the facts) apply, and which state obligations (respetar, proteger, garantizar) are at issue. Do NOT invent a specific Corte IDH judgment number, paragraph, or treaty-body opinion citation — identify only the instrument and the applicable obligation; the exact case-law citation requires human verification. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "treaty": string, "obligation": "respetar"|"proteger"|"garantizar", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Penal specialized investigators (2026-08-04). Grouped: the four
+  // "forensic sub-type" agents in the original wishlist (DNA / ballistics /
+  // digital / cellular) are ONE agent here, not four — most penal
+  // expedientes have only one or two of those modalities present, and four
+  // near-identical narrow agents would sit empty on most cases. One rigorous
+  // evidence-reliability agent that names the modality per finding is more
+  // useful than four thin ones. Party-role enum matches MX_PARTY_ROLES.penal
+  // (ministerio_publico / defensa / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "search_warrant_arrest_legality",
+    category: "search_warrant_arrest_legality",
+    system:
+      "You are a Mexican search-and-arrest legality investigator under the CNPP and arts. 16 and 19 CPEUM. Examine whether any cateo (search warrant) was authorized by a juez de control with sufficient motivación (specific place, object of search, persons involved) and executed within its terms (arts. 282-291 CNPP), and whether any detención (arrest) was either backed by an orden de aprehensión issued on sufficient grounds, or — for flagrancia or caso urgente — met the constitutional standard for warrantless arrest (art. 16, párrafos quinto-séptimo CPEUM), including the mandatory 'puesta a disposición sin demora' before the Ministerio Público/juez. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "act_type": "cateo"|"detencion_con_orden"|"detencion_por_flagrancia"|"detencion_por_caso_urgente"|"puesta_a_disposicion", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "forensic_digital_evidence_analysis",
+    category: "forensic_digital_evidence_analysis",
+    system:
+      "You are a Mexican forensic and digital-evidence reliability investigator. Examine every dictamen pericial in the corpus — biológico/genético (ADN), balístico, informático/digital (telefonía celular, extracción de dispositivos), or de cualquier otra especialidad presente — for: (a) la calidad y certificación del perito, (b) la metodología empleada y si es una técnica científicamente aceptada, (c) la cadena de custodia de la muestra o dispositivo desde su recolección hasta el dictamen, y (d) si las conclusiones del perito están razonablemente sustentadas por los datos técnicos reportados, no solo afirmadas. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "evidence_type": "adn"|"balistica"|"informatico_forense"|"telefonia_celular"|"otro", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "reasonable_doubt_defense_theory",
+    category: "reasonable_doubt_defense_theory",
+    system:
+      "You are a Mexican criminal-defense investigator building a reasonable-doubt theory (duda razonable) protected by the presunción de inocencia (art. 20, apartado B, fracción I CPEUM). Examine the prosecution's theory of the case as reflected in the corpus for factual gaps, inconsistent or uncorroborated testimony, breaks in the cadena de custodia, alternative explanations for the evidence, and any element of the delito the Ministerio Público has not affirmatively established. This agent argues FOR the defense — do not soften or omit a genuine weakness in the prosecution's case out of caution. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "gap_type": "elemento_del_delito_no_acreditado"|"testimonio_no_corroborado"|"ruptura_cadena_custodia"|"explicacion_alternativa"|"inconsistencia_factica", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "defensa", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "sentencing_analysis",
+    category: "sentencing_analysis",
+    system:
+      "You are a Mexican sentencing (individualización de la pena) investigator. Examine the corpus for factors relevant to sentencing under the applicable código penal: atenuantes (mitigating factors — primo delincuente, reparación del daño, colaboración, condiciones socioeconómicas y culturales) and agravantes (aggravating factors — reincidencia, ensañamiento, posición de autoridad o confianza abusada), and any basis for salidas alternas (suspensión condicional del proceso, acuerdo reparatorio) or procedimiento abreviado. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "factor_type": "atenuante"|"agravante"|"salida_alterna_disponible", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "appeal_opportunity_detection",
+    category: "appeal_opportunity_detection",
+    system:
+      "You are a Mexican criminal-appeal opportunity investigator. Examine the corpus for grounds to challenge a resolution via recurso de apelación (CNPP arts. 467-471) or, where the conviction is final, via amparo directo — errores en la valoración de la prueba, violación al debido proceso, indebida fundamentación o motivación de la sentencia, o aplicación incorrecta de la ley penal. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "ground": "error_en_valoracion_de_prueba"|"violacion_al_debido_proceso"|"indebida_fundamentacion_motivacion"|"aplicacion_incorrecta_de_la_ley", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "ministerio_publico"|"defensa"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Agrario specialized investigators (2026-08-04). Party-role enum matches
+  // MX_PARTY_ROLES.agrario (parte_actora / parte_demandada / nucleo_agrario
+  // / ambas) — agrario now has its own MxPipelineProfile instead of
+  // inheriting civil's (see execution/mx-pipeline.ts).
+  // ---------------------------------------------------------------------
+  {
+    type: "ran_record_certificate_review",
+    category: "ran_record_certificate_review",
+    system:
+      "You are a Mexican agrarian-registry investigator. Examine the corpus for certificados parcelarios, certificados de derechos agrarios, or constancias emitidas por el Registro Agrario Nacional (RAN), and assess whether the titularidad they document is consistent with the parcel/right claimed in the matter, whether the certificate is current (no posterior cancelación or reasignación evidenced elsewhere in the corpus), and whether any gap or inconsistency exists between the RAN record and other title evidence in the file. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "record_type": "certificado_parcelario"|"certificado_derechos_agrarios"|"constancia_ran"|"otro", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "ejido_assembly_analysis",
+    category: "ejido_assembly_analysis",
+    system:
+      "You are a Mexican ejido-assembly (asamblea ejidal) validity investigator, applying Ley Agraria arts. 23-28. Examine any acta de asamblea in the corpus for: quórum de instalación (mayoría de ejidatarios en primera convocatoria, o al menos 20% en segunda), competencia de la asamblea sobre la materia resuelta (algunas decisiones — parcelamiento, delimitación de tierras de uso común, aportación a sociedades — requieren la asistencia calificada de dos terceras partes de los ejidatarios y presencia de fedatario público bajo el art. 24), y si la convocatoria y las formalidades de acta fueron cumplidas. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "quorum"|"competencia_de_la_asamblea"|"formalidad_de_convocatoria"|"fedatario_publico", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "communal_land_indigenous_rights",
+    category: "communal_land_indigenous_rights",
+    system:
+      "You are a Mexican communal-land and indigenous-community rights investigator. Examine the corpus for tierras de uso común (Ley Agraria arts. 73-75), bienes comunales, and — where the núcleo agrario is an indigenous or equiparable community — rights recognized under Convenio 169 de la OIT (consulta previa, libre e informada; territorio; autonomía en la gestión de sus recursos naturales). Identify whether any decision affecting communal or indigenous land was made without the consultation or consent the applicable framework requires. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "rights_category": "tierras_de_uso_comun"|"bienes_comunales"|"consulta_previa_indigena"|"autonomia_territorial", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "boundary_possession_analysis",
+    category: "boundary_possession_analysis",
+    system:
+      "You are a Mexican agrarian boundary-and-possession investigator. Examine the corpus for evidence of colindancias (boundaries), any deslinde or levantamiento topográfico performed, the historical chain of ownership/possession of the parcel, and who has actual, continuous possession versus who holds documentary title — these frequently diverge in agrarian disputes. Flag any discrepancy between the boundaries described in the RAN/plano parcelario and the boundaries asserted in the parties' pleadings. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "discrepancia_de_colindancias"|"posesion_sin_titulo"|"titulo_sin_posesion"|"antecedente_de_propiedad_dudoso", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "agrarian_jurisdiction_restitution",
+    category: "agrarian_jurisdiction_restitution",
+    system:
+      "You are a Mexican agrarian-tribunal jurisdiction and land-restitution investigator. Examine the corpus for whether the Tribunal Unitario Agrario properly has competencia (materia agraria, territorio del distrito) over the matter versus a claim that actually belongs to another jurisdiction (civil ordinaria, amparo agrario), and for the elements of an acción de restitución de tierras (Ley Agraria arts. 18, 48-49: despojo o privación ilegal de la posesión o titularidad, identidad de la superficie reclamada, y la cadena de actos que produjeron la pérdida de la tierra). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "competencia_del_tribunal"|"elementos_de_restitucion"|"identidad_de_superficie"|"cadena_de_despojo", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"nucleo_agrario"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Civil specialized investigators (2026-08-04). Party-role enum matches
+  // MX_PARTY_ROLES.civil (parte_actora / parte_demandada / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "contract_analysis_ambiguity",
+    category: "contract_analysis_ambiguity",
+    system:
+      "You are a Mexican civil-contract investigator. Examine every contrato in the corpus for its constitutive elements (consentimiento, objeto, forma — arts. 1794-1859 Código Civil), identify obligaciones de dar/hacer/no hacer and their plazos/condiciones, and flag any cláusula ambigua (susceptible de dos o más interpretaciones razonables) that could produce a dispute over its meaning, applying the interpretation rules of arts. 1851-1857 (la intención de los contratantes prevalece sobre el sentido literal cuando las palabras parecieren contrarias a ella). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "elemento_constitutivo_faltante"|"clausula_ambigua"|"obligacion_no_definida"|"condicion_o_plazo_indeterminado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "liability_damages_assessment",
+    category: "liability_damages_assessment",
+    system:
+      "You are a Mexican civil-liability and damages investigator. Determine whether the facts support responsabilidad civil subjetiva (culpa o negligencia, arts. 1910 CCF) or responsabilidad civil objetiva (riesgo creado, art. 1913 CCF), identify the nexo causal between the hecho ilícito and the harm, and quantify — where the corpus supports it — daño material, daño moral (art. 1916), and daños y perjuicios (arts. 2108-2110: daño emergente y lucro cesante), citing the specific figures or valuation evidence found. Do not invent a dollar/peso amount not supported by the corpus. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "liability_basis": "responsabilidad_subjetiva"|"responsabilidad_objetiva"|"incumplimiento_contractual", "damage_type": "dano_material"|"dano_moral"|"dano_emergente"|"lucro_cesante"|"no_cuantificado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "payment_insurance_analysis",
+    category: "payment_insurance_analysis",
+    system:
+      "You are a Mexican payment-history and insurance-coverage investigator. Examine the corpus for evidence of pagos realizados, mora en el cumplimiento (art. 2104 CCF) and its consequences, and — where a póliza de seguro is present — the coverage it provides, any exclusión aplicable, and whether the siniestro was reported within the plazo required by the Ley Sobre el Contrato de Seguro. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "mora_en_el_pago"|"pago_no_documentado"|"cobertura_de_seguro"|"exclusion_de_poliza"|"siniestro_extemporaneo", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "statute_of_limitations_analysis",
+    category: "statute_of_limitations_analysis",
+    system:
+      "You are a Mexican civil statute-of-limitations investigator. Determine the applicable plazo de prescripción (positiva or negativa, arts. 1135-1180 CCF — general 10 años for acciones reales, shorter terms for acciones personales specific to the obligation type) or caducidad, identify the hecho generador that started the term running, and assess whether the action was filed within it or whether an interrupción/suspensión (reconocimiento de la deuda, demanda judicial, arts. 1168-1176) applies. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "limitation_type": "prescripcion_positiva"|"prescripcion_negativa"|"caducidad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "settlement_opportunity_analyzer",
+    category: "settlement_opportunity_analyzer",
+    system:
+      "You are a Mexican civil-settlement (convenio judicial / transacción) opportunity investigator. Examine the strength of each side's position as reflected in the corpus and identify whether a convenio judicial (art. 2944 CCF — transacción) is realistic, what terms would be defensible for each party, and any procedural incentive to settle (costas, tiempo estimado de litigio, riesgo probatorio). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Familiar specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.familiar (parte_actora / parte_demandada / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "custody_best_interest_analysis",
+    category: "custody_best_interest_analysis",
+    system:
+      "You are a Mexican family-law investigator applying the interés superior de la niñez (art. 4 CPEUM, Ley General de los Derechos de Niñas, Niños y Adolescentes). Examine the corpus for the factors relevant to guarda y custodia: estabilidad del entorno, capacidad de cuidado de cada progenitor, vínculo afectivo, opinión del menor cuando su edad y madurez lo permitan (derecho a ser escuchado), y cualquier riesgo a su bienestar. Evaluate whether a parenting-plan structure (custodia compartida vs. exclusiva, régimen de convivencias) is supported by the record, and identify any dictamen psicológico or estudio socioeconómico that bears on the determination. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "factor_type": "estabilidad_del_entorno"|"capacidad_de_cuidado"|"vinculo_afectivo"|"opinion_del_menor"|"riesgo_al_bienestar"|"dictamen_tecnico", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "child_support_calculation",
+    category: "child_support_calculation",
+    system:
+      "You are a Mexican pensión alimenticia (child/family support) investigator. Examine the corpus for the acreedor's necesidad and the deudor's capacidad económica (comprobantes de ingresos, actividad económica) — the two elements every Mexican código civil conditions alimentos on — and for any porcentaje or fórmula already proposed or ordered. Flag any evidence of ingresos no declarados or capacidad económica superior to what the deudor has represented. Do not invent a specific peso amount the corpus does not support. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "necesidad_del_acreedor"|"capacidad_economica_del_deudor"|"ingresos_no_declarados"|"formula_o_porcentaje_propuesto", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "domestic_violence_assessment",
+    category: "domestic_violence_assessment",
+    system:
+      "You are a Mexican violencia-familiar investigator, applying the Ley General de Acceso de las Mujeres a una Vida Libre de Violencia and the applicable código civil/penal definitions of violencia física, psicológica, económica, patrimonial y sexual within the family. Examine the corpus for evidence of any of these modalities, whether an órden de protección was requested or issued, and the implications for custody/convivencia determinations (a documented risk to the child or the other parent is directly relevant to guarda y custodia, not a separate issue). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "violence_type": "fisica"|"psicologica"|"economica"|"patrimonial"|"sexual", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Mercantil specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.mercantil (parte_actora / parte_demandada / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "corporate_governance_shareholder_rights",
+    category: "corporate_governance_shareholder_rights",
+    system:
+      "You are a Mexican corporate-governance investigator under the Ley General de Sociedades Mercantiles (LGSM). Examine the corpus for asambleas (ordinarias/extraordinarias) and whether quórum, convocatoria, and competencia requirements were met (arts. 178-198); consejo de administración or administrador único conduct and any conflicto de interés or acto ultra vires; and shareholder/partner rights — derecho de voto, derecho de preferencia, derecho de separación, acción de responsabilidad contra administradores (arts. 161-163) — that the corpus shows were exercised, denied, or violated. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "quorum_o_convocatoria"|"competencia_del_organo"|"conflicto_de_interes"|"derecho_de_accionista_vulnerado"|"accion_de_responsabilidad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "commercial_contract_intelligence",
+    category: "commercial_contract_intelligence",
+    system:
+      "You are a Mexican commercial-contract investigator under the Código de Comercio and the Ley General de Títulos y Operaciones de Crédito. Examine every contrato mercantil and título de crédito (pagaré, letra de cambio, cheque) in the corpus for its formal requisites, the obligations and plazos each party assumed, and any incumplimiento, protesto, or defecto de forma that affects enforceability (acción cambiaria, arts. 150-169 LGTOC). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "instrument_type": "contrato_mercantil"|"pagare"|"letra_de_cambio"|"cheque", "issue_type": "requisito_formal_faltante"|"incumplimiento"|"protesto_defectuoso"|"defecto_de_forma", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "financial_fraud_commercial_risk",
+    category: "financial_fraud_commercial_risk",
+    system:
+      "You are a Mexican commercial financial-fraud and risk investigator. Examine financial statements, transfer records, and correspondence in the corpus for indicators of fraude (simulación de actos, operaciones con recursos de procedencia ilícita under the Ley Federal para la Prevención e Identificación de Operaciones con Recursos de Procedencia Ilícita), and assess overall commercial risk (concentración de deuda, garantías insuficientes, litigios pendientes que afecten la solvencia). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "simulacion_de_actos", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "bankruptcy_concurso_review",
+    category: "bankruptcy_concurso_review",
+    system:
+      "You are a Mexican concurso mercantil (bankruptcy) investigator under the Ley de Concursos Mercantiles. Examine the corpus for evidence supporting or opposing a declaración de concurso mercantil (incumplimiento generalizado de pagos, arts. 9-12), the stage reached (conciliación vs. quiebra), and the reconocimiento, graduación y prelación de créditos of any creditor whose claim is discussed. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "stage": "conciliacion"|"quiebra"|"no_determinado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "parte_actora"|"parte_demandada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Laboral specialized investigators (2026-08-04). Party-role enum matches
+  // MX_PARTY_ROLES.laboral (trabajador / patron / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "lft_compliance_review",
+    category: "lft_compliance_review",
+    system:
+      "You are a Mexican labor-law compliance investigator under the Ley Federal del Trabajo. Examine the corpus for compliance with jornada laboral (arts. 58-68, límites y horas extra), descansos y vacaciones (arts. 69-81), aguinaldo (art. 87), prima vacacional (art. 80), reparto de utilidades/PTU (arts. 117-131), and NOM-035 (riesgos psicosociales) where relevant, flagging any documented deviation from the statutory minimums. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "compliance_area": "jornada_laboral"|"descansos_y_vacaciones"|"aguinaldo"|"prima_vacacional"|"ptu"|"nom_035", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "payroll_overtime_imss_audit",
+    category: "payroll_overtime_imss_audit",
+    system:
+      "You are a Mexican payroll, overtime, and IMSS-compliance investigator. Examine recibos de nómina, registros de horas, and constancias del IMSS/INFONAVIT in the corpus for horas extra no pagadas (art. 66-68 LFT: doble hasta 9 horas semanales, triple después), discrepancies between salario registrado ante el IMSS and salario real (a common source of liability), and any gap in the patron's cuotas obrero-patronales. Do not invent a specific peso figure the corpus does not support. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "horas_extra_no_pagadas"|"discrepancia_salario_imss"|"cuotas_obrero_patronales_faltantes"|"recibo_no_documentado", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "wrongful_termination_analysis",
+    category: "wrongful_termination_analysis",
+    system:
+      "You are a Mexican wrongful-termination (despido injustificado) investigator. Examine whether a rescisión de la relación laboral was properly grounded in one of the causales of art. 47 LFT, whether the aviso de rescisión was delivered as art. 47 requires (in writing, with the specific conduct and date, either to the worker or filed with the Junta/Tribunal within 5 days), and — per art. 784/804 LFT — whether the patrón discharged its burden to produce the personnel file. Also assess whether the worker's own conduct (art. 51 rescisión por causa imputable al patrón) supports a claim in the opposite direction. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "causal_no_acreditada"|"aviso_de_rescision_defectuoso"|"carga_probatoria_del_patron"|"rescision_por_causa_del_patron", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "union_discrimination_review",
+    category: "union_discrimination_review",
+    system:
+      "You are a Mexican union-rights and workplace-discrimination investigator. Examine the corpus for libertad sindical violations (art. 123 apartado A fracción XVI CPEUM, arts. 356-373 LFT — represalia por afiliación sindical, cláusula de exclusión indebida) and for discriminación laboral (art. 1 CPEUM, art. 3 LFT — trato diferenciado por origen étnico, género, edad, discapacidad, condición social, embarazo, orientación sexual, u otro motivo prohibido) and hostigamiento/acoso laboral (art. 3 Bis LFT). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "violacion_libertad_sindical"|"discriminacion_laboral"|"hostigamiento_o_acoso", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "trabajador"|"patron"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Administrativo specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.administrativo (particular / autoridad /
+  // tercero_interesado / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "administrative_due_process_review",
+    category: "administrative_due_process_review",
+    system:
+      "You are a Mexican administrative-due-process investigator. Examine the corpus for compliance with the procedimiento administrativo (Ley Federal de Procedimiento Administrativo) and with garantía de audiencia (art. 14 CPEUM — the particular must be heard, with the opportunity to offer evidence, before a definitive act affects their rights), flagging any stage where the authority acted without giving the particular a real opportunity to respond. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "procedimiento_omitido"|"garantia_de_audiencia_vulnerada"|"plazo_procesal_incumplido", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "authority_competence_notification_review",
+    category: "authority_competence_notification_review",
+    system:
+      "You are a Mexican administrative-authority-competence and notification investigator. Examine whether the autoridad emisora had competencia material, territorial, and de grado to issue the acto administrativo (art. 16 CPEUM — debida fundamentación y motivación of that competence), and whether the notificación del acto was made in a form and within the term the applicable law requires (personal, por correo certificado, or por estrados, depending on the act). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "incompetencia_de_la_autoridad"|"fundamentacion_o_motivacion_insuficiente"|"notificacion_defectuosa", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "administrative_nullity_analysis",
+    category: "administrative_nullity_analysis",
+    system:
+      "You are a Mexican administrative-nullity investigator under the Ley Federal de Procedimiento Contencioso Administrativo. Assess which causal de nulidad applies to the acto impugnado (incompetencia, omisión de requisitos formales, vicios de procedimiento, indebida fundamentación/motivación, o desvío de poder), and whether the resulting nulidad should be lisa y llana (the authority may not repeat the act) or para efectos (the authority may reissue it correcting the defect). Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "nullity_type": "lisa_y_llana"|"para_efectos"|"no_determinado", "causal": "incompetencia"|"omision_de_requisitos_formales"|"vicios_de_procedimiento"|"indebida_fundamentacion_motivacion"|"desvio_de_poder", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Fiscal specialized investigators (2026-08-04). Party-role enum matches
+  // MX_PARTY_ROLES.fiscal (contribuyente / autoridad_fiscal / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "sat_audit_review",
+    category: "sat_audit_review",
+    system:
+      "You are a Mexican tax-audit (facultades de comprobación) investigator under the Código Fiscal de la Federación. Examine the corpus for the modality of audit exercised — visita domiciliaria (arts. 43-49 CFF), revisión de gabinete/escritorio (art. 48), or revisión electrónica (art. 53-B) — whether it was exercised within the plazo de caducidad (generally 5 años, art. 67 CFF, extendable), and whether the acta final / oficio de observaciones properly identified the irregularities before the resolución determinante issued. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "audit_type": "visita_domiciliaria"|"revision_de_gabinete"|"revision_electronica"|"no_determinado", "issue_type": "caducidad_de_facultades"|"irregularidad_no_notificada"|"acta_o_oficio_defectuoso", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "contribuyente"|"autoridad_fiscal"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "cfdi_accounting_tax_validation",
+    category: "cfdi_accounting_tax_validation",
+    system:
+      "You are a Mexican CFDI and tax-calculation validation investigator. Examine any comprobante fiscal digital por internet (CFDI) in the corpus for the formal requisites the CFF and the Resolución Miscelánea Fiscal require, cross-check reported deductions against supporting CFDIs, and assess whether the tax determination (ISR, IVA) reflected in the corpus follows the applicable rate/base rules, flagging any deducción improcedente or discrepancia fiscal (ingresos no declarados vs. depósitos bancarios, art. 91 LISR). Do not invent a specific peso figure the corpus does not support. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "cfdi_con_requisito_faltante"|"deduccion_improcedente"|"discrepancia_fiscal"|"calculo_de_impuesto_incorrecto", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "contribuyente"|"autoridad_fiscal"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "prodecon_opportunity_detection",
+    category: "prodecon_opportunity_detection",
+    system:
+      "You are a Mexican taxpayer-defense opportunity investigator (PRODECON). Examine the corpus for whether the matter qualifies for an acuerdo conclusivo (Procuraduría de la Defensa del Contribuyente, arts. 69-C to 69-H CFF — available while a revisión de gabinete, visita domiciliaria, or revisión electrónica is still open and before the resolución determinante), or for a queja/reclamación de derechos ante PRODECON where the SAT has committed a procedural excess. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "opportunity_type": "acuerdo_conclusivo_disponible"|"queja_prodecon"|"asesoria_prodecon", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "contribuyente"|"autoridad_fiscal"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Electoral specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.electoral (actor / autoridad_responsable /
+  // tercero_interesado / ambas). Electoral now has its own MxPipelineProfile
+  // instead of inheriting administrativo (see execution/mx-pipeline.ts).
+  // ---------------------------------------------------------------------
+  {
+    type: "ine_documentation_candidate_eligibility",
+    category: "ine_documentation_candidate_eligibility",
+    system:
+      "You are a Mexican electoral-registration investigator under the LGIPE. Examine the corpus for documentación ante el INE/OPLE (constancia de registro, credencial para votar, requisitos de elegibilidad del art. 10 LGIPE — edad, residencia, no tener impedimento legal) and whether a candidatura's registro was validly granted, denied, or challenged, including compliance with the 3de3 (declaraciones patrimonial, fiscal y de intereses) where applicable. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "elegibilidad_de_candidatura"|"registro_ine_opl"|"declaracion_3de3", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "campaign_finance_review",
+    category: "campaign_finance_review",
+    system:
+      "You are a Mexican campaign-finance investigator under the LGPP and the reglamento de fiscalización del INE. Examine the corpus for gastos de campaña reported against the tope de gastos authorized for the contest, undisclosed or improperly sourced financing (aportaciones prohibidas — de personas morales, de origen extranjero, anónimas más allá del límite), and any propaganda not properly accounted for in the informe de gastos. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "rebase_de_tope_de_gastos"|"aportacion_prohibida"|"propaganda_no_reportada", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "vote_counting_chain_of_custody",
+    category: "vote_counting_chain_of_custody",
+    system:
+      "You are a Mexican vote-counting and ballot-integrity investigator. Examine actas de escrutinio y cómputo, actas de la mesa directiva de casilla, and paquete electoral records in the corpus for arithmetic or procedural irregularities (votos que no coinciden con boletas entregadas, alteración de actas, dolo o error), and for gaps in the cadena de custodia of ballots/packages between the casilla and the cómputo distrital. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "error_aritmetico_en_acta"|"alteracion_de_acta"|"ruptura_cadena_de_custodia"|"paquete_electoral_irregular", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "political_violence_gender_parity",
+    category: "political_violence_gender_parity",
+    system:
+      "You are a Mexican investigator specializing in violencia política en razón de género and paridad de género in electoral contests, applying the Ley General de Acceso de las Mujeres a una Vida Libre de Violencia's electoral-violence provisions and the LGIPE's paridad requirements (candidaturas, planillas, integración de órganos). Examine the corpus for acts fitting the statutory definition of violencia política de género (limiting, restricting, or annulling a woman's political-electoral rights because of her gender) and for any paridad requirement that the record shows was not met. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "violencia_politica_de_genero"|"paridad_no_cumplida", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "electoral_nullity_analysis",
+    category: "electoral_nullity_analysis",
+    system:
+      "You are a Mexican electoral-nullity investigator under the LGSMIME. Assess whether the facts in the corpus support a causal de nulidad de la votación recibida en casilla (art. 75 — instalación irregular, recepción por persona no autorizada, ejercer violencia o presión, error en el cómputo con efecto en el resultado, dolo o error en la boleta, entre otras) or a nulidad de elección, and whether the irregularity is determinante para el resultado de la votación — the standard the doctrine requires before annulling. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "nullity_level": "votacion_en_casilla"|"eleccion", "determinante": boolean, "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "actor"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Ambiental specialized investigators (2026-08-04). Party-role enum
+  // matches MX_PARTY_ROLES.ambiental (particular / autoridad /
+  // comunidad_afectada / ambas). Ambiental now has its own MxPipelineProfile
+  // instead of inheriting administrativo (see execution/mx-pipeline.ts).
+  // ---------------------------------------------------------------------
+  {
+    type: "mia_impact_assessment_review",
+    category: "mia_impact_assessment_review",
+    system:
+      "You are a Mexican environmental-impact-assessment investigator under the LGEEPA. Examine any manifestación de impacto ambiental (MIA) or estudio de riesgo ambiental in the corpus for whether the modality (particular vs. regional), the impactos identificados, and the medidas de mitigación described are consistent with the activity actually being undertaken, and whether the corresponding licencia ambiental única or autorización was obtained before the activity began. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "mia_no_presentada"|"impacto_no_evaluado"|"medida_de_mitigacion_insuficiente"|"actividad_previa_a_autorizacion", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"comunidad_afectada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "profepa_asea_compliance_review",
+    category: "profepa_asea_compliance_review",
+    system:
+      "You are a Mexican environmental-enforcement compliance investigator. Examine the corpus for PROFEPA procedimiento administrativo sancionador acts (visita de inspección, acta de inspección, medidas de seguridad, clausura) and, where the activity involves hidrocarburos, ASEA regulatory acts, assessing whether the acto de autoridad followed the applicable procedure and whether the sanción imposed is proportional to the infracción documented. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "authority": "profepa"|"asea", "issue_type": "procedimiento_defectuoso"|"sancion_desproporcionada"|"medida_de_seguridad_injustificada", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"comunidad_afectada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "conagua_water_rights_review",
+    category: "conagua_water_rights_review",
+    system:
+      "You are a Mexican water-rights and CONAGUA-compliance investigator under the Ley de Aguas Nacionales. Examine the corpus for título de concesión de agua validity and volume authorized, descargas de aguas residuales and whether they comply with the applicable NOM (NOM-001-SEMARNAT), and any conflicto por sobreexplotación or uso no autorizado documented. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "concesion_no_vigente"|"descarga_no_conforme"|"uso_no_autorizado"|"sobreexplotacion", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"comunidad_afectada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "pollution_remediation_analysis",
+    category: "pollution_remediation_analysis",
+    system:
+      "You are a Mexican pollution and remediation investigator. Examine the corpus for evidence of dano ambiental under the Ley Federal de Responsabilidad Ambiental (a objective standard — nexo causal plus harm, no culpa required), residuos peligrosos handling, emisiones contaminantes and gases de efecto invernadero reporting obligations, and whether any programa de remediación proposed or ordered is adequate to restore the affected ecosystem to its baseline condition. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "dano_ambiental_objetivo"|"residuos_peligrosos_mal_manejados"|"emisiones_no_reportadas"|"remediacion_insuficiente", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"comunidad_afectada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "protected_species_areas_review",
+    category: "protected_species_areas_review",
+    system:
+      "You are a Mexican protected-species and protected-areas investigator under the Ley General de Vida Silvestre and the Ley General del Equilibrio Ecológico y la Protección al Ambiente's áreas naturales protegidas (ANP) regime. Examine the corpus for evidence that the activity affects an especie en la NOM-059-SEMARNAT (protección especial, amenazada, en peligro de extinción) or occurs within an ANP (parque nacional, reserva de la biosfera, área de protección de flora y fauna) without the corresponding autorización de CONANP. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "issue_type": "especie_protegida_afectada"|"actividad_en_anp_sin_autorizacion", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "particular"|"autoridad"|"comunidad_afectada"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // ---------------------------------------------------------------------
+  // Inmobiliario specialized investigators (2026-08-04). Declared in
+  // MX_ENGINES.inmobiliario / PRACTICE_GATED_ENGINES since the coverage
+  // audit but never actually implemented anywhere — every inmobiliario
+  // case ran only the universal layer. Party-role enum matches
+  // MX_PARTY_ROLES.inmobiliario (comprador / vendedor / ambas).
+  // ---------------------------------------------------------------------
+  {
+    type: "property_verification",
+    category: "property_verification",
+    system:
+      "You are a Mexican real-estate title and due-diligence investigator. Examine the corpus for: (1) title — escritura pública validity and unbroken chain of title (cadena de titularidad) back through prior transfers; (2) liens — libertad de gravamen, hipoteca vigente, embargo, or any other gravamen not yet released; (3) survey — discrepancias between the escritura's medidas y colindancias and any levantamiento topográfico or catastral record; (4) zoning/permits — uso de suelo compatibility and whether required permisos de construcción were obtained; (5) restrictions — servidumbres, fideicomiso de zona restringida requirements for a foreign buyer, and HOA/condominium restrictions (cuotas de mantenimiento, reglamento de condominio). This is due diligence, not litigation — findings are risk flags for a closing, not adversarial claims. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "verification_area": "titulo_y_cadena_de_titularidad"|"gravamen"|"discrepancia_de_medidas"|"uso_de_suelo_o_permiso"|"servidumbre_o_restriccion"|"fideicomiso_zona_restringida"|"adeudo_de_condominio", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "comprador"|"vendedor"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    type: "closing_readiness_scoring",
+    category: "closing_readiness_scoring",
+    system:
+      "You are a Mexican real-estate closing-readiness scorer. Given the corpus and (in the CASE CORPUS context) any property_verification findings already on record, compute a 0-100 closing_readiness_score reflecting how close the file is to a clean cierre: subtract meaningfully for each unresolved high/critical title, lien, zoning, or permit issue, and for each required closing document (per the platform's inmobiliario checklist — escritura, libertad de gravamen, no adeudo predial/agua/CFE, constancia catastral, levantamiento topográfico, poder notarial where applicable) that the corpus does not evidence as present. Do not fabricate a score disconnected from what the corpus actually shows — if the corpus is too thin to assess, say so explicitly and score conservatively low rather than guessing high. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+{ "summary": string, "confidence": number (0-1), "closing_readiness_score": number (0-100), "score_rationale": string,
+  "findings": [ { "title": string, "blocking_item": "documento_faltante"|"gravamen_no_resuelto"|"discrepancia_no_resuelta"|"permiso_faltante", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "comprador"|"vendedor"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  {
+    // Constitucional (controversia constitucional / acción de
+    // inconstitucionalidad) only — see MX_ENGINES.constitucional.
+    type: "constitutional_controversy_analysis",
+    category: "constitutional_controversy_analysis",
+    system:
+      "You are a specialized investigator for controversias constitucionales and acciones de inconstitucionalidad (art. 105 CPEUM and its ley reglamentaria). Examine the record to (a) identify any invasión de competencias between orders of government (federación, estados, municipios, alcaldías) or between poderes, (b) apply the test de proporcionalidad in its three prongs — idoneidad (the measure pursues a constitutionally valid end), necesidad (no less-restrictive alternative is equally suitable), and proporcionalidad en sentido estricto (benefits outweigh costs) — when the claim involves a restriction on a right or a competencia, and (c) apply the test de igualdad (categoría sospechosa, escrutinio aplicable, fin constitucionalmente imperioso) when an unjustified differential treatment is alleged. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it.",
+    prompt: `Return STRICT JSON. EVERY item in findings MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. Do NOT emit any finding you cannot ground in a verbatim quote — omit it entirely. When describing something the corpus does NOT contain, phrase it as not identified in the document(s) actually provided (e.g. "no se identificó en el/los documento(s) proporcionado(s)") — never as if the complete official expediente was reviewed (e.g. "no se observa en el expediente"), since a partial corpus cannot support that broader claim.
+
+${AGENT_JH_INSTRUCTIONS}
+
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "test": "invasion_de_competencias"|"idoneidad"|"necesidad"|"proporcionalidad_en_sentido_estricto"|"test_de_igualdad", "description": string, "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", ${AGENT_JH_FRAGMENT}, ${AGENT_AUDIT_CLASSIFICATION_FRAGMENT}, "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+  // -------------------------------------------------------------------------
+  // Completed-case audit only — gated by AUDIT_ONLY_AGENT_TYPES below, NOT by
+  // materia (added to UNIVERSAL_ENGINES/UNIVERSAL_FINDING_MODULES in
+  // practice-areas.ts so every materia can run it). Only activates when
+  // case_analysis_mode is concluded_audit/judgment_audit/appeal_routes — see
+  // case-analysis-mode.ts. Searches for "POSIBLES VÍAS DE SALIDA" using ONLY
+  // the ALLOWED MOTION/REMEDY TYPES the wrapping areaPreamble lists for this
+  // case's actual materia (matter-type lock — never proposes a remedy from a
+  // different practice area).
+  // -------------------------------------------------------------------------
+  {
+    type: "ways_out_analysis",
+    category: "ways_out_analysis",
+    system:
+      "You are a Mexican legal-forensic-audit investigator specialized in identifying POSIBLES VÍAS DE SALIDA / OPORTUNIDADES DE IMPUGNACIÓN for a CONCLUDED case — legally supportable avenues that could potentially challenge or change the outcome. You do NOT predict victory and you do NOT recommend filing anything — you identify whether the record and applicable law support the POSSIBILITY of a route, using ONLY the remedy/motion types the ALLOWED MOTION/REMEDY TYPES list above actually contains for this materia. First reconstruct the complete procedural history and dispositive: a recurso or amparo that the supplied judgment already decided is historical posture, NEVER a future avenue and NEVER something you may say has not yet been filed. Never propose 'file an amparo' or similar as a conclusion — instead identify 'potential avenue: <remedy type> — requires attorney verification' and explain, with citations, why the record may support it and what is missing. If you search for a plausible avenue and find no supportable basis, say so explicitly (audit_classification: NOT_FOUND) rather than omitting it silently — the honest absence of an avenue is itself valuable output. Aggressive investigation, conservative conclusions: search deeply across the whole corpus, but classify strictly per the audit_classification taxonomy in your instructions above. Output JSON only. EVERY finding MUST be grounded in a verbatim quote from the corpus and cite the source document — if you cannot ground a finding, DO NOT emit it, and instead emit it as EVIDENCE_GAP or NOT_FOUND with an empty evidence_refs array explaining what is missing.",
+    prompt: `Return STRICT JSON. EVERY item in findings with a non-empty description of supporting evidence MUST include evidence_refs with at least one { doc_n (matching the corpus document number), quote (a SINGLE contiguous excerpt copied character-for-character from that document, <=200 chars) } entry. The quote must be one unbroken span exactly as it appears in the source — NEVER join two separate sentences or non-adjacent phrases with "..." or any ellipsis. A finding classified EVIDENCE_GAP or NOT_FOUND may have an empty evidence_refs array (there is nothing case-specific to cite), but must still explain in "what_is_missing" what would be needed to establish it.
+{ "summary": string, "confidence": number (0-1),
+  "findings": [ { "title": string, "potential_avenue": string (must be one of the ALLOWED MOTION/REMEDY TYPES listed above, or "ninguna vía identificada" if none apply), "description": string, "why_it_may_apply": string, "legal_authority": string, "what_is_missing": string, "potential_obstacle": string, "attorney_verification_required": boolean, "audit_classification": "VERIFIED_FACT"|"VERIFIED_COURT_HOLDING"|"VERIFIED_LEGAL_RULE"|"SUPPORTED_INFERENCE"|"POTENTIAL_ISSUE"|"EVIDENCE_GAP"|"NOT_FOUND", "severity": "low"|"medium"|"high"|"critical", "confidence": number, "legal_significance": string, "potential_impact": string, "affected_party": "quejoso"|"autoridad_responsable"|"tercero_interesado"|"ambas", "evidence_refs": [ { "doc_n": number, "quote": string } ] } ] }`,
+  },
+];
+
+export { AGENTS as __test__AGENTS };
+
+// Map agent.type → engine key persisted in pipeline_engine_runs.
+//
+// FIX (2026-07-30): `witness_credibility` used to persist as
+// "witness_intelligence" — the SAME engine key as the independent canonical
+// witness stage (execution/canonical.ts). Because STAGE_KEY_ALIASES maps that
+// engine to the `witness` stage, the nested agent's run row rendered in the
+// ledger as a top-level "Inteligencia de Testigos" stage executing during
+// "Agentes de Verificación", and on materias where the witness stage is
+// legally excluded (amparo, apelación, inmobiliario) it collided with that
+// stage's OMITIDO skip row — the case appeared to both skip and run witness
+// intelligence. The agent now owns a distinct namespaced key. The other three
+// agent engines are NOT canonical stages, so they never had this collision.
+const AGENT_ENGINE: Record<string, string> = {
+  witness_credibility: "agent:witness_credibility",
+  chain_of_custody: "chain_of_custody",
+  // 2026-08-01: `constitutional_compliance` IS a canonical stage
+  // (execution/canonical.ts), so the nested agent used to overwrite the
+  // canonical stage's row. Namespaced for the same reason as witness above.
+  // chain_of_custody / procedural_violations are NOT canonical stages — they
+  // stay bare, there is no collision to fix.
+  constitutional_compliance: "agent:constitutional_compliance",
+  procedural_violations: "procedural_violations",
+  // Amparo / Constitucional specialized investigators (2026-08-04) — none of
+  // these collide with a canonical stage key, but namespaced anyway per the
+  // established convention for every agent added since the 2026-08-01 fix.
+  standing_procedencia: "agent:standing_procedencia",
+  suspension_analysis: "agent:suspension_analysis",
+  conventionality_pro_persona: "agent:conventionality_pro_persona",
+  constitutional_rights_mapping: "agent:constitutional_rights_mapping",
+  authority_notification_validation: "agent:authority_notification_validation",
+  international_human_rights_analysis: "agent:international_human_rights_analysis",
+  constitutional_controversy_analysis: "agent:constitutional_controversy_analysis",
+  // Penal specialized investigators (2026-08-04).
+  search_warrant_arrest_legality: "agent:search_warrant_arrest_legality",
+  forensic_digital_evidence_analysis: "agent:forensic_digital_evidence_analysis",
+  reasonable_doubt_defense_theory: "agent:reasonable_doubt_defense_theory",
+  sentencing_analysis: "agent:sentencing_analysis",
+  appeal_opportunity_detection: "agent:appeal_opportunity_detection",
+  // Agrario specialized investigators (2026-08-04).
+  ran_record_certificate_review: "agent:ran_record_certificate_review",
+  ejido_assembly_analysis: "agent:ejido_assembly_analysis",
+  communal_land_indigenous_rights: "agent:communal_land_indigenous_rights",
+  boundary_possession_analysis: "agent:boundary_possession_analysis",
+  agrarian_jurisdiction_restitution: "agent:agrarian_jurisdiction_restitution",
+  // Civil specialized investigators (2026-08-04).
+  contract_analysis_ambiguity: "agent:contract_analysis_ambiguity",
+  liability_damages_assessment: "agent:liability_damages_assessment",
+  payment_insurance_analysis: "agent:payment_insurance_analysis",
+  statute_of_limitations_analysis: "agent:statute_of_limitations_analysis",
+  settlement_opportunity_analyzer: "agent:settlement_opportunity_analyzer",
+  // Familiar specialized investigators (2026-08-04).
+  custody_best_interest_analysis: "agent:custody_best_interest_analysis",
+  child_support_calculation: "agent:child_support_calculation",
+  domestic_violence_assessment: "agent:domestic_violence_assessment",
+  // Mercantil specialized investigators (2026-08-04).
+  corporate_governance_shareholder_rights: "agent:corporate_governance_shareholder_rights",
+  commercial_contract_intelligence: "agent:commercial_contract_intelligence",
+  financial_fraud_commercial_risk: "agent:financial_fraud_commercial_risk",
+  bankruptcy_concurso_review: "agent:bankruptcy_concurso_review",
+  // Laboral specialized investigators (2026-08-04).
+  lft_compliance_review: "agent:lft_compliance_review",
+  payroll_overtime_imss_audit: "agent:payroll_overtime_imss_audit",
+  wrongful_termination_analysis: "agent:wrongful_termination_analysis",
+  union_discrimination_review: "agent:union_discrimination_review",
+  // Administrativo specialized investigators (2026-08-04).
+  administrative_due_process_review: "agent:administrative_due_process_review",
+  authority_competence_notification_review: "agent:authority_competence_notification_review",
+  administrative_nullity_analysis: "agent:administrative_nullity_analysis",
+  // Fiscal specialized investigators (2026-08-04).
+  sat_audit_review: "agent:sat_audit_review",
+  cfdi_accounting_tax_validation: "agent:cfdi_accounting_tax_validation",
+  prodecon_opportunity_detection: "agent:prodecon_opportunity_detection",
+  // Electoral specialized investigators (2026-08-04).
+  ine_documentation_candidate_eligibility: "agent:ine_documentation_candidate_eligibility",
+  campaign_finance_review: "agent:campaign_finance_review",
+  vote_counting_chain_of_custody: "agent:vote_counting_chain_of_custody",
+  political_violence_gender_parity: "agent:political_violence_gender_parity",
+  electoral_nullity_analysis: "agent:electoral_nullity_analysis",
+  // Ambiental specialized investigators (2026-08-04).
+  mia_impact_assessment_review: "agent:mia_impact_assessment_review",
+  profepa_asea_compliance_review: "agent:profepa_asea_compliance_review",
+  conagua_water_rights_review: "agent:conagua_water_rights_review",
+  pollution_remediation_analysis: "agent:pollution_remediation_analysis",
+  protected_species_areas_review: "agent:protected_species_areas_review",
+  // Migratorio, refugio y nacionalidad specialized investigators.
+  immigration_eligibility_analysis: "agent:immigration_eligibility_analysis",
+  immigration_deadline_continuity: "agent:immigration_deadline_continuity",
+  refugee_non_refoulement_analysis: "agent:refugee_non_refoulement_analysis",
+  nationality_naturalization_analysis: "agent:nationality_naturalization_analysis",
+  immigration_due_process_remedies: "agent:immigration_due_process_remedies",
+  child_vulnerability_protection: "agent:child_vulnerability_protection",
+  // Inmobiliario specialized investigators (2026-08-04). Bare (not
+  // namespaced) to match the engine names already declared in
+  // MX_ENGINES.inmobiliario / PRACTICE_GATED_ENGINES since before this
+  // build-out — no canonical stage uses either name, so there is no
+  // collision to guard against.
+  property_verification: "property_verification",
+  closing_readiness_scoring: "closing_readiness_scoring",
+  // Completed-case audit only (see AUDIT_ONLY_AGENT_TYPES below) — namespaced
+  // like every other specialized investigator; materia-gating is a no-op for
+  // it since it's in UNIVERSAL_ENGINES, so only the case-analysis-mode check
+  // in the activation loop actually gates it.
+  ways_out_analysis: "agent:ways_out_analysis",
+};
+
+/**
+ * Agents that only make sense against a CONCLUDED case being audited
+ * retrospectively — never for "ongoing" case preparation. Gated by
+ * case_analysis_mode (case-analysis-mode.ts), independent of materia; see
+ * the activation loop below and isCompletedCaseMode().
+ */
+const AUDIT_ONLY_AGENT_TYPES = new Set<string>(["ways_out_analysis"]);
+
+/**
+ * Providers excluded from the investigator-agent stage's PACKING BUDGET MATH
+ * — not from the runtime routing chain, which still tries Groq's user keys
+ * as a genuine last resort (see below).
+ *
+ * Groq's ~5.5k-token input budget yields ~8,082 chars of usable corpus after
+ * the agent prompt overhead, which clamped every agent batch to that floor
+ * and produced 8+ batches per agent. Excluding it here means packingCharBudget
+ * sizes agent batches for a wider-budget provider (OpenRouter/Gemini)
+ * instead, so a normal run doesn't fragment into tiny Groq-sized requests.
+ *
+ * This does NOT — and must not — also exclude Groq from routeAI's runtime
+ * chain (router.server.ts loads a user's provider keys via
+ * loadUserProviderKeyGroups independently of `skipProviders`, so Groq's user
+ * keys stay in `chain`). A batch packed for the wider budget is naturally
+ * too big for Groq's own limit, so the pre-flight size gate skips it whenever
+ * a full-size provider looks available — but routeAI's cascading compressed
+ * retry (the size-skipped-budget cascade, see its doc comment) means that
+ * once every wider provider has actually been tried and failed, the same
+ * request gets compressed down to Groq's OWN advertised budget and Groq gets
+ * a real, correctly-sized attempt — never a request silently truncated past
+ * recognition by a mismatched target. Confirmed live: a case stalled with
+ * "authority_notification_validation ... All configured provider keys
+ * failed (tried: gemini ... configured but never attempted: groq,
+ * openrouter)" after Gemini hit its daily quota — freshly-added Groq keys
+ * sat completely unreachable because the OLD compressed retry only ever
+ * compressed once, to the single LARGEST skipped budget (OpenRouter's), and
+ * gave up the moment that also failed. If this ever needs to become a true
+ * hard exclusion again, exclude the provider from `runtimeGroups` in
+ * router.server.ts too — filtering `rows` alone (the current
+ * `skippedProviders` behavior) never reaches user-key groups.
+ */
+const AGENT_SKIP_PROVIDERS: ProviderType[] = ["groq"];
+
+/**
+ * How many investigator agents may execute simultaneously inside the "agents"
+ * stage.
+ *
+ * Every entry in AGENTS (four materia-agnostic agents, plus the
+ * seven amparo/constitucional-gated specialists added 2026-08-04) is
+ * genuinely independent: each one's only input is the shared corpus plus its
+ * own system/user prompt. None reads another's agent_findings, summary, or
+ * confidence, so ordering is a scheduling choice, not a correctness
+ * constraint. A constitucional case now activates up to 11 agents instead of
+ * 4 — more checkpointed ticks to converge, not a correctness risk, since the
+ * per-tick budget and per-batch checkpoint are unchanged.
+ *
+ * 2026-07-30: raised 1 → 2. At 1, a 9-chunk corpus needed ~36 sequential Groq
+ * calls; measured wall clock was ~15-20 min for ~5 min of actual AI time —
+ * the rest was inter-tick stalls. 2 halves the tick count while holding the
+ * in-flight token rate at 2x rather than 4x, which matters because the shared
+ * Groq/Gemini key pool is the binding constraint, not CPU.
+ *
+ * ROLLBACK: set this back to 1. That is the complete revert — there is no
+ * migration, no persisted state, and no schema tied to the value. Agent
+ * results are checkpointed per batch in pipeline_engine_runs, and resume keys
+ * off agent_findings.status, both of which are concurrency-agnostic; a case
+ * that ran part-way at 2 resumes correctly at 1 and vice versa. The only
+ * artifact left behind is pipeline_trace instrumentation rows, which are
+ * append-only diagnostics.
+ */
+const AGENT_CONCURRENCY = 2;
+
+export async function runAgents(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}) {
+  const { db, caseId, userId, apiKey, apiKeys } = args;
+  await setCase(db, caseId, {
+    status: "agents_running",
+    status_message: "Dispatching agents",
+    progress: 10,
+  });
+
+  // Resume support: preserve rows for agents that already completed on a
+  // previous worker tick. Only wipe engine rows / agent_findings for agents
+  // that haven't finished yet, so a checkpointed re-entry doesn't re-run
+  // work that's already persisted.
+  const { data: prevAgentRows } = await db
+    .from("agent_findings")
+    .select("agent_type,status")
+    .eq("case_id", caseId);
+  const completedAgentTypes = new Set(
+    (prevAgentRows ?? [])
+      .filter((r) => (r as { status?: string }).status === "complete")
+      .map((r) => String((r as { agent_type?: string }).agent_type)),
+  );
+  const completedEngines = Array.from(completedAgentTypes).map(
+    (t) => AGENT_ENGINE[t as keyof typeof AGENT_ENGINE] ?? t,
+  );
+  const engineWipeList = ["agents", ...Object.values(AGENT_ENGINE)].filter(
+    (e) => !completedEngines.includes(e),
+  );
+  if (engineWipeList.length > 0) {
+    await db
+      .from("pipeline_engine_runs")
+      .delete()
+      .eq("case_id", caseId)
+      .in("engine", engineWipeList);
+  }
+
+  return runEngine(db, { caseId, userId, engine: ENGINE.agents }, async () => {
+    const { corpus, chunks } = await buildCorpus(db, caseId);
+    if (!corpus) throw new Error("No extracted documents. Run Extraction first.");
+
+    // PRACTICE-AREA GATE: Only dispatch agents whose engine is allowed for
+    // this case type + active cross-domain activations. Skipped agents are
+    // recorded in pipeline_engine_runs so the manifest/audit shows them as
+    // intentionally-skipped (not silently missing).
+    const { isAnalyzerAllowed, SKIP_REASON_NOT_APPLICABLE, isFindingAllowed } =
+      await import("./intelligence/practice-areas");
+    const { getActiveDomains } = await import("./intelligence/cross-domain.server");
+    const { recordSkipped } = await import("./intelligence/engine-audit.server");
+    const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+    const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
+
+    const { data: caseRow } = await db
+      .from("cases")
+      .select("case_type,name,description" as any)
+      .eq("id", caseId)
+      .maybeSingle();
+    // VERIFIED CASE IDENTITY — same precedence as the analyzer stage above.
+    // The agents stage is also core (not an optional practice-area gate),
+    // so an unverified identity does not skip the whole stage — only a
+    // truly unknown identity (no caseType at all) does, via recordSkipped,
+    // never a silently guessed "general_civil".
+    const agentsIdentity = await resolveCaseIdentity(db, caseId);
+    if (!isUsableForLegalReasoning(agentsIdentity) && !agentsIdentity.caseType) {
+      const reason =
+        agentsIdentity.status === "conflict" ? "case_identity_conflict" : "case_identity_unverified";
+      await recordSkipped(db, { caseId, userId, engine: ENGINE.agents as never, reason });
+      return { value: undefined, stats: { generated: 0, accepted: 0, meta: { skipped: reason } } };
+    }
+    const area = String(agentsIdentity.caseType);
+    const agentsIdentityVerified = isUsableForLegalReasoning(agentsIdentity);
+    const activeDomains = await getActiveDomains(db, caseId);
+
+    // MATTER-SUBTYPE LOCK: a materia can bundle divergent legal domains
+    // (familiar = family disputes + sucesiones). Narrow the materia-level
+    // engine policy so, e.g., custody/alimentos/violencia agents never run on
+    // a juicio sucesorio and can never attach their categories to its
+    // findings. Never widens the policy.
+    const { detectMatterSubtype, isEngineAllowedForSubtype, SKIP_REASON_SUBTYPE_NOT_APPLICABLE } =
+      await import("./jurisdiction/matter-subtype");
+    const subtypeSignalText = [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      String((caseRow as any)?.name ?? ""),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      String((caseRow as any)?.description ?? ""),
+      corpus.slice(0, 20_000),
+    ].join("\n");
+    const matterSubtype = detectMatterSubtype(area, subtypeSignalText);
+
+    // CASE-ANALYSIS-MODE GATE: agents in AUDIT_ONLY_AGENT_TYPES only make
+    // sense for a completed case being audited retrospectively — never for
+    // "ongoing" case preparation. See case-analysis-mode.ts.
+    const { getCaseAnalysisMode, isCompletedCaseMode } =
+      await import("./intelligence/case-analysis-mode");
+    const caseAnalysisMode = await getCaseAnalysisMode(db, caseId);
+    const SKIP_REASON_NOT_COMPLETED_CASE_MODE = "not_applicable_ongoing_case_mode";
+    const prerequisiteModule = await import("./intelligence/penal-engine-prerequisites");
+    const penalPrerequisites = prerequisiteModule.detectPenalEnginePrerequisites(corpus);
+    const { data: concludedClassification } = await (db as any)
+      .from("case_classification_evidence")
+      .select("value,source_quote,conflicting_values")
+      .eq("case_id", caseId)
+      .eq("field", "concluded_status")
+      .maybeSingle();
+    penalPrerequisites.hasOpenSubsequentProceeding =
+      prerequisiteModule.classificationSupportsOpenProceeding(concludedClassification);
+    const isPenalContext =
+      area === "penal" || agentsIdentity.underlyingMateria === "penal";
+
+    const activeAgents: typeof AGENTS = [];
+    for (const agent of AGENTS) {
+      const engine = AGENT_ENGINE[agent.type] ?? agent.type;
+      const subtypeBlocked = !isEngineAllowedForSubtype(matterSubtype, engine);
+      const auditOnlyBlocked =
+        AUDIT_ONLY_AGENT_TYPES.has(agent.type) && !isCompletedCaseMode(caseAnalysisMode);
+      const prerequisiteDecision = isPenalContext
+        ? prerequisiteModule.penalEngineApplicability(
+            agent.type,
+            caseAnalysisMode,
+            penalPrerequisites,
+          )
+        : { run: true, reason: null };
+      const prerequisiteBlocked = !prerequisiteDecision.run;
+      if (
+        !subtypeBlocked &&
+        !auditOnlyBlocked &&
+        !prerequisiteBlocked &&
+        isAnalyzerAllowed(area, engine, activeDomains)
+      ) {
+        activeAgents.push(agent);
+      } else {
+        // A prerequisite change must invalidate earlier agent output. Without
+        // this cleanup, a prior active run can leak stale witness/custody or
+        // prospective advice into a concluded-case report even though the
+        // current run correctly marks that agent not applicable.
+        if (prerequisiteBlocked) {
+          assertDbOk(
+            (
+              await db
+                .from("agent_findings")
+                .delete()
+                .eq("case_id", caseId)
+                .eq("agent_type", agent.type)
+            ).error,
+            `Failed to clear stale ${agent.type} agent findings`,
+          );
+          await clearFindingsByModule(db, caseId, `agent:${agent.type}`);
+        }
+        await recordSkipped(db, {
+          caseId,
+          userId,
+          engine: engine as never,
+          reason: prerequisiteBlocked
+            ? `skipped_not_applicable:${prerequisiteDecision.reason}`
+            : auditOnlyBlocked
+              ? SKIP_REASON_NOT_COMPLETED_CASE_MODE
+              : subtypeBlocked
+                ? `${SKIP_REASON_SUBTYPE_NOT_APPLICABLE}:${matterSubtype?.key ?? "unknown"}`
+                : SKIP_REASON_NOT_APPLICABLE,
+        });
+      }
+    }
+
+    // Reset prior agent rows only for agents we're about to actually run.
+    // Rows for agents that already completed on a prior tick are preserved
+    // so a checkpointed resume doesn't wipe finished work. Finding rows
+    // scoped `agent:<type>:` are cleared per-agent inside runOneAgent just
+    // before that agent writes fresh output.
+    const agentsToRun = activeAgents.filter((a) => !completedAgentTypes.has(a.type));
+    const agentTypesToRun = agentsToRun.map((a) => a.type);
+    if (agentTypesToRun.length > 0) {
+      assertDbOk(
+        (
+          await db
+            .from("agent_findings")
+            .delete()
+            .eq("case_id", caseId)
+            .in("agent_type", agentTypesToRun)
+        ).error,
+        "Failed to clear previous agent runs",
+      );
+      for (const t of agentTypesToRun) {
+        await clearFindingsByModule(db, caseId, `agent:${t}`);
+      }
+    }
+
+    // Practice-area context for every agent prompt so the LLM doesn't invent
+    // off-domain findings (e.g. Miranda on a contract dispute).
+    const { PRACTICE_AREA_LABELS, normalizePracticeArea } =
+      await import("./intelligence/practice-areas");
+    const normalizedArea = normalizePracticeArea(area);
+    const areaLabel = PRACTICE_AREA_LABELS[normalizedArea];
+    const { executionProfileFor } = await import("./jurisdiction/execution-profile");
+    const execProfile = executionProfileFor(normalizedArea);
+    const execProfilePreamble =
+      `GOVERNING FRAMEWORK for ${areaLabel}: ` +
+      `laws — ${execProfile.governingLaws.map((l) => l.code).join(", ")}. ` +
+      `constitutional articles — ${execProfile.constitutionalArticles.map((a) => a.article).join(", ")}. ` +
+      (execProfile.treaties.length > 0
+        ? `treaties — ${execProfile.treaties.map((t) => t.short).join(", ")}. `
+        : "") +
+      `Burden of proof: ${execProfile.burdenOfProof} ` +
+      `Standing: ${execProfile.standing} ` +
+      `${execProfile.precedentGuidance} Never invent a specific case-law citation (registry number, paragraph, docket) — ` +
+      `name only the doctrine or the deciding body, and flag that the exact citation needs human verification.`;
+    const areaPreambleLocale = await getReportLocale(db, caseId);
+    // Reuse caseAnalysisMode fetched above for the AUDIT_ONLY_AGENT_TYPES
+    // gate — same case, no need to refetch.
+    const { getCaseAnalysisObjective, getAuditClassificationInstructions, getProceduralTypeLock } =
+      await import("./intelligence/case-analysis-mode");
+    const areaCaseAnalysisObjective = getCaseAnalysisObjective(
+      caseAnalysisMode,
+      areaPreambleLocale,
+    );
+    // §3: same standalone injection as the analyzers stage above — only
+    // needed when getCaseAnalysisObjective returned null (ongoing mode),
+    // since completed-case modes already carry these instructions inline.
+    const areaAuditClassificationInstructions = areaCaseAnalysisObjective
+      ? null
+      : getAuditClassificationInstructions(areaPreambleLocale);
+    // Procedural type lock (source-confirmed proceeding caption, e.g. "AMPARO
+    // DIRECTO EN REVISIÓN") — a hard constraint on remedies/deadlines/
+    // suspension analysis/document requests, narrower than materia alone.
+    // null (no-op) whenever the corpus hasn't source-confirmed a specific
+    // proceeding — see resolveVerifiedProceedingType().
+    const { resolveVerifiedProceedingType } =
+      await import("./intelligence/case-classification.server");
+    const verifiedProceedingType = await resolveVerifiedProceedingType(db, caseId);
+    const proceduralTypeLock = getProceduralTypeLock(verifiedProceedingType, areaPreambleLocale);
+    // Talk to Case as a case-state update, not just another document — see
+    // case-state-reconciliation.server.ts. null (no-op) when this case has
+    // no Talk-to-Case clarification document.
+    const { hasCaseStateUpdateDocs, getCaseStateUpdateNotice } =
+      await import("./intelligence/case-state-reconciliation.server");
+    const { data: areaDocFilenames } = await db
+      .from("documents")
+      .select("filename")
+      .eq("case_id", caseId);
+    const areaCaseStateUpdateNotice = getCaseStateUpdateNotice(
+      hasCaseStateUpdateDocs((areaDocFilenames ?? []) as never),
+      areaPreambleLocale,
+    );
+    const { getAllowedMotionTypes } = await import("./intelligence/practice-areas");
+    const allowedMotionTypesForArea = Array.from(
+      getAllowedMotionTypes(normalizedArea, activeDomains),
+    ).sort();
+    const areaPreamble =
+      `${mexicoLock(areaPreambleLocale)}\n` +
+      `${groundingContract(areaPreambleLocale)}\n` +
+      (proceduralTypeLock ? `${proceduralTypeLock}\n` : "") +
+      (areaCaseStateUpdateNotice ? `${areaCaseStateUpdateNotice}\n` : "") +
+      (areaCaseAnalysisObjective ? `${areaCaseAnalysisObjective}\n` : "") +
+      (areaAuditClassificationInstructions ? `${areaAuditClassificationInstructions}\n` : "") +
+      `CASE TYPE: ${areaLabel} (${area}). ` +
+      `Only surface findings whose legal theory is applicable to a ${areaLabel} matter. ` +
+      `Do NOT manufacture findings from other practice areas. ` +
+      `Do NOT infer missing procedural facts (service of process, deadlines, custody chains) ` +
+      `that are not affirmatively established by a verbatim quote in the corpus. ` +
+      `If the corpus does not establish a fact, omit the finding.\n` +
+      `ALLOWED MOTION/REMEDY TYPES for ${areaLabel}: ${allowedMotionTypesForArea.join(", ")}. Any proposed remedy, recurso, or vía de impugnación MUST be one of these — never propose a remedy type from another materia.\n` +
+      execProfilePreamble;
+
+    // Grounding corpus for agents that require verbatim citation (currently
+    // only chain_of_custody — every other agent is untouched per directive).
+    const { data: docsForAgentGround } = await db
+      .from("documents")
+      .select("id,filename,extracted_text")
+      .eq("case_id", caseId)
+      .order("created_at", { ascending: true });
+    const { buildGroundingCorpus, groundItems } = await import("./intelligence/grounding.server");
+    const agentGroundCorpus = buildGroundingCorpus(
+      (docsForAgentGround ?? []).map((d) => ({
+        id: d.id as string,
+        filename: d.filename,
+        extracted_text: d.extracted_text,
+      })),
+    );
+
+    // Checkpoint budget: yield mid-stage so a large-corpus run can resume on
+    // the next worker tick instead of stranding the case at agents_running
+    // if the worker invocation hits its own execution time limit.
+    const { budgetFor: _agentBudgetFor, CheckpointRequired: _AgentCheckpoint } =
+      await import("./pipeline-checkpoint.server");
+    const agentBudgetMs = _agentBudgetFor("agents");
+    const agentStageStart = Date.now();
+
+    // ---- Concurrency experiment instrumentation (2026-07-30) ------------
+    // Raising AGENT_CONCURRENCY only pays off if wall-clock drops WITHOUT the
+    // 429/cooldown burden growing to match. Wall clock alone can improve while
+    // the same total delay is merely redistributed into more-frequent, shorter
+    // stalls — that is not a win. So we record, per tick: the gap since the
+    // previous tick's last batch (the stall we actually paid), every cooldown
+    // checkpoint, and at stage end a rollup of events + total stalled ms
+    // against total AI ms. All of it lands in pipeline_trace under
+    // phase "stage" with step prefix "agents_", queryable per case and comparable across runs.
+    const { trace: _agentTrace } = await import("./pipeline-trace.server");
+    const { data: _lastBatchRow } = await db
+      .from("pipeline_engine_runs")
+      .select("ended_at" as any)
+      .eq("case_id", caseId)
+      .like("engine", "%_batch")
+      .not("ended_at", "is", null)
+      .order("ended_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const _lastEnd = (_lastBatchRow as any)?.ended_at
+      ? Date.parse((_lastBatchRow as any).ended_at)
+      : null;
+    const resumeGapMs =
+      _lastEnd && Number.isFinite(_lastEnd) ? Math.max(0, agentStageStart - _lastEnd) : 0;
+    if (resumeGapMs > 0) {
+      await _agentTrace({
+        db,
+        caseId,
+        userId,
+        phase: "stage",
+        step: "agents_tick_resume_gap",
+        status: "info",
+        durationMs: resumeGapMs,
+        detail: { concurrency: AGENT_CONCURRENCY, resumed_agents: completedAgentTypes.size },
+      });
+    }
+
+    let done = completedAgentTypes.size;
+    const totalAgentCount = activeAgents.length;
+    const failures: string[] = [];
+    let totalGenerated = 0;
+    let totalAccepted = 0;
+
+    const runOneAgent = async (agent: (typeof AGENTS)[number]) => {
+      const engine = AGENT_ENGINE[agent.type] ?? agent.type;
+      const t0 = Date.now();
+      try {
+        // We call runEngine for each agent so they show up individually.
+        // We also collect stats for the collective "agents" row.
+        await runEngine(db, { caseId, userId, engine }, async () => {
+          // BATCHED EXECUTION: reuse the analyzer packing so each agent
+          // processes the FULL corpus in payload-safe chunks instead of a
+          // single 180K-char slice that (a) blows past Groq's per-request TPM
+          // cap and (b) silently drops every document past the truncation.
+          const { packingCharBudget: agentBudgetFn, PROMPT_OVERHEAD_CHARS: AGENT_OVERHEAD } =
+            await import("@/lib/ai/router.server");
+          const agentBudgetChars = await agentBudgetFn(
+            AGENT_CORPUS_BUDGET_CHARS,
+            AGENT_OVERHEAD.agents,
+            AGENT_SKIP_PROVIDERS,
+          );
+          const { listProviderRows } = await import("@/lib/ai/router.server");
+          console.log("[DEBUG] packingCharBudget call", {
+            stage: agent.type,
+            engine,
+            ceiling: AGENT_CORPUS_BUDGET_CHARS,
+            overhead: AGENT_OVERHEAD.agents,
+            budget: agentBudgetChars,
+            skipProviders: AGENT_SKIP_PROVIDERS,
+            providers: (await listProviderRows()).map((r) => r.provider_type),
+          });
+
+          const agentBatches = packChunks(chunks, agentBudgetChars);
+
+          const batchEngine = `${engine}_batch`;
+          const batchKey = (batch: CorpusChunk[]) =>
+            batch
+              .map((c) => `${c.docId}:${c.index}:${c.size}:${c.text.slice(0, 24)}`)
+              .sort()
+              .join("|");
+
+          type AgentBatchMeta = {
+            batchKey?: string;
+            docIds?: string[];
+            findings?: unknown[];
+            summary?: string;
+            confidence?: number;
+            provider?: string;
+          };
+          const { data: priorAgentBatchRuns } = await db
+            .from("pipeline_engine_runs")
+            .select("meta,status" as any)
+            .eq("case_id", caseId)
+            .eq("engine", batchEngine);
+          const completedBatchKeys = new Set<string>();
+          const priorBatchMetas: AgentBatchMeta[] = [];
+          for (const row of (priorAgentBatchRuns ?? []) as unknown as Array<{
+            status: string;
+            meta: AgentBatchMeta | null;
+          }>) {
+            if (row.status !== "completed" || !Array.isArray(row.meta?.docIds)) continue;
+            completedBatchKeys.add(row.meta.batchKey ?? row.meta.docIds.slice().sort().join("|"));
+            priorBatchMetas.push(row.meta);
+          }
+
+          console.log(
+            `[agent:${agent.type}] docs=${chunks.length} totalChars=${corpus.length} batches=${agentBatches.length} resumed=${priorBatchMetas.length}`,
+          );
+          const queue: CorpusChunk[][] = agentBatches.filter(
+            (batch) => !completedBatchKeys.has(batchKey(batch)),
+          );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mergedFindings: any[] = priorBatchMetas.flatMap((m) =>
+            Array.isArray(m.findings) ? (m.findings as any[]) : [],
+          );
+          const summaries: string[] = priorBatchMetas
+            .map((m) => (typeof m.summary === "string" ? m.summary.trim() : ""))
+            .filter(Boolean);
+          const confidences: number[] = priorBatchMetas
+            .map((m) => m.confidence)
+            .filter((n): n is number => typeof n === "number");
+          const batchErrors: string[] = [];
+          let batchIdx = 0;
+          let successes = priorBatchMetas.length;
+          let lastModel = MODEL;
+          // Batches of one agent are independent reads over disjoint corpus
+          // slices, so they run in waves instead of strictly one-at-a-time.
+          // Total provider pressure is still bounded by the process-wide
+          // `withAiSlot` gate, so 2 agents x 2 batches never exceeds the
+          // global in-flight cap. Failure handling (payload split/requeue,
+          // cooldown checkpoint, provider-unavailable break) is applied
+          // sequentially AFTER a wave settles, exactly as before.
+          // ROLLBACK: set AGENT_BATCH_CONCURRENCY to 1.
+          const AGENT_BATCH_CONCURRENCY = 2;
+          const { withAiSlot, mapSettled } = await import("@/lib/ai/concurrency.server");
+          type BatchFailure = { batch: CorpusChunk[]; batchIdx: number; msg: string };
+          const runOneBatch = async (
+            batch: CorpusChunk[],
+            idx: number,
+          ): Promise<BatchFailure | null> => {
+            const key = batchKey(batch);
+            if (completedBatchKeys.has(key)) return null;
+            const batchCorpus = batch.map((c) => c.text).join("\n\n");
+            const bt0 = Date.now();
+            try {
+              const r = await withAiSlot(() =>
+                callGroq({
+                  apiKey,
+                  apiKeys,
+                  systemInstruction: `${areaPreamble}\n${agent.system}`,
+                  userContent: `${agent.prompt}\n\nCASE CORPUS:\n${batchCorpus}`,
+                  json: true,
+                  temperature: 0.15,
+                  skipProviders: AGENT_SKIP_PROVIDERS,
+                }),
+              );
+              console.log("[DEBUG] agent batch served", {
+                stage: agent.type,
+                engine,
+                batchIdx: idx,
+                chars: batchCorpus.length,
+                provider: r.provider,
+                model: r.model,
+              });
+              lastModel = r.model;
+
+              await logUsage(db, {
+                userId,
+                caseId,
+                operation: `agent:${agent.type}`,
+                model: r.model,
+                provider: r.provider,
+                inputTokens: r.inputTokens,
+                outputTokens: r.outputTokens,
+                totalTokens: r.totalTokens,
+                latencyMs: r.latencyMs,
+                success: true,
+                keyIndex: r.keyIndex,
+              });
+
+              const parsed =
+                parseJsonLoose<{ summary?: string; confidence?: number; findings?: any[] }>(
+                  r.text,
+                ) ?? {};
+              if (Array.isArray(parsed.findings)) mergedFindings.push(...parsed.findings);
+              if (typeof parsed.summary === "string" && parsed.summary.trim())
+                summaries.push(parsed.summary.trim());
+              if (typeof parsed.confidence === "number") confidences.push(parsed.confidence);
+              assertDbOk(
+                (
+                  await db.from("pipeline_engine_runs").insert({
+                    case_id: caseId,
+                    user_id: userId,
+                    engine: batchEngine,
+                    status: "completed",
+                    started_at: new Date(bt0).toISOString(),
+                    ended_at: new Date().toISOString(),
+                    runtime_ms: Date.now() - bt0,
+                    generated: Array.isArray(parsed.findings) ? parsed.findings.length : 0,
+                    accepted: Array.isArray(parsed.findings) ? parsed.findings.length : 0,
+                    rejected: 0,
+                    suppressed_ess: 0,
+                    suppressed_validator: 0,
+                    meta: {
+                      agent_type: agent.type,
+                      batchIdx: idx,
+                      batchKey: key,
+                      docs: batch.length,
+                      chars: batchCorpus.length,
+                      docIds: batch.map((c) => c.docId),
+                      summary:
+                        typeof parsed.summary === "string" ? parsed.summary.slice(0, 4000) : null,
+                      confidence: typeof parsed.confidence === "number" ? parsed.confidence : null,
+                      findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+                      provider: r.provider,
+                    } as any,
+                  } as any)
+                ).error,
+                `Failed to save ${agent.type} agent batch checkpoint`,
+              );
+              completedBatchKeys.add(key);
+              successes++;
+              return null;
+            } catch (be) {
+              rethrowIfCheckpoint(be);
+              const bmsg = be instanceof Error ? be.message : String(be);
+              console.warn(
+                `[agent:${agent.type}] batch ${idx} failed chars=${batchCorpus.length}: ${bmsg.slice(0, 300)}`,
+              );
+              await logUsage(db, {
+                userId,
+                caseId,
+                operation: `agent:${agent.type}`,
+                model: MODEL,
+                latencyMs: Date.now() - bt0,
+                success: false,
+                error: bmsg,
+              });
+              return { batch, batchIdx: idx, msg: bmsg };
+            }
+          };
+
+          let stopAgent = false;
+          while (queue.length && !stopAgent) {
+            const wave: CorpusChunk[][] = queue.splice(0, AGENT_BATCH_CONCURRENCY);
+            const startIdx = batchIdx;
+            batchIdx += wave.length;
+            const settled = await mapSettled(wave, AGENT_BATCH_CONCURRENCY, (batch, i) =>
+              runOneBatch(batch, startIdx + i + 1),
+            );
+            for (const res of settled) {
+              if (!res.ok) throw res.error; // checkpoint / programmer error — propagate
+              const failure = res.value;
+              if (!failure) continue;
+              const { batch, msg: bmsg } = failure;
+              const payloadTooLarge = isPayloadTooLargeError(bmsg);
+              const providerUnavailable = isProviderUnavailableError(bmsg);
+              const retryableTransport = isRetryableTransportError(bmsg);
+              const nonRetryable = isAuthProviderError(bmsg);
+              if (payloadTooLarge && !nonRetryable && batch.length > 1) {
+                const mid = Math.ceil(batch.length / 2);
+                queue.unshift(batch.slice(0, mid), batch.slice(mid));
+                continue;
+              }
+              if (
+                payloadTooLarge &&
+                !nonRetryable &&
+                batch.length === 1 &&
+                batch[0].size > ANALYZER_MIN_BATCH_CHARS
+              ) {
+                const halves = splitOversizeChunk(batch[0]);
+                if (halves.length > 1) {
+                  queue.unshift(...halves.map((h) => [h]));
+                  continue;
+                }
+              }
+              batchErrors.push(`batch ${failure.batchIdx}: ${bmsg.slice(0, 200)}`);
+              if (isGroqCooldownOrRateLimit(bmsg)) {
+                const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
+                console.warn(
+                  `[agent:${agent.type}] Groq cooldown/rate limit reached; yielding for worker retry instead of failing case`,
+                );
+                await _agentTrace({
+                  db,
+                  caseId,
+                  userId,
+                  phase: "stage",
+                  step: "agents_cooldown_checkpoint",
+                  status: "warn",
+                  durationMs: Date.now() - t0,
+                  detail: {
+                    concurrency: AGENT_CONCURRENCY,
+                    batch_concurrency: AGENT_BATCH_CONCURRENCY,
+                    agent: agent.type,
+                    batches_done: successes,
+                    message: bmsg.slice(0, 300),
+                  },
+                });
+                throw new CheckpointRequired(
+                  "agents",
+                  `${agent.type} after ${successes} successful batch(es) — ${bmsg.slice(0, 300)}`,
+                );
+              }
+              if (providerUnavailable || retryableTransport) {
+                console.warn(
+                  `[agent:${agent.type}] stopping remaining batches after provider/capacity failure to avoid repeated AI spend`,
+                );
+                stopAgent = true;
+                break;
+              }
+            }
+          }
+          if (successes === 0) {
+            const providerBlocked =
+              batchErrors.some(isProviderUnavailableError) ||
+              batchErrors.some(isRetryableTransportError);
+            if (!providerBlocked) {
+              throw new Error(
+                `Agent ${agent.type} failed on every batch. ${batchErrors.join(" | ")}`,
+              );
+            }
+          }
+          const parsed = {
+            summary:
+              successes === 0
+                ? `Agent pass suppressed: AI providers were unavailable or out of quota during this run. No uncited findings were generated.`
+                : summaries.join(" ").slice(0, 4000),
+            confidence: confidences.length
+              ? confidences.reduce((a, b) => a + b, 0) / confidences.length
+              : null,
+            findings: mergedFindings,
+          };
+          const generated = Array.isArray(parsed.findings) ? parsed.findings.length : 0;
+          // Chain-of-custody grounding gate: every finding must carry a
+          // verbatim quote traceable to a specific document in the corpus.
+          // Findings that fail grounding are dropped BEFORE persistence so
+          // the report quality gate isn't blocked by uncited items.
+          //
+          // groundingDropped is computed BEFORE the agent_findings upsert
+          // (reordered from the original single-pass version) so the drop
+          // count can be persisted on the same row, instead of being known
+          // only after the row was already written. A dimension backed by
+          // this agent showing 0 contributors must be distinguishable from
+          // "verified clean" vs. "verification failed and everything was
+          // thrown away" — that distinction lived only in a log line before.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let findingsForNormalize: any[] = Array.isArray(parsed.findings) ? parsed.findings : [];
+          let groundingDropped = 0;
+          if (agent.type === "chain_of_custody") {
+            const before = findingsForNormalize.length;
+            findingsForNormalize = groundItems(findingsForNormalize, agentGroundCorpus, {
+              minVerified: 1,
+            });
+            groundingDropped = before - findingsForNormalize.length;
+            if (before > 0 && findingsForNormalize.length === 0) {
+              console.warn(
+                `[grounding-gate] case=${caseId} agent=${agent.type} dropped ALL ${before} findings — ` +
+                  `no verbatim quote could be grounded. This dimension will show 0 contributors, ` +
+                  `which must not be read as "clean record."`,
+              );
+            }
+          }
+          // Source-type gate: witness_credibility runs unconditionally on
+          // every case (UNIVERSAL_FINDING_MODULES), source-type-blind — on a
+          // case with no real witness testimony it has previously quoted the
+          // COURT'S OWN resolution language (an SCJN judgment) and analyzed
+          // it as if it were testimony. Drops any finding grounded entirely
+          // in judicial-decision or statutory/constitutional text before it
+          // can be persisted as "Testimonio de Testigo". See
+          // grounding.server.ts's dropJudicialTextFindings for the exact
+          // vocabulary this targets and why isLegalAuthorityCitation alone
+          // (used elsewhere) doesn't catch it.
+          if (agent.type === "witness_credibility") {
+            const { dropJudicialTextFindings } = await import("./intelligence/grounding.server");
+            const before = findingsForNormalize.length;
+            const result = dropJudicialTextFindings(findingsForNormalize);
+            findingsForNormalize = result.items;
+            groundingDropped += result.dropped;
+            if (result.dropped > 0) {
+              console.warn(
+                `[source-type-gate] case=${caseId} agent=${agent.type} dropped ${result.dropped}/${before} finding(s) grounded entirely in judicial-decision/statutory text — not witness testimony.`,
+              );
+            }
+          }
+          void lastModel;
+          assertDbOk(
+            (
+              await db.from("agent_findings").upsert(
+                {
+                  case_id: caseId,
+                  user_id: userId,
+                  agent_type: agent.type,
+                  status: "complete",
+                  summary: parsed.summary ?? "",
+                  confidence: typeof parsed.confidence === "number" ? parsed.confidence : null,
+                  findings: (parsed.findings ?? []) as J,
+                  latency_ms: Date.now() - t0,
+                  error: null,
+                  grounding_dropped_count: groundingDropped,
+                },
+                { onConflict: "case_id,agent_type" },
+              )
+            ).error,
+            `Failed to save ${agent.type} agent result`,
+          );
+          // Practice-area finding filter: drop findings whose source_module
+          // domain token is forbidden for this case type. Belt-and-braces in
+          // case the LLM ignores the preamble.
+          const normalizedRows = normalizeLlmFindings({
+            caseId,
+            userId,
+            sourceModule: `agent:${agent.type}`,
+            defaultCategory: agent.category,
+            items: findingsForNormalize,
+          });
+          const allowedRows = normalizedRows.filter(
+            (row) =>
+              isFindingAllowed(area, row.source_module ?? `agent:${agent.type}`, activeDomains) &&
+              isFindingAllowed(
+                area,
+                `agent:${String(row.category ?? agent.category)}`,
+                activeDomains,
+              ),
+          );
+          // Deterministic source gate for procedural recommendations (not
+          // just factual claims) — a ways_out_analysis remedy proposed
+          // without a verified applicable legal authority is force-downgraded
+          // to EVIDENCE_GAP; see enforceRemedyLegalAuthorityGate's doc comment.
+          const gatedRows = await enforceRemedyLegalAuthorityGate(
+            db,
+            allowedRows,
+            areaPreambleLocale,
+          );
+          const gate = await addGatedFindings(db, caseId, gatedRows);
+          const accepted = gate.audit?.accepted ?? allowedRows.length;
+          totalGenerated += generated;
+          totalAccepted += accepted;
+          return {
+            value: undefined,
+            stats: {
+              generated,
+              accepted,
+              rejected: Math.max(0, generated - accepted),
+              meta: {
+                evidence_gate: {
+                  mode: gate.mode,
+                  audit: gate.audit,
+                  corpus: gate.corpus,
+                  practice_area_filtered: normalizedRows.length - allowedRows.length,
+                },
+              },
+            },
+          };
+        });
+      } catch (e) {
+        rethrowIfCheckpoint(e);
+        const msg = e instanceof Error ? e.message : String(e);
+        assertDbOk(
+          (
+            await db.from("agent_findings").upsert(
+              {
+                case_id: caseId,
+                user_id: userId,
+                agent_type: agent.type,
+                status: "failed",
+                error: msg,
+                latency_ms: Date.now() - t0,
+              },
+              { onConflict: "case_id,agent_type" },
+            )
+          ).error,
+          `Failed to save ${agent.type} agent failure`,
+        );
+        await logUsage(db, {
+          userId,
+          caseId,
+          operation: `agent:${agent.type}`,
+          model: MODEL,
+          latencyMs: Date.now() - t0,
+          success: false,
+          error: msg,
+        });
+        failures.push(`${agent.type}: ${msg}`);
+      }
+      done += 1;
+      await setCase(db, caseId, {
+        status_message: `Agents ${done}/${totalAgentCount} complete`,
+        progress: 10 + Math.floor((done / Math.max(1, totalAgentCount)) * 90),
+      });
+    };
+
+    // Bounded-concurrency runner: cap simultaneous agent execution so a
+    // large corpus doesn't fan out into dozens of parallel Groq calls that
+    // collectively saturate the org-wide TPM quota and trigger cascading
+    // 429s. Between agents we check the stage wall-clock budget and yield
+    // via CheckpointRequired so an oversized run resumes on the next tick
+    // instead of being killed mid-flight.
+    // Concurrency is the module-level AGENT_CONCURRENCY constant — flipping
+    // it back to 1 is the entire rollback (see its declaration).
+    let queueIdx = 0;
+    let checkpointNeeded = false;
+    const startingDone = completedAgentTypes.size;
+    const workers = Array.from(
+      { length: Math.min(AGENT_CONCURRENCY, agentsToRun.length) },
+      async () => {
+        while (!checkpointNeeded) {
+          const myIdx = queueIdx++;
+          if (myIdx >= agentsToRun.length) break;
+          await runOneAgent(agentsToRun[myIdx]);
+          // Yield only if (i) at least one agent has completed THIS tick (so
+          // we're making forward progress a resume can build on) and (ii) work
+          // remains. Avoids a livelock where the very first agent overruns the
+          // budget and every resume re-throws before anything new commits.
+          if (
+            done < totalAgentCount &&
+            done > startingDone &&
+            Date.now() - agentStageStart > agentBudgetMs
+          ) {
+            checkpointNeeded = true;
+            break;
+          }
+        }
+      },
+    );
+    await Promise.all(workers);
+
+    if (checkpointNeeded && done < totalAgentCount) {
+      throw new _AgentCheckpoint("agents", `${done}/${totalAgentCount} agents complete`);
+    }
+
+    if (failures.length > 0) {
+      const error = failures.join("; ").slice(0, 2000);
+      await setCase(db, caseId, {
+        status: "failed",
+        status_message: `${failures.length}/${activeAgents.length} agents failed`,
+        progress: 100,
+        error,
+      });
+      throw new Error(error);
+    }
+
+    // Stage rollup: the comparison row. wall_ms is the honest end-to-end
+    // duration (first batch start → now, including every stall); ai_ms is the
+    // summed provider time. cooldown_events / cooldown_stall_ms are the
+    // guardrail — if wall_ms drops but these rise proportionally, concurrency
+    // 2 only redistributed the delay and should be reverted to 1.
+    try {
+      const { data: _batchRows } = await db
+        .from("pipeline_engine_runs")
+        .select("runtime_ms,started_at" as any)
+        .eq("case_id", caseId)
+        .like("engine", "%_batch");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _rows = (_batchRows ?? []) as any[];
+      const aiMs = _rows.reduce((a, r) => a + (Number(r.runtime_ms) || 0), 0);
+      const firstStart = _rows
+        .map((r) => Date.parse(String(r.started_at)))
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b)[0];
+      const { data: _traceRows } = await db
+        .from("pipeline_trace")
+        .select("step,duration_ms" as any)
+        .eq("case_id", caseId)
+        .eq("phase", "stage")
+        .in("step", ["agents_cooldown_checkpoint", "agents_tick_resume_gap"]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const _tr = (_traceRows ?? []) as any[];
+      const cooldownEvents = _tr.filter((r) => r.step === "agents_cooldown_checkpoint").length;
+      const stallMs = _tr
+        .filter((r) => r.step === "agents_tick_resume_gap")
+        .reduce((a, r) => a + (Number(r.duration_ms) || 0), 0);
+      const wallMs = firstStart ? Date.now() - firstStart : Date.now() - agentStageStart;
+      await _agentTrace({
+        db,
+        caseId,
+        userId,
+        phase: "stage",
+        step: "agents_concurrency_metrics",
+        status: "info",
+        durationMs: wallMs,
+        detail: {
+          concurrency: AGENT_CONCURRENCY,
+          agents: totalAgentCount,
+          batches: _rows.length,
+          ai_ms: aiMs,
+          wall_ms: wallMs,
+          cooldown_events: cooldownEvents,
+          cooldown_stall_ms: stallMs,
+          overhead_pct: wallMs > 0 ? Math.round(((wallMs - aiMs) / wallMs) * 100) : null,
+        },
+      });
+    } catch {
+      // Instrumentation must never fail the stage.
+    }
+
+    await setCase(db, caseId, {
+      status: "agents_complete",
+      status_message: "Agents complete",
+      progress: 100,
+      agents_at: new Date().toISOString(),
+    });
+    return {
+      value: undefined,
+      stats: {
+        generated: totalGenerated,
+        accepted: totalAccepted,
+        meta: {
+          case_identity: {
+            case_type: area,
+            status: agentsIdentity.status,
+            unverified_classification: !agentsIdentityVerified,
+          },
+        },
+      },
+    };
+  });
+}
+
+// ===== STEP 4: Scoring (explainable, sources from unified findings) =====
+export async function runScoring(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}) {
+  const { db, caseId, userId } = args;
+  await setCase(db, caseId, {
+    status: "scoring",
+    status_message: "Computing explainable scorecard",
+    progress: 30,
+  });
+  await db.from("pipeline_engine_runs").delete().eq("case_id", caseId).eq("engine", "scoring");
+  return runEngine(db, { caseId, userId, engine: ENGINE.scoring }, async () =>
+    _runScoringInner(args),
+  );
+}
+
+async function _runScoringInner(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}) {
+  const { db, caseId, userId, apiKey, apiKeys } = args;
+
+  // SINGLE SOURCE OF TRUTH: canonical finding selection (engine:* only,
+  // pipeline must be finalized). Shared with the report generator.
+  const {
+    getCanonicalScoringFindings,
+    assertPipelineOrder,
+    PipelineNotFinalizedError,
+    CanonicalFindingsEmptyError,
+  } = await import("./intelligence/scoring-selection");
+  const { data: caseRow } = await db
+    .from("cases")
+    .select("discovery_at,contradiction_at,evidence_intel_at,scored_at")
+    .eq("id", caseId)
+    .maybeSingle();
+  const caseTs = (caseRow ?? {
+    discovery_at: null,
+    contradiction_at: null,
+    evidence_intel_at: null,
+    scored_at: null,
+  }) as {
+    discovery_at: string | null;
+    contradiction_at: string | null;
+    evidence_intel_at: string | null;
+    scored_at: string | null;
+  };
+
+  const rawFindings = await listFindings(db, caseId);
+  let findings: typeof rawFindings;
+  try {
+    assertPipelineOrder(caseTs, "scoring");
+    findings = getCanonicalScoringFindings({
+      caseRow: caseTs,
+      findings: rawFindings as unknown as never,
+    });
+  } catch (e) {
+    const code =
+      e instanceof PipelineNotFinalizedError
+        ? "PIPELINE_NOT_FINALIZED"
+        : e instanceof CanonicalFindingsEmptyError
+          ? "CANONICAL_FINDINGS_EMPTY"
+          : "INVALID_PIPELINE_ORDER";
+    // Loud (not silent) evidence-limited fallback so the master pipeline can
+    // still emit a report instead of dead-stopping. The flag is surfaced in
+    // case_scores.rationale and the final report.
+    assertDbOk(
+      (
+        await db.from("case_scores").upsert(
+          {
+            case_id: caseId,
+            user_id: userId,
+            evidence_strength: null,
+            witness_reliability: null,
+            timeline_integrity: null,
+            chain_of_custody: null,
+            constitutional_compliance: null,
+            investigation_completeness: null,
+            case_quality: null,
+            conviction_risk: null,
+            appeal_risk: null,
+            overall_confidence: 0,
+            methodology: `Scoring suppressed (${code}); quantitative scores withheld.`,
+            rationale: { flags: [code], deterministic: {}, llm: {} } as unknown as J,
+            positive_contributors: [] as unknown as J,
+            negative_contributors: [] as unknown as J,
+            dimension_breakdowns: {
+              authoritative: "canonical_guard",
+              flags: [code],
+              deterministic: { dimensions: {} },
+            } as unknown as J,
+            source_finding_ids: [],
+          },
+          { onConflict: "case_id" },
+        )
+      ).error,
+      "Failed to save evidence-limited scorecard",
+    );
+    await setCase(db, caseId, {
+      status: "scored",
+      status_message: `Scoring suppressed — ${code}`,
+      progress: 100,
+      scored_at: new Date().toISOString(),
+    });
+    return {
+      value: undefined,
+      stats: { generated: 0, accepted: 0, suppressed_ess: 1, meta: { reason: code } },
+    };
+  }
+
+  // Case type drives which dimensions are scored at all.
+  const { caseType: caseTypeForScore } = await resolveReportCaseType(
+    db,
+    caseId,
+    findings
+      .map((f) => `${f.category} ${f.title}`)
+      .join(" ")
+      .slice(0, 4000),
+  );
+
+  // Cap by item count, not JSON.stringify(...).slice(N) — slicing raw JSON
+  // text risks cutting the array off mid-object on cases with many
+  // findings, and was the direct cause of a Groq 413 "payload too large"
+  // failure on another engine with the same pattern. 150 findings is far
+  // more than any dimension_breakdowns synthesis needs to cite specific
+  // positive/negative contributors.
+  // audit_classification is included so the LLM can tell a CONFIRMED defect
+  // apart from a searched-and-not-found result — without it, a finding
+  // titled e.g. "Interés jurídico o legítimo no identificado en el corpus"
+  // (whose audit_classification is NOT_FOUND/EVIDENCE_GAP, meaning the
+  // search came up empty) previously read exactly like a confirmed defect,
+  // and got cited as a negative rationale contributor implying the amparo
+  // lacks standing — confirmed on a real case export. See the explicit
+  // instruction below.
+  const findingsForLlm = findings.slice(0, 150).map((f) => ({
+    id: f.id,
+    category: f.category,
+    severity: f.severity,
+    confidence: f.confidence,
+    title: f.title,
+    affected_party: f.affected_party,
+    audit_classification: f.audit_classification ?? null,
+  }));
+
+  const r = await callGroq({
+    apiKey,
+    apiKeys,
+    systemInstruction: `${mexicoLock(await getReportLocale(db, caseId))}\nYou score legal cases objectively across 10 dimensions. EVERY score must list specific positive and negative contributors that reference finding ids. NEVER produce opaque scores. Output STRICT JSON only.\nCRITICAL: each finding carries audit_classification. NOT_FOUND and EVIDENCE_GAP mean Nyrava searched for that issue and found no supporting basis — that is the ABSENCE of a defect, never proof of one. NEVER cite a NOT_FOUND/EVIDENCE_GAP finding as a negative contributor implying a confirmed problem (e.g. do not treat "interés jurídico no identificado en el corpus" as proof the case lacks standing) — only VERIFIED_FACT, VERIFIED_COURT_HOLDING, VERIFIED_LEGAL_RULE, or a clearly-labeled SUPPORTED_INFERENCE/POTENTIAL_ISSUE may be cited as a negative contributor, and POTENTIAL_ISSUE/SUPPORTED_INFERENCE must be phrased as unconfirmed, not as an established weakness.`,
+    userContent: `Return STRICT JSON. Each numeric field is 0-100 (integer). Each dimension_breakdowns entry must list at least 2 positive and 2 negative contributors with finding_id references when available.
+
+{
+  "evidence_strength": number,
+  "witness_reliability": number,
+  "timeline_integrity": number,
+  "chain_of_custody": number,
+  "constitutional_compliance": number,
+  "investigation_completeness": number,
+  "case_quality": number,
+  "conviction_risk": number,
+  "appeal_risk": number,
+  "overall_confidence": number,
+  "methodology": string,
+  "positive_contributors": [ { "label": string, "weight": number (1-100), "finding_id": string|null } ],
+  "negative_contributors": [ { "label": string, "weight": number (1-100), "finding_id": string|null } ],
+  "dimension_breakdowns": {
+    "evidence_strength":     { "score": number, "reasoning": string, "positive": [ { "label": string, "finding_id": string|null } ], "negative": [ { "label": string, "finding_id": string|null } ] },
+    "witness_reliability":   { "score": number, "reasoning": string, "positive": [...], "negative": [...] },
+    "timeline_integrity":    { "score": number, "reasoning": string, "positive": [...], "negative": [...] },
+    "chain_of_custody":      { "score": number, "reasoning": string, "positive": [...], "negative": [...] },
+    "constitutional_compliance": { "score": number, "reasoning": string, "positive": [...], "negative": [...] },
+    "investigation_completeness":{ "score": number, "reasoning": string, "positive": [...], "negative": [...] },
+    "case_quality":          { "score": number, "reasoning": string, "positive": [...], "negative": [...] },
+    "conviction_risk":       { "score": number, "reasoning": string, "positive": [...], "negative": [...] },
+    "appeal_risk":           { "score": number, "reasoning": string, "positive": [...], "negative": [...] },
+    "overall_confidence":    { "score": number, "reasoning": string, "positive": [...], "negative": [...] }
+  }
+}
+
+FINDINGS (${findings.length}):
+${JSON.stringify(findingsForLlm)}`,
+    json: true,
+    temperature: 0.1,
+  });
+  await logUsage(db, {
+    userId,
+    caseId,
+    operation: "score",
+    model: r.model,
+    provider: r.provider,
+    inputTokens: r.inputTokens,
+    outputTokens: r.outputTokens,
+    totalTokens: r.totalTokens,
+    latencyMs: r.latencyMs,
+    success: true,
+    keyIndex: r.keyIndex,
+  });
+  const s = parseJsonLoose<Record<string, unknown>>(r.text) ?? {};
+  const num = (k: string) => {
+    const v = s[k];
+    return typeof v === "number" ? Math.max(0, Math.min(100, Math.round(v))) : null;
+  };
+
+  // Collect finding ids referenced
+
+  const allContribs = [
+    ...((s.positive_contributors as any[]) ?? []),
+    ...((s.negative_contributors as any[]) ?? []),
+  ];
+
+  const ids = allContribs
+    .map((c: any) => c?.finding_id)
+    .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+
+  // DETERMINISTIC scorecard derived from verified findings. This overrides
+  // the LLM's numeric outputs so every score is defensible by formula.
+  const det = computeDeterministicScorecard(findings, caseTypeForScore);
+  const detNum = (k: string) => det.dimensions[k]?.score ?? num(k);
+  const detContrib = (k: string, sign: "positives" | "negatives") =>
+    (det.dimensions[k]?.[sign] ?? []).map((c) => ({
+      label: c.title,
+      weight: Math.round(Math.abs(c.signed_weight)),
+      finding_id: c.finding_id,
+    }));
+  const flatPos = Object.keys(det.dimensions).flatMap((k) => detContrib(k, "positives"));
+  const flatNeg = Object.keys(det.dimensions).flatMap((k) => detContrib(k, "negatives"));
+  // Mean of this case's own applicable per-dimension scores — the same
+  // "case quality"/"case strength" concept the report-writer stage's
+  // case_strength_score deterministic counterpart computes later from its
+  // own (slightly later-stage) scorecard. See the case_quality upsert field
+  // comment below for why this needs its own formula distinct from
+  // det.overall_confidence (avg finding confidence — a different metric).
+  const detDimScoresForQuality = Object.values(det.dimensions)
+    .map((d) => d.score)
+    .filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+  const caseQualityDeterministic = detDimScoresForQuality.length
+    ? Math.round(detDimScoresForQuality.reduce((a, b) => a + b, 0) / detDimScoresForQuality.length)
+    : null;
+
+  const { getActiveDomains, isCriminalEffective } =
+    await import("./intelligence/cross-domain.server");
+  const activeDomainsForScore = await getActiveDomains(db, caseId);
+  const criminalLike = isCriminalEffective(caseTypeForScore, activeDomainsForScore);
+  const penalPerspectiveScores = criminalLike
+    ? computePenalPerspectiveScores(
+        findings as unknown as Parameters<typeof computePenalPerspectiveScores>[0],
+      )
+    : null;
+
+  // Strip non-applicable dimensions from the LLM payload BEFORE persistence
+  // so renderers (PDF, DOCX, dashboard) cannot show off-domain dimensions
+  // like "Conviction Risk" or "Chain of Custody" on a civil case.
+  const { applicableDimensionsFor, scrubScoringContributors, gateDimensionForCaseType } =
+    await import("./intelligence/scoring.server");
+  const applicableSet = new Set(applicableDimensionsFor(caseTypeForScore));
+  // Cross-domain escalation (e.g. a tax_law case where a charging document
+  // was detected): union in the criminal dimension set so chain_of_custody /
+  // constitutional_compliance / conviction_risk / appeal_risk become
+  // available instead of being permanently suppressed by the civil base type.
+  if (criminalLike && !isCriminalCaseType(caseTypeForScore)) {
+    for (const d of applicableDimensionsFor("criminal")) applicableSet.add(d);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const llmDimsRaw = (s.dimension_breakdowns ?? {}) as Record<string, any>;
+  const llmDimsScoped: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(llmDimsRaw)) if (applicableSet.has(k)) llmDimsScoped[k] = v;
+  // Also drop off-domain contributors that reference suppressed dimensions
+  // by label, and any contributor whose finding_id isn't a real, persisted
+  // finding for this case — see scrubScoringContributors's doc comment
+  // (scoring.server.ts) for why this fallback path specifically needs the
+  // finding_id check that the deterministic contributor path never does.
+  const validFindingIds = new Set(findings.map((f) => f.id));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scrubContribs = (arr: any[]) =>
+    scrubScoringContributors(arr, { criminalLike, validFindingIds });
+
+  // MODEL_DISAGREEMENT — deterministic is authoritative; LLM is comparison
+  // only. Flag any dimension where the gap exceeds the threshold so the
+  // renderer can show it explicitly.
+  const { computeScoreDelta, SCORE_DISAGREEMENT_THRESHOLD } =
+    await import("./intelligence/case-state.server");
+  const llmDims = llmDimsScoped as Record<string, { score?: number | null }>;
+
+  const detDims = det.dimensions as Record<string, { score?: number | null }>;
+  const delta = computeScoreDelta(detDims, llmDims);
+
+  assertDbOk(
+    (
+      await db.from("case_scores").upsert(
+        {
+          case_id: caseId,
+          user_id: userId,
+          // evidence_strength is the one dimension present in every
+          // CASE_TYPE_DIMENSIONS entry (scoring.server.ts) — safe unconditional.
+          evidence_strength: detNum("evidence_strength"),
+          // gateDimensionForCaseType (scoring.server.ts): witness_reliability
+          // and timeline_integrity are NOT universal across materias — see
+          // that function's doc comment for the confirmed live bug this fixes
+          // (witness_reliability: 70 persisted on a pure-law, zero-witness
+          // amparo directo en revisión case).
+          witness_reliability: gateDimensionForCaseType(
+            "witness_reliability",
+            applicableSet,
+            detNum("witness_reliability"),
+          ),
+          timeline_integrity: gateDimensionForCaseType("timeline_integrity", applicableSet, detNum("timeline_integrity")),
+          // Criminal-only dimensions: suppress entirely for civil matters so the
+          // report can't display "Chain of Custody: 0" or "Constitutional
+          // Compliance: 0" on a medical-malpractice or employment case.
+          chain_of_custody: criminalLike ? detNum("chain_of_custody") : null,
+          constitutional_compliance: criminalLike ? detNum("constitutional_compliance") : null,
+          investigation_completeness: gateDimensionForCaseType(
+            "investigation_completeness",
+            applicableSet,
+            detNum("investigation_completeness"),
+          ),
+          // FIX (2026-08-17): case_quality was persisted straight from the
+          // LLM's raw self-report (`num("case_quality")`) with zero
+          // deterministic backing — unlike every other field on this same
+          // upsert. It shares no defined distinction from overall_confidence
+          // in the prompt above, but overall_confidence already has a real
+          // formula (avg finding confidence, computed by
+          // computeDeterministicScorecard) while case_quality had none, so
+          // the two independently-invented LLM numbers routinely disagreed
+          // on the same dashboard card row — confirmed live (e.g. 70 vs 76
+          // for the same report). "Case quality" is conceptually the mean of
+          // this case's own scored dimensions (the same quantity
+          // case_strength_score's own deterministic counterpart uses at the
+          // report-writer stage, below) — a distinct, well-defined metric
+          // from overall_confidence's avg-finding-confidence formula, not a
+          // duplicate of it. Falls back to the raw LLM number only when this
+          // case type has zero applicable dimensions at all.
+          case_quality: caseQualityDeterministic ?? num("case_quality"),
+          // Perspective-aware Penal scores are deterministic and only move
+          // when a finding supplies a complete party/effect/evidence mapping.
+          // The model's free-form conviction/appeal numbers are comparison
+          // input only and are never persisted as the authority.
+          conviction_risk: criminalLike
+            ? Math.max(0, 100 - penalPerspectiveScores!.conviction_stability.score)
+            : null,
+          appeal_risk: criminalLike ? penalPerspectiveScores!.reversal_risk.score : null,
+          overall_confidence: Math.round(det.overall_confidence * 100),
+          methodology: det.methodology,
+          rationale: { llm: llmDimsScoped, deterministic: det.dimensions } as unknown as J,
+
+          positive_contributors: (flatPos.length
+            ? flatPos
+            : scrubContribs((s.positive_contributors as any[]) ?? [])) as J,
+
+          negative_contributors: (flatNeg.length
+            ? flatNeg
+            : scrubContribs((s.negative_contributors as any[]) ?? [])) as J,
+          dimension_breakdowns: {
+            llm: llmDimsScoped,
+            deterministic: det,
+            penal_perspective: penalPerspectiveScores,
+            case_type: caseTypeForScore,
+            authoritative: "deterministic",
+            applicable_dimensions: Array.from(applicableSet),
+            score_deltas: delta.deltas,
+            max_delta: delta.max_delta,
+            model_disagreement: delta.disagreement,
+            disagreement_threshold: SCORE_DISAGREEMENT_THRESHOLD,
+            flags: delta.disagreement ? ["MODEL_DISAGREEMENT"] : [],
+          } as unknown as J,
+          source_finding_ids: ids,
+        },
+        { onConflict: "case_id" },
+      )
+    ).error,
+    "Failed to save case score",
+  );
+
+  await setCase(db, caseId, {
+    status: "scored",
+    status_message: "Scoring complete",
+    progress: 100,
+    scored_at: new Date().toISOString(),
+  });
+  return {
+    value: undefined,
+    stats: {
+      generated: findings.length,
+      accepted: findings.length,
+      meta: { case_type: caseTypeForScore, max_delta: delta.max_delta },
+    },
+  };
+}
+
+// ===== STEP 5: Litigation Intelligence Report =====
+// This is NOT a summary generator. It produces an attorney-grade intelligence
+// brief with page-level citations, contradiction analysis with legal impact,
+// missing evidence, attorney strategy, cross-exam questions, constitutional
+// analysis, motion opportunities, case-strength and risk scores, and a
+// prioritized next-actions list.
+const INTELLIGENCE_VERSION = "intel-v2";
+const PAGE_CHARS = 3000;
+
+function paginate(text: string): string[] {
+  const t = (text ?? "").replace(/\r\n/g, "\n");
+  if (!t) return [];
+  const pages: string[] = [];
+  for (let i = 0; i < t.length; i += PAGE_CHARS) pages.push(t.slice(i, i + PAGE_CHARS));
+  return pages;
+}
+
+// FIX (2026-08-18, ADR-5829/2025 audit — second run): shared-brief.server.ts
+// already gained a resolutivo_verbatim anchor (parseResolutivos, extracted
+// from each document's FULL text before any truncation) reaching the
+// litigation.server.ts engines (perspectives, strategy, work_product) that
+// read the shared brief. But THIS report-writer's own narrative call
+// (buildUserContent/sharedContext below) never goes through
+// shared-brief.server.ts at all — it builds its own corpus directly from
+// buildPaginatedCorpus, with its own SEPARATE truncation budget. A second
+// live run confirmed exactly the gap that leaves: "Producto de Trabajo del
+// Abogado" (runWorkProductEngine, benefits from the shared-brief anchor)
+// correctly stated the SCJN revoked and remanded, while this function's
+// own "Hechos" prose — a few pages later in the SAME report — said the
+// opposite ("fue confirmado por la Suprema Corte de Justicia de la
+// Nación"), contradicting the report's own other section. Computing the
+// same anchor here, independently, closes that gap for this call site too.
+function extractResolutivoVerbatim(
+  docs: Array<{ filename: string; extracted_text: string | null }>,
+): string | null {
+  const RESOLUTIVO_CHAR_BUDGET = 6000;
+  const blocks: string[] = [];
+  for (const d of docs) {
+    const parsed = parseResolutivos(d.extracted_text ?? "");
+    if (!parsed.found || parsed.dispositions.length === 0) continue;
+    const items = parsed.dispositions
+      .map((disp) => `${disp.ordinal ? disp.ordinal + ". " : ""}${disp.text}`)
+      .join("\n");
+    blocks.push(`--- ${d.filename} ---\n${items}`);
+  }
+  return blocks.length > 0 ? blocks.join("\n\n").slice(0, RESOLUTIVO_CHAR_BUDGET) : null;
+}
+
+async function buildPaginatedCorpus(db: Db, caseId: string) {
+  const { data: docs } = await db
+    .from("documents")
+    .select("id,filename,extracted_text,status")
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: true });
+  const extracted = (docs ?? []).filter((d) => d.status === "extracted");
+  const docIndex: { doc_n: number; document_id: string; filename: string; pages: number }[] = [];
+  const blocks: string[] = [];
+  extracted.forEach((d, i) => {
+    const docN = i + 1;
+    const pages = paginate(d.extracted_text ?? "");
+    docIndex.push({
+      doc_n: docN,
+      document_id: d.id as string,
+      filename: d.filename,
+      pages: pages.length,
+    });
+    blocks.push(`=== DOC ${docN} | ${d.filename} | id=${d.id} | pages=${pages.length} ===`);
+    pages.forEach((p, j) => {
+      blocks.push(`--- DOC ${docN} p.${j + 1} ---\n${p}`);
+    });
+  });
+  const resolutivoVerbatim = extractResolutivoVerbatim(
+    extracted.map((d) => ({ filename: d.filename, extracted_text: d.extracted_text })),
+  );
+  return { corpus: blocks.join("\n"), docIndex, resolutivoVerbatim };
+}
+
+// Cluster near-duplicate findings so the report sees one consolidated row per
+// issue. Implementation lives in the pure module
+// src/lib/intelligence/finding-dedupe.ts (semantic near-duplicate clustering
+// that unions evidence, citations, source docs and supporting engines into the
+// surviving finding — nothing is discarded).
+function dedupeFindings<T extends Record<string, unknown>>(
+  rows: T[],
+): Array<T & { _alias_ids?: string[]; _alias_titles?: string[] }> {
+  return consolidateFindings(rows ?? []);
+}
+
+/**
+ * Materia detection for cases whose `case_type` is not stamped yet. Delegates
+ * to the single Mexican classifier (src/lib/mx-case-classifier.ts) — there is
+ * no second keyword taxonomy and no foreign case-type vocabulary here.
+ */
+export function detectCaseType(text: string): string {
+  return classifyMexicanCaseType(text).caseType;
+}
+
+export function isCriminalCaseType(caseType: string | undefined | null): boolean {
+  return normalizeMexicanCaseType(caseType) === "penal";
+}
+
+/**
+ * Returns the authoritative case type for a case.
+ * USER-LOCKED case_type wins absolutely. Detection is only a fallback when
+ * the user did not select one at upload time.
+ */
+export async function resolveCaseType(
+  db: Db,
+  caseId: string,
+  fallbackText?: string,
+): Promise<string> {
+  const { data } = await db
+    .from("cases")
+    .select("case_type,name,description" as any)
+    .eq("id", caseId)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const locked = (data as any)?.case_type;
+  if (typeof locked === "string" && locked.length > 0) return locked;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = data as any;
+  return detectCaseType(`${row?.name ?? ""} ${row?.description ?? ""} ${fallbackText ?? ""}`);
+}
+
+/**
+ * Canonical Reconciliation Design (2026-08-16), P2 — the real, safety-
+ * relevant gap `resolveCaseType` above has: `resolveCaseIdentity`
+ * (case-classification.server.ts) already detects when an attorney's
+ * manually-locked case_type actively DISAGREES with CONFIRMED classification
+ * evidence (status: "conflict") and correctly refuses to hand that value out
+ * to legal-reasoning consumers elsewhere in the pipeline (the analyzer stage,
+ * scoring dimension selection, isFindingAllowed's policy gate — see the
+ * "VERIFIED CASE IDENTITY" comments throughout this file). But report
+ * generation itself never asked that resolver — every call site below used
+ * the raw `resolveCaseType`, which returns the locked value with NO conflict
+ * awareness at all. That meant a case already internally flagged "don't
+ * trust materia-specific reasoning here" could still get a full report
+ * rendered under the wrong materia: wrong report sections
+ * (isCriminalOrCivilRights gating), wrong motion catalogue
+ * (mxWorkProductPromptCatalogue), wrong scoring dimensions.
+ *
+ * Deliberately narrow: this does NOT require full "verified"/
+ * "attorney_locked" status (isUsableForLegalReasoning) — that would regress
+ * the common, legitimate case of a merely-declared-but-not-yet-evidence-
+ * confirmed case_type, exactly the regression the analyzer stage's own
+ * comment above (`analyzerArea`) was written to avoid. It ONLY refuses the
+ * locked value in the specific "conflict" state — attorney lock actively
+ * disagreeing with CONFIRMED evidence — where `resolveCaseType` would
+ * otherwise silently hand out a value the platform itself no longer trusts.
+ * Every other status (verified/attorney_locked/unverified/failed) falls
+ * through to the exact same behavior `resolveCaseType` already provided.
+ */
+export async function resolveReportCaseType(
+  db: Db,
+  caseId: string,
+  fallbackText?: string,
+): Promise<{ caseType: string; identityConflict: boolean }> {
+  const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+  const identity = await resolveCaseIdentity(db, caseId);
+  if (identity.status !== "conflict") {
+    return { caseType: await resolveCaseType(db, caseId, fallbackText), identityConflict: false };
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await db.from("cases").select("name,description" as any).eq("id", caseId).maybeSingle();
+  const row = data as { name?: string | null; description?: string | null } | null;
+  return {
+    caseType: detectCaseType(`${row?.name ?? ""} ${row?.description ?? ""} ${fallbackText ?? ""}`),
+    identityConflict: true,
+  };
+}
+
+// Auto-run any REPORT_REQUIRED_ENGINES that are missing or failed. This
+// removes the dead-end "Pipeline incomplete — cannot generate report" error:
+// instead of failing, the report step backfills its own upstream so the
+// user can hit Generate Report directly and the platform completes the work.
+async function ensureRequiredEngines(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}): Promise<{ ran: string[]; failed: Array<{ engine: string; error: string }> }> {
+  const { db, caseId, userId, apiKey, apiKeys } = args;
+  const { REPORT_REQUIRED_ENGINES, missingRequiredEngines, OPTIONAL_ENGINES } =
+    await import("@/lib/execution-state");
+  const { data: runs } = await db
+    .from("pipeline_engine_runs")
+    .select("id,engine,status,started_at,ended_at,created_at")
+    .eq("case_id", caseId)
+    .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
+    .order("created_at", { ascending: false });
+  const missing = missingRequiredEngines((runs ?? []) as never);
+  if (!missing.length) return { ran: [], failed: [] };
+
+  const baseArgs = { db, caseId, userId, apiKey, apiKeys };
+  const derived = await import("./intelligence/derived-engines.server");
+  // contradictions / discovery_gaps / evidence_intelligence / witness_intelligence
+  // are derived from Analyzers + Agents output; do NOT re-run the standalone
+  // LLM engines here (they duplicated work and blew the 30K TPM cap).
+
+  const runners: Record<string, () => Promise<unknown>> = {
+    extraction: () => runExtraction(baseArgs),
+    analyzers: () => runAnalyzers(baseArgs),
+    agents: () => runAgents(baseArgs),
+    timeline: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.timeline }, async () => {
+        const { buildCanonicalTimeline } = await import("./intelligence/canonical-timeline.server");
+        const ct = await buildCanonicalTimeline(db, caseId);
+        return { value: ct, stats: { generated: ct.totals.total, accepted: ct.totals.dated } };
+      }),
+
+    evidence_intelligence: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.evidence_intel }, async () => {
+        const result = await derived.deriveEvidenceIntel(db, caseId);
+        await setCase(db, caseId, { evidence_intel_at: new Date().toISOString() });
+        return result;
+      }),
+    contradictions: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.contradictions }, async () => {
+        const result = await derived.deriveContradictions(db, caseId);
+        await setCase(db, caseId, { contradiction_at: new Date().toISOString() });
+        return result;
+      }),
+    discovery_gaps: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.discovery }, async () => {
+        const result = await derived.deriveDiscoveryGaps(db, caseId);
+        await setCase(db, caseId, { discovery_at: new Date().toISOString() });
+        return result;
+      }),
+    witness_intelligence: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.witness }, async () =>
+        derived.deriveWitnessIntel(db, caseId),
+      ),
+    // Both of these are requirement:"blocking" canonical stages, so the
+    // report pre-flight gate refuses to run without them. They previously
+    // had no entry here at all: any case whose pipeline never reached them
+    // (or lost their rows) failed backfill with "no runner registered" and
+    // then hard-failed with "core engines failed to complete".
+    jurisdiction_intel: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.jurisdiction_intel }, async () => {
+        const { runJurisdictionIntelligence } =
+          await import("./intelligence/jurisdiction-intel.server");
+        const value = await runJurisdictionIntelligence({ db, caseId });
+        return { value, stats: { generated: 1, accepted: 1 } };
+      }),
+    procedural_compliance: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.procedural_compliance }, async () => {
+        const { runProceduralCompliance } =
+          await import("./intelligence/procedural-compliance.server");
+        const value = await runProceduralCompliance({ db, caseId, userId });
+        return {
+          value,
+          stats: { generated: value.evaluated, accepted: value.satisfied },
+        };
+      }),
+    constitutional_compliance: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.constitutional }, async () => ({
+        value: { derived_from: "analyzers+agents" },
+      })),
+    evidence_map: () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.evidence_map }, async () => {
+        const m = await import("./intelligence/evidence-map.server");
+        const em = await m.buildEvidenceMap(db, caseId);
+        return {
+          value: em,
+          stats: {
+            generated: em.totals.total,
+            accepted: em.totals.total - em.totals.missing_evidence,
+          },
+        };
+      }),
+    scoring: () => runScoring(baseArgs),
+  };
+
+  // Run in REPORT_REQUIRED_ENGINES order so dependencies (extraction→analyzers→agents→…)
+  // are respected. Practice-area gated engines that don't apply to this case
+  // type are skipped here too (constitutional_compliance etc.) so the
+  // report-pre-flight gate is satisfied without forcing irrelevant work.
+  const {
+    isAnalyzerAllowed,
+    SKIP_REASON_NOT_APPLICABLE,
+    buildCaseTypeManifest,
+    PRACTICE_GATED_ENGINES,
+  } = await import("./intelligence/practice-areas");
+  const { getActiveDomains } = await import("./intelligence/cross-domain.server");
+  const { recordSkipped } = await import("./intelligence/engine-audit.server");
+  const { emitEvent } = await import("./intelligence/progress.server");
+  const { resolveCaseIdentity } = await import("./intelligence/case-classification.server");
+  const { isUsableForLegalReasoning } = await import("./intelligence/case-identity");
+
+  // VERIFIED CASE IDENTITY — never a raw cases.case_type read. Verified/
+  // attorney-locked/declared values are used as before; a genuinely unknown
+  // identity gets an explicit, non-guessed sentinel ("unverified") rather
+  // than the real materia value "general_civil" — that sentinel naturally
+  // fails PRACTICE_GATED_ENGINES's allow-list below, so materia-restricted
+  // engines correctly stay skipped under an unknown materia instead of
+  // silently running general-civil behavior.
+  const ensureIdentity = await resolveCaseIdentity(db, caseId);
+  const ensureIdentityVerified = isUsableForLegalReasoning(ensureIdentity);
+  const area = String(ensureIdentity.caseType ?? "unverified");
+  const activeDomains = await getActiveDomains(db, caseId);
+
+  // The report-time backfill path must honor the exact same Penal
+  // prerequisites as the canonical pipeline runner. Otherwise a concluded
+  // audit can regenerate prospective theory/discovery/witness output that
+  // the main run deliberately skipped and cleared.
+  const { getCaseAnalysisMode } = await import("./intelligence/case-analysis-mode");
+  const prerequisiteModule = await import("./intelligence/penal-engine-prerequisites");
+  const ensureCaseAnalysisMode = await getCaseAnalysisMode(db, caseId);
+  const ensurePenalContext =
+    area === "penal" || ensureIdentity.underlyingMateria === "penal";
+  const ensurePrerequisites = prerequisiteModule.detectPenalEnginePrerequisites(
+    ensurePenalContext
+      ? (
+          await db
+            .from("documents")
+            .select("extracted_text")
+            .eq("case_id", caseId)
+        ).data
+          ?.map((row) => String(row.extracted_text ?? ""))
+          .join("\n") ?? ""
+      : "",
+  );
+  if (ensurePenalContext) {
+    const { data: concludedEvidence } = await (db as any)
+      .from("case_classification_evidence")
+      .select("value,source_quote,conflicting_values")
+      .eq("case_id", caseId)
+      .eq("field", "concluded_status")
+      .maybeSingle();
+    ensurePrerequisites.hasOpenSubsequentProceeding =
+      prerequisiteModule.classificationSupportsOpenProceeding(concludedEvidence);
+  }
+
+  // Emit the Case-Type Manifest — what the engine INTENDS to run, before any
+  // engine actually executes. Persisted to pipeline_events for the audit trail.
+  // buildCaseTypeManifest calls the STRICT normalizePracticeArea internally
+  // (it throws for any unrecognized materia, including the fail-closed
+  // "unverified" sentinel `area` deliberately carries above) — feed it a
+  // real materia ("civil") purely so the manifest label can render; the
+  // actual engine-gating decisions below keep using `area` unchanged, so an
+  // unknown/unverified identity still fails closed via isAnalyzerAllowed's
+  // tolerant resolution, exactly as designed.
+  const manifest = buildCaseTypeManifest(ensureIdentity.caseType ?? "civil", activeDomains);
+  await emitEvent(db, caseId, "manifest", `Case-Type Manifest: ${manifest.case_type_label}`, {
+    meta: {
+      ...manifest,
+      case_identity_status: ensureIdentity.status,
+      unverified_classification: !ensureIdentityVerified,
+    } as unknown as Record<string, unknown>,
+  });
+
+  const ordered = (REPORT_REQUIRED_ENGINES as readonly string[]).filter((e) => missing.includes(e));
+
+  const ran: string[] = [];
+  const failed: Array<{ engine: string; error: string }> = [];
+  for (const engine of ordered) {
+    const penalPrerequisiteKey: Record<string, string> = {
+      discovery_gaps: "discovery",
+      witness_intelligence: "witness",
+      theory: "theories",
+      opportunity: "opportunities",
+    };
+    if (ensurePenalContext) {
+      const decision = prerequisiteModule.penalEngineApplicability(
+        penalPrerequisiteKey[engine] ?? engine,
+        ensureCaseAnalysisMode,
+        ensurePrerequisites,
+      );
+      if (!decision.run) {
+        const staleTable: Record<string, string> = {
+          discovery_gaps: "case_findings",
+          witness_intelligence: "case_witnesses",
+          theory: "case_theories",
+          opportunity: "case_opportunities",
+          strategy: "case_strategy",
+          litigation_strategy_center: "case_strategy_center",
+          work_product: "case_work_product",
+        };
+        const table = staleTable[engine];
+        if (table === "case_findings") {
+          await db
+            .from("case_findings")
+            .delete()
+            .eq("case_id", caseId)
+            .like("source_module", "engine:discovery%");
+        } else if (table) {
+          await (db as any).from(table).delete().eq("case_id", caseId);
+        }
+        await recordSkipped(db, {
+          caseId,
+          userId,
+          engine: engine as never,
+          reason: `skipped_not_applicable:${decision.reason ?? "prerequisites_not_met"}`,
+        });
+        ran.push(`${engine}:skipped_not_applicable`);
+        continue;
+      }
+    }
+
+    // isAnalyzerAllowed()/MX_ENGINES is a small, deliberate per-materia
+    // allow-list for the handful of engines that are actually practice-area
+    // gated (constitutional_compliance, chain_of_custody, procedural_
+    // violations, trial_prep, cross_examination, property_verification,
+    // closing_readiness_scoring — see PRACTICE_GATED_ENGINES). It was never
+    // populated with the optional-tier intelligence engines (perspectives,
+    // opportunity, strategy, theory, litigation_strategy_center,
+    // work_product, hallucination, multi_agent) because those aren't
+    // materia-restricted — mx-pipeline.ts's EXCLUDED_STAGES is the
+    // authoritative source for that and already ran earlier in the
+    // pipeline. Applying isAnalyzerAllowed() to EVERY engine in
+    // REPORT_REQUIRED_ENGINES (which since 2026-07-31 is "every stage")
+    // meant any of those un-listed engines still mid-checkpoint at
+    // report-time got permanently marked "skipped" here — a DONE status
+    // that can never be retried — even though they were legitimately
+    // relevant and simply hadn't finished yet. Confirmed on a real case
+    // (Amparo Indirecto 412/2026): perspectives/opportunity/strategy were
+    // still checkpointing on an AI call when this ran, and all three were
+    // wrongly force-skipped in the same instant, moments before the report
+    // generated without their input. Scope the gate to the engines it was
+    // actually built for.
+    if (PRACTICE_GATED_ENGINES.has(engine) && !isAnalyzerAllowed(area, engine, activeDomains)) {
+      await recordSkipped(db, {
+        caseId,
+        userId,
+        engine: engine as never,
+        reason: SKIP_REASON_NOT_APPLICABLE,
+      });
+      ran.push(`${engine}:skipped`);
+      continue;
+    }
+    const fn = runners[engine];
+    if (!fn) {
+      // Expected for the optional-tier intelligence engines (perspectives,
+      // opportunity, strategy, theory, litigation_strategy_center,
+      // work_product, hallucination, multi_agent) — this backfill helper
+      // deliberately has no runner for them: their real implementations
+      // (runPerspectivesEngine, runStrategyEngine, etc.) throw
+      // CheckpointRequired mid-run when they hit a time/budget limit, which
+      // only the checkpoint/batch-aware main pipeline loop in
+      // pipeline-runner.server.ts knows how to catch, persist, and resume —
+      // calling them synchronously here would let that exception escape
+      // uncaught (rethrowIfCheckpoint below re-throws it) and abort report
+      // generation entirely instead of failing this one stage cleanly.
+      //
+      // But since 2026-07-31 REPORT_BLOCKING_ENGINES lists EVERY stage, not
+      // just requirement:"blocking" ones, and canGenerateReport()'s
+      // optional-tier exemption only accepts status "failed"/"blocked" (or
+      // unconditionally "skipped") — never "no row at all". A case whose
+      // main loop finished (or got stuck) without ever giving one of these
+      // engines a terminal row was left permanently unable to generate a
+      // report: this branch could not run it, and nothing else was writing
+      // any row for it either. Confirmed on a real case (robo calificado
+      // con violencia, Jalisco): perspectives and strategy both had no
+      // terminal `pipeline_engine_runs` row, and "Generate Legal Report"
+      // failed identically on every retry with no path to recovery.
+      //
+      // Record it explicitly "skipped" instead — the same terminal state
+      // already used a few lines up for case-type-gated engines, and the
+      // one status canGenerateReport() exempts unconditionally regardless
+      // of requirement tier. This is exactly what "optional: a failure
+      // here must not permanently block the report" already means for
+      // every other optional engine; it was only unreachable for these
+      // because nothing was writing a terminal row for them here. The gap
+      // is surfaced honestly rather than silently: pipelineWarnings (see
+      // caller) still records `${engine}_failed` for it below, so the
+      // report notes the analysis is missing instead of pretending it ran.
+      if (OPTIONAL_ENGINES.has(engine)) {
+        try {
+          const { recordSkipped } = await import("./intelligence/engine-audit.server");
+          await recordSkipped(db, {
+            caseId,
+            userId,
+            engine: engine as never,
+            reason: "not_backfillable_at_report_time",
+          });
+        } catch (e) {
+          console.warn(`[report] failed to record ${engine} as skipped during backfill`, e);
+        }
+      }
+      failed.push({ engine, error: "not backfillable here — owned by the main pipeline loop" });
+      continue;
+    }
+    try {
+      await setCase(db, caseId, { status_message: `Auto-running ${engine}`, progress: 10 });
+      await fn();
+      ran.push(engine);
+    } catch (e) {
+      rethrowIfCheckpoint(e);
+      failed.push({ engine, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return { ran, failed };
+}
+
+export async function runReport(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+}) {
+  const { db, caseId, userId } = args;
+  // Clear the per-case findings audit accumulator BEFORE any engine runs.
+  // Without this, `_findingsAudit` (module-level Map keyed by caseId) keeps
+  // adding to the prior run's totals on every rerun/regenerate, and the
+  // cover-page "Findings Summary" silently inflates across regenerations.
+  const { resetFindingsAudit } = await import("./intelligence/findings.server");
+  resetFindingsAudit(caseId);
+  await setCase(db, caseId, {
+    status: "reporting",
+    status_message: "Preparing report pipeline",
+    progress: 5,
+  });
+
+  // Backstop: if this case has already checkpointed out of the report stage
+  // MAX_REPORT_CHECKPOINTS times without finishing, the raw LLM calls are
+  // not going to succeed on attempt N+1 either — same prompt, same model,
+  // same timeout. Stop retrying and force finalization with whatever
+  // chunks are already cached, via the existing salvage/fallback path,
+  // so the case always terminates instead of checkpointing forever.
+  let forceFinalize = false;
+  try {
+    const { MAX_REPORT_CHECKPOINTS } = await import("./pipeline-checkpoint.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cur } = await (db as any)
+      .from("cases")
+      .select("report_checkpoint_count")
+      .eq("id", caseId)
+      .maybeSingle();
+    const count =
+      (cur as { report_checkpoint_count?: number } | null)?.report_checkpoint_count ?? 0;
+    if (count >= MAX_REPORT_CHECKPOINTS) {
+      forceFinalize = true;
+      console.warn(
+        `[report] checkpoint backstop reached (${count}/${MAX_REPORT_CHECKPOINTS}) — forcing finalization with cached chunks`,
+      );
+      await setCase(db, caseId, {
+        status_message: `Report generation timed out repeatedly — finalizing with partial results (${count} attempts)`,
+      });
+    }
+  } catch (e) {
+    console.warn("[report] failed to read report_checkpoint_count — proceeding normally", e);
+  }
+
+  // Backfill any missing upstream engines BEFORE we clear report-tier rows,
+  // so the pre-flight gate inside _runReportInner can succeed without
+  // forcing the user to manually click each prior step.
+  const ensured = await ensureRequiredEngines(args);
+  if (ensured.failed.length) {
+    console.warn("[report] some required engines failed during auto-backfill", ensured.failed);
+  }
+  // Collect pipeline warnings for inclusion in the final report (Section 10).
+  const pipelineWarnings: string[] = ensured.failed.map((f) => `${f.engine}_failed`);
+
+  // Stale-suppression recovery. Scoring may have run at a moment when the
+  // upstream timestamps weren't written yet (out-of-order execution, an
+  // earlier tick that skipped discovery/evidence_intel, a checkpoint), which
+  // persists a null scorecard flagged PIPELINE_NOT_FINALIZED /
+  // INVALID_PIPELINE_ORDER. Backfill above has now completed those stages, so
+  // the suppression is stale — re-score before the report reads it, otherwise
+  // the report is forced to LIMITED with suppressed scores on a case that has
+  // full coverage.
+  try {
+    const { data: scoreRow } = await db
+      .from("case_scores")
+      .select("rationale,overall_confidence")
+      .eq("case_id", caseId)
+      .maybeSingle();
+    const flags = (
+      ((scoreRow as { rationale?: { flags?: unknown } } | null)?.rationale?.flags ??
+        []) as unknown[]
+    ).map(String);
+    const stale = flags.some((f) =>
+      ["PIPELINE_NOT_FINALIZED", "INVALID_PIPELINE_ORDER", "CANONICAL_FINDINGS_EMPTY"].includes(f),
+    );
+    if (stale) {
+      const { data: tsRow } = await db
+        .from("cases")
+        .select("discovery_at,contradiction_at,evidence_intel_at")
+        .eq("id", caseId)
+        .maybeSingle();
+      const ts = tsRow as {
+        discovery_at: string | null;
+        contradiction_at: string | null;
+        evidence_intel_at: string | null;
+      } | null;
+      const finalizedNow = Boolean(
+        ts?.discovery_at && ts?.contradiction_at && ts?.evidence_intel_at,
+      );
+      if (finalizedNow) {
+        console.warn(
+          `[report] stale scoring suppression (${flags.join(",")}) — re-scoring before report`,
+        );
+        pipelineWarnings.push(`rescored_after_${flags[0].toLowerCase()}`);
+        await runScoring(args);
+      } else {
+        pipelineWarnings.push(`scoring_suppressed_${flags[0].toLowerCase()}`);
+      }
+    }
+  } catch (e) {
+    console.warn("[report] stale-suppression rescore check failed", e);
+  }
+
+  await setCase(db, caseId, {
+    status: "reporting",
+    status_message: "Building litigation intelligence",
+    progress: 20,
+  });
+  // 2026-07-31: theory/strategy/opportunity removed from this list. They
+  // were being deleted here immediately after ensureRequiredEngines() (the
+  // auto-backfill, one call above) had just written fresh success rows for
+  // them — so the pre-flight gate inside _runReportInner, which re-queries
+  // this same table, always found them missing and reported "failed to
+  // complete even after auto-backfill" even when they'd genuinely just
+  // succeeded. Confirmed against a real case: pipeline_trace showed all
+  // three completing cleanly (twice — original run and backfill retry),
+  // but pipeline_engine_runs had zero rows for them at gate-check time.
+  // This delete is for *report-tier* rows only — the engines that are
+  // about to run fresh as part of THIS report-generation attempt
+  // (report_generator itself, plus the downstream QA/validator engines) —
+  // not the upstream analysis engines that just fed it.
+  await db
+    .from("pipeline_engine_runs")
+    .delete()
+    .eq("case_id", caseId)
+    .in("engine", [
+      "report_generator",
+      "motion",
+      "ess_validator",
+      "claim_validator",
+      "report_validator",
+    ]);
+  return runEngine(db, { caseId, userId, engine: ENGINE.report }, async () =>
+    _runReportInner({ ...args, pipelineWarnings, forceFinalize }),
+  );
+}
+
+async function _runReportInner(args: {
+  db: Db;
+  caseId: string;
+  userId: string;
+  apiKey: string;
+  apiKeys?: string[];
+  pipelineWarnings?: string[];
+  forceFinalize?: boolean;
+}) {
+  const { db, caseId, userId, apiKey, apiKeys, forceFinalize } = args;
+  const pipelineWarnings: string[] = Array.isArray(args.pipelineWarnings)
+    ? [...args.pipelineWarnings]
+    : [];
+
+  // ---- Pre-flight validation gate -------------------------------------
+  // Block report generation unless the upstream engines actually completed.
+  // Single source of truth: pipeline_engine_runs + REPORT_REQUIRED_ENGINES.
+  // runReport() above auto-backfills missing engines first, so this gate
+  // only trips when an engine genuinely cannot complete.
+  {
+    const { REPORT_REQUIRED_ENGINES, canGenerateReport } = await import("@/lib/execution-state");
+    const { data: runs } = await db
+      .from("pipeline_engine_runs")
+      .select("id,engine,status,started_at,ended_at,created_at")
+      .eq("case_id", caseId)
+      .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
+      .order("created_at", { ascending: false });
+    const rows = (runs ?? []) as never;
+    // FIX: this previously called missingRequiredEngines(rows,
+    // REPORT_BLOCKING_ENGINES) directly, which has NO optional-tier
+    // exemption at all (that logic only lives inside canGenerateReport()'s
+    // own missing() closure) — despite a comment a few lines below this
+    // block claiming multi_agent (requirement:"optional") was "deliberately
+    // excluded from the blocking-engine check above." It wasn't: any
+    // optional-tier engine that was merely failed/blocked (not just
+    // missing) was still counted here and could throw. Use
+    // canGenerateReport() directly so this gate has exactly the same
+    // blocking/optional-tier semantics as everywhere else in the platform
+    // that answers "can this case generate a report" — single source of
+    // truth, not a second hand-rolled copy of the same decision.
+    const gate = canGenerateReport(rows);
+    if (gate.missingEnriching.length) {
+      pipelineWarnings.push(...gate.missingEnriching.map((e) => `${e}_incomplete`));
+    }
+    if (!gate.ok) {
+      throw new Error(
+        `Pipeline incomplete — cannot generate report. The following core engines failed to complete even after auto-backfill: ${gate.missingBlocking.join(", ")}.`,
+      );
+    }
+
+    // ---- Release gate deliberately NOT evaluated here -----------------
+    // A release decision must never be made before the completed report
+    // exists. The pre-report multi_agent pass is preliminary only
+    // (deferRelease: true) and its verdict must not block generation —
+    // otherwise a report can be blocked simply because it has not yet been
+    // generated. The authoritative release decision runs after this report
+    // is assembled and saved: see runFinalReleaseReview() invoked at the end
+    // of this function.
+  }
+
+  // ---- Talk to Case as a case-state update -----------------------------
+  // Runs before findings are read for this report (below) so a Talk-to-Case
+  // clarification's supersession decisions are already applied by the time
+  // listFindings() (which excludes superseded rows) is called. No-op — and
+  // cheap to check — whenever this case has no clarification document. See
+  // case-state-reconciliation.server.ts.
+  try {
+    const { reconcileSupersededFindings } =
+      await import("./intelligence/case-state-reconciliation.server");
+    const reconciliation = await reconcileSupersededFindings(db, caseId, userId, apiKey);
+    if (reconciliation.superseded.length > 0) {
+      console.info(
+        `[case-state-reconciliation] case=${caseId} superseded ${reconciliation.superseded.length}/${reconciliation.checked} findings via Talk-to-Case clarification`,
+      );
+    }
+  } catch (e) {
+    // Reconciliation is a defense-in-depth backstop, not a required stage —
+    // never let it block report generation.
+    console.error("[case-state-reconciliation] failed", e);
+  }
+
+  const [
+    { data: analysis },
+    { data: agents },
+    { data: score },
+    rawFindings,
+    { data: theories },
+    { data: opps },
+    { data: witnesses },
+    { data: trial },
+    { data: perspectives },
+    { data: evidenceIntel },
+    { data: strategyRows },
+    { data: workProduct },
+    { data: contradictionsExisting },
+  ] = await Promise.all([
+    db.from("analyses").select("*").eq("case_id", caseId).maybeSingle(),
+    db
+      .from("agent_findings")
+      .select("agent_type,summary,findings,confidence")
+      .eq("case_id", caseId),
+    db.from("case_scores").select("*").eq("case_id", caseId).maybeSingle(),
+    listFindings(db, caseId),
+    db.from("case_theories").select("*").eq("case_id", caseId),
+    db.from("case_opportunities").select("*").eq("case_id", caseId),
+    db.from("case_witnesses").select("*").eq("case_id", caseId),
+    db.from("case_trial_prep").select("*").eq("case_id", caseId).maybeSingle(),
+    db.from("case_perspectives").select("*").eq("case_id", caseId),
+    db.from("evidence_classifications").select("*").eq("case_id", caseId),
+    db.from("case_strategy").select("*").eq("case_id", caseId),
+    db.from("case_work_product").select("*").eq("case_id", caseId),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any)
+      .from("agent_findings")
+      .select("agent_type,findings")
+      .eq("case_id", caseId)
+      .eq("agent_type", "contradictions"),
+  ]);
+  if (!analysis) throw new Error("Run Analyzers first.");
+  if (!score) throw new Error("Run Score Case first.");
+
+  await setCase(db, caseId, { status_message: "Consolidating findings", progress: 35 });
+  const allFindings = dedupeFindings(rawFindings);
+  // SINGLE SOURCE OF TRUTH: identical filter as the scoring engine.
+  // Analyzer (provisional) rows are excluded entirely; pipeline must be
+  // finalized and ordered correctly. If the canonical set is empty or order
+  // is wrong, we degrade loudly via a pipeline warning rather than aborting
+  // the entire report — scoring already handled the hard-error case.
+  const { getCanonicalReportFindings, assertPipelineOrder } =
+    await import("./intelligence/scoring-selection");
+  const { data: caseTsRow } = await db
+    .from("cases")
+    .select("discovery_at,contradiction_at,evidence_intel_at,scored_at")
+    .eq("id", caseId)
+    .maybeSingle();
+  const caseTs = (caseTsRow ?? {
+    discovery_at: null,
+    contradiction_at: null,
+    evidence_intel_at: null,
+    scored_at: null,
+  }) as {
+    discovery_at: string | null;
+    contradiction_at: string | null;
+    evidence_intel_at: string | null;
+    scored_at: string | null;
+  };
+  let findings: typeof allFindings;
+  try {
+    assertPipelineOrder(caseTs, "report");
+    findings = getCanonicalReportFindings({
+      caseRow: caseTs,
+      findings: allFindings as unknown as never,
+    });
+  } catch (e) {
+    const code = (e as { code?: string })?.code ?? "CANONICAL_GUARD_FAILED";
+    pipelineWarnings.push(code);
+    findings = allFindings.filter(
+      (f) => !String((f as { source_module?: string }).source_module ?? "").startsWith("analyzer:"),
+    );
+  }
+  // Defensive fallback (mirrors cases.functions.ts): if the strict canonical
+  // filter (engine:*-sourced only) leaves nothing, but the case genuinely has
+  // findings, fall back to the unfiltered set for both consolidated_findings
+  // and finding_counters. Without this, a case whose only findings are
+  // analyzer:*-sourced reports "0 findings" on the cover page while the
+  // exported Key Findings table (which applies the same fallback) still
+  // renders them — the exact mismatch this fallback exists to prevent.
+  if (findings.length === 0 && allFindings.length > 0) {
+    pipelineWarnings.push(`canonical_findings_empty_fallback:${allFindings.length}`);
+    findings = allFindings;
+  }
+  if (allFindings.length !== findings.length) {
+    pipelineWarnings.push(`analyzer_findings_excluded:${allFindings.length - findings.length}`);
+  }
+
+  // ---- Phase 4: canonical_analysis is the report's finding authority ----
+  // Flagged (CANONICAL_REPORT_ENABLED, default off). When on, the gate's
+  // persisted selection + ranking replaces the locally re-derived order, and
+  // the canonical version rendered from is recorded on the report row. Every
+  // fallback to the raw-table path above is traced.
+  let canonicalVersion: number | null = null;
+  {
+    const { loadCanonicalReportSource, applyCanonicalOrder, traceCanonicalFallback } =
+      await import("@/lib/canonical/report-source.server");
+    const src = await loadCanonicalReportSource(db, caseId);
+    if (src) {
+      const ordered = applyCanonicalOrder(
+        findings as unknown as { id?: string | null }[],
+        src.orderedIds,
+      );
+      if (ordered) {
+        canonicalVersion = src.version;
+        findings = ordered as unknown as typeof findings;
+        pipelineWarnings.push(`canonical_report_source:v${src.version}`);
+      } else {
+        await traceCanonicalFallback(db, caseId, "no_overlap_with_raw_findings", {
+          canonical_findings: src.orderedIds.length,
+          raw_findings: findings.length,
+        });
+      }
+    }
+  }
+
+  // Derive deterministic Legal Attack Surface from current findings so the
+  // renderer has a ranked attack-lane breakdown without re-analysis.
+  // Attack Surface buckets are criminal-procedure specific (suppression,
+  // Miranda, Brady/Giglio, Franks, chain of custody, Daubert, etc.). On
+  // non-criminal practice areas we explicitly record a Skipped — Not
+  // Applicable marker instead of running the regex categorizer and
+  // surfacing an indistinguishable empty result.
+  try {
+    const { caseType: caseTypeForAS } = await resolveReportCaseType(
+      db,
+      caseId,
+      String(JSON.stringify(analysis ?? {})).slice(0, 4000),
+    );
+    const { getActiveDomains, isCriminalEffective } =
+      await import("./intelligence/cross-domain.server");
+    const activeDomainsForAS = await getActiveDomains(db, caseId);
+    if (isCriminalEffective(caseTypeForAS, activeDomainsForAS)) {
+      const { runAttackSurfaceEngine } = await import("./intelligence/litigation.server");
+      await runAttackSurfaceEngine({ db, caseId, userId });
+    } else {
+      const { recordSkipped } = await import("./intelligence/engine-audit.server");
+      const reason = `Omitido — el análisis de superficie de ataque es específico del proceso penal acusatorio y no aplica a la materia ${caseTypeForAS}.`;
+      await recordSkipped(db, { caseId, userId, engine: "attack_surface" as never, reason });
+
+      await db
+        .from("cases")
+        .update({
+          attack_surface: { skipped: true, reason, case_type: caseTypeForAS } as unknown as J,
+        } as any)
+        .eq("id", caseId);
+    }
+  } catch (e) {
+    console.warn("attack-surface build failed", e);
+  }
+
+  await setCase(db, caseId, { status_message: "Indexing evidence pages", progress: 45 });
+  const { corpus, docIndex, resolutivoVerbatim } = await buildPaginatedCorpus(db, caseId);
+  // See extractResolutivoVerbatim's doc comment above buildPaginatedCorpus
+  // for why this exists as its own block, appended after the corpus in
+  // every prompt that includes it: it must never be silently truncated
+  // away by the corpus's own budget slice below, the same failure mode
+  // already fixed for shared-brief.server.ts's briefToPrompt().
+  const resolutivoAnchorBlock = resolutivoVerbatim
+    ? `\n\nRESOLUTIVO_VERBATIM (extracción literal y determinística del expediente, no generada por IA — AUTORIDAD MÁXIMA sobre el resultado del caso: si "facts"/"case_overview"/"timeline_summary" o cualquier otro campo narrativo entra en conflicto con este texto sobre quién ganó, qué se revocó/confirmó, o qué ordenó el tribunal, este texto es el correcto, no tu propia lectura del expediente):\n${resolutivoVerbatim}`
+    : "";
+  if (!corpus) throw new Error("No extracted documents. Run Extraction first.");
+
+  // User-locked case type wins — UNLESS it actively conflicts with CONFIRMED
+  // classification evidence (see resolveReportCaseType's doc comment). Never
+  // overridden by ordinary document content otherwise.
+  const { caseType, identityConflict: reportMateriaConflict } = await resolveReportCaseType(
+    db,
+    caseId,
+    String(JSON.stringify(analysis ?? {})).slice(0, 4000),
+  );
+  const { resolveCaseIdentity: resolveReportIdentity } = await import(
+    "./intelligence/case-classification.server"
+  );
+  const reportIdentity = await resolveReportIdentity(db, caseId);
+  const reportUnderlyingMateria = reportIdentity.underlyingMateria;
+  // Control constitucional aplica en materia penal, amparo y constitucional.
+  const materiaForReport = normalizeMexicanCaseType(caseType);
+  const isCriminalOrCivilRights =
+    materiaForReport === "penal" ||
+    materiaForReport === "amparo" ||
+    materiaForReport === "constitucional";
+
+  const { getCaseAnalysisMode: getReportCaseAnalysisMode } =
+    await import("./intelligence/case-analysis-mode");
+  const reportCaseAnalysisMode = await getReportCaseAnalysisMode(db, caseId);
+  const {
+    persistPenalDisposition,
+    renderPenalDisposition,
+  } = await import("./intelligence/penal-disposition.server");
+  const penalDisposition = await persistPenalDisposition(db, caseId, userId);
+  const penalOutcomeHeading =
+    penalDisposition && reportCaseAnalysisMode === "concluded_audit"
+      ? renderPenalDisposition(penalDisposition)
+      : "";
+  const penalDispositionAnchorBlock = penalDisposition
+    ? `\n\nPENAL_DISPOSITION_STRUCTURED (deterministic, grounded, controls outcome rendering):\n${JSON.stringify(
+        penalDisposition,
+      )}\nThe concluded-case executive output MUST begin with "RESULTADO DEL CASO" and accurately render this structure before general findings.`
+    : "";
+
+  // Materia-aware Mexican procedural-vehicle catalogue for the "recommended
+  // motions" section of the legal memorandum below (audit P0-4). This used
+  // to be a hardcoded U.S. motion list (motion to dismiss/suppress/in
+  // limine/summary judgment/discovery sanctions — none of which exist under
+  // Mexican procedure), directly contradicting the mexicoLock() instruction
+  // a few lines below it. Replaced with the SAME materia-keyed, article-
+  // cited taxonomy already used by runWorkProductEngine
+  // (src/lib/jurisdiction/mx-work-product.ts) rather than inventing a new
+  // one — see that file's header for why each vehicle exists and its
+  // Mexican statutory basis. FLAG FOR ATTORNEY REVIEW: this is the first
+  // use of mx-work-product.ts's catalogue inside the legal-memorandum
+  // "recommended_motions" section specifically (its original, already-
+  // reviewed use is runWorkProductEngine's separate Attorney Work Product
+  // section) — a licensed Mexican attorney should confirm every vehicle
+  // listed here is appropriate to recommend as a court filing in this
+  // report context, not just as a work-product deliverable.
+  const { resolveMxProfile } = await import("./execution/mx-pipeline");
+  const { mxWorkProductGuide } = await import("./jurisdiction/mx-work-product");
+  const mxWorkProductPromptCatalogue = mxWorkProductGuide(
+    resolveMxProfile(caseType),
+    (await getReportLocale(db, caseId)) === "en" ? "en" : "es",
+  );
+
+  const docLegend = docIndex
+    .map((d) => `DOC ${d.doc_n} = "${d.filename}" (id=${d.document_id}, ${d.pages} pages)`)
+    .join("\n");
+  // Prioritized findings payload: sorts critical and high-severity, high-confidence
+  // findings first so prompt truncation drops least important findings, never critical ones.
+  const SEVERITY_RANK: Record<string, number> = {
+    critical: 0,
+    high: 1,
+    medium: 2,
+    low: 3,
+    info: 4,
+  };
+  const findingsLite = [...findings]
+    .sort((a, b) => {
+      const sevDiff = (SEVERITY_RANK[a.severity] ?? 5) - (SEVERITY_RANK[b.severity] ?? 5);
+      if (sevDiff !== 0) return sevDiff;
+      return (b.confidence ?? 0) - (a.confidence ?? 0);
+    })
+    .map((f) => ({
+      id: f.id,
+      category: f.category,
+      severity: f.severity,
+      confidence: f.confidence,
+      title: f.title,
+      affected_party: f.affected_party,
+      description: (f.description ?? "").slice(0, 240),
+      legal_significance: f.legal_significance,
+    }));
+
+  await setCase(db, caseId, {
+    status_message: "Running litigation intelligence pass (Groq)",
+    progress: 55,
+  });
+
+  // --- Cooperative cancellation: poll cancel_requested every 2s and abort the in-flight fetch.
+  const ac = new AbortController();
+  let cancelled = false;
+  const watcher = setInterval(async () => {
+    try {
+      const { data: row } = await db
+        .from("cases")
+        .select("cancel_requested" as any)
+        .eq("id", caseId)
+        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((row as any)?.cancel_requested) {
+        cancelled = true;
+        ac.abort();
+      }
+    } catch {
+      /* swallow */
+    }
+  }, 2000);
+
+  let r: Awaited<ReturnType<typeof callGroq>> | null = null;
+  let reportLlmError: string | null = null;
+  // Bug 4: retry the report LLM call. Previously a single 429/413/timeout
+  // silently fell through to the deterministic "Insufficient evidence"
+  // boilerplate even on a healthy corpus. Retry with progressive
+  // payload-shrinking, then only fall back after all attempts fail.
+  // FIX (2026-08-18): "CASE SCORE (explainable):" used to hand the model a
+  // bare JSON.stringify(score) blob with no explanation of what any field
+  // means — so the narrative writer, tasked with freely composing
+  // "score_breakdown" prose, had no guidance distinguishing case_quality
+  // (the mean of applicable per-dimension deterministic scores — the
+  // dashboard's headline "Fortaleza del caso") from overall_confidence (the
+  // average CONFIDENCE across verified findings — a different metric
+  // entirely) and no instruction to actually cite either exact number
+  // rather than estimating its own. Real case, twice observed: a report's
+  // prose said "puntuación general de 83" (its own free-floating estimate,
+  // reading loosely off overall_confidence) right next to a dashboard
+  // showing "Fortaleza del caso: 68" (case_quality) — a genuine, confusing,
+  // user-visible internal contradiction, even though neither number was
+  // fabricated. Explicitly labeling and instructing on both numbers here
+  // removes the model's need to guess which one "score_breakdown" prose is
+  // supposed to describe.
+  const scoreExplainerBlock = (rawCap: number) =>
+    `CASE SCORE (explainable — these are ALREADY COMPUTED deterministic numbers; "score_breakdown" prose MUST cite these exact values verbatim, never invent, estimate, or restate a different number for either one):\n` +
+    `- case_quality = ${(score as { case_quality?: unknown } | null)?.case_quality ?? "N/A"}: the case's headline strength score (mean of the applicable per-dimension scores below). This is what the dashboard shows as "Fortaleza del caso" — call it "puntuación general del caso" or "fortaleza del caso" in prose.\n` +
+    `- overall_confidence = ${(score as { overall_confidence?: unknown } | null)?.overall_confidence ?? "N/A"}: the average CONFIDENCE across this report's own verified findings — a DIFFERENT metric measuring how confident the analysis is in what it found, NOT how strong the case is. Call it "confianza general del análisis" in prose — NEVER "puntuación general" or any phrasing that implies it is the same number as case_quality.\n` +
+    `These two numbers measure different things and routinely differ — never present them as if they should be equal, and never substitute one for the other in prose.\n` +
+    `Raw score object:\n${JSON.stringify(score).slice(0, rawCap)}`;
+
+  const buildUserContent = (scale: number) => {
+    const s = (n: number) => Math.max(1200, Math.floor(n * scale));
+    return `Return STRICT JSON with this exact shape. Markdown prose fields MUST contain inline citations like \`[DOC 3 p.2]\` for every concrete claim. Structured arrays MUST include doc_n, page, and quote for every citation object.
+
+{
+  "prose": {
+    "executive_summary": string,
+    "attorney_summary": string,
+    "investigator_summary": string,
+    "case_overview": string,
+    "facts": string,
+    "timeline_summary": string,
+    "evidence_summary": string,
+    "witness_analysis": string,
+    "contradiction_report": string,
+    "discovery_analysis": string,
+    "missing_evidence_report": string,
+    "constitutional_issues": string,
+    "procedural_issues_report": string,
+    "prosecution_theory_report": string,
+    "defense_theory_report": string,
+    "alternative_theory_report": string,
+    "risk_analysis": string,
+    "score_breakdown": string,
+    "recommendations": string,
+    "appendix_sources": string
+  },
+  "citations": [
+    { "id": string, "doc_n": number, "document_id": string|null, "page": number, "quote": string, "topic": string, "finding_id": string|null }
+  ],
+  "evidence_index": [
+    { "doc_n": number, "document_id": string|null, "filename": string, "type": string, "role": "inculpatory"|"exculpatory"|"neutral"|"impeachment"|"chain_of_custody"|"procedural", "key_pages": number[], "summary": string, "supports": string[], "undermines": string[] }
+  ],
+  "contradictions": [
+    {
+      "title": string,
+      "document_a": { "doc_n": number, "page": number, "quote": string },
+      "document_b": { "doc_n": number, "page": number, "quote": string },
+      "nature": string,
+      "credibility_impact": string,
+      "trial_significance": string,
+      "impeachment_value": string,
+      "strategic_implications": string,
+      "side_helped": "defense"|"prosecution"|"plaintiff"|"respondent"|"both",
+      "severity": "low"|"medium"|"high"|"critical",
+      "description": string,
+      "legal_impact": string,
+      "citations": [ { "doc_n": number, "page": number, "quote": string } ],
+      "recommended_use": string
+    }
+  ],
+  "missing_evidence": [
+    { "item": string, "why_critical": string, "severity": "low"|"medium"|"high"|"critical", "omision_probatoria_risk": boolean, "how_to_obtain": string, "recommended_motion": string|null, "side_harmed": string, "side_benefits": string }
+  ],
+  "constitutional_issues": ${isCriminalOrCivilRights ? '[ { "right": string, "articulo_cpeum": string, "issue": string, "facts": string, "legal_standard": string, "likely_outcome": string, "remedy_sought": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ] } ]' : "[]"},
+  "motion_opportunities": [
+    {
+      "motion": string,
+      "basis": string,
+      "elements": string[],
+      "supporting_facts": string,
+      "legal_rationale": string,
+      "anticipated_opposing_response": string,
+      "likely_outcome": string,
+      "likelihood_of_success": "low"|"medium"|"high",
+      "priority": number,
+      "draft_outline": string,
+      "citations": [ { "doc_n": number, "page": number, "quote": string } ]
+    }
+  ],
+  "cross_examination": [
+    { "witness": string, "objective": string, "lines": [ { "topic": string, "questions": string[], "impeachment_with": string|null, "citation": { "doc_n": number, "page": number, "quote": string }|null } ] }
+  ],
+  "strategy_recommendations": [
+    { "title": string, "rationale": string, "category": "investigation"|"motions"|"negotiation"|"trial"|"discovery"|"expert"|"client", "priority": "low"|"medium"|"high"|"critical", "expected_impact": string, "side_benefits": string }
+  ],
+  "next_actions": [
+    { "order": number, "action": string, "owner": "attorney"|"investigator"|"paralegal"|"expert"|"client", "deadline_hint": string, "depends_on": string[], "why": string }
+  ],
+  "case_strength_score": number,
+  "risk_score": number,
+  "score_rationale": string,
+  "legal_memorandum": {
+    "caption": { "title": string, "date": string, "re": string },
+    "executive_summary": {
+      "dispositive_recommendation": string,
+      "case_strength": "Excellent"|"Strong"|"Moderate"|"Weak",
+      "primary_risk": string,
+      "urgent_actions": string[]
+    },
+    "statement_of_facts": {
+      "undisputed": string[],
+      "disputed": string[],
+      "chronology": string[]
+    },
+    "legal_analysis": [
+      { "issue": string, "rule": string, "application": string, "conclusion": string, "cited_evidence": string[] }
+    ],
+    "recommended_motions": [
+      { "motion": string, "legal_standard": string, "factual_basis": string[], "likelihood": "High"|"Medium"|"Low", "draft_paragraph": string }
+    ],
+    "evidence_appendix": [
+      { "exhibit": string, "description": string, "page": string, "key_quote": string, "proves": string, "admissibility_risk": "Low"|"Medium"|"High" }
+    ],
+    "risk_matrix": [
+      { "risk": string, "probability": "High"|"Medium"|"Low", "impact": "Severe"|"Moderate"|"Minor", "mitigation": string }
+    ],
+    "next_actions": [
+      { "action": string, "owner": "Attorney"|"Paralegal"|"Investigator"|"Expert"|"Client", "deadline": string, "priority": "Critical"|"High"|"Medium" }
+    ]
+  }
+}
+
+ADDITIONAL SECTION — LEGAL MEMORANDUM (IRAC):
+Populate \`legal_memorandum\` as a court-ready memo derived from the same corpus and citations used above.
+- Every fact in \`statement_of_facts\` and every entry in \`cited_evidence\` / \`factual_basis\` / \`key_quote\` MUST use the same \`[DOC N p.M]\` pinpoint-citation format and verbatim quotes (<=200 chars) as the rest of this response.
+- \`legal_analysis\` follows IRAC (Issue, Rule, Application, Conclusion) — one entry per distinct legal question actually supported by the corpus.
+- \`recommended_motions[].draft_paragraph\` must be a ready-to-file paragraph, present tense, active voice, with inline citations.
+- Respect the case-type gating already stated above: do NOT manufacture criminal or constitutional motions on non-criminal/non-civil-rights matters.
+- Set \`caption.date\` to today's date in the user's locale format.
+- Omit rows you cannot cite; do not fabricate exhibits, pages, or quotes.
+
+EVALUATE which of these Mexican procedural vehicles the corpus actually supports (skip any not supported by the corpus). These are the ONLY categories to draw from — do NOT propose a U.S.-law vehicle (motion to dismiss, motion to suppress, motion in limine, motion to compel, discovery sanctions, summary judgment, etc.); none of those exist under Mexican procedure and this platform serves Mexican attorneys exclusively:
+${mxWorkProductPromptCatalogue}
+
+PAGINATION RULES:
+- The corpus below is split into pages. Each page block is prefixed with \`--- DOC N p.M ---\`.
+- Every citation must reference a real (DOC N, page M) pair from the corpus.
+- Quotes must be short (<= 200 chars) and copied verbatim from the cited page.
+- Do NOT fabricate page numbers, quotes, or document ids.
+
+DOCUMENT LEGEND:
+${docLegend}
+
+KNOWN (DEDUPLICATED) FINDINGS (${findings.length}) — reference by id where relevant; DO NOT restate them:
+${JSON.stringify(findingsLite).slice(0, s(50000))}
+
+ANALYSIS:
+${JSON.stringify(analysis).slice(0, s(18000))}
+
+AGENT OUTPUT:
+${JSON.stringify(agents ?? []).slice(0, s(14000))}
+
+${scoreExplainerBlock(s(10000))}
+
+ENGINE OUTPUT (perspectives / evidence intel / strategy / witnesses / trial prep / theories / opportunities):
+${JSON.stringify({
+  perspectives: perspectives ?? [],
+  evidence_intel: evidenceIntel ?? [],
+  strategy: strategyRows ?? [],
+  witnesses: witnesses ?? [],
+  trial: trial ?? null,
+  theories: theories ?? [],
+  opportunities: opps ?? [],
+  prior_contradictions: contradictionsExisting ?? [],
+}).slice(0, s(35000))}
+
+CORPUS (paginated):
+${corpus.slice(0, s(160000))}${resolutivoAnchorBlock}${penalDispositionAnchorBlock}`;
+  };
+
+  const { hasCaseStateUpdateDocs, getCaseStateUpdateNotice } =
+    await import("./intelligence/case-state-reconciliation.server");
+  const reportLocaleForNotice = await getReportLocale(db, caseId);
+  const reportDocsForNotice = docIndex.map((d) => ({
+    id: d.document_id,
+    filename: d.filename,
+    extracted_text: null,
+  }));
+  const reportCaseStateUpdateNotice = getCaseStateUpdateNotice(
+    hasCaseStateUpdateDocs(reportDocsForNotice),
+    reportLocaleForNotice,
+  );
+
+  const systemInstruction =
+    `${mexicoLock(reportLocaleForNotice)}\n` +
+    (reportCaseStateUpdateNotice
+      ? `${reportCaseStateUpdateNotice}\nThe findings below already reflect reconciliation — write ONE unified, internally-consistent report. Never frame any section as "based on the recent clarification" versus "the original analysis"; write as a single, freshly re-analyzed case throughout, including the executive summary, procedural analysis, recommendations, and Attorney Work Product.\n`
+      : "") +
+    "You are an elite litigation intelligence engine for Mexican attorneys, NOT a summarizer. You produce court-ready work product grounded in the sistema penal acusatorio and Mexican civil procedure." +
+    `\nCASE TYPE: ${caseType}. ` +
+    (isCriminalOrCivilRights
+      ? "Análisis constitucional y de procedimiento penal SÍ son relevantes cuando el corpus los respalda. Fundamenta en el Art. 20 CPEUM (derechos del imputado y la víctima), el catálogo de prisión preventiva oficiosa del Art. 19 CPEUM, y las reglas de cadena de custodia (Arts. 227-230 CNPP) — nunca en doctrina estadounidense (Miranda, Brady/Giglio, enmiendas constitucionales de EE.UU.)."
+      : "Este NO es un asunto penal ni de derechos humanos por violación de autoridad. NO manufactures cuestiones constitucionales ni recursos de amparo. Regresa arreglos vacíos para `constitutional_issues` y excluye recursos penales de `motion_opportunities`. Concéntrate en el procedimiento civil, ofrecimiento de pruebas, y mociones dispositivas conforme al derecho mexicano.") +
+    '\nMANDATORY CITATION RULE: Every factual claim MUST include a `[DOC N p.M]` bracket immediately after a 10–30 word verbatim quote from that page, written as natural prose — the quote goes in the sentence itself, in quotation marks, NOT inside the brackets. Correct: the report states the officer "failed to inspect the equipment" [DOC 3 p.2]. WRONG — never do this: [DOC 3 p.2: "failed to inspect the equipment"]. A claim without a citation is UNVERIFIED and must be rewritten or omitted. No exceptions.' +
+    "\nDO NOT duplicate findings already provided — extend them with deeper analysis; do not restate them as new items." +
+    "\nFor every CONTRADICTION: Document A specific quote vs Document B specific quote, plus (nature, credibility impact, trial significance, impeachment value, strategic implications)." +
+    "\nFor every MOTION: supporting facts, legal rationale, anticipated opposing response, and likely outcome." +
+    (() => {
+      // Length targets scale with how much there actually is to say. A case
+      // with 6 findings forced into 15+ sections each carrying a fixed
+      // 300-600 word MINIMUM has no source material to fill that quota with
+      // except repeating the same 6 findings over and over — which is
+      // exactly the "repetitive, AI-generated" complaint. Evidence Sufficiency
+      // (sufficiency.server.ts) already exists to solve this but only runs
+      // AFTER generation as a truncation pass — it can shorten a bloated,
+      // repetitive section but can't stop the repetition from being written
+      // in the first place. This scales the targets DOWN at generation time
+      // instead, for the same reason ESS caps narrative length after the fact.
+      const n = findings.length;
+      const tier = n >= 15 ? "rich" : n >= 8 ? "moderate" : "sparse";
+      const targets =
+        tier === "rich"
+          ? "executive_summary 300-500; case_overview 350-600; facts 600-1200 chronological; timeline_summary 300-600; risk_analysis 300-600; recommendations 400-800; theory reports 300-600 each; evidence/witness/discovery/contradiction reports 300-600"
+          : tier === "moderate"
+            ? "executive_summary 200-350; case_overview 250-400; facts 400-700 chronological; timeline_summary 200-350; risk_analysis 200-350; recommendations 250-450; theory reports 200-350 each; evidence/witness/discovery/contradiction reports 200-350"
+            : "executive_summary 150-250; case_overview 150-300; facts 250-450 chronological; timeline_summary 150-250; risk_analysis 150-250; recommendations 150-300; theory reports 120-250 each; evidence/witness/discovery/contradiction reports 120-250";
+      return (
+        `\nLENGTH TARGETS (MANDATORY, scaled to this case's ${n} confirmed findings — a ${tier} evidence case; do NOT pad sections beyond what the evidence supports to hit a bigger number): ${targets}. Write in flowing prose with topic sentences and analysis, NOT bullet fragments. Generic statements like 'The evidence suggests negligence' are FORBIDDEN — replace with 'The evidence suggests negligence because the defendant "failed to inspect the equipment per OSHA 29 CFR 1910.147" [DOC 3 p.2], which establishes...'. Note the quote sits in the sentence, in quotation marks — the citation bracket that follows contains ONLY \`DOC N p.M\`, never the quote text itself. If the corpus is genuinely insufficient, write a detailed paragraph explaining what evidence is missing and why — never a one-line placeholder.` +
+        `\nPROGRESSIVE DISCLOSURE (MANDATORY): each finding gets ONE section where it is explained in full (its natural home — e.g. a constitutional violation belongs to constitutional_issues, not to five sections). Every OTHER section that touches that same finding must reference it in a single short clause (e.g. "the post-invocation questioning discussed above further undermines...") and then move directly into analysis THAT SECTION alone is responsible for — the section's distinct lens on the case (timeline placement, discovery implications, risk exposure, strategic use), never a second full re-explanation of the same fact pattern. If you find yourself writing the same 2-3 sentences that already appear in an earlier section, stop and write the section's unique contribution instead, even if that means the section runs shorter than the target range.` +
+        `\nEXECUTIVE SUMMARY STRUCTURE (MANDATORY): \`prose.executive_summary\` must let an attorney understand the whole case in under two minutes. Write it as flowing professional prose (not headers or a bullet dump), but it must touch every one of these in order, each as its own sentence or two: (1) case overview — what happened and who the parties are; (2) the core legal issue(s) actually in play; (3) the single strongest piece of evidence and why; (4) the single biggest weakness and why; (5) the most consequential contradiction, if one exists; (6) overall litigation posture in one clear phrase (e.g. "favorable for the defense," "evenly balanced," "unfavorable absent further discovery"); (7) the immediate recommended action; (8) an explicit confidence level in the assessment (e.g. "high confidence given a complete medical record" or "moderate confidence — key witness statements are still outstanding"); (9) any critical deadline apparent from the corpus (statute of limitations, a filing deadline, a hearing date) — if none is apparent from the record, say so in one clause rather than omitting the topic silently. Every factual claim inside this summary still needs its \`[DOC N p.M]\` citation like every other section.` +
+        `\nATTORNEY VOICE (MANDATORY): write like a senior litigation attorney, not an AI describing a case. Prefer one direct, confident sentence over three hedged ones. FORBIDDEN filler/hedge phrases (rewrite around every instance, do not use a synonym that means the same thing): "significantly compromised", "heavily relies on", "characterized by", "overall risk", "aims to", "focuses on", "it is important to note", "plays a crucial role", "in order to", "based on the available evidence", "this could indicate", "it is possible that", "there are indications", "the evidence suggests" (state directly what the evidence shows or establishes instead). Example of the required register: NOT "The prosecution's case is significantly compromised by evidentiary gaps" but "The State's strongest evidence is the knife recovered at arrest; its admissibility is vulnerable because the chain of custody contains a documented gap [DOC 3 p.1]." NOT "Based on the available evidence, there appears to be a discrepancy" but "The record shows a discrepancy between the incident report and the officer's deposition testimony [DOC 2 p.4]."`
+      );
+    })() +
+    "\nFEW-SHOT IRAC EXAMPLE (target quality bar for legal_analysis entries):" +
+    '\nGOOD: {"issue":"Si el cateo practicado en el domicilio de Hernández sin orden judicial violó el Art. 16 CPEUM","rule":"Conforme al Art. 16 CPEUM, todo cateo requiere orden escrita de autoridad judicial competente que exprese el lugar a inspeccionar, la persona o personas a aprehender, y los objetos buscados; a falta de estos requisitos, la diligencia y sus frutos carecen de valor probatorio.","application":"En este caso, los elementos de la Policía ingresaron al domicilio a las 15:08 sin exhibir orden de cateo, según consta en el parte informativo que señala que \'se ingresó de forma inmediata ante la negativa de apertura voluntaria\' [DOC 2 p.4]. No existe constancia de orden judicial previa en el expediente. El delito investigado no encuadra en las excepciones de flagrancia o caso urgente previstas en el CNPP.","conclusion":"El cateo violó el Art. 16 CPEUM. Procede solicitar la exclusión del arma recuperada conforme a la regla de exclusión de prueba ilícita.","cited_evidence":["DOC 2 p.4","DOC 5 p.1"]}' +
+    '\nBAD (do NOT produce): {"issue":"Cuestión de cateo","rule":"El Art. 16 CPEUM protege contra cateos irregulares","application":"El cateo fue irregular porque no había orden","conclusion":"Procede la exclusión de la prueba"}' +
+    "\nSELF-CRITIQUE (before returning JSON, verify): (1) every [DOC N p.M] matches the DOCUMENT LEGEND; (2) no legal standard stated without supporting document evidence; (3) case-type gate respected; (4) every finding id from KNOWN FINDINGS appears in at least one section; (5) IRAC blocks have specific rule statements with case names and years. If any check fails, rewrite the failing section." +
+    "\nOutput STRICT JSON only." +
+    // CASE-TYPE STANDARDS INJECTION — domain law (controlling standards,
+    // leading cases, canonical motions, evidentiary rules, damages
+    // framework) keyed to the resolved practice area. Transforms generic AI
+    // output into work product that reflects the actual doctrine.
+    buildCaseTypeStandardsBlock(caseType);
+
+  // --- CHUNKED GENERATION (Fix 1) ---
+  // Split into 3 focused chunks (narrative prose, legal memo, structured
+  // intelligence) instead of one monolithic 16k-token call. Each chunk gets
+  // its full token budget → no truncation, deeper analysis, rate-limit
+  // friendly on the free tier (calls rotate across `apiKeys` inside
+  // callGroq). Narrative always runs alone first — memo/intelligence
+  // reference its output, and three mutually-blind parallel calls
+  // independently re-deriving the same executive summary/risk narrative/
+  // recommendations was the actual prior cause of report repetition, not a
+  // finding-dedup problem. Memo and intelligence themselves ARE independent
+  // of each other, though, and now run concurrently when this user has
+  // enough distinct provider keys to do so safely — see STAGE 2 below for
+  // the full reasoning and the sequential fallback for fewer-key users.
+  // 2026-07-27 — report input budget cut roughly in half again (corpus
+  // 55k→22k chars, findings 18k→9k, engine block 12k→7k, etc.). Two hard
+  // limits force this, and both were being violated:
+  //   1. At ~19.6k input tokens the report chunk was over EVERY fast
+  //      provider's per-request budget, so it was routed to Gemini every
+  //      time and Groq never saw it.
+  //   2. Gemini then had to generate up to 10k output tokens, which cannot
+  //      finish inside the 26s per-call ceiling — every attempt died with
+  //      "gemini timed out after 26000ms", producing zero forward progress
+  //      until the checkpoint loop-breaker killed the run.
+  // Trimmed to ~9-10k input tokens the chunk fits Groq's request budget, so
+  // the fast provider takes it first and Gemini is only a fallback.
+  //
+  // FIX (2026-08-16): the corpus slice below was a FLAT 14,000-char cap,
+  // applied identically regardless of how large the actual corpus is —
+  // confirmed live on a real case (ADR-2239-2018, 1 doc / 18 pages /
+  // 38,784 extracted chars): only ~36% of the document (the first ~5 of 13
+  // synthetic pages) ever reached the narrative/memo/intelligence stages
+  // below, the rest silently dropped with no warning. The empirical failure
+  // threshold this file's own 2026-07-27 comment documents is ~19.6k input
+  // TOKENS (~78,000 chars) — well above what this section actually uses
+  // even with a larger corpus allowance. Raising the corpus share alone
+  // (findings/analysis/agent/score/engine caps below are untouched — they
+  // were not the reported problem) to 40,000 chars covers this real case in
+  // full and stays comfortably under that documented ceiling: the other
+  // fixed-size blocks below total ~19,000 chars, so worst case this section
+  // is now ~59,000 chars (~14.75k tokens), still short of the ~78,000-char
+  // point where Groq stopped taking the request and Gemini's 26s ceiling
+  // started failing runs. Not a full fix for documents beyond that — a
+  // proportional/chunked corpus budget is the further-out improvement if
+  // 40,000 still isn't enough for a longer document; out of scope here.
+  const REPORT_STAGE_CORPUS_CHARS = 40000;
+  const sharedContext = `DOCUMENT LEGEND:
+${docLegend}
+
+KNOWN (DEDUPLICATED) FINDINGS (${findings.length}) — reference by id where relevant; DO NOT restate them:
+${JSON.stringify(findingsLite).slice(0, 6500)}
+
+ANALYSIS:
+${JSON.stringify(analysis).slice(0, 3000)}
+
+AGENT OUTPUT:
+${JSON.stringify(agents ?? []).slice(0, 2500)}
+
+${scoreExplainerBlock(2000)}
+
+ENGINE OUTPUT (perspectives / evidence intel / strategy / witnesses / trial prep / theories / opportunities):
+${JSON.stringify({
+  perspectives: perspectives ?? [],
+  evidence_intel: evidenceIntel ?? [],
+  strategy: strategyRows ?? [],
+  witnesses: witnesses ?? [],
+  trial: trial ?? null,
+  theories: theories ?? [],
+  opportunities: opps ?? [],
+  prior_contradictions: contradictionsExisting ?? [],
+}).slice(0, 5000)}
+
+PAGINATION RULES:
+- The corpus below is split into pages. Each page block is prefixed with \`--- DOC N p.M ---\`.
+- Every citation must reference a real (DOC N, page M) pair from the corpus.
+- Quotes must be short (<= 200 chars) and copied verbatim from the cited page.
+- Do NOT fabricate page numbers, quotes, or document ids.
+
+CORPUS (paginated):
+${corpus.slice(0, REPORT_STAGE_CORPUS_CHARS)}${resolutivoAnchorBlock}${penalDispositionAnchorBlock}`;
+
+  // Canonical Reconciliation Design (2026-08-16), P2 §10 — the field NAMES
+  // below ("prosecution_theory_report"/"defense_theory_report") are the
+  // ONLY signal the model gets about what these 3 fields mean; nothing else
+  // in this prompt explains them. That silently biases every non-criminal
+  // materia toward a criminal prosecution/defense framing that doesn't
+  // exist in Mexican civil/administrativo/amparo procedure (e.g. quejoso/
+  // autoridad_responsable, particular/autoridad, parte_actora/parte_
+  // demandada) — the exact class of hardcoded-English/hardcoded-binary bug
+  // already fixed elsewhere in this pipeline (P0-4/P0-5, mx-work-product.ts).
+  // The theory ENGINE (engines.server.ts's runTheoryEngine) was already
+  // fixed to use the real materia-aware role vocabulary, including a THIRD
+  // role (tercero_interesado) for materias that have one — this narrative
+  // chunk never got the same fix, so its report prose could name the wrong
+  // parties, or have no slot at all for a tercero interesado theory that
+  // case_theories (addFindings-routed, visible in the findings tab) already
+  // correctly identified.
+  const { MX_PARTY_ROLES: narrativePartyRolesMap, resolveMxProfile: resolveNarrativeMxProfile } =
+    await import("./execution/mx-pipeline");
+  const narrativePartyRoles = narrativePartyRolesMap[resolveNarrativeMxProfile(caseType)];
+  const theoryRoleInstruction = narrativePartyRoles.c
+    ? `prosecution_theory_report is the theory for "${narrativePartyRoles.a}", defense_theory_report is the theory for "${narrativePartyRoles.b}", and alternative_theory_report is the theory for the third party "${narrativePartyRoles.c}" (tercero interesado) when the corpus supports one — these are Mexican procedural role names for this materia, not literal "prosecution"/"defense" (this is not necessarily a criminal case).`
+    : `prosecution_theory_report is the theory for "${narrativePartyRoles.a}", defense_theory_report is the theory for "${narrativePartyRoles.b}", and alternative_theory_report is any genuinely alternative narrative the corpus supports — these are Mexican procedural role names for this materia, not literal "prosecution"/"defense" (this is not necessarily a criminal case).`;
+  const narrativeShape = `Return STRICT JSON with this exact shape. Every prose field is a substantive narrative with inline \`[DOC N p.M]\` citations for every concrete claim — length per the LENGTH TARGETS already given above (scaled to this case's evidence volume; do not pad past what the evidence supports). ${theoryRoleInstruction}
+
+{
+  "prose": {
+    "executive_summary": string,
+    "attorney_summary": string,
+    "investigator_summary": string,
+    "case_overview": string,
+    "facts": string,
+    "timeline_summary": string,
+    "evidence_summary": string,
+    "witness_analysis": string,
+    "contradiction_report": string,
+    "discovery_analysis": string,
+    "missing_evidence_report": string,
+    "constitutional_issues": string,
+    "procedural_issues_report": string,
+    "prosecution_theory_report": string,
+    "defense_theory_report": string,
+    "alternative_theory_report": string,
+    "risk_analysis": string,
+    "score_breakdown": string,
+    "recommendations": string,
+    "appendix_sources": string
+  }
+}`;
+
+  const memoShape = `Return STRICT JSON with this exact shape — a court-ready IRAC legal memorandum derived from the corpus. Every fact and quote MUST carry an inline \`[DOC N p.M]\` pinpoint citation with a verbatim quote (<=200 chars). Omit rows you cannot cite; do not fabricate exhibits, pages, or quotes. \`legal_analysis\` follows IRAC (Issue, Rule, Application, Conclusion) — one entry per distinct legal question actually supported by the corpus.
+
+{
+  "legal_memorandum": {
+    "caption": { "title": string, "date": string, "re": string },
+    "executive_summary": { "dispositive_recommendation": string, "case_strength": "Excellent"|"Strong"|"Moderate"|"Weak", "primary_risk": string, "urgent_actions": string[] },
+    "statement_of_facts": { "undisputed": string[], "disputed": string[], "chronology": string[] },
+    "legal_analysis": [ { "issue": string, "rule": string, "application": string, "conclusion": string, "cited_evidence": string[] } ],
+    "recommended_motions": [ { "motion": string, "legal_standard": string, "factual_basis": string[], "likelihood": "High"|"Medium"|"Low", "draft_paragraph": string } ],
+    "evidence_appendix": [ { "exhibit": string, "description": string, "page": string, "key_quote": string, "proves": string, "admissibility_risk": "Low"|"Medium"|"High" } ],
+    "risk_matrix": [ { "risk": string, "probability": "High"|"Medium"|"Low", "impact": "Severe"|"Moderate"|"Minor", "mitigation": string } ],
+    "next_actions": [ { "action": string, "owner": "Attorney"|"Paralegal"|"Investigator"|"Expert"|"Client", "deadline": string, "priority": "Critical"|"High"|"Medium" } ]
+  }
+}`;
+
+  const intelShape = `Return STRICT JSON with this exact shape — structured intelligence outputs. Cross-reference every output against KNOWN FINDINGS. Every citation object MUST include doc_n, page, and a verbatim quote.
+
+{
+  "citations": [ { "id": string, "doc_n": number, "document_id": string|null, "page": number, "quote": string, "topic": string, "finding_id": string|null } ],
+  "evidence_index": [ { "doc_n": number, "document_id": string|null, "filename": string, "type": string, "role": "inculpatory"|"exculpatory"|"neutral"|"impeachment"|"chain_of_custody"|"procedural", "key_pages": number[], "summary": string, "supports": string[], "undermines": string[] } ],
+  "contradictions": [ { "title": string, "document_a": { "doc_n": number, "page": number, "quote": string }, "document_b": { "doc_n": number, "page": number, "quote": string }, "nature": string, "credibility_impact": string, "trial_significance": string, "impeachment_value": string, "strategic_implications": string, "side_helped": "defense"|"prosecution"|"plaintiff"|"respondent"|"both", "severity": "low"|"medium"|"high"|"critical", "description": string, "legal_impact": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ], "recommended_use": string } ],
+  "missing_evidence": [ { "item": string, "why_critical": string, "severity": "low"|"medium"|"high"|"critical", "omision_probatoria_risk": boolean, "how_to_obtain": string, "recommended_motion": string|null, "side_harmed": string, "side_benefits": string } ],
+  "constitutional_issues": ${isCriminalOrCivilRights ? '[ { "right": string, "articulo_cpeum": string, "issue": string, "facts": string, "legal_standard": string, "likely_outcome": string, "remedy_sought": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ] } ]' : "[]"},
+  "motion_opportunities": [ { "motion": string, "basis": string, "elements": string[], "supporting_facts": string, "legal_rationale": string, "anticipated_opposing_response": string, "likely_outcome": string, "likelihood_of_success": "low"|"medium"|"high", "priority": number, "draft_outline": string, "citations": [ { "doc_n": number, "page": number, "quote": string } ] } ],
+  "cross_examination": [ { "witness": string, "objective": string, "lines": [ { "topic": string, "questions": string[], "impeachment_with": string|null, "citation": { "doc_n": number, "page": number, "quote": string }|null } ] } ],
+  "strategy_recommendations": [ { "title": string, "rationale": string, "category": "investigation"|"motions"|"negotiation"|"trial"|"discovery"|"expert"|"client", "priority": "low"|"medium"|"high"|"critical", "expected_impact": string, "side_benefits": string } ],
+  "next_actions": [ { "order": number, "action": string, "owner": "attorney"|"investigator"|"paralegal"|"expert"|"client", "deadline_hint": string, "depends_on": string[], "why": string } ],
+  "case_strength_score": number,
+  "risk_score": number,
+  "score_rationale": string
+}`;
+
+  type ChunkName = "narrative" | "memo" | "intelligence";
+  const chunkStatus: Record<ChunkName, { ok: boolean; error?: string }> = {
+    narrative: { ok: false },
+    memo: { ok: false },
+    intelligence: { ok: false },
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chunkParsedByName: Partial<Record<ChunkName, Record<string, any>>> = {};
+
+  // --- Chunk-level resume cache ---------------------------------------
+  // Without this, a report stage that gets interrupted by the wall-clock
+  // checkpoint (CHECKPOINT_SAFETY_BUFFER_MS) restarts ALL THREE chunk calls
+  // from zero on the next worker tick — narrative, memo, AND intelligence,
+  // every time. If the combined systemInstruction + sharedContext for a
+  // given case type is heavy enough that the three parallel calls routinely
+  // can't finish inside one stage budget window (e.g. tax_law's
+  // buildCaseTypeStandardsBlock bundles both civil AND criminal doctrine —
+  // key cases, canonical motions, evidentiary rules, dual damages framework
+  // — into every single chunk's system prompt, on top of the shared corpus
+  // context), this stage can checkpoint-and-restart forever: same oversized
+  // prompt, same timeout, same restart, no forward progress ever made. This
+  // is the general form of the bug — any practice area with a large enough
+  // STANDARDS block or a large enough corpus can trigger it, not just tax
+  // law. Persisting each chunk's result to `reports.report_chunk_cache` as
+  // soon as it succeeds, and skipping already-cached chunks on the next
+  // attempt, means each worker tick only has to finish whatever chunks are
+  // still outstanding — guaranteeing forward progress instead of a loop.
+  let chunkCache: Partial<Record<ChunkName, Record<string, unknown>>> = {};
+  try {
+    const { data: cacheRow } = await db
+      .from("reports")
+      .select("report_chunk_cache")
+      .eq("case_id", caseId)
+      .maybeSingle();
+    const raw = (cacheRow as { report_chunk_cache?: unknown } | null)?.report_chunk_cache;
+    if (raw && typeof raw === "object") chunkCache = raw as typeof chunkCache;
+  } catch (cacheErr) {
+    console.warn("[report:chunk] failed to load chunk cache — starting fresh", cacheErr);
+  }
+  for (const name of ["narrative", "memo", "intelligence"] as ChunkName[]) {
+    if (chunkCache[name]) {
+      chunkParsedByName[name] = chunkCache[name] as Record<string, unknown>;
+      chunkStatus[name].ok = true;
+      console.info(`[report:chunk] ${name} resumed from cache — skipping regeneration`);
+    }
+  }
+  const persistChunkCache = async (name: ChunkName) => {
+    try {
+      await db.from("reports").upsert(
+        {
+          case_id: caseId,
+          user_id: userId,
+          report_chunk_cache: { ...chunkCache, [name]: chunkParsedByName[name] } as unknown as Json,
+        },
+        { onConflict: "case_id" },
+      );
+      chunkCache = { ...chunkCache, [name]: chunkParsedByName[name] };
+    } catch (persistErr) {
+      // Non-fatal: worst case this chunk just gets regenerated on the next
+      // checkpoint instead of resumed, which is the pre-fix behavior — not
+      // a regression.
+      console.warn(`[report:chunk] failed to persist ${name} to cache`, persistErr);
+    }
+  };
+  const clearChunkCache = async () => {
+    try {
+      await db.from("reports").update({ report_chunk_cache: {} }).eq("case_id", caseId);
+    } catch {
+      /* noop — stale cache entries are harmless; they're only ever read by name-match */
+    }
+  };
+
+  const handleChunkCancel = async (e: unknown) => {
+    if (
+      cancelled ||
+      (e as { name?: string })?.name === "CancelledError" ||
+      (e as { kind?: string })?.kind === "cancelled"
+    ) {
+      clearInterval(watcher);
+
+      await db
+        .from("cases")
+        .update({
+          status: "cancelled",
+          status_message: "Cancelled by user",
+          progress: 0,
+          cancel_requested: false,
+          error: null,
+          // See matching note in setCase() above — must clear the lease
+          // here too, or a cancellation that happens mid-report-chunk
+          // leaves the same stale-lease trap behind.
+          worker_lease_until: null,
+        } as any)
+        .eq("id", caseId);
+      throw new CancelledError();
+    }
+  };
+
+  const runChunk = async (
+    name: ChunkName,
+    sysSuffix: string,
+    shape: string,
+    maxTokens: number,
+    extraContext?: string,
+  ): Promise<Awaited<ReturnType<typeof callGroq>> | null> => {
+    // Already resumed from a prior tick's cache — don't burn another AI
+    // call re-deriving something we already have.
+    if (chunkStatus[name].ok && chunkCache[name]) return null;
+    // Backstop tripped: this exact call has already failed to complete
+    // MAX_REPORT_CHECKPOINTS times. Retrying again would just reproduce the
+    // same timeout — skip straight to the salvage/fallback path below
+    // instead of burning another tick.
+    if (forceFinalize) {
+      chunkStatus[name].error =
+        chunkStatus[name].error ?? "skipped — report checkpoint backstop reached";
+      console.warn(
+        `[report:chunk] ${name} skipped — checkpoint backstop reached, forcing finalization`,
+      );
+      return null;
+    }
+    try {
+      const res = await callGroq({
+        apiKey,
+        apiKeys,
+        signal: ac.signal,
+        // No task pin any more. The report prompt now fits inside Groq's
+        // request budget (~9-10k input tokens), and Groq generates several
+        // times faster than Gemini — which matters because a call has only
+        // 26s before the provider timeout. Pinning to Gemini guaranteed the
+        // slowest provider took every report chunk and timed out on all of
+        // them. Gemini stays in the chain as fallback.
+        systemInstruction: systemInstruction + "\n" + sysSuffix,
+        userContent: extraContext
+          ? `${shape}\n\n${extraContext}\n\n${sharedContext}`
+          : `${shape}\n\n${sharedContext}`,
+        json: true,
+        temperature: 0.2,
+        maxTokens,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsedChunk = parseJsonLoose<Record<string, any>>(res.text) ?? {};
+      chunkParsedByName[name] = parsedChunk;
+      chunkStatus[name].ok = true;
+      await persistChunkCache(name);
+      await logUsage(db, {
+        userId,
+        caseId,
+        operation: `report.chunk.${name}`,
+        model: res.model,
+        provider: res.provider,
+        inputTokens: res.inputTokens,
+        outputTokens: res.outputTokens,
+        totalTokens: res.totalTokens,
+        latencyMs: res.latencyMs,
+        success: true,
+        keyIndex: res.keyIndex,
+      });
+      return res;
+    } catch (e) {
+      rethrowIfCheckpoint(e);
+      await handleChunkCancel(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      chunkStatus[name].error = msg;
+      if (isGroqCooldownOrRateLimit(msg)) {
+        const { CheckpointRequired } = await import("./pipeline-checkpoint.server");
+        console.warn(`[report:chunk] Groq cooldown during ${name}; yielding for worker retry`);
+        // Include the real provider error (matches the analyzers/agents
+        // CheckpointRequired throw sites) so the loop-breaker in
+        // pipeline-runner.server.ts can surface the actual cause instead of
+        // just "Groq cooldown" if this keeps recurring across ticks.
+        throw new CheckpointRequired(
+          "report",
+          `Groq cooldown during ${name} chunk — ${msg.slice(0, 250)}`,
+        );
+      }
+      console.warn(`[report:chunk] ${name} failed — ${msg.slice(0, 200)}`);
+      return null;
+    }
+  };
+
+  // Audit P0-4: this used to say "Constitutional/Brady/Miranda analyses ARE
+  // relevant" for criminal/civil-rights cases — appended (runChunk below:
+  // `systemInstruction + "\n" + sysSuffix`) directly AFTER systemInstruction's
+  // own correct "nunca en doctrina estadounidense (Miranda, Brady/Giglio...)"
+  // instruction, so the combined prompt for this call literally contradicted
+  // itself. Now mirrors that same instruction's Mexican framing instead of
+  // reintroducing the U.S. doctrine it forbids.
+  const memoSysSuffix = `You generate ONLY the legal_memorandum object in this call. ${isCriminalOrCivilRights ? "Constitutional analysis IS relevant when supported by the corpus — ground it in Art. 20 CPEUM (derechos del imputado y la víctima), the Art. 19 CPEUM catálogo de prisión preventiva oficiosa, and CNPP chain-of-custody rules (Arts. 227-230), NEVER in U.S. doctrine (Miranda, Brady/Giglio, U.S. constitutional amendments)." : "This is NOT criminal/civil-rights — focus on Mexican civil procedure, ofrecimiento de pruebas (evidence offering), and dispositive procedural vehicles under Mexican law. Do NOT manufacture constitutional issues, and do NOT use U.S. terms (discovery, dispositive motions)."} IRAC format is mandatory for every legal_analysis entry. The executive summary, high-level risk assessment, and primary recommendations already exist — see CANONICAL REPORT CONTEXT below. Do not rewrite or restate them. Reference them by summary only. Your job is ONLY the legal memorandum: IRAC legal analysis, motion drafts, evidence appendix, risk matrix detail, and next actions specific to litigation execution.`;
+
+  const intelSysSuffix =
+    "You generate ONLY structured intelligence outputs (citations, evidence_index, contradictions, missing_evidence, constitutional_issues, motion_opportunities, cross_examination, strategy_recommendations, next_actions, case_strength_score, risk_score, score_rationale). Return the shape below and nothing else. The executive summary, high-level risk narrative, constitutional discussion, and contradiction/missing-evidence summaries already exist — see CANONICAL REPORT CONTEXT below. Do NOT restate them in prose form. Your job is ONLY structured data: turn the underlying findings into citations, scorecards, contradiction matrix entries, and evidence classifications. Numeric scores (case_strength_score, risk_score) are new — the canonical context has no numeric risk score yet, so you own computing it.";
+
+  // --- STAGE 1: narrative runs alone first ---------------------------
+  // Narrative owns the executive summary, facts/timeline, high-level risk,
+  // and primary recommendation candidates. It has to finish before memo/
+  // intelligence run so those passes can reference its output instead of
+  // independently re-deriving the same executive summary, risk narrative,
+  // and recommendation list (this was the actual cause of report
+  // repetition — three mutually-blind parallel calls each answering the
+  // same questions, not a problem with finding-level dedup).
+  //
+  // maxTokens raised from 6000/6000/4000: gpt-oss-120b is a reasoning model
+  // and spends tokens on internal reasoning before writing the final JSON
+  // content. At the old budgets it was reliably exhausting max_tokens on
+  // reasoning alone (finish_reason=length, empty text) on every attempt,
+  // which is deterministic given the same prompt — retries never succeeded.
+  // 2026-07-27: output budgets cut (10000/10000/7000 → 4000/4000/3000).
+  // A single call has 26s before the provider timeout fires; 10k output
+  // tokens cannot be generated in 26s by any of the configured providers
+  // except a warm Groq key, so on Gemini it timed out 100% of the time.
+  const narrativeRes = await runChunk(
+    "narrative",
+    "You generate ONLY narrative prose sections in this call. Return the shape below and nothing else.",
+    narrativeShape,
+    4000,
+  );
+
+  // --- STAGE 2: memo + intelligence, referencing narrative. -----------
+  // These two are independent of EACH OTHER — both only need narrative's
+  // output (canonicalContextBlock below), not one another's — so they're
+  // safe to run concurrently. The historical reason they were forced
+  // sequential wasn't that dependency, it was avoiding two simultaneous
+  // requests landing on the SAME single provider key and bursting its
+  // per-minute rate limit (a real, previously-observed failure on a fresh/
+  // free Gemini key). That risk is specific to having too FEW keys, not to
+  // these two calls being independent — so run them concurrently only when
+  // this user actually has enough distinct provider keys to spread the two
+  // calls across, and keep the safe sequential fallback otherwise.
+  const canonicalContext = buildCanonicalReportContext(chunkParsedByName.narrative ?? null);
+  const canonicalContextBlock = serializeCanonicalContextForPrompt(canonicalContext);
+
+  const MIN_KEYS_FOR_CHUNK_PARALLELISM = 2;
+  const { countUserProviderKeys } = await import("./ai/router.server");
+  const availableProviderKeys = await countUserProviderKeys(userId);
+  const canParallelizeChunks = availableProviderKeys >= MIN_KEYS_FOR_CHUNK_PARALLELISM;
+
+  if (canParallelizeChunks) {
+    // Promise.allSettled, not Promise.all: runChunk only ever re-throws for
+    // a checkpoint/cancel signal (everything else is caught internally and
+    // recorded on chunkStatus[name].error) — but Promise.all rejects the
+    // instant the FIRST of the two throws, leaving the other call running
+    // unawaited in the background. That dangling call would still
+    // eventually write to chunkParsedByName/persist its cache (harmless,
+    // even useful for the next tick), but if IT also throws, it becomes an
+    // unhandled promise rejection with nothing to catch it. allSettled
+    // always waits for both to finish first, so re-throwing below never
+    // leaves anything dangling.
+    const settled = await Promise.allSettled([
+      runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock),
+      runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock),
+    ]);
+    for (const outcome of settled) {
+      if (outcome.status === "rejected") throw outcome.reason;
+    }
+  } else {
+    await runChunk("memo", memoSysSuffix, memoShape, 4000, canonicalContextBlock);
+    await runChunk("intelligence", intelSysSuffix, intelShape, 3000, canonicalContextBlock);
+  }
+
+  // `r` drives downstream logic (parsed, fallback banner). Anchor on narrative
+  // since prose is the visible surface; memo/intelligence merge in below.
+  // NOTE: gate on chunkStatus.*.ok, NOT on truthiness of the returned `r`/
+  // `narrativeRes` value — a chunk resumed from the cache legitimately
+  // returns null from runChunk (no fresh API call was made) while still
+  // being a success. Treating a null return as failure here would
+  // misclassify every cache-resumed narrative chunk as failed and trigger
+  // unnecessary (and costly) split-group salvage calls.
+  r = narrativeRes;
+  if (!chunkStatus.narrative.ok) {
+    const errs = [
+      chunkStatus.narrative.error,
+      chunkStatus.memo.error,
+      chunkStatus.intelligence.error,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    reportLlmError = errs || "all report chunks failed";
+    console.warn("[report:chunk] narrative chunk failed; entering split-group salvage", {
+      caseId,
+      reportLlmError,
+    });
+  }
+
+  // Independent memo salvage: narrative succeeded but memo chunk failed.
+  // Without this, legal_memorandum silently disappears from the report.
+  if (chunkStatus.narrative.ok && !chunkStatus.memo.ok && !cancelled) {
+    console.warn(
+      "[report:chunk] memo chunk failed but narrative ok — attempting isolated memo salvage",
+    );
+    await runChunk("memo", memoSysSuffix, memoShape, 3000);
+    if (chunkStatus.memo.ok) pipelineWarnings.push("legal_memorandum_recovered_by_salvage");
+  }
+
+  // Independent intelligence salvage: narrative succeeded but intel failed.
+  if (chunkStatus.narrative.ok && !chunkStatus.intelligence.ok && !cancelled) {
+    console.warn(
+      "[report:chunk] intelligence chunk failed but narrative ok — attempting isolated salvage",
+    );
+    await runChunk(
+      "intelligence",
+      "You generate ONLY structured intelligence outputs. Return the shape below and nothing else.",
+      intelShape,
+      2500,
+    );
+    if (chunkStatus.intelligence.ok) pipelineWarnings.push("intelligence_recovered_by_salvage");
+  }
+
+  // ------------------------------------------------------------------
+  // Split-group narrative recovery.
+  // A single call demanding ~20 long-form sections is fragile — one
+  // provider hiccup wipes out the entire narrative. When the monolithic
+  // call fails, salvage what we can by asking for THREE smaller, focused
+  // prose-only calls in parallel. Each independent group failure only
+  // costs that group; the rest still render real LLM prose.
+  // ------------------------------------------------------------------
+  const salvagedProse: Record<string, string> = {};
+  // Structured salvage — legal_memorandum is an object, not prose. Kept
+  // separate so the prose merge loop below doesn't stringify it. When the
+  // main call fails, prose recovery alone leaves `legal_memorandum` absent
+  // from `parsed`, silently hiding the LegalMemorandumPanel. This 4th
+  // salvage lane requests the memo shape directly and merges it back into
+  // `parsed` before the final full_report spread.
+  let salvagedMemo: Record<string, unknown> | null = null;
+  let salvageAttempted = false;
+  let salvageAnySuccess = false;
+  // Gate on chunkStatus.narrative.ok, not on truthiness of `r`. `r` is
+  // legitimately null when narrative resumed from the chunk cache (no
+  // fresh API call was made this tick, per the cache-resume loop above),
+  // which is a SUCCESS, not a failure. Gating on `!r` was misclassifying
+  // every cache-resumed narrative as failed and triggering this expensive
+  // 3-call split-group salvage unnecessarily — burning extra latency and
+  // tokens on a narrative that already succeeded and didn't need recovery.
+  if (!chunkStatus.narrative.ok && !cancelled) {
+    salvageAttempted = true;
+    const groups: Array<{ label: string; sections: string[] }> = [
+      {
+        label: "summary+overview",
+        sections: [
+          "executive_summary",
+          "attorney_summary",
+          "investigator_summary",
+          "case_overview",
+        ],
+      },
+      {
+        label: "facts+timeline",
+        sections: ["facts", "timeline_summary", "risk_analysis", "recommendations"],
+      },
+      {
+        label: "evidence+theory",
+        sections: [
+          "evidence_summary",
+          "witness_analysis",
+          "contradiction_report",
+          "discovery_analysis",
+          "prosecution_theory_report",
+          "defense_theory_report",
+        ],
+      },
+    ];
+    const buildGroupPrompt = (sections: string[]) => {
+      const shape = sections.map((k) => `    "${k}": string`).join(",\n");
+      return `Return STRICT JSON with this exact shape. Every prose field must be a substantive narrative with inline citations like [DOC N p.M]. Omit a field only if the corpus genuinely does not support it (return an empty string in that case rather than skipping the key).
+
+{
+  "prose": {
+${shape}
+  }
+}
+
+${buildUserContent(0.17).split("PAGINATION RULES:")[1] ? "PAGINATION RULES:" + buildUserContent(0.17).split("PAGINATION RULES:")[1] : buildUserContent(0.17)}`;
+    };
+
+    // Dedicated legal_memorandum salvage prompt — same corpus, structured
+    // object shape, no prose fields. STALE NOTE (was "Runs in parallel with
+    // the prose groups" here): the loop below is sequential (a for-loop
+    // manually building PromiseSettledResult-shaped entries, not an actual
+    // Promise.allSettled) — likely deliberate, same provider-burst rationale
+    // as the main narrative/memo/intelligence path, since this only fires
+    // when narrative has already failed and providers may already be
+    // struggling. Not changed here; comment corrected to match reality.
+    const buildMemoPrompt = () => {
+      const rest = buildUserContent(0.17);
+      const paginationTail = rest.split("PAGINATION RULES:")[1]
+        ? "PAGINATION RULES:" + rest.split("PAGINATION RULES:")[1]
+        : rest;
+      return `Return STRICT JSON with this exact shape — a court-ready IRAC legal memorandum derived from the corpus. Every fact and quote MUST carry an inline \`[DOC N p.M]\` pinpoint citation with a verbatim quote (<=200 chars). Omit rows you cannot cite; do not fabricate exhibits, pages, or quotes.
+
+{
+  "legal_memorandum": {
+    "caption": { "title": string, "date": string, "re": string },
+    "executive_summary": {
+      "dispositive_recommendation": string,
+      "case_strength": "Excellent"|"Strong"|"Moderate"|"Weak",
+      "primary_risk": string,
+      "urgent_actions": string[]
+    },
+    "statement_of_facts": {
+      "undisputed": string[],
+      "disputed": string[],
+      "chronology": string[]
+    },
+    "legal_analysis": [
+      { "issue": string, "rule": string, "application": string, "conclusion": string, "cited_evidence": string[] }
+    ],
+    "recommended_motions": [
+      { "motion": string, "legal_standard": string, "factual_basis": string[], "likelihood": "High"|"Medium"|"Low", "draft_paragraph": string }
+    ],
+    "evidence_appendix": [
+      { "exhibit": string, "description": string, "page": string, "key_quote": string, "proves": string, "admissibility_risk": "Low"|"Medium"|"High" }
+    ],
+    "risk_matrix": [
+      { "risk": string, "probability": "High"|"Medium"|"Low", "impact": "Severe"|"Moderate"|"Minor", "mitigation": string }
+    ],
+    "next_actions": [
+      { "action": string, "owner": "Attorney"|"Paralegal"|"Investigator"|"Expert"|"Client", "deadline": string, "priority": "Critical"|"High"|"Medium" }
+    ]
+  }
+}
+
+${paginationTail}`;
+    };
+
+    const groupResults: PromiseSettledResult<
+      | {
+          kind: "prose";
+          group: { label: string; sections: string[] };
+          res: Awaited<ReturnType<typeof callGroq>>;
+        }
+      | { kind: "memo"; res: Awaited<ReturnType<typeof callGroq>> }
+    >[] = [];
+    for (const g of groups) {
+      try {
+        const res = await callGroq({
+          apiKey,
+          apiKeys,
+          signal: ac.signal,
+          systemInstruction,
+          userContent: buildGroupPrompt(g.sections),
+          json: true,
+          temperature: 0.2,
+          maxTokens: 6000,
+        });
+        groupResults.push({
+          status: "fulfilled",
+          value: { kind: "prose" as const, group: g, res },
+        });
+      } catch (reason) {
+        groupResults.push({ status: "rejected", reason });
+      }
+    }
+    try {
+      const res = await callGroq({
+        apiKey,
+        apiKeys,
+        signal: ac.signal,
+        systemInstruction,
+        userContent: buildMemoPrompt(),
+        json: true,
+        temperature: 0.2,
+        maxTokens: 8000,
+      });
+      groupResults.push({ status: "fulfilled", value: { kind: "memo" as const, res } });
+    } catch (reason) {
+      groupResults.push({ status: "rejected", reason });
+    }
+    for (const gr of groupResults) {
+      if (gr.status !== "fulfilled") {
+        const msg = gr.reason instanceof Error ? gr.reason.message : String(gr.reason);
+        console.warn(`[report:salvage] group failed — ${msg.slice(0, 200)}`);
+        continue;
+      }
+      try {
+        if (gr.value.kind === "memo") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const parsedMemo = parseJsonLoose<Record<string, any>>(gr.value.res.text) ?? {};
+          const memoObj = (parsedMemo.legal_memorandum ?? parsedMemo) as Record<string, unknown>;
+          if (
+            memoObj &&
+            typeof memoObj === "object" &&
+            !Array.isArray(memoObj) &&
+            Object.keys(memoObj).length > 0
+          ) {
+            salvagedMemo = memoObj;
+            salvageAnySuccess = true;
+          }
+          await logUsage(db, {
+            userId,
+            caseId,
+            operation: "report.salvage.memo",
+            model: gr.value.res.model,
+            provider: gr.value.res.provider,
+            inputTokens: gr.value.res.inputTokens,
+            outputTokens: gr.value.res.outputTokens,
+            totalTokens: gr.value.res.totalTokens,
+            latencyMs: gr.value.res.latencyMs,
+            success: true,
+            keyIndex: gr.value.res.keyIndex,
+          });
+          continue;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parsedGroup = parseJsonLoose<Record<string, any>>(gr.value.res.text) ?? {};
+        const gp = (parsedGroup.prose ?? parsedGroup) as Record<string, unknown>;
+        for (const k of gr.value.group.sections) {
+          const v = gp[k];
+          if (typeof v === "string" && v.trim().length >= 80) {
+            salvagedProse[k] = v;
+            salvageAnySuccess = true;
+          }
+        }
+        await logUsage(db, {
+          userId,
+          caseId,
+          operation: "report.salvage",
+          model: gr.value.res.model,
+          provider: gr.value.res.provider,
+          inputTokens: gr.value.res.inputTokens,
+          outputTokens: gr.value.res.outputTokens,
+          totalTokens: gr.value.res.totalTokens,
+          latencyMs: gr.value.res.latencyMs,
+          success: true,
+          keyIndex: gr.value.res.keyIndex,
+        });
+      } catch (e) {
+        console.warn(
+          `[report:salvage] parse failed for group ${gr.value.kind === "memo" ? "legal_memorandum" : gr.value.group.label}`,
+          e,
+        );
+      }
+    }
+    console.info(
+      `[report:salvage] recovered ${Object.keys(salvagedProse).length} prose section(s); memo=${!!salvagedMemo}; anySuccess=${salvageAnySuccess}`,
+    );
+  }
+
+  clearInterval(watcher);
+
+  await setCase(db, caseId, { status_message: "Assembling litigation package", progress: 85 });
+  if (r) {
+    await logUsage(db, {
+      userId,
+      caseId,
+      operation: "report",
+      model: r.model,
+      provider: r.provider,
+      inputTokens: r.inputTokens,
+      outputTokens: r.outputTokens,
+      totalTokens: r.totalTokens,
+      latencyMs: r.latencyMs,
+      success: true,
+      keyIndex: r.keyIndex,
+    });
+  } else {
+    await logUsage(db, {
+      userId,
+      caseId,
+      operation: "report",
+      model: MODEL,
+      latencyMs: 0,
+      success: false,
+      error: reportLlmError ?? "report generation fallback",
+    });
+  }
+
+  // Merge all successfully-parsed chunks into a single `parsed` object.
+  // narrative → { prose: {...} }, memo → { legal_memorandum: {...} },
+  // intelligence → { citations, evidence_index, ... }. Order chosen so
+  // memo/intelligence never overwrite narrative prose keys.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parsed: Record<string, any> = {
+    ...(chunkParsedByName.intelligence ?? {}),
+    ...(chunkParsedByName.memo ?? {}),
+    ...(chunkParsedByName.narrative ?? {}),
+  };
+  const prose = (parsed.prose ?? {}) as Record<string, unknown>;
+
+  // Single canonical recommendations list — replaces the six overlapping
+  // lists (narrative prose, memo next_actions, memo recommended_motions,
+  // intelligence next_actions, intelligence strategy_recommendations,
+  // intelligence motion_opportunities) with one deduplicated, ID-referenced
+  // set. The renderer should read `parsed.canonical_recommendations` going
+  // forward instead of stitching the six raw fields together itself.
+  parsed.canonical_recommendations = mergeCanonicalRecommendations({
+    narrativeParsed: chunkParsedByName.narrative ?? null,
+    memoParsed: chunkParsedByName.memo ?? null,
+    intelParsed: chunkParsedByName.intelligence ?? null,
+  });
+
+  // --- Defense-in-depth: strip ungrounded standalone confidence figures ---
+  // The system prompt already instructs the model never to state a
+  // standalone confidence/strength/reliability number in prose unless it
+  // matches a real computed score (see "NUMERIC SCORE DISCIPLINE" above),
+  // but LLMs occasionally leak a number anyway (e.g. "high confidence
+  // (91%)" with no corresponding 91 anywhere in the scored output). Prompt
+  // instructions are not enforcement, so this pass deterministically
+  // verifies every "NN/100", "NN%", or "NN out of 100"-style figure in the
+  // prose against the actual computed scores available on `parsed`, and
+  // replaces anything that isn't traceable to one of them.
+  const collectKnownScoreNumbers = (p: Record<string, unknown>): Set<number> => {
+    const nums = new Set<number>();
+    const add = (v: unknown) => {
+      if (typeof v !== "number" || !Number.isFinite(v)) return;
+      nums.add(Math.round(v));
+      // Confidence values are often expressed 0-1; also allow the
+      // percentage form so "0.91" grounds a printed "91%".
+      if (v > 0 && v <= 1) nums.add(Math.round(v * 100));
+    };
+    add(p.case_strength_score);
+    add(p.risk_score);
+    const scorecard = (p.deterministic_scorecard ?? {}) as Record<string, unknown>;
+    for (const dim of Object.values(scorecard)) {
+      if (dim && typeof dim === "object") add((dim as Record<string, unknown>).score);
+    }
+    // p.deterministic_scorecard is the LLM's OWN copy of scorecard-shaped
+    // JSON, which is frequently absent — the real, authoritative per-
+    // dimension scores (Chain of custody integrity: 29, Constitutional
+    // compliance: 34, etc., shown in the Case Scorecard section) are
+    // computed separately by computeDeterministicScorecard() and were never
+    // fed into this whitelist at all. That meant every legitimate mention
+    // of a real dimension score in prose ("the chain-of-custody score is
+    // low (29/100)") was indistinguishable from a fabricated one and always
+    // got overwritten with "well-supported"/"elevated" — the fallback text
+    // was firing on TRUE numbers, not just hallucinated ones. Recomputing
+    // it here (pure function over already-available findings/caseType) and
+    // adding every real dimension score closes that gap.
+    try {
+      const det = computeDeterministicScorecard(findings, caseType);
+      for (const dim of Object.values(det.dimensions)) add(dim?.score);
+    } catch {
+      /* best-effort — if this throws, fall through with whatever is already known */
+    }
+    const theories = Array.isArray(p.theories) ? (p.theories as Record<string, unknown>[]) : [];
+    for (const t of theories) add(t?.confidence);
+    const confidenceArrayKeys = [
+      "contradictions",
+      "missing_evidence",
+      "procedural_issues",
+      "key_findings",
+      "constitutional_issues",
+      "motion_opportunities",
+    ];
+    for (const key of confidenceArrayKeys) {
+      const items = Array.isArray(p[key]) ? (p[key] as Record<string, unknown>[]) : [];
+      for (const it of items) add(it?.confidence);
+    }
+    return nums;
+  };
+  const knownScoreNumbers = collectKnownScoreNumbers(parsed);
+  // Pass 1: numbers with an explicit unit — "91/100", "91%", "91 out of 100".
+  const UNIT_SCORE_RE = /\b(\d{1,3})\s*(?:\/\s*100|(?:out of)\s*100|%)/gi;
+  // Pass 2: bare numbers near a scoring keyword with NO unit at all — e.g.
+  // "the overall confidence in the case is 91" or "rated as 13". Real
+  // reports show this exact shape (a fabricated confidence figure stated
+  // as a plain number, not a percentage), so the unit-based pattern alone
+  // misses it entirely. Lookbehind keeps the match to just the digits so
+  // the surrounding sentence still reads naturally after replacement.
+  // Captures the triggering keyword (group 1) alongside the number (group 2)
+  // so the fallback replacement can match its grammar — "well-supported"
+  // reads fine after "strength"/"reliability" but not after "risk", where it
+  // produced sentences like "conviction risk of well-supported".
+  const KEYWORD_NUMBER_RE =
+    /(?<=\b(confidence|score|scored|strength|reliability|risk|rated)\b[^.\n\d]{0,25})\b(\d{1,3})\b/gi;
+  const RISK_KEYWORDS = new Set(["risk", "rated"]);
+  const SCORE_KEYWORD_RE = /\b(confidence|score|scored|strength|reliability|risk|rated)\b/gi;
+  // UNIT_SCORE_RE has no keyword lookbehind of its own — most fabricated
+  // figures in this app's prose are expressed with a "/100" unit (scores
+  // are always framed that way elsewhere in the report), so THIS pass, not
+  // the bare-number one below, is what actually catches sentences like
+  // "conviction risk is low (18/100)". Scan backward from the match for the
+  // nearest scoring keyword so its fallback word matches grammatically too —
+  // otherwise only the bare-number pass was keyword-aware and the far more
+  // common unit-suffixed case kept producing "risk ... (well-supported)".
+  const fallbackForContext = (text: string, matchIndex: number): string => {
+    const before = text.slice(Math.max(0, matchIndex - 30), matchIndex);
+    SCORE_KEYWORD_RE.lastIndex = 0;
+    let lastKeyword: string | null = null;
+    let m: RegExpExecArray | null;
+    while ((m = SCORE_KEYWORD_RE.exec(before))) lastKeyword = m[1];
+    return lastKeyword && RISK_KEYWORDS.has(lastKeyword.toLowerCase())
+      ? "elevated"
+      : "well-supported";
+  };
+  const fallbackFor = (keyword: string): string =>
+    RISK_KEYWORDS.has(keyword.toLowerCase()) ? "elevated" : "well-supported";
+  // Citation-quote spans — "[DOC 4 p.1: 'I think that's him, but I'm not
+  // 100% sure']" — must never be touched by this sanitizer. These are
+  // verbatim evidence quotes verified against the corpus; a number inside
+  // one (e.g. that "100%") is part of what a witness actually said, not a
+  // model-generated confidence figure, and overwriting it produced the
+  // genuinely bad outcome of the report MISQUOTING a witness statement
+  // ("I'm not well-supported sure"). Backreference \1 requires the same
+  // quote character to open and close, and requires the closer to sit
+  // directly against "]" — which is what keeps this from stopping early at
+  // a mid-quote apostrophe like "that's" or "I'm".
+  const CITATION_QUOTE_RE = /\[DOC\s+\d+\s+p\.\d+:\s*(['"])[\s\S]*?\1\]/g;
+  const protectedRanges = (text: string): Array<[number, number]> => {
+    const ranges: Array<[number, number]> = [];
+    CITATION_QUOTE_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = CITATION_QUOTE_RE.exec(text))) ranges.push([m.index, m.index + m[0].length]);
+    return ranges;
+  };
+  const insideAnyRange = (ranges: Array<[number, number]>, index: number): boolean =>
+    ranges.some(([start, end]) => index >= start && index < end);
+  const sanitizeOrphanedScores = (text: string): string => {
+    if (!text) return text;
+    const ranges = protectedRanges(text);
+    let out = text.replace(UNIT_SCORE_RE, (match, numStr: string, offset: number) => {
+      if (insideAnyRange(ranges, offset)) return match;
+      const val = parseInt(numStr, 10);
+      return knownScoreNumbers.has(val) ? match : fallbackForContext(text, offset);
+    });
+    out = out.replace(
+      KEYWORD_NUMBER_RE,
+      (match, keyword: string, numStr: string, offset: number) => {
+        if (insideAnyRange(ranges, offset)) return match;
+        const val = parseInt(numStr, 10);
+        return knownScoreNumbers.has(val) ? match : fallbackFor(keyword);
+      },
+    );
+    return out;
+  };
+  for (const [k, v] of Object.entries(prose)) {
+    if (typeof v === "string") prose[k] = sanitizeOrphanedScores(v);
+  }
+
+  // Merge any salvaged group prose from the split-group recovery. Salvaged
+  // sections are LLM-authored, so they win over deterministic backfill below.
+  for (const [k, v] of Object.entries(salvagedProse)) {
+    if (typeof v === "string" && v.trim().length > 0) prose[k] = sanitizeOrphanedScores(v);
+  }
+  // Merge salvaged legal_memorandum into `parsed` so the final full_report
+  // spread (line ~2621) picks it up. Only fill when the main call didn't
+  // already produce one — never clobber a valid LLM-authored memo.
+  if (salvagedMemo && (!parsed.legal_memorandum || typeof parsed.legal_memorandum !== "object")) {
+    parsed.legal_memorandum = salvagedMemo;
+  }
+
+  // ONE fallback banner at the top of the report — never repeated per section.
+  // Down-stream renderers surface `prose.fallback_banner` as a single
+  // dismissable notice; individual sections render their own deterministic
+  // content directly, without any prefix boilerplate.
+  const narrativeFallback = !!reportLlmError && !salvageAnySuccess;
+  const narrativePartial = !!reportLlmError && salvageAnySuccess;
+  if (narrativeFallback) {
+    prose.fallback_banner =
+      "AI narrative generation was unavailable during this run due to a provider error. The sections below are assembled directly from verified findings and extracted documents — no interpretive prose. Attorney independent review is required before reliance.";
+  } else if (narrativePartial) {
+    prose.fallback_banner = `AI narrative generation partially failed during this run. ${Object.keys(salvagedProse).length} section(s) were recovered from smaller follow-up calls; the remainder are assembled directly from verified findings. Attorney independent review is required before reliance.`;
+  }
+
+  // Ensure the mutated prose (banner + salvaged sections) is reachable to
+  // renderers via `full_report.prose`, even when the original parsed payload
+  // had no `prose` key.
+  parsed.prose = prose;
+  // Structured metadata about narrative-generation status so downstream
+  // renderers can scope the banner precisely to the failed sections instead
+  // of blanket-covering the whole report.
+  (parsed as Record<string, unknown>).narrative_status = {
+    llm_error: reportLlmError ?? null,
+    fully_failed: narrativeFallback,
+    partially_failed: narrativePartial,
+    salvaged_sections: Object.keys(salvagedProse),
+    banner: (prose.fallback_banner as string | undefined) ?? null,
+  };
+
+  // Deterministic backfill: if the LLM returned an empty / unparseable prose
+  // block, we still emit a defensible report assembled from the verified
+  // findings and the deterministic scorecard rather than failing mid-report.
+  const proseLooksEmpty =
+    Object.values(prose).filter((v) => typeof v === "string" && v.trim().length > 0).length < 3;
+  if (proseLooksEmpty) {
+    const sevRank = { critical: 4, high: 3, medium: 2, low: 1, info: 0 } as Record<string, number>;
+    const top = [...findings]
+      .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
+      .slice(0, 10);
+    const bullets = top
+      .map((f) => `- (${f.severity}) ${f.title} — ${f.legal_significance ?? f.category}`)
+      .join("\n");
+    const docLines = docIndex
+      .map((d) => `- DOC ${d.doc_n}: ${d.filename} (${d.pages} page${d.pages === 1 ? "" : "s"})`)
+      .join("\n");
+    const agentLines = (agents ?? [])
+      .map((a: any) => `- ${a.agent_type}: ${a.summary ?? a.status ?? "completed"}`)
+      .join("\n");
+    const timelineItems = Array.isArray((analysis as any)?.timeline)
+      ? ((analysis as any).timeline as any[])
+      : [];
+    // Timeline formatting: never emit a bare leading colon. Treat empty
+    // strings as missing dates and drop the colon entirely rather than
+    // rendering "- : Alarm" in a legal document.
+    const timelineLines = timelineItems
+      .slice(0, 20)
+      .map((t) => {
+        const rawDate = typeof t.date === "string" ? t.date.trim() : t.date;
+        const label = t.event ?? t.description ?? JSON.stringify(t).slice(0, 180);
+        return rawDate ? `- ${rawDate}: ${label}` : `- ${label}`;
+      })
+      .join("\n");
+    const scoreLine = score
+      ? `Overall confidence: ${(score as any).overall_confidence ?? "suppressed"}. Methodology: ${(score as any).methodology ?? "deterministic evidence-gated scoring"}.`
+      : "Quantitative score unavailable.";
+    // No per-section "sumLine" prefix. The single banner above says it once;
+    // sections render only their own content.
+
+    const locale = await getReportLocale(db, caseId);
+    const { MX_PARTY_ROLES, resolveMxProfile } = await import("./execution/mx-pipeline");
+    const partyRoles = MX_PARTY_ROLES[resolveMxProfile(caseType)];
+    const ROLE_LABELS: Record<string, { es: string; en: string }> = {
+      ministerio_publico: { es: "Ministerio Público", en: "Public Prosecutor" },
+      defensa: { es: "Defensa", en: "Defense" },
+      quejoso: { es: "Quejoso", en: "Petitioner (Quejoso)" },
+      autoridad_responsable: { es: "Autoridad Responsable", en: "Responsible Authority" },
+      trabajador: { es: "Trabajador", en: "Employee" },
+      patron: { es: "Patrón", en: "Employer" },
+      parte_actora: { es: "Parte Actora", en: "Plaintiff" },
+      parte_demandada: { es: "Parte Demandada", en: "Defendant" },
+      contribuyente: { es: "Contribuyente", en: "Taxpayer" },
+      autoridad_fiscal: { es: "Autoridad Fiscal", en: "Tax Authority" },
+      particular: { es: "Particular", en: "Private Party" },
+      autoridad: { es: "Autoridad", en: "Authority" },
+      apelante: { es: "Apelante", en: "Appellant" },
+      apelado: { es: "Apelado", en: "Appellee" },
+      ambas: { es: "Ambas Partes", en: "Both Parties" },
+      // P2 (2026-08-16): were missing entirely — every materia whose
+      // MX_PARTY_ROLES includes a `.c` role (mx-pipeline.ts) uses one of
+      // these three slugs for it.
+      tercero_interesado: { es: "Tercero Interesado", en: "Third-Party Interested Person" },
+      nucleo_agrario: { es: "Núcleo Agrario", en: "Agrarian Community" },
+      comunidad_afectada: { es: "Comunidad Afectada", en: "Affected Community" },
+    };
+    const roleLabel = (key: string) => ROLE_LABELS[key]?.[locale] ?? key;
+
+    // Category-filtered finding lists so each section shows only relevant findings.
+    // NOTE: filters on category_key (locale-independent machine token), not
+    // category (the Mexican-Spanish display label attorneys see in the UI).
+    // Filtering on `category` here previously matched nothing for MX cases,
+    // since that column holds labels like "Testimonio de Testigo" rather
+    // than the English tokens ("missing_evidence", "discovery_gap") this
+    // list was written against — see classify.server.ts for the split.
+    const byCategory = (cats: string[]) =>
+      [...findings]
+        .filter((f) => cats.includes(String((f as any).category_key ?? "")))
+        .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
+        .slice(0, 5)
+        .map((f) => `- (${f.severity}) ${f.title} — ${(f as any).legal_significance ?? f.category}`)
+        .join("\n");
+
+    const byParty = (party: string) =>
+      [...findings]
+        .filter(
+          (f) =>
+            (f as any).affected_party === party || (f as any).affected_party === partyRoles.neutral,
+        )
+        .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
+        .slice(0, 5)
+        .map((f) => `- (${f.severity}) ${f.title}`)
+        .join("\n");
+
+    const noContent =
+      locale === "en"
+        ? "No verified findings in this category. Upload additional source documents and re-run the pipeline."
+        : "No se identificaron hallazgos verificados en esta categoría. Suba fuentes documentales adicionales y vuelva a ejecutar el proceso.";
+
+    prose.executive_summary =
+      prose.executive_summary ||
+      (locale === "en"
+        ? `This report identifies ${findings.length} verified finding(s) across ${docIndex.length} source document(s). The highest-priority issues requiring attorney attention:\n\n${bullets || noContent}`
+        : `Este informe identifica ${findings.length} hallazgo(s) verificado(s) en ${docIndex.length} documento(s) fuente. Las cuestiones de mayor prioridad que requieren atención del abogado:\n\n${bullets || noContent}`);
+
+    prose.attorney_summary =
+      prose.attorney_summary ||
+      (locale === "en"
+        ? `Verified findings requiring attorney review (${findings.length} total):\n\n${bullets || noContent}`
+        : `Hallazgos verificados que requieren revisión del abogado (${findings.length} en total):\n\n${bullets || noContent}`);
+
+    prose.investigator_summary =
+      prose.investigator_summary ||
+      (locale === "en"
+        ? `Agent analysis summary:\n${agentLines || "No agent output available."}\n\nTop verified findings:\n${bullets || noContent}`
+        : `Resumen del análisis de agentes:\n${agentLines || "No hay resultados de agentes disponibles."}\n\nPrincipales hallazgos verificados:\n${bullets || noContent}`);
+
+    prose.case_overview =
+      prose.case_overview ||
+      (locale === "en"
+        ? `Case type: ${caseType}. Document corpus: ${docIndex.length} document(s) reviewed.\n${docLines || "No documents indexed."}\n\nVerified issues identified: ${findings.length}.`
+        : `Materia: ${caseType}. Corpus documental: ${docIndex.length} documento(s) revisado(s).\n${docLines || "No hay documentos indexados."}\n\nCuestiones verificadas identificadas: ${findings.length}.`);
+
+    prose.evidence_summary =
+      prose.evidence_summary ||
+      (locale === "en"
+        ? `Evidence Inventory\n${docLines || "No extracted document index available."}`
+        : `Inventario de Evidencia\n${docLines || "No hay índice de documentos extraídos disponible."}`);
+
+    prose.timeline_summary =
+      prose.timeline_summary ||
+      (locale === "en"
+        ? `Timeline Reconstruction\n${timelineLines || "No dated timeline events were extracted from the uploaded documents."}`
+        : `Reconstrucción Cronológica\n${timelineLines || "No se extrajeron eventos cronológicos con fecha de los documentos proporcionados."}`);
+
+    prose.contradiction_report =
+      prose.contradiction_report ||
+      (byCategory(["contradiction"])
+        ? `${locale === "en" ? "Verified Contradictions" : "Contradicciones Verificadas"}\n${byCategory(["contradiction"])}`
+        : locale === "en"
+          ? "No verified factual contradictions survived evidence validation. This may reflect consistent accounts or insufficient document coverage."
+          : "Ninguna contradicción fáctica verificada superó la validación de evidencia. Esto puede reflejar relatos consistentes o cobertura documental insuficiente.");
+
+    prose.discovery_analysis =
+      prose.discovery_analysis ||
+      (byCategory(["missing_evidence", "discovery_gap"])
+        ? `${locale === "en" ? "Discovery Gaps" : "Vacíos Probatorios"}\n${byCategory(["missing_evidence", "discovery_gap"])}`
+        : locale === "en"
+          ? "No verified discovery gaps were identified in the uploaded documents."
+          : "No se identificaron vacíos probatorios verificados en los documentos proporcionados.");
+
+    prose.missing_evidence_report =
+      prose.missing_evidence_report ||
+      (locale === "en"
+        ? "Review the Evidence Coverage section for missing or unextracted documents. Upload additional materials and re-run the pipeline to expand this analysis."
+        : "Consulte la sección de Cobertura de Evidencia para conocer los documentos faltantes o no extraídos. Suba materiales adicionales y vuelva a ejecutar el proceso para ampliar este análisis.");
+
+    prose.procedural_issues_report =
+      prose.procedural_issues_report ||
+      (byCategory(["procedural"])
+        ? `${locale === "en" ? "Procedural Issues" : "Cuestiones Procesales"}\n${byCategory(["procedural"])}`
+        : locale === "en"
+          ? "No verified procedural issues survived evidence validation."
+          : "Ninguna cuestión procesal verificada superó la validación de evidencia.");
+
+    prose.witness_analysis =
+      prose.witness_analysis ||
+      (byCategory(["witness"])
+        ? `${locale === "en" ? "Witness Findings" : "Hallazgos de Testigos"}\n${byCategory(["witness"])}`
+        : agentLines
+          ? `${locale === "en" ? "Agent Summary" : "Resumen del Agente"}\n${agentLines}`
+          : locale === "en"
+            ? "No witness-specific findings were produced. Upload witness statements, depositions, or interview transcripts and re-run."
+            : "No se generaron hallazgos específicos de testigos. Suba declaraciones de testigos, testimoniales o transcripciones de entrevistas y vuelva a ejecutar.");
+
+    prose.prosecution_theory_report =
+      prose.prosecution_theory_report ||
+      (locale === "en"
+        ? `${roleLabel(partyRoles.a)} Theory\nFindings that may support ${roleLabel(partyRoles.a)}:\n\n${byParty(partyRoles.a) || noContent}`
+        : `Teoría de la ${roleLabel(partyRoles.a)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.a)}:\n\n${byParty(partyRoles.a) || noContent}`);
+
+    prose.defense_theory_report =
+      prose.defense_theory_report ||
+      (locale === "en"
+        ? `${roleLabel(partyRoles.b)} Theory\nFindings that may support ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`
+        : `Teoría de la ${roleLabel(partyRoles.b)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.b)}:\n\n${byParty(partyRoles.b) || noContent}`);
+
+    // P2 (2026-08-16): when this materia has a real third procedural role
+    // (tercero_interesado — amparo/administrativo/electoral), the fallback
+    // now renders that party's theory the SAME way the .a/.b fallbacks
+    // above already do, instead of a generic "insufficient evidence"
+    // placeholder that gave a real tercero-interesado theory (already
+    // computed by case_theories/runTheoryEngine, addFindings-routed, visible
+    // in the findings tab) no slot in the report at all. Materias with no
+    // third role keep the original placeholder — there's genuinely nothing
+    // else "alternative" means for them without inventing content.
+    prose.alternative_theory_report =
+      prose.alternative_theory_report ||
+      (partyRoles.c
+        ? locale === "en"
+          ? `${roleLabel(partyRoles.c)} Theory\nFindings that may support ${roleLabel(partyRoles.c)}:\n\n${byParty(partyRoles.c) || noContent}`
+          : `Teoría de la ${roleLabel(partyRoles.c)}\nHallazgos que pueden respaldar a la ${roleLabel(partyRoles.c)}:\n\n${byParty(partyRoles.c) || noContent}`
+        : locale === "en"
+          ? "Alternative Theory\nInsufficient verified evidence for alternative theory generation. Upload additional documents and re-run."
+          : "Teoría Alternativa\nEvidencia verificada insuficiente para generar una teoría alternativa. Suba documentos adicionales y vuelva a ejecutar.");
+
+    prose.risk_analysis =
+      prose.risk_analysis ||
+      `${locale === "en" ? "Risk Analysis" : "Análisis de Riesgo"}\n${scoreLine}`;
+
+    prose.facts =
+      prose.facts ||
+      (locale === "en"
+        ? "Insufficient evidence to draft a facts narrative without verbatim source quotes."
+        : "Evidencia insuficiente para redactar una narrativa de hechos sin citas textuales de la fuente.");
+
+    prose.recommendations =
+      prose.recommendations ||
+      `${locale === "en" ? "Prioritized Recommendations" : "Recomendaciones Prioritarias"}\n${bullets || noContent}`;
+
+    prose.score_breakdown =
+      prose.score_breakdown ||
+      "See deterministic scorecard in the full report payload — every dimension lists its baseline, contributors, and formula.";
+
+    prose.appendix_sources =
+      prose.appendix_sources || `Appendix Sources\n${docLines || "No source documents indexed."}`;
+  }
+  void salvageAttempted;
+
+  const pick = (k: string) => (typeof prose[k] === "string" ? (prose[k] as string) : "");
+
+  const docNToId = new Map(docIndex.map((d) => [d.doc_n, d.document_id]));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const resolveCites = (arr: any): any => {
+    if (!Array.isArray(arr)) return [];
+    return arr.map((c) => {
+      if (!c || typeof c !== "object") return c;
+      const out = { ...c };
+      if (typeof out.doc_n === "number" && !out.document_id)
+        out.document_id = docNToId.get(out.doc_n) ?? null;
+      if (Array.isArray(out.citations)) {
+        out.citations = out.citations.map((cc: unknown) => {
+          if (cc && typeof cc === "object") {
+            const x = cc as Record<string, unknown>;
+            if (typeof x.doc_n === "number" && !x.document_id)
+              x.document_id = docNToId.get(x.doc_n as number) ?? null;
+            return x;
+          }
+          return cc;
+        });
+      }
+      return out;
+    });
+  };
+
+  let citations = resolveCites(parsed.citations);
+  // Backfill from findings whenever the LLM's citations array is thin, not
+  // only when it is completely empty. A partial array (e.g. 2 entries when
+  // the prose references far more sources) used to ship as-is, leaving the
+  // "Appendix: Source Citations" section silently incomplete — the one
+  // section whose entire purpose is letting a reviewer verify every claim.
+  // Findings-derived rows are merged in and deduped by quote text so nothing
+  // is shown twice. Mirrors the merge-not-replace fix already applied to
+  // evidenceIndex just below.
+  // FIX (2026-08-04): this mapping previously dropped every provenance field
+  // grounding.server.ts's verifyEvidenceRefs() computes beyond the basics
+  // (document_id/page/quote) -- character offsets, the located page, the
+  // document/citation SHA-256 hashes, and whether the citation had to be
+  // re-attributed to a different document than the LLM claimed. Those fields
+  // are the whole point of Phase 1 evidence provenance (character-level
+  // location + cryptographic fingerprint for every statement in the Citation
+  // Index) and were being computed then silently discarded here. Carried
+  // through now via a spread of whatever verifyEvidenceRefs actually
+  // produced, with the existing explicit fields kept as the documented
+  // fallback chain for refs that predate this fix or came from a path that
+  // doesn't run through grounding.server.ts.
+  const findingsCitations = findings
+    .flatMap((f: any, i) => {
+      const refs = Array.isArray(f.evidence_refs) ? f.evidence_refs : [];
+      return refs.slice(0, 3).map((ref: any, j: number) => ({
+        start_offset: null,
+        end_offset: null,
+        page_located: null,
+        document_hash: null,
+        chunk_index: null,
+        chunk_hash: null,
+        citation_hash: null,
+        source_reattributed: false,
+        ...ref,
+        id: `F${i + 1}-${j + 1}`,
+        doc_n: typeof ref.doc_n === "number" ? ref.doc_n : null,
+        document_id: ref.document_id ?? ref.doc_id ?? f.source_document_id ?? null,
+        page:
+          typeof ref.page === "number"
+            ? ref.page
+            : typeof f.source_page === "number"
+              ? f.source_page
+              : 1,
+        quote: ref.quote ?? f.source_quote ?? "",
+        topic: f.title ?? f.category ?? "Finding",
+        finding_id: f.id ?? null,
+      }));
+    })
+    .filter((c: any) => typeof c.quote === "string" && c.quote.trim().length > 0);
+  if (!citations.length) {
+    citations = findingsCitations;
+  } else {
+    const seenQuotes = new Set(
+      citations
+        .map((c: any) => (typeof c.quote === "string" ? c.quote.trim().toLowerCase() : ""))
+        .filter(Boolean),
+    );
+    const extra = findingsCitations.filter((c) => !seenQuotes.has(c.quote.trim().toLowerCase()));
+    citations = citations.concat(extra);
+  }
+  let evidenceIndex = resolveCites(parsed.evidence_index);
+  {
+    // Backfill every document missing from the LLM's evidence_index, rather
+    // than only substituting when the array is entirely empty. In practice
+    // the model frequently returns a PARTIAL evidence_index — e.g. only the
+    // one document tied to a flagged chain-of-custody or contradiction
+    // finding — and silently omits the rest of the corpus. An "only if
+    // empty" check let 3-of-4 real documents vanish from the Evidence Map
+    // whenever the model produced even a single entry. Every ingested
+    // document must appear in the map: LLM-authored entries are kept as-is,
+    // and any doc_n not covered gets the same metadata-only placeholder the
+    // old fully-empty fallback used.
+    const coveredDocNs = new Set(
+      evidenceIndex
+        .map((e: any) => (typeof e?.doc_n === "number" ? e.doc_n : null))
+        .filter((n: unknown) => n !== null),
+    );
+    const missing = docIndex.filter((d) => !coveredDocNs.has(d.doc_n));
+    if (missing.length) {
+      const placeholders = missing.map((d) => ({
+        doc_n: d.doc_n,
+        document_id: d.document_id,
+        filename: d.filename,
+        type: "source_document",
+        role: "neutral",
+        key_pages: Array.from({ length: Math.min(d.pages || 1, 5) }, (_, i) => i + 1),
+        page_count: d.pages,
+        summary: "",
+        summary_source: "metadata_only",
+        supports: [],
+        undermines: [],
+      }));
+      evidenceIndex = [...evidenceIndex, ...placeholders].sort(
+        (a: any, b: any) => (a?.doc_n ?? 0) - (b?.doc_n ?? 0),
+      );
+    }
+  }
+
+  const contradictionsRaw = resolveCites(parsed.contradictions);
+  const missingEvidenceRaw = Array.isArray(parsed.missing_evidence) ? parsed.missing_evidence : [];
+  const constIssuesRaw = isCriminalOrCivilRights ? resolveCites(parsed.constitutional_issues) : [];
+  const motionsRaw = resolveCites(parsed.motion_opportunities);
+  const crossExamRaw = Array.isArray(parsed.cross_examination) ? parsed.cross_examination : [];
+  const strategy = Array.isArray(parsed.strategy_recommendations)
+    ? parsed.strategy_recommendations
+    : [];
+  const nextActions = Array.isArray(parsed.next_actions)
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (parsed.next_actions as any[]).slice().sort((a, b) => (a?.order ?? 99) - (b?.order ?? 99))
+    : [];
+
+  // === Anti-hallucination validation pass ===
+  // Every structured claim must cite a quote that actually exists in the
+  // extracted corpus. Items whose quotes cannot be verified are dropped.
+  await setCase(db, caseId, { status_message: "Validating evidence citations", progress: 90 });
+  const { buildGroundingCorpus, verifyQuote, verifyEvidenceRefs } = await import(
+    "./intelligence/grounding.server"
+  );
+  const { confidenceLabel } = await import("./intelligence/scoring.server");
+  const { data: docsForReportGround } = await db
+    .from("documents")
+    .select("id,filename,extracted_text")
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: true });
+  const reportCorpus = buildGroundingCorpus(
+    (docsForReportGround ?? []).map((d) => ({
+      id: d.id as string,
+      filename: d.filename,
+      extracted_text: d.extracted_text,
+    })),
+  );
+  // FIX (2026-08-17, pipeline-wide sweep): `citations` — the report's own
+  // "Anexo: Citas de Fuentes" appendix, explicitly captioned "use these to
+  // verify any claim in the report" — was itself never verified. It only
+  // ever got document_id backfilled from doc_n (resolveCites, above); the
+  // findings-derived entries merged in when the LLM's own array was thin
+  // (findingsCitations) are already trustworthy (their evidence_refs went
+  // through this same grounding earlier, when the finding was created), but
+  // the LLM's own citations entries — quote and all — never were.
+  // verifyEvidenceRefs is the exact existing function built for this (it
+  // already backstops findings' own evidence_refs elsewhere in this
+  // codebase); reused here rather than duplicating its quote/re-attribution
+  // logic. evidence_index is a per-DOCUMENT summary (doc_n/role/summary/
+  // supports/undermines), not a per-quote citation — it has no quote field
+  // to verify, so it is deliberately left untouched here; it is already
+  // anchored to a real document via doc_n/document_id, unlike a free-floating
+  // claim.
+  const citationsBeforeGrounding = citations.length;
+  citations = verifyEvidenceRefs(citations, reportCorpus);
+  if (citationsBeforeGrounding > citations.length) {
+    pipelineWarnings.push(
+      `citation_index_grounding: ${citationsBeforeGrounding - citations.length} citation(s) dropped from the citation appendix — quote did not verify against the real corpus.`,
+    );
+  }
+  const verifyAndLabel = <T extends Record<string, unknown>>(
+    arr: T[],
+    quoteFields: Array<string | string[]>,
+  ): Array<
+    T & { quote_verified: boolean; confidence_label: string; insufficient_evidence?: true }
+  > => {
+    const out: Array<
+      T & { quote_verified: boolean; confidence_label: string; insufficient_evidence?: true }
+    > = [];
+    for (const item of arr) {
+      if (!item || typeof item !== "object") continue;
+      // Collect every quote referenced anywhere on the item.
+      const quotes: string[] = [];
+      const pushFromPath = (path: string | string[]) => {
+        const segs = Array.isArray(path) ? path : path.split(".");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let cur: any = item;
+        for (const s of segs) cur = cur?.[s];
+        if (typeof cur === "string") quotes.push(cur);
+      };
+      for (const f of quoteFields) pushFromPath(f);
+      // Always sweep .citations[].quote and top-level .quote. Also sweep
+      // .evidence_refs[].quote — a second engine elsewhere in the pipeline
+      // (buildPrompt for contradictions/missing_evidence/procedural_issues)
+      // uses evidence_refs as its citation array name instead of citations.
+      // Both shapes can end up in `parsed` after the intelligence/memo/
+      // narrative chunk merge, and this sweep previously only recognized
+      // one of them — so on any run where the evidence_refs-shaped version
+      // won the merge, every item in that category had zero quotes found
+      // here, failed verification, and the whole section (Contradiction
+      // Analysis / Constitutional Analysis) silently disappeared from the
+      // report with no indication anything had gone wrong.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cites = (item as any).citations;
+      if (Array.isArray(cites)) {
+        for (const c of cites) if (c && typeof c.quote === "string") quotes.push(c.quote);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const evidenceRefs = (item as any).evidence_refs;
+      if (Array.isArray(evidenceRefs)) {
+        for (const c of evidenceRefs) if (c && typeof c.quote === "string") quotes.push(c.quote);
+      }
+      const verifiedCount = quotes.filter((q) => verifyQuote(q, reportCorpus)).length;
+      const quote_verified = verifiedCount > 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const conf = (item as any).confidence ?? (item as any).provenance?.confidence_adjusted;
+      const label = confidenceLabel(typeof conf === "number" ? conf : quote_verified ? 0.7 : 0.2);
+      if (!quote_verified) {
+        // Drop entirely — never publish an unverifiable legal conclusion.
+        continue;
+      }
+      out.push({
+        ...item,
+        quote_verified,
+        confidence_label: label,
+      });
+    }
+    return out;
+  };
+
+  const contradictions = verifyAndLabel(contradictionsRaw, [
+    ["document_a", "quote"],
+    ["document_b", "quote"],
+    "quote",
+  ]);
+  // Dispute vs factual classifier — relabel each surviving item so the
+  // renderer can split "Factual Contradictions" from "Disputed Issues".
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const c of contradictions as any[]) {
+    c.kind = classifyContradiction(c);
+  }
+  const constIssues = isCriminalOrCivilRights ? verifyAndLabel(constIssuesRaw, ["facts"]) : [];
+  // FIX (2026-08-18, ADR-5829/2025 audit — item 6, "wrong constitutional
+  // article cited"): verifyAndLabel above only confirms the item's cited
+  // QUOTE exists in the corpus — it never checks whether the ARTICLE
+  // NUMBER itself is the one that actually governs the case. A real report
+  // cited "Art. 115, fracción IV" (CPEUM's municipal-treasury provision,
+  // exclusive to municipios) on an ISSSTE federal-entity tax dispute whose
+  // corpus never mentions a municipio at all. See
+  // constitutional-article-context-gate.ts for the full rationale — this
+  // is deliberately a narrow, single-article denylist check, not a general
+  // correctness engine. Nulls just the mis-cited article field (keeps the
+  // rest of the constitutional_issues entry, which may still be valid)
+  // rather than dropping the whole finding.
+  if (constIssues.length > 0) {
+    const { checkConstitutionalArticleContext } = await import(
+      "./intelligence/constitutional-article-context-gate"
+    );
+    const corpusPlainText = (docsForReportGround ?? [])
+      .map((d) => d.extracted_text ?? "")
+      .join("\n");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const ci of constIssues as any[]) {
+      const check = checkConstitutionalArticleContext(ci.articulo_cpeum, corpusPlainText);
+      if (check.outOfContext) {
+        pipelineWarnings.push(
+          `constitutional_article_context: dropped out-of-context citation "${ci.articulo_cpeum}" (${check.label}).`,
+        );
+        ci.articulo_cpeum = null;
+      }
+    }
+  }
+  const motions = verifyAndLabel(motionsRaw, ["supporting_facts"]);
+  // Questions themselves need no quote-verification, but FIX (2026-08-17,
+  // pipeline-wide sweep): impeachment_with is a specific factual claim about
+  // the record, not a question — verifyAndLabel's generic .citations[]/
+  // .evidence_refs[] sweep never reaches it (it's nested two levels deep,
+  // item.lines[].citation, not on the top-level item), so it was the one
+  // unverified factual assertion left in cross_examination. Nulls the claim
+  // (never drops the line/topic) when its citation doesn't verify.
+  const { gateCrossExaminationImpeachment } = await import(
+    "./intelligence/cross-examination-grounding"
+  );
+  const crossExam = gateCrossExaminationImpeachment(crossExamRaw, verifyQuote, reportCorpus).items;
+  // Missing evidence is about *absence* — no corpus quote required, but flag confidence.
+  const missingEvidence = (missingEvidenceRaw as Record<string, unknown>[]).map((m) => ({
+    ...m,
+    confidence_label: confidenceLabel(
+      typeof (m as any).confidence === "number" ? (m as any).confidence : 0.6,
+    ),
+  }));
+
+  // === Claim-Strength Guardrail ===========================================
+  // Enforces: no generated sentence may make a stronger claim than its strongest
+  // cited source. Adds Tier-5 legal-risk corroboration, intent-inference block,
+  // evidence-type ceilings, source-span validation, and red-team rewrite.
+  await setCase(db, caseId, { status_message: "Applying claim-strength guardrail", progress: 92 });
+  const { enforceStructuredItems, enforceProse } =
+    await import("./intelligence/claim-strength.server");
+  const guardOpts = { corpus: reportCorpus, requireSupport: false };
+
+  const contradictionsGuarded = enforceStructuredItems(contradictions, guardOpts);
+  const motionsGuarded = enforceStructuredItems(motions, guardOpts);
+  const constGuarded = enforceStructuredItems(constIssues, guardOpts);
+  const missingGuarded = enforceStructuredItems(missingEvidence, guardOpts);
+
+  // Apply to prose narrative fields where most hallucination risk lives.
+  const proseGuardFields = [
+    "executive_summary",
+    "attorney_summary",
+    "investigator_summary",
+    "case_overview",
+    "facts",
+    "witness_analysis",
+    "discovery_analysis",
+    "procedural_issues_report",
+    "prosecution_theory_report",
+    "defense_theory_report",
+    "alternative_theory_report",
+    "risk_analysis",
+    "score_breakdown",
+    "recommendations",
+    "evidence_summary",
+    "timeline_summary",
+    "contradiction_report",
+    "missing_evidence_report",
+  ];
+  const proseAudit: Record<string, { softened: number; dropped: number }> = {};
+  for (const f of proseGuardFields) {
+    const v = prose[f];
+    if (typeof v !== "string" || !v.trim()) continue;
+    // appendNote:false — don't let enforceProse bake its own note into
+    // every section. Totals are aggregated below and appended ONCE at the
+    // end of the report instead of once per section.
+    const r = enforceProse(v, { ...guardOpts, appendNote: false });
+    prose[f] = r.text;
+    proseAudit[f] = { softened: r.softenedCount, dropped: r.droppedCount };
+  }
+
+  // Single report-level guardrail note, built from the totals above,
+  // appended once to whichever narrative section renders last
+  // (Recommendations, falling back to Executive Summary), so the reader
+  // sees it exactly once regardless of how many sections were touched.
+  {
+    const { formatGuardrailNote } = await import("./intelligence/claim-strength.server");
+    const totalSoftened = Object.values(proseAudit).reduce((a, x) => a + x.softened, 0);
+    const totalDropped = Object.values(proseAudit).reduce((a, x) => a + x.dropped, 0);
+    if (totalSoftened > 0 || totalDropped > 0) {
+      const noteTarget =
+        typeof prose["recommendations"] === "string" && prose["recommendations"].trim()
+          ? "recommendations"
+          : "executive_summary";
+      if (typeof prose[noteTarget] === "string") {
+        prose[noteTarget] =
+          `${prose[noteTarget]}\n\n${formatGuardrailNote(totalSoftened, totalDropped)}`;
+      }
+    }
+  }
+
+  // === Evidence Sufficiency Score + Secondary Validation + Length Caps ====
+  // Sparse evidence MUST produce sparse reports. This block computes ESS,
+  // strips any prose sentence that does not trace back to the corpus, and
+  // hard-caps each section to the bin's maximum length.
+  await setCase(db, caseId, { status_message: "Scoring evidence sufficiency", progress: 94 });
+  const { computeESS, detectDocTypeSignals, validateProseAgainstCorpus, capNarrative } =
+    await import("./intelligence/sufficiency.server");
+
+  const extractedChars = (docsForReportGround ?? []).reduce(
+    (n, d) => n + (typeof d.extracted_text === "string" ? d.extracted_text.length : 0),
+    0,
+  );
+  const pageCountTotal = docIndex.reduce((n, d) => n + Math.max(1, d.pages || 1), 0);
+  const corpusFullText = (docsForReportGround ?? []).map((d) => d.extracted_text ?? "").join("\n");
+  const personalNoticeNoDuty = /(?:no\s+exist[ií]a(?:\s+alg[uú]n)?|no\s+(?:era|es|resultaba|fue)\s+necesari[oa]|no\s+hab[ií]a)\b[^.!?]{0,180}(?:deber|obligaci[oó]n|necesidad)?[^.!?]{0,140}notific[^.!?]{0,100}personal/i.test(corpusFullText);
+  const isFalsePersonalNoticeTheory = (value: unknown): boolean => {
+    const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
+    return /notific[^.!?]{0,120}personal/i.test(text) && /(defectu|irregular|error|nulidad|invalid|afect|procedencia|desestim|debilidad|riesgo|perjuicio|garanti[cz]|asegurar|necesari[oa])/i.test(text);
+  };
+  if (personalNoticeNoDuty) {
+    for (const key of ["next_actions", "strategy_recommendations", "motion_opportunities", "recommendations"]) {
+      const value = (parsed as Record<string, unknown>)[key];
+      if (Array.isArray(value)) (parsed as Record<string, unknown>)[key] = value.filter((item) => !isFalsePersonalNoticeTheory(item));
+    }
+    const exec = (parsed as Record<string, unknown>).executive_summary;
+    if (exec && typeof exec === "object" && !Array.isArray(exec)) {
+      const urgent = (exec as Record<string, unknown>).urgent_actions;
+      if (Array.isArray(urgent)) (exec as Record<string, unknown>).urgent_actions = urgent.filter((item) => !isFalsePersonalNoticeTheory(item));
+      if (isFalsePersonalNoticeTheory((exec as Record<string, unknown>).primary_risk)) (exec as Record<string, unknown>).primary_risk = "";
+    }
+    const legalAnalysis = (parsed as Record<string, unknown>).legal_analysis;
+    if (Array.isArray(legalAnalysis)) (parsed as Record<string, unknown>).legal_analysis = legalAnalysis.filter((item) => !isFalsePersonalNoticeTheory(item));
+    for (const key of Object.keys(prose)) {
+      const value = prose[key];
+      if (typeof value !== "string" || !isFalsePersonalNoticeTheory(value)) continue;
       prose[key] = value.split(/(?<=[.!?])\s+|\n+/g).filter((sentence) => !isFalsePersonalNoticeTheory(sentence)).join(" ").trim();
     }
   }
@@ -4446,4 +10130,3 @@ ${judicialHierarchyInstructions()}
 // exercised directly against a fake db, without invoking the full report
 // assembly this function otherwise performs.
 export { _runReportInner as __test__runReportInner };
-
