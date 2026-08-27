@@ -6097,6 +6097,10 @@ async function _runReportInner(args: {
       .eq("agent_type", "contradictions"),
   ]);
 
+  let score = scoreInitial;
+
+
+
 
   // Verify analyzers completed (either findings exist, analysis row exists, or pipeline_engine_runs completed)
   const hasAnalysisData = Boolean(analysis) || (rawFindings && rawFindings.length > 0);
