@@ -56,6 +56,10 @@ function fixture() {
 }
 
 describe("mandatory decision core", () => {
+  it("treats a legacy failed-attempt marker as unavailable instead of throwing", () => {
+    expect(buildMandatoryDecisionCore({})).toEqual([]);
+  });
+
   it("extracts verified holdings, rejected holdings, disposition, remedy, and controlling issues", () => {
     const core = buildMandatoryDecisionCore(fixture());
     expect(core.map((item) => item.kind)).toEqual([
