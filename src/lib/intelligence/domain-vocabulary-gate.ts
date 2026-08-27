@@ -33,6 +33,7 @@
 // diverge from what the rest of the codebase already treats as penal-only.
 
 import type { MexicanCaseType } from "../jurisdiction/mexico-types";
+import { isPenalMatter } from "./penal-legal-normalization";
 
 type DomainTerm = { match: RegExp; label: string };
 
@@ -92,7 +93,14 @@ export type DomainVocabularyCheck = {
 export function checkDomainVocabulary(
   text: string,
   materia: string | undefined,
+  underlyingMateria?: string | null,
 ): DomainVocabularyCheck {
+  // Amparo is a procedural vehicle, not the underlying materia.  Penal-
+  // origin Amparo legitimately contains CNPP actors and institutions; only
+  // a positively non-Penal underlying matter may activate this denylist.
+  if (isPenalMatter({ matter: materia, underlyingMatter: underlyingMateria })) {
+    return { clean: true, violations: [] };
+  }
   if (!materia || !MATERIAS_WITHOUT_PENAL_INSTITUTIONS.has(materia as MexicanCaseType)) {
     return { clean: true, violations: [] };
   }
@@ -103,7 +111,9 @@ export function checkDomainVocabulary(
 export function checkFindingDomainVocabulary(
   finding: { title?: unknown; description?: unknown },
   materia: string | undefined,
+  underlyingMateria?: string | null,
 ): DomainVocabularyCheck {
   const text = `${String(finding.title ?? "")} ${String(finding.description ?? "")}`;
-  return checkDomainVocabulary(text, materia);
+  return checkDomainVocabulary(text, materia, underlyingMateria);
 }
+
