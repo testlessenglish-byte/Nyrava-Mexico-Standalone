@@ -6062,7 +6062,7 @@ async function _runReportInner(args: {
   const [
     { data: analysis },
     { data: agents },
-    { data: score },
+    { data: scoreInitial },
     rawFindings,
     { data: theories },
     { data: opps },
