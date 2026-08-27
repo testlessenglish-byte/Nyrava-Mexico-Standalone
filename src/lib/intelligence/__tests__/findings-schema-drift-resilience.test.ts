@@ -146,6 +146,28 @@ describe("addFindings: schema-drift resilience on the judicial-hierarchy columns
     expect(calls.insert[1][0].audit_classification).toBe("VERIFIED_COURT_HOLDING");
   });
 
+  it("preserves verified findings when a Penal legal-semantics column has not propagated", async () => {
+    const { addFindings } = await import("@/lib/intelligence/findings.server");
+    const calls = { insert: [] as Array<Record<string, unknown>[]> };
+    const db = makeFakeDb(calls, [
+      { message: "Could not find the 'benefited_party' column of 'case_findings' in the schema cache" },
+    ]);
+    await addFindings(db as never, [
+      {
+        ...sampleRow,
+        speaker_role: "scjn",
+        proposition_type: "court_holding",
+        adoption_status: "adopted",
+        audit_classification: "VERIFIED_COURT_HOLDING",
+        benefited_party: "neutral",
+      },
+    ]);
+    expect(calls.insert).toHaveLength(2);
+    expect(calls.insert[1][0]).not.toHaveProperty("benefited_party");
+    expect(calls.insert[1][0]).toHaveProperty("audit_classification", "VERIFIED_COURT_HOLDING");
+    expect(calls.insert[1][0]).toHaveProperty("proposition_type", "court_holding");
+  });
+
   it("falls back to stripping the full known-optional bundle when the single-column retry also fails", async () => {
     const { addFindings } = await import("@/lib/intelligence/findings.server");
     const calls = { insert: [] as Array<Record<string, unknown>[]> };

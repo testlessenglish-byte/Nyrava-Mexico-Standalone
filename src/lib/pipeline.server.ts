@@ -4785,7 +4785,10 @@ export async function runAgents(args: {
             areaPreambleLocale,
           );
           const gate = await addGatedFindings(db, caseId, gatedRows);
-          const accepted = gate.audit?.accepted ?? allowedRows.length;
+          // Count only rows that reached case_findings. The evidence gate's
+          // accepted count is pre-persistence and previously made the UI say
+          // findings were accepted even when the DB inserted zero.
+          const accepted = gate.inserted;
           totalGenerated += generated;
           totalAccepted += accepted;
           return {

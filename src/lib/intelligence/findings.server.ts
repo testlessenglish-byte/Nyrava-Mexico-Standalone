@@ -1235,6 +1235,14 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
       "audit_classification",
       "evidence_relationship",
       "reconciliation_state",
+      // Penal legal-semantics migration (20260826090000). These are
+      // additive. A backend whose schema cache/deployment is briefly behind
+      // must not atomically lose the entire verified-finding batch because
+      // one of these columns has not propagated yet.
+      "benefited_party",
+      "authority_level",
+      "score_dimension",
+      "reason_for_score_effect",
     ] as const;
     const unknownColumn =
       /Could not find the '([^']+)' column/.exec(error.message ?? "")?.[1] ??
@@ -1280,13 +1288,17 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
         return bundleRetry.data ?? [];
       }
       console.error("addFindings bundle retry (without all optional columns) also failed", bundleRetry.error);
-      return [];
+      throw new Error(
+        `case_findings persistence failed after schema-drift retry: ${bundleRetry.error.message}`,
+      );
     }
     console.error(
       "addFindings retry (without judicial-hierarchy/audit-classification columns) also failed",
       retry.error,
     );
-    return [];
+    throw new Error(
+      `case_findings persistence failed after schema-drift retry: ${retry.error.message}`,
+    );
   }
   return data ?? [];
 }
