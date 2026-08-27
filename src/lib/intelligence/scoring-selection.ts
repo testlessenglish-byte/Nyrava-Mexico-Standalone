@@ -86,10 +86,13 @@ export class InvalidPipelineOrderError extends Error {
 }
 
 /**
- * Canonical scoring/reporting finding selector.
- * MUST be called by both the scoring engine and the report generator.
+ * Canonical reportable finding selector. Reportability is an epistemic and
+ * release-integrity decision; it is deliberately independent of whether a
+ * finding moves a score. For example, a verified neutral SCJN holding is
+ * reportable and remains in this set while scoring.server.ts correctly gives
+ * it no signed weight.
  */
-export function getCanonicalScoringFindings(args: {
+export function getCanonicalReportFindings(args: {
   caseRow: CaseTimestamps;
   findings: ReadonlyArray<Pick<Finding, "source_module"> & { metadata?: Record<string, unknown> | null }>;
 }): Finding[] {
@@ -116,6 +119,19 @@ export function getCanonicalScoringFindings(args: {
 }
 
 /**
+ * Canonical input set for deterministic scoring. This intentionally starts
+ * from the same reportable registry; score eligibility/direction is decided
+ * by findingScoringDirection(), not by deleting neutral legal holdings from
+ * the reportable set.
+ */
+export function getCanonicalScoringFindings(args: {
+  caseRow: CaseTimestamps;
+  findings: ReadonlyArray<Pick<Finding, "source_module"> & { metadata?: Record<string, unknown> | null }>;
+}): Finding[] {
+  return getCanonicalReportFindings(args);
+}
+
+/**
  * Execution-order guard. Call at scoring AND report entrypoints.
  * - At scoring entry: pass `mode: "scoring"` (scored_at not yet written; only
  *   precondition timestamps are checked).
@@ -135,3 +151,4 @@ export function assertPipelineOrder(caseRow: CaseTimestamps, mode: "scoring" | "
     }
   }
 }
+
