@@ -6281,22 +6281,17 @@ async function _runReportInner(args: {
     "./intelligence/case-analysis-mode"
   );
   const mandatoryDecisionCoreRequired = isCompletedReportCaseMode(reportCaseAnalysisMode);
-  const { data: decisionReconstructionRow } = await (db as any)
-    .from("case_decision_reconstructions")
-    .select("reconstruction")
-    .eq("case_id", caseId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { ensureDecisionReconstruction } = await import(
+    "./intelligence/decision-reconstruction-extractor.server"
+  );
+  const decisionReconstruction = mandatoryDecisionCoreRequired
+    ? await ensureDecisionReconstruction(db, caseId, userId, apiKey)
+    : null;
   const {
     buildMandatoryDecisionCore,
     validateMandatoryDecisionCore,
   } = await import("./intelligence/mandatory-decision-core");
-  const mandatoryDecisionCore = buildMandatoryDecisionCore(
-    (decisionReconstructionRow?.reconstruction ?? null) as
-      | import("./intelligence/decision-reconstruction").CaseDecisionReconstruction
-      | null,
-  );
+  const mandatoryDecisionCore = buildMandatoryDecisionCore(decisionReconstruction);
   const {
     persistPenalDisposition,
     renderPenalDisposition,
