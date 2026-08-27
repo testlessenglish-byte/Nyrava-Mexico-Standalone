@@ -252,6 +252,52 @@ async function deriveCitations(
 // row behind either way.
 const DECISION_RECONSTRUCTION_TIMEOUT_MS = 25_000;
 
+/**
+ * Load a usable reconstruction, or build it only after extraction completed.
+ * Previously the pipeline called the builder before the extraction stage,
+ * allowing an empty-corpus result/marker to suppress every later attempt.
+ * A failed/empty row created before extracted_at is stale and can be rebuilt;
+ * a failure after extraction is left for a full rerun so worker ticks do not
+ * loop on the same expensive provider call.
+ */
+export async function ensureDecisionReconstruction(
+  db: Db,
+  caseId: string,
+  userId: string,
+  apiKey?: string,
+): Promise<CaseDecisionReconstruction | null> {
+  const { data: caseRow } = await db
+    .from("cases")
+    .select("extracted_at")
+    .eq("id", caseId)
+    .maybeSingle();
+  const extractedAt = caseRow?.extracted_at ? Date.parse(caseRow.extracted_at) : Number.NaN;
+  if (!Number.isFinite(extractedAt)) return null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: latest } = await (db as any)
+    .from("case_decision_reconstructions")
+    .select("reconstruction,matter_identity_status,created_at")
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { buildMandatoryDecisionCore } = await import("./mandatory-decision-core");
+  const existing = (latest?.reconstruction ?? null) as CaseDecisionReconstruction | null;
+  const existingCore = buildMandatoryDecisionCore(existing);
+  if (existingCore.some((item) => item.kind !== "CONTROLLING_ISSUE")) return existing;
+
+  const latestCreatedAt = latest?.created_at ? Date.parse(String(latest.created_at)) : Number.NaN;
+  const failedAfterExtraction =
+    latest?.matter_identity_status === "extraction_failed" &&
+    Number.isFinite(latestCreatedAt) &&
+    latestCreatedAt >= extractedAt;
+  if (failedAfterExtraction) return null;
+
+  return buildDecisionReconstruction(db, caseId, userId, apiKey);
+}
+
 /** Leaves a minimal marker row behind on failure so the "does a
  *  reconstruction already exist" gate in pipeline-runner.server.ts stops
  *  retrying this case on every single resume tick. Best-effort — a failure
@@ -536,3 +582,4 @@ ${corpusText}`,
 
   return reconstruction;
 }
+
