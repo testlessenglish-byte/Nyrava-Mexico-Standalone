@@ -134,33 +134,21 @@ const ES_HUNDREDS: Record<string, number> = {
 
 const ES_MONTH_PATTERN = Object.keys(ES_MONTHS).join("|");
 const ES_NUMERIC_DATE_RE = new RegExp(`\\b(\\d{1,2})\\s+de\\s+(${ES_MONTH_PATTERN})\\s+de\\s+(\\d{4})\\b`, "i");
-const ES_WORD_DATE_RE = new RegExp(
-  `\\b([a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?)\\s+de\\s+(${ES_MONTH_PATTERN})\\s+de\\s+((?:dos\\s+mil|mil)(?:\\s+[a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?)*)\\b`,
-  "i",
-);
+const ES_WORD_DATE_RE = new RegExp(`\\b([a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?)\\s+de\\s+(${ES_MONTH_PATTERN})\\s+de\\s+((?:dos\\s+mil|mil)(?:\\s+[a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?)*)\\b`, "i");
 
-// Used only for deterministic corpus extraction. The event must contain one
-// of these anchors near the date; a naked date is never promoted.
 const PROCEDURAL_EVENT_RE = /\b(interpus[oe]|interpuso|present[oó]|promovi[oó]|notific[oó]|notificada?|resolvi[oó]|resuelve|determin[oó]|revoc[oó]|confirm[oó]|orden[oó]|admiti[oó]|admitida?|desech[oó]|declar[oó]|apel[oó]|impugn[oó]|recurri[oó]|remiti[oó]|turn[oó]|radic[oó]|emplaz[oó]|celebr[oó]|dict[oó]|sentencia|resoluci[oó]n|recurso\s+de\s+revisi[oó]n|demanda|audiencia|acuerdo|engrose|ejecutoria)\b/i;
-const AUTHORITY_CONTEXT_RE = /\b(jurisprudencia|tesis(?:\s+aislada)?|precedente|criterio\s+(?:jurisprudencial|aislado)|registro\s+digital|semanario\s+judicial|novena\s+[ée]poca|d[ée]cima\s+[ée]poca|und[ée]cima\s+[ée]poca|publicad[ao]\s+en|gaceta|al\s+resolver\s+(?:el\s+)?(?:amparo|recurso|expediente|juicio|asunto)|amparo\s+(?:directo|indirecto|en\s+revisi[oó]n|directo\s+en\s+revisi[oó]n)\s+\d+[\w/.-]*|contradicci[oó]n\s+de\s+(?:tesis|criterios)\s+\d+|acci[oó]n\s+de\s+inconstitucionalidad\s+\d+|controversia\s+constitucional\s+\d+|criterio\s+sustentado\s+por\s+la\s+(?:primera|segunda|pleno)|corte\s+interamericana|caso\s+[A-ZÁÉÍÓÚÑ][^.;]{0,80}\s+vs\.?)\b/i;
+const AUTHORITY_CONTEXT_RE = /\b(jurisprudencia|tesis(?:\s+aislada)?|precedente|criterio\s+(?:jurisprudencial|aislado|sustentado)|registro\s+digital|semanario\s+judicial|novena\s+[ée]poca|d[ée]cima\s+[ée]poca|und[ée]cima\s+[ée]poca|octava\s+[ée]poca|s[ée]ptima\s+[ée]poca|sexta\s+[ée]poca|quinta\s+[ée]poca|publicad[ao]\s+en|gaceta|al\s+resolver\s+(?:el\s+)?(?:amparo|recurso|expediente|juicio|asunto)|amparo\s+(?:directo|indirecto|en\s+revisi[oó]n|directo\s+en\s+revisi[oó]n)\s+\d+[\w/.-]*|contradicci[oó]n\s+de\s+(?:tesis|criterios)\s+\d+|acci[oó]n\s+de\s+inconstitucionalidad\s+\d+|controversia\s+constitucional\s+\d+|corte\s+interamericana|caso\s+[A-ZÁÉÍÓÚÑ][^.;]{0,80}\s+vs\.?|en\s+el\s+amparo|en\s+la\s+tesis|en\s+la\s+jurisprudencia|en\s+dicho\s+precedente|en\s+aquel\s+asunto|divers[ao]\s+amparo|otro\s+amparo|precedentes?)\b/i;
 const LEGISLATIVE_CONTEXT_RE = /\b(diario\s+oficial|\bDOF\b|decreto|reforma|legislativ[ao]|entr[oó]\s+en\s+vigor|publicaci[oó]n\s+oficial)\b/i;
 const BACKGROUND_CONTEXT_RE = /\b(hist[oó]ric[oa]|antecedente\s+remoto|doctrina|referencia\s+comparada)\b/i;
 
-export function classifyTimelineEvent(
-  text: string,
-  declaredType?: unknown,
-): TimelineEventType {
+export function classifyTimelineEvent(text: string, declaredType?: unknown): TimelineEventType {
   const context = String(text ?? "").trim();
   if (LEGISLATIVE_CONTEXT_RE.test(context)) return "legislative_history";
   if (AUTHORITY_CONTEXT_RE.test(context)) return "authority_date";
   if (BACKGROUND_CONTEXT_RE.test(context)) return "background_reference";
 
   const declared = String(declaredType ?? "").trim().toLowerCase();
-  if (
-    declared === "authority_date" ||
-    declared === "legislative_history" ||
-    declared === "background_reference"
-  ) {
+  if (["authority_date", "legislative_history", "background_reference"].includes(declared)) {
     return declared as TimelineEventType;
   }
   if (declared === "case_event") return "case_event";
@@ -178,60 +166,46 @@ function spanishNumberWords(raw: string): number | null {
     .replace(/\s+/g, " ")
     .trim();
   if (!normalized) return null;
-  if (/^\d+$/.test(normalized)) return Number(normalized);
+  const direct = SPANISH_NUMBERS[normalized];
+  if (direct != null) return direct;
 
+  const parts = normalized.split(" ");
   let total = 0;
-  let current = 0;
-  for (const token of normalized.split(" ")) {
-    if (token === "mil") {
-      total += (current || 1) * 1000;
-      current = 0;
-      continue;
-    }
-    if (token in ES_HUNDREDS) {
-      current += ES_HUNDREDS[token];
-      continue;
-    }
-    if (token in ES_TENS) {
-      current += ES_TENS[token];
-      continue;
-    }
-    if (token in ES_UNITS) {
-      current += ES_UNITS[token];
-      continue;
-    }
-    return null;
+  for (const part of parts) {
+    const val = SPANISH_NUMBERS[part];
+    if (val == null) return null;
+    total += val;
   }
-  return total + current;
+  return total > 0 ? total : null;
 }
 
 function validYmd(year: number, month: number, day: number): boolean {
-  if (year < 1800 || year > 2200 || month < 1 || month > 12 || day < 1 || day > 31) return false;
-  const dt = new Date(Date.UTC(year, month - 1, day));
-  return dt.getUTCFullYear() === year && dt.getUTCMonth() === month - 1 && dt.getUTCDate() === day;
+  if (year < 1850 || year > 2100) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= maxDay;
 }
 
-/** Exported for regression tests and all timeline producers. */
-export function normalizeTimelineDate(raw: string): string {
+export function normalizeTimelineDate(raw: unknown): string {
   const s = String(raw ?? "").trim();
   if (!s) return "";
-  const iso = ISO_RE.exec(s);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const us = US_RE.exec(s);
-  if (us) {
-    const mm = us[1].padStart(2, "0");
-    const dd = us[2].padStart(2, "0");
-    let yyyy = us[3];
-    if (yyyy.length === 2) yyyy = (Number(yyyy) >= 50 ? "19" : "20") + yyyy;
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  const lng = LONG_RE.exec(s);
-  if (lng) {
-    const mIdx = MONTH.findIndex((m) => lng[1].toLowerCase().startsWith(m));
-    if (mIdx >= 0) {
-      const mm = String(mIdx + 1).padStart(2, "0");
-      const dd = lng[2].padStart(2, "0");
-      return `${lng[3]}-${mm}-${dd}`;
+  if (ISO_RE.test(s)) return s;
+
+  const slashMatch = SLASH_DATE_RE.exec(s);
+  if (slashMatch) {
+    let [, dStr, mStr, yStr] = slashMatch;
+    let day = Number(dStr);
+    let month = Number(mStr);
+    let year = Number(yStr);
+    if (year < 100) year += year < 50 ? 2000 : 1900;
+    if (month > 12 && day <= 12) {
+      const tmp = day;
+      day = month;
+      month = tmp;
+    }
+    if (validYmd(year, month, day)) {
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     }
   }
 
@@ -241,9 +215,7 @@ export function normalizeTimelineDate(raw: string): string {
     const day = Number(numericEs[1]);
     const month = ES_MONTHS[numericEs[2]];
     const year = Number(numericEs[3]);
-    if (validYmd(year, month, day)) {
-      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    }
+    if (validYmd(year, month, day)) return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
   const wordEs = ES_WORD_DATE_RE.exec(normalized);
@@ -255,7 +227,7 @@ export function normalizeTimelineDate(raw: string): string {
       return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     }
   }
-  return s; // keep raw for sort fallback
+  return s; 
 }
 
 function normalizeText(t: string): string {
@@ -277,8 +249,8 @@ function cleanEventText(value: string): string {
 }
 
 function localEventContext(text: string, matchStart: number, matchEnd: number): string {
-  const hardStart = Math.max(0, matchStart - 360);
-  const hardEnd = Math.min(text.length, matchEnd + 520);
+  const hardStart = Math.max(0, matchStart - 450);
+  const hardEnd = Math.min(text.length, matchEnd + 600);
   const before = text.slice(hardStart, matchStart);
   const after = text.slice(matchEnd, hardEnd);
   const prevBoundary = Math.max(before.lastIndexOf("."), before.lastIndexOf("\n"), before.lastIndexOf(";"));
@@ -287,6 +259,25 @@ function localEventContext(text: string, matchStart: number, matchEnd: number): 
   const start = matchStart - (before.length - (prevBoundary >= 0 ? prevBoundary + 1 : 0));
   const end = matchEnd + nextBoundary + (nextBoundary < after.length ? 1 : 0);
   return cleanEventText(text.slice(Math.max(0, start), Math.min(text.length, end)));
+}
+
+function isConsiderandoSection(text: string, matchOffset: number): boolean {
+  const prefix = text.slice(0, matchOffset).toLowerCase();
+  const lastConsiderando = Math.max(
+    prefix.lastIndexOf("considerando"),
+    prefix.lastIndexOf("estudio de fondo"),
+    prefix.lastIndexOf("iv. estudio"),
+    prefix.lastIndexOf("iii. estudio"),
+    prefix.lastIndexOf("v. estudio"),
+    prefix.lastIndexOf("ii. estudio"),
+  );
+  const lastAntecedentes = Math.max(
+    prefix.lastIndexOf("antecedentes"),
+    prefix.lastIndexOf("resultando"),
+    prefix.lastIndexOf("i. antecedentes"),
+    prefix.lastIndexOf("hechos"),
+  );
+  return lastConsiderando > lastAntecedentes && lastConsiderando >= 0;
 }
 
 function pageAtOffset(text: string, offset: number): number | null {
@@ -307,11 +298,6 @@ export type CorpusTimelineCandidate = {
   source_quote: string;
 };
 
-/**
- * Deterministically extract procedural events from Mexican legal text.
- * The function is pure/exported so regression tests can exercise the exact
- * fallback used in production.
- */
 export function extractCorpusTimelineEvents(text: string): CorpusTimelineCandidate[] {
   const src = String(text ?? "");
   if (!src.trim()) return [];
@@ -320,10 +306,7 @@ export function extractCorpusTimelineEvents(text: string): CorpusTimelineCandida
     /\b\d{4}-\d{2}-\d{2}\b/g,
     /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g,
     new RegExp(`\\b\\d{1,2}\\s+de\\s+(?:${ES_MONTH_PATTERN})\\s+de\\s+\\d{4}\\b`, "gi"),
-    new RegExp(
-      `\\b[a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?\\s+de\\s+(?:${ES_MONTH_PATTERN})\\s+de\\s+(?:dos\\s+mil|mil)(?:\\s+[a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?)*\\b`,
-      "gi",
-    ),
+    new RegExp(`\\b[a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?\\s+de\\s+(?:${ES_MONTH_PATTERN})\\s+de\\s+(?:dos\\s+mil|mil)(?:\\s+[a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?)*\\b`, "gi"),
   ];
 
   const out: CorpusTimelineCandidate[] = [];
@@ -339,6 +322,10 @@ export function extractCorpusTimelineEvents(text: string): CorpusTimelineCandida
       if (seenOffsets.has(offsetKey)) continue;
       seenOffsets.add(offsetKey);
 
+      if (isConsiderandoSection(src, match.index)) {
+        continue;
+      }
+
       const event = localEventContext(src, match.index, match.index + raw.length);
       if (!event || classifyTimelineEvent(event) !== "case_event") continue;
       out.push({
@@ -352,9 +339,6 @@ export function extractCorpusTimelineEvents(text: string): CorpusTimelineCandida
     }
   }
 
-  // A judgment frequently repeats the same procedural event in the index,
-  // antecedentes and merits. Keep the earliest concise occurrence per
-  // date+normalized event prefix instead of multiplying the chronology.
   const unique = new Map<string, CorpusTimelineCandidate>();
   for (const item of out) {
     const key = `${item.date}|${normalizeText(item.event).slice(0, 120)}`;

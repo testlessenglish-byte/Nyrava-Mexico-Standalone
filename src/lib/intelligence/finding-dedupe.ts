@@ -474,56 +474,41 @@ function isCourtHoldingPotentialPair(a: Prepared, b: Prepared): boolean {
 
 export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptions>): boolean {
   // Once both records carry a canonical legal-issue identity, its adoption
-  // status and operative effect are authoritative. Do not fall through to
-  // lexical/evidence dedupe after semantic incompatibility is established.
+  // status and operative effect are authoritative.
   if (a.legalIssue && b.legalIssue && a.legalIssue === b.legalIssue) {
     return sameLegalProposition(a, b);
   }
   if (isCourtHoldingPotentialPair(a, b)) return true;
 
-  if (a.category !== b.category) {
-    // CROSS-ENGINE DUPLICATION. Two engines/perspectives routinely emit the
-    // same canonical issue under their own category label ("Deterioro
-    // cognitivo del testador" from both the capacity and the undue-influence
-    // perspective). Merging these requires a near-identical title AND
-    // independent corroboration, so unrelated findings that merely share a
-    // headline (e.g. "Notificación fuera de plazo" as a procedural issue vs.
-    // an evidentiary one) still stay separate.
-    const ts = jaccard(a.titleTokens, b.titleTokens);
-    const sameHeadline =
-      (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= opts.crossCategoryTitleThreshold;
-    if (!sameHeadline) return false;
-    if (sharesExactQuoteEvidence(a, b)) return true;
-    if (sharesQuoteEvidence(a, b)) return true;
-    if (sharesEvidence(a, b)) return true;
-    if (a.descTokens.size === 0 || b.descTokens.size === 0) return false;
-    // A byte-identical title is itself strong evidence of one canonical issue,
-    // so the description only has to agree on the subject, not the wording.
-    const descBar =
-      a.fullTitle !== "" && a.fullTitle === b.fullTitle
-        ? opts.crossCategoryExactTitleDescriptionThreshold
-        : opts.crossCategoryDescriptionThreshold;
-    return jaccard(a.descTokens, b.descTokens) >= descBar;
+  const ts = jaccard(a.titleTokens, b.titleTokens);
+  const titleContains =
+    a.fullTitle.length > 15 &&
+    b.fullTitle.length > 15 &&
+    (a.fullTitle.includes(b.fullTitle) || b.fullTitle.includes(a.fullTitle));
+  const sameHeadline =
+    (a.titleKey !== "" && a.titleKey === b.titleKey) ||
+    ts >= opts.titleThreshold ||
+    titleContains;
+
+  if (sameHeadline) {
+    if (titleContains || (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= 0.45) return true;
+    if (sharesExactQuoteEvidence(a, b) || sharesQuoteEvidence(a, b) || sharesEvidence(a, b)) return true;
+    if (jaccard(a.descTokens, b.descTokens) >= opts.descriptionThreshold) return true;
   }
 
-  // Preserves the original behavior: identical leading-6-word titles cluster.
-  if (a.titleKey && a.titleKey === b.titleKey) return true;
-  const ts = jaccard(a.titleTokens, b.titleTokens);
-  if (ts >= opts.titleThreshold) return true;
+  if (a.category !== b.category) {
+    if (ts >= opts.crossCategoryTitleThreshold) {
+      if (sharesExactQuoteEvidence(a, b) || sharesQuoteEvidence(a, b) || sharesEvidence(a, b)) return true;
+      if (jaccard(a.descTokens, b.descTokens) >= opts.crossCategoryDescriptionThreshold) return true;
+    }
+    return false;
+  }
+
   if (ts >= opts.titleFallbackThreshold) {
     if (jaccard(a.descTokens, b.descTokens) >= opts.descriptionThreshold) return true;
   }
-  // Two findings in the same category resting on the literal same quoted
-  // evidentiary text are the same underlying claim no matter how
-  // differently each pass titled it ("Competencia del Juzgado" vs.
-  // "Competencia de la autoridad" citing one identical sentence) — unlike a
-  // shared source document, a verbatim shared quote of meaningful length
-  // cannot be coincidental.
+  if (sharesExactQuoteEvidence(a, b)) return true;
   if (sharesQuoteEvidence(a, b)) {
-    // An exact normalized quote is a strong same-proposition signal. For mere
-    // containment, require textual agreement as well: one judgment paragraph
-    // can contain several independent holdings and must not collapse them.
-    if (sharesExactQuoteEvidence(a, b)) return true;
     return (
       jaccard(a.titleTokens, b.titleTokens) >= opts.titleFallbackThreshold ||
       jaccard(a.descTokens, b.descTokens) >= opts.descriptionThreshold
@@ -541,8 +526,8 @@ function strength(f: DedupableFinding): [number, number, number, number] {
   const sev = SEV_RANK[String(f.severity ?? "info").toLowerCase()] ?? 9;
   const rawConf = Number(f.confidence ?? 0);
   const conf = Number.isFinite(rawConf) ? (rawConf > 1 ? rawConf / 100 : rawConf) : 0;
-  const detail = textOf(f, "description").length;
-  return [epistemic, sev, -conf, -detail];
+  const specificity = textOf(f, "title").length + textOf(f, "description").length;
+  return [epistemic, sev, -conf, -specificity];
 }
 
 /** Lower tuple wins. */
