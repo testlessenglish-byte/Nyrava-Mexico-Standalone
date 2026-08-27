@@ -39,6 +39,17 @@ describe("rendered report release policy", () => {
     expect(issues.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(false);
   });
 
+  it("recognizes Penal-origin Amparo as Penal context without weakening ordinary Amparo checks", () => {
+    const content = {
+      procedural_issues_report:
+        "El Ministerio Público presentó el asunto en Juicio Oral; la víctima y el sentenciado fueron oídos.",
+    };
+    const penalOrigin = validateRenderedReport(content, "amparo", "penal");
+    const civilOrigin = validateRenderedReport(content, "amparo", "civil");
+    expect(penalOrigin.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(false);
+    expect(civilOrigin.some((i) => i.code === "SPANISH_CASE_TYPE_LEAK")).toBe(true);
+  });
+
   it.each(["penal", ...NON_PENAL_MATERIAS])(
     "blocks U.S. procedural vehicles in every Mexican materia: %s",
     (materia) => {
@@ -118,3 +129,4 @@ describe("rendered report release policy", () => {
     expect(decision.blocked).toBe(false);
   });
 });
+
