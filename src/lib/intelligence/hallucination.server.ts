@@ -474,11 +474,11 @@ export async function runHallucinationReview(args: { db: Db; caseId: string }): 
 
   const { data: findingsRaw, error: fErr } = await db
     .from("case_findings")
-    .select("id,title,source_module,source_document_id,source_page,source_quote,source_doc_ids")
+    .select("id,title,source_module,source_document_id,source_page,source_quote,source_doc_ids,metadata")
     .eq("case_id", caseId)
     .not("source_module", "like", PROJECTION_LIKE);
   if (fErr) throw new Error(`Load findings failed: ${fErr.message}`);
-  const findings = (findingsRaw ?? []) as Array<Finding & { source_module: string }>;
+  const findings = (findingsRaw ?? []) as Array<Finding & { source_module: string; metadata?: Record<string, unknown> }>;
 
   const proseReconciliation = await reconcileSavedReportProse(db, caseId);
 
@@ -531,16 +531,23 @@ export async function runHallucinationReview(args: { db: Db; caseId: string }): 
     let notes = "";
     const quote = (f.source_quote ?? "").trim();
     const docId = f.source_document_id ?? ((Array.isArray(f.source_doc_ids) && f.source_doc_ids[0]) || null);
+    const meta = (f.metadata ?? {}) as Record<string, unknown>;
+    const exemptionType = meta.citation_exemption_type as string | undefined;
 
     if (!quote || !docId) {
-      status = "no_citation";
-      notes = !quote && !docId ? "No source document or quote." : !quote ? "No source quote." : "No source document.";
+      if (exemptionType === "EXEMPT_METADATA" || exemptionType === "EXEMPT_STATUTORY_FORMULA") {
+        status = "authority_exempt";
+        notes = `Deterministic decision core proposition (${exemptionType}) — exempt from verbatim corpus quote citation.`;
+      } else {
+        status = "no_citation";
+        notes = !quote && !docId ? "No source document or quote." : !quote ? "No source quote." : "No source document.";
+      }
     } else {
       const corpus = perDocCorpus.get(docId);
       if (corpus && verifyQuote(quote, corpus)) {
         status = "verified";
         notes = f.source_page != null ? `Quote verified against document (page ${f.source_page}).` : "Quote verified against document.";
-      } else if (isLegalAuthorityCitation(quote)) {
+      } else if (isLegalAuthorityCitation(quote) || exemptionType === "EXEMPT_METADATA" || exemptionType === "EXEMPT_STATUTORY_FORMULA") {
         status = "authority_exempt";
         notes = "Legal authority reference (constitutional/statutory/tesis) — exempt from verbatim corpus matching.";
       } else if (!corpus) {

@@ -224,20 +224,67 @@ export function canonicalLegalIssueKey(f: DedupableFinding): string {
   if (explicit) return explicit;
 
   const text = normalizeText(
-    `${textOf(f, "title")} ${textOf(f, "description")} ${textOf(f, "legal_significance")}`,
+    `${textOf(f, "title")} ${textOf(f, "description")} ${textOf(f, "legal_significance")} ${legalField(f, "controlling_rule")}`,
   );
+
+  // 1. Victim standing / access to justice / amparo legitimación
   if (
-    /\b(victima|ofendido|victimas|ofendidos)\b/.test(text) &&
-    /\b(legitim|personeria|acceso|justicia|tutela|standing)\b/.test(text)
+    /\b(victima|ofendido|ofendida|victimas|ofendidos)\b/.test(text) &&
+    /\b(legitim|personeria|acceso|justicia|tutela|standing|interes juridico|interes legitimo|recurso|impugna)\b/.test(text)
   ) {
-    return "victim_access_to_justice";
+    return "victim_standing_access_to_justice";
   }
+
+  // 2. Prompt presentment / due process
   if (
     /\b(puesta|presentacion|demora|retencion|detencion)\b/.test(text) &&
-    /\b(disposicion|ministerio publico|sin demora|inmediata)\b/.test(text)
+    /\b(disposicion|ministerio publico|sin demora|inmediata|flagrancia|plazo constitucional)\b/.test(text)
   ) {
     return "prompt_presentment_due_process";
   }
+
+  // 3. Chain of custody / evidence integrity
+  if (
+    /\b(cadena de custodia|trazabilidad|preservacion|embalaje|aseguramiento del indicio|registro de cadena)\b/.test(text)
+  ) {
+    return "chain_of_custody_integrity";
+  }
+
+  // 4. Torture / coercion / illicit evidence rule
+  if (
+    /\b(tortura|tratos crueles|coaccion|confesion coaccionada|prueba ilicita|regla de exclusion|efecto corruptor)\b/.test(text)
+  ) {
+    return "torture_coercion_illicit_evidence";
+  }
+
+  // 5. Illegal search and seizure / domiciliary inviolability
+  if (
+    /\b(cateo|inspeccion domiciliaria|orden de cateo|inviolabilidad del domicilio|intromision)\b/.test(text)
+  ) {
+    return "illegal_search_seizure";
+  }
+
+  // 6. Adequate defense / effective technical defense
+  if (
+    /\b(defensa tecnica|defensa adecuada|asesor juridico|asistencia letrada|defensor publico)\b/.test(text) &&
+    /\b(violacion|falta|indebida|vulneracion|inadecuada)\b/.test(text)
+  ) {
+    return "adequate_defense_effective_counsel";
+  }
+
+  // 7. Statute of limitations / prescription
+  if (
+    /\b(prescripcion|caducidad|extincion de la accion|termino de prescripcion)\b/.test(text)
+  ) {
+    return "statute_of_limitations_prescription";
+  }
+
+  // 8. Constitutional invalidation / article unconstitutionality
+  const artMatch = text.match(/\b(?:inconstitucionalidad|inconstitucional|control de constitucionalidad|control difuso)\b.*?\b(?:articulo|art|precepto)\s+(\d+[\w/.-]*)/);
+  if (artMatch) {
+    return `unconstitutionality_art_${artMatch[1]}`;
+  }
+
   return "";
 }
 
@@ -399,7 +446,18 @@ function sameLegalProposition(a: Prepared, b: Prepared): boolean {
     b.controllingRule.size > 0 &&
     jaccard(a.controllingRule, b.controllingRule) >= 0.55;
 
-  return sameAuthority || samePassage || sameRule || sharesQuoteEvidence(a, b);
+  const titleSimilarity = jaccard(a.titleTokens, b.titleTokens);
+  const descSimilarity = jaccard(a.descTokens, b.descTokens);
+
+  return (
+    sameAuthority ||
+    samePassage ||
+    sameRule ||
+    sharesQuoteEvidence(a, b) ||
+    sharesEvidence(a, b) ||
+    titleSimilarity >= 0.4 ||
+    descSimilarity >= 0.45
+  );
 }
 
 function isCourtHoldingPotentialPair(a: Prepared, b: Prepared): boolean {
@@ -421,7 +479,6 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
   if (a.legalIssue && b.legalIssue && a.legalIssue === b.legalIssue) {
     return sameLegalProposition(a, b);
   }
-  if (sameLegalProposition(a, b)) return true;
   if (isCourtHoldingPotentialPair(a, b)) return true;
 
   if (a.category !== b.category) {
@@ -436,6 +493,8 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
     const sameHeadline =
       (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= opts.crossCategoryTitleThreshold;
     if (!sameHeadline) return false;
+    if (sharesExactQuoteEvidence(a, b)) return true;
+    if (sharesQuoteEvidence(a, b)) return true;
     if (sharesEvidence(a, b)) return true;
     if (a.descTokens.size === 0 || b.descTokens.size === 0) return false;
     // A byte-identical title is itself strong evidence of one canonical issue,

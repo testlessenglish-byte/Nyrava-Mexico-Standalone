@@ -14,6 +14,7 @@ export type ESSInputs = {
   locale?: "en" | "es";
   /** True when the corpus contains a public draft/fragment but no complete judgment. */
   hasOnlyIncompleteJudicialPublication?: boolean;
+  caseAnalysisMode?: string;
 };
 
 export type ESSResult = {
@@ -27,6 +28,7 @@ export type ESSResult = {
   insufficientEvidenceNotice: string | null;
   reasons: string[];
   fullAnalysisOverride?: boolean;
+  isJudicialAuditSufficient?: boolean;
 };
 
 type DocPattern = { type: string; rx: RegExp };
@@ -98,45 +100,26 @@ const DOC_TYPE_PATTERNS: DocPattern[] = [
   { type: "declaration", rx: /\bdeclaration\b/i },
   { type: "statement", rx: /\bstatement\b/i },
   { type: "deposition", rx: /\bdeposition\b/i },
-  { type: "contract", rx: /\bcontract\b/i },
-  { type: "agreement", rx: /\bagreement\b/i },
-  { type: "petition", rx: /\bpetition\b/i },
-  { type: "email", rx: /\bemail\b/i },
-  { type: "invoice", rx: /\binvoice\b/i },
-  { type: "medical", rx: /\b(medical|ER|hospital|admission|autopsy)\b/i },
-  { type: "police_record", rx: /\b(arrest|police|body[\s_-]*cam|incident)\b/i },
-  { type: "financial", rx: /\b(bank|ledger|payment|financial|payroll)\b/i },
-  { type: "judgment", rx: /\b(final\s+judg(?:e)?ment|appellate\s+(?:opinion|decision))\b/i },
-  { type: "indictment", rx: /\bauto\s+de\s+(formal\s+prisi[oó]n|vinculaci[oó]n\s+a\s+proceso)\b/i },
+  { type: "exhibit", rx: /\bexhibit\b/i },
+  { type: "correspondence", rx: /\b(letter|email|correspondence)\b/i },
+  { type: "contract", rx: /\b(contract|agreement)\b/i },
+  { type: "judgment", rx: /\b(judgment|order|ruling)\b/i },
+  { type: "indictment", rx: /\b(auto\s+de\s+(formal\s+prisi[oó]n|vinculaci[oó]n\s+a\s+proceso)|pliego\s+de\s+consignaci[oó]n)\b/i },
   { type: "complaint", rx: /\b(demanda|querella|denuncia)\b/i },
-  { type: "answer", rx: /\bcontestaci[oó]n(\s+de\s+demanda)?\b/i },
-  { type: "motion", rx: /\b(promoci[oó]n|escrito\s+de\s+cuenta)\b/i },
-  { type: "brief", rx: /\balegatos\b/i },
-  { type: "warrant", rx: /\borden\s+de\s+(cateo|aprehensi[oó]n)\b/i },
-  { type: "transcript", rx: /\b(acta\s+(circunstanciada|de\s+audiencia)|diligencia)\b/i },
-  { type: "report", rx: /\b(informe|dictamen|reporte|peritaje)\b/i },
-  { type: "affidavit", rx: /\bdeclaraci[oó]n\s+jurada\b/i },
+  { type: "answer", rx: /\bcontestaci[oó]n\b/i },
+  { type: "motion", rx: /\b(promoci[oó]n|escrito\s+de\s+tr[aá]mite|recurso)\b/i },
+  { type: "brief", rx: /\b(alegatos?|agravios?|conceptos?\s+de\s+violaci[oó]n)\b/i },
+  { type: "warrant", rx: /\b(orden\s+de\s+(cateo|aprehensi[oó]n))\b/i },
+  { type: "transcript", rx: /\b(acta\s+de\s+audiencia|versi[oó]n\s+estenogr[aá]fica)\b/i },
+  { type: "report", rx: /\b(informe|parte\s+informativo|dictamen)\b/i },
+  { type: "affidavit", rx: /\b(declaraci[oó]n\s+jurada|testimonio)\b/i },
   { type: "declaration", rx: /\bdeclaraci[oó]n\b/i },
-  { type: "statement", rx: /\bmanifestaci[oó]n\b/i },
-  { type: "deposition", rx: /\btestimonial\b/i },
-  { type: "contract", rx: /\bcontrato\b/i },
-  { type: "agreement", rx: /\b(convenio|acuerdo)\b/i },
-  { type: "petition", rx: /\bsolicitud\b/i },
-  { type: "email", rx: /\bcorreo(\s+electr[oó]nico)?\b/i },
-  { type: "invoice", rx: /\bfactura\b/i },
-  { type: "medical", rx: /\b(m[eé]dico|hospital|cl[ií]nica|autopsia)\b/i },
-  { type: "police_record", rx: /\b(detenci[oó]n|polic[ií]a|parte\s+informativo)\b/i },
-  { type: "financial", rx: /\b(banco|estado\s+de\s+cuenta|pago|n[oó]mina)\b/i },
-  { type: "public_deed", rx: /\bescritura\s+p[uú]blica\b/i },
-  {
-    type: "property_registry",
-    rx: /\b(registro\s+p[uú]blico\s+de\s+la\s+propiedad|libertad\s+de\s+grav[aá]men)\b/i,
-  },
-  { type: "amparo_filing", rx: /\b(amparo|informe\s+justificado|acuerdo\s+de\s+suspensi[oó]n)\b/i },
-  {
-    type: "judgment",
-    rx: /\b(sentencia\s+(?:definitiva|ejecutoria)|amparo\s+directo\s+en\s+revisi[oó]n|engrose|puntos?\s+resolutivos?)\b/i,
-  },
+  { type: "statement", rx: /\b(declaraci[oó]n\s+ministerial|entrevista)\b/i },
+  { type: "deposition", rx: /\binterrogatorio\b/i },
+  { type: "exhibit", rx: /\b(anexo|prueba\s+documental)\b/i },
+  { type: "correspondence", rx: /\b(oficio|comunicaci[oó]n)\b/i },
+  { type: "contract", rx: /\b(contrato|convenio)\b/i },
+  { type: "judgment", rx: /\b(sentencia|resoluci[oó]n|acuerdo|auto)\b/i },
 ];
 
 export type DocTypeSignals = {
@@ -192,8 +175,14 @@ export function computeESS(inputs: ESSInputs): ESSResult {
     distinctDocTypeCount = 0,
     locale = "en",
     hasOnlyIncompleteJudicialPublication = false,
+    caseAnalysisMode = "ongoing",
   } = inputs;
   const reasons: string[] = [];
+
+  const isJudicialAudit =
+    caseAnalysisMode === "concluded_audit" ||
+    caseAnalysisMode === "judgment_audit" ||
+    caseAnalysisMode === "appeal_routes";
 
   const sDocs = Math.min(1, documentCount / 8);
   const sChars = Math.min(1, extractedChars / 50_000);
@@ -228,14 +217,14 @@ export function computeESS(inputs: ESSInputs): ESSResult {
   const substantialCorpus = documentCount >= 15;
   const overrideTriggered =
     !hasOnlyIncompleteJudicialPublication &&
-    (hasChargingDocument || highWeightDocTypeCount > 0 || distinctDocTypeCount >= 3 || substantialCorpus);
+    (hasChargingDocument || highWeightDocTypeCount > 0 || distinctDocTypeCount >= 3 || substantialCorpus || (isJudicialAudit && extractedChars >= 10_000));
 
   if (overrideTriggered && (bin === "minimal" || bin === "low")) {
-    bin = "medium";
-    maxNarrativePages = Math.max(maxNarrativePages, 10);
-    maxCharsPerSection = Math.max(maxCharsPerSection, 7_000);
+    bin = isJudicialAudit && extractedChars >= 25_000 ? "high" : "medium";
+    maxNarrativePages = Math.max(maxNarrativePages, bin === "high" ? 20 : 10);
+    maxCharsPerSection = Math.max(maxCharsPerSection, bin === "high" ? 14_000 : 7_000);
     reasons.push(
-      `Full Analysis override: hasChargingDocument=${hasChargingDocument}, highWeightDocTypes=${highWeightDocTypeCount}, distinctDocTypes=${distinctDocTypeCount}, documents=${documentCount}.`,
+      `Full Analysis override: hasChargingDocument=${hasChargingDocument}, highWeightDocTypes=${highWeightDocTypeCount}, distinctDocTypes=${distinctDocTypeCount}, documents=${documentCount}, isJudicialAudit=${isJudicialAudit}.`,
     );
   }
 
@@ -267,6 +256,7 @@ export function computeESS(inputs: ESSInputs): ESSResult {
     insufficientEvidenceNotice,
     reasons,
     fullAnalysisOverride: overrideTriggered,
+    isJudicialAuditSufficient: isJudicialAudit && highWeightDocTypeCount > 0,
   };
 }
 

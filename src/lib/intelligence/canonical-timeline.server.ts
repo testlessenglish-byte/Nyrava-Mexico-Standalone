@@ -17,6 +17,7 @@ type Db = SupabaseClient<Database>;
 
 export type TimelineEventType =
   | "case_event"
+  | "cited_precedent"
   | "authority_date"
   | "legislative_history"
   | "background_reference"
@@ -26,7 +27,7 @@ export type CanonicalTimelineEvent = {
   date: string; // ISO 'YYYY-MM-DD' when parseable, else original string
   date_raw: string;
   event: string;
-  event_type: "case_event";
+  event_type: TimelineEventType;
   sources: Array<{
     document_id: string | null;
     finding_id?: string | null;
@@ -39,7 +40,10 @@ export type CanonicalTimelineEvent = {
 
 export type CanonicalTimeline = {
   generated_at: string;
-  events: CanonicalTimelineEvent[];
+  events: CanonicalTimelineEvent[]; // strictly genuine case_event
+  precedents?: CanonicalTimelineEvent[]; // cited_precedent | authority_date
+  legislative?: CanonicalTimelineEvent[]; // legislative_history
+  background?: CanonicalTimelineEvent[]; // background_reference
   totals: {
     total: number;
     dated: number;
@@ -138,7 +142,7 @@ const ES_WORD_DATE_RE = new RegExp(
 // Used only for deterministic corpus extraction. The event must contain one
 // of these anchors near the date; a naked date is never promoted.
 const PROCEDURAL_EVENT_RE = /\b(interpus[oe]|interpuso|present[oó]|promovi[oó]|notific[oó]|notificada?|resolvi[oó]|resuelve|determin[oó]|revoc[oó]|confirm[oó]|orden[oó]|admiti[oó]|admitida?|desech[oó]|declar[oó]|apel[oó]|impugn[oó]|recurri[oó]|remiti[oó]|turn[oó]|radic[oó]|emplaz[oó]|celebr[oó]|dict[oó]|sentencia|resoluci[oó]n|recurso\s+de\s+revisi[oó]n|demanda|audiencia|acuerdo|engrose|ejecutoria)\b/i;
-const AUTHORITY_CONTEXT_RE = /\b(jurisprudencia|tesis(?:\s+aislada)?|precedente|criterio\s+(?:jurisprudencial|aislado)|registro\s+digital|semanario\s+judicial|novena\s+[ée]poca|d[ée]cima\s+[ée]poca|corte\s+interamericana|caso\s+[A-ZÁÉÍÓÚÑ][^.;]{0,80}\s+vs\.?|publicad[ao]\s+en|gaceta)\b/i;
+const AUTHORITY_CONTEXT_RE = /\b(jurisprudencia|tesis(?:\s+aislada)?|precedente|criterio\s+(?:jurisprudencial|aislado)|registro\s+digital|semanario\s+judicial|novena\s+[ée]poca|d[ée]cima\s+[ée]poca|und[ée]cima\s+[ée]poca|publicad[ao]\s+en|gaceta|al\s+resolver\s+(?:el\s+)?(?:amparo|recurso|expediente|juicio|asunto)|amparo\s+(?:directo|indirecto|en\s+revisi[oó]n|directo\s+en\s+revisi[oó]n)\s+\d+[\w/.-]*|contradicci[oó]n\s+de\s+(?:tesis|criterios)\s+\d+|acci[oó]n\s+de\s+inconstitucionalidad\s+\d+|controversia\s+constitucional\s+\d+|criterio\s+sustentado\s+por\s+la\s+(?:primera|segunda|pleno)|corte\s+interamericana|caso\s+[A-ZÁÉÍÓÚÑ][^.;]{0,80}\s+vs\.?)\b/i;
 const LEGISLATIVE_CONTEXT_RE = /\b(diario\s+oficial|\bDOF\b|decreto|reforma|legislativ[ao]|entr[oó]\s+en\s+vigor|publicaci[oó]n\s+oficial)\b/i;
 const BACKGROUND_CONTEXT_RE = /\b(hist[oó]ric[oa]|antecedente\s+remoto|doctrina|referencia\s+comparada)\b/i;
 
@@ -147,8 +151,6 @@ export function classifyTimelineEvent(
   declaredType?: unknown,
 ): TimelineEventType {
   const context = String(text ?? "").trim();
-  // Legislative publication context is more specific than the general
-  // authority/publication pattern and must win for DOF history.
   if (LEGISLATIVE_CONTEXT_RE.test(context)) return "legislative_history";
   if (AUTHORITY_CONTEXT_RE.test(context)) return "authority_date";
   if (BACKGROUND_CONTEXT_RE.test(context)) return "background_reference";
@@ -159,7 +161,7 @@ export function classifyTimelineEvent(
     declared === "legislative_history" ||
     declared === "background_reference"
   ) {
-    return declared;
+    return declared as TimelineEventType;
   }
   if (declared === "case_event") return "case_event";
   return PROCEDURAL_EVENT_RE.test(context) ? "case_event" : "unknown";
@@ -377,11 +379,15 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
     date: string;
     date_raw: string;
     event: string;
-    event_type: "case_event";
+    event_type: TimelineEventType;
     sources: CanonicalTimelineEvent["sources"];
     key: string;
   };
   const byKey = new Map<string, Bucket>();
+  const precedentByKey = new Map<string, Bucket>();
+  const legislativeByKey = new Map<string, Bucket>();
+  const backgroundByKey = new Map<string, Bucket>();
+
   let analyzerCount = 0;
   let findingCount = 0;
   let corpusCount = 0;
@@ -389,7 +395,16 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
 
   const push = (b: Omit<Bucket, "key">) => {
     const key = `${b.date}|${normalizeText(b.event)}`;
-    const existing = byKey.get(key);
+    const targetMap =
+      b.event_type === "case_event"
+        ? byKey
+        : b.event_type === "cited_precedent" || b.event_type === "authority_date"
+          ? precedentByKey
+          : b.event_type === "legislative_history"
+            ? legislativeByKey
+            : backgroundByKey;
+
+    const existing = targetMap.get(key);
     if (existing) {
       duplicates += 1;
       const seen = new Set(
@@ -404,7 +419,7 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
       }
       return;
     }
-    byKey.set(key, { ...b, key });
+    targetMap.set(key, { ...b, key });
   };
 
   // 1) Analyzer timeline
@@ -419,13 +434,14 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
       const text = String(e.event ?? e.description ?? "").trim();
       if (!text) continue;
       const quote = String(e.source_quote ?? text);
-      if (classifyTimelineEvent(`${text} ${quote}`, e.event_type) !== "case_event") continue;
-      analyzerCount += 1;
+      const evType = classifyTimelineEvent(`${text} ${quote}`, e.event_type);
+      if (evType === "unknown") continue;
+      if (evType === "case_event") analyzerCount += 1;
       push({
         date: normalizeTimelineDate(raw),
         date_raw: raw,
         event: text,
-        event_type: "case_event",
+        event_type: evType,
         sources: [
           {
             document_id: typeof e.source_document_id === "string" ? e.source_document_id : null,
@@ -448,13 +464,14 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
     if (!text) continue;
     const quote = String(r.source_quote ?? text);
     const declaredType = r.proposition_type === "procedural_event" ? "case_event" : undefined;
-    if (classifyTimelineEvent(`${text} ${quote}`, declaredType) !== "case_event") continue;
-    findingCount += 1;
+    const evType = classifyTimelineEvent(`${text} ${quote}`, declaredType);
+    if (evType === "unknown") continue;
+    if (evType === "case_event") findingCount += 1;
     push({
       date: normalizeTimelineDate(raw),
       date_raw: raw,
       event: text,
-      event_type: "case_event",
+      event_type: evType,
       sources: [
         {
           document_id: typeof r.source_document_id === "string" ? r.source_document_id : null,
@@ -468,18 +485,18 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
   }
 
   // 3) Corpus fallback. Run whenever the structured producers are sparse.
-  // Two events are not enough to assess chronology or gaps in a litigation
-  // matter, so the document itself becomes the deterministic recovery layer.
   if (byKey.size < 3) {
     for (const doc of documents ?? []) {
       const text = typeof doc.extracted_text === "string" ? doc.extracted_text : "";
       for (const ev of extractCorpusTimelineEvents(text)) {
-        corpusCount += 1;
+        const evType = classifyTimelineEvent(`${ev.event} ${ev.source_quote}`);
+        if (evType === "unknown") continue;
+        if (evType === "case_event") corpusCount += 1;
         push({
           date: ev.date,
           date_raw: ev.date_raw,
           event: ev.event,
-          event_type: "case_event",
+          event_type: evType,
           sources: [
             {
               document_id: typeof doc.id === "string" ? doc.id : null,
@@ -493,30 +510,39 @@ export async function buildCanonicalTimeline(db: Db, caseId: string): Promise<Ca
     }
   }
 
-  const events: CanonicalTimelineEvent[] = [...byKey.values()]
-    .map((b) => ({
-      date: b.date,
-      date_raw: b.date_raw,
-      event: b.event,
-      event_type: b.event_type,
-      sources: b.sources,
-      confidence: (b.sources.length >= 2
-        ? "high"
-        : ISO_RE.test(b.date)
-          ? "medium"
-          : "low") as CanonicalTimelineEvent["confidence"],
-    }))
-    .sort((a, b) => {
+  const mapBucketToEvent = (b: Bucket): CanonicalTimelineEvent => ({
+    date: b.date,
+    date_raw: b.date_raw,
+    event: b.event,
+    event_type: b.event_type,
+    sources: b.sources,
+    confidence: (b.sources.length >= 2
+      ? "high"
+      : ISO_RE.test(b.date)
+        ? "medium"
+        : "low") as CanonicalTimelineEvent["confidence"],
+  });
+
+  const sortEvents = (arr: CanonicalTimelineEvent[]) =>
+    arr.sort((a, b) => {
       const ai = ISO_RE.test(a.date) ? a.date : "9999-99-99";
       const bi = ISO_RE.test(b.date) ? b.date : "9999-99-99";
       if (ai !== bi) return ai < bi ? -1 : 1;
       return a.event.localeCompare(b.event);
     });
 
+  const events = sortEvents([...byKey.values()].map(mapBucketToEvent));
+  const precedents = sortEvents([...precedentByKey.values()].map(mapBucketToEvent));
+  const legislative = sortEvents([...legislativeByKey.values()].map(mapBucketToEvent));
+  const background = sortEvents([...backgroundByKey.values()].map(mapBucketToEvent));
+
   const dated = events.filter((e) => ISO_RE.test(e.date)).length;
   return {
     generated_at: new Date().toISOString(),
     events,
+    precedents,
+    legislative,
+    background,
     totals: {
       total: events.length,
       dated,

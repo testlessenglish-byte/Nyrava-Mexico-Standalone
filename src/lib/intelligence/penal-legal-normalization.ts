@@ -193,11 +193,57 @@ export type PenalNormalizationRule =
   | "adopted_holding_neutralized"
   | "unproven_gap_downgraded";
 
+export function normalizeSubstantiveLegalDomain(finding: NewFinding): {
+  category?: string;
+  proposition_type?: PropositionType;
+  speaker_role?: string;
+} {
+  const text = `${finding.title ?? ""} ${finding.description ?? ""} ${finding.legal_significance ?? ""}`.toLowerCase();
+
+  // Victim standing / access to justice / amparo legitimación
+  if (
+    /\b(victima|ofendido|ofendida|victimas|ofendidos)\b/.test(text) &&
+    /\b(legitim|personeria|acceso a la justicia|tutela judicial|standing|interes juridico|interes legitimo)\b/.test(text)
+  ) {
+    return {
+      category: "victim_rights",
+      proposition_type: finding.proposition_type === "witness_statement" ? "court_holding" : (finding.proposition_type as PropositionType | undefined),
+    };
+  }
+
+  // Constitutional compliance / fundamental rights
+  if (
+    /\b(inconstitucional|control de convencionalidad|control difuso|derecho fundamental|garantia constitucional|art[ií]culo (?:1|14|16|17|19|20) cpeum)\b/.test(text)
+  ) {
+    return {
+      category: "constitutional_compliance",
+      proposition_type: finding.proposition_type === "witness_statement" ? "court_holding" : (finding.proposition_type as PropositionType | undefined),
+    };
+  }
+
+  // Chain of custody
+  if (/\b(cadena de custodia|trazabilidad|embalaje|aseguramiento del indicio)\b/.test(text)) {
+    return {
+      category: "evidence_integrity",
+      proposition_type: finding.proposition_type === "witness_statement" ? "physical_evidence" : (finding.proposition_type as PropositionType | undefined),
+    };
+  }
+
+  return {};
+}
+
 export function normalizePenalFinding<T extends NewFinding>(
   finding: T,
   context: PenalMatterContext,
 ): T {
   if (!isPenalMatter(context)) return finding;
+
+  const domainOverride = normalizeSubstantiveLegalDomain(finding);
+  const effectiveFinding = {
+    ...finding,
+    ...(domainOverride.category ? { category: domainOverride.category } : {}),
+    ...(domainOverride.proposition_type ? { proposition_type: domainOverride.proposition_type } : {}),
+  };
 
   const original = {
     category: finding.category,
@@ -205,18 +251,22 @@ export function normalizePenalFinding<T extends NewFinding>(
     adoption_status: finding.adoption_status ?? null,
     impact_direction: finding.impact_direction ?? null,
   };
-  let proposition = canonicalProposition(finding);
-  let adoption = canonicalAdoption(proposition, finding.adoption_status);
+  let proposition = canonicalProposition(effectiveFinding);
+  let adoption = canonicalAdoption(proposition, effectiveFinding.adoption_status);
   if (proposition === "court_holding" && adoption === "rejected") {
     proposition = "rejected_holding";
     adoption = "rejected";
   }
-  let category = categoryFor(proposition, finding.category);
-  let description = finding.description;
-  let impactDirection = finding.impact_direction ?? null;
-  let affectedParty = finding.affected_party;
-  let evidenceType = finding.evidence_type ?? null;
+  let category = categoryFor(proposition, effectiveFinding.category);
+  let description = effectiveFinding.description;
+  let impactDirection = effectiveFinding.impact_direction ?? null;
+  let affectedParty = effectiveFinding.affected_party;
+  let evidenceType = effectiveFinding.evidence_type ?? null;
   const rules: PenalNormalizationRule[] = [];
+
+  if (domainOverride.category && domainOverride.category !== original.category) {
+    rules.push("legal_category_overrode_module_category");
+  }
 
   if (
     norm(original.proposition_type) !== norm(proposition) ||
@@ -231,9 +281,11 @@ export function normalizePenalFinding<T extends NewFinding>(
   ) {
     rules.push("party_holding_downgraded");
   }
-  if (category !== original.category) rules.push("legal_category_overrode_module_category");
+  if (category !== original.category && !rules.includes("legal_category_overrode_module_category")) {
+    rules.push("legal_category_overrode_module_category");
+  }
 
-  if (proposition === "evidence_gap" && !validEvidenceGapBasis(finding.metadata)) {
+  if (proposition === "evidence_gap" && !validEvidenceGapBasis(effectiveFinding.metadata)) {
     proposition = "unresolved_question";
     adoption = "unknown";
     category = "corpus_gap";
@@ -249,7 +301,7 @@ export function normalizePenalFinding<T extends NewFinding>(
   if (
     proposition === "court_holding" &&
     adoption === "adopted" &&
-    !completePartyAwareScoreMapping(finding)
+    !completePartyAwareScoreMapping(effectiveFinding)
   ) {
     impactDirection = "neutral";
     affectedParty = "neutral";
@@ -258,7 +310,7 @@ export function normalizePenalFinding<T extends NewFinding>(
   }
 
   return {
-    ...finding,
+    ...effectiveFinding,
     category,
     description,
     proposition_type: proposition,
@@ -267,7 +319,7 @@ export function normalizePenalFinding<T extends NewFinding>(
     affected_party: affectedParty,
     evidence_type: evidenceType,
     metadata: {
-      ...(finding.metadata ?? {}),
+      ...(effectiveFinding.metadata ?? {}),
       legal_normalization: {
         version: 1,
         rules,

@@ -335,6 +335,12 @@ export function mandatoryDecisionCoreToFindings(args: {
         mandatory_decision_kind: item.kind,
         reportable: true,
         score_moving: false,
+        citation_exemption_type:
+          item.kind === "DISPOSITION" || item.kind === "CONTROLLING_ISSUE"
+            ? "EXEMPT_STATUTORY_FORMULA"
+            : item.source_refs.some((r) => r.quote)
+              ? "CITATION_REQUIRED"
+              : "EXEMPT_METADATA",
       },
     };
   });

@@ -1897,6 +1897,7 @@ async function _runPipelineForCase(
   );
 
   // A manual multi-agent rerun historically could stamp a terminal status
+  // A manual multi-agent rerun historically could stamp a terminal status
   // before Report Writer ran. Never preserve that status without the report
   // row that the authoritative final review is required to inspect.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1905,23 +1906,37 @@ async function _runPipelineForCase(
     .select("case_id")
     .eq("case_id", caseId)
     .maybeSingle();
-  const preserved =
-    !!postReport && (postRun?.status === "released" || postRun?.status === "needs_revision");
-  const finalStatus = preserved ? postRun.status : hasFailures ? "failed" : "complete";
-  const finalMessage = preserved
-    ? (postRun.status_message ?? "Pipeline finalized by multi-agent release gate.")
-    : hasFailures
-      ? `Pipeline finished with ${stageFailures.length} failed/blocked stage(s): ${stageFailures.map((f) => f.key).join(", ")}`
-      : optionalFailures.length > 0
-        ? `Full pipeline complete — ${optionalFailures.length} engine(s) produced no output: ${optionalFailures.join(", ")}`
-        : "Full pipeline complete";
+
+  const isNeedsRevision =
+    postRun?.status === "needs_revision" ||
+    (postRun?.status_message && /needs_revision|review required|revisión|blocked by judge/i.test(postRun.status_message));
+  const isReleased = postRun?.status === "released";
+
+  const finalStatus = isNeedsRevision
+    ? "needs_revision"
+    : isReleased
+      ? "released"
+      : hasFailures
+        ? "failed"
+        : "complete";
+
+  const finalMessage = isNeedsRevision
+    ? (postRun?.status_message ?? "Analysis complete — Judge review required (Draft / Needs Revision)")
+    : isReleased
+      ? (postRun?.status_message ?? "Pipeline complete and released.")
+      : hasFailures
+        ? `Pipeline finished with ${stageFailures.length} failed/blocked stage(s): ${stageFailures.map((f) => f.key).join(", ")}`
+        : optionalFailures.length > 0
+          ? `Full pipeline complete — ${optionalFailures.length} engine(s) produced no output: ${optionalFailures.join(", ")}`
+          : "Full pipeline complete";
+
   await updateCase(
     {
       status: finalStatus,
       status_message: finalMessage,
       progress: 100,
       next_stage: null,
-      error: hasFailures
+      error: hasFailures && !isNeedsRevision
         ? stageFailures
             .map((f) => `${f.key}: ${f.error}`)
             .join(" | ")

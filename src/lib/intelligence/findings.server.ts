@@ -1360,7 +1360,9 @@ export async function addGatedFindings(
 
   const kept: NewFinding[] = [];
   for (const r of rows) {
-    const g = gatedByKey.get(`${r.title}::${r.description}`);
+    const meta = (r.metadata ?? {}) as Record<string, unknown>;
+    const exemptionType = meta.citation_exemption_type as string | undefined;
+
     if (g) {
       kept.push({
         ...r,
@@ -1383,15 +1385,26 @@ export async function addGatedFindings(
             : {}),
         } as Partial<NewFinding>),
       } as NewFinding);
-    } else if (opts?.exemptCitation) {
-      // Absence-of-evidence / inference-from-corpus findings that cannot
-      // carry a verbatim quote by design (discovery-gap, trial risk/strength).
-      // Tag them honestly as AI_THEORY so downstream renderers do not present
-      // them as evidentiary — but keep them in the record.
+    } else if (
+      opts?.exemptCitation ||
+      exemptionType === "EXEMPT_METADATA" ||
+      exemptionType === "EXEMPT_STATUTORY_FORMULA"
+    ) {
+      // Absence-of-evidence / inference-from-corpus / explicit authority-exempt findings.
+      // Tag them honestly so downstream renderers understand their audit status.
       kept.push({
         ...r,
 
-        ...({ finding_type: "AI_THEORY" } as Partial<NewFinding>),
+        ...({
+          finding_type:
+            exemptionType === "EXEMPT_METADATA" || exemptionType === "EXEMPT_STATUTORY_FORMULA"
+              ? "DIRECT_EVIDENCE"
+              : "AI_THEORY",
+          metadata: {
+            ...meta,
+            citation_audit_exemption: exemptionType ?? "general_citation_exempt",
+          },
+        } as Partial<NewFinding>),
       } as NewFinding);
     }
     // else: dropped by strict/balanced gate — audit already counted it.
@@ -1705,11 +1718,23 @@ export function normalizeLlmFindings(args: {
         ? i.evidence_refs
         : [];
     const source_doc_ids: string[] = Array.isArray(i.source_doc_ids) ? i.source_doc_ids : [];
+    const { normalizeSubstantiveLegalDomain } = require("./penal-legal-normalization");
+    const domainNorm = normalizeSubstantiveLegalDomain({
+      title,
+      description,
+      legal_significance: i.legal_significance ?? null,
+      proposition_type: normPropositionType(i.proposition_type),
+      category: String(i.category ?? defaultCategory),
+    } as any);
+
+    const resolvedCategory = domainNorm.category ?? String(i.category ?? defaultCategory);
+    const resolvedPropositionType = domainNorm.proposition_type ?? normPropositionType(i.proposition_type);
+
     return {
       case_id: caseId,
       user_id: userId,
       source_module: sourceModule,
-      category: String(i.category ?? defaultCategory),
+      category: resolvedCategory,
       title,
       description,
       severity: normSeverity(i.severity ?? i.priority),
@@ -1728,7 +1753,7 @@ export function normalizeLlmFindings(args: {
       potential_impact: i.potential_impact ?? i.impact ?? null,
       affected_party: normParty(i.affected_party ?? i.benefits),
       speaker_role: normSpeakerRole(i.speaker_role),
-      proposition_type: normPropositionType(i.proposition_type),
+      proposition_type: resolvedPropositionType,
       adoption_status: normAdoptionStatus(i.adoption_status),
       audit_classification: normAuditClassification(i.audit_classification),
       evidence_refs,
