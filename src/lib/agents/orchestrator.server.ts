@@ -591,6 +591,23 @@ export type JudgeVerdictResult = {
   totals: { findings: number; cited: number; cited_ratio: number; integrity_issues: number };
 };
 
+export function isCitationExemptFinding(f: JudgeFinding): boolean {
+  const mod = String(f.source_module ?? "");
+  if (CITATION_EXEMPT_SOURCE_MODULES.has(mod) || mod.startsWith("decision_core")) return true;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const meta = ((f as any).metadata ?? {}) as Record<string, unknown>;
+  if (
+    meta.mandatory_decision_core ||
+    meta.citation_exemption_type === "EXEMPT_METADATA" ||
+    meta.citation_exemption_type === "EXEMPT_STATUTORY_FORMULA"
+  ) {
+    return true;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((f as any).verification_status === "authority_exempt") return true;
+  return false;
+}
+
 /** Pure decision, extracted so the citation-exemption behavior is directly
  *  unit-testable without a fake-db harness for the whole agent. */
 export function computeJudgeVerdict(
@@ -600,9 +617,7 @@ export function computeJudgeVerdict(
   const t = JUDGE_THRESHOLDS[mode];
   let verdict: "approve" | "needs_revision" | "reject" = "approve";
   const notes: string[] = [];
-  const findings = allFindings.filter(
-    (f) => !CITATION_EXEMPT_SOURCE_MODULES.has(String(f.source_module ?? "")),
-  );
+  const findings = allFindings.filter((f) => !isCitationExemptFinding(f));
   const totalN = findings.length;
   const cited = findings.filter((f) => hasTraceableCitation(f)).length;
   const citedRatio = totalN > 0 ? cited / totalN : 1;

@@ -2283,7 +2283,24 @@ function renderCover(
  */
 function buildMissingDocumentChecklist(data: CaseExportData): { checklistText: string } {
   const locale = resolveReportLocale(data.report, data.case);
-  const caseType = (data.case as { case_type?: string } | null)?.case_type ?? null;
+  const caseObj = (data.case ?? {}) as Record<string, unknown>;
+  const caseType = String(caseObj.case_type ?? "");
+  const analysisMode = String(caseObj.case_analysis_mode ?? "");
+  const isConcludedAudit =
+    analysisMode === "concluded_audit" ||
+    analysisMode === "judgment_audit" ||
+    analysisMode === "appeal_routes" ||
+    caseObj.concluded_status === "concluded" ||
+    data.documents.some((d) => /(sentencia|resolucion|ejecutoria|firmado|scjn|adr)/i.test(String(d.filename ?? "")));
+
+  if (isConcludedAudit) {
+    return {
+      checklistText:
+        locale === "en"
+          ? "This report constitutes a legal audit of the supplied judicial resolution. The uploaded decision is self-sufficient for analyzing the court's holdings, reasoning, and operative rulings. Additional historical trial records are required only if reconstructing previous procedural phases."
+          : "Este reporte constituye una auditoría jurídica de la resolución judicial aportada. La resolución es autosuficiente para el análisis de los criterios, razonamientos y puntos resolutivos del tribunal. Constancias adicionales del expediente histórico de origen sólo se requieren si se desea reconstruir las etapas procesales previas.",
+    };
+  }
 
   // apelación isn't in MX_DOMAINS (it's a procedural posture over whatever
   // the underlying matter is, not its own substantive practice area) — its
