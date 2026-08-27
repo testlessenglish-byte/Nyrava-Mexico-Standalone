@@ -55,14 +55,14 @@ function stableId(kind: MandatoryDecisionKind, text: string): string {
 }
 
 function presentText(item: Sourced<string>): string | null {
-  return item.status === "PRESENT" && typeof item.value === "string" && item.value.trim()
+  return item?.status === "PRESENT" && typeof item.value === "string" && item.value.trim()
     ? item.value.trim()
     : null;
 }
 
 function propositionText(item: ReconstructedProposition): string | null {
-  const text = item.value?.text;
-  return item.status === "PRESENT" && typeof text === "string" && text.trim() ? text.trim() : null;
+  const text = item?.value?.text;
+  return item?.status === "PRESENT" && typeof text === "string" && text.trim() ? text.trim() : null;
 }
 
 function pushUnique(out: MandatoryDecisionCoreItem[], item: MandatoryDecisionCoreItem): void {
@@ -79,12 +79,13 @@ function pushUnique(out: MandatoryDecisionCoreItem[], item: MandatoryDecisionCor
  * this is the court's decision core, not a second general finding generator.
  */
 export function buildMandatoryDecisionCore(
-  reconstruction: CaseDecisionReconstruction | null | undefined,
+  reconstruction: CaseDecisionReconstruction | Record<string, unknown> | null | undefined,
 ): MandatoryDecisionCoreItem[] {
-  if (!reconstruction) return [];
+  if (!reconstruction || typeof reconstruction !== "object") return [];
+  const source = reconstruction as Partial<CaseDecisionReconstruction>;
   const out: MandatoryDecisionCoreItem[] = [];
 
-  for (const item of reconstruction.issues_presented ?? []) {
+  for (const item of Array.isArray(source.issues_presented) ? source.issues_presented : []) {
     const text = presentText(item);
     if (!text) continue;
     pushUnique(out, {
@@ -98,7 +99,7 @@ export function buildMandatoryDecisionCore(
     });
   }
 
-  for (const item of reconstruction.court_holding ?? []) {
+  for (const item of Array.isArray(source.court_holding) ? source.court_holding : []) {
     const text = propositionText(item);
     if (!text) continue;
     const rejected =
@@ -118,7 +119,7 @@ export function buildMandatoryDecisionCore(
     });
   }
 
-  const disposition = presentText(reconstruction.disposition_remedy);
+  const disposition = presentText(source.disposition_remedy as Sourced<string>);
   if (disposition) {
     pushUnique(out, {
       id: stableId("DISPOSITION", disposition),
@@ -127,7 +128,7 @@ export function buildMandatoryDecisionCore(
       speaker_role: null,
       proposition_type: "procedural_fact",
       adoption_status: "adopted",
-      source_refs: reconstruction.disposition_remedy.source_refs,
+      source_refs: source.disposition_remedy?.source_refs ?? [],
     });
     if (REMEDY_RE.test(disposition)) {
       pushUnique(out, {
@@ -137,7 +138,7 @@ export function buildMandatoryDecisionCore(
         speaker_role: null,
         proposition_type: "court_holding",
         adoption_status: "adopted",
-        source_refs: reconstruction.disposition_remedy.source_refs,
+        source_refs: source.disposition_remedy?.source_refs ?? [],
       });
     }
   }
