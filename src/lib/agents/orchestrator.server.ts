@@ -877,9 +877,14 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
   // must never write the case's release status. `runFinalReleaseReview()`
   // re-runs QA/Judge/Hallucination against the completed, saved report and
   // is the single writer of the final status.
-  if (args.deferRelease) {
+  const { data: savedReportForRelease } = await args.db
+    .from("reports")
+    .select("case_id")
+    .eq("case_id", args.caseId)
+    .maybeSingle();
+  if (args.deferRelease || !savedReportForRelease) {
     trace("case.status.write_skipped", {
-      source: "multi_agent.preliminary",
+      source: args.deferRelease ? "multi_agent.preliminary" : "multi_agent.no_saved_report",
       preliminary_released: released,
       gates: { qa: qaOk, judge: judgeOk, hallucination: halOk },
     });
