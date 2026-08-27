@@ -6062,7 +6062,7 @@ async function _runReportInner(args: {
   const [
     { data: analysis },
     { data: agents },
-    { data: scoreInitial },
+    { data: score },
     rawFindings,
     { data: theories },
     { data: opps },
@@ -6095,9 +6095,6 @@ async function _runReportInner(args: {
       .select("agent_type,findings")
       .eq("case_id", caseId)
       .eq("agent_type", "contradictions"),
-  ]);
-  let score = scoreInitial;
-
   // Verify analyzers completed (either findings exist, analysis row exists, or pipeline_engine_runs completed)
   const hasAnalysisData = Boolean(analysis) || (rawFindings && rawFindings.length > 0);
   if (!hasAnalysisData) {
@@ -6341,6 +6338,11 @@ async function _runReportInner(args: {
     low: 3,
     info: 4,
   };
+  const { consolidateFindings } = await import("./intelligence/finding-dedupe");
+  findings = consolidateFindings(
+    findings as unknown as Array<Record<string, unknown>>,
+  ) as unknown as typeof findings;
+
   const findingsLite = [...findings]
     .sort((a, b) => {
       const sevDiff = (SEVERITY_RANK[a.severity] ?? 5) - (SEVERITY_RANK[b.severity] ?? 5);

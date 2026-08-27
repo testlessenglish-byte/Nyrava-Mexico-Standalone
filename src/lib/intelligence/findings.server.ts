@@ -1362,7 +1362,6 @@ export async function addGatedFindings(
   for (const r of rows) {
     const meta = (r.metadata ?? {}) as Record<string, unknown>;
     const exemptionType = meta.citation_exemption_type as string | undefined;
-    const g = gatedByKey.get(`${r.title ?? ""}::${r.description ?? ""}`);
 
     if (g) {
       kept.push({
