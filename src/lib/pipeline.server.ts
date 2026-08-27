@@ -6095,6 +6095,9 @@ async function _runReportInner(args: {
       .select("agent_type,findings")
       .eq("case_id", caseId)
       .eq("agent_type", "contradictions"),
+  ]);
+
+
   // Verify analyzers completed (either findings exist, analysis row exists, or pipeline_engine_runs completed)
   const hasAnalysisData = Boolean(analysis) || (rawFindings && rawFindings.length > 0);
   if (!hasAnalysisData) {
