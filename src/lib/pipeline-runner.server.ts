@@ -1881,7 +1881,17 @@ async function _runPipelineForCase(
     (k) => PIPELINE_STAGES.find((s) => s.key === k)?.label ?? k,
   );
 
-  const preserved = postRun?.status === "released" || postRun?.status === "needs_revision";
+  // A manual multi-agent rerun historically could stamp a terminal status
+  // before Report Writer ran. Never preserve that status without the report
+  // row that the authoritative final review is required to inspect.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: postReport } = await (supabase as any)
+    .from("reports")
+    .select("case_id")
+    .eq("case_id", caseId)
+    .maybeSingle();
+  const preserved =
+    !!postReport && (postRun?.status === "released" || postRun?.status === "needs_revision");
   const finalStatus = preserved ? postRun.status : hasFailures ? "failed" : "complete";
   const finalMessage = preserved
     ? (postRun.status_message ?? "Pipeline finalized by multi-agent release gate.")

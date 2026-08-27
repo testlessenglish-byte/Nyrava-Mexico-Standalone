@@ -1450,7 +1450,17 @@ async function _runPipelineForCase(
     .select("status,status_message")
     .eq("id", caseId)
     .maybeSingle();
-  const preserved = postRun?.status === "released" || postRun?.status === "needs_revision";
+  // Terminal state is valid only when a saved report exists for the final
+  // review to have inspected. This prevents a preliminary/manual agent pass
+  // from ending a case before Report Writer runs.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: postReport } = await (supabase as any)
+    .from("reports")
+    .select("case_id")
+    .eq("case_id", caseId)
+    .maybeSingle();
+  const preserved =
+    !!postReport && (postRun?.status === "released" || postRun?.status === "needs_revision");
   const finalStatus = preserved ? postRun.status : hasFailures ? "failed" : "complete";
   const finalMessage = preserved
     ? (postRun.status_message ?? "Pipeline finalized by multi-agent release gate.")
