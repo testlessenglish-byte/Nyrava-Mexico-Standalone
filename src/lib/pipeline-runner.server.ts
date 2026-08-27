@@ -987,16 +987,45 @@ async function _runPipelineForCase(
     if (evidenceMode === "strict" || isCompletedCaseMode(caseAnalysisMode)) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { count: existingReconstructions } = await (supabase as any)
+        const { data: existingReconstruction } = await (supabase as any)
           .from("case_decision_reconstructions")
-          .select("id", { count: "exact", head: true })
-          .eq("case_id", caseId);
-        if (!existingReconstructions) {
+          .select("reconstruction")
+          .eq("case_id", caseId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        let reconstruction = existingReconstruction?.reconstruction ?? null;
+        if (!reconstruction) {
           const { buildDecisionReconstruction } = await import(
             "./intelligence/decision-reconstruction-extractor.server"
           );
-          const reconstruction = await buildDecisionReconstruction(supabase, caseId, userId);
+          reconstruction = await buildDecisionReconstruction(supabase, caseId, userId);
           trace("case.decision_reconstruction_built", { built: !!reconstruction });
+        }
+        // The reconstruction used to stop at the database row above. Promote
+        // its verified decision core through the same strict evidence gate as
+        // every other finding so it becomes canonical and report-visible.
+        // This runs on resumes too; addGatedFindings' canonical dedupe makes
+        // the operation idempotent.
+        if (reconstruction) {
+          const {
+            buildMandatoryDecisionCore,
+            mandatoryDecisionCoreToFindings,
+          } = await import("./intelligence/mandatory-decision-core");
+          const { addGatedFindings } = await import("./intelligence/findings.server");
+          const core = buildMandatoryDecisionCore(reconstruction);
+          const promoted = await addGatedFindings(
+            supabase,
+            caseId,
+            mandatoryDecisionCoreToFindings({ core, caseId, userId }),
+          );
+          trace("case.mandatory_decision_core_promoted", {
+            required: core.length,
+            inserted: promoted.inserted,
+            suppressed: promoted.audit
+              ? promoted.audit.input - promoted.audit.accepted
+              : 0,
+          });
         }
       } catch (e) {
         console.warn("[decision-reconstruction] failed", e);
@@ -1967,3 +1996,4 @@ async function _runPipelineForCase(
   });
   return { ok: true, completedStages: total, warnings: stageFailures };
 }
+
