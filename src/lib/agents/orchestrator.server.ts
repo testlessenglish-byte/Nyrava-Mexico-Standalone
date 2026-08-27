@@ -426,11 +426,35 @@ async function agentReport(ctx: RunCtx): Promise<AgentResult> {
     .eq("case_id", ctx.caseId)
     .not("source_module", "like", PROJECTION_LIKE);
   const ready = scoringDone && (findingsCount ?? 0) > 0;
-  const ok = !!report || ready;
+  let ok = !!report || ready;
   const errors: string[] = [];
   if (!ok) {
     if (!scoringDone) errors.push("Scoring stage has not completed; the report has no scored basis to assemble from.");
     if ((findingsCount ?? 0) === 0) errors.push("No canonical findings available for the report.");
+  }
+  // Completed judicial decisions have an authoritative, independently
+  // reconstructed decision core. Unlike heuristic report-quality metrics,
+  // omitting a verified holding/disposition/remedy is a hard release error.
+  const { data: caseModeRow } = await ctx.db
+    .from("cases")
+    .select("case_analysis_mode")
+    .eq("id", ctx.caseId)
+    .maybeSingle();
+  const { normalizeCaseAnalysisMode, isCompletedCaseMode } = await import(
+    "@/lib/intelligence/case-analysis-mode"
+  );
+  if (report && isCompletedCaseMode(normalizeCaseAnalysisMode(caseModeRow?.case_analysis_mode))) {
+    const core = (report.full_report as Record<string, unknown> | null)
+      ?.mandatory_decision_core as
+      | { required_for_release?: unknown; validation?: { ok?: unknown } }
+      | undefined;
+    const coreOk = core?.required_for_release === true && core.validation?.ok === true;
+    if (!coreOk) {
+      ok = false;
+      errors.push(
+        "Mandatory decision core missing or incomplete — every verified holding, rejected holding, disposition, remedy, and controlling issue must be represented before release.",
+      );
+    }
   }
   return {
     status: ok ? "success" : "failed",
@@ -1045,3 +1069,4 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
 // implementation directly (with a fake db) instead of re-deriving the logic
 // inline, without expanding the public API surface of this server module.
 export { agentOcr as __test__agentOcr, agentEntities as __test__agentEntities };
+

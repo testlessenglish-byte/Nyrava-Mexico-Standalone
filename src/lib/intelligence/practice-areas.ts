@@ -270,6 +270,10 @@ const UNIVERSAL_FINDING_MODULES = [
   // gate without adding it here too — do not repeat that mistake for this
   // one.
   "ways_out_analysis",
+  // Independently reconstructed holdings/issues/disposition/remedy are
+  // universal judicial-decision facts. They must survive regardless of the
+  // outer procedural vehicle (notably amparo with underlying_materia=penal).
+  "decision_core",
 ];
 
 // Source_module wrapper tokens that carry no domain information.
@@ -701,3 +705,4 @@ export function buildCaseTypeManifest(area: AreaInput, activeDomains?: DomainSet
     generated_at: new Date().toISOString(),
   };
 }
+
