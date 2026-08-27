@@ -66,6 +66,13 @@ function recommendationText(rec: RecommendationLike): string {
     .join(" ");
 }
 
+const INAPPROPRIATE_JUDICIAL_EVIDENCE_ADVICE_RX =
+  /\b(?:certificaci[oó]n\s+notarial|cotejo\s+notarial|ratificaci[oó]n\s+ante\s+notario|acreditar\s+la\s+existencia\s+de\s+la\s+sentencia|corroboraci[oó]n\s+independiente\s+de\s+la\s+(?:resoluci[oó]n|sentencia|scjn|ejecutoria)|notarizar\s+la\s+resoluci[oó]n)\b/i;
+
+export function isInappropriateJudicialEvidenceAdvice(text: unknown): boolean {
+  return INAPPROPRIATE_JUDICIAL_EVIDENCE_ADVICE_RX.test(String(text ?? "").trim());
+}
+
 export function isLegalFilingRecommendation(text: unknown): boolean {
   return FILING_OR_REMEDY_RX.test(String(text ?? "").trim());
 }
@@ -103,6 +110,10 @@ export function filterUnsupportedLegalFilingRecommendations<T extends Recommenda
   const removed: T[] = [];
   for (const rec of recommendations) {
     const text = [rec.title, rec.reason, rec.action, rec.motion].map((v) => String(v ?? "")).join(" ");
+    if (isInappropriateJudicialEvidenceAdvice(text)) {
+      removed.push(rec);
+      continue;
+    }
     if (isLegalFilingRecommendation(text) && !hasStructuredRecommendationSupport(rec)) {
       removed.push(rec);
       continue;
@@ -119,6 +130,10 @@ export function filterConcludedCaseProspectiveRecommendations<T extends Recommen
   const removed: T[] = [];
   for (const rec of recommendations) {
     const text = recommendationText(rec);
+    if (isInappropriateJudicialEvidenceAdvice(text)) {
+      removed.push(rec);
+      continue;
+    }
     if (isConcludedCaseProspectiveAction(text) && !hasConcludedPostureSupport(rec)) {
       removed.push(rec);
       continue;
@@ -144,7 +159,7 @@ export function scrubUnsupportedLegalFilingSentences(text: string): {
   for (const part of parts) {
     const sentence = part.trim();
     if (!sentence) continue;
-    if (isLegalFilingRecommendation(sentence)) {
+    if (isInappropriateJudicialEvidenceAdvice(sentence) || isLegalFilingRecommendation(sentence)) {
       removed += 1;
       continue;
     }

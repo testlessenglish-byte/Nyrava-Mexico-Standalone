@@ -1445,7 +1445,6 @@ export type Database = {
           affected_party: string | null
           audit_classification: string | null
           authority_level: number
-          benefited_party: string | null
           canonical_finding_id: string | null
           case_id: string
           category: string
@@ -1472,10 +1471,8 @@ export type Database = {
           projected_from_table: string | null
           proposition_type: string | null
           rationale: Json | null
-          reason_for_score_effect: string | null
           reconciliation_state: string | null
           related_finding_ids: string[] | null
-          score_dimension: string | null
           severity: string
           source_doc_ids: string[] | null
           source_document_id: string | null
@@ -1498,7 +1495,6 @@ export type Database = {
           affected_party?: string | null
           audit_classification?: string | null
           authority_level?: number
-          benefited_party?: string | null
           canonical_finding_id?: string | null
           case_id: string
           category: string
@@ -1525,10 +1521,8 @@ export type Database = {
           projected_from_table?: string | null
           proposition_type?: string | null
           rationale?: Json | null
-          reason_for_score_effect?: string | null
           reconciliation_state?: string | null
           related_finding_ids?: string[] | null
-          score_dimension?: string | null
           severity?: string
           source_doc_ids?: string[] | null
           source_document_id?: string | null
@@ -1551,7 +1545,6 @@ export type Database = {
           affected_party?: string | null
           audit_classification?: string | null
           authority_level?: number
-          benefited_party?: string | null
           canonical_finding_id?: string | null
           case_id?: string
           category?: string
@@ -1578,10 +1571,8 @@ export type Database = {
           projected_from_table?: string | null
           proposition_type?: string | null
           rationale?: Json | null
-          reason_for_score_effect?: string | null
           reconciliation_state?: string | null
           related_finding_ids?: string[] | null
-          score_dimension?: string | null
           severity?: string
           source_doc_ids?: string[] | null
           source_document_id?: string | null
@@ -1853,93 +1844,6 @@ export type Database = {
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      case_penal_dispositions: {
-        Row: {
-          amparo_result: string | null
-          case_id: string
-          confidence: number
-          conviction_status: string | null
-          court: string | null
-          created_at: string
-          decision_date: string | null
-          id: string
-          operative_orders: Json
-          procedure_reopened: boolean | null
-          remand: boolean
-          remand_court: string | null
-          remand_instructions: Json
-          result: string | null
-          sentence_status: string | null
-          source_document_id: string
-          source_page: number | null
-          source_quote: string
-          status: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          amparo_result?: string | null
-          case_id: string
-          confidence: number
-          conviction_status?: string | null
-          court?: string | null
-          created_at?: string
-          decision_date?: string | null
-          id?: string
-          operative_orders?: Json
-          procedure_reopened?: boolean | null
-          remand?: boolean
-          remand_court?: string | null
-          remand_instructions?: Json
-          result?: string | null
-          sentence_status?: string | null
-          source_document_id: string
-          source_page?: number | null
-          source_quote: string
-          status?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          amparo_result?: string | null
-          case_id?: string
-          confidence?: number
-          conviction_status?: string | null
-          court?: string | null
-          created_at?: string
-          decision_date?: string | null
-          id?: string
-          operative_orders?: Json
-          procedure_reopened?: boolean | null
-          remand?: boolean
-          remand_court?: string | null
-          remand_instructions?: Json
-          result?: string | null
-          sentence_status?: string | null
-          source_document_id?: string
-          source_page?: number | null
-          source_quote?: string
-          status?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "case_penal_dispositions_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: true
-            referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_penal_dispositions_source_document_id_fkey"
-            columns: ["source_document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
@@ -2350,11 +2254,9 @@ export type Database = {
           created_at: string
           description: string | null
           event_date: string | null
-          event_type: string
           id: string
           source_document_id: string | null
           source_page: number | null
-          source_quote: string | null
           superseded_by: string | null
           updated_at: string
         }
@@ -2364,11 +2266,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           event_date?: string | null
-          event_type?: string
           id?: string
           source_document_id?: string | null
           source_page?: number | null
-          source_quote?: string | null
           superseded_by?: string | null
           updated_at?: string
         }
@@ -2378,11 +2278,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           event_date?: string | null
-          event_type?: string
           id?: string
           source_document_id?: string | null
           source_page?: number | null
-          source_quote?: string | null
           superseded_by?: string | null
           updated_at?: string
         }
@@ -2660,7 +2558,6 @@ export type Database = {
           opportunities_at: string | null
           perspectives_at: string | null
           procedural_compliance: Json | null
-          procedural_vehicle: string | null
           progress: number
           queued_at: string | null
           report_at: string | null
@@ -2677,7 +2574,6 @@ export type Database = {
           strategy_center_at: string | null
           theories_at: string | null
           trial_prep_at: string | null
-          underlying_materia: string | null
           updated_at: string
           user_id: string
           witnesses_at: string | null
@@ -2723,7 +2619,6 @@ export type Database = {
           opportunities_at?: string | null
           perspectives_at?: string | null
           procedural_compliance?: Json | null
-          procedural_vehicle?: string | null
           progress?: number
           queued_at?: string | null
           report_at?: string | null
@@ -2740,7 +2635,6 @@ export type Database = {
           strategy_center_at?: string | null
           theories_at?: string | null
           trial_prep_at?: string | null
-          underlying_materia?: string | null
           updated_at?: string
           user_id: string
           witnesses_at?: string | null
@@ -2786,7 +2680,6 @@ export type Database = {
           opportunities_at?: string | null
           perspectives_at?: string | null
           procedural_compliance?: Json | null
-          procedural_vehicle?: string | null
           progress?: number
           queued_at?: string | null
           report_at?: string | null
@@ -2803,7 +2696,6 @@ export type Database = {
           strategy_center_at?: string | null
           theories_at?: string | null
           trial_prep_at?: string | null
-          underlying_materia?: string | null
           updated_at?: string
           user_id?: string
           witnesses_at?: string | null
@@ -11193,16 +11085,6 @@ export type Database = {
         Args: { _org: string; _user: string }
         Returns: boolean
       }
-      claim_case_for_execution: {
-        Args: { p_case_id: string; p_lease_ms?: number; p_worker_id?: string }
-        Returns: {
-          case_id: string
-          claimed: boolean
-          execution_id: string
-          next_stage: string
-          user_id: string
-        }[]
-      }
       claim_engine_run: {
         Args: {
           _case_id: string
@@ -11211,16 +11093,6 @@ export type Database = {
           _user_id: string
         }
         Returns: string
-      }
-      claim_next_queued_case: {
-        Args: { p_lease_ms?: number; p_worker_id?: string }
-        Returns: {
-          case_id: string
-          claimed: boolean
-          execution_id: string
-          next_stage: string
-          user_id: string
-        }[]
       }
       close_social_case: {
         Args: {
@@ -11671,10 +11543,6 @@ export type Database = {
           p_title: string
         }
         Returns: string
-      }
-      renew_execution_lease: {
-        Args: { p_case_id: string; p_execution_id: string; p_lease_ms?: number }
-        Returns: boolean
       }
       reopen_social_case: {
         Args: { p_case: string; p_reason: string }
