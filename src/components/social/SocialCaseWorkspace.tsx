@@ -10,6 +10,7 @@ import { TalkToCareCase } from "@/components/social/TalkToCareCase";
 import { SocialCaseMediaGallery } from "@/components/social/SocialCaseMediaGallery";
 import { CaseDynamicText } from "@/components/social/CaseDynamicText";
 import { CaseDocumentCenter } from "@/components/social/CaseDocumentCenter";
+import { CaseActivityFeed } from "@/components/social/CaseActivityFeed";
 import {
   acceptSocialTransfer, advanceSocialTransfer, approveSocialCarePlan,
   assignSocialCaseManager, closeSocialCase, createSocialAppointment,
@@ -637,7 +638,21 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
       {tab==="immigration"&&<Panel><div className="mb-3 flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"><ShieldAlert className="h-4 w-4"/>{es?"Solo asuntos mexicanos de Derecho Migratorio, Refugio y Nacionalidad. Se comparte exactamente lo seleccionado.":"Mexican Immigration, Refugee and Nationality matters only. Exactly the selected information is shared."}</div><Input label={es?"ID del asunto migratorio":"Immigration matter ID"} value={immigration.matterId} onChange={v=>setImmigration({...immigration,matterId:v})}/><Select label={es?"Consentimiento específico":"Specific consent"} value={immigration.consentId} onChange={v=>setImmigration({...immigration,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/><Input label={es?"Campos de estado recibidos":"Status fields received"} value={immigration.statusFields} onChange={v=>setImmigration({...immigration,statusFields:v})}/><Input label={es?"Campos sociales compartidos":"Social fields shared"} value={immigration.socialFields} onChange={v=>setImmigration({...immigration,socialFields:v})}/><Action busy={immigrationM.isPending} disabled={!immigration.matterId||!immigration.consentId} onClick={()=>immigrationM.mutate()}>{es?"Crear vínculo autorizado":"Create authorized link"}</Action></Panel>}
 
       {tab==="assistant"&&<TalkToCareCase caseId={caseId} documents={caseData.documents} consents={caseData.consents} onOpenDocumentsTab={()=>setTab("documents")}/>}
-      {tab==="activity"&&<History title={es?"Libro de auditoría inmutable":"Immutable audit ledger"} rows={caseData.activity} render={(x)=><p>{new Date(x.occurred_at).toLocaleString()} · {localizedEnum(x.event_type,es)} · {localizedEnum(x.entity_type,es)}</p>}/>}
+      {tab==="activity"&&<CaseActivityFeed
+        caseId={caseId}
+        activities={caseData.activity}
+        interventions={caseData.interventions}
+        plans={caseData.plans}
+        assessments={caseData.assessments}
+        documents={caseData.documents}
+        alerts={caseData.alerts}
+        tasks={caseData.tasks}
+        referrals={caseData.referrals}
+        consents={caseData.consents}
+        caseRecord={caseData.case}
+        es={es}
+        onNavigateTab={(targetTab)=>setTab(targetTab as Tab)}
+      />}
     </div>
   </div>;
 }
