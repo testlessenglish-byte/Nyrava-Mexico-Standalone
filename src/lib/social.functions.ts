@@ -805,7 +805,7 @@ export const getKnowledgeCenter=createServerFn({method:"GET"})
     const {supabase}=ctx(context);
     const [records,cases,corrections,usage]=await Promise.all([
       supabase.from("resource_knowledge_records").select("*").order("updated_at",{ascending:false}).limit(500),
-      supabase.from("social_cases").select("id,case_number,status").order("last_activity_at",{ascending:false}).limit(250),
+      supabase.from("social_cases").select("id,case_number,status,case_type,service_areas,tags,program_id,org_id").order("last_activity_at",{ascending:false}).limit(250),
       supabase.from("resource_knowledge_corrections").select("*").order("created_at",{ascending:false}).limit(250),
       supabase.from("resource_knowledge_usage").select("knowledge_id,action,created_at").order("created_at",{ascending:false}).limit(1000),
     ]);
@@ -858,8 +858,8 @@ export const openKnowledgeRecord=createServerFn({method:"POST"})
 
 export const actOnKnowledgeRecord=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
-  .inputValidator((d:unknown)=>z.object({recordId:uuid,caseId:uuid,action:z.enum(["attach_reference","add_required_form","create_checklist","create_task","find_related_resources","start_referral","share_client_version","ask_talk_to_case"]),details:z.record(z.string(),z.unknown()).default({})}).parse(d))
-  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id,audience,approval_status").eq("id",data.recordId).single();fail(rec.error);if(!["approved","published"].includes(rec.data.approval_status))throw new Error("Only approved knowledge can be used with a case");if(data.action==="share_client_version"&&rec.data.audience!=="client_facing")throw new Error("Only client-facing material may be shared");const row=await supabase.from("resource_knowledge_case_actions").insert({knowledge_id:data.recordId,org_id:rec.data.org_id,social_case_id:data.caseId,action_type:data.action,details:{...data.details,legal_evidence:false},created_by:userId});fail(row.error);return {ok:true};});
+  .inputValidator((d:unknown)=>z.object({recordId:uuid,caseId:uuid,action:z.enum(["attach_reference","add_required_form","create_checklist","create_task","find_related_resources","start_referral","share_client_version","ask_talk_to_case","add_to_case_work"]),details:z.record(z.string(),z.unknown()).default({})}).parse(d))
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id,audience,approval_status").eq("id",data.recordId).single();fail(rec.error);if(!["approved","published"].includes(rec.data.approval_status))throw new Error("Only approved knowledge can be used with a case");if(data.action==="share_client_version"&&rec.data.audience!=="client_facing")throw new Error("Only client-facing material may be shared");const sc=await supabase.from("social_cases").select("org_id").eq("id",data.caseId).single();fail(sc.error);const row=await supabase.from("resource_knowledge_case_actions").insert({knowledge_id:data.recordId,org_id:rec.data.org_id??sc.data.org_id,social_case_id:data.caseId,action_type:data.action,details:{...data.details,legal_evidence:false},created_by:userId});fail(row.error);return {ok:true};});
 
 export const submitKnowledgeCorrection=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
