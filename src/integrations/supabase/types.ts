@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -9941,6 +9941,7 @@ export type Database = {
           family_id: string | null
           follow_up_date: string | null
           id: string
+          notes: string | null
           org_id: string
           person_id: string | null
           reason: string
@@ -9970,6 +9971,7 @@ export type Database = {
           family_id?: string | null
           follow_up_date?: string | null
           id?: string
+          notes?: string | null
           org_id: string
           person_id?: string | null
           reason: string
@@ -9999,6 +10001,7 @@ export type Database = {
           family_id?: string | null
           follow_up_date?: string | null
           id?: string
+          notes?: string | null
           org_id?: string
           person_id?: string | null
           reason?: string
@@ -10061,6 +10064,99 @@ export type Database = {
           },
           {
             foreignKeyName: "social_referrals_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_resource_communications: {
+        Row: {
+          communication_type: string
+          consent_id: string | null
+          created_at: string
+          delivery_detail: string | null
+          document_ids: string[]
+          id: string
+          institution_id: string
+          message: string | null
+          org_id: string
+          recipient: string
+          referral_id: string | null
+          sender_id: string
+          sent_at: string | null
+          social_case_id: string
+          status: string
+          subject: string
+        }
+        Insert: {
+          communication_type: string
+          consent_id?: string | null
+          created_at?: string
+          delivery_detail?: string | null
+          document_ids?: string[]
+          id?: string
+          institution_id: string
+          message?: string | null
+          org_id: string
+          recipient: string
+          referral_id?: string | null
+          sender_id: string
+          sent_at?: string | null
+          social_case_id: string
+          status?: string
+          subject: string
+        }
+        Update: {
+          communication_type?: string
+          consent_id?: string | null
+          created_at?: string
+          delivery_detail?: string | null
+          document_ids?: string[]
+          id?: string
+          institution_id?: string
+          message?: string | null
+          org_id?: string
+          recipient?: string
+          referral_id?: string | null
+          sender_id?: string
+          sent_at?: string | null
+          social_case_id?: string
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_resource_communications_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "social_consents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_resource_communications_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "social_institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_resource_communications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_resource_communications_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "social_referrals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_resource_communications_social_case_id_fkey"
             columns: ["social_case_id"]
             isOneToOne: false
             referencedRelation: "social_cases"
