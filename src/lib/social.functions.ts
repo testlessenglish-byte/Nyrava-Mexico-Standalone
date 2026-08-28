@@ -15,6 +15,21 @@ function ctx(context:unknown):AuthContext {
 }
 function fail(error:{message?:string}|null){if(error) throw new Error(error.message||"Social-care operation failed");}
 
+// Resource & Knowledge Administration is restricted to Nyrava/platform
+// administrators and explicitly authorized organization managers. RLS already
+// blocks unauthorized writes; this guard fails the call early and keeps the
+// administration surface unreachable for normal subscribers.
+export async function requireResourceKnowledgeAdmin(context:unknown,orgId?:string|null):Promise<AuthContext>{
+  const c=ctx(context);
+  const platform=await c.supabase.rpc("social_is_platform_admin",{p_user:c.userId});
+  if(platform.data===true)return c;
+  if(orgId){
+    const manager=await c.supabase.rpc("social_can_manage_org",{p_org:orgId,p_user:c.userId});
+    if(manager.data===true)return c;
+  }
+  throw new Error("Administración de recursos y conocimiento restringida / Resource & Knowledge Administration access is restricted");
+}
+
 export const getSocialWorkspace=createServerFn({method:"GET"})
   .middleware([requireSupabaseAuth])
   .handler(async({context})=>{
@@ -694,7 +709,7 @@ export const saveResourceInstitution=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>resourceAdminInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase}=ctx(context);
+    const {supabase}=await requireResourceKnowledgeAdmin(context,data.orgId??null);
     const payload={org_id:data.orgId??null,name:data.officialName,official_name:data.officialName,institution_type:data.institutionType,description:data.description||null,services:data.services,
       state_code:data.stateCode||null,municipality:data.municipality||null,address:data.address||null,latitude:data.latitude??null,longitude:data.longitude??null,phone:data.phone||null,whatsapp:data.whatsapp||null,
       email:data.email||null,website:data.website||null,languages:data.languages,populations:data.populations,eligibility:data.eligibility||null,required_documents:data.requiredDocuments,cost_type:data.costType,
@@ -716,7 +731,7 @@ export const verifyResourceInstitution=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({institutionId:uuid,status:z.enum(["verified","verification_due","unverified","temporarily_unavailable","at_capacity","closed","archived"]),source:z.string().trim().min(2).max(500),evidenceUrl:z.string().url().optional().or(z.literal("")),notes:z.string().max(2000).optional(),nextVerificationAt:z.string().datetime().optional()}).parse(d))
   .handler(async({data,context})=>{
-    const {supabase}=ctx(context);const {data:id,error}=await supabase.rpc("verify_resource",{p_institution:data.institutionId,p_status:data.status,p_source:data.source,p_evidence_url:data.evidenceUrl||null,p_notes:data.notes||null,p_next_verification:data.nextVerificationAt||null});fail(error);return {verificationId:id};
+    const probe=ctx(context);const owner=await probe.supabase.from("social_institutions").select("org_id").eq("id",data.institutionId).single();fail(owner.error);const {supabase}=await requireResourceKnowledgeAdmin(context,owner.data.org_id);const {data:id,error}=await supabase.rpc("verify_resource",{p_institution:data.institutionId,p_status:data.status,p_source:data.source,p_evidence_url:data.evidenceUrl||null,p_notes:data.notes||null,p_next_verification:data.nextVerificationAt||null});fail(error);return {verificationId:id};
   });
 
 export const submitResourceCorrection=createServerFn({method:"POST"})
@@ -730,7 +745,7 @@ export const saveResourceKnowledge=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({id:uuid.optional(),orgId:uuid.nullable().optional(),titleEs:z.string().trim().min(2).max(240),titleEn:z.string().trim().min(2).max(240),summaryEs:z.string().max(5000).optional(),summaryEn:z.string().max(5000).optional(),knowledgeType:z.enum(["procedure","protocol","manual","form","legal_update","service_guide","institution_note"]),serviceCategories:z.array(z.string()).max(50).default([]),stateCodes:z.array(z.string()).max(40).default([]),sourceUrl:z.string().url().optional().or(z.literal("")),approvalStatus:z.enum(["draft","in_review","approved","retired"]).default("draft"),reviewDueAt:z.string().datetime().optional()}).parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);const payload={org_id:data.orgId??null,title_es:data.titleEs,title_en:data.titleEn,summary_es:data.summaryEs||null,summary_en:data.summaryEn||null,knowledge_type:data.knowledgeType,service_categories:data.serviceCategories,state_codes:data.stateCodes,source_url:data.sourceUrl||null,approval_status:data.approvalStatus,review_due_at:data.reviewDueAt||null,created_by:userId,approved_by:data.approvalStatus==="approved"?userId:null,approved_at:data.approvalStatus==="approved"?new Date().toISOString():null,updated_at:new Date().toISOString()};
+    const {supabase,userId}=await requireResourceKnowledgeAdmin(context,data.orgId??null);const payload={org_id:data.orgId??null,title_es:data.titleEs,title_en:data.titleEn,summary_es:data.summaryEs||null,summary_en:data.summaryEn||null,knowledge_type:data.knowledgeType,service_categories:data.serviceCategories,state_codes:data.stateCodes,source_url:data.sourceUrl||null,approval_status:data.approvalStatus,review_due_at:data.reviewDueAt||null,created_by:userId,approved_by:data.approvalStatus==="approved"?userId:null,approved_at:data.approvalStatus==="approved"?new Date().toISOString():null,updated_at:new Date().toISOString()};
     const query=data.id?supabase.from("resource_knowledge_records").update(payload).eq("id",data.id):supabase.from("resource_knowledge_records").insert(payload);
     const {data:row,error}=await query.select("id,version,approval_status").single();fail(error);return row;
   });
@@ -825,7 +840,7 @@ export const saveKnowledgeRecord=createServerFn({method:"POST"})
     applicablePrograms:z.array(z.string()).max(50).default([]),requiredSteps:z.array(z.string()).max(100).default([]),officialSources:z.array(z.object({title:z.string().max(300),url:z.string().url()})).max(50).default([]),
   }).parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);const now=new Date().toISOString();
+    const {supabase,userId}=await requireResourceKnowledgeAdmin(context,data.orgId);const now=new Date().toISOString();
     const current=data.id?await supabase.from("resource_knowledge_records").select("version").eq("id",data.id).single():null;if(current)fail(current.error);const nextVersion=data.id?(current!.data.version+1):1;
     const payload={org_id:data.orgId,version:nextVersion,title_es:data.titleEs,title_en:data.titleEn,summary_es:data.summaryEs||null,summary_en:data.summaryEn||null,
       content_es:data.contentEs||null,content_en:data.contentEn||null,knowledge_type:data.knowledgeType,service_categories:data.serviceCategories,
@@ -844,12 +859,12 @@ export const saveKnowledgeRecord=createServerFn({method:"POST"})
 export const prepareKnowledgeUpload=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({orgId:uuid,recordId:uuid,fileName:z.string().min(1).max(255)}).parse(d))
-  .handler(async({data,context})=>{const {supabase}=ctx(context);const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");const path=`${data.orgId}/${data.recordId}/${crypto.randomUUID()}-${safe}`;const signed=await supabase.storage.from("social-knowledge-files").createSignedUploadUrl(path);fail(signed.error);return {path,token:signed.data.token};});
+  .handler(async({data,context})=>{const {supabase}=await requireResourceKnowledgeAdmin(context,data.orgId);const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");const path=`${data.orgId}/${data.recordId}/${crypto.randomUUID()}-${safe}`;const signed=await supabase.storage.from("social-knowledge-files").createSignedUploadUrl(path);fail(signed.error);return {path,token:signed.data.token};});
 
 export const finalizeKnowledgeUpload=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({recordId:uuid,path:z.string().min(20).max(1000),fileType:z.string().max(120)}).parse(d))
-  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.from("resource_knowledge_records").update({document_path:data.path,file_type:data.fileType,updated_at:new Date().toISOString()}).eq("id",data.recordId);fail(error);return {ok:true};});
+  .handler(async({data,context})=>{const probe=ctx(context);const owner=await probe.supabase.from("resource_knowledge_records").select("org_id").eq("id",data.recordId).single();fail(owner.error);const {supabase}=await requireResourceKnowledgeAdmin(context,owner.data.org_id);const {error}=await supabase.from("resource_knowledge_records").update({document_path:data.path,file_type:data.fileType,updated_at:new Date().toISOString()}).eq("id",data.recordId);fail(error);return {ok:true};});
 
 export const openKnowledgeRecord=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])

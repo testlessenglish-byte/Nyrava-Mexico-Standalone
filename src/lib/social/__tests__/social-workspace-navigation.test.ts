@@ -16,9 +16,12 @@ describe("Comprehensive Care Phase 5 workspace navigation",()=>{
   });
 
   it("preserves contextual organization resources without exposing every case stage globally",()=>{
-    for(const label of ["Resource Network","Knowledge Center","Institutional Indicators","Manage Resources"]){
+    for(const label of ["Resource Network","Knowledge Center","Institutional Indicators"]){
       expect(route).toContain(`en:"${label}"`);
     }
+    expect(route).not.toContain('en:"Manage Resources"');
+    expect(route).toContain('en:"Resource & Knowledge Administration"');
+    expect(route).toContain("canAdministerResources");
     expect(route).toContain('area==="caseWork"');
     expect(route).toContain("Open an authorized case");
   });
