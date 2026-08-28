@@ -55,6 +55,7 @@ export type CanonicalTimeline = {
 
 const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})/;
 const US_RE = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/;
+const SLASH_DATE_RE = US_RE;
 const MONTH = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const LONG_RE = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2}),?\s+(\d{4})\b/i;
 
@@ -130,6 +131,13 @@ const ES_HUNDREDS: Record<string, number> = {
   setecientos: 700,
   ochocientos: 800,
   novecientos: 900,
+};
+
+const SPANISH_NUMBERS: Record<string, number> = {
+  ...ES_UNITS,
+  ...ES_TENS,
+  ...ES_HUNDREDS,
+  mil: 1000,
 };
 
 const ES_MONTH_PATTERN = Object.keys(ES_MONTHS).join("|");
