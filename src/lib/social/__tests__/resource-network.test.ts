@@ -8,6 +8,7 @@ const server=readFileSync(join(root,"src","lib","social.functions.ts"),"utf8");
 const route=readFileSync(join(root,"src","routes","_authenticated","social.tsx"),"utf8");
 const workspace=readFileSync(join(root,"src","components","social","SocialCaseWorkspace.tsx"),"utf8");
 const ui=readFileSync(join(root,"src","components","social","ResourceKnowledgeNetwork.tsx"),"utf8");
+const completion=readFileSync(join(root,"supabase","migrations","20260828090000_resource_case_management_completion.sql"),"utf8");
 
 describe("resource and institutional knowledge network",()=>{
   it("protects every new table with row-level security",()=>{
@@ -40,7 +41,7 @@ describe("resource and institutional knowledge network",()=>{
     expect(migration).toContain("'completed'");
   });
   it("wires directory, knowledge, administration, and case-aware recommendations",()=>{
-    for(const marker of ['id:"resources"','id:"knowledge"','id:"resourceAdmin"','mode="resources"','mode="knowledge"','mode="admin"'])expect(route).toContain(marker);
+    for(const marker of ['id:"resources"','id:"knowledge"','id:"resourceAdmin"','mode="resources"','mode="admin"','KnowledgeCenter'])expect(route).toContain(marker);
     expect(workspace).toContain('id:"resources"');
     expect(workspace).toContain("CaseResourceRecommendations");
     expect(server).toContain("export const findResourcesForSocialCase");
@@ -50,6 +51,21 @@ describe("resource and institutional knowledge network",()=>{
     for(const value of ["unknown","low","moderate","high","critical","service_in_progress"])expect(workspace).toContain(value);
     expect(ui).toContain('locale==="es"');
     expect(ui).toContain("Verificación vencida");
-    expect(ui).toContain("No identifying information is sent");
+    expect(ui).toContain("no identifying information is sent");
+  });
+  it("adds explicit, consent-gated contact and referral workflows without duplicate case systems",()=>{
+    expect(ui).toContain('"CONTACT"');
+    expect(ui).toContain('"CREATE REFERRAL"');
+    expect(ui).toContain('"Review"');
+    expect(ui).toContain('"Send"');
+    expect(server).toContain("export const sendResourceCommunication");
+    expect(server).toContain("export const createResourceReferral");
+    expect(server).toContain('from("social_tasks")');
+    expect(completion).toContain("social_resource_communications");
+    expect(completion).toContain("Consent required. Open Documents and Consent.");
+    expect(completion).toContain("social_activity_events");
+    expect(completion).toContain("external_shareable");
+    expect(completion).not.toContain("create table if not exists public.social_cases");
+    expect(completion).not.toContain("create table if not exists public.social_tasks");
   });
 });
