@@ -106,45 +106,54 @@ function SocialCarePage(){
 
   const setArea=(newArea:Area)=>{
     void navigate({
-      search:(prev:any)=>({
-        ...prev,
-        area:newArea==="dashboard"?undefined:newArea,
-        caseId:undefined,
-        tab:undefined,
-      }),
-      replace:true,
-    });
+      to: "/social",
+      search: {
+        area: newArea==="dashboard"?undefined:newArea,
+        caseId: undefined,
+        tab: undefined,
+        orgId: orgId||undefined,
+      },
+      replace: true,
+    } as any);
   };
 
   const setSelectedCaseId=(id:string,initialTab?:string)=>{
     void navigate({
-      search:(prev:any)=>({
-        ...prev,
-        caseId:id||undefined,
-        tab:id?(initialTab||prev.tab||"overview"):undefined,
-      }),
-      replace:true,
-    });
+      to: "/social",
+      search: {
+        area: area==="dashboard"?undefined:area,
+        caseId: id||undefined,
+        tab: id?(initialTab||activeCaseTab||"overview"):undefined,
+        orgId: orgId||undefined,
+      },
+      replace: true,
+    } as any);
   };
 
   const handleCaseTabChange=(nextTab:string)=>{
     void navigate({
-      search:(prev:any)=>({
-        ...prev,
-        tab:nextTab==="overview"?undefined:nextTab,
-      }),
-      replace:true,
-    });
+      to: "/social",
+      search: {
+        area: area==="dashboard"?undefined:area,
+        caseId: selectedCaseId||undefined,
+        tab: nextTab==="overview"?undefined:nextTab,
+        orgId: orgId||undefined,
+      },
+      replace: true,
+    } as any);
   };
 
   const setOrgId=(newOrgId:string)=>{
     void navigate({
-      search:(prev:any)=>({
-        ...prev,
-        orgId:newOrgId||undefined,
-      }),
-      replace:true,
-    });
+      to: "/social",
+      search: {
+        area: area==="dashboard"?undefined:area,
+        caseId: selectedCaseId||undefined,
+        tab: activeCaseTab==="overview"?undefined:activeCaseTab,
+        orgId: newOrgId||undefined,
+      },
+      replace: true,
+    } as any);
   };
   const [query,setQuery]=useState("");
   const [caseListQuery,setCaseListQuery]=useState("");

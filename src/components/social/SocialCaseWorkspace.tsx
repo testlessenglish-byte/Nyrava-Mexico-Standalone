@@ -66,9 +66,9 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
   const {locale}=useI18n();const es=locale==="es";const qc=useQueryClient();
   const getCaseFn=useServerFn(getSocialCase);
   const [tab,setTab]=useState<Tab>(initialTab||"overview");
-  useState(()=>{
+  useEffect(()=>{
     if(initialTab&&initialTab!==tab)setTab(initialTab);
-  });
+  },[initialTab]);
   const detail=useQuery({queryKey:["social-case",caseId],queryFn:()=>getCaseFn({data:{caseId}}),retry:1});
   const refresh=()=>qc.invalidateQueries({queryKey:["social-case",caseId]});
   const success=(message:string)=>{toast.success(message);void refresh();};
