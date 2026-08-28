@@ -1358,3 +1358,289 @@ export const sendCaseDocumentEmail = createServerFn({ method: "POST" })
     return updated.data;
   });
 
+export const getSocialActivityRecordDetail = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ caseId: uuid, activityId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+
+    // Fetch the activity event
+    const eventRes = await supabase.from("social_activity_events").select("*").eq("id", data.activityId).eq("social_case_id", data.caseId).single();
+    fail(eventRes.error);
+    const event = eventRes.data;
+
+    let record: any = null;
+    let actorName: string | null = null;
+    let permittedActions = {
+      canEdit: false,
+      canDelete: false,
+      canAddFollowUp: false,
+      canCreateNewVersion: false,
+      isReadOnly: true,
+      targetTab: "activity",
+    };
+
+    if (event.actor_id) {
+      const member = await supabase.from("social_organization_members").select("name,email").eq("user_id", event.actor_id).maybeSingle();
+      if (member.data) actorName = member.data.name || member.data.email;
+    }
+
+    const entityType = event.entity_type;
+    const entityId = event.entity_id;
+
+    if (!entityId) {
+      return { event, record: null, actorName, permittedActions };
+    }
+
+    switch (entityType) {
+      case "social_interventions": {
+        const res = await supabase.from("social_interventions").select("*").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: true,
+          canDelete: true,
+          canAddFollowUp: true,
+          canCreateNewVersion: false,
+          isReadOnly: false,
+          targetTab: "interventions",
+        };
+        break;
+      }
+      case "social_care_plans": {
+        const res = await supabase.from("social_care_plans").select("*,social_care_plan_versions(*,social_care_plan_goals(*))").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: false,
+          canDelete: false,
+          canAddFollowUp: true,
+          canCreateNewVersion: true,
+          isReadOnly: true,
+          targetTab: "plan",
+        };
+        break;
+      }
+      case "social_assessments": {
+        const res = await supabase.from("social_assessments").select("*,social_assessment_versions(*)").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: false,
+          canDelete: false,
+          canAddFollowUp: false,
+          canCreateNewVersion: true,
+          isReadOnly: true,
+          targetTab: "risk",
+        };
+        break;
+      }
+      case "social_documents": {
+        const res = await supabase.from("social_documents").select("*,social_document_versions(*)").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: record?.lifecycle_status === "draft",
+          canDelete: record?.lifecycle_status === "draft",
+          canAddFollowUp: false,
+          canCreateNewVersion: true,
+          isReadOnly: record?.lifecycle_status === "finalized" || record?.lifecycle_status === "sent",
+          targetTab: "documents",
+        };
+        break;
+      }
+      case "social_alerts": {
+        const res = await supabase.from("social_alerts").select("*").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: true,
+          canDelete: false,
+          canAddFollowUp: true,
+          canCreateNewVersion: false,
+          isReadOnly: false,
+          targetTab: "tasks",
+        };
+        break;
+      }
+      case "social_tasks": {
+        const res = await supabase.from("social_tasks").select("*").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: true,
+          canDelete: true,
+          canAddFollowUp: false,
+          canCreateNewVersion: false,
+          isReadOnly: false,
+          targetTab: "tasks",
+        };
+        break;
+      }
+      case "social_document_access_events": {
+        const res = await supabase.from("social_document_access_events").select("*").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: false,
+          canDelete: false,
+          canAddFollowUp: false,
+          canCreateNewVersion: false,
+          isReadOnly: true,
+          targetTab: "documents",
+        };
+        break;
+      }
+      case "social_cases": {
+        const res = await supabase.from("social_cases").select("id,case_number,status,priority,risk_level,last_activity_at,assigned_case_manager").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: true,
+          canDelete: false,
+          canAddFollowUp: false,
+          canCreateNewVersion: false,
+          isReadOnly: true,
+          targetTab: "summary",
+        };
+        break;
+      }
+      case "social_consents": {
+        const res = await supabase.from("social_consents").select("*,social_consent_versions(*)").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: false,
+          canDelete: false,
+          canAddFollowUp: false,
+          canCreateNewVersion: true,
+          isReadOnly: true,
+          targetTab: "consent",
+        };
+        break;
+      }
+      case "social_referrals": {
+        const res = await supabase.from("social_referrals").select("*,social_referral_updates(*)").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: true,
+          canDelete: false,
+          canAddFollowUp: true,
+          canCreateNewVersion: false,
+          isReadOnly: false,
+          targetTab: "referral",
+        };
+        break;
+      }
+      case "social_appointments": {
+        const res = await supabase.from("social_appointments").select("*").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: true,
+          canDelete: true,
+          canAddFollowUp: false,
+          canCreateNewVersion: false,
+          isReadOnly: false,
+          targetTab: "tasks",
+        };
+        break;
+      }
+      case "social_case_closures": {
+        const res = await supabase.from("social_case_closures").select("*").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: false,
+          canDelete: false,
+          canAddFollowUp: false,
+          canCreateNewVersion: false,
+          isReadOnly: true,
+          targetTab: "closure",
+        };
+        break;
+      }
+      case "social_case_transfers": {
+        const res = await supabase.from("social_case_transfers").select("*,social_case_transfer_items(*)").eq("id", entityId).maybeSingle();
+        record = res.data;
+        permittedActions = {
+          canEdit: false,
+          canDelete: false,
+          canAddFollowUp: false,
+          canCreateNewVersion: false,
+          isReadOnly: true,
+          targetTab: "transfer",
+        };
+        break;
+      }
+      default: {
+        permittedActions = {
+          canEdit: false,
+          canDelete: false,
+          canAddFollowUp: false,
+          canCreateNewVersion: false,
+          isReadOnly: true,
+          targetTab: "activity",
+        };
+        break;
+      }
+    }
+
+    return { event, record, actorName, permittedActions };
+  });
+
+export const updateSocialIntervention = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    interventionId: uuid,
+    reason: z.string().trim().min(2).max(4000),
+    actionsTaken: z.string().trim().min(2).max(4000),
+    outcome: z.string().trim().max(4000).optional(),
+    followUpRequired: z.boolean().default(false),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const existing = await supabase.from("social_interventions").select("*").eq("id", data.interventionId).single();
+    fail(existing.error);
+
+    const updateRes = await supabase.from("social_interventions").update({
+      reason: data.reason,
+      actions_taken: data.actionsTaken,
+      outcome: data.outcome ?? null,
+      follow_up_required: data.followUpRequired,
+      updated_at: new Date().toISOString(),
+    }).eq("id", data.interventionId).select("*").single();
+    fail(updateRes.error);
+
+    // Explicitly record update in social_activity_events
+    await supabase.from("social_activity_events").insert({
+      org_id: existing.data.org_id,
+      social_case_id: existing.data.social_case_id,
+      actor_id: userId,
+      event_type: "update",
+      entity_type: "social_interventions",
+      entity_id: data.interventionId,
+      metadata: { operation: "UPDATE", service_type: existing.data.service_type },
+    });
+
+    return updateRes.data;
+  });
+
+export const deleteSocialIntervention = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    interventionId: uuid,
+    reason: z.string().trim().min(2).max(1000),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const existing = await supabase.from("social_interventions").select("*").eq("id", data.interventionId).single();
+    fail(existing.error);
+
+    const deleteRes = await supabase.from("social_interventions").delete().eq("id", data.interventionId);
+    fail(deleteRes.error);
+
+    // Explicitly record deletion event in immutable ledger
+    await supabase.from("social_activity_events").insert({
+      org_id: existing.data.org_id,
+      social_case_id: existing.data.social_case_id,
+      actor_id: userId,
+      event_type: "delete",
+      entity_type: "social_interventions",
+      entity_id: data.interventionId,
+      metadata: { operation: "DELETE", service_type: existing.data.service_type, deletion_reason: data.reason },
+    });
+
+    return { ok: true };
+  });
+
+
