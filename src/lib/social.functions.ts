@@ -15,6 +15,21 @@ function ctx(context:unknown):AuthContext {
 }
 function fail(error:{message?:string}|null){if(error) throw new Error(error.message||"Social-care operation failed");}
 
+// Resource & Knowledge Administration is restricted to Nyrava/platform
+// administrators and explicitly authorized organization managers. RLS already
+// blocks unauthorized writes; this guard fails the call early and keeps the
+// administration surface unreachable for normal subscribers.
+export async function requireResourceKnowledgeAdmin(context:unknown,orgId?:string|null):Promise<AuthContext>{
+  const c=ctx(context);
+  const platform=await c.supabase.rpc("social_is_platform_admin",{p_user:c.userId});
+  if(platform.data===true)return c;
+  if(orgId){
+    const manager=await c.supabase.rpc("social_can_manage_org",{p_org:orgId,p_user:c.userId});
+    if(manager.data===true)return c;
+  }
+  throw new Error("Administración de recursos y conocimiento restringida / Resource & Knowledge Administration access is restricted");
+}
+
 export const getSocialWorkspace=createServerFn({method:"GET"})
   .middleware([requireSupabaseAuth])
   .handler(async({context})=>{
@@ -694,7 +709,7 @@ export const saveResourceInstitution=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>resourceAdminInput.parse(d))
   .handler(async({data,context})=>{
-    const {supabase}=ctx(context);
+    const {supabase}=await requireResourceKnowledgeAdmin(context,data.orgId??null);
     const payload={org_id:data.orgId??null,name:data.officialName,official_name:data.officialName,institution_type:data.institutionType,description:data.description||null,services:data.services,
       state_code:data.stateCode||null,municipality:data.municipality||null,address:data.address||null,latitude:data.latitude??null,longitude:data.longitude??null,phone:data.phone||null,whatsapp:data.whatsapp||null,
       email:data.email||null,website:data.website||null,languages:data.languages,populations:data.populations,eligibility:data.eligibility||null,required_documents:data.requiredDocuments,cost_type:data.costType,
@@ -716,7 +731,7 @@ export const verifyResourceInstitution=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({institutionId:uuid,status:z.enum(["verified","verification_due","unverified","temporarily_unavailable","at_capacity","closed","archived"]),source:z.string().trim().min(2).max(500),evidenceUrl:z.string().url().optional().or(z.literal("")),notes:z.string().max(2000).optional(),nextVerificationAt:z.string().datetime().optional()}).parse(d))
   .handler(async({data,context})=>{
-    const {supabase}=ctx(context);const {data:id,error}=await supabase.rpc("verify_resource",{p_institution:data.institutionId,p_status:data.status,p_source:data.source,p_evidence_url:data.evidenceUrl||null,p_notes:data.notes||null,p_next_verification:data.nextVerificationAt||null});fail(error);return {verificationId:id};
+    const {supabase}=await requireResourceKnowledgeAdmin(context);const {data:id,error}=await supabase.rpc("verify_resource",{p_institution:data.institutionId,p_status:data.status,p_source:data.source,p_evidence_url:data.evidenceUrl||null,p_notes:data.notes||null,p_next_verification:data.nextVerificationAt||null});fail(error);return {verificationId:id};
   });
 
 export const submitResourceCorrection=createServerFn({method:"POST"})
