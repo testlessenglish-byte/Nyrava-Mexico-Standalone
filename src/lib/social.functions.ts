@@ -182,7 +182,7 @@ export const getSocialCase=createServerFn({method:"GET"})
     ]);
     fail(caseRow.error);
     const c=caseRow.data;
-    if(!c)throw new Error("The selected Comprehensive Care case is unavailable");
+    if(!c)throw new Error("El caso de Atención Integral seleccionado no está disponible / The selected Comprehensive Care case is unavailable");
     const warnings:string[]=[];
     const optionalRows=(label:string,result:any)=>{
       if(result.error){
@@ -398,7 +398,7 @@ export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
     const {data:socialCase,error:caseError}=await supabase.from("social_cases")
       .select("org_id").eq("id",data.socialCaseId).single();
     fail(caseError);
-    if(!socialCase?.org_id||socialCase.org_id!==data.orgId) throw new Error("Case does not belong to the selected organization");
+    if(!socialCase?.org_id||socialCase.org_id!==data.orgId) throw new Error("El caso no pertenece a la organización seleccionada / Case does not belong to the selected organization");
     const mime=String(data.mimeType??"").toLowerCase().split(";")[0];
     const extension=data.fileName.toLowerCase().split(".").pop()??"";
     const allowedExtensions=new Set([
@@ -409,11 +409,11 @@ export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
       "eml","msg","dcm",
     ]);
     const blockedExtensions=new Set(["exe","dll","com","bat","cmd","msi","ps1","sh","js","mjs","cjs","html","htm","php","jar","apk","app","scr"]);
-    if(blockedExtensions.has(extension)||!allowedExtensions.has(extension)) throw new Error("Unsupported or unsafe case-file format");
+    if(blockedExtensions.has(extension)||!allowedExtensions.has(extension)) throw new Error("Formato de archivo no compatible o no seguro / Unsupported or unsafe case-file format");
     const media=mime.startsWith("audio/")||mime.startsWith("video/")||["mp3","wav","m4a","aac","ogg","oga","flac","mp4","mov","m4v","webm","avi","mpeg","mpg","mkv"].includes(extension);
     if(media){
       const {data:programs,error:settingsError}=await supabase.from("social_programs").select("settings").eq("org_id",data.orgId).eq("active",true);fail(settingsError);
-      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads!==false)) throw new Error("Audio and video uploads are disabled for this organization");
+      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads!==false)) throw new Error("La carga de audio y video está deshabilitada para esta organización / Audio and video uploads are disabled for this organization");
     }
     const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");
     const path=`${socialCase.org_id}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
@@ -490,7 +490,7 @@ export const getSocialCaseMediaGallery=createServerFn({method:"GET"})
     if(accountError)console.warn("Unable to resolve organization media authority",accountError.message);
     const canManage=(account as any)?.can_manage===true;
     const isDirectlyAuthorized=[c.created_by,c.assigned_case_manager,c.supervising_manager].filter(Boolean).includes(userId);
-    if(!canManage&&!isDirectlyAuthorized)throw new Error("Only the assigning manager and assigned case worker may view case media");
+    if(!canManage&&!isDirectlyAuthorized)throw new Error("Solo la persona gestora que asignó el caso y la persona responsable pueden ver los archivos / Only the assigning manager and assigned case worker may view case media");
     const {data:documents,error}=await supabase.from("social_documents")
       .select("id,title,document_type,record_type,sensitivity,current_version,checksum,mime_type,size_bytes,storage_path,extraction_authorized,created_at")
       .eq("social_case_id",data.caseId).is("deleted_at",null).order("created_at",{ascending:false});
@@ -519,9 +519,9 @@ export const setSocialDocumentAiAccess=createServerFn({method:"POST"})
     if(accountError)console.warn("Unable to resolve organization AI authority",accountError.message);
     const canManage=(account as any)?.can_manage===true;
     const isDirectlyAuthorized=[c.created_by,c.assigned_case_manager,c.supervising_manager].filter(Boolean).includes(userId);
-    if(!canManage&&!isDirectlyAuthorized)throw new Error("Only the assigning manager and assigned case worker may authorize case AI");
+    if(!canManage&&!isDirectlyAuthorized)throw new Error("Solo la persona gestora que asignó el caso y la persona responsable pueden autorizar la IA / Only the assigning manager and assigned case worker may authorize case AI");
     const {data:updated,error}=await supabase.from("social_documents").update({extraction_authorized:data.allowed}).eq("id",data.documentId).select("id").single();
-    fail(error);if(!updated)throw new Error("The document AI permission could not be updated");
+    fail(error);if(!updated)throw new Error("No se pudo actualizar el permiso de IA del documento / The document AI permission could not be updated");
     await supabase.from("social_activity_events").insert({
       org_id:document.org_id,social_case_id:document.social_case_id,actor_id:userId,
       event_type:"case_media_ai_access_changed",entity_type:"social_document",entity_id:document.id,
@@ -574,7 +574,7 @@ export const shareSocialDocument=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({documentId:uuid,receivingOrgId:uuid,consentId:uuid,purpose:z.string().trim().min(2).max(300),expiresAt:z.string().datetime().optional()}).parse(d))
   .handler(async({data,context})=>{
     const {supabase,userId}=ctx(context);
-    const {data:document,error:documentError}=await supabase.from("social_documents").select("org_id,external_shareable").eq("id",data.documentId).single();fail(documentError);if(!document.external_shareable) throw new Error("Document must be explicitly marked external-shareable before consent-based sharing");
+    const {data:document,error:documentError}=await supabase.from("social_documents").select("org_id,external_shareable").eq("id",data.documentId).single();fail(documentError);if(!document.external_shareable) throw new Error("El documento debe marcarse explícitamente como compartible al exterior antes de compartirlo con consentimiento / Document must be explicitly marked external-shareable before consent-based sharing");
     const {data:row,error}=await supabase.from("social_document_shares").insert({org_id:document.org_id,document_id:data.documentId,receiving_org_id:data.receivingOrgId,consent_id:data.consentId,purpose:data.purpose,expires_at:data.expiresAt??null,created_by:userId}).select("id").single();fail(error);return row;
   });
 
@@ -665,7 +665,7 @@ export const sendResourceCommunication=createServerFn({method:"POST"})
     const {supabase,userId}=ctx(context);
     const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,case_number").eq("id",data.caseId).single();fail(caseError);
     const {data:documents,error:docError}=await supabase.from("social_documents").select("id,title").eq("social_case_id",data.caseId).in("id",data.documentIds);fail(docError);
-    if((documents??[]).length!==data.documentIds.length)throw new Error("A selected document is not available in this case");
+    if((documents??[]).length!==data.documentIds.length)throw new Error("Un documento seleccionado no está disponible en este caso / A selected document is not available in this case");
     const initial="draft";
     const {data:row,error}=await supabase.from("social_resource_communications").insert({org_id:c.org_id,social_case_id:data.caseId,institution_id:data.institutionId,referral_id:data.referralId??null,sender_id:userId,recipient:data.recipient,subject:data.subject,communication_type:data.type,message:data.message??null,document_ids:data.documentIds,consent_id:data.consentId??null,status:initial}).select("id").single();fail(error);
     if(data.type!=="email"){
@@ -801,7 +801,7 @@ export const moveSocialDocument=createServerFn({method:"POST"})
   .handler(async({data,context})=>{const {supabase}=ctx(context);
     const document=await supabase.from("social_documents").select("id,org_id,social_case_id,record_type,storage_path,checksum,mime_type,size_bytes").eq("id",data.documentId).single();fail(document.error);
     const target=await supabase.from("social_cases").select("id,org_id").eq("id",data.targetCaseId).single();fail(target.error);
-    if(document.data.org_id!==target.data.org_id) throw new Error("Document cannot move outside its organization");
+    if(document.data.org_id!==target.data.org_id) throw new Error("El documento no puede salir de su organización / Document cannot move outside its organization");
     const downloaded=await supabase.storage.from("social-case-files").download(document.data.storage_path);fail(downloaded.error);
     const file=downloaded.data;const name=document.data.storage_path.split("/").pop()?.replace(/^[^-]+-/,"")||"document";
     const targetPath=`${document.data.org_id}/${target.data.id}/${document.data.record_type}/${crypto.randomUUID()}-${name.replace(/[^a-zA-Z0-9._-]+/g,"_")}`;
@@ -874,7 +874,7 @@ export const openKnowledgeRecord=createServerFn({method:"POST"})
 export const actOnKnowledgeRecord=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({recordId:uuid,caseId:uuid,action:z.enum(["attach_reference","add_required_form","create_checklist","create_task","find_related_resources","start_referral","share_client_version","ask_talk_to_case","add_to_case_work"]),details:z.record(z.string(),z.unknown()).default({})}).parse(d))
-  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id,audience,approval_status").eq("id",data.recordId).single();fail(rec.error);if(!["approved","published"].includes(rec.data.approval_status))throw new Error("Only approved knowledge can be used with a case");if(data.action==="share_client_version"&&rec.data.audience!=="client_facing")throw new Error("Only client-facing material may be shared");const sc=await supabase.from("social_cases").select("org_id").eq("id",data.caseId).single();fail(sc.error);const row=await supabase.from("resource_knowledge_case_actions").insert({knowledge_id:data.recordId,org_id:rec.data.org_id??sc.data.org_id,social_case_id:data.caseId,action_type:data.action,details:{...data.details,legal_evidence:false},created_by:userId});fail(row.error);return {ok:true};});
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id,audience,approval_status").eq("id",data.recordId).single();fail(rec.error);if(!["approved","published"].includes(rec.data.approval_status))throw new Error("Solo el conocimiento aprobado puede usarse en un caso / Only approved knowledge can be used with a case");if(data.action==="share_client_version"&&rec.data.audience!=="client_facing")throw new Error("Solo puede compartirse material dirigido a la persona usuaria / Only client-facing material may be shared");const sc=await supabase.from("social_cases").select("org_id").eq("id",data.caseId).single();fail(sc.error);const row=await supabase.from("resource_knowledge_case_actions").insert({knowledge_id:data.recordId,org_id:rec.data.org_id??sc.data.org_id,social_case_id:data.caseId,action_type:data.action,details:{...data.details,legal_evidence:false},created_by:userId});fail(row.error);return {ok:true};});
 
 export const submitKnowledgeCorrection=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
@@ -889,7 +889,8 @@ export const askTalkToCareCase=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({caseId:uuid,question:z.string().trim().min(2).max(3000),language:z.enum(["es","en"]).default("es"),healthCheck:z.boolean().default(false)}).parse(d))
   .handler(async({data,context})=>{
     const {supabase,userId}=ctx(context);
-    const {buildCareHealth,buildFactSheet,buildDeterministicAnswer,CARE_ASSISTANT_SYSTEM}=await import("@/lib/social/care-assistant.server");
+    const {buildCareHealth,buildFactSheet,buildDeterministicAnswer,careAssistantSystem,CARE_LABELS,localizeAssistantLabels}=await import("@/lib/social/care-assistant.server");
+    const isEs=data.language==="es";const T=(s:string,e:string)=>isEs?s:e;const LBL=CARE_LABELS[data.language];
     const caseRow=await supabase.from("social_cases").select("*").eq("id",data.caseId).single();fail(caseRow.error);const sc=caseRow.data;
     const stateCode=sc.state_code??null;
     const [person,family,assessments,plans,interventions,tasks,referrals,documents,consents,requirements,intakes,alerts,activity,closures,knowledge,resources]=await Promise.all([
@@ -916,8 +917,8 @@ export const askTalkToCareCase=createServerFn({method:"POST"})
     const rankedKnowledge=(knowledge.data??[]).map((k:any)=>({...k,category:(k.service_categories??[])[0]??k.knowledge_type??null,_score:relevance(`${(k.service_categories??[]).join(" ")} ${k.knowledge_type??""} ${k.title_es??""} ${k.title_en??""}`.toLowerCase())+(stateCode&&(k.state_codes??[]).includes(stateCode)?1:0)})).sort((a:any,b:any)=>b._score-a._score).slice(0,8);
     const rankedResources=(resources.data??[]).map((r:any)=>({...r,_score:relevance(`${(r.services??[]).join(" ")}`.toLowerCase())+(stateCode&&r.state_code===stateCode?1:0)})).sort((a:any,b:any)=>b._score-a._score).slice(0,10);
     const x={case:sc,person:person.data,family:family.data,assessments:assessments.data??[],plans:plans.data??[],interventions:interventions.data??[],tasks:tasks.data??[],referrals:referrals.data??[],documents:documents.data??[],consents:consents.data??[],requirements:requirements.data??[],intakes:intakes.data??[],alerts:alerts.data??[],activity:activity.data??[],closures:closures.data??[],knowledge:rankedKnowledge,resources:rankedResources};
-    const health=buildCareHealth(x);const openTasks=x.tasks.filter((t:any)=>!["completed","cancelled"].includes(t.status));const openReferrals=x.referrals.filter((v:any)=>!["completed","closed","verified"].includes(v.status));
-    const sources=[`Case ${sc.case_number}`,...x.intakes.slice(0,1).map((v:any)=>`Intake ${v.intake_number}, status ${v.status}`),...x.assessments.slice(0,1).map((v:any)=>`Assessment ${v.id} v${v.current_version}, ${v.assessment_date}`),...x.plans.slice(0,1).map((v:any)=>`Care plan ${v.id} v${v.current_version}`),...x.interventions.slice(0,3).map((v:any)=>`Intervention ${v.id}, ${v.occurred_at}`),...x.referrals.slice(0,3).map((v:any)=>`Referral ${v.referral_number}, status ${v.status}`),...x.closures.slice(0,1).map((v:any)=>`Closure v${v.closure_version}, ${v.closure_date??"no date"}`)];
+    const health=buildCareHealth(x,data.language);const openTasks=x.tasks.filter((t:any)=>!["completed","cancelled"].includes(t.status));const openReferrals=x.referrals.filter((v:any)=>!["completed","closed","verified"].includes(v.status));
+    const sources=[T(`Caso ${sc.case_number}`,`Case ${sc.case_number}`),...x.intakes.slice(0,1).map((v:any)=>T(`Recepción ${v.intake_number}, estado ${v.status}`,`Intake ${v.intake_number}, status ${v.status}`)),...x.assessments.slice(0,1).map((v:any)=>T(`Evaluación ${v.id} v${v.current_version}, ${v.assessment_date}`,`Assessment ${v.id} v${v.current_version}, ${v.assessment_date}`)),...x.plans.slice(0,1).map((v:any)=>T(`Plan de atención ${v.id} v${v.current_version}`,`Care plan ${v.id} v${v.current_version}`)),...x.interventions.slice(0,3).map((v:any)=>T(`Intervención ${v.id}, ${v.occurred_at}`,`Intervention ${v.id}, ${v.occurred_at}`)),...x.referrals.slice(0,3).map((v:any)=>T(`Canalización ${v.referral_number}, estado ${v.status}`,`Referral ${v.referral_number}, status ${v.status}`)),...x.closures.slice(0,1).map((v:any)=>T(`Cierre v${v.closure_version}, ${v.closure_date??"sin fecha"}`,`Closure v${v.closure_version}, ${v.closure_date??"no date"}`))];
 
     // Narrative answer — grounded on the deterministic fact sheet, produced with
     // the admin-configured AI providers. Falls back to the deterministic answer.
@@ -930,14 +931,15 @@ export const askTalkToCareCase=createServerFn({method:"POST"})
         const resourceList=x.resources.map((r:any)=>({id:r.id,name:r.official_name,services:r.services,location:[r.municipality,r.state_code].filter(Boolean).join(", "),cost:r.cost_type,verification:r.status}));
         const res=await routeAI({
           task:"chat",userId,cache:false,temperature:0.2,maxTokens:1400,
-          systemInstruction:`${CARE_ASSISTANT_SYSTEM}\nRespond in ${data.language==="es"?"Spanish (Mexican professional social-work register)":"English"}.`,
-          userContent:`QUESTION:\n${data.question}\n\nCASE FACTS (JSON):\n${JSON.stringify(factSheet).slice(0,90000)}\n\nAPPROVED KNOWLEDGE CENTER CONTENT:\n${JSON.stringify(knowledgeList)}\n\nRESOURCE NETWORK OPTIONS:\n${JSON.stringify(resourceList)}`,
+          systemInstruction:careAssistantSystem(data.language),
+          userContent:T(`IDIOMA DE RESPUESTA OBLIGATORIO: español.\n\nPREGUNTA:\n${data.question}\n\nHECHOS DEL CASO (JSON):\n${JSON.stringify(factSheet).slice(0,90000)}\n\nCONTENIDO APROBADO DEL CENTRO DE CONOCIMIENTO:\n${JSON.stringify(knowledgeList)}\n\nOPCIONES DE LA RED DE RECURSOS:\n${JSON.stringify(resourceList)}`,`REQUIRED ANSWER LANGUAGE: English.\n\nQUESTION:\n${data.question}\n\nCASE FACTS (JSON):\n${JSON.stringify(factSheet).slice(0,90000)}\n\nAPPROVED KNOWLEDGE CENTER CONTENT:\n${JSON.stringify(knowledgeList)}\n\nRESOURCE NETWORK OPTIONS:\n${JSON.stringify(resourceList)}`),
         });
-        if(res?.text?.trim()){answer=res.text.trim();answerSource="ai";}
-      }catch(e:any){answerError=e?.message??"AI providers unavailable";}
+        if(res?.text?.trim()){answer=localizeAssistantLabels(res.text.trim(),data.language);answerSource="ai";}
+      }catch(e:any){answerError=e?.message??T("Proveedores de IA no disponibles","AI providers unavailable");}
     }
 
-    const response={answer,answer_source:answerSource,answer_error:answerError,current_case_status:{summary:`${sc.case_number}: ${sc.status}; risk ${sc.risk_level}. ${x.interventions.length} interventions, ${openTasks.length} open tasks, ${openReferrals.length} open referrals.`,last_activity:sc.last_activity_at},missing_or_incomplete:[...health.critical,...health.action_required,...health.incomplete],risks_requiring_review:health.critical,recommended_next_steps:[...health.critical,...health.action_required,...health.incomplete].slice(0,8).map((v:any)=>({action:v.message,responsible_role:v.code==="risk_review"||v.code.startsWith("closure")?"supervisor":"case_manager",suggested_due_date:new Date(Date.now()+7*86400000).toISOString().slice(0,10),reason:v.why??v.code,supporting_record:v.source,consent_required:["consent","documents","documents_overdue","referrals","referrals_stale"].includes(v.code)})),sources,health_check:health,knowledge_suggestions:x.knowledge.slice(0,5).map((k:any)=>({id:k.id,title:data.language==="es"?k.title_es:(k.title_en??k.title_es),category:k.category,version:k.version,effective_at:k.effective_at,label:"KNOWLEDGE GUIDANCE"})),resource_recommendations:x.resources.slice(0,8).map((v:any)=>({...v,label:"RESOURCE SUGGESTION",warning:v.status!=="verified"?"Resource verification must be reviewed":null})),professional_review_notice:"Indicators and proposed next steps require review by the responsible professional. No allegation or diagnosis is confirmed by this assistant. Nothing in this case was modified.",read_only:true};
+    const roleLabel=(supervisor:boolean)=>supervisor?T("supervisión","supervisor"):T("gestor(a) del caso","case_manager");
+    const response={answer,answer_source:answerSource,answer_error:answerError,current_case_status:{summary:T(`${sc.case_number}: ${sc.status}; riesgo ${sc.risk_level}. ${x.interventions.length} intervenciones, ${openTasks.length} tareas abiertas, ${openReferrals.length} canalizaciones abiertas.`,`${sc.case_number}: ${sc.status}; risk ${sc.risk_level}. ${x.interventions.length} interventions, ${openTasks.length} open tasks, ${openReferrals.length} open referrals.`),last_activity:sc.last_activity_at},missing_or_incomplete:[...health.critical,...health.action_required,...health.incomplete],risks_requiring_review:health.critical,recommended_next_steps:[...health.critical,...health.action_required,...health.incomplete].slice(0,8).map((v:any)=>({action:v.message,responsible_role:roleLabel(v.code==="risk_review"||v.code.startsWith("closure")),suggested_due_date:new Date(Date.now()+7*86400000).toISOString().slice(0,10),reason:v.why??v.code,supporting_record:v.source,consent_required:["consent","documents","documents_overdue","referrals","referrals_stale"].includes(v.code)})),sources,health_check:health,knowledge_suggestions:x.knowledge.slice(0,5).map((k:any)=>({id:k.id,title:isEs?(k.title_es??k.title_en):(k.title_en??k.title_es),category:k.category,version:k.version,effective_at:k.effective_at,label:LBL.knowledge})),resource_recommendations:x.resources.slice(0,8).map((v:any)=>({...v,label:LBL.resource,warning:v.status!=="verified"?T("Debe revisarse la verificación de este recurso","Resource verification must be reviewed"):null})),professional_review_notice:T("Los indicadores y los próximos pasos propuestos requieren revisión de la persona profesional responsable. Este asistente no confirma ninguna acusación ni diagnóstico. No se modificó nada en este caso.","Indicators and proposed next steps require review by the responsible professional. No allegation or diagnosis is confirmed by this assistant. Nothing in this case was modified."),read_only:true};
     const manifest={authenticated_user:userId,organization:sc.org_id,selected_case:data.caseId,case_assignment:sc.assigned_case_manager,record_types:["general_case_record"],excluded:["legal_privileged_record","psychosocial_restricted_record","medical_restricted_record","child_protection_restricted_record"],language:data.language,retrieved_at:new Date().toISOString()};
     const run=await supabase.from("social_care_assistant_runs").insert({org_id:sc.org_id,social_case_id:data.caseId,actor_id:userId,language:data.language,question:data.question,response,retrieval_manifest:manifest,health_check:data.healthCheck}).select("id").single();fail(run.error);return {runId:run.data.id,response,manifest};
   });
