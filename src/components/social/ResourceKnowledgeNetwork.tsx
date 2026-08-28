@@ -21,7 +21,9 @@ const option=(value:string,es:boolean):string=>{
     standard:["Estándar","Standard"],urgent:["Urgente","Urgent"],emergency:["Emergencia","Emergency"],
     service_match:["Coincide con el servicio","Service match"],geographic_match:["Coincide con la zona","Geographic match"],language_match:["Coincide con el idioma","Language match"],
     population_match:["Atiende a esta población","Population match"],emergency_available:["Atención de emergencia","Emergency service"],verified_resource:["Recurso verificado","Verified resource"],
+    source_verified:["Verificado por fuente oficial","Source verified"],manually_verified:["Verificado manualmente","Manually verified"],unverified_contact:["Contacto sin verificar","Contact unverified"],
   };const x=values[value];return x?(es?x[0]:x[1]):value.replaceAll("_"," ");
+
 };
 const opts=(values:string[],es:boolean):Option[]=>values.map(value=>({value,label:option(value,es)}));
 
