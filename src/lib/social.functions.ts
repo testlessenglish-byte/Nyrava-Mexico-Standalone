@@ -182,7 +182,7 @@ export const getSocialCase=createServerFn({method:"GET"})
     ]);
     fail(caseRow.error);
     const c=caseRow.data;
-    if(!c)throw new Error("The selected Comprehensive Care case is unavailable");
+    if(!c)throw new Error("El caso de Atención Integral seleccionado no está disponible / The selected Comprehensive Care case is unavailable");
     const warnings:string[]=[];
     const optionalRows=(label:string,result:any)=>{
       if(result.error){
@@ -398,7 +398,7 @@ export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
     const {data:socialCase,error:caseError}=await supabase.from("social_cases")
       .select("org_id").eq("id",data.socialCaseId).single();
     fail(caseError);
-    if(!socialCase?.org_id||socialCase.org_id!==data.orgId) throw new Error("Case does not belong to the selected organization");
+    if(!socialCase?.org_id||socialCase.org_id!==data.orgId) throw new Error("El caso no pertenece a la organización seleccionada / Case does not belong to the selected organization");
     const mime=String(data.mimeType??"").toLowerCase().split(";")[0];
     const extension=data.fileName.toLowerCase().split(".").pop()??"";
     const allowedExtensions=new Set([
@@ -409,11 +409,11 @@ export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
       "eml","msg","dcm",
     ]);
     const blockedExtensions=new Set(["exe","dll","com","bat","cmd","msi","ps1","sh","js","mjs","cjs","html","htm","php","jar","apk","app","scr"]);
-    if(blockedExtensions.has(extension)||!allowedExtensions.has(extension)) throw new Error("Unsupported or unsafe case-file format");
+    if(blockedExtensions.has(extension)||!allowedExtensions.has(extension)) throw new Error("Formato de archivo no compatible o no seguro / Unsupported or unsafe case-file format");
     const media=mime.startsWith("audio/")||mime.startsWith("video/")||["mp3","wav","m4a","aac","ogg","oga","flac","mp4","mov","m4v","webm","avi","mpeg","mpg","mkv"].includes(extension);
     if(media){
       const {data:programs,error:settingsError}=await supabase.from("social_programs").select("settings").eq("org_id",data.orgId).eq("active",true);fail(settingsError);
-      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads!==false)) throw new Error("Audio and video uploads are disabled for this organization");
+      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads!==false)) throw new Error("La carga de audio y video está deshabilitada para esta organización / Audio and video uploads are disabled for this organization");
     }
     const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");
     const path=`${socialCase.org_id}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
@@ -490,7 +490,7 @@ export const getSocialCaseMediaGallery=createServerFn({method:"GET"})
     if(accountError)console.warn("Unable to resolve organization media authority",accountError.message);
     const canManage=(account as any)?.can_manage===true;
     const isDirectlyAuthorized=[c.created_by,c.assigned_case_manager,c.supervising_manager].filter(Boolean).includes(userId);
-    if(!canManage&&!isDirectlyAuthorized)throw new Error("Only the assigning manager and assigned case worker may view case media");
+    if(!canManage&&!isDirectlyAuthorized)throw new Error("Solo la persona gestora que asignó el caso y la persona responsable pueden ver los archivos / Only the assigning manager and assigned case worker may view case media");
     const {data:documents,error}=await supabase.from("social_documents")
       .select("id,title,document_type,record_type,sensitivity,current_version,checksum,mime_type,size_bytes,storage_path,extraction_authorized,created_at")
       .eq("social_case_id",data.caseId).is("deleted_at",null).order("created_at",{ascending:false});
@@ -519,9 +519,9 @@ export const setSocialDocumentAiAccess=createServerFn({method:"POST"})
     if(accountError)console.warn("Unable to resolve organization AI authority",accountError.message);
     const canManage=(account as any)?.can_manage===true;
     const isDirectlyAuthorized=[c.created_by,c.assigned_case_manager,c.supervising_manager].filter(Boolean).includes(userId);
-    if(!canManage&&!isDirectlyAuthorized)throw new Error("Only the assigning manager and assigned case worker may authorize case AI");
+    if(!canManage&&!isDirectlyAuthorized)throw new Error("Solo la persona gestora que asignó el caso y la persona responsable pueden autorizar la IA / Only the assigning manager and assigned case worker may authorize case AI");
     const {data:updated,error}=await supabase.from("social_documents").update({extraction_authorized:data.allowed}).eq("id",data.documentId).select("id").single();
-    fail(error);if(!updated)throw new Error("The document AI permission could not be updated");
+    fail(error);if(!updated)throw new Error("No se pudo actualizar el permiso de IA del documento / The document AI permission could not be updated");
     await supabase.from("social_activity_events").insert({
       org_id:document.org_id,social_case_id:document.social_case_id,actor_id:userId,
       event_type:"case_media_ai_access_changed",entity_type:"social_document",entity_id:document.id,
@@ -574,7 +574,7 @@ export const shareSocialDocument=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({documentId:uuid,receivingOrgId:uuid,consentId:uuid,purpose:z.string().trim().min(2).max(300),expiresAt:z.string().datetime().optional()}).parse(d))
   .handler(async({data,context})=>{
     const {supabase,userId}=ctx(context);
-    const {data:document,error:documentError}=await supabase.from("social_documents").select("org_id,external_shareable").eq("id",data.documentId).single();fail(documentError);if(!document.external_shareable) throw new Error("Document must be explicitly marked external-shareable before consent-based sharing");
+    const {data:document,error:documentError}=await supabase.from("social_documents").select("org_id,external_shareable").eq("id",data.documentId).single();fail(documentError);if(!document.external_shareable) throw new Error("El documento debe marcarse explícitamente como compartible al exterior antes de compartirlo con consentimiento / Document must be explicitly marked external-shareable before consent-based sharing");
     const {data:row,error}=await supabase.from("social_document_shares").insert({org_id:document.org_id,document_id:data.documentId,receiving_org_id:data.receivingOrgId,consent_id:data.consentId,purpose:data.purpose,expires_at:data.expiresAt??null,created_by:userId}).select("id").single();fail(error);return row;
   });
 
@@ -665,7 +665,7 @@ export const sendResourceCommunication=createServerFn({method:"POST"})
     const {supabase,userId}=ctx(context);
     const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,case_number").eq("id",data.caseId).single();fail(caseError);
     const {data:documents,error:docError}=await supabase.from("social_documents").select("id,title").eq("social_case_id",data.caseId).in("id",data.documentIds);fail(docError);
-    if((documents??[]).length!==data.documentIds.length)throw new Error("A selected document is not available in this case");
+    if((documents??[]).length!==data.documentIds.length)throw new Error("Un documento seleccionado no está disponible en este caso / A selected document is not available in this case");
     const initial="draft";
     const {data:row,error}=await supabase.from("social_resource_communications").insert({org_id:c.org_id,social_case_id:data.caseId,institution_id:data.institutionId,referral_id:data.referralId??null,sender_id:userId,recipient:data.recipient,subject:data.subject,communication_type:data.type,message:data.message??null,document_ids:data.documentIds,consent_id:data.consentId??null,status:initial}).select("id").single();fail(error);
     if(data.type!=="email"){
@@ -801,7 +801,7 @@ export const moveSocialDocument=createServerFn({method:"POST"})
   .handler(async({data,context})=>{const {supabase}=ctx(context);
     const document=await supabase.from("social_documents").select("id,org_id,social_case_id,record_type,storage_path,checksum,mime_type,size_bytes").eq("id",data.documentId).single();fail(document.error);
     const target=await supabase.from("social_cases").select("id,org_id").eq("id",data.targetCaseId).single();fail(target.error);
-    if(document.data.org_id!==target.data.org_id) throw new Error("Document cannot move outside its organization");
+    if(document.data.org_id!==target.data.org_id) throw new Error("El documento no puede salir de su organización / Document cannot move outside its organization");
     const downloaded=await supabase.storage.from("social-case-files").download(document.data.storage_path);fail(downloaded.error);
     const file=downloaded.data;const name=document.data.storage_path.split("/").pop()?.replace(/^[^-]+-/,"")||"document";
     const targetPath=`${document.data.org_id}/${target.data.id}/${document.data.record_type}/${crypto.randomUUID()}-${name.replace(/[^a-zA-Z0-9._-]+/g,"_")}`;
@@ -874,7 +874,7 @@ export const openKnowledgeRecord=createServerFn({method:"POST"})
 export const actOnKnowledgeRecord=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({recordId:uuid,caseId:uuid,action:z.enum(["attach_reference","add_required_form","create_checklist","create_task","find_related_resources","start_referral","share_client_version","ask_talk_to_case","add_to_case_work"]),details:z.record(z.string(),z.unknown()).default({})}).parse(d))
-  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id,audience,approval_status").eq("id",data.recordId).single();fail(rec.error);if(!["approved","published"].includes(rec.data.approval_status))throw new Error("Only approved knowledge can be used with a case");if(data.action==="share_client_version"&&rec.data.audience!=="client_facing")throw new Error("Only client-facing material may be shared");const sc=await supabase.from("social_cases").select("org_id").eq("id",data.caseId).single();fail(sc.error);const row=await supabase.from("resource_knowledge_case_actions").insert({knowledge_id:data.recordId,org_id:rec.data.org_id??sc.data.org_id,social_case_id:data.caseId,action_type:data.action,details:{...data.details,legal_evidence:false},created_by:userId});fail(row.error);return {ok:true};});
+  .handler(async({data,context})=>{const {supabase,userId}=ctx(context);const rec=await supabase.from("resource_knowledge_records").select("org_id,audience,approval_status").eq("id",data.recordId).single();fail(rec.error);if(!["approved","published"].includes(rec.data.approval_status))throw new Error("Solo el conocimiento aprobado puede usarse en un caso / Only approved knowledge can be used with a case");if(data.action==="share_client_version"&&rec.data.audience!=="client_facing")throw new Error("Solo puede compartirse material dirigido a la persona usuaria / Only client-facing material may be shared");const sc=await supabase.from("social_cases").select("org_id").eq("id",data.caseId).single();fail(sc.error);const row=await supabase.from("resource_knowledge_case_actions").insert({knowledge_id:data.recordId,org_id:rec.data.org_id??sc.data.org_id,social_case_id:data.caseId,action_type:data.action,details:{...data.details,legal_evidence:false},created_by:userId});fail(row.error);return {ok:true};});
 
 export const submitKnowledgeCorrection=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
