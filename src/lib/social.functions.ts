@@ -700,7 +700,14 @@ export const saveResourceInstitution=createServerFn({method:"POST"})
       email:data.email||null,website:data.website||null,languages:data.languages,populations:data.populations,eligibility:data.eligibility||null,required_documents:data.requiredDocuments,cost_type:data.costType,
       appointment_required:data.appointmentRequired,walk_in_available:data.walkInAvailable,emergency_available:data.emergencyAvailable,remote_available:data.remoteAvailable,
       referral_methods:data.referralMethods,coverage_levels:data.coverageLevels,capacity_status:data.capacityStatus,location_confidential:data.locationConfidential,
-      public_notes:data.publicNotes||null,internal_notes:data.internalNotes||null,active:true,updated_at:new Date().toISOString()};
+      public_notes:data.publicNotes||null,internal_notes:data.internalNotes||null,active:true,updated_at:new Date().toISOString(),
+      // A human filled these in, so the automatic official-source refresh must
+      // never overwrite them, and the record reads as manually verified.
+      contact_verification:"manually_verified",
+      admin_locked_fields:(["phone","whatsapp","email","website","address"] as const).filter(f=>{
+        const v={phone:data.phone,whatsapp:data.whatsapp,email:data.email,website:data.website,address:data.address}[f];
+        return typeof v==="string"&&v.trim().length>0;
+      })};
     const query=data.id?supabase.from("social_institutions").update(payload).eq("id",data.id):supabase.from("social_institutions").insert(payload);
     const {data:row,error}=await query.select("id,official_name,status").single();fail(error);return row;
   });
