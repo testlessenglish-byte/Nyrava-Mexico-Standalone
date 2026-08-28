@@ -9,6 +9,7 @@ import { CaseResourceRecommendations } from "@/components/social/ResourceKnowled
 import { TalkToCareCase } from "@/components/social/TalkToCareCase";
 import { SocialCaseMediaGallery } from "@/components/social/SocialCaseMediaGallery";
 import { CaseDynamicText } from "@/components/social/CaseDynamicText";
+import { CaseDocumentCenter } from "@/components/social/CaseDocumentCenter";
 import {
   acceptSocialTransfer, advanceSocialTransfer, approveSocialCarePlan,
   assignSocialCaseManager, closeSocialCase, createSocialAppointment,
@@ -492,7 +493,16 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
       {tab==="resources"&&<CaseResourceRecommendations caseId={caseId}/>}
       {tab==="referral"&&<Two>
         <Panel>
-          <h3 className="font-semibold">{es?"Nueva canalización":"New referral"}</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">{es?"Nueva canalización":"New referral"}</h3>
+            <button
+              type="button"
+              onClick={() => setTab("documents")}
+              className="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
+            >
+              {es ? "+ Formato de canalización desde plantilla" : "+ Referral template from library"}
+            </button>
+          </div>
           <Select label={es?"Institución":"Institution"} value={referral.institutionId} onChange={v=>setReferral({...referral,institutionId:v})} options={institutions.map((i:any)=>({value:i.id,label:i.name}))}/>
           <Input label={es?"Servicio solicitado":"Service requested"} value={referral.service} onChange={v=>setReferral({...referral,service:v})}/>
           <Text label={es?"Razón":"Reason"} value={referral.reason} onChange={v=>setReferral({...referral,reason:v})}/>
@@ -525,7 +535,41 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
         </div>}/>
       </div>}
 
-      {tab==="documents"&&<Two><Panel><h3 className="font-semibold">{es?"Cargar archivos del caso":"Upload case files"}</h3><p className="text-xs text-muted-foreground">{es?"PDF, Office, imágenes, archivos ZIP/RAR/7Z, correos, audio y video. Máximo 100 MB por archivo. Permanecen únicamente en este caso de Atención Integral.":"PDF, Office, images, ZIP/RAR/7Z archives, email, audio, video, and case records. Maximum 100 MB per file. Files remain only in this Comprehensive Care case."}</p><label onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();selectCaseFiles(Array.from(e.dataTransfer.files));}} className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-8 text-center hover:bg-primary/10"><FileUp className="mb-2 h-7 w-7 text-primary"/><span className="text-sm font-semibold">{es?"Arrastre archivos aquí o selecciónelos":"Drag files here or select them"}</span><span className="mt-1 text-xs text-muted-foreground">{es?"Puede cargar varios archivos a la vez":"You can upload multiple files at once"}</span><input key={document.files.length?"selected":"empty"} type="file" multiple accept={CASE_FILE_ACCEPT} onChange={e=>selectCaseFiles(Array.from(e.target.files??[]))} className="sr-only"/></label>{document.files.length>0&&<div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">{document.files.map((file,index)=><div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs"><span className="min-w-0 truncate">{file.name} · {(file.size/1024/1024).toFixed(1)} MB</span><button type="button" disabled={documentM.isPending} onClick={()=>setDocument(current=>({...current,files:current.files.filter((_,fileIndex)=>fileIndex!==index)}))} className="shrink-0 text-destructive hover:underline">{es?"Quitar":"Remove"}</button></div>)}</div>}{document.files.length===1&&<Input label={es?"Título visible":"Display title"} value={document.title} onChange={v=>setDocument({...document,title:v})}/>}<Select label={es?"Tipo de registro":"Record type"} value={document.recordType} onChange={v=>setDocument({...document,recordType:v})} options={recordOptions}/><Select label={es?"Consentimiento aplicable":"Applicable consent"} value={document.consentId} onChange={v=>setDocument({...document,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/>{documentM.isPending&&<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs"><p className="font-medium">{es?`Cargando ${uploadProgress.current} de ${uploadProgress.total}`:`Uploading ${uploadProgress.current} of ${uploadProgress.total}`}</p><p className="mt-1 truncate text-muted-foreground">{uploadProgress.name}</p></div>}<Action busy={documentM.isPending} disabled={!document.files.length} onClick={()=>documentM.mutate()}><FileUp className="mr-2 inline h-4 w-4"/>{es?`Proteger y registrar ${document.files.length||""} archivo(s)`:`Protect and register ${document.files.length||""} file(s)`}</Action><div className="border-t border-border pt-3"><h4 className="text-sm font-semibold">{es?"Compartir selectivamente":"Selective sharing"}</h4><Select label={es?"Documento":"Document"} value={share.documentId} onChange={v=>setShare({...share,documentId:v})} options={caseData.documents.map((x:any)=>({value:x.id,label:x.title}))}/><Input label={es?"Organización receptora (UUID)":"Receiving organization (UUID)"} value={share.receivingOrgId} onChange={v=>setShare({...share,receivingOrgId:v})}/><Select label={es?"Consentimiento vigente":"Active consent"} value={share.consentId} onChange={v=>setShare({...share,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/><Input label={es?"Propósito":"Purpose"} value={share.purpose} onChange={v=>setShare({...share,purpose:v})}/><Action busy={shareM.isPending} disabled={!share.documentId||!share.receivingOrgId||!share.consentId} onClick={()=>shareM.mutate()}>{es?"Compartir con control de consentimiento":"Share with consent control"}</Action></div></Panel><SocialCaseMediaGallery caseId={caseId} documents={caseData.documents}/></Two>}
+      {tab==="documents"&&<div className="space-y-6">
+        <CaseDocumentCenter
+          caseId={caseId}
+          documents={caseData.documents}
+          consents={caseData.consents}
+          referrals={caseData.referrals}
+          carePlans={caseData.plans}
+          es={es}
+          onOpenConsentTab={()=>setTab("consent")}
+        />
+        <div className="border-t border-border pt-6">
+          <Two>
+            <Panel>
+              <h3 className="font-semibold">{es?"Cargar archivos adicionales del caso":"Upload additional case files"}</h3>
+              <p className="text-xs text-muted-foreground">{es?"PDF, Office, imágenes, archivos ZIP/RAR/7Z, correos, audio y video. Máximo 100 MB por archivo. Permanecen únicamente en este caso de Atención Integral.":"PDF, Office, images, ZIP/RAR/7Z archives, email, audio, video, and case records. Maximum 100 MB per file. Files remain only in this Comprehensive Care case."}</p>
+              <label onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();selectCaseFiles(Array.from(e.dataTransfer.files));}} className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-8 text-center hover:bg-primary/10"><FileUp className="mb-2 h-7 w-7 text-primary"/><span className="text-sm font-semibold">{es?"Arrastre archivos aquí o selecciónelos":"Drag files here or select them"}</span><span className="mt-1 text-xs text-muted-foreground">{es?"Puede cargar varios archivos a la vez":"You can upload multiple files at once"}</span><input key={document.files.length?"selected":"empty"} type="file" multiple accept={CASE_FILE_ACCEPT} onChange={e=>selectCaseFiles(Array.from(e.target.files??[]))} className="sr-only"/></label>
+              {document.files.length>0&&<div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">{document.files.map((file,index)=><div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs"><span className="min-w-0 truncate">{file.name} · {(file.size/1024/1024).toFixed(1)} MB</span><button type="button" disabled={documentM.isPending} onClick={()=>setDocument(current=>({...current,files:current.files.filter((_,fileIndex)=>fileIndex!==index)}))} className="shrink-0 text-destructive hover:underline">{es?"Quitar":"Remove"}</button></div>)}</div>}
+              {document.files.length===1&&<Input label={es?"Título visible":"Display title"} value={document.title} onChange={v=>setDocument({...document,title:v})}/>}
+              <Select label={es?"Tipo de registro":"Record type"} value={document.recordType} onChange={v=>setDocument({...document,recordType:v})} options={recordOptions}/>
+              <Select label={es?"Consentimiento aplicable":"Applicable consent"} value={document.consentId} onChange={v=>setDocument({...document,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/>
+              {documentM.isPending&&<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs"><p className="font-medium">{es?`Cargando ${uploadProgress.current} de ${uploadProgress.total}`:`Uploading ${uploadProgress.current} of ${uploadProgress.total}`}</p><p className="mt-1 truncate text-muted-foreground">{uploadProgress.name}</p></div>}
+              <Action busy={documentM.isPending} disabled={!document.files.length} onClick={()=>documentM.mutate()}><FileUp className="mr-2 inline h-4 w-4"/>{es?`Proteger y registrar ${document.files.length||""} archivo(s)`:`Protect and register ${document.files.length||""} file(s)`}</Action>
+              <div className="border-t border-border pt-3">
+                <h4 className="text-sm font-semibold">{es?"Compartir selectivamente":"Selective sharing"}</h4>
+                <Select label={es?"Documento":"Document"} value={share.documentId} onChange={v=>setShare({...share,documentId:v})} options={caseData.documents.map((x:any)=>({value:x.id,label:x.title}))}/>
+                <Input label={es?"Organización receptora (UUID)":"Receiving organization (UUID)"} value={share.receivingOrgId} onChange={v=>setShare({...share,receivingOrgId:v})}/>
+                <Select label={es?"Consentimiento vigente":"Active consent"} value={share.consentId} onChange={v=>setShare({...share,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/>
+                <Input label={es?"Propósito":"Purpose"} value={share.purpose} onChange={v=>setShare({...share,purpose:v})}/>
+                <Action busy={shareM.isPending} disabled={!share.documentId||!share.receivingOrgId||!share.consentId} onClick={()=>shareM.mutate()}>{es?"Compartir con control de consentimiento":"Share with consent control"}</Action>
+              </div>
+            </Panel>
+            <SocialCaseMediaGallery caseId={caseId} documents={caseData.documents}/>
+          </Two>
+        </div>
+      </div>}
 
       {tab==="transfer"&&<Two>
         <Panel>
@@ -592,7 +636,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
 
       {tab==="immigration"&&<Panel><div className="mb-3 flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"><ShieldAlert className="h-4 w-4"/>{es?"Solo asuntos mexicanos de Derecho Migratorio, Refugio y Nacionalidad. Se comparte exactamente lo seleccionado.":"Mexican Immigration, Refugee and Nationality matters only. Exactly the selected information is shared."}</div><Input label={es?"ID del asunto migratorio":"Immigration matter ID"} value={immigration.matterId} onChange={v=>setImmigration({...immigration,matterId:v})}/><Select label={es?"Consentimiento específico":"Specific consent"} value={immigration.consentId} onChange={v=>setImmigration({...immigration,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/><Input label={es?"Campos de estado recibidos":"Status fields received"} value={immigration.statusFields} onChange={v=>setImmigration({...immigration,statusFields:v})}/><Input label={es?"Campos sociales compartidos":"Social fields shared"} value={immigration.socialFields} onChange={v=>setImmigration({...immigration,socialFields:v})}/><Action busy={immigrationM.isPending} disabled={!immigration.matterId||!immigration.consentId} onClick={()=>immigrationM.mutate()}>{es?"Crear vínculo autorizado":"Create authorized link"}</Action></Panel>}
 
-      {tab==="assistant"&&<TalkToCareCase caseId={caseId}/>}
+      {tab==="assistant"&&<TalkToCareCase caseId={caseId} documents={caseData.documents} consents={caseData.consents} onOpenDocumentsTab={()=>setTab("documents")}/>}
       {tab==="activity"&&<History title={es?"Libro de auditoría inmutable":"Immutable audit ledger"} rows={caseData.activity} render={(x)=><p>{new Date(x.occurred_at).toLocaleString()} · {localizedEnum(x.event_type,es)} · {localizedEnum(x.entity_type,es)}</p>}/>}
     </div>
   </div>;
