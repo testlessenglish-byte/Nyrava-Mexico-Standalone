@@ -399,7 +399,7 @@ function SocialCarePage(){
         {area==="activity"&&<TeamActivity es={es} account={organizationAccount}/>}
         {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} canCreateCases={canManageOrganization} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setCaseModalOpen(true)} onOpenNewCase={()=>setCaseModalOpen(true)}/>}
         {effectiveArea==="resources"&&<ResourceKnowledgeNetwork mode="resources" orgId={resolvedOrg}/>}
-        {effectiveArea==="knowledge"&&<KnowledgeCenter orgId={resolvedOrg}/>}
+        {area==="knowledge"&&<KnowledgeCenter orgId={resolvedOrg}/>}
         {effectiveArea==="resourceAdmin"&&canAdministerResources&&<><ResourceKnowledgeNetwork mode="admin" orgId={resolvedOrg}/><KnowledgeCenter orgId={resolvedOrg} admin/></>}
         {["interventions","legal","psychosocial","referrals","transfers","closure"].includes(area)&&<OperationalArea area={area} es={es} cases={visibleCases} onOpen={setSelectedCaseId}/>} 
       </main>

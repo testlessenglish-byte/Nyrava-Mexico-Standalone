@@ -8,6 +8,7 @@ import { useI18n } from "@/i18n";
 import { CaseResourceRecommendations } from "@/components/social/ResourceKnowledgeNetwork";
 import { TalkToCareCase } from "@/components/social/TalkToCareCase";
 import { SocialCaseMediaGallery } from "@/components/social/SocialCaseMediaGallery";
+import { CaseDynamicText } from "@/components/social/CaseDynamicText";
 import {
   acceptSocialTransfer, advanceSocialTransfer, approveSocialCarePlan,
   assignSocialCaseManager, closeSocialCase, createSocialAppointment,
@@ -250,31 +251,349 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
       </details>
     </div>
     <div className="p-5">
-      {tab==="overview"&&<div className="grid gap-4 md:grid-cols-2"><History title={es?"Estado del caso":"Case status"} rows={[c]} render={(x)=><p>{x.case_number} · {localizedEnum(x.status,es)} · {localizedEnum(x.risk_level,es)}</p>}/><Panel><h3 className="font-semibold">{es?"Asignación profesional":"Professional assignment"}</h3><Select label={es?"Usuario autorizado":"Authorized user"} value={assignment.userId} onChange={v=>setAssignment({...assignment,userId:v})} options={(organizationMembers.length?organizationMembers.filter((m:any)=>m.status==="active").map((m:any)=>({value:m.user_id,label:`${m.name} · ${m.role}`})):roleAssignments.map((r:any)=>({value:r.user_id,label:`${r.user_id.slice(0,8)} · ${r.role}`})))}/><Select label={es?"Función":"Role"} value={assignment.role} onChange={v=>setAssignment({...assignment,role:v})} options={["case_manager","supervisor","attorney","psychologist","social_worker"].map(v=>({value:v,label:v}))}/><Action busy={assignM.isPending} disabled={!assignment.userId} onClick={()=>assignM.mutate()}>{es?"Asignar":"Assign"}</Action></Panel><Panel><h3 className="font-semibold">{es?"Acceso ético a registro restringido":"Ethical-screen record access"}</h3><Input label={es?"UUID del usuario":"User UUID"} value={grant.userId} onChange={v=>setGrant({...grant,userId:v})}/><Select label={es?"Tipo de registro":"Record type"} value={grant.recordType} onChange={v=>setGrant({...grant,recordType:v})} options={recordOptions.filter(x=>x.value!=="general_case_record")}/><Text label={es?"Razón documentada":"Documented reason"} value={grant.reason} onChange={v=>setGrant({...grant,reason:v})}/><label className="flex gap-2 text-sm"><input type="checkbox" checked={grant.canWrite} onChange={e=>setGrant({...grant,canWrite:e.target.checked})}/>{es?"Permitir escritura":"Allow write"}</label><Action busy={grantM.isPending} disabled={!grant.userId||grant.reason.length<5} onClick={()=>grantM.mutate()}>{es?"Conceder acceso limitado":"Grant limited access"}</Action></Panel></div>}
+      {tab==="overview"&&<div className="grid gap-4 md:grid-cols-2">
+        <Panel>
+          <h3 className="font-semibold">{es?"Resumen integral del caso":"Comprehensive Case Summary"}</h3>
+          <div className="space-y-3 text-sm">
+            <div className="rounded-lg border border-border p-3 space-y-1">
+              <p className="font-mono text-xs text-primary">{caseLabel} · {person?.legal_name??(es?"Caso familiar":"Family case")}</p>
+              <p className="text-xs text-muted-foreground">{localizedEnum(c.case_type, es)} · {localizedEnum(c.status, es)} · {localizedEnum(c.priority, es)} · {localizedEnum(c.risk_level, es)}</p>
+            </div>
+            {caseData.assessments[0] && (
+              <div className="rounded-lg border border-border p-3 space-y-1">
+                <p className="font-semibold text-xs text-muted-foreground">{es?"Evaluación de riesgo vigente":"Current Risk Assessment"}</p>
+                <CaseDynamicText text={caseData.assessments[0].social_assessment_versions?.[0]?.reason || caseData.assessments[0].reason} />
+              </div>
+            )}
+            {caseData.plans[0] && (
+              <div className="rounded-lg border border-border p-3 space-y-1">
+                <p className="font-semibold text-xs text-muted-foreground">{es?"Plan de atención activo":"Active Care Plan"}</p>
+                <CaseDynamicText text={caseData.plans[0].social_care_plan_versions?.[0]?.summary || caseData.plans[0].summary} />
+              </div>
+            )}
+            {caseData.interventions[0] && (
+              <div className="rounded-lg border border-border p-3 space-y-1">
+                <p className="font-semibold text-xs text-muted-foreground">{es?"Última intervención registrada":"Latest Intervention"}</p>
+                <CaseDynamicText text={caseData.interventions[0].actions_taken || caseData.interventions[0].reason} />
+              </div>
+            )}
+          </div>
+        </Panel>
+        <Panel>
+          <h3 className="font-semibold">{es?"Asignación profesional":"Professional assignment"}</h3>
+          <Select label={es?"Usuario autorizado":"Authorized user"} value={assignment.userId} onChange={v=>setAssignment({...assignment,userId:v})} options={(organizationMembers.length?organizationMembers.filter((m:any)=>m.status==="active").map((m:any)=>({value:m.user_id,label:`${m.name} · ${m.role}`})):roleAssignments.map((r:any)=>({value:r.user_id,label:`${r.user_id.slice(0,8)} · ${r.role}`})))}/>
+          <Select label={es?"Función":"Role"} value={assignment.role} onChange={v=>setAssignment({...assignment,role:v})} options={["case_manager","supervisor","attorney","psychologist","social_worker"].map(v=>({value:v,label:localizedEnum(v,es)}))}/>
+          <Action busy={assignM.isPending} disabled={!assignment.userId} onClick={()=>assignM.mutate()}>{es?"Asignar":"Assign"}</Action>
+        </Panel>
+        <Panel className="md:col-span-2">
+          <h3 className="font-semibold">{es?"Acceso ético a registro restringido":"Ethical-screen record access"}</h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label={es?"UUID del usuario":"User UUID"} value={grant.userId} onChange={v=>setGrant({...grant,userId:v})}/>
+            <Select label={es?"Tipo de registro":"Record type"} value={grant.recordType} onChange={v=>setGrant({...grant,recordType:v})} options={recordOptions.filter(x=>x.value!=="general_case_record").map(r=>({value:r.value,label:localizedEnum(r.value,es)}))}/>
+          </div>
+          <Text label={es?"Razón documentada":"Documented reason"} value={grant.reason} onChange={v=>setGrant({...grant,reason:v})}/>
+          <label className="flex gap-2 text-sm"><input type="checkbox" checked={grant.canWrite} onChange={e=>setGrant({...grant,canWrite:e.target.checked})}/>{es?"Permitir escritura":"Allow write"}</label>
+          <Action busy={grantM.isPending} disabled={!grant.userId||grant.reason.length<5} onClick={()=>grantM.mutate()}>{es?"Conceder acceso limitado":"Grant limited access"}</Action>
+        </Panel>
+      </div>}
 
       {tab==="intake"&&<Two><Panel><h3 className="font-semibold">{es?"Ingreso vinculado al caso":"Case intake"}</h3><p className="text-sm text-muted-foreground">{es?"Este expediente conserva la identidad del caso desde el ingreso hasta el cierre. Los detalles de ingreso, prioridad y asignación pertenecen a este mismo caso y no crean un espacio separado.":"This record keeps the same case identity from intake through closure. Intake, priority, and assignment details belong to this case and do not create a separate workspace."}</p><div className="grid gap-2 text-sm"><p><strong>{es?"Número de caso":"Case number"}:</strong> {caseLabel}</p><p><strong>{es?"Cliente":"Client"}:</strong> {person?.legal_name??(es?"Caso familiar":"Family case")}</p><p><strong>{es?"Tipo":"Type"}:</strong> {localizedEnum(c?.case_type,es)}</p><p><strong>{es?"Prioridad inicial":"Initial priority"}:</strong> {localizedEnum(c?.priority,es)}</p><p><strong>{es?"Estado actual":"Current status"}:</strong> {localizedEnum(c?.status,es)}</p></div></Panel><History title={es?"Trazabilidad de ingreso":"Intake trace"} rows={caseData.activity.filter((x:any)=>["intake","case_created","case_opened"].some(k=>String(x.event_type).includes(k)))} render={(x)=><p>{new Date(x.occurred_at).toLocaleString()} · {localizedEnum(x.event_type,es)}</p>}/></Two>}
 
-      {tab==="assessment"&&<Two><Panel><h3 className="font-semibold">{es?"Nueva versión de evaluación":"New assessment version"}</h3><Select label={es?"Plantilla":"Template"} value={assessment.templateId} onChange={v=>setAssessment({...assessment,templateId:v})} options={templates.map((t:any)=>({value:t.id,label:es?t.name_es:t.name_en}))}/><Select label={es?"Nivel de riesgo":"Risk level"} value={assessment.riskLevel} onChange={v=>setAssessment({...assessment,riskLevel:v as any})} options={["unknown","low","moderate","high","critical"].map(v=>({value:v,label:v}))}/><Text label={es?"Razón":"Reason"} value={assessment.reason} onChange={v=>setAssessment({...assessment,reason:v})}/><Text label={es?"Evidencia u observaciones":"Evidence or observations"} value={assessment.evidence} onChange={v=>setAssessment({...assessment,evidence:v})}/><Text label={es?"Factores protectores":"Protective factors"} value={assessment.protective} onChange={v=>setAssessment({...assessment,protective:v})}/><Text label={es?"Acciones inmediatas":"Immediate actions"} value={assessment.actions} onChange={v=>setAssessment({...assessment,actions:v})}/><Text label={es?"Seguimiento requerido":"Required follow-up"} value={assessment.followUp} onChange={v=>setAssessment({...assessment,followUp:v})}/><Input label={es?"Fecha de revisión":"Review date"} type="date" value={assessment.review} onChange={v=>setAssessment({...assessment,review:v})}/><label className="flex gap-2 text-sm"><input type="checkbox" checked={assessment.override} onChange={e=>setAssessment({...assessment,override:e.target.checked})}/>{es?"Anulación profesional explicada":"Explained professional override"}</label>{assessment.override&&<Text label={es?"Explicación":"Explanation"} value={assessment.overrideExplanation} onChange={v=>setAssessment({...assessment,overrideExplanation:v})}/>}<Action busy={assessmentM.isPending} disabled={!assessment.reason} onClick={()=>assessmentM.mutate()}>{es?"Guardar versión":"Save version"}</Action></Panel><History title={es?"Historial inmutable":"Immutable history"} rows={caseData.assessments} render={(x)=><p>{x.assessment_date?.slice(0,10)} · {x.risk_level} · v{x.current_version}</p>}/></Two>}
+      {tab==="assessment"&&<Two>
+        <Panel>
+          <h3 className="font-semibold">{es?"Nueva versión de evaluación":"New assessment version"}</h3>
+          <Select label={es?"Plantilla":"Template"} value={assessment.templateId} onChange={v=>setAssessment({...assessment,templateId:v})} options={templates.map((t:any)=>({value:t.id,label:es?t.name_es:t.name_en}))}/>
+          <Select label={es?"Nivel de riesgo":"Risk level"} value={assessment.riskLevel} onChange={v=>setAssessment({...assessment,riskLevel:v as any})} options={["unknown","low","moderate","high","critical"].map(v=>({value:v,label:localizedEnum(v,es)}))}/>
+          <Text label={es?"Razón":"Reason"} value={assessment.reason} onChange={v=>setAssessment({...assessment,reason:v})}/>
+          <Text label={es?"Evidencia u observaciones":"Evidence or observations"} value={assessment.evidence} onChange={v=>setAssessment({...assessment,evidence:v})}/>
+          <Text label={es?"Factores protectores":"Protective factors"} value={assessment.protective} onChange={v=>setAssessment({...assessment,protective:v})}/>
+          <Text label={es?"Acciones inmediatas":"Immediate actions"} value={assessment.actions} onChange={v=>setAssessment({...assessment,actions:v})}/>
+          <Text label={es?"Seguimiento requerido":"Required follow-up"} value={assessment.followUp} onChange={v=>setAssessment({...assessment,followUp:v})}/>
+          <Input label={es?"Fecha de revisión":"Review date"} type="date" value={assessment.review} onChange={v=>setAssessment({...assessment,review:v})}/>
+          <label className="flex gap-2 text-sm">
+            <input type="checkbox" checked={assessment.override} onChange={e=>setAssessment({...assessment,override:e.target.checked})}/>
+            {es?"Anulación profesional explicada":"Explained professional override"}
+          </label>
+          {assessment.override&&<Text label={es?"Explicación":"Explanation"} value={assessment.overrideExplanation} onChange={v=>setAssessment({...assessment,overrideExplanation:v})}/>}
+          <Action busy={assessmentM.isPending} disabled={!assessment.reason} onClick={()=>assessmentM.mutate()}>{es?"Guardar versión":"Save version"}</Action>
+        </Panel>
+        <Panel>
+          <h3 className="font-semibold">{es?"Historial inmutable":"Immutable history"}</h3>
+          {caseData.assessments.length ? (
+            <div className="space-y-4">
+              {caseData.assessments.map((a: any) => {
+                const versions = (a.social_assessment_versions ?? []).length
+                  ? a.social_assessment_versions
+                  : [{ version: a.current_version ?? 1, risk_level: a.risk_level, reason: a.reason, evidence_observations: a.evidence_observations, protective_factors: a.protective_factors, immediate_actions: a.immediate_actions, required_follow_up: a.required_follow_up, override_explanation: a.override_explanation, created_at: a.assessment_date }];
+                return (
+                  <div key={a.id} className="space-y-3 rounded-xl border border-border bg-card/60 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-primary">{a.assessment_date?.slice(0, 10)}</span>
+                        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">v{a.current_version}</span>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${a.risk_level==="critical"||a.risk_level==="high"?"bg-destructive/15 text-destructive":a.risk_level==="moderate"?"bg-warning/15 text-warning":"bg-success/15 text-success"}`}>
+                        {localizedEnum(a.risk_level, es)}
+                      </span>
+                    </div>
+                    {versions.map((v: any, vi: number) => (
+                      <div key={v.id ?? vi} className="space-y-2 text-xs">
+                        {versions.length > 1 && <p className="font-semibold text-primary">v{v.version} · {localizedEnum(v.risk_level, es)}</p>}
+                        <CaseDynamicText label={es ? "Razón" : "Reason"} text={v.reason || a.reason} />
+                        {(v.evidence_observations || a.evidence_observations) && <CaseDynamicText label={es ? "Evidencia u observaciones" : "Evidence or observations"} text={v.evidence_observations || a.evidence_observations} />}
+                        {(v.protective_factors || a.protective_factors) && <CaseDynamicText label={es ? "Factores protectores" : "Protective factors"} text={v.protective_factors || a.protective_factors} />}
+                        {(v.immediate_actions || a.immediate_actions) && <CaseDynamicText label={es ? "Acciones inmediatas" : "Immediate actions"} text={v.immediate_actions || a.immediate_actions} />}
+                        {(v.required_follow_up || a.required_follow_up) && <CaseDynamicText label={es ? "Seguimiento requerido" : "Required follow-up"} text={v.required_follow_up || a.required_follow_up} />}
+                        {(v.override_explanation || a.override_explanation) && <CaseDynamicText label={es ? "Anulación profesional" : "Professional override"} text={v.override_explanation || a.override_explanation} />}
+                      </div>
+                    ))}
+                    {a.next_review_date && (
+                      <p className="text-[11px] text-muted-foreground border-t border-border pt-1">
+                        {es ? "Próxima revisión" : "Next review"}: {a.next_review_date}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )}
+        </Panel>
+      </Two>}
 
-      {tab==="plan"&&<Two><Panel><h3 className="font-semibold">{es?"Nuevo plan de atención":"New care plan"}</h3><Text label={es?"Resumen":"Summary"} value={plan.summary} onChange={v=>setPlan({...plan,summary:v})}/><Text label={es?"Necesidad":"Identified need"} value={plan.need} onChange={v=>setPlan({...plan,need:v})}/><Text label={es?"Meta":"Goal"} value={plan.goal} onChange={v=>setPlan({...plan,goal:v})}/><Text label={es?"Acción prevista":"Planned action"} value={plan.action} onChange={v=>setPlan({...plan,action:v})}/><Input label={es?"Fecha objetivo":"Target date"} type="date" value={plan.target} onChange={v=>setPlan({...plan,target:v})}/><Text label={es?"Resultado esperado":"Expected outcome"} value={plan.outcome} onChange={v=>setPlan({...plan,outcome:v})}/><Action busy={planM.isPending} disabled={!plan.summary||!plan.need||!plan.goal||!plan.action} onClick={()=>planM.mutate()}>{es?"Enviar a revisión":"Submit for review"}</Action></Panel><History title={es?"Planes versionados":"Versioned plans"} rows={caseData.plans} render={(x)=><div><p>{x.status} · v{x.current_version}</p>{x.status==="under_review"&&<button onClick={()=>approveM.mutate({id:x.id,version:x.current_version})} className="text-xs text-primary underline">{es?"Aprobar":"Approve"}</button>}</div>}/></Two>}
+      {tab==="plan"&&<Two>
+        <Panel>
+          <h3 className="font-semibold">{es?"Nuevo plan de atención":"New care plan"}</h3>
+          <Text label={es?"Resumen":"Summary"} value={plan.summary} onChange={v=>setPlan({...plan,summary:v})}/>
+          <Text label={es?"Necesidad":"Identified need"} value={plan.need} onChange={v=>setPlan({...plan,need:v})}/>
+          <Text label={es?"Meta":"Goal"} value={plan.goal} onChange={v=>setPlan({...plan,goal:v})}/>
+          <Text label={es?"Acción prevista":"Planned action"} value={plan.action} onChange={v=>setPlan({...plan,action:v})}/>
+          <Input label={es?"Fecha objetivo":"Target date"} type="date" value={plan.target} onChange={v=>setPlan({...plan,target:v})}/>
+          <Text label={es?"Resultado esperado":"Expected outcome"} value={plan.outcome} onChange={v=>setPlan({...plan,outcome:v})}/>
+          <Action busy={planM.isPending} disabled={!plan.summary||!plan.need||!plan.goal||!plan.action} onClick={()=>planM.mutate()}>{es?"Enviar a revisión":"Submit for review"}</Action>
+        </Panel>
+        <Panel>
+          <h3 className="font-semibold">{es?"Planes versionados":"Versioned plans"}</h3>
+          {caseData.plans.length ? (
+            <div className="space-y-4">
+              {caseData.plans.map((p: any) => {
+                const versions = (p.social_care_plan_versions ?? []).length
+                  ? p.social_care_plan_versions
+                  : [{ version: p.current_version ?? 1, summary: p.summary, status: p.status, social_care_plan_goals: [] }];
+                return (
+                  <div key={p.id} className="space-y-3 rounded-xl border border-border bg-card/60 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-semibold">v{p.current_version}</span>
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs">{localizedEnum(p.status, es)}</span>
+                      </div>
+                      {p.status === "under_review" && (
+                        <button onClick={() => approveM.mutate({ id: p.id, version: p.current_version })} className="rounded bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
+                          {es ? "Aprobar" : "Approve"}
+                        </button>
+                      )}
+                    </div>
+                    {versions.map((v: any, vi: number) => (
+                      <div key={v.id ?? vi} className="space-y-3 text-xs">
+                        {v.summary && <CaseDynamicText label={es ? "Resumen del plan" : "Care plan summary"} text={v.summary} />}
+                        {!!v.social_care_plan_goals?.length && (
+                          <div className="space-y-2 border-t border-border pt-2">
+                            <h4 className="font-semibold text-muted-foreground">{es ? "Objetivos del plan" : "Care plan goals"}</h4>
+                            {v.social_care_plan_goals.map((g: any, gi: number) => (
+                              <div key={g.id ?? gi} className="rounded-lg border border-border/80 bg-background/50 p-2.5 space-y-1.5">
+                                <div className="flex justify-between items-center text-[11px]">
+                                  <span className="font-semibold text-primary">{localizedEnum(g.priority || "normal", es)}</span>
+                                  <span className="rounded bg-muted px-1.5 py-0.5">{localizedEnum(g.status || "todo", es)}</span>
+                                </div>
+                                {g.identified_need && <CaseDynamicText label={es ? "Necesidad identificada" : "Identified need"} text={g.identified_need} />}
+                                {g.goal && <CaseDynamicText label={es ? "Meta" : "Goal"} text={g.goal} />}
+                                {g.planned_action && <CaseDynamicText label={es ? "Acción prevista" : "Planned action"} text={g.planned_action} />}
+                                {g.expected_outcome && <CaseDynamicText label={es ? "Resultado esperado" : "Expected outcome"} text={g.expected_outcome} />}
+                                {g.target_date && <p className="text-[10px] text-muted-foreground">{es ? "Fecha objetivo" : "Target date"}: {g.target_date}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )}
+        </Panel>
+      </Two>}
 
-      {isServiceTab&&<Two><Panel><h3 className="font-semibold">{tab==="legal"?(es?"Registrar servicio jurídico":"Record legal service"):tab==="psychosocial"?(es?"Registrar servicio psicosocial":"Record psychosocial service"):(es?"Registrar intervención":"Record intervention")}</h3><p className="text-xs text-muted-foreground">{tab==="legal"?(es?"Los registros jurídicos permanecen privilegiados y requieren acceso autorizado.":"Legal records remain privileged and require authorized access."):tab==="psychosocial"?(es?"Los registros psicosociales permanecen restringidos al equipo autorizado.":"Psychosocial records remain restricted to the authorized team."):(es?"Registre servicios y seguimiento del caso.":"Record case services and follow-up.")}</p><Select label={es?"Servicio":"Service"} value={intervention.serviceType} onChange={v=>setIntervention({...intervention,serviceType:v})} options={(tab==="legal"?["legal_assistance","immigration_assistance","institutional_advocacy"]:tab==="psychosocial"?["psychological_support","medical_referral","child_protection"]:["social_work","shelter_housing","food_assistance","employment","education","transportation","emergency","documentation","family_reunification"]).map(v=>({value:v,label:v}))}/><Select label={es?"Tipo de registro":"Record type"} value={intervention.recordType} onChange={v=>setIntervention({...intervention,recordType:v})} options={recordOptions}/><Text label={es?"Razón":"Reason"} value={intervention.reason} onChange={v=>setIntervention({...intervention,reason:v})}/><Text label={es?"Acciones realizadas":"Actions taken"} value={intervention.actions} onChange={v=>setIntervention({...intervention,actions:v})}/><Text label={es?"Resultado":"Outcome"} value={intervention.outcome} onChange={v=>setIntervention({...intervention,outcome:v})}/><Action busy={interventionM.isPending} disabled={!intervention.reason||!intervention.actions} onClick={()=>interventionM.mutate()}>{es?"Registrar":"Record"}</Action></Panel><History title={tab==="legal"?(es?"Servicios jurídicos autorizados":"Authorized legal services"):tab==="psychosocial"?(es?"Servicios psicosociales autorizados":"Authorized psychosocial services"):(es?"Intervenciones autorizadas":"Authorized interventions")} rows={caseData.interventions.filter((x:any)=>tab==="legal"?["legal_assistance","immigration_assistance","institutional_advocacy"].includes(x.service_type):tab==="psychosocial"?["psychological_support","medical_referral","child_protection"].includes(x.service_type):!["legal_assistance","immigration_assistance","institutional_advocacy","psychological_support","medical_referral","child_protection"].includes(x.service_type))} render={(x)=><p>{localizedEnum(x.service_type,es)} · {localizedEnum(x.record_type,es)} · {new Date(x.occurred_at).toLocaleDateString()}</p>}/></Two>}
+      {isServiceTab&&<Two>
+        <Panel>
+          <h3 className="font-semibold">{tab==="legal"?(es?"Registrar servicio jurídico":"Record legal service"):tab==="psychosocial"?(es?"Registrar servicio psicosocial":"Record psychosocial service"):(es?"Registrar intervención":"Record intervention")}</h3>
+          <p className="text-xs text-muted-foreground">{tab==="legal"?(es?"Los registros jurídicos permanecen privilegiados y requieren acceso autorizado.":"Legal records remain privileged and require authorized access."):tab==="psychosocial"?(es?"Los registros psicosociales permanecen restringidos al equipo autorizado.":"Psychosocial records remain restricted to the authorized team."):(es?"Registre servicios y seguimiento del caso.":"Record case services and follow-up.")}</p>
+          <Select label={es?"Servicio":"Service"} value={intervention.serviceType} onChange={v=>setIntervention({...intervention,serviceType:v})} options={(tab==="legal"?["legal_assistance","immigration_assistance","institutional_advocacy"]:tab==="psychosocial"?["psychological_support","medical_referral","child_protection"]:["social_work","shelter_housing","food_assistance","employment","education","transportation","emergency","documentation","family_reunification"]).map(v=>({value:v,label:localizedEnum(v,es)}))}/>
+          <Select label={es?"Tipo de registro":"Record type"} value={intervention.recordType} onChange={v=>setIntervention({...intervention,recordType:v})} options={recordOptions.map(r=>({value:r.value,label:localizedEnum(r.value,es)}))}/>
+          <Text label={es?"Razón":"Reason"} value={intervention.reason} onChange={v=>setIntervention({...intervention,reason:v})}/>
+          <Text label={es?"Acciones realizadas":"Actions taken"} value={intervention.actions} onChange={v=>setIntervention({...intervention,actions:v})}/>
+          <Text label={es?"Resultado":"Outcome"} value={intervention.outcome} onChange={v=>setIntervention({...intervention,outcome:v})}/>
+          <Action busy={interventionM.isPending} disabled={!intervention.reason||!intervention.actions} onClick={()=>interventionM.mutate()}>{es?"Registrar":"Record"}</Action>
+        </Panel>
+        <Panel>
+          <h3 className="font-semibold">{tab==="legal"?(es?"Servicios jurídicos autorizados":"Authorized legal services"):tab==="psychosocial"?(es?"Servicios psicosociales autorizados":"Authorized psychosocial services"):(es?"Intervenciones autorizadas":"Authorized interventions")}</h3>
+          {(() => {
+            const filtered = caseData.interventions.filter((x:any)=>tab==="legal"?["legal_assistance","immigration_assistance","institutional_advocacy"].includes(x.service_type):tab==="psychosocial"?["psychological_support","medical_referral","child_protection"].includes(x.service_type):!["legal_assistance","immigration_assistance","institutional_advocacy","psychological_support","medical_referral","child_protection"].includes(x.service_type));
+            if (!filtered.length) return <p className="text-sm text-muted-foreground">—</p>;
+            return (
+              <div className="space-y-3">
+                {filtered.map((item: any) => (
+                  <div key={item.id} className="space-y-2 rounded-xl border border-border bg-card/60 p-4 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{localizedEnum(item.service_type, es)}</span>
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{localizedEnum(item.record_type, es)}</span>
+                      </div>
+                      <span className="text-muted-foreground">{new Date(item.occurred_at).toLocaleDateString()}</span>
+                    </div>
+                    {item.reason && <CaseDynamicText label={es ? "Razón" : "Reason"} text={item.reason} />}
+                    {item.actions_taken && <CaseDynamicText label={es ? "Acciones realizadas" : "Actions taken"} text={item.actions_taken} />}
+                    {item.outcome && <CaseDynamicText label={es ? "Resultado" : "Outcome"} text={item.outcome} />}
+                    {item.follow_up_required && (
+                      <span className="inline-block rounded bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                        {es ? "Requiere seguimiento" : "Follow-up required"}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </Panel>
+      </Two>}
 
-      {tab==="consent"&&<Two><Panel><h3 className="font-semibold">{es?"Consentimiento informado":"Informed consent"}</h3><Input label={es?"Tipo":"Type"} value={consent.type} onChange={v=>setConsent({...consent,type:v})}/><Input label={es?"Persona que consiente":"Person consenting"} value={consent.consentedBy} onChange={v=>setConsent({...consent,consentedBy:v})}/><Input label={es?"Propósitos (comas)":"Purposes (commas)"} value={consent.purposes} onChange={v=>setConsent({...consent,purposes:v})}/><Input label={es?"Destinatarios (IDs o nombres)":"Recipients (IDs or names)"} value={consent.recipients} onChange={v=>setConsent({...consent,recipients:v})}/><Input label={es?"Información permitida":"Permitted information"} value={consent.information} onChange={v=>setConsent({...consent,information:v})}/><Text label={es?"Restricciones":"Restrictions"} value={consent.restrictions} onChange={v=>setConsent({...consent,restrictions:v})}/><Input label={es?"Expira":"Expires"} type="datetime-local" value={consent.expires} onChange={v=>setConsent({...consent,expires:v})}/><Action busy={consentM.isPending} disabled={!consent.consentedBy||!consent.recipients} onClick={()=>consentM.mutate()}>{es?"Guardar consentimiento":"Record consent"}</Action></Panel><History title={es?"Versiones y estado":"Versions and status"} rows={caseData.consents} render={(x)=><div><p>{x.consent_type} · {x.status} · v{x.current_version}</p>{x.status==="active"&&<button onClick={()=>revokeM.mutate(x.id)} className="text-xs text-destructive underline">{es?"Revocar":"Revoke"}</button>}</div>}/></Two>}
+      {tab==="consent"&&<Two>
+        <Panel>
+          <h3 className="font-semibold">{es?"Consentimiento informado":"Informed consent"}</h3>
+          <Input label={es?"Tipo":"Type"} value={consent.type} onChange={v=>setConsent({...consent,type:v})}/>
+          <Input label={es?"Persona que consiente":"Person consenting"} value={consent.consentedBy} onChange={v=>setConsent({...consent,consentedBy:v})}/>
+          <Input label={es?"Propósitos (comas)":"Purposes (commas)"} value={consent.purposes} onChange={v=>setConsent({...consent,purposes:v})}/>
+          <Input label={es?"Destinatarios (IDs o nombres)":"Recipients (IDs or names)"} value={consent.recipients} onChange={v=>setConsent({...consent,recipients:v})}/>
+          <Input label={es?"Información permitida":"Permitted information"} value={consent.information} onChange={v=>setConsent({...consent,information:v})}/>
+          <Text label={es?"Restricciones":"Restrictions"} value={consent.restrictions} onChange={v=>setConsent({...consent,restrictions:v})}/>
+          <Input label={es?"Expira":"Expires"} type="datetime-local" value={consent.expires} onChange={v=>setConsent({...consent,expires:v})}/>
+          <Action busy={consentM.isPending} disabled={!consent.consentedBy||!consent.recipients} onClick={()=>consentM.mutate()}>{es?"Guardar consentimiento":"Record consent"}</Action>
+        </Panel>
+        <History title={es?"Versiones y estado":"Versions and status"} rows={caseData.consents} render={(x)=><div>
+          <p className="font-semibold">{localizedEnum(x.consent_type,es)} · {localizedEnum(x.status,es)} · v{x.current_version}</p>
+          {x.restrictions && <CaseDynamicText label={es?"Restricciones":"Restrictions"} text={x.restrictions} className="mt-1"/>}
+          {x.status==="active"&&<button onClick={()=>revokeM.mutate(x.id)} className="mt-2 text-xs text-destructive underline">{es?"Revocar":"Revoke"}</button>}
+        </div>}/>
+      </Two>}
 
-      {tab==="resources"&&<CaseResourceRecommendations caseId={caseId}/>}      {tab==="referral"&&<Two><Panel><h3 className="font-semibold">{es?"Nueva canalización":"New referral"}</h3><Select label={es?"Institución":"Institution"} value={referral.institutionId} onChange={v=>setReferral({...referral,institutionId:v})} options={institutions.map((i:any)=>({value:i.id,label:i.name}))}/><Input label={es?"Servicio solicitado":"Service requested"} value={referral.service} onChange={v=>setReferral({...referral,service:v})}/><Text label={es?"Razón":"Reason"} value={referral.reason} onChange={v=>setReferral({...referral,reason:v})}/><Select label={es?"Consentimiento":"Consent"} value={referral.consentId} onChange={v=>setReferral({...referral,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:`${x.consent_type} · v${x.current_version}`}))}/><Input label={es?"Información autorizada":"Authorized information"} value={referral.information} onChange={v=>setReferral({...referral,information:v})}/><Action busy={referralM.isPending} disabled={!referral.institutionId||!referral.service||!referral.reason} onClick={()=>referralM.mutate()}>{es?"Crear canalización":"Create referral"}</Action></Panel><History title={es?"Seguimiento":"Tracking"} rows={caseData.referrals} render={(x)=><div><p>{x.referral_number} · {x.status}</p>{["draft","awaiting_consent"].includes(x.status)&&x.consent_id&&<button onClick={()=>sendReferralM.mutate(x.id)} className="mr-3 text-xs text-primary underline">{es?"Enviar":"Send"}</button>}{["sent","received","appointment_scheduled","in_progress"].includes(x.status)&&<><input value={referral.result} onChange={e=>setReferral({...referral,result:e.target.value})} placeholder={es?"Resultado verificado":"Verified result"} className="mt-2 rounded border border-border px-2 py-1 text-xs"/><button onClick={()=>verifyReferralM.mutate(x.id)} className="ml-2 text-xs text-primary underline">{es?"Verificar conclusión":"Verify completion"}</button></>}</div>}/></Two>}
+      {tab==="resources"&&<CaseResourceRecommendations caseId={caseId}/>}
+      {tab==="referral"&&<Two>
+        <Panel>
+          <h3 className="font-semibold">{es?"Nueva canalización":"New referral"}</h3>
+          <Select label={es?"Institución":"Institution"} value={referral.institutionId} onChange={v=>setReferral({...referral,institutionId:v})} options={institutions.map((i:any)=>({value:i.id,label:i.name}))}/>
+          <Input label={es?"Servicio solicitado":"Service requested"} value={referral.service} onChange={v=>setReferral({...referral,service:v})}/>
+          <Text label={es?"Razón":"Reason"} value={referral.reason} onChange={v=>setReferral({...referral,reason:v})}/>
+          <Select label={es?"Consentimiento":"Consent"} value={referral.consentId} onChange={v=>setReferral({...referral,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:`${x.consent_type} · v${x.current_version}`}))}/>
+          <Input label={es?"Información autorizada":"Authorized information"} value={referral.information} onChange={v=>setReferral({...referral,information:v})}/>
+          <Action busy={referralM.isPending} disabled={!referral.institutionId||!referral.service||!referral.reason} onClick={()=>referralM.mutate()}>{es?"Crear canalización":"Create referral"}</Action>
+        </Panel>
+        <History title={es?"Seguimiento":"Tracking"} rows={caseData.referrals} render={(x)=><div>
+          <p className="font-semibold">{x.referral_number} · {localizedEnum(x.status,es)}</p>
+          {x.service_requested && <CaseDynamicText label={es?"Servicio solicitado":"Service requested"} text={x.service_requested} className="mt-1"/>}
+          {x.reason && <CaseDynamicText label={es?"Razón":"Reason"} text={x.reason} className="mt-1"/>}
+          {["draft","awaiting_consent"].includes(x.status)&&x.consent_id&&<button onClick={()=>sendReferralM.mutate(x.id)} className="mt-2 mr-3 text-xs text-primary underline">{es?"Enviar":"Send"}</button>}
+          {["sent","received","appointment_scheduled","in_progress"].includes(x.status)&&<div className="mt-2"><input value={referral.result} onChange={e=>setReferral({...referral,result:e.target.value})} placeholder={es?"Resultado verificado":"Verified result"} className="rounded border border-border px-2 py-1 text-xs"/><button onClick={()=>verifyReferralM.mutate(x.id)} className="ml-2 text-xs text-primary underline">{es?"Verificar conclusión":"Verify completion"}</button></div>}
+          {(x.result || x.social_referral_updates?.[0]?.result) && <CaseDynamicText label={es?"Resultado verificado":"Verified result"} text={x.result || x.social_referral_updates?.[0]?.result} className="mt-1"/>}
+        </div>}/>
+      </Two>}
 
-      {tab==="tasks"&&<div className="grid gap-4 xl:grid-cols-3"><Panel><h3 className="font-semibold">{es?"Nueva tarea":"New task"}</h3><Input label={es?"Título":"Title"} value={task.title} onChange={v=>setTask({...task,title:v})}/><Input label={es?"Vence":"Due"} type="datetime-local" value={task.due} onChange={v=>setTask({...task,due:v})}/><Action busy={taskM.isPending} disabled={!task.title} onClick={()=>taskM.mutate()}>{es?"Crear tarea":"Create task"}</Action><button onClick={()=>alertsM.mutate()} className="mt-3 text-xs text-primary underline"><RefreshCw className="mr-1 inline h-3 w-3"/>{es?"Actualizar alertas":"Refresh alerts"}</button></Panel><Panel><h3 className="font-semibold">{es?"Nueva cita":"New appointment"}</h3><Input label={es?"Título":"Title"} value={appointment.title} onChange={v=>setAppointment({...appointment,title:v})}/><Input label={es?"Fecha y hora":"Date and time"} type="datetime-local" value={appointment.when} onChange={v=>setAppointment({...appointment,when:v})}/><Input label={es?"Lugar o método":"Location or method"} value={appointment.method} onChange={v=>setAppointment({...appointment,method:v})}/><Action busy={appointmentM.isPending} disabled={!appointment.title||!appointment.when} onClick={()=>appointmentM.mutate()}>{es?"Programar":"Schedule"}</Action></Panel><History title={es?"Pendientes":"Pending"} rows={[...caseData.tasks,...caseData.appointments]} render={(x)=><p>{x.title} · {(x.due_at??x.scheduled_at)?.slice(0,16)}</p>}/></div>}
+      {tab==="tasks"&&<div className="grid gap-4 xl:grid-cols-3">
+        <Panel>
+          <h3 className="font-semibold">{es?"Nueva tarea":"New task"}</h3>
+          <Input label={es?"Título":"Title"} value={task.title} onChange={v=>setTask({...task,title:v})}/><Input label={es?"Vence":"Due"} type="datetime-local" value={task.due} onChange={v=>setTask({...task,due:v})}/><Action busy={taskM.isPending} disabled={!task.title} onClick={()=>taskM.mutate()}>{es?"Crear tarea":"Create task"}</Action><button onClick={()=>alertsM.mutate()} className="mt-3 text-xs text-primary underline"><RefreshCw className="mr-1 inline h-3 w-3"/>{es?"Actualizar alertas":"Refresh alerts"}</button>
+        </Panel>
+        <Panel>
+          <h3 className="font-semibold">{es?"Nueva cita":"New appointment"}</h3>
+          <Input label={es?"Título":"Title"} value={appointment.title} onChange={v=>setAppointment({...appointment,title:v})}/><Input label={es?"Fecha y hora":"Date and time"} type="datetime-local" value={appointment.when} onChange={v=>setAppointment({...appointment,when:v})}/><Input label={es?"Lugar o método":"Location or method"} value={appointment.method} onChange={v=>setAppointment({...appointment,method:v})}/><Action busy={appointmentM.isPending} disabled={!appointment.title||!appointment.when} onClick={()=>appointmentM.mutate()}>{es?"Programar":"Schedule"}</Action>
+        </Panel>
+        <History title={es?"Pendientes":"Pending"} rows={[...caseData.tasks,...caseData.appointments]} render={(x)=><div>
+          <CaseDynamicText text={x.title} />
+          <p className="text-xs text-muted-foreground mt-0.5">{(x.due_at??x.scheduled_at)?.slice(0,16)} {x.priority?`· ${localizedEnum(x.priority,es)}`:""} {x.location_method?`· ${x.location_method}`:""}</p>
+        </div>}/>
+      </div>}
 
       {tab==="documents"&&<Two><Panel><h3 className="font-semibold">{es?"Cargar archivos del caso":"Upload case files"}</h3><p className="text-xs text-muted-foreground">{es?"PDF, Office, imágenes, archivos ZIP/RAR/7Z, correos, audio y video. Máximo 100 MB por archivo. Permanecen únicamente en este caso de Atención Integral.":"PDF, Office, images, ZIP/RAR/7Z archives, email, audio, video, and case records. Maximum 100 MB per file. Files remain only in this Comprehensive Care case."}</p><label onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();selectCaseFiles(Array.from(e.dataTransfer.files));}} className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-8 text-center hover:bg-primary/10"><FileUp className="mb-2 h-7 w-7 text-primary"/><span className="text-sm font-semibold">{es?"Arrastre archivos aquí o selecciónelos":"Drag files here or select them"}</span><span className="mt-1 text-xs text-muted-foreground">{es?"Puede cargar varios archivos a la vez":"You can upload multiple files at once"}</span><input key={document.files.length?"selected":"empty"} type="file" multiple accept={CASE_FILE_ACCEPT} onChange={e=>selectCaseFiles(Array.from(e.target.files??[]))} className="sr-only"/></label>{document.files.length>0&&<div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">{document.files.map((file,index)=><div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs"><span className="min-w-0 truncate">{file.name} · {(file.size/1024/1024).toFixed(1)} MB</span><button type="button" disabled={documentM.isPending} onClick={()=>setDocument(current=>({...current,files:current.files.filter((_,fileIndex)=>fileIndex!==index)}))} className="shrink-0 text-destructive hover:underline">{es?"Quitar":"Remove"}</button></div>)}</div>}{document.files.length===1&&<Input label={es?"Título visible":"Display title"} value={document.title} onChange={v=>setDocument({...document,title:v})}/>}<Select label={es?"Tipo de registro":"Record type"} value={document.recordType} onChange={v=>setDocument({...document,recordType:v})} options={recordOptions}/><Select label={es?"Consentimiento aplicable":"Applicable consent"} value={document.consentId} onChange={v=>setDocument({...document,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/>{documentM.isPending&&<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs"><p className="font-medium">{es?`Cargando ${uploadProgress.current} de ${uploadProgress.total}`:`Uploading ${uploadProgress.current} of ${uploadProgress.total}`}</p><p className="mt-1 truncate text-muted-foreground">{uploadProgress.name}</p></div>}<Action busy={documentM.isPending} disabled={!document.files.length} onClick={()=>documentM.mutate()}><FileUp className="mr-2 inline h-4 w-4"/>{es?`Proteger y registrar ${document.files.length||""} archivo(s)`:`Protect and register ${document.files.length||""} file(s)`}</Action><div className="border-t border-border pt-3"><h4 className="text-sm font-semibold">{es?"Compartir selectivamente":"Selective sharing"}</h4><Select label={es?"Documento":"Document"} value={share.documentId} onChange={v=>setShare({...share,documentId:v})} options={caseData.documents.map((x:any)=>({value:x.id,label:x.title}))}/><Input label={es?"Organización receptora (UUID)":"Receiving organization (UUID)"} value={share.receivingOrgId} onChange={v=>setShare({...share,receivingOrgId:v})}/><Select label={es?"Consentimiento vigente":"Active consent"} value={share.consentId} onChange={v=>setShare({...share,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/><Input label={es?"Propósito":"Purpose"} value={share.purpose} onChange={v=>setShare({...share,purpose:v})}/><Action busy={shareM.isPending} disabled={!share.documentId||!share.receivingOrgId||!share.consentId} onClick={()=>shareM.mutate()}>{es?"Compartir con control de consentimiento":"Share with consent control"}</Action></div></Panel><SocialCaseMediaGallery caseId={caseId} documents={caseData.documents}/></Two>}
 
-      {tab==="transfer"&&<Two><Panel><h3 className="font-semibold">{es?"Preparar transferencia":"Prepare transfer"}</h3><Select label={es?"Tipo":"Type"} value={transfer.type} onChange={v=>setTransfer({...transfer,type:v})} options={["case_manager","office","service_team","external_organization","social_to_legal","legal_to_social"].map(v=>({value:v,label:v}))}/><Input label={es?"Usuario receptor (UUID)":"Receiving user (UUID)"} value={transfer.toUser} onChange={v=>setTransfer({...transfer,toUser:v})}/><Input label={es?"Organización receptora (UUID)":"Receiving organization (UUID)"} value={transfer.receivingOrg} onChange={v=>setTransfer({...transfer,receivingOrg:v})}/><Select label={es?"Consentimiento":"Consent"} value={transfer.consentId} onChange={v=>setTransfer({...transfer,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/><Input label={es?"Información seleccionada":"Selected information"} value={transfer.information} onChange={v=>setTransfer({...transfer,information:v})}/><Text label={es?"Resumen de transferencia":"Transfer summary"} value={transfer.summary} onChange={v=>setTransfer({...transfer,summary:v})}/><Action busy={transferM.isPending} disabled={!transfer.summary||(!transfer.toUser&&!transfer.receivingOrg)} onClick={()=>transferM.mutate()}>{es?"Solicitar aprobación":"Request approval"}</Action></Panel><History title={es?"Historial completo":"Complete history"} rows={caseData.transfers} render={(x)=><div><p>{x.transfer_type} · {x.status}</p>{x.status==="pending_approval"&&<button onClick={()=>advanceM.mutate({id:x.id,action:"approve"})} className="mr-2 text-xs text-primary underline">{es?"Aprobar":"Approve"}</button>}{x.status==="approved"&&<button onClick={()=>advanceM.mutate({id:x.id,action:"send"})} className="mr-2 text-xs text-primary underline">{es?"Enviar":"Send"}</button>}{x.status==="sent"&&<button onClick={()=>acceptM.mutate(x.id)} className="text-xs text-primary underline">{es?"Confirmar recepción":"Confirm receipt"}</button>}</div>}/></Two>}
+      {tab==="transfer"&&<Two>
+        <Panel>
+          <h3 className="font-semibold">{es?"Preparar transferencia":"Prepare transfer"}</h3>
+          <Select label={es?"Tipo":"Type"} value={transfer.type} onChange={v=>setTransfer({...transfer,type:v})} options={["case_manager","office","service_team","external_organization","social_to_legal","legal_to_social"].map(v=>({value:v,label:localizedEnum(v,es)}))}/>
+          <Input label={es?"Usuario receptor (UUID)":"Receiving user (UUID)"} value={transfer.toUser} onChange={v=>setTransfer({...transfer,toUser:v})}/>
+          <Input label={es?"Organización receptora (UUID)":"Receiving organization (UUID)"} value={transfer.receivingOrg} onChange={v=>setTransfer({...transfer,receivingOrg:v})}/>
+          <Select label={es?"Consentimiento":"Consent"} value={transfer.consentId} onChange={v=>setTransfer({...transfer,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/>
+          <Input label={es?"Información seleccionada":"Selected information"} value={transfer.information} onChange={v=>setTransfer({...transfer,information:v})}/>
+          <Text label={es?"Resumen de transferencia":"Transfer summary"} value={transfer.summary} onChange={v=>setTransfer({...transfer,summary:v})}/>
+          <Action busy={transferM.isPending} disabled={!transfer.summary||(!transfer.toUser&&!transfer.receivingOrg)} onClick={()=>transferM.mutate()}>{es?"Solicitar aprobación":"Request approval"}</Action>
+        </Panel>
+        <History title={es?"Historial completo":"Complete history"} rows={caseData.transfers} render={(x)=><div>
+          <p className="font-semibold">{localizedEnum(x.transfer_type,es)} · {localizedEnum(x.status,es)}</p>
+          {x.summary && <CaseDynamicText label={es?"Resumen":"Summary"} text={x.summary} className="mt-1"/>}
+          {x.status==="pending_approval"&&<button onClick={()=>advanceM.mutate({id:x.id,action:"approve"})} className="mt-2 mr-2 text-xs text-primary underline">{es?"Aprobar":"Approve"}</button>}
+          {x.status==="approved"&&<button onClick={()=>advanceM.mutate({id:x.id,action:"send"})} className="mt-2 mr-2 text-xs text-primary underline">{es?"Enviar":"Send"}</button>}
+          {x.status==="sent"&&<button onClick={()=>acceptM.mutate(x.id)} className="mt-2 text-xs text-primary underline">{es?"Confirmar recepción":"Confirm receipt"}</button>}
+        </div>}/>
+      </Two>}
 
-      {tab==="closure"&&<Two><Panel><h3 className="font-semibold">{es?"Revisión de cierre":"Closure review"}</h3><div className={`rounded-lg border p-3 text-sm ${closureReady?"border-success/30 bg-success/10":"border-warning/30 bg-warning/10"}`}><p className="font-semibold">{closureReady?(es?"Listo para revisión de cierre":"Ready for closure review"):(es?"Trabajo pendiente antes de concluir servicios":"Outstanding work before services can be completed")}</p><p className="mt-1 text-xs text-muted-foreground">{es?`Metas pendientes: ${incompleteGoals.length} · Tareas abiertas: ${openTasks.length} · Canalizaciones pendientes: ${pendingReferrals.length}`:`Incomplete goals: ${incompleteGoals.length} · Open tasks: ${openTasks.length} · Pending referrals: ${pendingReferrals.length}`}</p></div><Select label={es?"Motivo":"Reason"} value={closure.reason} onChange={v=>setClosure({...closure,reason:v})} options={["services_completed","client_withdrew","unable_to_contact","transferred","ineligible","relocated","duplicate_case","other"].map(v=>({value:v,label:v}))}/><Select label={es?"Riesgo final":"Final risk"} value={closure.finalRisk} onChange={v=>setClosure({...closure,finalRisk:v})} options={["unknown","low","moderate","high","critical"].map(v=>({value:v,label:v}))}/><Text label={es?"Resultados y resumen final":"Outcomes and final summary"} value={closure.summary} onChange={v=>setClosure({...closure,summary:v})}/><Text label={es?"Notificación a la persona":"Client notification"} value={closure.clientNotification} onChange={v=>setClosure({...closure,clientNotification:v})}/><Text label={es?"Disposición de documentos":"Document disposition"} value={closure.documentDisposition} onChange={v=>setClosure({...closure,documentDisposition:v})}/><Input label={es?"Estado de conservación":"Retention status"} value={closure.retentionStatus} onChange={v=>setClosure({...closure,retentionStatus:v})}/>{["high","critical"].includes(closure.finalRisk)&&<p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs">{es?"El riesgo final alto o crítico quedará registrado en el cierre y requiere juicio profesional documentado.":"High or critical final risk is recorded in the closure and requires documented professional judgment."}</p>}<Action busy={closeM.isPending} disabled={c?.status==="closed"||!closureReady||!closure.summary||!closure.clientNotification||!closure.documentDisposition||!closure.retentionStatus} onClick={()=>closeM.mutate()}>{es?"Aprobar cierre":"Approve closure"}</Action>{c?.status==="closed"&&<><Text label={es?"Razón para reabrir":"Reason to reopen"} value={closure.reopenReason} onChange={v=>setClosure({...closure,reopenReason:v})}/><Action busy={reopenM.isPending} disabled={!closure.reopenReason} onClick={()=>reopenM.mutate()}>{es?"Reabrir preservando cierre":"Reopen preserving closure"}</Action></>}</Panel><History title={es?"Historial de cierre":"Closure history"} rows={caseData.closures} render={(x)=><p>v{x.closure_version} · {localizedEnum(x.closure_reason,es)} · {localizedEnum(x.final_risk_level,es)}</p>}/></Two>}
+      {tab==="closure"&&<Two>
+        <Panel>
+          <h3 className="font-semibold">{es?"Revisión de cierre":"Closure review"}</h3>
+          <div className={`rounded-lg border p-3 text-sm ${closureReady?"border-success/30 bg-success/10":"border-warning/30 bg-warning/10"}`}>
+            <p className="font-semibold">{closureReady?(es?"Listo para revisión de cierre":"Ready for closure review"):(es?"Trabajo pendiente antes de concluir servicios":"Outstanding work before services can be completed")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{es?`Metas pendientes: ${incompleteGoals.length} · Tareas abiertas: ${openTasks.length} · Canalizaciones pendientes: ${pendingReferrals.length}`:`Incomplete goals: ${incompleteGoals.length} · Open tasks: ${openTasks.length} · Pending referrals: ${pendingReferrals.length}`}</p>
+          </div>
+          <Select label={es?"Motivo":"Reason"} value={closure.reason} onChange={v=>setClosure({...closure,reason:v})} options={["services_completed","client_withdrew","unable_to_contact","transferred","ineligible","relocated","duplicate_case","other"].map(v=>({value:v,label:localizedEnum(v,es)}))}/>
+          <Select label={es?"Riesgo final":"Final risk"} value={closure.finalRisk} onChange={v=>setClosure({...closure,finalRisk:v})} options={["unknown","low","moderate","high","critical"].map(v=>({value:v,label:localizedEnum(v,es)}))}/>
+          <Text label={es?"Resultados y resumen final":"Outcomes and final summary"} value={closure.summary} onChange={v=>setClosure({...closure,summary:v})}/>
+          <Text label={es?"Notificación a la persona":"Client notification"} value={closure.clientNotification} onChange={v=>setClosure({...closure,clientNotification:v})}/>
+          <Text label={es?"Disposición de documentos":"Document disposition"} value={closure.documentDisposition} onChange={v=>setClosure({...closure,documentDisposition:v})}/>
+          <Input label={es?"Estado de conservación":"Retention status"} value={closure.retentionStatus} onChange={v=>setClosure({...closure,retentionStatus:v})}/>
+          {["high","critical"].includes(closure.finalRisk)&&<p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs">{es?"El riesgo final alto o crítico quedará registrado en el cierre y requiere juicio profesional documentado.":"High or critical final risk is recorded in the closure and requires documented professional judgment."}</p>}
+          <Action busy={closeM.isPending} disabled={c?.status==="closed"||!closureReady||!closure.summary||!closure.clientNotification||!closure.documentDisposition||!closure.retentionStatus} onClick={()=>closeM.mutate()}>{es?"Aprobar cierre":"Approve closure"}</Action>
+          {c?.status==="closed"&&<>
+            <Text label={es?"Razón para reabrir":"Reason to reopen"} value={closure.reopenReason} onChange={v=>setClosure({...closure,reopenReason:v})}/>
+            <Action busy={reopenM.isPending} disabled={!closure.reopenReason} onClick={()=>reopenM.mutate()}>{es?"Reabrir preservando cierre":"Reopen preserving closure"}</Action>
+          </>}
+        </Panel>
+        <Panel>
+          <h3 className="font-semibold">{es?"Historial de cierre":"Closure history"}</h3>
+          {caseData.closures.length ? (
+            <div className="space-y-3">
+              {caseData.closures.map((x: any) => (
+                <div key={x.id} className="space-y-2 rounded-xl border border-border bg-card/60 p-4 text-xs">
+                  <div className="flex justify-between items-center border-b border-border pb-1.5">
+                    <span className="font-semibold">v{x.closure_version} · {localizedEnum(x.closure_reason, es)}</span>
+                    <span className="rounded bg-muted px-2 py-0.5">{localizedEnum(x.final_risk_level, es)}</span>
+                  </div>
+                  {x.summary?.goals_completed && <CaseDynamicText label={es ? "Resultados y resumen final" : "Outcomes and final summary"} text={x.summary.goals_completed} />}
+                  {x.summary?.client_notification && <CaseDynamicText label={es ? "Notificación a la persona" : "Client notification"} text={x.summary.client_notification} />}
+                  {x.summary?.document_disposition && <CaseDynamicText label={es ? "Disposición de documentos" : "Document disposition"} text={x.summary.document_disposition} />}
+                  {x.summary?.retention_status && <CaseDynamicText label={es ? "Estado de conservación" : "Retention status"} text={x.summary.retention_status} />}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )}
+        </Panel>
+      </Two>}
 
       {tab==="immigration"&&<Panel><div className="mb-3 flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"><ShieldAlert className="h-4 w-4"/>{es?"Solo asuntos mexicanos de Derecho Migratorio, Refugio y Nacionalidad. Se comparte exactamente lo seleccionado.":"Mexican Immigration, Refugee and Nationality matters only. Exactly the selected information is shared."}</div><Input label={es?"ID del asunto migratorio":"Immigration matter ID"} value={immigration.matterId} onChange={v=>setImmigration({...immigration,matterId:v})}/><Select label={es?"Consentimiento específico":"Specific consent"} value={immigration.consentId} onChange={v=>setImmigration({...immigration,consentId:v})} options={caseData.consents.filter((x:any)=>x.status==="active").map((x:any)=>({value:x.id,label:x.consent_type}))}/><Input label={es?"Campos de estado recibidos":"Status fields received"} value={immigration.statusFields} onChange={v=>setImmigration({...immigration,statusFields:v})}/><Input label={es?"Campos sociales compartidos":"Social fields shared"} value={immigration.socialFields} onChange={v=>setImmigration({...immigration,socialFields:v})}/><Action busy={immigrationM.isPending} disabled={!immigration.matterId||!immigration.consentId} onClick={()=>immigrationM.mutate()}>{es?"Crear vínculo autorizado":"Create authorized link"}</Action></Panel>}
 
-      {tab==="assistant"&&<TalkToCareCase caseId={caseId}/>}      {tab==="activity"&&<History title={es?"Libro de auditoría inmutable":"Immutable audit ledger"} rows={caseData.activity} render={(x)=><p>{new Date(x.occurred_at).toLocaleString()} · {x.event_type} · {x.entity_type}</p>}/>}
+      {tab==="assistant"&&<TalkToCareCase caseId={caseId}/>}
+      {tab==="activity"&&<History title={es?"Libro de auditoría inmutable":"Immutable audit ledger"} rows={caseData.activity} render={(x)=><p>{new Date(x.occurred_at).toLocaleString()} · {localizedEnum(x.event_type,es)} · {localizedEnum(x.entity_type,es)}</p>}/>}
     </div>
   </div>;
 }
@@ -290,7 +609,7 @@ function showError(e:unknown){
 }
 function split(v:string){return v.split(",").map(x=>x.trim()).filter(Boolean)}
 const recordOptions=["general_case_record","social_work_record","legal_privileged_record","psychosocial_restricted_record","medical_restricted_record","child_protection_restricted_record"].map(v=>({value:v,label:v}));
-function Panel({children}:{children:ReactNode}){return <section className="space-y-3 rounded-xl border border-border bg-card p-4">{children}</section>}
+function Panel({children,className=""}:{children:ReactNode;className?:string}){return <section className={`space-y-3 rounded-xl border border-border bg-card p-4 ${className}`}>{children}</section>}
 function Two({children}:{children:ReactNode}){return <div className="grid gap-4 xl:grid-cols-2">{children}</div>}
 function Input({label,value,onChange,type="text"}:{label:string;value:string;onChange:(v:string)=>void;type?:string}){return <label className="block text-xs font-medium text-muted-foreground">{label}<input type={type} value={value} onChange={e=>onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>}
 function Text({label,value,onChange}:{label:string;value:string;onChange:(v:string)=>void}){return <label className="block text-xs font-medium text-muted-foreground">{label}<textarea value={value} onChange={e=>onChange(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>}
@@ -301,7 +620,7 @@ general_case_record:["Expediente general","General case record"],social_work_rec
 social_work:["Trabajo social","Social work"],legal_assistance:["Asistencia jurídica","Legal assistance"],immigration_assistance:["Asistencia migratoria","Immigration assistance"],psychological_support:["Apoyo psicológico","Psychological support"],medical_referral:["Canalización médica","Medical referral"],child_protection:["Protección infantil","Child protection"],shelter_housing:["Albergue y vivienda","Shelter and housing"],food_assistance:["Asistencia alimentaria","Food assistance"],employment:["Empleo","Employment"],education:["Educación","Education"],
 case_manager_transfer:["Gestor del caso","Case manager"],office:["Oficina","Office"],service_team:["Equipo de servicio","Service team"],external_organization:["Organización externa","External organization"],social_to_legal:["Social a jurídico","Social to legal"],legal_to_social:["Jurídico a social","Legal to social"],
 services_completed:["Servicios concluidos","Services completed"],client_withdrew:["La persona desistió","Client withdrew"],unable_to_contact:["No fue posible contactar","Unable to contact"],transferred:["Transferido","Transferred"],ineligible:["No elegible","Ineligible"],relocated:["Cambio de residencia","Relocated"],duplicate_case:["Caso duplicado","Duplicate case"],other:["Otro","Other"],
-draft:["Borrador","Draft"],awaiting_consent:["Esperando consentimiento","Awaiting consent"],sent:["Enviada","Sent"],received:["Recibida","Received"],appointment_scheduled:["Cita programada","Appointment scheduled"],in_progress:["Servicio en curso","Service in progress"],service_in_progress:["Servicio en curso","Service in progress"],completed:["Completada","Completed"],rejected:["Rechazada","Rejected"],cancelled:["Cancelada","Cancelled"],active:["Activo","Active"],revoked:["Revocado","Revoked"],pending:["Pendiente","Pending"],approved:["Aprobado","Approved"]
+draft:["Borrador","Draft"],awaiting_consent:["Esperando consentimiento","Awaiting consent"],sent:["Enviada","Sent"],received:["Recibida","Received"],appointment_scheduled:["Cita programada","Appointment scheduled"],in_progress:["Servicio en curso","Service in progress"],service_in_progress:["Servicio en curso","Service in progress"],completed:["Completada","Completed"],rejected:["Rechazada","Rejected"],cancelled:["Cancelada","Cancelled"],active:["Activo","Active"],revoked:["Revocado","Revoked"],pending:["Pendiente","Pending"],approved:["Aprobado","Approved"],under_review:["En revisión","Under review"],standard:["Estándar","Standard"],urgent:["Urgente","Urgent"],emergency:["Emergencia","Emergency"],normal:["Normal","Normal"],intake:["Ingreso","Intake"],assessment:["Evaluación","Assessment"],monitoring:["Monitoreo","Monitoring"],pending_referral:["Canalización pendiente","Pending referral"],reopened:["Reabierto","Reopened"],closed:["Cerrado","Closed"],archived:["Archivado","Archived"],individual:["Individual","Individual"],family:["Familia","Family"],minor_child:["Menor de edad","Minor child"]
 };const x=labels[value];return x?(es?x[0]:x[1]):value.replaceAll("_"," ")}
 function Select({label,value,onChange,options}:{label:string;value:string;onChange:(v:string)=>void;options:Array<{value:string;label:string}>}){const {locale}=useI18n();const es=locale==="es";return <label className="block text-xs font-medium text-muted-foreground">{label}<select value={value} onChange={e=>onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">—</option>{options.map(o=><option key={o.value} value={o.value}>{o.label===o.value?localizedEnum(o.value,es):o.label}</option>)}</select></label>}
 function Action({children,onClick,busy,disabled=false}:{children:ReactNode;onClick:()=>void;busy:boolean;disabled?:boolean}){return <button type="button" onClick={onClick} disabled={busy||disabled} className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{children}</button>}

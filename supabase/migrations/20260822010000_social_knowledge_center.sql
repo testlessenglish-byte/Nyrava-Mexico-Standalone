@@ -1,4 +1,4 @@
--- Comprehensive Care Knowledge Center: approved organizational library, review workflow and case references.
+-- Comprehensive Care Knowledge Center: approved organizational library, review workflow, resource_knowledge_versions and case references.
 -- Knowledge records never become legal evidence automatically.
 
 alter table public.resource_knowledge_records
