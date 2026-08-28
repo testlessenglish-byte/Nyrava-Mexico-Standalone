@@ -3275,14 +3275,13 @@ export const translateTexts = createServerFn({ method: "POST" })
       apiKeys: keys,
       model: "openai/gpt-oss-120b",
       systemInstruction:
-        "You are a precise legal translator for a Mexican legal-intelligence platform. " +
-        "Translate each string faithfully — preserve legal terminology, citations, article numbers, " +
-        "party names, dates, and quotes verbatim where they appear untranslated in the source language " +
-        "convention (e.g. keep 'quejoso', 'amparo', article citations). Never summarize, shorten, or add " +
-        "commentary. Output STRICT JSON only.",
+        "You are a precise bilingual translator for a Mexican legal and social-care (Atención Integral / Comprehensive Care) intelligence platform. " +
+        "Translate each string faithfully — preserve legal terminology, social-work concepts, citations, article numbers, " +
+        "party and client names, case numbers, document IDs, phone numbers, email addresses, dates, and quotes verbatim without destructive alteration. " +
+        "If a string is already in the target language, keep it unchanged. Never summarize, shorten, or add commentary. Output STRICT JSON only.",
       userContent:
-        `Translate every string in this JSON array into ${targetLabel}. Preserve array order and length ` +
-        `exactly — return exactly ${data.texts.length} items. Return STRICT JSON: {"translations": string[]}.\n\n` +
+        `Translate every string in this JSON array into ${targetLabel}. If an item is already in ${targetLabel}, keep it identical. ` +
+        `Preserve array order and length exactly — return exactly ${data.texts.length} items. Return STRICT JSON: {"translations": string[]}.\n\n` +
         JSON.stringify(data.texts),
       json: true,
       cache: true,

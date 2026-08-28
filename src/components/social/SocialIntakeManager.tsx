@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowRight, ClipboardList, Loader2 } from "lucide-react"
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useI18n } from "@/i18n";
+import { CaseDynamicText } from "@/components/social/CaseDynamicText";
 import {
   completeSocialIntake,
   createSocialIntake,
@@ -102,7 +103,7 @@ export function SocialIntakeManager({orgId,programs,people,families,members,onCa
 
     {selected&&<section className="rounded-xl border border-primary/25 bg-primary/5 p-5">
       <h2 className="font-semibold">{es?"Resolver ingreso":"Resolve intake"} · <span className="font-mono text-sm">{selected.intake_number}</span></h2>
-      <p className="mt-1 text-sm text-muted-foreground">{selected.summary}</p>
+      <CaseDynamicText text={selected.summary} className="mt-1" />
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <label className="text-xs font-medium text-muted-foreground">{es?"Tipo de caso":"Case type"}<select value={decision.caseType} onChange={e=>setDecision({...decision,caseType:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{["individual","minor_child","family"].map(v=><option key={v} value={v}>{v.replaceAll("_"," ")}</option>)}</select></label>
         <label className="text-xs font-medium text-muted-foreground">{es?"Prioridad":"Priority"}<select value={decision.priority} onChange={e=>setDecision({...decision,priority:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{["standard","urgent","emergency"].map(v=><option key={v} value={v}>{v}</option>)}</select></label>

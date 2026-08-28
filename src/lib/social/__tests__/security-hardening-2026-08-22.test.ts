@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const read = (name: string) => readFileSync(join(process.cwd(), "supabase", "migrations", name), "utf8");
+const read = (name: string) => readFileSync(join(process.cwd(), "supabase", "migrations", name), "utf8").replace(/\r\n/g, "\n");
 
 const rls = read("20260822221949_f3473633-52b0-4424-8222-95d1eb2a018e.sql");
 const exposure = read("20260822222018_a925e26c-5279-4ee2-847d-e37aa6f5f58f.sql");

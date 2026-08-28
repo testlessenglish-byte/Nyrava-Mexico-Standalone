@@ -411,7 +411,7 @@ export const prepareSocialDocumentUpload=createServerFn({method:"POST"})
     const media=mime.startsWith("audio/")||mime.startsWith("video/")||["mp3","wav","m4a","aac","ogg","oga","flac","mp4","mov","m4v","webm","avi","mpeg","mpg","mkv"].includes(extension);
     if(media){
       const {data:programs,error:settingsError}=await supabase.from("social_programs").select("settings").eq("org_id",data.orgId).eq("active",true);fail(settingsError);
-      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads!==false)) throw new Error("Audio and video uploads are disabled for this organization");
+      if(!(programs??[]).some((p:any)=>p.settings?.allow_media_uploads!==false)) throw new Error("La carga de audio y video está deshabilitada para esta organización / Audio and video uploads are not enabled for this organization");
     }
     const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");
     const path=`${socialCase.org_id}/${data.socialCaseId}/${data.recordType}/${crypto.randomUUID()}-${safe}`;
