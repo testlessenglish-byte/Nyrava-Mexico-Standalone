@@ -6633,7 +6633,7 @@ export type Database = {
           content_en: string | null
           content_es: string | null
           created_at: string
-          created_by: string
+          created_by: string | null
           document_path: string | null
           effective_at: string | null
           file_type: string | null
@@ -6674,7 +6674,7 @@ export type Database = {
           content_en?: string | null
           content_es?: string | null
           created_at?: string
-          created_by: string
+          created_by?: string | null
           document_path?: string | null
           effective_at?: string | null
           file_type?: string | null
@@ -6715,7 +6715,7 @@ export type Database = {
           content_en?: string | null
           content_es?: string | null
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           document_path?: string | null
           effective_at?: string | null
           file_type?: string | null
