@@ -1089,3 +1089,272 @@ export const updateCareCaseState=createServerFn({method:"POST"})
     });
     fail(error);return row;
   });
+
+export const getSocialCaseTemplates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ orgId: uuid.optional(), category: z.string().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = ctx(context);
+    const { MEXICO_TEMPLATES } = await import("@/lib/social/templates/mexico-template-definitions");
+    let customTemplates: any[] = [];
+    try {
+      const q = supabase.from("social_case_templates").select("*").eq("active", true);
+      if (data.orgId) q.or(`org_id.is.null,org_id.eq.${data.orgId}`);
+      const res = await q;
+      if (res.data) customTemplates = res.data;
+    } catch {
+      // fallback to built-in if table query fails
+    }
+    const combined = [...MEXICO_TEMPLATES, ...customTemplates];
+    if (data.category) return combined.filter((t: any) => t.category === data.category);
+    return combined;
+  });
+
+export const createCaseDocumentDraft = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    caseId: uuid,
+    templateCode: z.string().trim().min(2).max(120),
+    language: z.enum(["es", "en"]).default("es"),
+    referralId: uuid.optional(),
+    carePlanGoalId: uuid.optional(),
+    recipientInfo: z.object({
+      organization: z.string().optional(),
+      contact_name: z.string().optional(),
+      email: z.string().optional(),
+      phone: z.string().optional(),
+      address: z.string().optional(),
+    }).default({}),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const { findTemplateByCode } = await import("@/lib/social/templates/mexico-template-definitions");
+    const { extractAuthorizedCaseContext, prefillTemplate } = await import("@/lib/social/templates/document-engine");
+
+    const template = findTemplateByCode(data.templateCode);
+    if (!template) throw new Error("Template not found: " + data.templateCode);
+
+    const caseRow = await supabase.from("social_cases").select("id,org_id,case_number,priority,status,assigned_case_manager,person_id,family_id").eq("id", data.caseId).single();
+    fail(caseRow.error);
+    const sc = caseRow.data;
+
+    const [person, family, assessments, carePlans, worker] = await Promise.all([
+      sc.person_id ? supabase.from("social_people").select("id,legal_name,preferred_name,telephone,email,municipality,state,nationality,birth_date").eq("id", sc.person_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      sc.family_id ? supabase.from("social_families").select("id,family_name,primary_contact_person_id").eq("id", sc.family_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      supabase.from("social_assessments").select("id,risk_level,reason,protective_factors,assessment_date").eq("social_case_id", data.caseId).order("assessment_date", { ascending: false }).limit(1),
+      supabase.from("social_care_plans").select("id,status,social_care_plan_versions(summary,social_care_plan_goals(goal,target_date))").eq("social_case_id", data.caseId).order("created_at", { ascending: false }).limit(1),
+      sc.assigned_case_manager ? supabase.from("social_organization_members").select("name,email,title").eq("user_id", sc.assigned_case_manager).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    const contextMap = extractAuthorizedCaseContext({
+      caseRecord: sc,
+      person: person.data ? {
+        id: person.data.id,
+        legal_name: person.data.legal_name,
+        preferred_name: person.data.preferred_name,
+        phone: person.data.telephone,
+        email: person.data.email,
+        municipality: person.data.municipality,
+        state: person.data.state,
+        nationality: person.data.nationality,
+        birth_date: person.data.birth_date,
+      } : null,
+      family: family.data ? { id: family.data.id, family_name: family.data.family_name } : null,
+      riskAssessment: assessments.data?.[0] ?? null,
+      carePlan: {
+        goals: (carePlans.data?.[0]?.social_care_plan_versions?.[0]?.social_care_plan_goals ?? []) as any[],
+        presenting_needs: carePlans.data?.[0]?.social_care_plan_versions?.[0]?.summary ?? undefined,
+      },
+      worker: worker.data ? { name: worker.data.name, contact: worker.data.title, email: worker.data.email } : null,
+    });
+
+    const prefilled = prefillTemplate(template, contextMap, data.language);
+    const docTitle = `${data.language === "es" ? template.name_es : template.name_en} — ${sc.case_number}`;
+
+    const insertRes = await supabase.from("social_documents").insert({
+      org_id: sc.org_id,
+      social_case_id: sc.id,
+      person_id: sc.person_id,
+      family_id: sc.family_id,
+      title: docTitle,
+      document_type: template.purpose || "referral",
+      record_type: (template.record_type as any) || "general_case_record",
+      sensitivity: "confidential",
+      template_code: template.code,
+      template_version: template.version,
+      purpose: template.purpose,
+      lifecycle_status: "draft",
+      language_code: data.language,
+      draft_payload: prefilled.values,
+      recipient_info: data.recipientInfo,
+      referral_id: data.referralId ?? null,
+      care_plan_goal_id: data.carePlanGoalId ?? null,
+      storage_path: `drafts/${sc.org_id}/${sc.id}/${crypto.randomUUID()}.json`,
+      uploaded_by: userId,
+    }).select("*").single();
+    fail(insertRes.error);
+    return insertRes.data;
+  });
+
+export const updateCaseDocumentDraft = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    documentId: uuid,
+    title: z.string().trim().min(1).max(300).optional(),
+    language: z.enum(["es", "en"]).optional(),
+    draftPayload: z.record(z.string(), z.unknown()),
+    recipientInfo: z.record(z.string(), z.unknown()).default({}),
+    lifecycleStatus: z.enum(["draft", "ready_for_review"]).default("draft"),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = ctx(context);
+    const updateRes = await supabase.from("social_documents").update({
+      ...(data.title && { title: data.title }),
+      ...(data.language && { language_code: data.language }),
+      draft_payload: data.draftPayload,
+      recipient_info: data.recipientInfo,
+      lifecycle_status: data.lifecycleStatus,
+      updated_at: new Date().toISOString(),
+    }).eq("id", data.documentId).select("*").single();
+    fail(updateRes.error);
+    return updateRes.data;
+  });
+
+export const finalizeCaseDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    documentId: uuid,
+    draftPayload: z.record(z.string(), z.unknown()),
+    recipientInfo: z.record(z.string(), z.unknown()).default({}),
+    language: z.enum(["es", "en"]).default("es"),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const { findTemplateByCode } = await import("@/lib/social/templates/mexico-template-definitions");
+    const { generateCaseDocumentPdf } = await import("@/lib/social/templates/document-engine");
+
+    const docRow = await supabase.from("social_documents").select("*").eq("id", data.documentId).single();
+    fail(docRow.error);
+    const doc = docRow.data;
+
+    const template = findTemplateByCode(doc.template_code || "mex_ficha_ingreso");
+    if (!template) throw new Error("Template definition not found");
+
+    const pdfBytes = generateCaseDocumentPdf(template, data.draftPayload, data.recipientInfo as any, data.language);
+    const storagePath = `social-documents/${doc.org_id}/${doc.social_case_id}/${doc.id}-v1.pdf`;
+
+    const uploadRes = await supabase.storage.from("social-case-files").upload(storagePath, pdfBytes, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+    if (uploadRes.error) throw uploadRes.error;
+
+    const digest = await crypto.subtle.digest("SHA-256", pdfBytes.buffer as ArrayBuffer);
+    const checksum = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+    await supabase.from("social_document_versions").insert({
+      org_id: doc.org_id,
+      document_id: doc.id,
+      version: 1,
+      checksum,
+      storage_path: storagePath,
+      mime_type: "application/pdf",
+      size_bytes: pdfBytes.byteLength,
+      uploaded_by: userId,
+      notes: data.language === "es" ? "Documento finalizado y aprobado por el profesional" : "Document finalized and approved by professional",
+    });
+
+    const updateRes = await supabase.from("social_documents").update({
+      draft_payload: data.draftPayload,
+      recipient_info: data.recipientInfo,
+      language_code: data.language,
+      lifecycle_status: "finalized",
+      document_status: "active",
+      storage_path: storagePath,
+      checksum,
+      mime_type: "application/pdf",
+      size_bytes: pdfBytes.byteLength,
+      finalized_at: new Date().toISOString(),
+      finalized_by: userId,
+      updated_at: new Date().toISOString(),
+    }).eq("id", doc.id).select("*").single();
+    fail(updateRes.error);
+    return updateRes.data;
+  });
+
+export const sendCaseDocumentEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    documentId: uuid,
+    toEmail: z.string().trim().email(),
+    subject: z.string().trim().min(2).max(200),
+    message: z.string().trim().min(5).max(4000),
+    consentId: uuid,
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const docRow = await supabase.from("social_documents").select("*,social_cases(id,org_id,case_number,person_id,family_id)").eq("id", data.documentId).single();
+    fail(docRow.error);
+    const doc = docRow.data;
+    const sc = doc.social_cases;
+
+    const consentRow = await supabase.from("social_consents").select("*").eq("id", data.consentId).single();
+    fail(consentRow.error);
+    const consent = consentRow.data;
+
+    if (consent.status !== "active" || (consent.expires_at && new Date(consent.expires_at) < new Date())) {
+      throw new Error("El consentimiento seleccionado no está activo o ha expirado. Verifique la pestaña Consentimiento.");
+    }
+
+    const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
+    await sendTemplateEmail("resource-contact", data.toEmail, {
+      idempotencyKey: crypto.randomUUID(),
+      templateData: {
+        subject: data.subject,
+        message: data.message,
+        caseReference: sc.case_number,
+        documents: [doc.title],
+      },
+    });
+
+    await supabase.from("social_document_shares").insert({
+      org_id: sc.org_id,
+      document_id: doc.id,
+      receiving_org_id: sc.org_id,
+      consent_id: consent.id,
+      purpose: data.subject,
+      shared_by: userId,
+    });
+
+    await supabase.from("social_tasks").insert({
+      org_id: sc.org_id,
+      social_case_id: sc.id,
+      title: `Seguimiento de envío: ${doc.title}`,
+      description: `Documento enviado a ${data.toEmail}. Asunto: ${data.subject}`,
+      priority: "normal",
+      status: "todo",
+      due_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+    });
+
+    if (doc.referral_id) {
+      await supabase.from("social_referrals").update({
+        status: "sent",
+        updated_at: new Date().toISOString(),
+      }).eq("id", doc.referral_id);
+    }
+
+    const updated = await supabase.from("social_documents").update({
+      lifecycle_status: "sent",
+      sent_at: new Date().toISOString(),
+      sent_to: data.toEmail,
+      disclosure_check: {
+        consent_id: consent.id,
+        consent_type: consent.consent_type,
+        verified_at: new Date().toISOString(),
+        recipient: data.toEmail,
+      },
+    }).eq("id", doc.id).select("*").single();
+    fail(updated.error);
+    return updated.data;
+  });
+

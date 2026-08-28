@@ -1,40 +1,443 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Bot, CheckCircle2, HeartPulse, Loader2, ShieldAlert } from "lucide-react";
+import {
+  Bot, CheckCircle2, FilePlus2, FileText, HeartPulse,
+  Loader2, ShieldAlert, Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/i18n";
-import { askTalkToCareCase, confirmCareAssistantAction, proposeCareAssistantAction, recordSocialIntervention, upsertSocialTask } from "@/lib/social.functions";
+import {
+  askTalkToCareCase, confirmCareAssistantAction, createCaseDocumentDraft,
+  proposeCareAssistantAction, recordSocialIntervention, upsertSocialTask,
+} from "@/lib/social.functions";
 
-const ACTIONS=["create_task","add_to_care_plan","request_document","start_risk_reassessment","find_resource","create_referral","schedule_follow_up","supervisor_review","request_legal_review","draft_case_summary","prepare_closure_checklist"];
-const label=(v:string,es:boolean)=>{const x:Record<string,[string,string]>={critical:["Críticos","Critical"],action_required:["Requiere acción","Action required"],incomplete:["Incompletos","Incomplete"],monitor:["En monitoreo","Monitor"],complete:["Completos","Complete"],create_task:["Crear tarea","Create task"],add_to_care_plan:["Agregar al plan","Add to care plan"],request_document:["Solicitar documento","Request document"],start_risk_reassessment:["Iniciar reevaluación","Start risk reassessment"],find_resource:["Buscar recurso","Find resource"],create_referral:["Crear canalización","Create referral"],schedule_follow_up:["Programar seguimiento","Schedule follow-up"],supervisor_review:["Enviar a supervisión","Send for supervisor review"],request_legal_review:["Solicitar revisión jurídica","Request legal review"],draft_case_summary:["Borrador de resumen","Draft case summary"],prepare_closure_checklist:["Preparar lista de cierre","Prepare closure checklist"]};return x[v]?(es?x[v][0]:x[v][1]):v.replaceAll("_"," ")};
-
-export function TalkToCareCase({caseId}:{caseId:string}){
- const {locale}=useI18n();const es=locale==="es";const askFn=useServerFn(askTalkToCareCase);const proposeFn=useServerFn(proposeCareAssistantAction);const confirmFn=useServerFn(confirmCareAssistantAction);const interventionFn=useServerFn(recordSocialIntervention);const taskFn=useServerFn(upsertSocialTask);
- const [question,setQuestion]=useState("");const [result,setResult]=useState<any>(null);const [proposal,setProposal]=useState<any>(null);const [saveMode,setSaveMode]=useState<"case_activity"|"follow_up_task"|null>(null);const [saveDraft,setSaveDraft]=useState("");const answerRef=useRef<HTMLDivElement>(null);const lastCheckRef=useRef<boolean|null>(null);
- const ask=useMutation({mutationFn:(healthCheck:boolean)=>{lastCheckRef.current=healthCheck;return askFn({data:{caseId,question:healthCheck?(es?"Ejecutar revisión integral del caso":"Run complete case health check"):question,language:es?"es":"en",healthCheck}})},onSuccess:setResult,onError:(e:any)=>toast.error(e.message)});
- const propose=useMutation({mutationFn:(actionType:string)=>proposeFn({data:{caseId,runId:result?.runId,actionType:actionType as any,title:label(actionType,es),details:{source:"talk_to_care_case"}}}),onSuccess:setProposal,onError:(e:any)=>toast.error(e.message)});
- const confirm=useMutation({mutationFn:()=>confirmFn({data:{proposalId:proposal.id,confirm:true}}),onSuccess:x=>{setProposal(x);toast.success(es?"Acción confirmada y registrada":"Action confirmed and recorded")},onError:(e:any)=>toast.error(e.message)});
- const prevLocaleRef=useRef(locale);
- useEffect(()=>{if(prevLocaleRef.current!==locale){prevLocaleRef.current=locale;if(result&&lastCheckRef.current!==null)ask.mutate(lastCheckRef.current)}},[locale,result]);
- const r=result?.response,h=r?.health_check;
- const answerText=r?[r.answer,r.current_case_status.summary,...r.recommended_next_steps.map((x:any)=>x.action)].filter(Boolean).join("\n"):"";
- const save=useMutation({mutationFn:()=>saveMode==="follow_up_task"?taskFn({data:{socialCaseId:caseId,title:es?"Seguimiento de Consultar Caso":"Talk to Care Case follow-up",description:saveDraft,priority:"normal",status:"todo"}}):interventionFn({data:{socialCaseId:caseId,occurredAt:new Date().toISOString(),serviceType:"case_assistant_review",reason:es?"Información revisada desde Consultar Caso":"Information reviewed from Talk to Care Case",actionsTaken:saveDraft,followUpRequired:false,recordType:"general_case_record",confidentialityLevel:"standard"}}),onSuccess:()=>{toast.success(saveMode==="follow_up_task"?(es?"Seguimiento creado en Tareas y alertas":"Follow-up created in Tasks and Alerts"):(es?"Información guardada en el historial del caso":"Information saved to case work history"));setSaveMode(null)},onError:(e:any)=>toast.error(e.message)});
- useEffect(()=>{if(result)answerRef.current?.scrollIntoView({behavior:"smooth",block:"nearest"})},[result]);
- const reviewSave=(mode:"case_activity"|"follow_up_task")=>{setSaveDraft(answerText);setSaveMode(mode)};
- return <section className="space-y-4"><div className="rounded-xl border border-primary/30 bg-primary/5 p-5"><h3 className="flex items-center gap-2 text-lg font-semibold"><Bot className="h-5 w-5 text-primary"/>{es?"Consultar Caso de Atención":"Talk to Care Case"}</h3><p className="text-sm text-muted-foreground">{es?"Analiza únicamente información autorizada del caso seleccionado. No cambia riesgos, consentimiento, planes, referencias ni estado del caso.":"Analyzes only authorized information from the selected case. It does not change risk, consent, plans, referrals, or case status."}</p>
- {r&&<div ref={answerRef} role="status" aria-live="polite" className="mt-4 rounded-xl border border-primary/20 bg-background p-4"><p className="mb-2 flex items-center gap-2 font-semibold"><Bot className="h-4 w-4 text-primary"/>{es?"Respuesta":"Answer"}</p><p className="whitespace-pre-wrap text-sm">{r.answer??r.current_case_status.summary}</p>{!r.answer&&r.recommended_next_steps.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{r.recommended_next_steps.map((x:any,i:number)=><li key={i}>{x.action}</li>)}</ul>}<div className="mt-4 flex flex-wrap gap-2"><button onClick={()=>reviewSave("case_activity")} className="rounded border border-primary px-3 py-2 text-xs text-primary">{es?"Revisar y guardar en el caso":"Review and save to case"}</button><button onClick={()=>reviewSave("follow_up_task")} className="rounded border border-primary px-3 py-2 text-xs text-primary">{es?"Revisar y crear seguimiento":"Review and create follow-up"}</button></div></div>}
- <textarea rows={4} value={question} onChange={e=>setQuestion(e.target.value)} placeholder={es?"¿Qué falta en este caso? ¿Qué requiere seguimiento?":"What is missing? What needs follow-up?"} className="mt-3 w-full rounded-lg border border-border bg-background p-3 text-sm"/><div className="mt-3 flex flex-wrap gap-2"><button disabled={question.trim().length<2||ask.isPending} onClick={()=>ask.mutate(false)} className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground">{ask.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Consultar":"Ask"}</button><button disabled={ask.isPending} onClick={()=>ask.mutate(true)} className="rounded border border-primary px-4 py-2 text-sm text-primary"><HeartPulse className="mr-2 inline h-4 w-4"/>{es?"Ejecutar revisión de salud del caso":"Run Case Health Check"}</button></div></div>
- {saveMode&&<Panel title={saveMode==="follow_up_task"?(es?"Revisar seguimiento antes de crearlo":"Review follow-up before creating"):(es?"Revisar antes de guardar en el caso":"Review before saving to the case")}><textarea rows={7} value={saveDraft} onChange={e=>setSaveDraft(e.target.value)} className="w-full rounded-lg border border-border bg-background p-3 text-sm"/><div className="flex gap-2"><button disabled={saveDraft.trim().length<2||save.isPending} onClick={()=>save.mutate()} className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground">{save.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{saveMode==="follow_up_task"?(es?"Crear seguimiento":"Create follow-up"):(es?"Guardar en el caso":"Save to case")}</button><button onClick={()=>setSaveMode(null)} className="rounded border border-border px-4 py-2 text-sm">{es?"Cancelar":"Cancel"}</button></div></Panel>}
- {r&&<><div className="grid gap-3 lg:grid-cols-2"><Panel title={es?"Estado actual del caso":"Current case status"}><p>{r.current_case_status.summary}</p><p className="text-xs text-muted-foreground">{r.current_case_status.last_activity??"—"}</p></Panel><Panel title={es?"Faltante o incompleto":"Missing or incomplete"}>{r.missing_or_incomplete.length?r.missing_or_incomplete.map((x:any)=><Item key={x.code} x={x}/>):<p>{es?"Nada identificado por las reglas actuales.":"Nothing identified by current rules."}</p>}</Panel><Panel title={es?"Riesgos que requieren revisión":"Risks requiring review"}>{r.risks_requiring_review.length?r.risks_requiring_review.map((x:any)=><Item key={x.code} x={x}/>):<p>{es?"No se detectaron alertas críticas deterministas.":"No deterministic critical alerts found."}</p>}</Panel><Panel title={es?"Próximos pasos recomendados":"Recommended next steps"}>{r.recommended_next_steps.map((x:any,i:number)=><div key={i} className="rounded border border-border p-2 text-sm"><b>{x.action}</b><p>{x.responsible_role} · {x.suggested_due_date} · {x.consent_required?(es?"Requiere revisar consentimiento":"Consent review required"):(es?"Sin requisito identificado":"No requirement identified")}</p><p className="text-xs text-muted-foreground">{x.supporting_record}</p></div>)}</Panel></div>
- {h&&<div className="grid gap-3 md:grid-cols-5">{[["critical",h.critical],["action_required",h.action_required],["incomplete",h.incomplete],["monitor",h.monitor],["complete",h.complete]].map(([name,rows]:any)=><Panel key={name} title={label(name,es)}><b className="text-2xl">{rows.length}</b>{rows.slice(0,3).map((x:any)=><Item key={x.code} x={x}/>)}</Panel>)}</div>}
- {r.answer&&<Panel title={es?"Respuesta":"Answer"}><p className="whitespace-pre-wrap text-sm leading-relaxed">{r.answer}</p><p className="text-xs text-muted-foreground">{r.answer_source==="ai"?(es?"Generado con los proveedores de IA configurados, sobre hechos del expediente.":"Generated with the configured AI providers, grounded on case records."):(es?"Resultado determinista de las reglas de atención integral.":"Deterministic Comprehensive Care rule output.")}{r.answer_error?` · ${r.answer_error}`:""}</p></Panel>}
- {!!r.knowledge_suggestions?.length&&<Panel title={es?"Guía del Centro de Conocimiento (no es un hecho del caso)":"Knowledge Center guidance (not a case fact)"}>{r.knowledge_suggestions.map((k:any)=><div key={k.id} className="rounded border border-border p-2 text-sm"><b>{k.title}</b><p className="text-xs text-muted-foreground">KNOWLEDGE GUIDANCE · {k.category??"—"} · v{k.version}</p></div>)}</Panel>}
- <Panel title={es?"Fuentes del caso":"Sources"}>{r.sources.map((x:string)=><p key={x} className="text-xs">{x}</p>)}</Panel>
- {!!r.resource_recommendations?.length&&<Panel title={es?"Recursos autorizados para revisión":"Resources for review"}>{r.resource_recommendations.map((x:any)=><div key={x.id} className="rounded border border-border p-2 text-sm"><b>{x.official_name}</b><p>{(x.services??[]).join(", ")} · {[x.municipality,x.state_code].filter(Boolean).join(", ")} · {x.cost_type}</p>{x.warning&&<p className="text-warning">{x.warning}</p>}</div>)}</Panel>}
- <div className="rounded border border-warning/30 bg-warning/10 p-3 text-xs"><ShieldAlert className="mr-2 inline h-4 w-4"/>{r.professional_review_notice}</div>
- <Panel title={es?"Proponer acción — requiere confirmación":"Propose action — confirmation required"}><div className="flex flex-wrap gap-2">{ACTIONS.map(x=><button key={x} onClick={()=>propose.mutate(x)} className="rounded border border-border px-3 py-2 text-xs">{label(x,es)}</button>)}</div>{proposal&&<div className="rounded-lg border border-primary/30 p-3"><p className="font-semibold">{proposal.preview?.title}</p><p className="text-xs text-muted-foreground">{proposal.preview?.warning}</p>{proposal.status==="proposed"?<button disabled={confirm.isPending} onClick={()=>confirm.mutate()} className="mt-2 rounded bg-primary px-3 py-2 text-xs text-primary-foreground">{es?"Confirmar acción":"Confirm action"}</button>:<p className="mt-2 text-sm text-success"><CheckCircle2 className="mr-1 inline h-4 w-4"/>{es?"Confirmada":"Confirmed"}</p>}</div>}</Panel></>}
- </section>
+interface Props {
+  caseId: string;
+  documents?: any[];
+  consents?: any[];
+  onOpenDocument?: (doc: any) => void;
+  onOpenDocumentsTab?: () => void;
 }
-function Item({x}:{x:any}){return <div className="rounded border border-border p-2 text-xs"><b>{x.message}</b><p className="text-muted-foreground">{x.source}</p></div>}
-function Panel({title,children}:{title:string;children:React.ReactNode}){return <div className="space-y-2 rounded-xl border border-border bg-card p-4"><h4 className="font-semibold">{title}</h4>{children}</div>}
+
+const ACTIONS = [
+  "create_task", "add_to_care_plan", "request_document", "start_risk_reassessment",
+  "find_resource", "create_referral", "schedule_follow_up", "supervisor_review",
+  "request_legal_review", "draft_case_summary", "prepare_closure_checklist",
+];
+
+const label = (v: string, es: boolean) => {
+  const x: Record<string, [string, string]> = {
+    critical: ["Críticos", "Critical"],
+    action_required: ["Requiere acción", "Action required"],
+    incomplete: ["Incompletos", "Incomplete"],
+    monitor: ["En monitoreo", "Monitor"],
+    complete: ["Completos", "Complete"],
+    create_task: ["Crear tarea", "Create task"],
+    add_to_care_plan: ["Agregar al plan", "Add to care plan"],
+    request_document: ["Solicitar documento", "Request document"],
+    start_risk_reassessment: ["Iniciar reevaluación", "Start risk reassessment"],
+    find_resource: ["Buscar recurso", "Find resource"],
+    create_referral: ["Crear canalización", "Create referral"],
+    schedule_follow_up: ["Programar seguimiento", "Schedule follow-up"],
+    supervisor_review: ["Enviar a supervisión", "Send for supervisor review"],
+    request_legal_review: ["Solicitar revisión jurídica", "Request legal review"],
+    draft_case_summary: ["Borrador de resumen", "Draft case summary"],
+    prepare_closure_checklist: ["Preparar lista de cierre", "Prepare closure checklist"],
+  };
+  return x[v] ? (es ? x[v][0] : x[v][1]) : v.replaceAll("_", " ");
+};
+
+export function TalkToCareCase({
+  caseId,
+  documents = [],
+  consents = [],
+  onOpenDocument,
+  onOpenDocumentsTab,
+}: Props) {
+  const { locale } = useI18n();
+  const es = locale === "es";
+  const qc = useQueryClient();
+
+  const askFn = useServerFn(askTalkToCareCase);
+  const proposeFn = useServerFn(proposeCareAssistantAction);
+  const confirmFn = useServerFn(confirmCareAssistantAction);
+  const interventionFn = useServerFn(recordSocialIntervention);
+  const taskFn = useServerFn(upsertSocialTask);
+  const createDraftFn = useServerFn(createCaseDocumentDraft);
+
+  const [question, setQuestion] = useState("");
+  const [result, setResult] = useState<any>(null);
+  const [proposal, setProposal] = useState<any>(null);
+  const [saveMode, setSaveMode] = useState<"case_activity" | "follow_up_task" | null>(null);
+  const [saveDraft, setSaveDraft] = useState("");
+  const answerRef = useRef<HTMLDivElement>(null);
+  const lastCheckRef = useRef<boolean | null>(null);
+
+  const ask = useMutation({
+    mutationFn: (healthCheck: boolean) => {
+      lastCheckRef.current = healthCheck;
+      return askFn({
+        data: {
+          caseId,
+          question: healthCheck ? (es ? "Ejecutar revisión integral del caso" : "Run complete case health check") : question,
+          language: es ? "es" : "en",
+          healthCheck,
+        }
+      });
+    },
+    onSuccess: setResult,
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const prepareDocumentDraft = useMutation({
+    mutationFn: (templateCode: string) => createDraftFn({
+      data: {
+        caseId,
+        templateCode,
+        language: es ? "es" : "en",
+      }
+    }),
+    onSuccess: (newDoc) => {
+      toast.success(es ? "Borrador de documento preparado por el Asistente" : "Document draft prepared by Assistant");
+      void qc.invalidateQueries({ queryKey: ["social-document-workspace", caseId] });
+      void qc.invalidateQueries({ queryKey: ["social-case", caseId] });
+      if (onOpenDocument) onOpenDocument(newDoc);
+      else if (onOpenDocumentsTab) onOpenDocumentsTab();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const propose = useMutation({
+    mutationFn: (actionType: string) => proposeFn({
+      data: {
+        caseId,
+        runId: result?.runId,
+        actionType: actionType as any,
+        title: label(actionType, es),
+        details: { source: "talk_to_care_case" },
+      }
+    }),
+    onSuccess: setProposal,
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const confirm = useMutation({
+    mutationFn: () => confirmFn({ data: { proposalId: proposal.id, confirm: true } }),
+    onSuccess: (x) => {
+      setProposal(x);
+      toast.success(es ? "Acción confirmada y registrada" : "Action confirmed and recorded");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const prevLocaleRef = useRef(locale);
+  useEffect(() => {
+    if (prevLocaleRef.current !== locale) {
+      prevLocaleRef.current = locale;
+      if (result && lastCheckRef.current !== null) ask.mutate(lastCheckRef.current);
+    }
+  }, [locale, result]);
+
+  const r = result?.response;
+  const h = r?.health_check;
+  const answerText = r ? [r.answer, r.current_case_status.summary, ...r.recommended_next_steps.map((x: any) => x.action)].filter(Boolean).join("\n") : "";
+
+  const save = useMutation({
+    mutationFn: () => saveMode === "follow_up_task"
+      ? taskFn({ data: { socialCaseId: caseId, title: es ? "Seguimiento de Consultar Caso" : "Talk to Care Case follow-up", description: saveDraft, priority: "normal", status: "todo" } })
+      : interventionFn({ data: { socialCaseId: caseId, occurredAt: new Date().toISOString(), serviceType:"case_assistant_review", reason: es ? "Información revisada desde Consultar Caso" : "Information reviewed from Talk to Care Case", actionsTaken: saveDraft, followUpRequired: false, recordType: "general_case_record", confidentialityLevel: "standard" } }),
+    onSuccess: () => {
+      toast.success(saveMode === "follow_up_task" ? (es ? "Seguimiento creado en Tareas y alertas" : "Follow-up created in Tasks and Alerts") : (es ? "Información guardada en el historial del caso" : "Information saved to case work history"));
+      setSaveMode(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  useEffect(() => {
+    if (result) answerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [result]);
+
+  const reviewSave = (mode: "case_activity" | "follow_up_task") => {
+    setSaveDraft(answerText);
+    setSaveMode(mode);
+  };
+
+  return (
+    <section className="space-y-4">
+      {/* Ask Area */}
+      <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
+        <h3 className="flex items-center gap-2 text-lg font-semibold">
+          <Bot className="h-5 w-5 text-primary" />
+          {es ? "Consultar Caso de Atención" : "Talk to Care Case"}
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          {es
+            ? "Analiza únicamente información autorizada del caso seleccionado. No cambia riesgos, consentimiento, planes, referencias ni estado del caso."
+            : "Analyzes only authorized information from the selected case. It does not change risk, consent, plans, referrals, or case status."}
+        </p>
+
+        {r && (
+          <div ref={answerRef} role="status" aria-live="polite" className="mt-4 rounded-xl border border-primary/20 bg-background p-4">
+            <p className="mb-2 flex items-center gap-2 font-semibold">
+              <Bot className="h-4 w-4 text-primary" />
+              {es ? "Respuesta" : "Answer"}
+            </p>
+            <p className="whitespace-pre-wrap text-sm">{r.answer ?? r.current_case_status.summary}</p>
+            {!r.answer && r.recommended_next_steps.length > 0 && (
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
+                {r.recommended_next_steps.map((x: any, i: number) => (
+                  <li key={i}>{x.action}</li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => reviewSave("case_activity")} className="rounded border border-primary px-3 py-2 text-xs text-primary">
+                {es ? "Revisar y guardar en el caso" : "Review and save to case"}
+              </button>
+              <button type="button" onClick={() => reviewSave("follow_up_task")} className="rounded border border-primary px-3 py-2 text-xs text-primary">
+                {es ? "Revisar y crear seguimiento" : "Review and create follow-up"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <textarea
+          rows={4}
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder={es ? "Ej: ¿Qué falta en este caso? ¿Qué canalizaciones requieren seguimiento? Prepara la derivación de vivienda." : "e.g. What is missing? Which referrals need follow-up? Prepare the housing referral."}
+          className="mt-3 w-full rounded-lg border border-border bg-background p-3 text-sm"
+        />
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={question.trim().length < 2 || ask.isPending}
+              onClick={() => ask.mutate(false)}
+              className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+            >
+              {ask.isPending && <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />}
+              {es ? "Consultar" : "Ask"}
+            </button>
+            <button
+              type="button"
+              disabled={ask.isPending}
+              onClick={() => ask.mutate(true)}
+              className="flex items-center gap-1.5 rounded border border-primary px-4 py-2 text-sm text-primary"
+            >
+              <HeartPulse className="h-4 w-4" />
+              {es ? "Ejecutar revisión de salud del caso" : "Run Case Health Check"}
+            </button>
+          </div>
+        </div>
+
+        {/* CASE DOCUMENTS SECTION UNDERNEATH ASK AREA */}
+        <div className="mt-6 border-t border-primary/20 pt-4">
+          <div className="flex items-center justify-between">
+            <h4 className="flex items-center gap-2 text-sm font-bold text-foreground uppercase tracking-wide">
+              <FileText className="h-4 w-4 text-primary" />
+              {es ? "DOCUMENTOS Y FORMATOS DEL CASO" : "CASE DOCUMENTS & FORMS"}
+            </h4>
+            {onOpenDocumentsTab && (
+              <button
+                type="button"
+                onClick={onOpenDocumentsTab}
+                className="text-xs font-semibold text-primary underline"
+              >
+                {es ? "Ver todos en Documentos →" : "View all in Documents →"}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {/* Quick Templates Shortcuts */}
+            {[
+              { code: "mex_derivacion_vivienda", label_es: "Derivación de Vivienda", label_en: "Housing Referral" },
+              { code: "mex_derivacion_psicologia", label_es: "Derivación Psicológica", label_en: "Psychology Referral" },
+              { code: "mex_derivacion_juridica", label_es: "Asistencia Jurídica", label_en: "Legal Assistance Referral" },
+              { code: "mex_plan_seguridad", label_es: "Plan de Seguridad", label_en: "Safety Plan" },
+            ].map((t) => {
+              const existing = documents.find((d) => d.template_code === t.code);
+              return (
+                <div
+                  key={t.code}
+                  className="flex items-center justify-between rounded-lg border border-border bg-background/80 p-2.5 text-xs"
+                >
+                  <div>
+                    <p className="font-semibold text-foreground">{es ? t.label_es : t.label_en}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {existing
+                        ? `${es ? "Estado" : "Status"}: ${existing.lifecycle_status?.toUpperCase() || "FINALIZED"}`
+                        : (es ? "No creado" : "Not created")}
+                    </p>
+                  </div>
+                  {existing ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenDocument ? onOpenDocument(existing) : onOpenDocumentsTab?.()}
+                      className="rounded bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
+                    >
+                      {existing.lifecycle_status === "draft" ? (es ? "Continuar" : "Continue") : (es ? "Abrir" : "Open")}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={prepareDocumentDraft.isPending}
+                      onClick={() => prepareDocumentDraft.mutate(t.code)}
+                      className="rounded bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      {prepareDocumentDraft.isPending && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />}
+                      {es ? "Preparar borrador" : "Prepare draft"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {saveMode && (
+        <Panel title={saveMode === "follow_up_task" ? (es ? "Revisar seguimiento antes de crearlo" : "Review follow-up before creating") : (es ? "Revisar antes de guardar en el caso" : "Review before saving to the case")}>
+          <textarea rows={7} value={saveDraft} onChange={(e) => setSaveDraft(e.target.value)} className="w-full rounded-lg border border-border bg-background p-3 text-sm" />
+          <div className="flex gap-2">
+            <button disabled={saveDraft.trim().length < 2 || save.isPending} onClick={() => save.mutate()} className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground">
+              {save.isPending && <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />}
+              {saveMode === "follow_up_task" ? (es ? "Crear seguimiento" : "Create follow-up") : (es ? "Guardar en el caso" : "Save to case")}
+            </button>
+            <button onClick={() => setSaveMode(null)} className="rounded border border-border px-4 py-2 text-sm">
+              {es ? "Cancelar" : "Cancel"}
+            </button>
+          </div>
+        </Panel>
+      )}
+
+      {r && (
+        <>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Panel title={es ? "Estado actual del caso" : "Current case status"}>
+              <p>{r.current_case_status.summary}</p>
+              <p className="text-xs text-muted-foreground">{r.current_case_status.last_activity ?? "—"}</p>
+            </Panel>
+            <Panel title={es ? "Faltante o incompleto" : "Missing or incomplete"}>
+              {r.missing_or_incomplete.length ? r.missing_or_incomplete.map((x: any) => <Item key={x.code} x={x} />) : <p>{es ? "Nada identificado por las reglas actuales." : "Nothing identified by current rules."}</p>}
+            </Panel>
+            <Panel title={es ? "Riesgos que requieren revisión" : "Risks requiring review"}>
+              {r.risks_requiring_review.length ? r.risks_requiring_review.map((x: any) => <Item key={x.code} x={x} />) : <p>{es ? "No se detectaron alertas críticas deterministas." : "No deterministic critical alerts found."}</p>}
+            </Panel>
+            <Panel title={es ? "Próximos pasos recomendados" : "Recommended next steps"}>
+              {r.recommended_next_steps.map((x: any, i: number) => (
+                <div key={i} className="rounded border border-border p-2 text-sm">
+                  <b>{x.action}</b>
+                  <p>{x.responsible_role} · {x.suggested_due_date} · {x.consent_required ? (es ? "Requiere revisar consentimiento" : "Consent review required") : (es ? "Sin requisito identificado" : "No requirement identified")}</p>
+                  <p className="text-xs text-muted-foreground">{x.supporting_record}</p>
+                </div>
+              ))}
+            </Panel>
+          </div>
+
+          {h && (
+            <div className="grid gap-3 md:grid-cols-5">
+              {[["critical", h.critical], ["action_required", h.action_required], ["incomplete", h.incomplete], ["monitor", h.monitor], ["complete", h.complete]].map(([name, rows]: any) => (
+                <Panel key={name} title={label(name, es)}>
+                  <b className="text-2xl">{rows.length}</b>
+                  {rows.slice(0, 3).map((x: any) => <Item key={x.code} x={x} />)}
+                </Panel>
+              ))}
+            </div>
+          )}
+
+          {r.answer && (
+            <Panel title={es ? "Respuesta" : "Answer"}>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{r.answer}</p>
+              <p className="text-xs text-muted-foreground">
+                {r.answer_source === "ai"
+                  ? (es ? "Generado con los proveedores de IA configurados, sobre hechos del expediente." : "Generated with the configured AI providers, grounded on case records.")
+                  : (es ? "Resultado determinista de las reglas de atención integral." : "Deterministic Comprehensive Care rule output.")}
+                {r.answer_error ? ` · ${r.answer_error}` : ""}
+              </p>
+            </Panel>
+          )}
+
+          {!!r.knowledge_suggestions?.length && (
+            <Panel title={es ? "Guía del Centro de Conocimiento (no es un hecho del caso)" : "Knowledge Center guidance (not a case fact)"}>
+              {r.knowledge_suggestions.map((k: any) => (
+                <div key={k.id} className="rounded border border-border p-2 text-sm">
+                  <b>{k.title}</b>
+                  <p className="text-xs text-muted-foreground">KNOWLEDGE GUIDANCE · {k.category ?? "—"} · v{k.version}</p>
+                </div>
+              ))}
+            </Panel>
+          )}
+
+          <Panel title={es ? "Fuentes del caso" : "Sources"}>
+            {r.sources.map((x: string) => <p key={x} className="text-xs">{x}</p>)}
+          </Panel>
+
+          {!!r.resource_recommendations?.length && (
+            <Panel title={es ? "Recursos autorizados para revisión" : "Resources for review"}>
+              {r.resource_recommendations.map((x: any) => (
+                <div key={x.id} className="rounded border border-border p-2 text-sm">
+                  <b>{x.official_name}</b>
+                  <p>{(x.services ?? []).join(", ")} · {[x.municipality, x.state_code].filter(Boolean).join(", ")} · {x.cost_type}</p>
+                  {x.warning && <p className="text-warning">{x.warning}</p>}
+                </div>
+              ))}
+            </Panel>
+          )}
+
+          <div className="rounded border border-warning/30 bg-warning/10 p-3 text-xs">
+            <ShieldAlert className="mr-2 inline h-4 w-4" />
+            {r.professional_review_notice}
+          </div>
+
+          <Panel title={es ? "Proponer acción — requiere confirmación" : "Propose action — confirmation required"}>
+            <div className="flex flex-wrap gap-2">
+              {ACTIONS.map((x) => (
+                <button key={x} onClick={() => propose.mutate(x)} className="rounded border border-border px-3 py-2 text-xs">
+                  {label(x, es)}
+                </button>
+              ))}
+            </div>
+            {proposal && (
+              <div className="rounded-lg border border-primary/30 p-3">
+                <p className="font-semibold">{proposal.preview?.title}</p>
+                <p className="text-xs text-muted-foreground">{proposal.preview?.warning}</p>
+                {proposal.status === "proposed" ? (
+                  <button disabled={confirm.isPending} onClick={() => confirm.mutate()} className="mt-2 rounded bg-primary px-3 py-2 text-xs text-primary-foreground">
+                    {es ? "Confirmar acción" : "Confirm action"}
+                  </button>
+                ) : (
+                  <p className="mt-2 text-sm text-success">
+                    <CheckCircle2 className="mr-1 inline h-4 w-4" />
+                    {es ? "Confirmada" : "Confirmed"}
+                  </p>
+                )}
+              </div>
+            )}
+          </Panel>
+        </>
+      )}
+    </section>
+  );
+}
+
+function Item({ x }: { x: any }) {
+  return (
+    <div className="rounded border border-border p-2 text-xs">
+      <b>{x.message}</b>
+      <p className="text-muted-foreground">{x.source}</p>
+    </div>
+  );
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-card p-4">
+      <h4 className="font-semibold">{title}</h4>
+      {children}
+    </div>
+  );
+}

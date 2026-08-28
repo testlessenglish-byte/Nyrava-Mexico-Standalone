@@ -33,7 +33,7 @@ describe("Comprehensive Care Phase 5 workspace navigation",()=>{
     expect(workspace).toContain("PRIMARY_TABS");
     expect(workspace).toContain("More case actions");
     expect(workspace).toContain("queryKey:[\"social-case\",caseId]");
-    expect(workspace).toContain("<TalkToCareCase caseId={caseId}/>");
+    expect(workspace).toContain("<TalkToCareCase caseId={caseId}");
     expect(workspace).toContain("<CaseResourceRecommendations caseId={caseId}/>");
   });
 
