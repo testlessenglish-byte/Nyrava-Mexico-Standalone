@@ -840,7 +840,7 @@ export const saveKnowledgeRecord=createServerFn({method:"POST"})
     applicablePrograms:z.array(z.string()).max(50).default([]),requiredSteps:z.array(z.string()).max(100).default([]),officialSources:z.array(z.object({title:z.string().max(300),url:z.string().url()})).max(50).default([]),
   }).parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);const now=new Date().toISOString();
+    const {supabase,userId}=await requireResourceKnowledgeAdmin(context,data.orgId);const now=new Date().toISOString();
     const current=data.id?await supabase.from("resource_knowledge_records").select("version").eq("id",data.id).single():null;if(current)fail(current.error);const nextVersion=data.id?(current!.data.version+1):1;
     const payload={org_id:data.orgId,version:nextVersion,title_es:data.titleEs,title_en:data.titleEn,summary_es:data.summaryEs||null,summary_en:data.summaryEn||null,
       content_es:data.contentEs||null,content_en:data.contentEn||null,knowledge_type:data.knowledgeType,service_categories:data.serviceCategories,
@@ -859,12 +859,12 @@ export const saveKnowledgeRecord=createServerFn({method:"POST"})
 export const prepareKnowledgeUpload=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({orgId:uuid,recordId:uuid,fileName:z.string().min(1).max(255)}).parse(d))
-  .handler(async({data,context})=>{const {supabase}=ctx(context);const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");const path=`${data.orgId}/${data.recordId}/${crypto.randomUUID()}-${safe}`;const signed=await supabase.storage.from("social-knowledge-files").createSignedUploadUrl(path);fail(signed.error);return {path,token:signed.data.token};});
+  .handler(async({data,context})=>{const {supabase}=await requireResourceKnowledgeAdmin(context,data.orgId);const safe=data.fileName.replace(/[^a-zA-Z0-9._-]+/g,"_");const path=`${data.orgId}/${data.recordId}/${crypto.randomUUID()}-${safe}`;const signed=await supabase.storage.from("social-knowledge-files").createSignedUploadUrl(path);fail(signed.error);return {path,token:signed.data.token};});
 
 export const finalizeKnowledgeUpload=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({recordId:uuid,path:z.string().min(20).max(1000),fileType:z.string().max(120)}).parse(d))
-  .handler(async({data,context})=>{const {supabase}=ctx(context);const {error}=await supabase.from("resource_knowledge_records").update({document_path:data.path,file_type:data.fileType,updated_at:new Date().toISOString()}).eq("id",data.recordId);fail(error);return {ok:true};});
+  .handler(async({data,context})=>{const {supabase}=await requireResourceKnowledgeAdmin(context);const {error}=await supabase.from("resource_knowledge_records").update({document_path:data.path,file_type:data.fileType,updated_at:new Date().toISOString()}).eq("id",data.recordId);fail(error);return {ok:true};});
 
 export const openKnowledgeRecord=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
