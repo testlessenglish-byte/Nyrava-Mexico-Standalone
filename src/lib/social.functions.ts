@@ -965,10 +965,10 @@ export const askTalkToCareCase = createServerFn({ method: "POST" })
         const userPrompt = `HECHOS AUTORIZADOS DEL CASO:\n${JSON.stringify(factSheet, null, 2)}\n\nPREGUNTA DE LA PERSONA PROFESIONAL:\n${data.question}`;
 
         const aiRes = await routeAI({
-          system: sysPrompt,
-          prompt: userPrompt,
+          systemInstruction: sysPrompt,
+          userContent: userPrompt,
           userId,
-          task: "social_case_narrative",
+          task: "reasoning",
         });
 
         if (aiRes?.text && aiRes.text.trim().length > 0) {
