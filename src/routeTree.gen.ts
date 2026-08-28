@@ -88,6 +88,7 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicHooksStripeWebhookRouteImport } from './routes/api/public/hooks/stripe-webhook'
+import { Route as ApiPublicHooksResourceContactRefreshRouteImport } from './routes/api/public/hooks/resource-contact-refresh'
 import { Route as ApiPublicHooksRemindersWorkerRouteImport } from './routes/api/public/hooks/reminders-worker'
 import { Route as ApiPublicHooksPipelineWorkerRouteImport } from './routes/api/public/hooks/pipeline-worker'
 import { Route as ApiPublicHooksMercadopagoWebhookRouteImport } from './routes/api/public/hooks/mercadopago-webhook'
@@ -501,6 +502,12 @@ const ApiPublicHooksStripeWebhookRoute =
     path: '/api/public/hooks/stripe-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksResourceContactRefreshRoute =
+  ApiPublicHooksResourceContactRefreshRouteImport.update({
+    id: '/api/public/hooks/resource-contact-refresh',
+    path: '/api/public/hooks/resource-contact-refresh',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksRemindersWorkerRoute =
   ApiPublicHooksRemindersWorkerRouteImport.update({
     id: '/api/public/hooks/reminders-worker',
@@ -605,6 +612,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/reminders-worker': typeof ApiPublicHooksRemindersWorkerRoute
+  '/api/public/hooks/resource-contact-refresh': typeof ApiPublicHooksResourceContactRefreshRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -688,6 +696,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/reminders-worker': typeof ApiPublicHooksRemindersWorkerRoute
+  '/api/public/hooks/resource-contact-refresh': typeof ApiPublicHooksResourceContactRefreshRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -774,6 +783,7 @@ export interface FileRoutesById {
   '/api/public/hooks/mercadopago-webhook': typeof ApiPublicHooksMercadopagoWebhookRoute
   '/api/public/hooks/pipeline-worker': typeof ApiPublicHooksPipelineWorkerRoute
   '/api/public/hooks/reminders-worker': typeof ApiPublicHooksRemindersWorkerRoute
+  '/api/public/hooks/resource-contact-refresh': typeof ApiPublicHooksResourceContactRefreshRoute
   '/api/public/hooks/stripe-webhook': typeof ApiPublicHooksStripeWebhookRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
@@ -860,6 +870,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/reminders-worker'
+    | '/api/public/hooks/resource-contact-refresh'
     | '/api/public/hooks/stripe-webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -943,6 +954,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/reminders-worker'
+    | '/api/public/hooks/resource-contact-refresh'
     | '/api/public/hooks/stripe-webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -1028,6 +1040,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/mercadopago-webhook'
     | '/api/public/hooks/pipeline-worker'
     | '/api/public/hooks/reminders-worker'
+    | '/api/public/hooks/resource-contact-refresh'
     | '/api/public/hooks/stripe-webhook'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
@@ -1072,6 +1085,7 @@ export interface RootRouteChildren {
   ApiPublicHooksMercadopagoWebhookRoute: typeof ApiPublicHooksMercadopagoWebhookRoute
   ApiPublicHooksPipelineWorkerRoute: typeof ApiPublicHooksPipelineWorkerRoute
   ApiPublicHooksRemindersWorkerRoute: typeof ApiPublicHooksRemindersWorkerRoute
+  ApiPublicHooksResourceContactRefreshRoute: typeof ApiPublicHooksResourceContactRefreshRoute
   ApiPublicHooksStripeWebhookRoute: typeof ApiPublicHooksStripeWebhookRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -1633,6 +1647,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/resource-contact-refresh': {
+      id: '/api/public/hooks/resource-contact-refresh'
+      path: '/api/public/hooks/resource-contact-refresh'
+      fullPath: '/api/public/hooks/resource-contact-refresh'
+      preLoaderRoute: typeof ApiPublicHooksResourceContactRefreshRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/reminders-worker': {
       id: '/api/public/hooks/reminders-worker'
       path: '/api/public/hooks/reminders-worker'
@@ -1821,6 +1842,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksMercadopagoWebhookRoute: ApiPublicHooksMercadopagoWebhookRoute,
   ApiPublicHooksPipelineWorkerRoute: ApiPublicHooksPipelineWorkerRoute,
   ApiPublicHooksRemindersWorkerRoute: ApiPublicHooksRemindersWorkerRoute,
+  ApiPublicHooksResourceContactRefreshRoute:
+    ApiPublicHooksResourceContactRefreshRoute,
   ApiPublicHooksStripeWebhookRoute: ApiPublicHooksStripeWebhookRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,

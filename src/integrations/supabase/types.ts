@@ -6360,6 +6360,50 @@ export type Database = {
           },
         ]
       }
+      resource_contact_refresh_runs: {
+        Row: {
+          detail: string | null
+          ended_at: string | null
+          fields_updated: string[]
+          id: string
+          institution_id: string | null
+          slug: string
+          source_url: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          detail?: string | null
+          ended_at?: string | null
+          fields_updated?: string[]
+          id?: string
+          institution_id?: string | null
+          slug: string
+          source_url?: string | null
+          started_at?: string
+          status: string
+        }
+        Update: {
+          detail?: string | null
+          ended_at?: string | null
+          fields_updated?: string[]
+          id?: string
+          institution_id?: string | null
+          slug?: string
+          source_url?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_contact_refresh_runs_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "social_institutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resource_corrections: {
         Row: {
           created_at: string
@@ -6800,6 +6844,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      resource_official_sources: {
+        Row: {
+          active: boolean
+          allowed_domains: string[]
+          coverage_levels: string[]
+          created_at: string
+          id: string
+          institution_type: string
+          jurisdiction_level: string
+          official_name: string
+          populations: string[]
+          refresh_interval_days: number
+          services: string[]
+          slug: string
+          source_type: string
+          source_urls: string[]
+          state_code: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          active?: boolean
+          allowed_domains?: string[]
+          coverage_levels?: string[]
+          created_at?: string
+          id?: string
+          institution_type: string
+          jurisdiction_level?: string
+          official_name: string
+          populations?: string[]
+          refresh_interval_days?: number
+          services?: string[]
+          slug: string
+          source_type?: string
+          source_urls: string[]
+          state_code?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          active?: boolean
+          allowed_domains?: string[]
+          coverage_levels?: string[]
+          created_at?: string
+          id?: string
+          institution_type?: string
+          jurisdiction_level?: string
+          official_name?: string
+          populations?: string[]
+          refresh_interval_days?: number
+          services?: string[]
+          slug?: string
+          source_type?: string
+          source_urls?: string[]
+          state_code?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
       }
       resource_service_categories: {
         Row: {
@@ -9118,6 +9222,7 @@ export type Database = {
           accessibility: string[]
           active: boolean
           address: string | null
+          admin_locked_fields: string[]
           appointment_required: boolean
           approved_at: string | null
           approved_by: string | null
@@ -9125,6 +9230,7 @@ export type Database = {
           confidentiality_level: string
           contact: Json
           contact_person: string | null
+          contact_verification: string
           cost_notes: string | null
           cost_type: string
           coverage_levels: string[]
@@ -9141,6 +9247,7 @@ export type Database = {
           internal_notes: string | null
           jurisdiction_level: string | null
           languages: string[]
+          last_checked_at: string | null
           latitude: number | null
           location_confidential: boolean
           longitude: number | null
@@ -9156,6 +9263,10 @@ export type Database = {
           remote_available: boolean
           required_documents: string[]
           services: string[]
+          source_slug: string | null
+          source_type: string | null
+          source_url: string | null
+          source_verified_fields: string[]
           state_code: string | null
           status: string
           updated_at: string
@@ -9172,6 +9283,7 @@ export type Database = {
           accessibility?: string[]
           active?: boolean
           address?: string | null
+          admin_locked_fields?: string[]
           appointment_required?: boolean
           approved_at?: string | null
           approved_by?: string | null
@@ -9179,6 +9291,7 @@ export type Database = {
           confidentiality_level?: string
           contact?: Json
           contact_person?: string | null
+          contact_verification?: string
           cost_notes?: string | null
           cost_type?: string
           coverage_levels?: string[]
@@ -9195,6 +9308,7 @@ export type Database = {
           internal_notes?: string | null
           jurisdiction_level?: string | null
           languages?: string[]
+          last_checked_at?: string | null
           latitude?: number | null
           location_confidential?: boolean
           longitude?: number | null
@@ -9210,6 +9324,10 @@ export type Database = {
           remote_available?: boolean
           required_documents?: string[]
           services?: string[]
+          source_slug?: string | null
+          source_type?: string | null
+          source_url?: string | null
+          source_verified_fields?: string[]
           state_code?: string | null
           status?: string
           updated_at?: string
@@ -9226,6 +9344,7 @@ export type Database = {
           accessibility?: string[]
           active?: boolean
           address?: string | null
+          admin_locked_fields?: string[]
           appointment_required?: boolean
           approved_at?: string | null
           approved_by?: string | null
@@ -9233,6 +9352,7 @@ export type Database = {
           confidentiality_level?: string
           contact?: Json
           contact_person?: string | null
+          contact_verification?: string
           cost_notes?: string | null
           cost_type?: string
           coverage_levels?: string[]
@@ -9249,6 +9369,7 @@ export type Database = {
           internal_notes?: string | null
           jurisdiction_level?: string | null
           languages?: string[]
+          last_checked_at?: string | null
           latitude?: number | null
           location_confidential?: boolean
           longitude?: number | null
@@ -9264,6 +9385,10 @@ export type Database = {
           remote_available?: boolean
           required_documents?: string[]
           services?: string[]
+          source_slug?: string | null
+          source_type?: string | null
+          source_url?: string | null
+          source_verified_fields?: string[]
           state_code?: string | null
           status?: string
           updated_at?: string
@@ -11818,6 +11943,7 @@ export type Database = {
           address: string
           appointment_required: boolean
           capacity_status: string
+          contact_verification: string
           cost_type: string
           coverage_levels: string[]
           description: string
@@ -11829,6 +11955,7 @@ export type Database = {
           id: string
           institution_type: string
           languages: string[]
+          last_checked_at: string
           latitude: number
           longitude: number
           match_explanation: string[]
@@ -11842,6 +11969,8 @@ export type Database = {
           remote_available: boolean
           required_documents: string[]
           services: string[]
+          source_type: string
+          source_url: string
           state_code: string
           status: string
           verification_status: string
