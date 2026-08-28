@@ -394,3 +394,4 @@ indicators:["Indicadores institucionales","Institutional indicators","Datos agre
 activity:["Actividad del Equipo","Team Activity","Libro de auditoría operativo, inmutable y sin contenido restringido.","Immutable operational audit ledger without restricted content."],
 administration:["Administración","Administration","Programas, oficinas, roles, capacidades y acceso de soporte temporal.","Programs, offices, roles, capabilities and time-limited support access."],
 };const l=labels[area]??["","","",""];return <><Empty title={es?l[0]:l[1]} text={(es?l[2]:l[3])+` · ${es?"Abra un caso para trabajar esta etapa.":"Open a case to work on this stage."}`}/><CaseTable cases={cases} es={es} onOpen={onOpen}/></>}
+
