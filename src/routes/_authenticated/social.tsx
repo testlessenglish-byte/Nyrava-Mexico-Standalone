@@ -9,6 +9,7 @@ import {
   Loader2, Search, ShieldCheck, UserPlus, Users,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
+import { useRoles } from "@/hooks/use-roles";
 import {
   acceptSocialOrganizationInvitation, acknowledgeSocialAlert, createAndAssignCareCase, createSocialFamily, createSocialPerson,
   findPossibleSocialPeople, ensureSocialProgram, getSocialIndicators,
@@ -45,8 +46,11 @@ const CONTEXT_AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
   {id:"resources",es:"Red de Recursos",en:"Resource Network",icon:Search},
   {id:"knowledge",es:"Centro de Conocimiento",en:"Knowledge Center",icon:FileText},
   {id:"indicators",es:"Indicadores institucionales",en:"Institutional Indicators",icon:Activity},
-  {id:"resourceAdmin",es:"Administrar recursos",en:"Manage Resources",icon:ShieldCheck},
 ];
+// Resource & Knowledge Administration is not part of normal Comprehensive Care
+// navigation. It is surfaced only to Nyrava/platform administrators and
+// authorized organization managers.
+const ADMIN_AREA:{id:Area;es:string;en:string;icon:typeof Activity}={id:"resourceAdmin",es:"Administración de recursos y conocimiento",en:"Resource & Knowledge Administration",icon:ShieldCheck};
 
 function errorMessage(error:unknown):string{
   if(error instanceof Error&&error.message){
@@ -109,9 +113,12 @@ function SocialCarePage(){
   const organizationAccount=allOrganizationAccounts.find((x:any)=>x.orgId===resolvedOrg);
   const organizationMembers=organizationAccount?.members??[];
   const canManageOrganization=organizationAccount?.can_manage===true;
+  const {isAdmin:isPlatformAdmin}=useRoles();
+  const canAdministerResources=isPlatformAdmin||canManageOrganization;
   const navigationAreas=canManageOrganization
     ? PRIMARY_AREAS
     : PRIMARY_AREAS.filter((item)=>["dashboard","cases","caseWork","tasks","documents"].includes(item.id));
+  const effectiveArea:Area=area==="resourceAdmin"&&!canAdministerResources?"resources":area;
   const programs=(workspace.data?.programs??[]).filter((p:any)=>p.org_id===resolvedOrg);
   const visibleCases=(workspace.data?.cases??[]).filter((c:any)=>c.org_id===resolvedOrg);
   const visiblePeople=(workspace.data?.people??[]).filter((p:any)=>p.org_id===resolvedOrg);
@@ -254,7 +261,7 @@ function SocialCarePage(){
           {navigationAreas.map(a=>{const Icon=a.icon;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${area===a.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}
           <details className="border-t border-border pt-2">
             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{es?"Herramientas y recursos":"Tools and resources"}</summary>
-            <div className="mt-1 space-y-1">{CONTEXT_AREAS.map(a=>{const Icon=a.icon;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${area===a.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}</div>
+            <div className="mt-1 space-y-1">{[...CONTEXT_AREAS,...(canAdministerResources?[ADMIN_AREA]:[])].map(a=>{const Icon=a.icon;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${area===a.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}</div>
           </details>
         </nav>
       </aside>
@@ -320,7 +327,7 @@ function SocialCarePage(){
         {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} canCreateCases={canManageOrganization} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setCaseModalOpen(true)} onOpenNewCase={()=>setCaseModalOpen(true)}/>}
         {area==="resources"&&<ResourceKnowledgeNetwork mode="resources" orgId={resolvedOrg}/>}
         {area==="knowledge"&&<KnowledgeCenter orgId={resolvedOrg}/>}
-        {area==="resourceAdmin"&&<><ResourceKnowledgeNetwork mode="admin" orgId={resolvedOrg}/><KnowledgeCenter orgId={resolvedOrg} admin/></>}
+        {effectiveArea==="resourceAdmin"&&canAdministerResources&&<><ResourceKnowledgeNetwork mode="admin" orgId={resolvedOrg}/><KnowledgeCenter orgId={resolvedOrg} admin/></>}
         {["interventions","legal","psychosocial","referrals","transfers","closure"].includes(area)&&<OperationalArea area={area} es={es} cases={visibleCases} onOpen={setSelectedCaseId}/>} 
       </main>
     </div>
