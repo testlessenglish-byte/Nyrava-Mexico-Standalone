@@ -884,45 +884,60 @@ export const submitKnowledgeCorrection=createServerFn({method:"POST"})
 
 const careActionType=z.enum(["create_task","add_to_care_plan","request_document","start_risk_reassessment","find_resource","create_referral","schedule_follow_up","supervisor_review","request_legal_review","draft_case_summary","prepare_closure_checklist"]);
 
-const buildCareHealth=(x:any)=>{
-  const now=Date.now(),days=(n:number)=>n*86400000;const critical:any[]=[],actionRequired:any[]=[],incomplete:any[]=[],monitor:any[]=[],complete:any[]=[];
-  const add=(bucket:any[],code:string,message:string,source:string)=>bucket.push({code,message,source});
-  if(x.case.risk_level==="critical"||x.case.risk_level==="high")add(critical,"risk_review",`Current risk is ${x.case.risk_level}; professional review required.`,`Case ${x.case.case_number}`);
-  const assessment=x.assessments[0];if(!assessment)add(incomplete,"assessment_missing","No risk assessment is recorded.","Risk assessments");else if(now-new Date(assessment.assessment_date).getTime()>days(30))add(actionRequired,"assessment_stale","Risk assessment is older than 30 days.","Assessment "+assessment.id+" v"+assessment.current_version);else add(complete,"assessment_current","Risk assessment is current.","Assessment "+assessment.id+" v"+assessment.current_version);
-  const activeConsent=x.consents.find((v:any)=>v.status==="active"&&(!v.expires_at||new Date(v.expires_at).getTime()>now));if(!activeConsent)add(actionRequired,"consent","No active unexpired consent is recorded.","Consent records");else add(complete,"consent","Active consent is recorded.","Consent "+activeConsent.id);
-  if(!x.plans.length)add(incomplete,"care_plan","No care plan is recorded.","Care plans");else {const goals=x.plans[0].social_care_plan_versions?.flatMap((v:any)=>v.social_care_plan_goals??[])??[];const open=goals.filter((g:any)=>!["completed","cancelled"].includes(g.status));add(open.length?actionRequired:complete,"care_goals",open.length?`${open.length} care-plan goals remain open.`:"Care-plan goals are complete.",`Care plan ${x.plans[0].id} v${x.plans[0].current_version}`);}
-  const overdue=x.tasks.filter((t:any)=>!["completed","cancelled"].includes(t.status)&&t.due_at&&new Date(t.due_at).getTime()<now);if(overdue.length)add(actionRequired,"overdue_tasks",`${overdue.length} tasks are overdue.`,"Tasks");else add(complete,"tasks","No overdue tasks were found.","Tasks");
-  const awaiting=x.referrals.filter((v:any)=>["created","sent","pending","awaiting_response"].includes(v.status));if(awaiting.length)add(actionRequired,"referrals",`${awaiting.length} referrals await response or follow-up.`,"Referrals");else add(monitor,"referrals","No unanswered referral was detected.","Referrals");
-  const missing=x.requirements.filter((v:any)=>v.status==="missing");if(missing.length)add(incomplete,"documents",`${missing.length} required documents are missing.`,"Document requirements");else add(complete,"documents","No configured required document is missing.","Document requirements");
-  const last=x.interventions[0]?.occurred_at||x.case.last_activity_at;if(last&&now-new Date(last).getTime()>days(14))add(actionRequired,"recent_contact","No intervention/contact is recorded in the last 14 days.","Interventions");else add(complete,"recent_contact","Recent activity is recorded.","Interventions");
-  if(x.case.status==="closed")add(monitor,"closure","Case is closed; verify read-only posture and reopening authority.","Case status");
-  return {critical,action_required:actionRequired,incomplete,monitor,complete,generated_at:new Date().toISOString()};
-};
-
 export const askTalkToCareCase=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({caseId:uuid,question:z.string().trim().min(2).max(3000),language:z.enum(["es","en"]).default("es"),healthCheck:z.boolean().default(false)}).parse(d))
   .handler(async({data,context})=>{
-    const {supabase,userId}=ctx(context);const caseRow=await supabase.from("social_cases").select("*").eq("id",data.caseId).single();fail(caseRow.error);const sc=caseRow.data;
-    const [person,family,assessments,plans,interventions,tasks,referrals,documents,consents,requirements,knowledge,resources]=await Promise.all([
+    const {supabase,userId}=ctx(context);
+    const {buildCareHealth,buildFactSheet,buildDeterministicAnswer,CARE_ASSISTANT_SYSTEM}=await import("@/lib/social/care-assistant.server");
+    const caseRow=await supabase.from("social_cases").select("*").eq("id",data.caseId).single();fail(caseRow.error);const sc=caseRow.data;
+    const stateCode=sc.state_code??null;
+    const [person,family,assessments,plans,interventions,tasks,referrals,documents,consents,requirements,intakes,alerts,activity,closures,knowledge,resources]=await Promise.all([
       supabase.from("social_people").select("id,person_number,legal_name,consent_status").eq("id",sc.person_id).maybeSingle(),
       sc.family_id?supabase.from("social_families").select("id,family_number,family_name").eq("id",sc.family_id).maybeSingle():Promise.resolve({data:null,error:null}),
       supabase.from("social_assessments").select("id,risk_level,assessment_date,current_version").eq("social_case_id",data.caseId).order("assessment_date",{ascending:false}),
       supabase.from("social_care_plans").select("id,status,current_version,social_care_plan_versions(version,summary,social_care_plan_goals(id,status,goal,target_date))").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
-      supabase.from("social_interventions").select("id,service_type,occurred_at,reason,actions_taken,outcome,follow_up_required").eq("social_case_id",data.caseId).eq("record_type","general_case_record").order("occurred_at",{ascending:false}).limit(50),
-      supabase.from("social_tasks").select("id,title,status,priority,due_at,assigned_to").eq("social_case_id",data.caseId).order("due_at",{ascending:true}),
+      supabase.from("social_interventions").select("id,service_type,occurred_at,reason,actions_taken,outcome,follow_up_required,care_plan_goal_id").eq("social_case_id",data.caseId).eq("record_type","general_case_record").order("occurred_at",{ascending:false}).limit(50),
+      supabase.from("social_tasks").select("id,title,status,priority,due_at,assignee_id").eq("social_case_id",data.caseId).order("due_at",{ascending:true}),
       supabase.from("social_referrals").select("id,referral_number,status,service_requested,created_at,updated_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
       supabase.from("social_documents").select("id,title,document_type,current_version,created_at").eq("social_case_id",data.caseId).eq("record_type","general_case_record").is("deleted_at",null),
       supabase.from("social_consents").select("id,consent_type,status,expires_at,current_version").or(`person_id.eq.${sc.person_id}${sc.family_id?",family_id.eq."+sc.family_id:""}`).order("created_at",{ascending:false}),
       supabase.from("social_case_document_requirements").select("id,document_type,status,due_at").eq("social_case_id",data.caseId),
-      supabase.from("resource_knowledge_records").select("id,title_es,title_en,version,effective_at,state_codes,approval_status").in("approval_status",["approved","published"]).limit(20),
-      supabase.from("social_institutions").select("id,official_name,services,state_code,municipality,languages,cost_type,required_documents,capacity_status,status").neq("status","archived").limit(20),
+      supabase.from("social_intakes").select("id,intake_number,status,disposition,presenting_needs,summary,completed_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
+      supabase.from("social_alerts").select("id,alert_type,severity,title_es,title_en,due_at,acknowledged_at,resolved_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}).limit(50),
+      supabase.from("social_activity_events").select("id,event_type,entity_type,occurred_at").eq("social_case_id",data.caseId).order("occurred_at",{ascending:false}).limit(30),
+      supabase.from("social_case_closures").select("id,closure_version,closure_reason,goals_incomplete,pending_referrals,outstanding_deadlines,supervisor_approved_at,closure_date,reopened_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
+      supabase.from("resource_knowledge_records").select("id,title_es,title_en,summary_es,summary_en,category,version,effective_at,state_codes,approval_status").in("approval_status",["approved","published"]).limit(40),
+      supabase.from("social_institutions").select("id,official_name,services,state_code,municipality,languages,cost_type,required_documents,capacity_status,status").neq("status","archived").limit(40),
     ]);
-    [person,family,assessments,plans,interventions,tasks,referrals,documents,consents,requirements,knowledge,resources].forEach((v:any)=>fail(v.error));
-    const x={case:sc,person:person.data,family:family.data,assessments:assessments.data??[],plans:plans.data??[],interventions:interventions.data??[],tasks:tasks.data??[],referrals:referrals.data??[],documents:documents.data??[],consents:consents.data??[],requirements:requirements.data??[],knowledge:knowledge.data??[],resources:resources.data??[]};
+    [person,family,assessments,plans,interventions,tasks,referrals,documents,consents,requirements,intakes,alerts,activity,closures,knowledge,resources].forEach((v:any)=>fail(v.error));
+    const needTerms:string[]=[...(sc.service_areas??[]),...(intakes.data?.[0]?.presenting_needs??[]),sc.case_type].filter(Boolean).map((v:any)=>String(v).toLowerCase());
+    const relevance=(hay:string)=>needTerms.reduce((n,t)=>n+(t.length>3&&hay.includes(t)?1:0),0);
+    const rankedKnowledge=(knowledge.data??[]).map((k:any)=>({...k,_score:relevance(`${k.category??""} ${k.title_es??""} ${k.title_en??""}`.toLowerCase())+(stateCode&&(k.state_codes??[]).includes(stateCode)?1:0)})).sort((a:any,b:any)=>b._score-a._score).slice(0,8);
+    const rankedResources=(resources.data??[]).map((r:any)=>({...r,_score:relevance(`${(r.services??[]).join(" ")}`.toLowerCase())+(stateCode&&r.state_code===stateCode?1:0)})).sort((a:any,b:any)=>b._score-a._score).slice(0,10);
+    const x={case:sc,person:person.data,family:family.data,assessments:assessments.data??[],plans:plans.data??[],interventions:interventions.data??[],tasks:tasks.data??[],referrals:referrals.data??[],documents:documents.data??[],consents:consents.data??[],requirements:requirements.data??[],intakes:intakes.data??[],alerts:alerts.data??[],activity:activity.data??[],closures:closures.data??[],knowledge:rankedKnowledge,resources:rankedResources};
     const health=buildCareHealth(x);const openTasks=x.tasks.filter((t:any)=>!["completed","cancelled"].includes(t.status));const openReferrals=x.referrals.filter((v:any)=>!["completed","closed","verified"].includes(v.status));
-    const sources=[`Case ${sc.case_number}`,...x.assessments.slice(0,1).map((v:any)=>`Assessment ${v.id} v${v.current_version}, ${v.assessment_date}`),...x.plans.slice(0,1).map((v:any)=>`Care plan ${v.id} v${v.current_version}`),...x.interventions.slice(0,3).map((v:any)=>`Intervention ${v.id}, ${v.occurred_at}`),...x.referrals.slice(0,3).map((v:any)=>`Referral ${v.referral_number}, status ${v.status}`),...x.knowledge.slice(0,3).map((v:any)=>`Knowledge Center: ${data.language==="es"?v.title_es:v.title_en}, v${v.version}, effective ${v.effective_at??"not recorded"}`)];
-    const response={current_case_status:{summary:`${sc.case_number}: ${sc.status}; risk ${sc.risk_level}. ${x.interventions.length} interventions, ${openTasks.length} open tasks, ${openReferrals.length} open referrals.`,last_activity:sc.last_activity_at},missing_or_incomplete:[...health.critical,...health.action_required,...health.incomplete],risks_requiring_review:health.critical,recommended_next_steps:[...health.critical,...health.action_required,...health.incomplete].slice(0,8).map((v:any)=>({action:v.message,responsible_role:v.code==="risk_review"?"supervisor":"case_manager",suggested_due_date:new Date(Date.now()+7*86400000).toISOString().slice(0,10),reason:v.code,supporting_record:v.source,consent_required:["consent","documents","referrals"].includes(v.code)})),sources,health_check:health,resource_recommendations:x.resources.slice(0,10).map((v:any)=>({...v,warning:v.status!=="verified"?"Resource verification must be reviewed":null})),professional_review_notice:"Indicators and proposed next steps require review by the responsible professional. No allegation or diagnosis is confirmed by this assistant."};
+    const sources=[`Case ${sc.case_number}`,...x.intakes.slice(0,1).map((v:any)=>`Intake ${v.intake_number}, status ${v.status}`),...x.assessments.slice(0,1).map((v:any)=>`Assessment ${v.id} v${v.current_version}, ${v.assessment_date}`),...x.plans.slice(0,1).map((v:any)=>`Care plan ${v.id} v${v.current_version}`),...x.interventions.slice(0,3).map((v:any)=>`Intervention ${v.id}, ${v.occurred_at}`),...x.referrals.slice(0,3).map((v:any)=>`Referral ${v.referral_number}, status ${v.status}`),...x.closures.slice(0,1).map((v:any)=>`Closure v${v.closure_version}, ${v.closure_date??"no date"}`)];
+
+    // Narrative answer — grounded on the deterministic fact sheet, produced with
+    // the admin-configured AI providers. Falls back to the deterministic answer.
+    const factSheet=buildFactSheet(x,health);
+    let answer=buildDeterministicAnswer(health,data.language);let answerSource:"ai"|"deterministic"="deterministic";let answerError:string|null=null;
+    if(!data.healthCheck){
+      try{
+        const {routeAI}=await import("@/lib/ai/router.server");
+        const knowledgeList=x.knowledge.map((k:any)=>({id:k.id,title:data.language==="es"?k.title_es:(k.title_en??k.title_es),summary:data.language==="es"?k.summary_es:(k.summary_en??k.summary_es),category:k.category,version:k.version}));
+        const resourceList=x.resources.map((r:any)=>({id:r.id,name:r.official_name,services:r.services,location:[r.municipality,r.state_code].filter(Boolean).join(", "),cost:r.cost_type,verification:r.status}));
+        const res=await routeAI({
+          task:"chat",userId,cache:false,temperature:0.2,maxTokens:1400,
+          systemInstruction:`${CARE_ASSISTANT_SYSTEM}\nRespond in ${data.language==="es"?"Spanish (Mexican professional social-work register)":"English"}.`,
+          userContent:`QUESTION:\n${data.question}\n\nCASE FACTS (JSON):\n${JSON.stringify(factSheet).slice(0,90000)}\n\nAPPROVED KNOWLEDGE CENTER CONTENT:\n${JSON.stringify(knowledgeList)}\n\nRESOURCE NETWORK OPTIONS:\n${JSON.stringify(resourceList)}`,
+        });
+        if(res?.text?.trim()){answer=res.text.trim();answerSource="ai";}
+      }catch(e:any){answerError=e?.message??"AI providers unavailable";}
+    }
+
+    const response={answer,answer_source:answerSource,answer_error:answerError,current_case_status:{summary:`${sc.case_number}: ${sc.status}; risk ${sc.risk_level}. ${x.interventions.length} interventions, ${openTasks.length} open tasks, ${openReferrals.length} open referrals.`,last_activity:sc.last_activity_at},missing_or_incomplete:[...health.critical,...health.action_required,...health.incomplete],risks_requiring_review:health.critical,recommended_next_steps:[...health.critical,...health.action_required,...health.incomplete].slice(0,8).map((v:any)=>({action:v.message,responsible_role:v.code==="risk_review"||v.code.startsWith("closure")?"supervisor":"case_manager",suggested_due_date:new Date(Date.now()+7*86400000).toISOString().slice(0,10),reason:v.why??v.code,supporting_record:v.source,consent_required:["consent","documents","documents_overdue","referrals","referrals_stale"].includes(v.code)})),sources,health_check:health,knowledge_suggestions:x.knowledge.slice(0,5).map((k:any)=>({id:k.id,title:data.language==="es"?k.title_es:(k.title_en??k.title_es),category:k.category,version:k.version,effective_at:k.effective_at,label:"KNOWLEDGE GUIDANCE"})),resource_recommendations:x.resources.slice(0,8).map((v:any)=>({...v,label:"RESOURCE SUGGESTION",warning:v.status!=="verified"?"Resource verification must be reviewed":null})),professional_review_notice:"Indicators and proposed next steps require review by the responsible professional. No allegation or diagnosis is confirmed by this assistant. Nothing in this case was modified.",read_only:true};
     const manifest={authenticated_user:userId,organization:sc.org_id,selected_case:data.caseId,case_assignment:sc.assigned_case_manager,record_types:["general_case_record"],excluded:["legal_privileged_record","psychosocial_restricted_record","medical_restricted_record","child_protection_restricted_record"],language:data.language,retrieved_at:new Date().toISOString()};
     const run=await supabase.from("social_care_assistant_runs").insert({org_id:sc.org_id,social_case_id:data.caseId,actor_id:userId,language:data.language,question:data.question,response,retrieval_manifest:manifest,health_check:data.healthCheck}).select("id").single();fail(run.error);return {runId:run.data.id,response,manifest};
   });
