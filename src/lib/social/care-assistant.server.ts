@@ -290,3 +290,19 @@ export function buildDeterministicAnswer(health: CareHealth, language: CareLang)
     ...gaps.map((g) => `• ${g.message}${g.why ? ` — ${l.why}: ${g.why}` : ""} (${g.source})`),
   ].join("\n");
 }
+
+/**
+ * Safety net: if the model emits English structural labels while answering in
+ * Spanish, rewrite the labels. Only structural labels are touched — never the
+ * narrative body or any stored client data.
+ */
+export function localizeAssistantLabels(text: string, language: CareLang): string {
+  if (language !== "es") return text;
+  const l = CARE_LABELS.es;
+  return text
+    .replace(/\bCASE FACT\b/g, l.fact)
+    .replace(/\bKNOWLEDGE GUIDANCE\b/g, l.knowledge)
+    .replace(/\bRESOURCE SUGGESTION\b/g, l.resource)
+    .replace(/\bDETERMINISTIC GAPS\b/g, l.gaps)
+    .replace(/\bNEXT STEPS\b/g, l.nextSteps);
+}

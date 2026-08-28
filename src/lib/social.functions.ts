@@ -889,7 +889,7 @@ export const askTalkToCareCase=createServerFn({method:"POST"})
   .inputValidator((d:unknown)=>z.object({caseId:uuid,question:z.string().trim().min(2).max(3000),language:z.enum(["es","en"]).default("es"),healthCheck:z.boolean().default(false)}).parse(d))
   .handler(async({data,context})=>{
     const {supabase,userId}=ctx(context);
-    const {buildCareHealth,buildFactSheet,buildDeterministicAnswer,careAssistantSystem,CARE_LABELS}=await import("@/lib/social/care-assistant.server");
+    const {buildCareHealth,buildFactSheet,buildDeterministicAnswer,careAssistantSystem,CARE_LABELS,localizeAssistantLabels}=await import("@/lib/social/care-assistant.server");
     const isEs=data.language==="es";const T=(s:string,e:string)=>isEs?s:e;const LBL=CARE_LABELS[data.language];
     const caseRow=await supabase.from("social_cases").select("*").eq("id",data.caseId).single();fail(caseRow.error);const sc=caseRow.data;
     const stateCode=sc.state_code??null;
