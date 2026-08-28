@@ -1,4 +1,4 @@
-﻿import { readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -8,7 +8,7 @@ const dynamicText = readFileSync(join(root, "src", "components", "social", "Case
 const translationHook = readFileSync(join(root, "src", "hooks", "useCaseTranslation.ts"), "utf8");
 const casesFunctions = readFileSync(join(root, "src", "lib", "cases.functions.ts"), "utf8");
 
-const checkDifferentLanguage = (text, targetLocale) => {
+const checkDifferentLanguage = (text: string, targetLocale: string): boolean => {
   if (!text || text.trim().length < 2) return false;
   const lower = text.toLowerCase();
   if (targetLocale === "es") {
