@@ -907,7 +907,7 @@ export const askTalkToCareCase=createServerFn({method:"POST"})
       supabase.from("social_alerts").select("id,alert_type,severity,title_es,title_en,due_at,acknowledged_at,resolved_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}).limit(50),
       supabase.from("social_activity_events").select("id,event_type,entity_type,occurred_at").eq("social_case_id",data.caseId).order("occurred_at",{ascending:false}).limit(30),
       supabase.from("social_case_closures").select("id,closure_version,closure_reason,goals_incomplete,pending_referrals,outstanding_deadlines,supervisor_approved_at,closure_date,reopened_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
-      supabase.from("resource_knowledge_records").select("id,title_es,title_en,summary_es,summary_en,category,version,effective_at,state_codes,approval_status").in("approval_status",["approved","published"]).limit(40),
+      supabase.from("resource_knowledge_records").select("id,title_es,title_en,summary_es,summary_en,knowledge_type,service_categories,version,effective_at,state_codes,approval_status").in("approval_status",["approved","published"]).limit(40),
       supabase.from("social_institutions").select("id,official_name,services,state_code,municipality,languages,cost_type,required_documents,capacity_status,status").neq("status","archived").limit(40),
     ]);
     [person,family,assessments,plans,interventions,tasks,referrals,documents,consents,requirements,intakes,alerts,activity,closures,knowledge,resources].forEach((v:any)=>fail(v.error));
