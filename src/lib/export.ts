@@ -3649,7 +3649,7 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
 function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
   const findings = consolidateFindings(
     (data.findings ?? []) as unknown as Array<Record<string, unknown>>,
-  );
+  ) as typeof data.findings;
   if (!findings.length) return;
   b.h1(rt("Key Findings"));
   b.text(

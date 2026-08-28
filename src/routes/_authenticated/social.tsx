@@ -30,10 +30,9 @@ export const Route=createFileRoute("/_authenticated/social")({
   component:SocialCarePage,
 });
 
-type Area="dashboard"|"people"|"families"|"cases"|"caseWork"|"intake"|"assessments"|"plans"|"interventions"|"legal"|"psychosocial"|"referrals"|"resources"|"knowledge"|"resourceAdmin"|"tasks"|"documents"|"transfers"|"closure"|"indicators"|"activity"|"administration";
+type Area="dashboard"|"cases"|"caseWork"|"intake"|"assessments"|"plans"|"interventions"|"legal"|"psychosocial"|"referrals"|"resources"|"knowledge"|"resourceAdmin"|"tasks"|"documents"|"transfers"|"closure"|"indicators"|"activity"|"administration";
 const PRIMARY_AREAS:Array<{id:Area;es:string;en:string;icon:typeof Activity}>=[
   {id:"dashboard",es:"Resumen",en:"Overview",icon:Activity},
-  {id:"people",es:"Personas y familias",en:"People and Families",icon:Users},
   {id:"cases",es:"Casos",en:"Cases",icon:FileHeart},
   {id:"caseWork",es:"Trabajo del caso",en:"Case Work",icon:BriefcaseMedical},
   {id:"tasks",es:"Tareas y alertas",en:"Tasks and Alerts",icon:CalendarClock},
@@ -184,7 +183,7 @@ function SocialCarePage(){
     }
   },[acceptedInvite]);
   useEffect(()=>{
-    if(!canManageOrganization&&["people","families","activity","administration"].includes(area)){
+    if(!canManageOrganization&&["activity","administration"].includes(area)){
       setArea("dashboard");
     }
   },[area,canManageOrganization]);
@@ -252,7 +251,7 @@ function SocialCarePage(){
     <div className="mt-5 grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="h-fit rounded-xl border border-border bg-card p-2 lg:sticky lg:top-4">
         <nav aria-label={es?"Navegación de Atención Integral":"Comprehensive Care navigation"} className="max-h-[72vh] space-y-1 overflow-y-auto">
-          {navigationAreas.map(a=>{const Icon=a.icon;const active=a.id==="people"?area==="people"||area==="families":area===a.id;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}
+          {navigationAreas.map(a=>{const Icon=a.icon;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${area===a.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}
           <details className="border-t border-border pt-2">
             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{es?"Herramientas y recursos":"Tools and resources"}</summary>
             <div className="mt-1 space-y-1">{CONTEXT_AREAS.map(a=>{const Icon=a.icon;return <button key={a.id} onClick={()=>setArea(a.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${area===a.id?"bg-primary text-primary-foreground":"hover:bg-muted"}`}><Icon className="h-4 w-4"/>{es?a.es:a.en}</button>})}</div>
@@ -284,11 +283,6 @@ function SocialCarePage(){
           {dashboardCases.length>10&&<div className="mt-3 flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm"><span>{es?`Página ${safeCasePage} de ${casePageCount}`:`Page ${safeCasePage} of ${casePageCount}`}</span><div className="flex gap-2"><button type="button" disabled={safeCasePage<=1} onClick={()=>setCasePage(page=>Math.max(1,page-1))} className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-40">{es?"Anterior":"Previous"}</button><button type="button" disabled={safeCasePage>=casePageCount} onClick={()=>setCasePage(page=>Math.min(casePageCount,page+1))} className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-40">{es?"Siguiente":"Next"}</button></div></div>}
         </>}
 
-        {(area==="people"||area==="families")&&<div className="mb-4 flex gap-2 rounded-xl border border-border bg-card p-2">
-          <button type="button" onClick={()=>setArea("people")} className={`rounded-lg px-4 py-2 text-sm font-medium ${area==="people"?"bg-primary text-primary-foreground":"hover:bg-muted"}`}>{es?"Personas":"People"}</button>
-          <button type="button" onClick={()=>setArea("families")} className={`rounded-lg px-4 py-2 text-sm font-medium ${area==="families"?"bg-primary text-primary-foreground":"hover:bg-muted"}`}>{es?"Familias":"Families"}</button>
-        </div>}
-
         {area==="caseWork"&&<section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-5">
             <div><h2 className="font-semibold">{es?"Trabajo del caso":"Case Work"}</h2><p className="mt-1 text-sm text-muted-foreground">{es?"Abra un caso autorizado para trabajar ingreso, riesgo, plan, intervenciones, servicios, canalizaciones, documentos, actividad y cierre con el mismo expediente.":"Open an authorized case to work intake, risk, care plan, interventions, services, referrals, documents, activity, and closure in one continuous record."}</p></div>
@@ -296,24 +290,6 @@ function SocialCarePage(){
           </div>
           <CaseTable cases={visibleCases} members={organizationMembers} es={es} onOpen={setSelectedCaseId}/>
         </section>}
-
-        {area==="people"&&<div className="grid gap-4 xl:grid-cols-[minmax(0,420px)_1fr]">
-          <section className="rounded-xl border border-border bg-card p-5">
-            <h2 className="font-semibold">{es?"Registrar persona":"Register person"}</h2>
-            <p className="mb-4 text-xs text-muted-foreground">{es?"Capture únicamente los datos necesarios para el servicio.":"Collect only data necessary for the service."}</p>
-            <div className="space-y-3">
-              <Field label={es?"Nombre legal":"Legal name"} value={person.legalName} onChange={v=>setPerson({...person,legalName:v})}/>
-              <Field label={es?"Nombre preferido":"Preferred name"} value={person.preferredName} onChange={v=>setPerson({...person,preferredName:v})}/>
-              <Field label={es?"Teléfono":"Telephone"} value={person.telephone} onChange={v=>setPerson({...person,telephone:v})}/>
-              <Field label="Email" type="email" value={person.email} onChange={v=>setPerson({...person,email:v})}/>
-              <Field label={es?"Nacionalidad":"Nationality"} value={person.nationality} onChange={v=>setPerson({...person,nationality:v})}/>
-              <button disabled={!resolvedOrg||person.legalName.trim().length<2||duplicates.isPending} onClick={()=>duplicates.mutate()} className="w-full rounded-lg border border-border px-3 py-2 text-sm"><Search className="mr-2 inline h-4 w-4"/>{es?"Buscar posibles duplicados":"Check possible duplicates"}</button>
-              {(duplicates.data??[]).length>0&&<div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs"><strong>{es?"Revise antes de crear:":"Review before creating:"}</strong>{(duplicates.data??[]).map((d:any)=><div key={d.id}>{d.person_number} · {d.legal_name} ({Math.round(Number(d.similarity)*100)}%)</div>)}</div>}
-              <button disabled={createPersonMutation.isPending||!resolvedOrg||person.legalName.trim().length<2} onClick={()=>createPersonMutation.mutate()} className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">{createPersonMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Registrar persona":"Register person"}</button>
-            </div>
-          </section>
-          <PeopleTable people={visiblePeople} es={es}/>
-        </div>}
 
         {area==="cases"&&<section>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
@@ -326,10 +302,6 @@ function SocialCarePage(){
         </section>}
 
         {area==="intake"&&<SocialIntakeManager orgId={resolvedOrg} programs={programs} people={visiblePeople} families={visibleFamilies} members={organizationMembers} onCaseOpened={setSelectedCaseId}/>}
-        {area==="families"&&<div className="grid gap-4 xl:grid-cols-[420px_1fr]">
-          <section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Registrar familia u hogar":"Register family or household"}</h2><p className="mb-4 text-xs text-muted-foreground">{es?"Cada integrante conserva su expediente individual y sus permisos.":"Each member keeps an individual record and permissions."}</p><div className="space-y-3"><Field label={es?"Nombre familiar":"Family name"} value={family.name} onChange={v=>setFamily({...family,name:v})}/><label className="block text-xs font-medium text-muted-foreground">{es?"Contacto principal":"Primary contact"}<select value={family.primaryId} onChange={e=>setFamily({...family,primaryId:e.target.value})} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">—</option>{visiblePeople.map((p:any)=><option key={p.id} value={p.id}>{p.person_number} · {p.legal_name}</option>)}</select></label><div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-2"><p className="mb-2 text-xs font-medium text-muted-foreground">{es?"Integrantes":"Members"}</p>{visiblePeople.map((p:any)=><label key={p.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={family.memberIds.includes(p.id)} onChange={e=>setFamily({...family,memberIds:e.target.checked?[...family.memberIds,p.id]:family.memberIds.filter(id=>id!==p.id)})}/>{p.person_number} · {p.legal_name}</label>)}</div><button disabled={!family.name||!family.memberIds.length||familyMutation.isPending} onClick={()=>familyMutation.mutate()} className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{familyMutation.isPending&&<Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>}{es?"Guardar familia":"Save family"}</button></div></section>
-          <div className="overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-4 py-3">{es?"Folio":"Number"}</th><th className="px-4 py-3">{es?"Familia":"Family"}</th><th className="px-4 py-3">{es?"Contacto":"Primary contact"}</th></tr></thead><tbody>{visibleFamilies.map((x:any)=><tr key={x.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{x.family_number}</td><td className="px-4 py-3">{x.family_name}</td><td className="px-4 py-3">{visiblePeople.find((p:any)=>p.id===x.primary_contact_person_id)?.legal_name??"—"}</td></tr>)}{!visibleFamilies.length&&<tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">—</td></tr>}</tbody></table></div>
-        </div>}
         {area==="assessments"&&<OperationalArea area={area} es={es} cases={visibleCases} onOpen={setSelectedCaseId}/>}
         {area==="plans"&&<OperationalArea area={area} es={es} cases={visibleCases} onOpen={setSelectedCaseId}/>}
         {area==="administration"&&<section className="rounded-xl border border-border bg-card p-6">
@@ -345,7 +317,7 @@ function SocialCarePage(){
         {area==="tasks"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Alertas operativas":"Operational alerts"}</h2><div className="mt-3 space-y-2">{visibleAlerts.map((x:any)=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className={x.severity==="critical"?"font-semibold text-destructive":"font-medium"}>{es?x.title_es:x.title_en}</p><p className="text-xs text-muted-foreground">{x.alert_type} · {x.due_at?new Date(x.due_at).toLocaleString():"—"}</p></div><button disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(x.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs">{es?"Resolver":"Resolve"}</button></div>)}{!visibleAlerts.length&&<p className="text-sm text-muted-foreground">{es?"No hay alertas pendientes.":"No pending alerts."}</p>}</div></section>}
         {area==="indicators"&&<section className="rounded-xl border border-border bg-card p-5"><div className="flex flex-wrap items-end gap-3"><div><h2 className="font-semibold">{es?"Indicadores institucionales":"Institutional indicators"}</h2><p className="text-xs text-muted-foreground">{es?"Solo agregados; grupos pequeños se suprimen automáticamente.":"Aggregates only; small groups are automatically suppressed."}</p></div><Field label={es?"Desde":"From"} type="date" value={indicatorRange.from} onChange={v=>setIndicatorRange({...indicatorRange,from:v})}/><Field label={es?"Hasta":"To"} type="date" value={indicatorRange.to} onChange={v=>setIndicatorRange({...indicatorRange,to:v})}/></div><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(indicators.data??[]).map((x:any,i:number)=><div key={x.id??i} className="rounded-lg border border-border p-4"><p className="text-xs uppercase text-muted-foreground">{x.name_es??x.indicator_code??x.code??(es?"Indicador":"Indicator")}</p><p className="mt-1 text-2xl font-semibold">{x.suppressed?(es?"Suprimido":"Suppressed"):(x.value??x.count??"—")}</p></div>)}{indicators.isLoading&&<Loader2 className="h-5 w-5 animate-spin"/>}{!indicators.isLoading&&!(indicators.data??[]).length&&<p className="text-sm text-muted-foreground">{es?"Sin datos agregados para el periodo.":"No aggregate data for this period."}</p>}</div></section>}
         {area==="activity"&&<TeamActivity es={es} account={organizationAccount}/>}
-        {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} canCreateCases={canManageOrganization} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setArea("people")} onOpenNewCase={()=>setArea("cases")}/>}
+        {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} canCreateCases={canManageOrganization} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setCaseModalOpen(true)} onOpenNewCase={()=>setCaseModalOpen(true)}/>}
         {area==="resources"&&<ResourceKnowledgeNetwork mode="resources" orgId={resolvedOrg}/>}
         {area==="knowledge"&&<KnowledgeCenter orgId={resolvedOrg}/>}
         {area==="resourceAdmin"&&<><ResourceKnowledgeNetwork mode="admin" orgId={resolvedOrg}/><KnowledgeCenter orgId={resolvedOrg} admin/></>}

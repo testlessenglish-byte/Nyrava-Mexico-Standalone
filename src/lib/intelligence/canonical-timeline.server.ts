@@ -132,12 +132,6 @@ const ES_HUNDREDS: Record<string, number> = {
   novecientos: 900,
 };
 
-const SPANISH_NUMBERS: Record<string, number> = {
-  ...ES_UNITS,
-  ...ES_TENS,
-  ...ES_HUNDREDS,
-};
-
 const ES_MONTH_PATTERN = Object.keys(ES_MONTHS).join("|");
 const ES_NUMERIC_DATE_RE = new RegExp(`\\b(\\d{1,2})\\s+de\\s+(${ES_MONTH_PATTERN})\\s+de\\s+(\\d{4})\\b`, "i");
 const ES_WORD_DATE_RE = new RegExp(`\\b([a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?)\\s+de\\s+(${ES_MONTH_PATTERN})\\s+de\\s+((?:dos\\s+mil|mil)(?:\\s+[a-záéíóúüñ]+(?:\\s+y\\s+[a-záéíóúüñ]+)?)*)\\b`, "i");
@@ -198,7 +192,7 @@ export function normalizeTimelineDate(raw: unknown): string {
   if (!s) return "";
   if (ISO_RE.test(s)) return s;
 
-  const slashMatch = US_RE.exec(s);
+  const slashMatch = SLASH_DATE_RE.exec(s);
   if (slashMatch) {
     let [, dStr, mStr, yStr] = slashMatch;
     let day = Number(dStr);

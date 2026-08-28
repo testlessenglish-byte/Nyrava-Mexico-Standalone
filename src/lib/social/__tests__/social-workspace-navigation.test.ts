@@ -7,7 +7,7 @@ const workspace=readFileSync(join(process.cwd(),"src","components","social","Soc
 
 describe("Comprehensive Care Phase 5 workspace navigation",()=>{
   it("uses compact organization-level navigation",()=>{
-    for(const label of ["Overview","People and Families","Cases","Case Work","Tasks and Alerts","Documents and Consent","Team Activity","Organization Settings"]){
+    for(const label of ["Overview","Cases","Case Work","Tasks and Alerts","Documents and Consent","Team Activity","Organization Settings"]){
       expect(route).toContain(`en:"${label}"`);
     }
     expect(route).toContain("PRIMARY_AREAS");
