@@ -612,13 +612,71 @@ export const getResourceNetworkMetadata=createServerFn({method:"GET"})
   .middleware([requireSupabaseAuth])
   .handler(async({context})=>{
     const {supabase}=ctx(context);
-    const [categories,knowledge,organizations]=await Promise.all([
+    const [categories,knowledge,organizations,cases]=await Promise.all([
       supabase.from("resource_service_categories").select("id,org_id,code,name_es,name_en,description_es,description_en,sort_order").eq("active",true).order("sort_order"),
       supabase.from("resource_knowledge_records").select("id,org_id,title_es,title_en,summary_es,summary_en,knowledge_type,service_categories,state_codes,municipality,population_tags,source_url,document_path,version,approval_status,effective_at,review_due_at,internal_only,updated_at").order("updated_at",{ascending:false}).limit(250),
       supabase.from("organizations").select("id,name").order("name"),
+      supabase.from("social_cases").select("id,org_id,case_number,status,person_id,family_id").is("deleted_at",null).order("last_activity_at",{ascending:false}).limit(250),
     ]);
-    fail(categories.error);fail(knowledge.error);fail(organizations.error);
-    return {categories:categories.data??[],knowledge:knowledge.data??[],organizations:organizations.data??[]};
+    fail(categories.error);fail(knowledge.error);fail(organizations.error);fail(cases.error);
+    return {categories:categories.data??[],knowledge:knowledge.data??[],organizations:organizations.data??[],cases:cases.data??[]};
+  });
+
+export const getResourceContactContext=createServerFn({method:"GET"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>z.object({caseId:uuid}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase}=ctx(context);
+    const {data:c,error:caseError}=await supabase.from("social_cases").select("id,org_id,case_number,person_id,family_id").eq("id",data.caseId).single();fail(caseError);
+    let consentQuery=supabase.from("social_consents").select("id,consent_type,status,expires_at,current_version,social_consent_versions(permitted_purpose,permitted_recipients,permitted_information)").eq("status","active").order("created_at",{ascending:false});
+    consentQuery=c.person_id?consentQuery.eq("person_id",c.person_id):consentQuery.eq("family_id",c.family_id);
+    const [documents,consents]=await Promise.all([
+      supabase.from("social_documents").select("id,title,document_type,external_shareable,consent_id").eq("social_case_id",c.id).eq("external_shareable",true).is("deleted_at",null).order("created_at",{ascending:false}),
+      consentQuery,
+    ]);fail(documents.error);fail(consents.error);
+    return {case:c,documents:documents.data??[],consents:(consents.data??[]).filter((x:any)=>!x.expires_at||new Date(x.expires_at)>new Date())};
+  });
+
+const communicationInput=z.object({
+  caseId:uuid,institutionId:uuid,referralId:uuid.optional(),type:z.enum(["email","message","phone","website_portal"]),
+  recipient:z.string().trim().min(2).max(500),subject:z.string().trim().min(2).max(500),message:z.string().max(20000).optional(),
+  documentIds:z.array(uuid).max(20).default([]),consentId:uuid.optional(),status:z.enum(["attempted","completed"]).optional(),
+});
+
+export const sendResourceCommunication=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>communicationInput.parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);
+    const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,case_number").eq("id",data.caseId).single();fail(caseError);
+    const {data:documents,error:docError}=await supabase.from("social_documents").select("id,title").eq("social_case_id",data.caseId).in("id",data.documentIds);fail(docError);
+    if((documents??[]).length!==data.documentIds.length)throw new Error("A selected document is not available in this case");
+    const initial="draft";
+    const {data:row,error}=await supabase.from("social_resource_communications").insert({org_id:c.org_id,social_case_id:data.caseId,institution_id:data.institutionId,referral_id:data.referralId??null,sender_id:userId,recipient:data.recipient,subject:data.subject,communication_type:data.type,message:data.message??null,document_ids:data.documentIds,consent_id:data.consentId??null,status:initial}).select("id").single();fail(error);
+    if(data.type!=="email"){
+      const {error:updateError}=await supabase.from("social_resource_communications").update({status:data.status??"attempted",sent_at:new Date().toISOString()}).eq("id",row.id);fail(updateError);return {id:row.id,status:data.status??"attempted"};
+    }
+    try{
+      const {sendTemplateEmail}=await import("@/lib/email-templates/send-email");
+      const result=await sendTemplateEmail("resource-contact",data.recipient,{idempotencyKey:row.id,templateData:{subject:data.subject,message:data.message,caseReference:c.case_number,documents:(documents??[]).map((x:any)=>x.title)}});
+      const status=result.sent?"sent":"failed";
+      const {error:updateError}=await supabase.from("social_resource_communications").update({status,sent_at:result.sent?new Date().toISOString():null,delivery_detail:result.sent?null:result.reason}).eq("id",row.id);fail(updateError);
+      return {id:row.id,status};
+    }catch(error){
+      await supabase.from("social_resource_communications").update({status:"failed",delivery_detail:error instanceof Error?error.message:"Delivery failed"}).eq("id",row.id);
+      throw error;
+    }
+  });
+
+export const createResourceReferral=createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d:unknown)=>referralInput.extend({notes:z.string().max(5000).optional(),followUpAt:z.string().datetime().optional()}).parse(d))
+  .handler(async({data,context})=>{
+    const {supabase,userId}=ctx(context);const {data:c,error:caseError}=await supabase.from("social_cases").select("org_id,person_id,family_id").eq("id",data.socialCaseId).single();fail(caseError);
+    const status=data.consentId?"draft":"awaiting_consent";
+    const {data:row,error}=await supabase.from("social_referrals").insert({org_id:c.org_id,social_case_id:data.socialCaseId,referral_number:null,person_id:data.personId??c.person_id,family_id:data.familyId??c.family_id,receiving_institution_id:data.institutionId,service_requested:data.serviceRequested,reason:data.reason,urgency:data.urgency,consent_id:data.consentId??null,authorized_information:data.authorizedInformation,status,notes:data.notes??null,follow_up_date:data.followUpAt?.slice(0,10)??null,created_by:userId}).select("id,referral_number,status").single();fail(error);
+    if(data.followUpAt){const {error:taskError}=await supabase.from("social_tasks").insert({org_id:c.org_id,social_case_id:data.socialCaseId,title:`Referral follow-up: ${data.serviceRequested}`,description:data.notes??data.reason,assignee_id:userId,priority:data.urgency,status:"todo",due_at:data.followUpAt,reminder_at:data.followUpAt,created_by:userId});fail(taskError);}
+    return row;
   });
 
 const resourceAdminInput=z.object({

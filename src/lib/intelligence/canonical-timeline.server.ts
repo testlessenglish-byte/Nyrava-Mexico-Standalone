@@ -202,7 +202,7 @@ export function normalizeTimelineDate(raw: unknown): string {
 
   const slashMatch = SLASH_DATE_RE.exec(s);
   if (slashMatch) {
-    let [, dStr, mStr, yStr] = slashMatch;
+    const [, dStr, mStr, yStr] = slashMatch;
     let day = Number(dStr);
     let month = Number(mStr);
     let year = Number(yStr);

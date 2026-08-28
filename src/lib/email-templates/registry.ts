@@ -19,6 +19,7 @@ export interface TemplateEntry {
  */
 import { CaseReminderEmail } from "./case-reminder";
 import { template as teamInviteTemplate } from "./team-invite";
+import { ResourceContactEmail } from "./resource-contact";
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   "case-reminder": {
@@ -26,4 +27,8 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
     subject: (data) => `Recordatorio: ${data.itemTitle ?? "expediente"}`,
   },
   "team-invite": teamInviteTemplate,
+  "resource-contact": {
+    component: ResourceContactEmail,
+    subject: (data) => String(data.subject || "Resource contact"),
+  },
 };
