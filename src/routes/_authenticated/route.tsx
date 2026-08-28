@@ -51,6 +51,42 @@ import { useI18n } from "@/i18n";
 import { useGlobalPipelineDriver } from "@/hooks/useGlobalPipelineDriver";
 import { ConsentGate } from "@/components/compliance/ConsentGate";
 
+async function getAuthenticatedUser() {
+  if (typeof window === "undefined") return null;
+
+  // 1. Fast check: try getSession first (often instant if cached in memory/localStorage)
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user) {
+      return sessionData.session.user;
+    }
+  } catch {
+    // ignore initial read error
+  }
+
+  // 2. Retry window for session re-hydration:
+  // On hard refresh (especially in Lovable preview iframe or during token restore),
+  // storage synchronization over postMessage or storage load can take 100-600ms.
+  // We poll up to 3 times before giving up.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 250 : 500));
+    try {
+      const { data: retrySession } = await supabase.auth.getSession();
+      if (retrySession?.session?.user) {
+        return retrySession.session.user;
+      }
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        return userData.user;
+      }
+    } catch {
+      // continue waiting
+    }
+  }
+
+  return null;
+}
+
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   head: () => ({
@@ -72,9 +108,15 @@ export const Route = createFileRoute("/_authenticated")({
   }),
   beforeLoad: async ({ location }) => {
     if (location.pathname.startsWith("/lovable/")) return;
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/auth" });
-    return { user: data.user };
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      const target = `${location.pathname}${location.searchStr ? `?${location.searchStr}` : ""}`;
+      throw redirect({
+        to: "/auth",
+        search: target && target !== "/" && target !== "/auth" ? { redirect: target } : undefined,
+      });
+    }
+    return { user };
   },
   component: AppLayout,
 });
