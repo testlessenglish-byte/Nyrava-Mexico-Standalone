@@ -490,18 +490,22 @@ export function isSameIssue(a: Prepared, b: Prepared, opts: Required<DedupeOptio
     ts >= opts.titleThreshold ||
     titleContains;
 
-  if (sameHeadline) {
-    if (titleContains || (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= 0.45) return true;
-    if (sharesExactQuoteEvidence(a, b) || sharesQuoteEvidence(a, b) || sharesEvidence(a, b)) return true;
-    if (jaccard(a.descTokens, b.descTokens) >= opts.descriptionThreshold) return true;
-  }
-
+  // Identical wording from different engines/categories is not corroboration
+  // by itself. Cross-category merges must always carry a shared evidence or
+  // description signal, even when the titles are byte-identical.
   if (a.category !== b.category) {
     if (ts >= opts.crossCategoryTitleThreshold) {
       if (sharesExactQuoteEvidence(a, b) || sharesQuoteEvidence(a, b) || sharesEvidence(a, b)) return true;
       if (jaccard(a.descTokens, b.descTokens) >= opts.crossCategoryDescriptionThreshold) return true;
+      if (a.fullTitle === b.fullTitle && jaccard(a.descTokens, b.descTokens) >= 0.35) return true;
     }
     return false;
+  }
+
+  if (sameHeadline) {
+    if (titleContains || (a.titleKey !== "" && a.titleKey === b.titleKey) || ts >= 0.45) return true;
+    if (sharesExactQuoteEvidence(a, b) || sharesQuoteEvidence(a, b) || sharesEvidence(a, b)) return true;
+    if (jaccard(a.descTokens, b.descTokens) >= opts.descriptionThreshold) return true;
   }
 
   if (ts >= opts.titleFallbackThreshold) {
@@ -521,13 +525,12 @@ function epistemicRank(f: DedupableFinding): number {
   return EPISTEMIC_RANK[auditClass(f)] ?? 3;
 }
 
-function strength(f: DedupableFinding): [number, number, number, number] {
+function strength(f: DedupableFinding): [number, number, number] {
   const epistemic = epistemicRank(f);
   const sev = SEV_RANK[String(f.severity ?? "info").toLowerCase()] ?? 9;
   const rawConf = Number(f.confidence ?? 0);
   const conf = Number.isFinite(rawConf) ? (rawConf > 1 ? rawConf / 100 : rawConf) : 0;
-  const specificity = textOf(f, "title").length + textOf(f, "description").length;
-  return [epistemic, sev, -conf, -specificity];
+  return [epistemic, sev, -conf];
 }
 
 /** Lower tuple wins. */
@@ -551,7 +554,7 @@ const ARRAY_UNION_KEYS = [
   "sources",
 ] as const;
 
-function unionArrays(master: DedupableFinding, others: DedupableFinding[]): void {
+function unionArrays(master: DedupableFinding, orderedRows: DedupableFinding[]): void {
   for (const key of ARRAY_UNION_KEYS) {
     const seen = new Set<string>();
     const merged: unknown[] = [];
@@ -564,12 +567,11 @@ function unionArrays(master: DedupableFinding, others: DedupableFinding[]): void
         merged.push(item);
       }
     };
-    push(master[key]);
-    const before = merged.length;
-    for (const o of others) push(o[key]);
+    const masterHadKey=Array.isArray(master[key]);
+    for (const row of orderedRows) push(row[key]);
     // Only write the key when the master already had it or a duplicate
     // contributed something — never invent empty arrays on rows that had none.
-    if (merged.length > 0 && (Array.isArray(master[key]) || merged.length > before || before > 0)) {
+    if (merged.length > 0 && (masterHadKey || orderedRows.some((row)=>Array.isArray(row[key])))) {
       master[key] = merged;
     }
   }
@@ -670,7 +672,7 @@ export function consolidateFindings<T extends DedupableFinding>(
     const dupes = cluster.filter((c) => c !== winner).map((c) => c.row);
 
     if (dupes.length > 0) {
-      unionArrays(master, dupes);
+      unionArrays(master, cluster.map((c)=>c.row));
       master._alias_ids = dupes.map((d) => String(d.id ?? "")).filter(Boolean);
       master._alias_titles = dupes.map((d) => String(d.title ?? "")).filter(Boolean);
       // Category UNION: when the same canonical issue was emitted by engines
@@ -705,7 +707,7 @@ export function consolidateFindings<T extends DedupableFinding>(
       }
       mutable.metadata = meta;
     }
-    out.push({ index: winner.index, row: master });
+    out.push({ index: cluster[0].index, row: master });
   }
 
   return out.sort((a, b) => a.index - b.index).map((o) => o.row);
