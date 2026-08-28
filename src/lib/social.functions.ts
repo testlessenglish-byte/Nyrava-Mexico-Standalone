@@ -931,8 +931,8 @@ export const askTalkToCareCase=createServerFn({method:"POST"})
         const resourceList=x.resources.map((r:any)=>({id:r.id,name:r.official_name,services:r.services,location:[r.municipality,r.state_code].filter(Boolean).join(", "),cost:r.cost_type,verification:r.status}));
         const res=await routeAI({
           task:"chat",userId,cache:false,temperature:0.2,maxTokens:1400,
-          systemInstruction:`${CARE_ASSISTANT_SYSTEM}\nRespond in ${data.language==="es"?"Spanish (Mexican professional social-work register)":"English"}.`,
-          userContent:`QUESTION:\n${data.question}\n\nCASE FACTS (JSON):\n${JSON.stringify(factSheet).slice(0,90000)}\n\nAPPROVED KNOWLEDGE CENTER CONTENT:\n${JSON.stringify(knowledgeList)}\n\nRESOURCE NETWORK OPTIONS:\n${JSON.stringify(resourceList)}`,
+          systemInstruction:careAssistantSystem(data.language),
+          userContent:T(`IDIOMA DE RESPUESTA OBLIGATORIO: español.\n\nPREGUNTA:\n${data.question}\n\nHECHOS DEL CASO (JSON):\n${JSON.stringify(factSheet).slice(0,90000)}\n\nCONTENIDO APROBADO DEL CENTRO DE CONOCIMIENTO:\n${JSON.stringify(knowledgeList)}\n\nOPCIONES DE LA RED DE RECURSOS:\n${JSON.stringify(resourceList)}`,`REQUIRED ANSWER LANGUAGE: English.\n\nQUESTION:\n${data.question}\n\nCASE FACTS (JSON):\n${JSON.stringify(factSheet).slice(0,90000)}\n\nAPPROVED KNOWLEDGE CENTER CONTENT:\n${JSON.stringify(knowledgeList)}\n\nRESOURCE NETWORK OPTIONS:\n${JSON.stringify(resourceList)}`),
         });
         if(res?.text?.trim()){answer=res.text.trim();answerSource="ai";}
       }catch(e:any){answerError=e?.message??"AI providers unavailable";}
