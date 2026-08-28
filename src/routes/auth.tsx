@@ -7,7 +7,31 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useI18n } from "@/i18n";
 
+function getSafeRedirectTarget(searchRedirect?: string): string {
+  if (
+    searchRedirect &&
+    searchRedirect.startsWith("/") &&
+    !searchRedirect.startsWith("//") &&
+    searchRedirect !== "/auth"
+  ) {
+    return searchRedirect;
+  }
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    const param = params.get("redirect");
+    if (param && param.startsWith("/") && !param.startsWith("//") && param !== "/auth") {
+      return param;
+    }
+  }
+  return "/dashboard";
+}
+
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => {
+    return {
+      redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+    };
+  },
   head: () => ({
     meta: [
       { title: "Acceso · Nyrava Intelligence México" },
@@ -23,6 +47,7 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
+  const search = Route.useSearch();
   const navigate = useNavigate();
   const router = useRouter();
   const { t } = useI18n();
@@ -33,19 +58,31 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const destination = getSafeRedirectTarget(search.redirect);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
-        void router.invalidate().then(() => navigate({ to: "/dashboard", replace: true }));
+        void router.invalidate().then(() => {
+          if (destination.startsWith("/")) {
+            window.location.replace(destination);
+          } else {
+            navigate({ to: "/dashboard", replace: true });
+          }
+        });
       }
     });
-  }, [navigate, router]);
+  }, [destination, navigate, router]);
 
   async function enterWorkspace() {
     const { data, error: userError } = await supabase.auth.getUser();
     if (userError || !data.user) throw userError ?? new Error(t("common.error.auth"));
     await router.invalidate();
-    await navigate({ to: "/dashboard", replace: true });
+    if (destination.startsWith("/")) {
+      window.location.replace(destination);
+    } else {
+      await navigate({ to: "/dashboard", replace: true });
+    }
   }
 
   async function handleEmail(e: React.FormEvent) {
