@@ -2012,7 +2012,6 @@ async function _runPipelineForCase(
   trace("pipeline.finalized", {
     total_runtime_ms: Date.now() - runStart,
     final_status: finalStatus,
-    preserved_from_multi_agent: preserved,
     failures: stageFailures.length,
     completed: completed.size,
     blocked: blocked.size,
