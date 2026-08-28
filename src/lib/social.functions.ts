@@ -731,7 +731,7 @@ export const verifyResourceInstitution=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({institutionId:uuid,status:z.enum(["verified","verification_due","unverified","temporarily_unavailable","at_capacity","closed","archived"]),source:z.string().trim().min(2).max(500),evidenceUrl:z.string().url().optional().or(z.literal("")),notes:z.string().max(2000).optional(),nextVerificationAt:z.string().datetime().optional()}).parse(d))
   .handler(async({data,context})=>{
-    const {supabase}=await requireResourceKnowledgeAdmin(context);const {data:id,error}=await supabase.rpc("verify_resource",{p_institution:data.institutionId,p_status:data.status,p_source:data.source,p_evidence_url:data.evidenceUrl||null,p_notes:data.notes||null,p_next_verification:data.nextVerificationAt||null});fail(error);return {verificationId:id};
+    const probe=ctx(context);const owner=await probe.supabase.from("social_institutions").select("org_id").eq("id",data.institutionId).single();fail(owner.error);const {supabase}=await requireResourceKnowledgeAdmin(context,owner.data.org_id);const {data:id,error}=await supabase.rpc("verify_resource",{p_institution:data.institutionId,p_status:data.status,p_source:data.source,p_evidence_url:data.evidenceUrl||null,p_notes:data.notes||null,p_next_verification:data.nextVerificationAt||null});fail(error);return {verificationId:id};
   });
 
 export const submitResourceCorrection=createServerFn({method:"POST"})
@@ -864,7 +864,7 @@ export const prepareKnowledgeUpload=createServerFn({method:"POST"})
 export const finalizeKnowledgeUpload=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .inputValidator((d:unknown)=>z.object({recordId:uuid,path:z.string().min(20).max(1000),fileType:z.string().max(120)}).parse(d))
-  .handler(async({data,context})=>{const {supabase}=await requireResourceKnowledgeAdmin(context);const {error}=await supabase.from("resource_knowledge_records").update({document_path:data.path,file_type:data.fileType,updated_at:new Date().toISOString()}).eq("id",data.recordId);fail(error);return {ok:true};});
+  .handler(async({data,context})=>{const probe=ctx(context);const owner=await probe.supabase.from("resource_knowledge_records").select("org_id").eq("id",data.recordId).single();fail(owner.error);const {supabase}=await requireResourceKnowledgeAdmin(context,owner.data.org_id);const {error}=await supabase.from("resource_knowledge_records").update({document_path:data.path,file_type:data.fileType,updated_at:new Date().toISOString()}).eq("id",data.recordId);fail(error);return {ok:true};});
 
 export const openKnowledgeRecord=createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
