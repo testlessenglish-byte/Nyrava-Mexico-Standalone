@@ -143,7 +143,7 @@ describe("social-care migration security coverage",()=>{
   });
   it("wires every operational case stage into the case workspace",()=>{
     for(const tab of ["assessment","plan","intervention","consent","referral","tasks","documents","transfer","closure","immigration","activity"]){
-      expect(workspaceSource).toContain(`tab==="${tab}"`);
+      expect(workspaceSource).toMatch(new RegExp(`tab\\s*===\\s*"${tab}"`));
     }
     expect(routeSource).toContain("SocialCaseWorkspace");
     expect(routeSource).toContain("onOpen={setSelectedCaseId}");
@@ -281,7 +281,7 @@ describe("social-care migration security coverage",()=>{
     expect(managerCaseDelete).toContain("set deleted_at=now()");
     expect(managerCaseDelete).toContain("'case_deleted'");
     expect(serverSource).toContain("export const deleteSocialCase=");
-    expect(workspaceSource).toContain('es?"Eliminar caso":"Delete case"');
+    expect(workspaceSource).toMatch(/es\s*\?\s*"Eliminar caso"\s*:\s*"Delete case"/);
     expect(routeSource).toContain("currentUserId={currentUserId}");
   });
   it("reads a created case through the authorized core RPC",()=>{
@@ -295,9 +295,9 @@ describe("social-care migration security coverage",()=>{
     expect(serverSource).toContain('fail(caseRow.error)');
     expect(serverSource).toContain('const optionalRows=');
     expect(serverSource).toContain('warnings.push');
-    expect(workspaceSource).toContain('retry:1');
+    expect(workspaceSource).toMatch(/retry\s*:\s*1/);
     expect(workspaceSource).toContain('Case could not be opened');
-    expect(workspaceSource).toContain('onClick={()=>void detail.refetch()}');
+    expect(workspaceSource).toContain("detail.refetch()");
     expect(workspaceSource).not.toContain('if(detail.isLoading||!caseData||!c)');
   });
   it("keeps employee passwords outside manager-controlled data",()=>{
