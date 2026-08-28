@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +24,21 @@ import { EscapedTextNormalizer } from "@/components/social/EscapedTextNormalizer
 import { SocialIntakeManager } from "@/components/social/SocialIntakeManager";
 
 export const Route=createFileRoute("/_authenticated/social")({
+  validateSearch: (search: Record<string, unknown>): {
+    area?: Area;
+    caseId?: string;
+    tab?: string;
+    orgId?: string;
+    invite?: string;
+  } => {
+    return {
+      area: typeof search.area === "string" ? (search.area as Area) : undefined,
+      caseId: typeof search.caseId === "string" ? search.caseId : undefined,
+      tab: typeof search.tab === "string" ? search.tab : undefined,
+      orgId: typeof search.orgId === "string" ? search.orgId : undefined,
+      invite: typeof search.invite === "string" ? search.invite : undefined,
+    };
+  },
   head:()=>({meta:[
     {title:"Atención Integral — Nyrava México"},
     {name:"description",content:"Gestión social integral, separada de los expedientes jurídicos migratorios."},
@@ -71,6 +86,8 @@ function errorMessage(error:unknown):string{
 
 function SocialCarePage(){
   const {locale}=useI18n(); const es=locale==="es"; const qc=useQueryClient();
+  const searchParams=Route.useSearch();
+  const navigate=useNavigate();
   const workspaceFn=useServerFn(getSocialWorkspace);
   const createPersonFn=useServerFn(createSocialPerson);
   const createCaseFn=useServerFn(createAndAssignCareCase);
@@ -81,9 +98,63 @@ function SocialCarePage(){
   const indicatorsFn=useServerFn(getSocialIndicators);
   const acknowledgeAlertFn=useServerFn(acknowledgeSocialAlert);
   const acceptInvitationFn=useServerFn(acceptSocialOrganizationInvitation);
-  const [area,setArea]=useState<Area>("dashboard");
-  const [selectedCaseId,setSelectedCaseId]=useState("");
-  const [orgId,setOrgId]=useState("");
+  
+  const area:Area=searchParams.area||"dashboard";
+  const selectedCaseId=searchParams.caseId||"";
+  const activeCaseTab=searchParams.tab||"overview";
+  const orgId=searchParams.orgId||"";
+
+  const setArea=(newArea:Area)=>{
+    void navigate({
+      to: "/social",
+      search: {
+        area: newArea==="dashboard"?undefined:newArea,
+        caseId: undefined,
+        tab: undefined,
+        orgId: orgId||undefined,
+      },
+      replace: true,
+    } as any);
+  };
+
+  const setSelectedCaseId=(id:string,initialTab?:string)=>{
+    void navigate({
+      to: "/social",
+      search: {
+        area: area==="dashboard"?undefined:area,
+        caseId: id||undefined,
+        tab: id?(initialTab||activeCaseTab||"overview"):undefined,
+        orgId: orgId||undefined,
+      },
+      replace: true,
+    } as any);
+  };
+
+  const handleCaseTabChange=(nextTab:string)=>{
+    void navigate({
+      to: "/social",
+      search: {
+        area: area==="dashboard"?undefined:area,
+        caseId: selectedCaseId||undefined,
+        tab: nextTab==="overview"?undefined:nextTab,
+        orgId: orgId||undefined,
+      },
+      replace: true,
+    } as any);
+  };
+
+  const setOrgId=(newOrgId:string)=>{
+    void navigate({
+      to: "/social",
+      search: {
+        area: area==="dashboard"?undefined:area,
+        caseId: selectedCaseId||undefined,
+        tab: activeCaseTab==="overview"?undefined:activeCaseTab,
+        orgId: newOrgId||undefined,
+      },
+      replace: true,
+    } as any);
+  };
   const [query,setQuery]=useState("");
   const [caseListQuery,setCaseListQuery]=useState("");
   const [casePage,setCasePage]=useState(1);
@@ -219,6 +290,8 @@ function SocialCarePage(){
   if(workspace.isLoading)return <div className="p-8 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>{es?"Cargando Atención Integral…":"Loading Comprehensive Care…"}</div>;
   if(selectedCaseId)return <div data-social-care-root className="mx-auto max-w-[1600px] p-4 md:p-6"><EscapedTextNormalizer/><SocialCaseWorkspace
     caseId={selectedCaseId}
+    initialTab={activeCaseTab as any}
+    onTabChange={handleCaseTabChange}
     people={workspace.data?.people??[]}
     institutions={workspace.data?.institutions??[]}
     templates={workspace.data?.templates??[]}

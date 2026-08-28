@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, FileUp, Loader2, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +28,8 @@ type Props={
   roleAssignments:any[];
   organizationMembers:any[];
   currentUserId:string;
+  initialTab?:Tab;
+  onTabChange?:(tab:Tab)=>void;
   onClose:()=>void;
 };
 type Tab="overview"|"intake"|"assessment"|"plan"|"intervention"|"legal"|"psychosocial"|"consent"|"referral"|"resources"|"tasks"|"documents"|"transfer"|"closure"|"immigration"|"assistant"|"activity";
@@ -60,10 +62,13 @@ function nextStatuses(status:string){
   return transitions[status]??[status];
 }
 
-export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAssignments,organizationMembers,currentUserId,onClose}:Props){
+export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAssignments,organizationMembers,currentUserId,initialTab,onTabChange,onClose}:Props){
   const {locale}=useI18n();const es=locale==="es";const qc=useQueryClient();
   const getCaseFn=useServerFn(getSocialCase);
-  const [tab,setTab]=useState<Tab>("overview");
+  const [tab,setTab]=useState<Tab>(initialTab||"overview");
+  useEffect(()=>{
+    if(initialTab&&initialTab!==tab)setTab(initialTab);
+  },[initialTab]);
   const detail=useQuery({queryKey:["social-case",caseId],queryFn:()=>getCaseFn({data:{caseId}}),retry:1});
   const refresh=()=>qc.invalidateQueries({queryKey:["social-case",caseId]});
   const success=(message:string)=>{toast.success(message);void refresh();};
@@ -120,6 +125,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
   const [intervention,setIntervention]=useState({serviceType:"social_work",reason:"",actions:"",outcome:"",recordType:"general_case_record" as any,followUp:false});
   const openTab=(next:Tab)=>{
     setTab(next);
+    onTabChange?.(next);
     if(next==="legal")setIntervention(current=>({...current,serviceType:"legal_assistance",recordType:"legal_privileged_record"}));
     if(next==="psychosocial")setIntervention(current=>({...current,serviceType:"psychological_support",recordType:"psychosocial_restricted_record"}));
     if(next==="intervention")setIntervention(current=>({...current,serviceType:"social_work",recordType:"general_case_record"}));
@@ -226,7 +232,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
     <div className="border-b border-border p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><p className="font-mono text-sm text-primary">{caseLabel}</p><h2 className="text-xl font-semibold">{person?.legal_name??(es?"Caso familiar":"Family case")}</h2><p className="text-xs text-muted-foreground">{localizedEnum(c?.case_type,es)} · {c?.status==="intake"?(es?"Nuevo":"New"):localizedEnum(c?.status,es)} · {localizedEnum(c?.priority,es)}</p></div>
-        <div className="flex flex-wrap gap-2">{canDeleteCase&&<button type="button" onClick={requestDelete} disabled={deleteM.isPending} className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive disabled:opacity-50">{deleteM.isPending?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<Trash2 className="mr-1 inline h-4 w-4"/>}{es?"Eliminar caso":"Delete case"}</button>}{!["transferred","archived"].includes(c?.status)&&<button onClick={()=>c?.status==="closed"?setTab("closure"):setShowStateEditor(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-sm">{c?.status==="closed"?(es?"Reabrir en Cierre":"Reopen in Closure"):(es?"Cambiar estado":"Change state")}</button>}<button onClick={()=>setTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>setTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button onClick={()=>setTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
+        <div className="flex flex-wrap gap-2">{canDeleteCase&&<button type="button" onClick={requestDelete} disabled={deleteM.isPending} className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive disabled:opacity-50">{deleteM.isPending?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<Trash2 className="mr-1 inline h-4 w-4"/>}{es?"Eliminar caso":"Delete case"}</button>}{!["transferred","archived"].includes(c?.status)&&<button onClick={()=>c?.status==="closed"?openTab("closure"):setShowStateEditor(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-sm">{c?.status==="closed"?(es?"Reabrir en Cierre":"Reopen in Closure"):(es?"Cambiar estado":"Change state")}</button>}<button onClick={()=>openTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>openTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button onClick={()=>openTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
       </div>
       <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
         <span>{es?"Responsable":"Assigned"}: <strong className="text-foreground">{organizationMembers.find((m:any)=>m.user_id===c?.assigned_case_manager)?.name??(es?"Sin asignar":"Unassigned")}</strong></span>
