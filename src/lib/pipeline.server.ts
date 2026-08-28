@@ -6338,6 +6338,11 @@ async function _runReportInner(args: {
     low: 3,
     info: 4,
   };
+  const { consolidateFindings } = await import("./intelligence/finding-dedupe");
+  findings = consolidateFindings(
+    findings as unknown as Array<Record<string, unknown>>,
+  ) as unknown as typeof findings;
+
   const findingsLite = [...findings]
     .sort((a, b) => {
       const sevDiff = (SEVERITY_RANK[a.severity] ?? 5) - (SEVERITY_RANK[b.severity] ?? 5);
@@ -8196,6 +8201,27 @@ ${paginationTail}`;
       if (typeof value !== "string" || !isFalsePersonalNoticeTheory(value)) continue;
       prose[key] = value.split(/(?<=[.!?])\s+|\n+/g).filter((sentence) => !isFalsePersonalNoticeTheory(sentence)).join(" ").trim();
     }
+  }
+
+  const isConcludedJudicialCase = mandatoryDecisionCoreRequired || reportCaseAnalysisMode === "concluded_audit" || reportCaseAnalysisMode === "judgment_audit";
+  const isProspectiveTrialRecommendation = (value: unknown): boolean => {
+    const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
+    return /\b(cadena\s+de\s+custodia|reforzar\s+la\s+cadena|presentar\s+informe\s+detallado\s+de\s+cumplimiento|solicitar\s+que\s+se\s+mantenga\s+la\s+pena|ofrecer\s+pruebas?\s+de\s+descargo|preparar\s+testigos?|interrogar\s+a\s+los\s+testigos?|declaraci[oó]n\s+del\s+imputado)\b/i.test(text);
+  };
+  if (isConcludedJudicialCase) {
+    for (const key of ["next_actions", "strategy_recommendations", "motion_opportunities", "recommendations"]) {
+      const value = (parsed as Record<string, unknown>)[key];
+      if (Array.isArray(value)) (parsed as Record<string, unknown>)[key] = value.filter((item) => !isProspectiveTrialRecommendation(item));
+    }
+    const exec = (parsed as Record<string, unknown>).executive_summary;
+    if (exec && typeof exec === "object" && !Array.isArray(exec)) {
+      const urgent = (exec as Record<string, unknown>).urgent_actions;
+      if (Array.isArray(urgent)) (exec as Record<string, unknown>).urgent_actions = urgent.filter((item) => !isProspectiveTrialRecommendation(item));
+    }
+    const legalAnalysis = (parsed as Record<string, unknown>).legal_analysis;
+    if (Array.isArray(legalAnalysis)) (parsed as Record<string, unknown>).legal_analysis = legalAnalysis.filter((item) => !isProspectiveTrialRecommendation(item));
+    const recMotions = (parsed as Record<string, unknown>).recommended_motions;
+    if (Array.isArray(recMotions)) (parsed as Record<string, unknown>).recommended_motions = recMotions.filter((item) => !isProspectiveTrialRecommendation(item));
   }
   // Count facts corroborated by ≥2 documents (heuristic: distinct doc ids on finding citations).
   let corroboratedCount = 0;

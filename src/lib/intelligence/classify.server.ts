@@ -857,6 +857,21 @@ export function rankAndClassify<T extends Partial<NewFinding>>(
       category = financialFraud;
       categoryKey = "financial_fraud";
     }
+
+    // Guardrail: never label a victim rights / standing / constitutional / due process finding as witness testimony.
+    const textAll = `${r.title ?? ""} ${r.description ?? ""} ${r.legal_significance ?? ""}`.toLowerCase();
+    if (
+      (category === "Testimonio de Testigo" || categoryKey === "witness") &&
+      /\b(v[ií]ctima|ofendid|legitim|acceso\s+a\s+la\s+justicia|tutela\s+judicial|amparo|debido\s+proceso|reparaci[oó]n\s+del\s+da[ñn]o|derechos?\s+humanos?)\b/i.test(textAll)
+    ) {
+      if (/\b(v[ií]ctima|ofendid|reparaci[oó]n|legitim)\b/i.test(textAll)) {
+        category = locale === "en" ? "Derechos de la Víctima (Victim Rights)" : "Derechos de la Víctima";
+        categoryKey = "victim_rights";
+      } else {
+        category = locale === "en" ? "Control Constitucional (Constitutional Review)" : "Control Constitucional";
+        categoryKey = "constitutional_compliance";
+      }
+    }
     return {
       ...r,
       category,

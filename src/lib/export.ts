@@ -89,6 +89,7 @@ import {
 } from "@/lib/intelligence/litigation-impact";
 import { MX_PARTY_ROLES, mxProfileOrNull, mxRoleLabel } from "@/lib/execution/mx-pipeline";
 import { filterExecutiveDashboardEligible } from "@/lib/intelligence/judicial-hierarchy";
+import { consolidateFindings } from "@/lib/intelligence/finding-dedupe";
 
 // Report Engine v1.0 — frozen release identifier surfaced on every PDF footer.
 // The structure, section order, and scoring formulas are locked; only bug
@@ -2283,7 +2284,24 @@ function renderCover(
  */
 function buildMissingDocumentChecklist(data: CaseExportData): { checklistText: string } {
   const locale = resolveReportLocale(data.report, data.case);
-  const caseType = (data.case as { case_type?: string } | null)?.case_type ?? null;
+  const caseObj = (data.case ?? {}) as Record<string, unknown>;
+  const caseType = String(caseObj.case_type ?? "");
+  const analysisMode = String(caseObj.case_analysis_mode ?? "");
+  const isConcludedAudit =
+    analysisMode === "concluded_audit" ||
+    analysisMode === "judgment_audit" ||
+    analysisMode === "appeal_routes" ||
+    caseObj.concluded_status === "concluded" ||
+    data.documents.some((d) => /(sentencia|resolucion|ejecutoria|firmado|scjn|adr)/i.test(String(d.filename ?? "")));
+
+  if (isConcludedAudit) {
+    return {
+      checklistText:
+        locale === "en"
+          ? "This report constitutes a legal audit of the supplied judicial resolution. The uploaded decision is self-sufficient for analyzing the court's holdings, reasoning, and operative rulings. Additional historical trial records are required only if reconstructing previous procedural phases."
+          : "Este reporte constituye una auditoría jurídica de la resolución judicial aportada. La resolución es autosuficiente para el análisis de los criterios, razonamientos y puntos resolutivos del tribunal. Constancias adicionales del expediente histórico de origen sólo se requieren si se desea reconstruir las etapas procesales previas.",
+    };
+  }
 
   // apelación isn't in MX_DOMAINS (it's a procedural posture over whatever
   // the underlying matter is, not its own substantive practice area) — its
@@ -3629,7 +3647,9 @@ function renderScorecard(b: PdfBuilder, data: CaseExportData) {
 }
 
 function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
-  const findings = data.findings ?? [];
+  const findings = consolidateFindings(
+    (data.findings ?? []) as unknown as Array<Record<string, unknown>>,
+  ) as typeof data.findings;
   if (!findings.length) return;
   b.h1(rt("Key Findings"));
   b.text(
@@ -5306,7 +5326,7 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       id: "timeline",
       title: "Resumen Cronológico",
       gatedInLimited: false,
-      available: (d) => !!reportText(d, "timeline_summary").trim(),
+      available: () => false, // Suppressed from final report display per directive
       renderPdf: (b, d) => renderTimelineSummary(b, d),
       renderDocx: (d) => proseDocxParas("Resumen Cronológico", reportText(d, "timeline_summary")),
     },
