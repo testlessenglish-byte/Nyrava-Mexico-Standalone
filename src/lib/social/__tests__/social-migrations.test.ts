@@ -117,9 +117,9 @@ describe("social-care migration security coverage",()=>{
     expect(caseMultifileUploads).not.toMatch(/\|exe\|/i);
     expect(serverSource).toContain("allowedExtensions=new Set");
     expect(serverSource).toContain("blockedExtensions=new Set");
-    expect(workspaceSource).toContain("multiple accept={CASE_FILE_ACCEPT}");
+    expect(workspaceSource).toMatch(/multiple\s+accept=\{CASE_FILE_ACCEPT\}/);
     expect(workspaceSource).toContain("Array.from(e.dataTransfer.files)");
-    expect(workspaceSource).toContain("sizeBytes:file.size");
+    expect(workspaceSource).toMatch(/sizeBytes\s*:\s*file\.size/);
     expect(workspaceSource).toContain("Uploading ${uploadProgress.current} of ${uploadProgress.total}");
   });
   it("creates family, consent, assessment and care plan atomically",()=>{
