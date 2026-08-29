@@ -2330,3 +2330,73 @@ export const sendSocialAuditReportEmail = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+
+export const getPublicCommunitySupportCampaign = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    publicSlug: z.string().min(4).max(64),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { sanitizePublicCampaign } = await import("@/lib/social/community-support.server");
+
+    const campaignRes = await supabase.from("social_community_campaigns").select("*").eq("public_slug", data.publicSlug).single();
+    if (campaignRes.error || !campaignRes.data) {
+      throw new Error("Campaña de apoyo no encontrada o no disponible / Support campaign not found or unavailable");
+    }
+
+    const campaign = campaignRes.data;
+    const [profileRes, offersRes] = await Promise.all([
+      supabase.from("social_community_fundraising_profiles").select("legal_name,state,tax_deductible_status").eq("org_id", campaign.org_id).maybeSingle(),
+      supabase.from("social_community_support_offers").select("id,status,offer_type").eq("campaign_id", campaign.id),
+    ]);
+
+    const sanitized = sanitizePublicCampaign(campaign, profileRes.data, offersRes.data || []);
+    if (!sanitized) {
+      throw new Error("Esta campaña no está disponible públicamente / This campaign is not publicly available");
+    }
+
+    return sanitized;
+  });
+
+export const submitPublicCommunitySupportOffer = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    publicSlug: z.string().min(4).max(64),
+    offerType: z.enum(["goods", "service", "financial_pledge", "other"]),
+    categories: z.array(z.string()).default([]),
+    itemDescription: z.string().trim().min(2).max(1000),
+    quantity: z.string().trim().max(100).optional(),
+    donorName: z.string().trim().min(2).max(160),
+    donorEmail: z.string().trim().email().optional().or(z.literal("")),
+    donorPhone: z.string().trim().max(50).optional(),
+    deliveryMethod: z.enum(["dropoff_organization", "collection_point", "arrange_pickup", "contact_to_coordinate"]).default("dropoff_organization"),
+    notes: z.string().trim().max(1000).optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabase } = await import("@/integrations/supabase/client");
+
+    const campaignRes = await supabase.from("social_community_campaigns").select("id,lifecycle_status").eq("public_slug", data.publicSlug).single();
+    if (campaignRes.error || !campaignRes.data || campaignRes.data.lifecycle_status !== "published") {
+      throw new Error("No se pueden recibir ofertas en una campaña que no esté activa / Cannot submit offers to an inactive campaign");
+    }
+
+    const insertOffer = await supabase.from("social_community_support_offers").insert({
+      campaign_id: campaignRes.data.id,
+      offer_type: data.offerType,
+      categories: data.categories,
+      item_description: data.itemDescription,
+      quantity: data.quantity || null,
+      donor_name: data.donorName,
+      donor_email: data.donorEmail || null,
+      donor_phone: data.donorPhone || null,
+      delivery_method: data.deliveryMethod,
+      notes: data.notes || null,
+      status: "submitted",
+    }).select("id").single();
+
+    if (insertOffer.error) {
+      throw new Error(insertOffer.error.message);
+    }
+
+    return { ok: true, offerId: insertOffer.data.id };
+  });
