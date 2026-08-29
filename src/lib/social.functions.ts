@@ -2095,7 +2095,7 @@ export const recordCommunitySupportReceived = createServerFn({ method: "POST" })
 // Public (unauthenticated) community-support endpoints — data is sanitized
 // through sanitizePublicCampaign so no protected case data is exposed.
 export const getPublicCommunitySupportCampaign = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ publicSlug: z.string().trim().min(6).max(64) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ publicSlug: z.string().trim().min(4).max(64) }).parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin: adminClient } = await import("@/integrations/supabase/client.server");
     const supabaseAdmin = adminClient as any;
@@ -2120,13 +2120,13 @@ export const getPublicCommunitySupportCampaign = createServerFn({ method: "POST"
 
 export const submitPublicCommunitySupportOffer = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
-    publicSlug: z.string().trim().min(6).max(64),
+    publicSlug: z.string().trim().min(4).max(64),
     offerType: z.enum(["goods", "service", "financial_pledge", "other"]).default("goods"),
     categories: z.array(z.string()).default([]),
-    itemDescription: z.string().trim().min(3).max(2000),
+    itemDescription: z.string().trim().min(2).max(2000),
     quantity: z.string().trim().max(120).optional(),
     donorName: z.string().trim().min(2).max(160),
-    donorEmail: z.string().trim().email().optional(),
+    donorEmail: z.string().trim().email().optional().or(z.literal("")),
     donorPhone: z.string().trim().max(40).optional(),
     deliveryMethod: z.enum(["dropoff_organization", "collection_point", "arrange_pickup", "contact_to_coordinate"]).default("dropoff_organization"),
     notes: z.string().trim().max(2000).optional(),
@@ -2162,4 +2162,240 @@ export const submitPublicCommunitySupportOffer = createServerFn({ method: "POST"
     fail(insertRes.error);
 
     return { ok: true, offerId: insertRes.data.id };
+  });
+
+// ==========================================
+// AUDIT & ACCOUNTABILITY REPORTING SYSTEM
+// (STRICT PRIMARY SUBSCRIBER ONLY)
+// ==========================================
+
+export const getSocialAuditReportPreview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    orgId: uuid,
+    caseId: uuid.optional(),
+    scope: z.enum(["individual_case", "organization_wide", "community_support", "financial_activity", "services_outcomes", "full_audit"]).default("individual_case"),
+    period: z.enum(["all_history", "this_month", "last_month", "this_quarter", "this_year", "custom"]).default("all_history"),
+    startDate: z.string().optional().nullable(),
+    endDate: z.string().optional().nullable(),
+    language: z.enum(["es", "en"]).default("es"),
+    classification: z.enum(["internal", "confidential", "restricted", "external_distribution"]).default("confidential"),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const { verifyPrimarySubscriber, computeAuditSummary, filterByDateRange } = await import("@/lib/social/reports/audit-report-builder.server");
+
+    const isSubscriber = await verifyPrimarySubscriber(supabase, data.orgId, userId);
+    if (!isSubscriber) {
+      throw new Error("Acceso restringido: Solo el titular principal de la cuenta puede generar informes de auditoría / Access restricted: Only the primary account owner can generate audit reports");
+    }
+
+    let casesQuery = supabase.from("social_cases").select("id,case_number,status,priority,risk_level,case_type,created_at,closed_at,assigned_case_manager").eq("org_id", data.orgId);
+    if (data.caseId && data.scope === "individual_case") {
+      casesQuery = casesQuery.eq("id", data.caseId);
+    }
+    const casesRes = await casesQuery;
+    const cases = filterByDateRange(casesRes.data || [], "created_at", data.startDate, data.endDate);
+
+    const [interventionsRes, referralsRes, tasksRes, campaignsRes, offersRes] = await Promise.all([
+      supabase.from("social_interventions").select("id,service_type,occurred_at,social_case_id").eq("org_id", data.orgId),
+      supabase.from("social_referrals").select("id,service_type,status,sent_at,created_by").eq("org_id", data.orgId),
+      supabase.from("social_tasks").select("id,status,due_date,created_at").eq("org_id", data.orgId),
+      supabase.from("social_community_campaigns").select("id,title,lifecycle_status,financial_target_amount").eq("org_id", data.orgId),
+      supabase.from("social_community_support_offers").select("id,campaign_id,offer_type,status,created_at"),
+    ]);
+
+    const interventions = filterByDateRange(interventionsRes.data || [], "occurred_at", data.startDate, data.endDate);
+    const referrals = filterByDateRange(referralsRes.data || [], "sent_at", data.startDate, data.endDate);
+    const tasks = filterByDateRange(tasksRes.data || [], "created_at", data.startDate, data.endDate);
+    const campaigns = campaignsRes.data || [];
+    const offers = filterByDateRange(offersRes.data || [], "created_at", data.startDate, data.endDate);
+
+    const summary = computeAuditSummary({
+      cases,
+      interventions,
+      referrals,
+      tasks,
+      campaigns,
+      offers,
+    });
+
+    return {
+      eligible: true,
+      scope: data.scope,
+      period: data.period,
+      summary,
+      totalRecordCount: cases.length + interventions.length + referrals.length + tasks.length + campaigns.length,
+    };
+  });
+
+export const generateSocialAuditReportPdf = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    orgId: uuid,
+    caseId: uuid.optional(),
+    scope: z.enum(["individual_case", "organization_wide", "community_support", "financial_activity", "services_outcomes", "full_audit"]).default("individual_case"),
+    period: z.enum(["all_history", "this_month", "last_month", "this_quarter", "this_year", "custom"]).default("all_history"),
+    startDate: z.string().optional().nullable(),
+    endDate: z.string().optional().nullable(),
+    language: z.enum(["es", "en"]).default("es"),
+    classification: z.enum(["internal", "confidential", "restricted", "external_distribution"]).default("confidential"),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const {
+      verifyPrimarySubscriber,
+      generateReportId,
+      computeSha256,
+      filterByDateRange,
+      computeAuditSummary,
+    } = await import("@/lib/social/reports/audit-report-builder.server");
+    const { generateAuditReportPdf } = await import("@/lib/social/reports/audit-report-pdf.server");
+
+    const isSubscriber = await verifyPrimarySubscriber(supabase, data.orgId, userId);
+    if (!isSubscriber) {
+      throw new Error("Acceso restringido: Solo el titular principal de la cuenta puede generar informes de auditoría / Access restricted: Only primary account owner can generate audit reports");
+    }
+
+    const orgRes = await supabase.from("organizations").select("name").eq("id", data.orgId).single();
+    const orgName = orgRes.data?.name || "Nyrava México";
+
+    let caseRecord = null;
+    let person = null;
+    if (data.caseId) {
+      const caseRes = await supabase.from("social_cases").select("*").eq("id", data.caseId).single();
+      if (!caseRes.error && caseRes.data) {
+        caseRecord = caseRes.data;
+        if (caseRecord.person_id) {
+          const personRes = await supabase.from("social_people").select("legal_name,preferred_name,municipality,state").eq("id", caseRecord.person_id).maybeSingle();
+          person = personRes.data;
+        }
+      }
+    }
+
+    const [casesRes, interventionsRes, referralsRes, tasksRes, campaignsRes, offersRes, activitiesRes] = await Promise.all([
+      supabase.from("social_cases").select("*").eq("org_id", data.orgId),
+      supabase.from("social_interventions").select("*").eq("org_id", data.orgId),
+      supabase.from("social_referrals").select("*").eq("org_id", data.orgId),
+      supabase.from("social_tasks").select("*").eq("org_id", data.orgId),
+      supabase.from("social_community_campaigns").select("*").eq("org_id", data.orgId),
+      supabase.from("social_community_support_offers").select("*"),
+      supabase.from("social_activity_events").select("*").eq("org_id", data.orgId).order("created_at", { ascending: false }).limit(50),
+    ]);
+
+    const filteredCases = filterByDateRange(casesRes.data || [], "created_at", data.startDate, data.endDate);
+    const filteredInterventions = filterByDateRange(interventionsRes.data || [], "occurred_at", data.startDate, data.endDate);
+    const filteredReferrals = filterByDateRange(referralsRes.data || [], "sent_at", data.startDate, data.endDate);
+    const filteredTasks = filterByDateRange(tasksRes.data || [], "created_at", data.startDate, data.endDate);
+    const filteredCampaigns = campaignsRes.data || [];
+    const filteredOffers = offersRes.data || [];
+    const filteredActivities = activitiesRes.data || [];
+
+    const summary = computeAuditSummary({
+      cases: filteredCases,
+      interventions: filteredInterventions,
+      referrals: filteredReferrals,
+      tasks: filteredTasks,
+      campaigns: filteredCampaigns,
+      offers: filteredOffers,
+    });
+
+    const reportId = generateReportId();
+    const timestampStr = new Date().toISOString();
+
+    const snapshotPayload = {
+      reportId,
+      orgId: data.orgId,
+      caseId: data.caseId,
+      scope: data.scope,
+      period: data.period,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      language: data.language,
+      classification: data.classification,
+      generatedBy: userId,
+      generatedAt: timestampStr,
+      summary,
+    };
+
+    const checksum = computeSha256(snapshotPayload);
+
+    const pdfBuffer = generateAuditReportPdf({
+      reportId,
+      scope: data.scope,
+      periodLabel: data.period,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      language: data.language,
+      classification: data.classification,
+      generatedAt: timestampStr,
+      organizationName: orgName,
+      caseRecord,
+      person,
+      summary,
+      activities: filteredActivities,
+      assessments: [],
+      plans: [],
+      interventions: filteredInterventions,
+      referrals: filteredReferrals,
+      documents: [],
+      consents: [],
+      tasks: filteredTasks,
+      campaigns: filteredCampaigns,
+      offers: filteredOffers,
+      checksum,
+    });
+
+    const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
+
+    await supabase.from("social_audit_reports").insert({
+      org_id: data.orgId,
+      social_case_id: data.caseId || null,
+      report_id: reportId,
+      report_scope: data.scope,
+      reporting_period: data.period,
+      start_date: data.startDate || null,
+      end_date: data.endDate || null,
+      language: data.language,
+      classification: data.classification,
+      generated_by: userId,
+      dataset_snapshot: snapshotPayload,
+      checksum_sha256: checksum,
+      pdf_base64: pdfBase64,
+    });
+
+    return {
+      reportId,
+      checksum,
+      pdfBase64,
+      generatedAt: timestampStr,
+    };
+  });
+
+export const sendSocialAuditReportEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    orgId: uuid,
+    reportId: z.string(),
+    recipientEmail: z.string().email(),
+    subject: z.string().trim().min(3).max(200),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const { verifyPrimarySubscriber } = await import("@/lib/social/reports/audit-report-builder.server");
+
+    const isSubscriber = await verifyPrimarySubscriber(supabase, data.orgId, userId);
+    if (!isSubscriber) {
+      throw new Error("Permiso denegado: Solo el titular principal puede enviar informes / Permission denied: Primary subscriber only");
+    }
+
+    await supabase.from("social_audit_report_emails").insert({
+      report_id: data.reportId,
+      org_id: data.orgId,
+      sender_id: userId,
+      recipient_email: data.recipientEmail,
+      subject: data.subject,
+    });
+
+    return { ok: true };
   });
