@@ -550,74 +550,116 @@ export interface CaseTypeSelectGroup {
 // and is intentionally out of scope here.
 export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
   {
-    group: "Penal",
-    options: [{ value: "penal", label: "Derecho Penal (Sistema Acusatorio, CNPP)" }],
+    group: "Administrativo",
+    options: [
+      {
+        value: "administrativo",
+        label:
+          "Derecho Administrativo (juicio contencioso administrativo, nulidad, actos administrativos, responsabilidad administrativa)",
+      },
+    ],
   },
   {
-    group: "Civil y Familiar",
+    group: "Agrario",
     options: [
-      { value: "civil", label: "Derecho Civil (contratos, daño moral, responsabilidad civil, arrendamiento)" },
-      // "sucesiones" (testamentaria/intestamentaria) is its own body of
-      // procedure, not a Familiar example — dropped in favor of real
-      // Familiar-only matters.
+      {
+        value: "agrario",
+        label: "Derecho Agrario (núcleos agrarios, ejidos, comunidades, tierras ejidales y controversias agrarias)",
+      },
+    ],
+  },
+  {
+    group: "Ambiental",
+    options: [
+      {
+        value: "ambiental",
+        label:
+          "Derecho Ambiental (LGEEPA, PROFEPA, impacto ambiental, responsabilidad ambiental y regulación ambiental)",
+      },
+    ],
+  },
+  {
+    group: "Civil",
+    options: [
+      {
+        value: "civil",
+        label:
+          "Derecho Civil (contratos, obligaciones, responsabilidad civil, daño moral, arrendamiento, propiedad y posesión)",
+      },
+    ],
+  },
+  {
+    group: "Constitucional",
+    options: [
+      {
+        value: "amparo",
+        label: "Juicio de Amparo",
+      },
+      {
+        value: "constitucional",
+        label:
+          "Derecho Constitucional y Derechos Humanos (controversias constitucionales, acciones de inconstitucionalidad, control constitucional y derechos humanos)",
+      },
+    ],
+  },
+  {
+    group: "Electoral",
+    options: [
+      {
+        value: "electoral",
+        label:
+          "Derecho Electoral (medios de impugnación en materia electoral y asuntos competencia de autoridades y tribunales electorales, incluido el TEPJF cuando corresponda)",
+      },
+    ],
+  },
+  {
+    group: "Familiar",
+    options: [
       {
         value: "familiar",
-        label: "Derecho Familiar (divorcio, guarda y custodia, alimentos, patria potestad, violencia familiar)",
+        label:
+          "Derecho Familiar (divorcio, guarda y custodia, alimentos, convivencia, patria potestad, filiación, adopción y violencia familiar)",
+      },
+    ],
+  },
+  {
+    group: "Fiscal",
+    options: [
+      {
+        value: "fiscal",
+        label:
+          "Derecho Fiscal (CFF, créditos fiscales, facultades de comprobación, procedimientos fiscales y controversias fiscales ante el TFJA cuando corresponda)",
+      },
+    ],
+  },
+  {
+    group: "Inmobiliario",
+    options: [
+      {
+        value: "inmobiliario",
+        label:
+          "Derecho Inmobiliario (compraventa de inmuebles, propiedad, posesión, escrituración, desarrollos inmobiliarios y operaciones inmobiliarias)",
+      },
+    ],
+  },
+  {
+    group: "Laboral",
+    options: [
+      {
+        value: "laboral",
+        label:
+          "Derecho Laboral (LFT, relaciones individuales y colectivas de trabajo, despido, prestaciones y tribunales laborales)",
       },
     ],
   },
   {
     group: "Mercantil",
     options: [
-      // "propiedad intelectual" removed — IMPI/copyright/patent matters are
-      // not mercantil litigation and don't belong in this example list.
       {
         value: "mercantil",
         label:
-          "Derecho Mercantil (títulos de crédito, sociedades mercantiles, contratos mercantiles, concursos mercantiles)",
+          "Derecho Mercantil (títulos de crédito, sociedades mercantiles, contratos mercantiles, juicios mercantiles y concursos mercantiles)",
       },
-    ],
-  },
-  {
-    group: "Laboral",
-    options: [{ value: "laboral", label: "Derecho Laboral (LFT, tribunales laborales)" }],
-  },
-  {
-    group: "Administrativo y Fiscal",
-    options: [
-      {
-        value: "administrativo",
-        label: "Derecho Administrativo (juicio contencioso administrativo, nulidad, responsabilidad administrativa)",
-      },
-      { value: "fiscal", label: "Derecho Fiscal (CFF, facultades de comprobación, TFJA)" },
-    ],
-  },
-  {
-    group: "Constitucional",
-    options: [
-      // Reworded: the SCJN treats recurso de revisión en amparo directo as
-      // an extraordinary remedy, not a third TYPE of amparo alongside
-      // directo/indirecto — the prior wording read as if it were.
-      {
-        value: "amparo",
-        label:
-          "Juicio de Amparo (directo e indirecto; el recurso de revisión en amparo directo ante la SCJN es un medio extraordinario, no un tercer tipo de amparo)",
-      },
-      {
-        value: "constitucional",
-        label:
-          "Derecho Constitucional y Derechos Humanos (controversias constitucionales, acciones de inconstitucionalidad — NO amparo, aun cuando el amparo plantee cuestiones constitucionales)",
-      },
-    ],
-  },
-  {
-    group: "Materias especializadas",
-    options: [
-      { value: "electoral", label: "Derecho Electoral (medios de impugnación, TEPJF)" },
-      // Avoid hard-coding a specific tribunal name (agrarian judicial
-      // structure has changed before) — describe the subject matter instead.
-      { value: "agrario", label: "Derecho Agrario (núcleos agrarios, ejidos, comunidades, tierras ejidales)" },
-      { value: "ambiental", label: "Derecho Ambiental (LGEEPA, PROFEPA, impacto ambiental)" },
     ],
   },
   {
@@ -626,19 +668,17 @@ export const CASE_TYPE_SELECT_GROUPS: CaseTypeSelectGroup[] = [
       {
         value: "migratorio",
         label:
-          "Derecho Migratorio, Refugio y Nacionalidad (INM, SRE, COMAR, TFJA y amparo federal)",
+          "Derecho Migratorio, Refugio y Nacionalidad (situación migratoria, procedimientos migratorios, refugio, protección complementaria y nacionalidad)",
       },
     ],
   },
   {
-    // "Bienes Raíces" is a commercial term; "Derecho Inmobiliario" is the
-    // correct legal classification — the internal slug already agreed.
-    group: "Derecho Inmobiliario",
+    group: "Penal",
     options: [
       {
-        value: "inmobiliario",
+        value: "penal",
         label:
-          "Derecho Inmobiliario (compraventa, arrendamiento, propiedad, condominios, registro público — transaccional, no litigio)",
+          "Derecho Penal (Sistema Acusatorio, CNPP — investigación, proceso penal acusatorio, medidas cautelares, prueba, defensa, acusación y recursos penales)",
       },
     ],
   },

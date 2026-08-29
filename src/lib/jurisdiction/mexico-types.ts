@@ -31,7 +31,7 @@ export type MexicanCaseType = (typeof MX_CASE_TYPES)[number];
 
 /** Attorney-facing materia labels (es default, en for the bilingual report layer). */
 export const MX_CASE_TYPE_LABELS: Record<MexicanCaseType, { es: string; en: string }> = {
-  penal: { es: "Derecho Penal (Sistema Acusatorio)", en: "Criminal Law (Accusatory System)" },
+  penal: { es: "Derecho Penal (Sistema Acusatorio, CNPP)", en: "Criminal Law (Accusatory System, CNPP)" },
   civil: { es: "Derecho Civil", en: "Civil Law" },
   mercantil: { es: "Derecho Mercantil", en: "Commercial Law" },
   familiar: { es: "Derecho Familiar", en: "Family Law" },

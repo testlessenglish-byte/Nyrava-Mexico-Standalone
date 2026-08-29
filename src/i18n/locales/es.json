@@ -1267,7 +1267,7 @@
   "new.field.amparoSubtype.placeholder": "No especificado — detectar automáticamente de los documentos",
   "new.field.caseType": "Materia del asunto",
   "new.field.caseType.hint": "Fija el marco legal aplicable. El motor nunca aplicará terminología penal a un asunto civil, ni lo contrario.",
-  "new.field.caseType.placeholder": "Selecciona una materia…",
+  "new.field.caseType.placeholder": "Seleccione un área de práctica…",
   "new.field.description": "Descripción",
   "new.field.files": "Archivos de evidencia",
   "new.field.jurisdiction": "Jurisdicción",
