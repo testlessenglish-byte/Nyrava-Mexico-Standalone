@@ -4891,7 +4891,58 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      },
+      }
+      matter_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          event_type: string
+          id: string
+          location: string | null
+          matter_id: string
+          notes: string | null
+          org_id: string
+          scheduled_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          event_type: string
+          id?: string
+          location?: string | null
+          matter_id: string
+          notes?: string | null
+          org_id: string
+          scheduled_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          event_type?: string
+          id?: string
+          location?: string | null
+          matter_id?: string
+          notes?: string | null
+          org_id?: string
+          scheduled_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matter_events_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "matter_events_org_id_fkey"
             columns: ["org_id"]
@@ -4900,7 +4951,64 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      },
+      }
+      matter_knowledge: {
+        Row: {
+          body: string | null
+          confidence: number | null
+          created_at: string
+          data: Json
+          engine: Database["public"]["Enums"]["intelligence_engine"]
+          id: string
+          kind: string
+          language: string
+          matter_id: string
+          org_id: string
+          source_document_id: string | null
+          source_run_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          confidence?: number | null
+          created_at?: string
+          data?: Json
+          engine: Database["public"]["Enums"]["intelligence_engine"]
+          id?: string
+          kind: string
+          language?: string
+          matter_id: string
+          org_id: string
+          source_document_id?: string | null
+          source_run_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          confidence?: number | null
+          created_at?: string
+          data?: Json
+          engine?: Database["public"]["Enums"]["intelligence_engine"]
+          id?: string
+          kind?: string
+          language?: string
+          matter_id?: string
+          org_id?: string
+          source_document_id?: string | null
+          source_run_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matter_knowledge_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "matter_knowledge_org_id_fkey"
             columns: ["org_id"]
@@ -4923,7 +5031,46 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      },
+      }
+      matter_notes: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          matter_id: string
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          matter_id: string
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          matter_id?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matter_notes_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "matter_notes_org_id_fkey"
             columns: ["org_id"]
@@ -4986,7 +5133,58 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      },
+      }
+      matter_tasks: {
+        Row: {
+          assignee_id: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          matter_id: string
+          org_id: string
+          status: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          matter_id: string
+          org_id: string
+          status?: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          matter_id?: string
+          org_id?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matter_tasks_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "matter_tasks_org_id_fkey"
             columns: ["org_id"]
@@ -4995,7 +5193,85 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      },
+      }
+      matters: {
+        Row: {
+          client_name: string | null
+          closed_at: string | null
+          court: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          docket_number: string | null
+          id: string
+          jurisdiction: string | null
+          lead_lawyer_id: string | null
+          matter_type: Database["public"]["Enums"]["matter_type"]
+          opened_at: string
+          org_id: string
+          practice_area: string | null
+          priority: Database["public"]["Enums"]["matter_priority"]
+          reference_code: string | null
+          status: Database["public"]["Enums"]["matter_status"]
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_name?: string | null
+          closed_at?: string | null
+          court?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          docket_number?: string | null
+          id?: string
+          jurisdiction?: string | null
+          lead_lawyer_id?: string | null
+          matter_type?: Database["public"]["Enums"]["matter_type"]
+          opened_at?: string
+          org_id: string
+          practice_area?: string | null
+          priority?: Database["public"]["Enums"]["matter_priority"]
+          reference_code?: string | null
+          status?: Database["public"]["Enums"]["matter_status"]
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_name?: string | null
+          closed_at?: string | null
+          court?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          docket_number?: string | null
+          id?: string
+          jurisdiction?: string | null
+          lead_lawyer_id?: string | null
+          matter_type?: Database["public"]["Enums"]["matter_type"]
+          opened_at?: string
+          org_id?: string
+          practice_area?: string | null
+          priority?: Database["public"]["Enums"]["matter_priority"]
+          reference_code?: string | null
+          status?: Database["public"]["Enums"]["matter_status"]
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       org_memberships: {
@@ -10143,7 +10419,55 @@ export type Database = {
           role?: string
         }
         Relationships: []
-      },
+      }
+      social_sales_demo_records: {
+        Row: {
+          created_at: string
+          external_key: string
+          fixture_version: string
+          id: string
+          org_id: string
+          original_state: Json | null
+          owner_user_id: string
+          record_id: string
+          sales_demo: boolean
+          synthetic: boolean
+          table_name: string
+        }
+        Insert: {
+          created_at?: string
+          external_key: string
+          fixture_version: string
+          id?: string
+          org_id: string
+          original_state?: Json | null
+          owner_user_id: string
+          record_id: string
+          sales_demo?: boolean
+          synthetic?: boolean
+          table_name: string
+        }
+        Update: {
+          created_at?: string
+          external_key?: string
+          fixture_version?: string
+          id?: string
+          org_id?: string
+          original_state?: Json | null
+          owner_user_id?: string
+          record_id?: string
+          sales_demo?: boolean
+          synthetic?: boolean
+          table_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_sales_demo_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       social_support_access_grants: {
