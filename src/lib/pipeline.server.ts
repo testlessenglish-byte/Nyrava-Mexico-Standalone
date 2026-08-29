@@ -5550,6 +5550,7 @@ async function ensureRequiredEngines(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
 }): Promise<{ ran: string[]; failed: Array<{ engine: string; error: string }> }> {
   const { db, caseId, userId, apiKey, apiKeys } = args;
   const { REPORT_REQUIRED_ENGINES, missingRequiredEngines, OPTIONAL_ENGINES } =
