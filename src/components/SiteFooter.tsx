@@ -6,7 +6,7 @@ export function SiteFooter() {
   const { t } = useI18n();
   return (
     <footer className="mt-24 border-t border-border/60">
-      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-14 lg:grid-cols-4">
+      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-14 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <NyravaLogo size={42} withWordmark />
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -24,7 +24,18 @@ export function SiteFooter() {
             <li><Link to="/about" className="hover:text-primary">{t("footer.link.about")}</Link></li>
             <li><Link to="/platform" className="hover:text-primary">{t("footer.link.platform")}</Link></li>
             <li><Link to="/modules" className="hover:text-primary">{t("footer.link.modules")}</Link></li>
-            <li><Link to="/security" className="hover:text-primary">{t("footer.link.security")}</Link></li>
+            <li><Link to="/how-it-works" className="hover:text-primary">{t("footer.link.howItWorks")}</Link></li>
+            <li><Link to="/resources" className="hover:text-primary">{t("footer.link.resources")}</Link></li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            {t("footer.section.care")}
+          </h4>
+          <ul className="mt-4 space-y-2 text-sm text-foreground/80">
+            <li><Link to="/product/$slug" params={{ slug: "comprehensive-care" }} className="hover:text-primary">{t("footer.link.care")}</Link></li>
+            <li><Link to="/product/$slug" params={{ slug: "community-support" }} className="hover:text-primary">{t("footer.link.support")}</Link></li>
+            <li><Link to="/product/$slug" params={{ slug: "talk-to-cases" }} className="hover:text-primary">{t("footer.link.talk")}</Link></li>
           </ul>
         </div>
         <div>
@@ -32,8 +43,11 @@ export function SiteFooter() {
             {t("footer.section.legal")}
           </h4>
           <ul className="mt-4 space-y-2 text-sm text-foreground/80">
-            <li><a href="/privacy" className="hover:text-primary">{t("footer.link.privacy")}</a></li>
-            <li><a href="/terms" className="hover:text-primary">{t("footer.link.terms")}</a></li>
+            <li><Link to="/security" className="hover:text-primary">{t("footer.link.security")}</Link></li>
+            <li><Link to="/trust" className="hover:text-primary">{t("footer.link.trust")}</Link></li>
+            <li><Link to="/responsible-ai" className="hover:text-primary">{t("footer.link.responsibleAi")}</Link></li>
+            <li><Link to="/privacy" className="hover:text-primary">{t("footer.link.privacy")}</Link></li>
+            <li><Link to="/terms" className="hover:text-primary">{t("footer.link.terms")}</Link></li>
             <li><Link to="/contact" className="hover:text-primary">{t("footer.link.contact")}</Link></li>
           </ul>
         </div>

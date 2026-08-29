@@ -14,6 +14,16 @@ import {
 } from "@/lib/social.functions";
 
 export const Route = createFileRoute("/support/$publicId")({
+  head: () => ({
+    meta: [
+      { title: "Apoyo Comunitario Solidario · Nyrava México" },
+      { name: "description", content: "Campaña de asistencia comunitaria y apoyo solidario verificado en Nyrava México." },
+      { property: "og:title", content: "Campaña de Apoyo Comunitario · Nyrava México" },
+      { property: "og:description", content: "Aportaciones en especie, servicios y ayuda solidaria para familias y personas en situación prioritaria." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: PublicSupportPage,
 });
 
