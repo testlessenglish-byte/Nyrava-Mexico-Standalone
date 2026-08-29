@@ -15,6 +15,7 @@ import {
   User, Mail, Lock, Mic, Bell, Bot, History, Save, Loader2, Volume2, PlayCircle, Users, UserPlus, Trash2,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
+import { SubscriberDonationIdentitySection } from "@/components/account/SubscriberDonationIdentitySection";
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({ meta: [{ title: "Cuenta — Nyrava" }] }),
@@ -71,6 +72,12 @@ function AccountPage() {
 
       <ProfileCard acc={acc} onSaved={() => accQ.refetch()} />
       <OrganizationTeamCard workspace={workspaceQ.data} loading={workspaceQ.isLoading} />
+      {workspaceQ.data?.organizations?.[0]?.id && (
+        <SubscriberDonationIdentitySection
+          orgId={workspaceQ.data.organizations[0].id}
+          es={t("acct.title") !== "Account"}
+        />
+      )}
       <SecurityCard email={acc.email ?? ""} />
       <VoiceCard settings={acc.settings} onSaved={() => accQ.refetch()} />
       <NotificationCard settings={acc.settings} onSaved={() => accQ.refetch()} />
