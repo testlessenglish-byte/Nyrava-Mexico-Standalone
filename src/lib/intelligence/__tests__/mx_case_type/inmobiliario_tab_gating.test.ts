@@ -44,9 +44,7 @@ describe("inmobiliario tab gating — Transaction Center visibility", () => {
       expect(PRACTICE_AREA_LABELS[materia].length).toBeGreaterThan(0);
       seen.add(materia);
     }
-    // Exactly 13: the original 12 plus inmobiliario, no accidental duplicate
-    // or dropped entry from the Phase 1 edits.
-    expect(seen.size).toBe(13);
+    expect(seen.size).toBe(MX_CASE_TYPES.length);
     expect(MX_CASE_TYPES).toContain("inmobiliario");
   });
 

@@ -211,9 +211,9 @@ function NewCasePage() {
                 className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">{t("new.field.amparoSubtype.placeholder")}</option>
-                <option value="indirecto">{t("new.field.amparoSubtype.indirecto")}</option>
                 <option value="directo">{t("new.field.amparoSubtype.directo")}</option>
                 <option value="directo_en_revision">{t("new.field.amparoSubtype.directoEnRevision")}</option>
+                <option value="indirecto">{t("new.field.amparoSubtype.indirecto")}</option>
               </select>
             </div>
           )}
