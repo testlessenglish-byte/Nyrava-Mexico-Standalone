@@ -22,14 +22,14 @@ export const Route = createFileRoute("/product/$slug")({
     }
     return {
       meta: [
-        { title: `${p.title} — Nyrava Intelligence OS` },
+        { title: `${p.title} — Nyrava Inteligencia Jurídica México` },
         { name: "description", content: p.description },
-        { property: "og:title", content: `${p.title} — Nyrava` },
+        { property: "og:title", content: `${p.title} — Nyrava México` },
         { property: "og:description", content: p.description },
         { property: "og:type", content: "article" },
         { property: "og:url", content: url },
         { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: `${p.title} — Nyrava` },
+        { name: "twitter:title", content: `${p.title} — Nyrava México` },
         { name: "twitter:description", content: p.description },
       ],
       links: [{ rel: "canonical", href: url }],
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/product/$slug")({
         {
           type: "application/ld+json",
           children: breadcrumbJsonLd(CANONICAL_BASE, [
-            { label: "Product" },
+            { label: "Módulos" },
             { label: p.title, to: `/product/${params.slug}` },
           ]),
         },

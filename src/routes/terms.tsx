@@ -5,10 +5,10 @@ import { useI18n } from "@/i18n";
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
-      { title: "Terms of Service — Nyrava" },
-      { name: "description", content: "Terms governing use of the Nyrava platform." },
-      { property: "og:title", content: "Terms of Service — Nyrava" },
-      { property: "og:description", content: "Terms governing use of the Nyrava platform." },
+      { title: "Términos de Servicio — Nyrava México" },
+      { name: "description", content: "Términos y condiciones de uso de la plataforma de inteligencia jurídica Nyrava México." },
+      { property: "og:title", content: "Términos de Servicio — Nyrava México" },
+      { property: "og:description", content: "Términos y condiciones de uso de la plataforma de inteligencia jurídica Nyrava México." },
       { property: "og:url", content: "https://mexico.nyrava.com/terms" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/terms" },
     ],

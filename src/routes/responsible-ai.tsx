@@ -4,12 +4,12 @@ import { DocsLayout, DocsSection, Callout } from "@/components/DocsLayout";
 export const Route = createFileRoute("/responsible-ai")({
   head: () => ({
     meta: [
-      { title: "Responsible AI Policy — Nyrava" },
-      { name: "description", content: "How Nyrava builds and deploys AI-assisted analysis responsibly for legal professionals." },
+      { title: "Política de IA Responsable — Nyrava México" },
+      { name: "description", content: "Principios de gobernanza e inteligencia artificial responsable en el sistema jurídico mexicano: fundamentación obligatoria, control del abogado y cero alucinaciones." },
       { property: "og:url", content: "https://mexico.nyrava.com/responsible-ai" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/responsible-ai" },
-      { property: "og:title", content: "Responsible AI Policy — Nyrava" },
-      { property: "og:description", content: "Principles governing our use of AI in legal intelligence." },
+      { property: "og:title", content: "Política de IA Responsable — Nyrava México" },
+      { property: "og:description", content: "Principios de gobernanza e inteligencia artificial responsable en el sistema jurídico mexicano." },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
     ],
