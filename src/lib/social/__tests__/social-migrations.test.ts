@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const migration=(name: string)=>readFileSync(join(process.cwd(),"supabase","migrations",name),"utf8");
+const migration=(name: string)=>readFileSync(join(process.cwd(),"supabase","migrations",name),"utf8").replace(/\r\n/g, "\n");
 const foundation=migration("20260820230000_social_case_management_foundation.sql");
 const workflows=migration("20260820231000_social_case_workflows.sql");
 const hardening=migration("20260820232000_social_case_management_hardening.sql");

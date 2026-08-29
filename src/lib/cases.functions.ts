@@ -122,6 +122,10 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
     // page) so a user who already knows they're auditing a concluded case
     // doesn't have to visit a second page just to set this before running.
     const case_analysis_mode = normalizeCaseAnalysisMode(data.get("case_analysis_mode"));
+    const rawVehicle = data.get("procedural_vehicle");
+    const procedural_vehicle = rawVehicle ? String(rawVehicle).trim() || null : null;
+    const rawUnderlying = data.get("underlying_materia");
+    const underlying_materia = rawUnderlying ? String(rawUnderlying).trim() || null : null;
     let matter_metadata: Record<string, unknown> = {};
     if (case_type === "migratorio") {
       const rawMetadata = String(data.get("matter_metadata") ?? "{}");
@@ -170,6 +174,8 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
         jurisdiction,
         case_analysis_mode,
         matter_metadata,
+        procedural_vehicle,
+        underlying_materia,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .select("id")

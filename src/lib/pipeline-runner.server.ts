@@ -1065,7 +1065,16 @@ async function _runPipelineForCase(
         ? (enLocale as Record<string, string>)
         : (esLocale as Record<string, string>);
 
-    const excluded = stages.filter((s) => !isStageRelevantForCaseType(mxCaseType, s.key, mxCaseName));
+    const excluded = stages.filter(
+      (s) =>
+        !isStageRelevantForCaseType(
+          mxCaseType,
+          s.key,
+          mxCaseName,
+          mxIdentity.proceduralVehicle,
+          mxIdentity.underlyingMateria,
+        ),
+    );
     for (const stage of excluded) {
       const reasonKey = stageSkipReasonKey(stage.key, mxCaseType, mxCaseName);
       const reason = dict[reasonKey] ?? reasonKey;
@@ -1076,10 +1085,19 @@ async function _runPipelineForCase(
         userId,
         engine: stage.key,
         reason,
+        executionId,
       }).catch((e) => console.warn("[mx-pipeline] recordSkipped failed", stage.key, e));
     }
 
-    stages = stages.filter((s) => isStageRelevantForCaseType(mxCaseType, s.key, mxCaseName));
+    stages = stages.filter((s) =>
+      isStageRelevantForCaseType(
+        mxCaseType,
+        s.key,
+        mxCaseName,
+        mxIdentity.proceduralVehicle,
+        mxIdentity.underlyingMateria,
+      ),
+    );
   }
   // Terminal ledger state for every engine, read once. Used to (a) clamp the
   // resume point, (b) seed cross-tick dependency state, and (c) skip
@@ -1102,10 +1120,14 @@ async function _runPipelineForCase(
   ]);
   if (!reset) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: priorRuns, error: priorErr } = await (supabase as any)
+    let priorRunsQuery = (supabase as any)
       .from("pipeline_engine_runs")
       .select("engine,status,started_at,created_at,ended_at")
-      .eq("case_id", caseId)
+      .eq("case_id", caseId);
+    if (executionId) {
+      priorRunsQuery = priorRunsQuery.eq("execution_id", executionId);
+    }
+    const { data: priorRuns, error: priorErr } = await priorRunsQuery
       .order("started_at", { ascending: true });
     if (priorErr) {
       // Fail loudly rather than silently proceeding with an incomplete
@@ -1908,9 +1930,10 @@ async function _runPipelineForCase(
     .maybeSingle();
 
   const isNeedsRevision =
-    postRun?.status === "needs_revision" ||
-    (postRun?.status_message && /needs_revision|review required|revisión|blocked by judge/i.test(postRun.status_message));
-  const isReleased = postRun?.status === "released";
+    !!postReport &&
+    (postRun?.status === "needs_revision" ||
+      (postRun?.status_message && /needs_revision|review required|revisión|blocked by judge/i.test(postRun.status_message)));
+  const isReleased = !!postReport && postRun?.status === "released";
 
   const finalStatus = isNeedsRevision
     ? "needs_revision"

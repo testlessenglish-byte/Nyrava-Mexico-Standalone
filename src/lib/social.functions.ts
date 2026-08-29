@@ -151,7 +151,7 @@ export const getSocialCase=createServerFn({method:"GET"})
   .inputValidator((d:unknown)=>z.object({caseId:uuid}).parse(d))
   .handler(async({data,context})=>{
     const {supabase}=ctx(context);
-    const [caseRow,intakes,assessments,plans,interventions,referrals,tasks,appointments,alerts,documents,requirements,consents,transfers,closures,activity]=await Promise.all([
+    const [caseRow,intakes,assessments,plans,interventions,referrals,tasks,appointments,alerts,documents,requirements,transfers,closures,activity]=await Promise.all([
       supabase.rpc("get_social_case_core",{p_case:data.caseId}),
       supabase.from("social_intakes").select("id,intake_number,source,status,disposition,summary,presenting_needs,assigned_to,created_at,completed_at").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
       supabase.from("social_assessments").select("*,social_assessment_versions(*)").eq("social_case_id",data.caseId).order("assessment_date",{ascending:false}),
@@ -163,7 +163,6 @@ export const getSocialCase=createServerFn({method:"GET"})
       supabase.from("social_alerts").select("id,alert_type,severity,title_es,title_en,due_at,acknowledged_at,resolved_at,created_at").eq("social_case_id",data.caseId).is("resolved_at",null).order("created_at",{ascending:false}),
       supabase.from("social_documents").select("id,title,document_type,record_type,sensitivity,current_version,checksum,mime_type,size_bytes,extraction_authorized,created_at").eq("social_case_id",data.caseId).is("deleted_at",null),
       supabase.from("social_case_document_requirements").select("id,document_type,status,due_at,notes").eq("social_case_id",data.caseId).order("created_at",{ascending:true}),
-      supabase.from("social_consents").select("*,social_consent_versions(*)").order("created_at",{ascending:false}),
       supabase.from("social_case_transfers").select("*,social_case_transfer_items(*)").eq("social_case_id",data.caseId).order("created_at",{ascending:false}),
       supabase.from("social_case_closures").select("*").eq("social_case_id",data.caseId).order("closure_version",{ascending:false}),
       supabase.from("social_activity_events").select("id,actor_id,event_type,entity_type,entity_id,metadata,occurred_at").eq("social_case_id",data.caseId).order("occurred_at",{ascending:false}).limit(100),
@@ -171,6 +170,10 @@ export const getSocialCase=createServerFn({method:"GET"})
     fail(caseRow.error);
     const c=caseRow.data;
     if(!c)throw new Error("The selected Comprehensive Care case is unavailable");
+    const consentFilter = [c.person_id ? `person_id.eq.${c.person_id}` : null, c.family_id ? `family_id.eq.${c.family_id}` : null].filter(Boolean).join(",");
+    const consents = consentFilter
+      ? await supabase.from("social_consents").select("*,social_consent_versions(*)").or(consentFilter).order("created_at", { ascending: false })
+      : { data: [], error: null };
     const warnings:string[]=[];
     const optionalRows=(label:string,result:any)=>{
       if(result.error){

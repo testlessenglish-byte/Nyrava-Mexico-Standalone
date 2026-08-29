@@ -511,7 +511,9 @@ function Workspace() {
   const _area = ((c as any)?.case_type as string) || "general_civil";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const _additional = Array.isArray((c as any)?.additional_domains) ? ((c as any).additional_domains as string[]) : [];
-  const _allowed = getApplicableTabs(_area, _additional);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const _vehicle = ((c as any)?.procedural_vehicle as string) || null;
+  const _allowed = getApplicableTabs(_area, _additional, _vehicle);
   const _filteredTabs = tabs.filter((tab) => _allowed.has(tab.k));
 
   return (

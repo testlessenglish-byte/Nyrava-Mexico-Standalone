@@ -299,9 +299,20 @@ export function effectiveMxProfile(
   caseType: unknown,
   caseName?: string | null,
   extraSignalText?: string | null,
+  proceduralVehicle?: string | null,
+  underlyingMateria?: string | null,
 ): MxPipelineProfile {
   const profile = requireMxProfile(caseType);
   const materia = normalizeMexicanCaseType(caseType);
+  const vehicle = String(proceduralVehicle ?? "").toLowerCase().trim();
+
+  // 1. Structured procedural classification (highest priority)
+  if (vehicle === "apelacion") return "apelacion";
+  if (vehicle === "cndh_queja" || vehicle === "derechos_humanos") return "derechos_humanos";
+  if (vehicle === "amparo_directo_revision" || vehicle === "amparo_en_revision") return "constitucional";
+  if (vehicle === "responsabilidad_medica") return "responsabilidad_medica";
+
+  // 2. Legacy fallback: case name / text signals
   const signalText = foldCaseNameSignal(`${caseName ?? ""} ${extraSignalText ?? ""}`);
   if (materia && APELACION_ELIGIBLE_MATERIAS.has(materia) && caseName && APELACION_NAME_SIGNAL.test(foldCaseNameSignal(caseName))) {
     return "apelacion";
@@ -328,38 +339,19 @@ export function effectiveMxProfile(
  * CANONICAL_STAGES runs. Execution order always follows the canonical
  * dependency graph — a profile only removes stages, never reorders them, so
  * upstream dependencies can never be violated.
- *
- * NOTE: exclusions here must be LEGAL, never budgetary. A previous revision
- * excluded nine "quota-heavy" stages (perspectives, theories, opportunities,
- * trial_prep, strategy, litigation_strategy_center, work_product,
- * hallucination, multi_agent) from every materia, which is why every case
- * reported most engines — including the 13-agent run — as skipped. Quota is
- * handled where it belongs: payload budgeting and provider cooldowns.
- *
- * 2026-08-02: trial_prep was removed from CANONICAL_STAGES entirely (not
- * materia-excluded — it no longer exists as a stage at all, for any
- * materia, including penal). Product decision: rather than keep patching
- * its "Trial Prep & Jury Simulation" framing materia-by-materia (it had
- * already caused one production stall via a stuck checkpoint, on top of
- * genuinely not fitting most Mexican proceedings), it is removed pending a
- * real, properly-scoped replacement rather than incremental fixes to the
- * existing engine. Every "trial_prep" entry previously listed below is
- * gone for that reason, not because it was re-included.
  */
 const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
-  migratorio: ["witness"],
+  migratorio: [],
   // Proceso penal acusatorio (CNPP): everything is relevant, including
   // audiencia/juicio oral preparation and control constitucional.
   penal: [],
-  // Juicio de amparo: se resuelve sobre el acto reclamado y el expediente —
-  // no hay desahogo de testigos ni juicio oral.
+  // Juicio de amparo directo: se resuelve sobre el acto reclamado y el expediente.
+  // Amparo indirecto is handled conditionally in isStageRelevantForCaseType.
   amparo: ["witness"],
   // Violaciones a derechos humanos por autoridad: mismo alcance que penal.
   derechos_humanos: [],
   // Controversia constitucional / acción de inconstitucionalidad / amparo
-  // en revisión: se resuelve sobre la norma o acto impugnado y el
-  // expediente ante la SCJN — no hay desahogo de testigos, misma razón que
-  // amparo.
+  // directo en revisión ante SCJN: no hay desahogo de testigos.
   constitucional: ["witness"],
   // Materia laboral (LFT / tribunales laborales): sí hay audiencia, no hay
   // control constitucional directo en el juicio ordinario.
@@ -367,78 +359,17 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
   civil: ["constitutional"],
   familiar: ["constitutional"],
   mercantil: ["constitutional"],
-  // FIX: fiscal was grouped with the ordinary-audiencia materias above
-  // (constitutional-only exclusion), but it is procedurally fiscal's own
-  // twin to administrativo, not to laboral/civil: facultades de
-  // comprobación, resolución determinante, recurso de revocación, juicio
-  // de nulidad ante el TFJA — resolved on the written expediente fiscal
-  // (papeles de trabajo, CFDI, contabilidad electrónica, dictamen fiscal;
-  // see EVIDENCE.fiscal.medios in mexico.ts, which has no "testimonial"
-  // entry, same as administrativo's). oral:false for fiscal in mexico.ts,
-  // identically to administrativo. Confirmed via audit: administrativo
-  // already excludes "witness" for exactly this reason; fiscal was
-  // missing the same exclusion despite sharing the same procedural shape.
-  fiscal: ["constitutional", "witness"],
-  // Juicio contencioso administrativo (TFJA, LFPCA): resolved on the written
-  // expediente — demanda, contestación, pruebas documentales, alegatos,
-  // sentencia. No live witness examination in the adversarial-trial sense
-  // (testimonial evidence is rare and, where offered, resolved by written
-  // interrogatorio, not cross-examination) and no oral trial with opening/
-  // closing statements to a fact-finder. Same rationale already applied to
-  // amparo and apelacion below — this was a gap, not an intentional
-  // difference: trial_prep's engine (engines.server.ts) literally produces
-  // opening_themes/closing_themes/witness_order/exhibit_order, none of
-  // which map onto a TFJA nullity action. Also fixes electoral and
-  // ambiental, which route through this same profile
-  // (PROFILE_BY_MATERIA above).
-  administrativo: ["constitutional", "witness"],
+  // Fiscal: Arts. 40 y 44 LFPCA admiten prueba testimonial ante TFJA
+  // de forma condicionada / preguntas por escrito / exhortos.
+  fiscal: ["constitutional"],
+  // Juicio contencioso administrativo (TFJA, LFPCA): prueba testimonial
+  // es admisible y condicionada.
+  administrativo: ["constitutional"],
   // Segunda instancia: se resuelve sobre agravios y el expediente.
   apelacion: ["constitutional", "witness"],
-  // Responsabilidad médica: same shape as civil (no control constitucional
-  // directo), but witness testimony stays ACTIVE and unexcluded — expert
-  // medical testimony (perito médico) on standard of care and causation is
-  // frequently the central evidence in a malpractice claim, unlike a
-  // document-resolved proceeding like amparo/apelacion.
+  // Responsabilidad médica: pericial y testimonial activas.
   responsabilidad_medica: ["constitutional"],
-  // Cierre inmobiliario: transaccional, no contencioso. Sin partes
-  // adversas, sin audiencia, sin juicio — se excluyen todas las etapas de
-  // litigio. `strategy` and `work_product` are ALSO excluded here, not just
-  // the obviously-litigation ones above.
-  //
-  // `strategy`: engines.server.ts's runStrategyEngine still hardcodes a
-  // binary criminal/civil-litigation branch with no materia-aware fallback
-  // for a non-adversarial transaction — running it for inmobiliario would
-  // ask the AI to draft litigation strategy for a home closing. This is
-  // pre-existing staleness (same category as the ~50 files flagged in
-  // MIGRATION_NOTES.md as still containing U.S. litigation logic) —
-  // excluding the stage is the honest fix until it gets a real
-  // transactional-document branch.
-  //
-  // `work_product`: STALE NOTE — this used to say the same thing as
-  // `strategy` above ("no materia-aware branch"), but that's no longer
-  // accurate: mx-work-product.ts was built with a real inmobiliario branch
-  // (memorandum_de_cierre, carta_de_requerimiento_documental) the same day
-  // this exclusion was written, in a separate commit. The exclusion is
-  // still kept for now, but for a DIFFERENT, narrower reason: the
-  // UNIVERSAL vehicles every profile shares (plan_de_interrogatorio,
-  // preparacion_de_testigos) are litigation/testimony-flavored and don't
-  // fit a non-adversarial closing — each does carry a `when` condition
-  // ("cuando existan testigos o peritos identificados") that SHOULD
-  // naturally suppress them for a witness-less inmobiliario case, but
-  // whether runWorkProductEngine's actual prompt reliably enforces that
-  // condition (vs. just listing all vehicles and trusting the model to
-  // self-select) hasn't been verified. Re-enabling this stage for
-  // inmobiliario is a real, live option now — it needs that verification
-  // first, not a blanket re-enable based on the branch existing.
-  //
-  // `report`/`scoring`/`legal_qa`/`contradictions`/`perspectives`/
-  // `opportunities` were checked too and degrade gracefully (empty filters,
-  // not hard failures) rather than producing wrong output, so they stay on.
-  // (`opportunities` specifically needed its own fix to make this claim
-  // true — see engines.server.ts's runOpportunityEngine, which used to
-  // hardcode English plaintiff/defense for every non-penal materia
-  // including this one, until it was fixed to use MX_PARTY_ROLES like
-  // runTheoryEngine already did.)
+  // Cierre inmobiliario transaccional: sin litigio, sin audiencias contenciosas.
   inmobiliario: [
     "constitutional",
     "witness",
@@ -448,48 +379,51 @@ const EXCLUDED_STAGES: Record<MxPipelineProfile, readonly string[]> = {
     "strategy",
     "work_product",
   ],
-  // Juicio agrario ante Tribunal Unitario Agrario: se resuelve sobre el
-  // expediente y las pruebas documentales/periciales/testimoniales
-  // ordinarias del proceso — no hay control constitucional directo dentro
-  // del juicio (eso corresponde al amparo posterior contra la sentencia).
+  // Juicio agrario ante Tribunal Unitario Agrario:
   agrario: ["constitutional"],
-  // Medios de impugnación electoral (TEPJF/OPLE): se resuelven sobre el
-  // expediente y las constancias documentales (actas, paquetes
-  // electorales) — no hay desahogo de prueba testimonial en audiencia.
+  // Medios de impugnación electoral (TEPJF/OPLE):
   electoral: ["witness"],
-  // Procedimiento administrativo sancionador ambiental (PROFEPA/ASEA) o
-  // juicio de nulidad ante el TFJA: se resuelve sobre el expediente técnico
-  // y documental — no hay desahogo de prueba testimonial en audiencia.
-  // "constitutional" is deliberately NOT excluded here (unlike
-  // administrativo): the derecho a un medio ambiente sano (art. 4 CPEUM) is
-  // routinely the substantive basis of an ambiental claim, and
-  // MX_ENGINES.ambiental already allows constitutional_compliance to run —
-  // excluding the stage here would silently contradict that and make the
-  // engine dead for every ambiental case.
-  ambiental: ["witness"],
+  // Ambiental:
+  ambiental: [],
 };
 
 /** Canonical reason recorded when a stage is skipped for legal irrelevance. */
 export const SKIP_REASON_NOT_RELEVANT_MX = "not_relevant_to_mx_case_type";
 
-/** Exclusions for a case whose materia is not resolved yet: only the
- *  quota-heavy optional stages are off, nothing materia-specific is assumed.
- *  `caseName` is optional so every existing caller keeps working unchanged;
- *  passing it lets a detected apelación (see effectiveMxProfile) apply its
- *  own exclusions instead of the base materia's. */
-function exclusionsFor(caseType: unknown, caseName?: string | null): readonly string[] {
+/** Exclusions for a case whose materia is not resolved yet */
+function exclusionsFor(
+  caseType: unknown,
+  caseName?: string | null,
+  proceduralVehicle?: string | null,
+  underlyingMateria?: string | null,
+): readonly string[] {
   const materia = normalizeMexicanCaseType(caseType);
   if (!materia) return [];
-  const profile = effectiveMxProfile(caseType, caseName);
-  return EXCLUDED_STAGES[profile];
+  const profile = effectiveMxProfile(caseType, caseName, null, proceduralVehicle, underlyingMateria);
+  return EXCLUDED_STAGES[profile] ?? [];
 }
 
 export function isStageRelevantForCaseType(
   caseType: string | null | undefined,
   stageKey: string,
   caseName?: string | null,
+  proceduralVehicle?: string | null,
+  underlyingMateria?: string | null,
 ): boolean {
-  return !exclusionsFor(caseType, caseName).includes(stageKey);
+  const materia = normalizeMexicanCaseType(caseType);
+  const vehicle = String(proceduralVehicle ?? "").toLowerCase().trim();
+
+  // Amparo Indirecto (Art. 119 Ley de Amparo): Witness intelligence is CONDITIONAL
+  if (materia === "amparo" && (vehicle === "amparo_indirecto" || vehicle === "indirecto") && stageKey === "witness") {
+    return true;
+  }
+  // Inmobiliario Litigio: runs litigation stages
+  if (materia === "inmobiliario" && vehicle === "inmobiliario_litigio") {
+    if (["witness", "discovery", "theories", "strategy", "work_product"].includes(stageKey)) {
+      return true;
+    }
+  }
+  return !exclusionsFor(caseType, caseName, proceduralVehicle, underlyingMateria).includes(stageKey);
 }
 
 /**

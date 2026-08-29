@@ -83,7 +83,6 @@ export const UNIVERSAL_TABS = new Set<string>([
   "strategic",
   "attack",
   "evidence",
-  "witnesses",
   "work",
   "chat",
   "report",
@@ -354,13 +353,59 @@ export function isSectionApplicable(area: AreaInput, sectionId: string, activeDo
   return getApplicableSections(area, activeDomains).has(sectionId);
 }
 
-export function getApplicableTabs(area: AreaInput, activeDomains?: DomainSet): Set<string> {
+export function getApplicableTabs(
+  area: AreaInput,
+  activeDomains?: DomainSet,
+  proceduralVehicle?: string | null,
+): Set<string> {
   const out = new Set<string>(UNIVERSAL_TABS);
-  for (const a of effectiveAreas(area, activeDomains)) for (const t of materiaTabs(a)) out.add(t);
+  for (const a of effectiveAreas(area, activeDomains)) {
+    for (const t of materiaTabs(a)) out.add(t);
+  }
+  const baseMateria = resolvePracticeAreaOrNull(area);
+  const vehicle = String(proceduralVehicle ?? "").toLowerCase().trim();
+
+  // Procedure-specific tab rules
+  if (baseMateria === "amparo") {
+    if (vehicle === "amparo_indirecto" || vehicle === "indirecto") {
+      out.add("witnesses");
+      out.add("trial");
+    } else {
+      out.delete("witnesses");
+      out.delete("trial");
+    }
+  }
+  if (
+    baseMateria === "constitucional" &&
+    (vehicle === "amparo_directo_revision" || vehicle === "amparo_en_revision")
+  ) {
+    out.delete("witnesses");
+    out.delete("trial");
+  }
+  if (baseMateria === "inmobiliario") {
+    if (vehicle === "inmobiliario_litigio") {
+      out.add("witnesses");
+      out.add("trial");
+      out.add("theories");
+      out.add("strategy");
+      out.add("perspectives");
+    } else {
+      out.delete("witnesses");
+      out.delete("trial");
+      out.delete("theories");
+      out.delete("strategy");
+      out.delete("perspectives");
+    }
+  }
   return out;
 }
-export function isTabApplicable(area: AreaInput, tabKey: string, activeDomains?: DomainSet): boolean {
-  return getApplicableTabs(area, activeDomains).has(tabKey);
+export function isTabApplicable(
+  area: AreaInput,
+  tabKey: string,
+  activeDomains?: DomainSet,
+  proceduralVehicle?: string | null,
+): boolean {
+  return getApplicableTabs(area, activeDomains, proceduralVehicle).has(tabKey);
 }
 
 // -------- Practice-area modules (Universal Practice Area Architecture) --------
