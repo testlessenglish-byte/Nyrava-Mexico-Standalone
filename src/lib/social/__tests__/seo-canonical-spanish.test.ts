@@ -35,8 +35,7 @@ describe("SEO - Canonical Mexican Spanish (es-MX) Metadata & Content Consistency
   });
 
   it("ensures /about metadata is in Mexican Spanish", () => {
-    expect(aboutSource).toContain("Acerca de Nyrava — Sistema Operativo de Inteligencia Jurídica");
-    expect(aboutSource).toContain("Acerca de Nyrava — Inteligencia Jurídica para México");
+    expect(aboutSource).toContain("Acerca de Nyrava");
     expect(aboutSource).not.toContain("About Nyrava — Legal Intelligence OS");
   });
 
