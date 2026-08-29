@@ -505,7 +505,7 @@ export const saveSubscriberDonationIdentity = createServerFn({ method: "POST" })
     }
 
     let rfcVerificationStatus = existing?.rfc_verification_status || "not_verified";
-    let rfcVerificationDate = existing?.rfc_verification_date || null;
+    const rfcVerificationDate = existing?.rfc_verification_date || null;
     let rfcVerificationMethod = existing?.rfc_verification_method || null;
 
     if (existing && existing.rfc && existing.rfc !== cleanRfc) {
