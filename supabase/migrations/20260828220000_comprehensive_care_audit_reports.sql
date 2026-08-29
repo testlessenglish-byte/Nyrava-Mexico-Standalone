@@ -40,63 +40,28 @@ CREATE INDEX IF NOT EXISTS idx_social_report_emails_org ON public.social_audit_r
 ALTER TABLE public.social_audit_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.social_audit_report_emails ENABLE ROW LEVEL SECURITY;
 
--- RLS: Strict Primary Subscriber / Organization Owner Only
+-- RLS: Strict Primary Subscriber Only
 CREATE POLICY "Primary subscribers can view their audit reports"
   ON public.social_audit_reports
   FOR SELECT
-  USING (
-    org_id IN (
-      SELECT organization_id FROM public.organization_members
-      WHERE user_id = auth.uid() AND role IN ('owner', 'organization_owner')
-    )
-    OR
-    org_id IN (
-      SELECT id FROM public.organizations
-      WHERE created_by = auth.uid()
-    )
-  );
+  TO authenticated
+  USING (public.is_primary_subscriber(org_id));
 
 CREATE POLICY "Primary subscribers can insert audit reports"
   ON public.social_audit_reports
   FOR INSERT
-  WITH CHECK (
-    org_id IN (
-      SELECT organization_id FROM public.organization_members
-      WHERE user_id = auth.uid() AND role IN ('owner', 'organization_owner')
-    )
-    OR
-    org_id IN (
-      SELECT id FROM public.organizations
-      WHERE created_by = auth.uid()
-    )
-  );
+  TO authenticated
+  WITH CHECK (public.is_primary_subscriber(org_id));
 
 CREATE POLICY "Primary subscribers can view report email logs"
   ON public.social_audit_report_emails
   FOR SELECT
-  USING (
-    org_id IN (
-      SELECT organization_id FROM public.organization_members
-      WHERE user_id = auth.uid() AND role IN ('owner', 'organization_owner')
-    )
-    OR
-    org_id IN (
-      SELECT id FROM public.organizations
-      WHERE created_by = auth.uid()
-    )
-  );
+  TO authenticated
+  USING (public.is_primary_subscriber(org_id));
 
 CREATE POLICY "Primary subscribers can insert report email logs"
   ON public.social_audit_report_emails
   FOR INSERT
-  WITH CHECK (
-    org_id IN (
-      SELECT organization_id FROM public.organization_members
-      WHERE user_id = auth.uid() AND role IN ('owner', 'organization_owner')
-    )
-    OR
-    org_id IN (
-      SELECT id FROM public.organizations
-      WHERE created_by = auth.uid()
-    )
-  );
+  TO authenticated
+  WITH CHECK (public.is_primary_subscriber(org_id));
+

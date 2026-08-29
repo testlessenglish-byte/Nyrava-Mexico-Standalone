@@ -171,7 +171,7 @@ function TrustCenter() {
             {
               icon: <Sparkles className="h-4 w-4" />,
               title: "No content training",
-              description: "Your case content is not used to train general-purpose models.",
+              description: "Nyrava does not use your case content to train general-purpose models, and enforces workspace isolation at the database layer.",
             },
           ]}
         />

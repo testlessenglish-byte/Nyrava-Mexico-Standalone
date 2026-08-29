@@ -19,11 +19,30 @@ export const Route = createFileRoute("/modules")({
 });
 
 const MODULE_KEYS = [
-  "legal", "case", "evidence", "witness", "timeline", "litigation", "contract", "research",
+  "legal", "case", "evidence", "witness", "timeline", "litigation", "contract", "research", "care", "community",
 ] as const;
 
+const CANONICAL_MATERIAS_LIST = [
+  { es: "Derecho Penal (Sistema Acusatorio)", en: "Criminal Law (Accusatory System)" },
+  { es: "Derecho Civil", en: "Civil Law" },
+  { es: "Derecho Mercantil (Gobierno Corporativo y M&A)", en: "Commercial & Corporate Law" },
+  { es: "Derecho Familiar", en: "Family Law" },
+  { es: "Derecho Laboral", en: "Labor Law" },
+  { es: "Derecho Administrativo", en: "Administrative Law" },
+  { es: "Derecho Fiscal y TFJA", en: "Tax Law" },
+  { es: "Juicio de Amparo (Directo e Indirecto)", en: "Amparo Proceedings" },
+  { es: "Derecho Electoral", en: "Electoral Law" },
+  { es: "Derecho Agrario", en: "Agrarian Law" },
+  { es: "Derecho Constitucional y Derechos Humanos", en: "Constitutional & Human Rights Law" },
+  { es: "Derecho Ambiental", en: "Environmental Law" },
+  { es: "Derecho Inmobiliario", en: "Real Estate Law" },
+  { es: "Derecho Migratorio", en: "Immigration Law" },
+];
+
 function ModulesPage() {
-  const { t, tList } = useI18n();
+  const { t, tList, language } = useI18n();
+  const isEs = language === "es";
+
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -50,6 +69,19 @@ function ModulesPage() {
               </ul>
             </div>
           ))}
+        </div>
+
+        <div className="mt-20 border-t border-border/60 pt-16">
+          <h2 className="font-display text-2xl font-bold">{t("modules.materias.title")}</h2>
+          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{t("modules.materias.desc")}</p>
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {CANONICAL_MATERIAS_LIST.map((m, i) => (
+              <div key={m.es} className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/40 p-3.5">
+                <span className="font-mono text-xs font-semibold text-primary">{String(i + 1).padStart(2, "0")}</span>
+                <span className="text-sm font-medium text-foreground">{isEs ? m.es : m.en}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
       <SiteFooter />

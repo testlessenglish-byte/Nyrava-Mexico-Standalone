@@ -10,12 +10,12 @@ export function SiteHeader() {
   const { t } = useI18n();
 
   const NAV = [
-    { label: t("nav.product"), to: "/platform" as const },
-    { label: t("nav.about"), to: "/about" as const },
-    { label: t("nav.legalSources"), to: "/modules" as const },
+    { label: t("nav.platform"), to: "/platform" as const },
+    { label: t("nav.modules"), to: "/modules" as const },
+    { label: t("nav.howItWorks"), to: "/how-it-works" as const },
+    { label: t("nav.resources"), to: "/resources" as const },
     { label: t("nav.security"), to: "/security" as const },
-    { label: t("nav.transparency"), to: "/ai-transparency" as const },
-    { label: t("nav.helpShort"), to: "/help" as const },
+    { label: t("nav.about"), to: "/about" as const },
   ];
 
   return (

@@ -31,9 +31,13 @@ const RELATED_ALL = {
   responsible: { label: "Responsible AI", to: "/responsible-ai", description: "Principles for evidence-grounded analysis." },
   security: { label: "Security Practices", to: "/security", description: "Authentication, authorization, encryption." },
   data: { label: "Data Control", to: "/data-control", description: "Export, delete, and manage workspace data." },
+  care: { label: "Atención Integral", to: "/product/comprehensive-care", description: "Gestión de casos sociales, planes de cuidado y privacidad multinivel." },
+  support: { label: "Apoyo Comunitario", to: "/product/community-support", description: "Campañas seguras, aportaciones en especie y donaciones verificadas." },
+  talk: { label: "Talk to Cases", to: "/product/talk-to-cases", description: "Interrogación conversacional fundamentada en el expediente y derecho mexicano." },
 };
 
 export const PRODUCTS: ProductPageContent[] = [
+
   {
     slug: "evidence-intelligence",
     title: "Evidence Intelligence",
@@ -154,7 +158,7 @@ export const PRODUCTS: ProductPageContent[] = [
     title: "Witness Intelligence",
     eyebrow: "Product",
     description:
-      "Cluster every statement each witness made across the record, compare accounts, and surface impeachment material.",
+      "Cluster every statement and testimony across the case record, compare accounts, and surface inconsistencies.",
     what:
       "Witness Intelligence groups statements by witness and by subject. It compares what each witness said in different documents and highlights inconsistencies, corroborations, and gaps that a cross-examiner or an escrito de tacha needs to see.",
     how: [
@@ -481,6 +485,180 @@ export const PRODUCTS: ProductPageContent[] = [
       { q: "Can I draft complaints and motions from it?", a: "Yes. Draft demandas, requerimientos de pago, and solicitudes de medidas cautelares render into the Work Product section of the canonical report with citations to the underlying commercial record." },
     ],
     related: [RELATED_ALL.evidence, RELATED_ALL.timeline, RELATED_ALL.motion, RELATED_ALL.report, RELATED_ALL.trust, RELATED_ALL.ai],
+  },,
+  {
+    slug: "comprehensive-care",
+    title: "Atención Integral (Comprehensive Care)",
+    eyebrow: "Product",
+    description:
+      "Plataforma multidisciplinaria para la gestión integral de casos sociales, planes de cuidado, red de canalización institucional y privacidad confidencial por niveles.",
+    what:
+      "Atención Integral es el entorno operativo diseñado para equipos de trabajo social, defensores de derechos humanos y organizaciones comunitarias. Permite gestionar el ciclo de vida completo del caso social (ingesta, valoración de riesgo en 7 dimensiones, planes de cuidado por metas, intervenciones, canalizaciones a instituciones públicas y privadas, y consentimiento informado), manteniendo una separación estricta de expedientes generales, sociales, jurídicos, psicosociales, médicos y de protección de menores.",
+    how: [
+      "Recepción y registro estructurado de casos con folios correlativos automáticos (INT-YYYY-XXXX) y triaje de urgencia.",
+      "Valoración multidimensional de riesgo y factores de protección en 7 ejes: seguridad, vivienda, salud, psicosocial, legal, nutrición y situación migratoria.",
+      "Planes de cuidado orientados a objetivos con registro cronológico de intervenciones, servicios directos y reconocimientos de supervisión.",
+      "Red de canalización institucional con directorio gestionado de organismos públicos mexicanos (DIF, CEAV, INM, COMAR, Fiscalías) y seguimiento de respuestas.",
+      "Privacidad confidencial en 6 niveles (General, Trabajo Social, Legal Privilegiado, Psicosocial, Médico y Protección de la Infancia) con verificación de consentimiento.",
+      "Asistente Talk to Care Case para análisis contextual, detección de vacíos de atención y preparación de formatos y actas administrativas mexicanas.",
+    ],
+    benefits: [
+      "Visibilidad completa y coordinada de la atención multidisciplinaria sin mezclar registros sensibles.",
+      "Trazabilidad estricta con historial inmutable de revisiones de riesgo y planes de cuidado.",
+      "Canalizaciones seguras a instituciones oficiales con control de consentimiento antes de la divulgación.",
+      "Informes institucionales de auditoría e impacto con firma digital SHA-256 para donantes y autoridades.",
+    ],
+    workflow: [
+      { title: "Ingesta y Triaje", description: "Registro inicial de la necesidad, asignación de folio y priorización de urgencia por el supervisor." },
+      { title: "Valoración Multidimensional", description: "Evaluación estructurada de riesgos y factores de protección con historial de versiones." },
+      { title: "Plan de Cuidado e Intervenciones", description: "Definición de metas, hitos, asignación de responsables y registro de apoyos directos." },
+      { title: "Canalización y Seguimiento", description: "Emisión de paquetes de derivación a instituciones del directorio y registro de resultados." },
+    ],
+    examples: [
+      { title: "Atención a Familias y Niñez", description: "Coordinación de apoyo nutricional, estudio socioeconómico y vinculación con DIF bajo nivel de protección infantil restringido." },
+      { title: "Acompañamiento a Refugiados y Migrantes", description: "Enlace entre el caso social y el trámite de asilo ante COMAR o regularización migratoria ante INM con consentimiento informado." },
+      { title: "Protección Psicosocial y Legal", description: "Intervención ante violencia familiar con resguardo de notas clínicas psicosociales y coordinación de medidas cautelares de protección." },
+    ],
+    bestPractices: [
+      "Registrar el consentimiento informado antes de generar paquetes de canalización externa o compartir documentos.",
+      "Utilizar los niveles de registro restringidos (médico, psicosocial, protección de menores) para salvaguardar notas sensibles.",
+      "Ejecutar la verificación de salud del caso (Case Health Check) periódicamente para detectar tareas vencidas o valoraciones pendientes.",
+      "Documentar el cierre formal del caso con resumen de metas cumplidas y aprobación del supervisor responsable.",
+    ],
+    attorneyResponsibilities: [
+      "Verificar la veracidad de los datos socioeconómicos y consentimientos proporcionados por los titulares.",
+      "Respetar las limitaciones éticas y legales en la divulgación de información confidencial de beneficiarios.",
+      "Supervisar que las canalizaciones a dependencias públicas cumplan con las leyes mexicanas aplicables.",
+    ],
+    limitations: [
+      "El asistente Talk to Care Case asiste en la redacción y síntesis; no sustituye la valoración profesional clínica o de trabajo social.",
+      "La disponibilidad de servicios en la red institucional depende de cada organismo público o privado en su demarcación territorial.",
+    ],
+    scenarios: [
+      { title: "Derivación Institucional Urgente", description: "Generar un oficio de canalización con antecedentes estructurados y resguardo de datos personales confidenciales." },
+      { title: "Auditoría de Rendición de Cuentas", description: "Exportar el informe de impacto institucional con resumen de servicios, metas alcanzadas y verificación criptográfica SHA-256." },
+    ],
+    faqs: [
+      { q: "¿Cómo se protege la información psicosocial y médica?", a: "Se resguarda bajo niveles de acceso restringido (6 niveles de privacidad) que impiden el acceso a personal no autorizado o su inclusión en reportes generales." },
+      { q: "¿Requiere consentimiento informado para compartir datos?", a: "Sí. El sistema exige un registro de consentimiento activo y vigente antes de permitir la emisión de paquetes de derivación externa." },
+      { q: "¿Quién puede generar reportes institucionales?", a: "La generación de informes de auditoría institucional y de rendición de cuentas está reservada exclusivamente a la cuenta del suscriptor principal." },
+    ],
+    related: [RELATED_ALL.support, RELATED_ALL.talk, RELATED_ALL.report, RELATED_ALL.trust, RELATED_ALL.security],
+    next: { label: "Apoyo Comunitario", to: "/product/community-support" },
+  },
+  {
+    slug: "community-support",
+    title: "Apoyo Comunitario (Community Support)",
+    eyebrow: "Product",
+    description:
+      "Plataforma de campañas solidarias, aportaciones en especie, servicios profesionales y recaudación externa autorizada con protección integral de la identidad.",
+    what:
+      "Apoyo Comunitario permite a las organizaciones gestionar campañas de asistencia social para necesidades individuales de casos o programas comunitarios institucionales. Facilita la recepción de donaciones en especie (alimentos, ropa, enseres, útiles escolares, medicamentos), servicios profesionales voluntarios y recaudación financiera mediante enlaces a destinos externos configurados y autorizados (como GoFundMe), manteniendo la identidad de los beneficiarios resguardada mediante modalidades públicas seguras.",
+    how: [
+      "Creación de campañas asociadas a casos específicos o de alcance institucional con descripción pública protegida.",
+      "Protección de identidad en 4 modalidades públicas: Anónimo, Solo Primer Nombre, Descripción Familiar o Nombre Completo autorizado.",
+      "Recepción y gestión de ofertas de apoyo en especie y servicios profesionales con revisión previa del equipo antes de conectar con el beneficiario.",
+      "Vinculación con recaudadores financieros externos autorizados sin custodia directa de fondos por parte de la plataforma.",
+      "Difusión multicanal con enlaces optimizados para WhatsApp, Facebook, correo electrónico, copia directa y códigos QR.",
+      "Gobernanza financiera con validación fiscal de la organización titular (RFC, Constancia de Situación Fiscal e identificación oficial).",
+    ],
+    benefits: [
+      "Canalizar ayuda solidaria directa protegiendo la dignidad y privacidad de familias y personas vulnerables.",
+      "Control de inventario en tiempo real: artículos necesitados, comprometidos, recibidos y pendientes.",
+      "Gobernanza y aprobación del suscriptor titular antes de publicar cualquier campaña pública.",
+      "Transparencia total con registro inmutable de auditoría para donaciones y apoyos entregados.",
+    ],
+    workflow: [
+      { title: "Solicitud y Borrador", description: "El equipo de trabajo social formula la necesidad de apoyo con descripción segura y catálogo de artículos." },
+      { title: "Aprobación del Titular", description: "El suscriptor principal revisa la vista previa y autoriza la publicación de la campaña." },
+      { title: "Difusión y Recepción", description: "Compartir la página pública vía WhatsApp o redes; recepción de ofertas de apoyo de la comunidad." },
+      { title: "Revisión y Entrega", description: "Aceptación de ofertas, registro de recepción y seguimiento hasta el cumplimiento final." },
+    ],
+    examples: [
+      { title: "Campaña de Emergencia Médica", description: "Solicitud de medicamentos específicos y apoyo en transporte para tratamiento especializado." },
+      { title: "Útiles y Educación Comunitaria", description: "Campaña institucional para dotar de mochilas, libros y calzado a menores en situación vulnerable." },
+      { title: "Asistencia Habitacional y Enseres", description: "Acopio de cobijas, estufas y materiales de reconstrucción tras contingencias ambientales." },
+    ],
+    bestPractices: [
+      "Usar siempre la modalidad de identidad protegida (Anónimo o Descripción Familiar) en casos de violencia o menores de edad.",
+      "Revisar y verificar las ofertas de servicios profesionales antes de coordinar el contacto directo con la persona beneficiaria.",
+      "Actualizar el estado de los artículos conforme se reciban para evitar sobre-recaudación de insumos.",
+      "Cerrar la campaña oportunamente una vez que los objetivos hayan sido satisfechos.",
+    ],
+    attorneyResponsibilities: [
+      "Asegurar que la difusión pública cumpla con las leyes de protección de datos personales y dignidad de las personas.",
+      "Confirmar que los enlaces de recaudación financiera externa correspondan a cuentas autorizadas de la institución.",
+    ],
+    limitations: [
+      "Nyrava México no procesa directamente fondos ni actúa como intermediario financiero bancario; facilita la coordinación y vinculación con recaudadores externos autorizados.",
+      "El cumplimiento de las ofertas en especie y servicios depende de la entrega voluntaria por parte de los aportantes.",
+    ],
+    scenarios: [
+      { title: "Apoyo en Especie Inmediato", description: "Publicar una campaña con meta de 20 despensas familiares; registrar aportaciones y actualizar inventario en tiempo real." },
+      { title: "Servicios Pro-Bono", description: "Recibir ofertas de psicólogos o médicos voluntarios para atención a casos comunitarios específicos." },
+    ],
+    faqs: [
+      { q: "¿Qué información personal se publica en la campaña?", a: "Únicamente la descripción autorizada y la necesidad requerida. Las notas privadas del caso, diagnósticos médicos y domicilios exactos nunca se publican." },
+      { q: "¿Nyrava cobra comisiones sobre donaciones?", a: "No. Nyrava México no custodia fondos ni cobra comisiones sobre recaudaciones financieras canalizadas a plataformas externas." },
+      { q: "¿Cómo se aprueban las campañas antes de publicarse?", a: "Toda campaña requiere aprobación explícita por parte del titular principal de la organización tras revisar la vista previa pública." },
+    ],
+    related: [RELATED_ALL.care, RELATED_ALL.talk, RELATED_ALL.security, RELATED_ALL.trust],
+    next: { label: "Talk to Cases", to: "/product/talk-to-cases" },
+  },
+  {
+    slug: "talk-to-cases",
+    title: "Talk to Cases (Inteligencia Conversacional)",
+    eyebrow: "Product",
+    description:
+      "Interrogación conversacional en lenguaje natural con grounding estricto en el expediente del caso y en la jurisprudencia y leyes mexicanas.",
+    what:
+      "Talk to Cases permite a los profesionales jurídicos y equipos de atención dialogar con el expediente en lenguaje natural. A diferencia de un asistente conversacional genérico, cada respuesta generada por Talk to Cases está rigurosamente anclada a los pasajes documentales del caso, artículos de los códigos sustantivos y adjetivos aplicables, y precedentes de la SCJN. Las afirmaciones no verificables en el expediente son suprimidas.",
+    how: [
+      "Indexación vectorial y semántica del expediente documental completo con metadatos de foja, autor y fecha.",
+      "Recuperación aumentada con verificación contextual de los hechos y marco normativo mexicano aplicable.",
+      "Respuestas estructuradas con citas navegables al documento exacto y párrafo de origen.",
+      "Detección de vacíos probatorios, contradicciones testimoniales y prescripciones procesales.",
+      "Modo determinista de respaldo que garantiza respuestas basadas exclusivamente en hechos comprobados.",
+    ],
+    benefits: [
+      "Respuestas inmediatas a preguntas complejas sobre expedientes de miles de fojas.",
+      "Cero alucinaciones: cada hecho citado enlaza directamente al documento de origen.",
+      "Contextualización automática en el marco procesal mexicano (sistema acusatorio, amparo, civil, familiar, laboral).",
+      "Asistencia en la preparación de borradores, oficios y líneas de interrogatorio.",
+    ],
+    workflow: [
+      { title: "Cargar Expediente", description: "Subir las actuaciones, pruebas y documentos del caso." },
+      { title: "Formular Consulta", description: "Hacer preguntas específicas en lenguaje natural sobre hechos, fechas, testigos o leyes aplicables." },
+      { title: "Verificar Citas", description: "Revisar la respuesta y hacer clic en las citas para contrastar con el texto original del expediente." },
+      { title: "Exportar o Integrar", description: "Copiar argumentos o evidencias directamente al centro de estrategia o borrador de promociones." },
+    ],
+    examples: [
+      { title: "Contradicciones Testimoniales", description: "¿En qué puntos discrepa la declaración ministerial del imputado con el informe policial homologado respecto a la hora de detención?" },
+      { title: "Análisis de Prescripción", description: "¿Cuándo se realizó la última notificación fehaciente y cuál es el término aplicable para interponer el recurso según la legislación vigente?" },
+      { title: "Fundamentación Constitucional", description: "¿Qué jurisprudencia de la SCJN aplica a la exclusión de pruebas obtenidas sin orden de cateo en este supuesto fáctico?" },
+    ],
+    bestPractices: [
+      "Subir el expediente íntegro para que la recuperación tenga acceso a todas las actuaciones y anexos.",
+      "Revisar siempre los pasajes citados antes de utilizar cualquier respuesta en un escrito judicial.",
+      "Hacer preguntas acotadas por actor, fecha o documento para obtener la máxima precisión probatoria.",
+    ],
+    attorneyResponsibilities: [
+      "El abogado conserva la responsabilidad exclusiva sobre el criterio jurídico y la estrategia procesal.",
+      "Verificar que la jurisprudencia o tesis citada se encuentre vigente y no haya sido superada o interrumpida.",
+    ],
+    limitations: [
+      "Talk to Cases no emite consejos jurídicos vinculantes ni sustituye el juicio profesional del abogado postulante.",
+      "La calidad de las respuestas depende de la legibilidad y completitud del expediente cargado.",
+    ],
+    scenarios: [
+      { title: "Preparación de Audiencia Inicial", description: "Extraer en minutos todos los datos sobre la cadena de custodia y control de detención citados con foja exacta." },
+      { title: "Redacción de Conceptos de Violación", description: "Sintetizar los agravios y relacionarlos con las violaciones procesales documentadas en el expediente." },
+    ],
+    faqs: [
+      { q: "¿Puede inventar hechos que no están en el expediente?", a: "No. El motor cuenta con un filtro estricto de evidencia que suprime cualquier respuesta que no pueda anclarse a un pasaje documental del expediente." },
+      { q: "¿Se utilizan mis casos para entrenar modelos de IA?", a: "No. Las consultas se procesan bajo aislamiento de espacio de trabajo y enrutamiento controlado; la plataforma no utiliza los expedientes confidenciales para entrenamiento de modelos generales." },
+    ],
+    related: [RELATED_ALL.evidence, RELATED_ALL.motion, RELATED_ALL.report, RELATED_ALL.care, RELATED_ALL.trust],
   },
 ];
 
