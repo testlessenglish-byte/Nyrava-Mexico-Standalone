@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect, type ReactNode } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, FileUp, HeartHandshake, Loader2, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
+import { CheckCircle2, FileText, FileUp, HeartHandshake, Loader2, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/i18n";
 import { CaseResourceRecommendations } from "@/components/social/ResourceKnowledgeNetwork";
@@ -12,6 +12,7 @@ import { CaseDynamicText } from "@/components/social/CaseDynamicText";
 import { CaseDocumentCenter } from "@/components/social/CaseDocumentCenter";
 import { CaseActivityFeed } from "@/components/social/CaseActivityFeed";
 import { CommunitySupportModal } from "@/components/social/CommunitySupportModal";
+import { GenerateReportModal } from "@/components/social/GenerateReportModal";
 import {
   acceptSocialTransfer, advanceSocialTransfer, approveSocialCarePlan,
   assignSocialCaseManager, closeSocialCase, createSocialAppointment,
@@ -225,6 +226,8 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
   const closureReady=closure.reason!=="services_completed"||closureBlockerCount===0;
 
   const [showCommunitySupport, setShowCommunitySupport] = useState(false);
+  const [showGenerateReport, setShowGenerateReport] = useState(false);
+  const isPrimarySubscriber = organizationMembers.some((m: any) => m.role === "owner" || m.role === "organization_owner");
   const isServiceTab=tab==="intervention"||tab==="legal"||tab==="psychosocial";
 
   if(detail.isLoading)return <Panel><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin"/>{es?"Abriendo el expediente…":"Opening case workspace…"}</div></Panel>;
@@ -237,7 +240,7 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
     <div className="border-b border-border p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><p className="font-mono text-sm text-primary">{caseLabel}</p><h2 className="text-xl font-semibold">{person?.legal_name??(es?"Caso familiar":"Family case")}</h2><p className="text-xs text-muted-foreground">{localizedEnum(c?.case_type,es)} · {c?.status==="intake"?(es?"Nuevo":"New"):localizedEnum(c?.status,es)} · {localizedEnum(c?.priority,es)}</p></div>
-        <div className="flex flex-wrap gap-2">{canDeleteCase&&<button type="button" onClick={requestDelete} disabled={deleteM.isPending} className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive disabled:opacity-50">{deleteM.isPending?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<Trash2 className="mr-1 inline h-4 w-4"/>}{es?"Eliminar caso":"Delete case"}</button>}{!["transferred","archived"].includes(c?.status)&&<button onClick={()=>c?.status==="closed"?openTab("closure"):setShowStateEditor(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-sm">{c?.status==="closed"?(es?"Reabrir en Cierre":"Reopen in Closure"):(es?"Cambiar estado":"Change state")}</button>}<button onClick={()=>openTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>openTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button type="button" onClick={()=>setShowCommunitySupport(true)} className="rounded-lg border border-primary/40 bg-primary/10 text-primary px-3 py-2 text-sm font-medium hover:bg-primary/20 flex items-center gap-1.5"><HeartHandshake className="h-4 w-4" />{es ? "Apoyo Comunitario" : "Community Support"}</button><button onClick={()=>openTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
+        <div className="flex flex-wrap gap-2">{canDeleteCase&&<button type="button" onClick={requestDelete} disabled={deleteM.isPending} className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive disabled:opacity-50">{deleteM.isPending?<Loader2 className="mr-1 inline h-4 w-4 animate-spin"/>:<Trash2 className="mr-1 inline h-4 w-4"/>}{es?"Eliminar caso":"Delete case"}</button>}{!["transferred","archived"].includes(c?.status)&&<button onClick={()=>c?.status==="closed"?openTab("closure"):setShowStateEditor(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-sm">{c?.status==="closed"?(es?"Reabrir en Cierre":"Reopen in Closure"):(es?"Cambiar estado":"Change state")}</button>}<button onClick={()=>openTab("overview")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Reasignar":"Reassign"}</button><button onClick={()=>openTab("activity")} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Ver actividad":"View activity"}</button><button type="button" onClick={()=>setShowCommunitySupport(true)} className="rounded-lg border border-primary/40 bg-primary/10 text-primary px-3 py-2 text-sm font-medium hover:bg-primary/20 flex items-center gap-1.5"><HeartHandshake className="h-4 w-4" />{es ? "Apoyo Comunitario" : "Community Support"}</button>{isPrimarySubscriber&&<button type="button" onClick={()=>setShowGenerateReport(true)} className="rounded-lg border border-violet-500/40 bg-violet-500/10 text-violet-700 px-3 py-2 text-sm font-medium hover:bg-violet-500/20 flex items-center gap-1.5"><FileText className="h-4 w-4" />{es ? "Generar informe" : "Generate Report"}</button>}<button onClick={()=>openTab("assistant")} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">{es?"Consultar Caso de Atención":"Talk to Care Case"}</button><button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">{es?"Cerrar espacio":"Close workspace"}</button></div>
       </div>
       <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
         <span>{es?"Responsable":"Assigned"}: <strong className="text-foreground">{organizationMembers.find((m:any)=>m.user_id===c?.assigned_case_manager)?.name??(es?"Sin asignar":"Unassigned")}</strong></span>
@@ -682,6 +685,15 @@ export function SocialCaseWorkspace({caseId,people,institutions,templates,roleAs
           orgId={c.org_id}
           es={es}
           onClose={() => setShowCommunitySupport(false)}
+        />
+      )}
+
+      {showGenerateReport && (
+        <GenerateReportModal
+          caseId={caseId}
+          orgId={c.org_id}
+          es={es}
+          onClose={() => setShowGenerateReport(false)}
         />
       )}
     </div>
