@@ -80,12 +80,12 @@ const UPCOMING = [
 export const Route = createFileRoute("/release-notes")({
   head: () => {
     const url = `${CANONICAL_BASE}/release-notes`;
-    const desc = "New features, improvements, bug fixes, and known issues in Nyrava Intelligence OS.";
+    const desc = "Novedades, mejoras, correcciones y actualizaciones del sistema operativo de inteligencia jurídica Nyrava México.";
     return {
       meta: [
-        { title: "Release Notes — Nyrava Intelligence OS" },
+        { title: "Notas de Versión — Nyrava México" },
         { name: "description", content: desc },
-        { property: "og:title", content: "Release Notes — Nyrava" },
+        { property: "og:title", content: "Notas de Versión — Nyrava México" },
         { property: "og:description", content: desc },
         { property: "og:type", content: "article" },
         { property: "og:url", content: url },
@@ -93,7 +93,7 @@ export const Route = createFileRoute("/release-notes")({
       links: [{ rel: "canonical", href: url }],
       scripts: [{
         type: "application/ld+json",
-        children: breadcrumbJsonLd(CANONICAL_BASE, [{ label: "Release Notes", to: "/release-notes" }]),
+        children: breadcrumbJsonLd(CANONICAL_BASE, [{ label: "Notas de versión", to: "/release-notes" }]),
       }],
     };
   },

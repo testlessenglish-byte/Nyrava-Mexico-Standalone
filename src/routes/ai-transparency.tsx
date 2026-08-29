@@ -4,10 +4,10 @@ import { LegalPage, Section } from "@/components/LegalPage";
 export const Route = createFileRoute("/ai-transparency")({
   head: () => ({
     meta: [
-      { title: "AI Transparency — Nyrava" },
-      { name: "description", content: "How Nyrava uses AI, and the limitations users should understand." },
-      { property: "og:title", content: "AI Transparency \u2014 Nyrava" },
-      { property: "og:description", content: "How Nyrava uses AI, and the limitations users should understand." },
+      { title: "Transparencia de Inteligencia Artificial — Nyrava México" },
+      { name: "description", content: "Detalle técnico y metodológico de cómo opera la IA en Nyrava: compuertas de evidencia, trazabilidad de citas y límites de responsabilidad." },
+      { property: "og:title", content: "Transparencia de IA — Nyrava México" },
+      { property: "og:description", content: "Detalle técnico y metodológico de cómo opera la inteligencia artificial en Nyrava México." },
       { property: "og:url", content: "https://mexico.nyrava.com/ai-transparency" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/ai-transparency" },
     ],

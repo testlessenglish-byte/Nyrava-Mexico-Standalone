@@ -21,12 +21,12 @@ export const Route = createFileRoute("/learning-center")({
   head: () => {
     const url = `${CANONICAL_BASE}/learning-center`;
     const desc =
-      "The complete Nyrava Learning Center — set up your account, add AI provider keys, run your first case, understand what to expect, and train your team.";
+      "Centro de Aprendizaje de Nyrava México: configure su cuenta, gestione claves de proveedores, procese su primer expediente y capacite a su equipo legal.";
     return {
       meta: [
-        { title: "Learning Center — Nyrava Intelligence OS" },
+        { title: "Centro de Aprendizaje — Nyrava México" },
         { name: "description", content: desc },
-        { property: "og:title", content: "Learning Center — Nyrava" },
+        { property: "og:title", content: "Centro de Aprendizaje — Nyrava México" },
         { property: "og:description", content: desc },
         { property: "og:type", content: "website" },
         { property: "og:url", content: url },
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/learning-center")({
         {
           type: "application/ld+json",
           children: breadcrumbJsonLd(CANONICAL_BASE, [
-            { label: "Learning Center", to: "/learning-center" },
+            { label: "Centro de aprendizaje", to: "/learning-center" },
           ]),
         },
       ],

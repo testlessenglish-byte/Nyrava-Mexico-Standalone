@@ -4,12 +4,12 @@ import { DocsLayout, DocsSection, Callout } from "@/components/DocsLayout";
 export const Route = createFileRoute("/roadmap")({
   head: () => ({
     meta: [
-      { title: "Roadmap — Nyrava Intelligence OS" },
-      { name: "description", content: "What Nyrava is building next." },
+      { title: "Hoja de Ruta — Nyrava México" },
+      { name: "description", content: "Evolución y próximos desarrollos del sistema operativo de inteligencia jurídica Nyrava México." },
       { property: "og:url", content: "https://mexico.nyrava.com/roadmap" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/roadmap" },
-      { property: "og:title", content: "Roadmap — Nyrava" },
-      { property: "og:description", content: "Public roadmap for the Nyrava Intelligence OS." },
+      { property: "og:title", content: "Hoja de Ruta — Nyrava México" },
+      { property: "og:description", content: "Hoja de ruta pública de Nyrava Inteligencia Jurídica México." },
       { property: "og:type", content: "article" },
     ],
     links: [{ rel: "canonical", href: "https://mexico.nyrava.com/roadmap" }],

@@ -26,17 +26,17 @@ export const Route = createFileRoute("/trust")({
   head: () => {
     const url = `${CANONICAL_BASE}/trust`;
     const desc =
-      "Everything attorneys and firms need to know before trusting Nyrava with confidential case data: security architecture, encryption, data isolation, evidence verification, and responsible AI.";
+      "Arquitectura de seguridad, cifrado, aislamiento de datos por despacho, verificación probatoria e IA responsable para expedientes confidenciales en México.";
     return {
       meta: [
-        { title: "Trust Center — Nyrava Intelligence OS" },
+        { title: "Centro de Confianza y Seguridad — Nyrava México" },
         { name: "description", content: desc },
-        { property: "og:title", content: "Trust Center — Nyrava Intelligence OS" },
+        { property: "og:title", content: "Centro de Confianza — Nyrava México" },
         { property: "og:description", content: desc },
         { property: "og:type", content: "website" },
         { property: "og:url", content: url },
         { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: "Trust Center — Nyrava" },
+        { name: "twitter:title", content: "Centro de Confianza — Nyrava México" },
         { name: "twitter:description", content: desc },
       ],
       links: [{ rel: "canonical", href: url }],
