@@ -40,6 +40,7 @@ function NewCasePage() {
   const [caseAnalysisMode, setCaseAnalysisMode] = useState<CaseAnalysisMode>("ongoing");
   const [caseType, setCaseType] = useState<string>("");
   const [amparoSubtype, setAmparoSubtype] = useState<"" | "indirecto" | "directo" | "directo_en_revision">("");
+  const [underlyingMateria, setUnderlyingMateria] = useState<string>("");
   const [immigrationSubtype, setImmigrationSubtype] = useState("");
   const [immigrationClientName, setImmigrationClientName] = useState("");
   const [immigrationNationality, setImmigrationNationality] = useState("");
@@ -107,6 +108,9 @@ function NewCasePage() {
         directo_en_revision: "amparo_directo_revision",
       };
       fd.append("procedural_vehicle", vehicleMapping[amparoSubtype] ?? amparoSubtype);
+      if (underlyingMateria) {
+        fd.append("underlying_materia", underlyingMateria);
+      }
     }
     if (jurisdiction) fd.append("jurisdiction", jurisdiction);
     if (caseType === "migratorio") {
@@ -210,19 +214,41 @@ function NewCasePage() {
           </div>
 
           {caseType === "amparo" && (
-            <div>
-              <label className="text-sm font-medium">{t("new.field.amparoSubtype")}</label>
-              <p className="mt-0.5 text-xs text-muted-foreground">{t("new.field.amparoSubtype.hint")}</p>
-              <select
-                value={amparoSubtype}
-                onChange={(e) => setAmparoSubtype(e.target.value as typeof amparoSubtype)}
-                className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">{t("new.field.amparoSubtype.placeholder")}</option>
-                <option value="directo">{t("new.field.amparoSubtype.directo")}</option>
-                <option value="directo_en_revision">{t("new.field.amparoSubtype.directoEnRevision")}</option>
-                <option value="indirecto">{t("new.field.amparoSubtype.indirecto")}</option>
-              </select>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">{t("new.field.amparoSubtype")}</label>
+                <p className="mt-0.5 text-xs text-muted-foreground">{t("new.field.amparoSubtype.hint")}</p>
+                <select
+                  value={amparoSubtype}
+                  onChange={(e) => setAmparoSubtype(e.target.value as typeof amparoSubtype)}
+                  className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">{t("new.field.amparoSubtype.placeholder")}</option>
+                  <option value="directo">{t("new.field.amparoSubtype.directo")}</option>
+                  <option value="directo_en_revision">{t("new.field.amparoSubtype.directoEnRevision")}</option>
+                  <option value="indirecto">{t("new.field.amparoSubtype.indirecto")}</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Materia Sustantiva Subyacente</label>
+                <p className="mt-0.5 text-xs text-muted-foreground">Materia del acto o resolución reclamada (ej. Laboral, Civil, Penal, etc.)</p>
+                <select
+                  value={underlyingMateria}
+                  onChange={(e) => setUnderlyingMateria(e.target.value)}
+                  className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Selecciona materia subyacente (opcional)</option>
+                  <option value="laboral">Laboral</option>
+                  <option value="civil">Civil</option>
+                  <option value="penal">Penal</option>
+                  <option value="mercantil">Mercantil</option>
+                  <option value="administrativo">Administrativo</option>
+                  <option value="familiar">Familiar</option>
+                  <option value="fiscal">Fiscal</option>
+                  <option value="agrario">Agrario</option>
+                </select>
+              </div>
             </div>
           )}
 

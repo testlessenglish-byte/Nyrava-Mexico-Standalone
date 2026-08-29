@@ -1,11 +1,12 @@
-// Single-source execution surface: Run Case + Rerun Case + collapsed settings.
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Loader2, Play, RotateCw, Settings as SettingsIcon, ChevronDown, ChevronUp, FilePlus2, ShieldCheck } from "lucide-react";
+import { Loader2, Play, RotateCw, Settings as SettingsIcon, ChevronDown, ChevronUp, FilePlus2, ShieldCheck, FastForward, Wrench } from "lucide-react";
 import {
   queueCaseForPipeline,
+  resumeFullPipelineStep,
+  clearPipelineStuckState,
   updateCaseSettings,
   addEvidenceAndRerun,
   finalizeReportChangeLog,
@@ -36,6 +37,8 @@ export function CaseControlPanel({
   caseId,
   caseStatus,
   caseType,
+  proceduralVehicle,
+  underlyingMateria,
   analysisMode: _analysisMode,
   jurisdiction,
   caseAnalysisMode,
@@ -45,6 +48,8 @@ export function CaseControlPanel({
   caseId: string;
   caseStatus: string | null | undefined;
   caseType: string | null;
+  proceduralVehicle?: string | null;
+  underlyingMateria?: string | null;
   analysisMode: string | null;
   jurisdiction: string | null;
   caseAnalysisMode: string | null;
@@ -55,6 +60,8 @@ export function CaseControlPanel({
   const qc = useQueryClient();
   const running = !!caseStatus && RUNNING_STATUSES.has(caseStatus);
   const queueFn = useServerFn(queueCaseForPipeline);
+  const resumeFn = useServerFn(resumeFullPipelineStep);
+  const clearStuckFn = useServerFn(clearPipelineStuckState);
   const addFn = useServerFn(addEvidenceAndRerun);
   const finalizeFn = useServerFn(finalizeReportChangeLog);
   const runStateFn = useServerFn(getCaseRunState);
@@ -93,6 +100,42 @@ export function CaseControlPanel({
     },
     onError: (e: unknown) => {
       toast.error(e instanceof Error ? e.message : "Failed to queue run");
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["case", caseId] });
+    },
+  });
+
+  const resumeM = useMutation({
+    mutationFn: async () => await resumeFn({ data: { caseId } }),
+    onMutate: () => toast.info("Resuming case from last checkpoint…"),
+    onSuccess: (res: any) => {
+      if (res?.alreadyComplete) {
+        toast.info("Case is already complete.");
+      } else if (res?.alreadyRunning) {
+        toast.info("Case is already running.");
+      } else {
+        toast.success("Resumed pipeline successfully.");
+      }
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["case", caseId] });
+    },
+    onError: (e: unknown) => {
+      toast.error(e instanceof Error ? e.message : "Failed to resume case");
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["case", caseId] });
+    },
+  });
+
+  const clearStuckM = useMutation({
+    mutationFn: async () => await clearStuckFn({ data: { caseId } }),
+    onMutate: () => toast.info("Clearing stuck state and stale worker locks…"),
+    onSuccess: () => {
+      toast.success("Stale locks cleared. You can now safely Resume or Rerun.");
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["case", caseId] });
+    },
+    onError: (e: unknown) => {
+      toast.error(e instanceof Error ? e.message : "Failed to clear stuck state");
       invalidate();
       qc.invalidateQueries({ queryKey: ["case", caseId] });
     },
@@ -164,8 +207,10 @@ export function CaseControlPanel({
     }
   }
 
-  const disabled = running || runM.isPending || addBusy || awaitingCancel || documentsCount === 0;
-  const addDisabled = running || runM.isPending || addBusy || awaitingCancel;
+  const disabled = running || runM.isPending || resumeM.isPending || clearStuckM.isPending || addBusy || awaitingCancel || documentsCount === 0;
+  const addDisabled = running || runM.isPending || resumeM.isPending || clearStuckM.isPending || addBusy || awaitingCancel;
+  const isFailed = caseStatus === "failed";
+  const isStuck = isFailed || caseStatus === "cancelled";
 
   return (
     <div className="space-y-4">
@@ -176,6 +221,7 @@ export function CaseControlPanel({
           {t("caseControl.stagesNote", { stages: PIPELINE_STAGES.length, agents: AGENT_DEFINITIONS.length })}
         </p>
 
+        {/* Primary Run Case */}
         <button
           onClick={() => runM.mutate(false)}
           disabled={disabled}
@@ -185,6 +231,31 @@ export function CaseControlPanel({
           {t("caseControl.run")}
         </button>
 
+        {/* Resume Case — Restored for failed, checkpointed or interrupted runs */}
+        {isFailed && (
+          <button
+            onClick={() => resumeM.mutate()}
+            disabled={resumeM.isPending || running}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-50"
+          >
+            {resumeM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FastForward className="h-4 w-4" />}
+            Resume Case
+          </button>
+        )}
+
+        {/* Clear Stuck Case — Restored to clear stale worker leases and locks safely */}
+        {isStuck && (
+          <button
+            onClick={() => clearStuckM.mutate()}
+            disabled={clearStuckM.isPending || running}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-border/70 bg-card/60 px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card disabled:opacity-50"
+          >
+            {clearStuckM.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+            Clear Stuck State
+          </button>
+        )}
+
+        {/* Rerun Case */}
         <button
           onClick={() => confirm(t("caseControl.rerun.confirm")) && runM.mutate(true)}
           disabled={disabled}
@@ -218,6 +289,8 @@ export function CaseControlPanel({
       <CollapsedCaseSettings
         caseId={caseId}
         caseType={caseType}
+        proceduralVehicle={proceduralVehicle}
+        underlyingMateria={underlyingMateria}
         jurisdiction={jurisdiction}
         caseAnalysisMode={caseAnalysisMode}
         running={running}
@@ -230,6 +303,8 @@ export function CaseControlPanel({
 function CollapsedCaseSettings({
   caseId,
   caseType,
+  proceduralVehicle,
+  underlyingMateria,
   jurisdiction,
   caseAnalysisMode,
   running,
@@ -237,6 +312,8 @@ function CollapsedCaseSettings({
 }: {
   caseId: string;
   caseType: string | null;
+  proceduralVehicle?: string | null;
+  underlyingMateria?: string | null;
   jurisdiction: string | null;
   caseAnalysisMode: string | null;
   running: boolean;
@@ -246,17 +323,21 @@ function CollapsedCaseSettings({
   const [open, setOpen] = useState(false);
   const updateFn = useServerFn(updateCaseSettings);
   const [ct, setCt] = useState<string>(caseType ?? "");
+  const [pv, setPv] = useState<string>(proceduralVehicle ?? "");
+  const [um, setUm] = useState<string>(underlyingMateria ?? "");
   const [juris, setJuris] = useState<string>(jurisdiction ?? "");
   const [caseAnalysis, setCaseAnalysis] = useState<string>(caseAnalysisMode || "ongoing");
 
   useEffect(() => {
     setCt(caseType ?? "");
+    setPv(proceduralVehicle ?? "");
+    setUm(underlyingMateria ?? "");
     setJuris(jurisdiction ?? "");
     setCaseAnalysis(caseAnalysisMode || "ongoing");
-  }, [caseType, jurisdiction, caseAnalysisMode]);
+  }, [caseType, proceduralVehicle, underlyingMateria, jurisdiction, caseAnalysisMode]);
 
   const m = useMutation({
-    mutationFn: (patch: { case_type?: string; jurisdiction?: string | null; case_analysis_mode?: string }) =>
+    mutationFn: (patch: { case_type?: string; procedural_vehicle?: string | null; underlying_materia?: string | null; jurisdiction?: string | null; case_analysis_mode?: string }) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       updateFn({ data: { caseId, ...(patch as any) } }),
     onSuccess: (
@@ -280,6 +361,8 @@ function CollapsedCaseSettings({
 
   const dirty =
     ct !== (caseType ?? "") ||
+    pv !== (proceduralVehicle ?? "") ||
+    um !== (underlyingMateria ?? "") ||
     juris !== (jurisdiction ?? "") ||
     caseAnalysis !== (caseAnalysisMode || "ongoing");
   const disabled = running || m.isPending;
@@ -296,8 +379,18 @@ function CollapsedCaseSettings({
         {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
       </button>
 
+      {/* When closed, show structured summary pills */}
+      {!open && (
+        <div className="px-4 pb-3 flex flex-wrap gap-1.5 text-[11px]">
+          {ct && <span className="rounded bg-primary/10 px-2 py-0.5 text-primary font-medium">{ct}</span>}
+          {pv && <span className="rounded bg-accent/10 px-2 py-0.5 text-accent font-medium">{pv.replace(/_/g, " ")}</span>}
+          {um && <span className="rounded bg-secondary px-2 py-0.5 text-secondary-foreground font-medium">Materia: {um}</span>}
+          {juris && <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground font-medium">{juris}</span>}
+        </div>
+      )}
+
       {open && (
-        <div className="border-t border-border p-4">
+        <div className="border-t border-border p-4 space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground/80">{t("caseSettings.caseType")}</label>
             <select
@@ -311,7 +404,46 @@ function CollapsedCaseSettings({
             </select>
           </div>
 
-          <div className="mt-4 space-y-1.5">
+          {ct === "amparo" && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/80">Procedimiento / Tipo de Amparo</label>
+                <select
+                  value={pv}
+                  onChange={(e) => setPv(e.target.value)}
+                  disabled={disabled}
+                  className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm disabled:opacity-50"
+                >
+                  <option value="">Selecciona tipo de amparo</option>
+                  <option value="amparo_directo">Amparo Directo</option>
+                  <option value="amparo_indirecto">Amparo Indirecto</option>
+                  <option value="amparo_directo_revision">Amparo Directo en Revisión</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/80">Materia Sustantiva Subyacente</label>
+                <select
+                  value={um}
+                  onChange={(e) => setUm(e.target.value)}
+                  disabled={disabled}
+                  className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-sm disabled:opacity-50"
+                >
+                  <option value="">Selecciona materia subyacente</option>
+                  <option value="laboral">Laboral</option>
+                  <option value="civil">Civil</option>
+                  <option value="penal">Penal</option>
+                  <option value="mercantil">Mercantil</option>
+                  <option value="administrativo">Administrativo</option>
+                  <option value="familiar">Familiar</option>
+                  <option value="fiscal">Fiscal</option>
+                  <option value="agrario">Agrario</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground/80">{t("caseSettings.jurisdiction")}</label>
             <p className="text-[11px] text-muted-foreground">{t("caseSettings.jurisdiction.hint")}</p>
             <select
@@ -329,7 +461,7 @@ function CollapsedCaseSettings({
             </select>
           </div>
 
-          <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
             <div className="flex items-start gap-2">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <div>
@@ -345,7 +477,7 @@ function CollapsedCaseSettings({
             </div>
           </div>
 
-          <div className="mt-4 space-y-1.5">
+          <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground/80">{t("caseSettings.caseAnalysisMode")}</label>
             <p className="text-[11px] text-muted-foreground">{t("caseSettings.caseAnalysisMode.hint")}</p>
             <div className="grid gap-1.5">
@@ -367,7 +499,7 @@ function CollapsedCaseSettings({
           </div>
 
           <button
-            onClick={() => m.mutate({ case_type: ct, jurisdiction: juris || null, case_analysis_mode: caseAnalysis })}
+            onClick={() => m.mutate({ case_type: ct, procedural_vehicle: pv || null, underlying_materia: um || null, jurisdiction: juris || null, case_analysis_mode: caseAnalysis })}
             disabled={disabled || !dirty || !ct}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
           >

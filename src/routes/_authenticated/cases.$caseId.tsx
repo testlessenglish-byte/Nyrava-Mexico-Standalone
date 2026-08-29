@@ -577,6 +577,10 @@ function Workspace() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             caseType={(c as any).case_type ?? null}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            proceduralVehicle={(c as any).procedural_vehicle ?? null}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            underlyingMateria={(c as any).underlying_materia ?? null}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             analysisMode={(c as any).analysis_mode ?? "balanced"}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             jurisdiction={(c as any).jurisdiction ?? null}
