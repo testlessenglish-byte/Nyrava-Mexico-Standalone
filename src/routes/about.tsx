@@ -11,14 +11,14 @@ export const Route = createFileRoute("/about")({
       {
         name: "description",
         content:
-          "Qué es Nyrava, cómo procesa un expediente, cómo convierte evidencia en inteligencia jurídica y cómo opera bajo control humano de abogados en México.",
+          "Qué es Nyrava, cómo fluye un expediente a través de la plataforma, cómo la evidencia se convierte en inteligencia y cómo opera bajo control humano de abogados en México.",
       },
       { property: "og:url", content: "https://mexico.nyrava.com/about" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/about" },
       { property: "og:title", content: "Acerca de Nyrava — Inteligencia Jurídica para México" },
       {
         property: "og:description",
-        content: "Plataforma de inteligencia jurídica y análisis de expedientes basada en evidencia estricta, controlada por abogados.",
+        content: "Plataforma de inteligencia jurídica y análisis de expedientes basada en evidencia estricta, versionada y bajo control humano.",
       },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -98,72 +98,45 @@ function AboutPage() {
 
       <DocsSection id="different" heading={t("about.different.heading")}>
         <p>{t("about.different.intro")}</p>
-        <FeatureGrid items={differentCards} />
+        <div className="my-6">
+          <FlowDiagram />
+        </div>
+        <FeatureGrid columns={2} items={differentCards} />
       </DocsSection>
 
       <DocsSection id="architecture" heading={t("about.architecture.heading")}>
         <p>{t("about.architecture.intro")}</p>
-        <FlowDiagram
-          steps={architectureSteps}
-          ariaLabel={t("about.architecture.ariaLabel")}
-          caption={t("about.architecture.caption")}
-        />
+        <ol className="my-4 space-y-2 text-sm text-muted-foreground list-decimal pl-5">
+          {architectureSteps.map((step, i) => (
+            <li key={i}>{step}</li>
+          ))}
+        </ol>
       </DocsSection>
 
       <DocsSection id="capabilities" heading={t("about.capabilities.heading")}>
         <p>{t("about.capabilities.intro")}</p>
-        <div className="my-6 grid gap-3 sm:grid-cols-2">
-          {capabilities.map((c) => {
-            const title = t(c.titleKey);
-            const description = t(c.descriptionKey);
-            const body = (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="text-[13.5px] font-semibold text-foreground">{title}</div>
-                  {c.status === "BETA" && (
-                    <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
-                      {t("about.capabilities.betaLabel")}
-                    </span>
-                  )}
-                </div>
-                <div className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{description}</div>
-                {c.route && (
-                  <div className="mt-3 text-[11.5px] font-semibold uppercase tracking-wide text-primary">
-                    {t("about.capabilities.openLink")} →
-                  </div>
-                )}
-              </>
-            );
-            return c.route ? (
-              <Link
-                key={c.id}
-                to={c.route}
-                className="rounded-lg border border-border/60 bg-card/30 p-4 hover:border-primary/40 hover:bg-card/60"
-              >
-                {body}
-              </Link>
-            ) : (
-              <div key={c.id} className="rounded-lg border border-border/60 bg-card/30 p-4">
-                {body}
-              </div>
-            );
-          })}
-        </div>
+        <FeatureGrid
+          columns={2}
+          items={capabilities.map((c) => ({
+            title: c.name,
+            description: c.summary,
+            href: `/modules#${c.id}`,
+          }))}
+        />
       </DocsSection>
 
       <DocsSection id="who" heading={t("about.who.heading")}>
         <p>{t("about.who.intro")}</p>
-        <ul className="list-disc space-y-1 pl-5">
+        <ul className="my-4 space-y-2 text-sm text-muted-foreground list-disc pl-5">
           {whoItems.map((item, i) => (
             <li key={i}>{item}</li>
           ))}
         </ul>
-        <p className="text-foreground/80">{t("about.who.disclaimer")}</p>
       </DocsSection>
 
       <DocsSection id="what-not" heading={t("about.whatNot.heading")}>
         <p>{t("about.whatNot.intro")}</p>
-        <ul className="list-disc space-y-1 pl-5">
+        <ul className="my-4 space-y-2 text-sm text-muted-foreground list-disc pl-5">
           {whatNotItems.map((item, i) => (
             <li key={i}>{item}</li>
           ))}
@@ -171,9 +144,12 @@ function AboutPage() {
       </DocsSection>
 
       <DocsSection id="why-cli" heading={t("about.whyCli.heading")}>
-        <p>{t("about.whyCli.intro1")}</p>
-        <p>{t("about.whyCli.intro2")}</p>
-        <FlowDiagram steps={cliSteps} ariaLabel={t("about.whyCli.ariaLabel")} caption={t("about.whyCli.caption")} />
+        <p>{t("about.whyCli.intro")}</p>
+        <ol className="my-4 space-y-2 text-sm text-muted-foreground list-decimal pl-5">
+          {cliSteps.map((step, i) => (
+            <li key={i}>{step}</li>
+          ))}
+        </ol>
       </DocsSection>
 
       <DocsSection id="corrections" heading={t("about.corrections.heading")}>
@@ -182,13 +158,25 @@ function AboutPage() {
       </DocsSection>
 
       <DocsSection id="principles" heading={t("about.principles.heading")}>
-        <ol className="list-decimal space-y-2 pl-5">
+        <p>{t("about.principles.intro")}</p>
+        <div className="my-4 space-y-4">
           {principles.map((p, i) => (
-            <li key={i}>
-              <strong>{p.title}</strong> {p.body}
-            </li>
+            <div key={i} className="rounded-lg border border-border bg-card p-4">
+              <h4 className="font-semibold text-foreground text-sm">{p.title}</h4>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{p.body}</p>
+            </div>
           ))}
-        </ol>
+        </div>
+      </DocsSection>
+
+      <DocsSection heading={t("about.cta.heading")}>
+        <p>
+          {t("about.cta.body")}{" "}
+          <Link to="/auth" className="text-primary hover:underline font-semibold">
+            {t("about.cta.link")}
+          </Link>
+          .
+        </p>
       </DocsSection>
     </DocsLayout>
   );
