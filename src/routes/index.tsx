@@ -7,12 +7,9 @@ import {
   Play,
   ArrowRight,
   Scale,
-  BookOpen,
   Landmark,
-  FileText,
   ShieldCheck,
   Lock,
-  UploadCloud,
   Sparkles,
 } from "lucide-react";
 import { NyravaLogo } from "@/components/NyravaLogo";
@@ -267,70 +264,15 @@ function Landing() {
           </div>
         </section>
 
-        {/* Experience Nyrava — upload band */}
-        <section className="bg-secondary/40 text-foreground">
-          <div className="mx-auto grid max-w-[100rem] gap-8 px-6 py-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
-            <div>
-              <div className="mb-3 text-[11px] font-semibold tracking-[0.24em] text-primary">
-                {t("home.upload.tag")}
-              </div>
-              <h2 className="max-w-md font-display text-2xl font-semibold leading-tight md:text-3xl">
-                {t("home.upload.title")}
-              </h2>
-              <div className="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-4 lg:grid-cols-2">
-                {[
-                  {
-                    icon: FileText,
-                    titleKey: "home.upload.step1.title",
-                    subKey: "home.upload.step1.subtitle",
-                  },
-                  {
-                    icon: Sparkles,
-                    titleKey: "home.upload.step2.title",
-                    subKey: "home.upload.step2.subtitle",
-                  },
-                  {
-                    icon: BookOpen,
-                    titleKey: "home.upload.step3.title",
-                    subKey: "home.upload.step3.subtitle",
-                  },
-                  {
-                    icon: FileText,
-                    titleKey: "home.upload.step4.title",
-                    subKey: "home.upload.step4.subtitle",
-                  },
-                ].map((it) => (
-                  <div key={it.titleKey} className="flex flex-col items-start gap-2">
-                    <it.icon className="h-6 w-6 text-primary" strokeWidth={1.5} />
-                    <div className="text-[12px] font-semibold leading-tight">{t(it.titleKey)}</div>
-                    <div className="text-[11px] text-muted-foreground">{t(it.subKey)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-primary/50 bg-card px-6 py-16 text-center transition hover:border-primary hover:bg-card/80">
-              <UploadCloud className="h-10 w-10 text-primary" strokeWidth={1.25} />
-              <div className="text-sm font-bold tracking-[0.04em]">
-                {t("home.upload.dropzone.title")}
-              </div>
-              <div className="text-[12px] text-muted-foreground">
-                {t("home.upload.dropzone.subtitle")}
-              </div>
-              <div className="text-[10.5px] tracking-[0.08em] text-muted-foreground/70">
-                {t("home.upload.dropzone.formats")}
-              </div>
-              <input type="file" className="hidden" multiple />
-            </label>
-          </div>
-          <div className="border-t border-border/40">
-            <div className="mx-auto flex max-w-[100rem] flex-col gap-2 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:items-center md:justify-between">
-              <span className="flex items-center gap-2">
-                <Scale className="h-3.5 w-3.5 text-primary" /> {t("home.disclaimer.criterion")}
-              </span>
-              <span className="flex items-center gap-2">
-                <Lock className="h-3.5 w-3.5 text-primary" /> {t("home.disclaimer.dataLaw")}
-              </span>
-            </div>
+        {/* Legal & Data Protection Disclaimers */}
+        <section className="border-b border-border bg-secondary/30 text-foreground">
+          <div className="mx-auto flex max-w-[100rem] flex-col gap-2 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <span className="flex items-center gap-2">
+              <Scale className="h-3.5 w-3.5 text-primary" /> {t("home.disclaimer.criterion")}
+            </span>
+            <span className="flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5 text-primary" /> {t("home.disclaimer.dataLaw")}
+            </span>
           </div>
         </section>
 
