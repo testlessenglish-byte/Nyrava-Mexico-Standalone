@@ -49,9 +49,6 @@ function WitnessPage() {
 
   const witnesses = (data?.witnesses ?? []) as any[];
   const credibilityAgent = (data?.agents ?? []).find((a: any) => a.agent_type === "witness_credibility");
-  // Witness profiles are the primary output, but the credibility agent often
-  // produces reliability findings on a case with no formal witness roster.
-  // Those must be surfaced instead of showing a bare "no witnesses" wall.
   const rawSignals = data ? selectWitnessSignals(data) : [];
   const state = data ? computeModuleStates(data).find((m) => m.key === "witness")! : null;
 
@@ -68,7 +65,7 @@ function WitnessPage() {
     description: f.description ? translatedSignalFlat[i * 2 + 1] || f.description : f.description,
   }));
 
-  const rawCredibilitySummary = credibilityAgent?.output_summary ?? "";
+  const rawCredibilitySummary = credibilityAgent?.summary ?? "";
   const { texts: translatedCredibility } = useTranslatedTexts(
     [rawCredibilitySummary],
     sourceLocale,

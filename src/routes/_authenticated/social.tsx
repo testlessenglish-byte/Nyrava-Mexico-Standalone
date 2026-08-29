@@ -635,10 +635,16 @@ function TeamActivity({es,account,orgId,onOpenCase}:{es:boolean;account:any;orgI
       <CaseActivityDrawerModal
         activityId={selectedDrawerActivityId}
         caseId={selectedDrawerCaseId}
-        open={Boolean(selectedDrawerActivityId)}
+        es={es}
         onClose={() => {
           setSelectedDrawerActivityId(null);
           setSelectedDrawerCaseId(null);
+        }}
+        onNavigateTab={() => {
+          const cid = selectedDrawerCaseId;
+          setSelectedDrawerActivityId(null);
+          setSelectedDrawerCaseId(null);
+          if (onOpenCase && cid) onOpenCase(cid);
         }}
       />
     )}
