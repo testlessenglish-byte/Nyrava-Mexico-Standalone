@@ -268,7 +268,7 @@ export function CaseActivityFeed({
 
       return true;
     });
-  }, [activities, categoryFilter, searchQuery, es]);
+  }, [ledgerActivities, categoryFilter, searchQuery, es]);
 
   return (
     <div className="space-y-6">
