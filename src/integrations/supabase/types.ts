@@ -11311,6 +11311,582 @@ export type Database = {
         }
         Relationships: []
       }
+      social_case_templates: {
+        Row: {
+          active: boolean
+          category: string
+          code: string
+          created_at: string
+          description_en: string | null
+          description_es: string | null
+          effective_date: string | null
+          fields: Json
+          id: string
+          jurisdiction: string | null
+          last_verified_at: string | null
+          name_en: string
+          name_es: string
+          official_authority: string | null
+          org_id: string | null
+          record_type: string
+          schema_template: Json
+          source_url: string | null
+          template_type: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          code: string
+          created_at?: string
+          description_en?: string | null
+          description_es?: string | null
+          effective_date?: string | null
+          fields?: Json
+          id?: string
+          jurisdiction?: string | null
+          last_verified_at?: string | null
+          name_en: string
+          name_es: string
+          official_authority?: string | null
+          org_id?: string | null
+          record_type?: string
+          schema_template?: Json
+          source_url?: string | null
+          template_type: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          code?: string
+          created_at?: string
+          description_en?: string | null
+          description_es?: string | null
+          effective_date?: string | null
+          fields?: Json
+          id?: string
+          jurisdiction?: string | null
+          last_verified_at?: string | null
+          name_en?: string
+          name_es?: string
+          official_authority?: string | null
+          org_id?: string | null
+          record_type?: string
+          schema_template?: Json
+          source_url?: string | null
+          template_type?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_case_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      social_community_fundraising_profiles: {
+        Row: {
+          account_type: string
+          contact_email: string | null
+          contact_phone: string | null
+          country: string
+          created_at: string
+          external_campaign_url: string | null
+          external_fundraising_provider: string | null
+          id: string
+          identity_verification_status: string
+          legal_name: string
+          org_id: string
+          responsible_admin_name: string | null
+          rfc: string | null
+          state: string | null
+          tax_deductible_status: string
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          account_type?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          country?: string
+          created_at?: string
+          external_campaign_url?: string | null
+          external_fundraising_provider?: string | null
+          id?: string
+          identity_verification_status?: string
+          legal_name: string
+          org_id: string
+          responsible_admin_name?: string | null
+          rfc?: string | null
+          state?: string | null
+          tax_deductible_status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          account_type?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          country?: string
+          created_at?: string
+          external_campaign_url?: string | null
+          external_fundraising_provider?: string | null
+          id?: string
+          identity_verification_status?: string
+          legal_name?: string
+          org_id?: string
+          responsible_admin_name?: string | null
+          rfc?: string | null
+          state?: string | null
+          tax_deductible_status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_community_fundraising_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      social_community_campaigns: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          campaign_scope: string
+          closed_at: string | null
+          created_at: string
+          financial_beneficiary_type: string | null
+          financial_currency: string
+          financial_fundraiser_provider: string | null
+          financial_fundraiser_url: string | null
+          financial_target_amount: number | null
+          id: string
+          internal_need_details: string | null
+          lifecycle_status: string
+          location_display: string | null
+          org_id: string
+          public_description: string
+          public_display_name: string | null
+          public_identity_mode: string
+          public_slug: string
+          published_at: string | null
+          requested_by: string
+          social_case_id: string | null
+          support_categories: Json
+          title: string
+          updated_at: string
+          urgency: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          campaign_scope?: string
+          closed_at?: string | null
+          created_at?: string
+          financial_beneficiary_type?: string | null
+          financial_currency?: string
+          financial_fundraiser_provider?: string | null
+          financial_fundraiser_url?: string | null
+          financial_target_amount?: number | null
+          id?: string
+          internal_need_details?: string | null
+          lifecycle_status?: string
+          location_display?: string | null
+          org_id: string
+          public_description: string
+          public_display_name?: string | null
+          public_identity_mode?: string
+          public_slug: string
+          published_at?: string | null
+          requested_by: string
+          social_case_id?: string | null
+          support_categories?: Json
+          title: string
+          updated_at?: string
+          urgency?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          campaign_scope?: string
+          closed_at?: string | null
+          created_at?: string
+          financial_beneficiary_type?: string | null
+          financial_currency?: string
+          financial_fundraiser_provider?: string | null
+          financial_fundraiser_url?: string | null
+          financial_target_amount?: number | null
+          id?: string
+          internal_need_details?: string | null
+          lifecycle_status?: string
+          location_display?: string | null
+          org_id?: string
+          public_description?: string
+          public_display_name?: string | null
+          public_identity_mode?: string
+          public_slug?: string
+          published_at?: string | null
+          requested_by?: string
+          social_case_id?: string | null
+          support_categories?: Json
+          title?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_community_campaigns_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_community_campaigns_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      social_community_support_offers: {
+        Row: {
+          campaign_id: string
+          categories: Json
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          is_anonymous: boolean
+          item_description: string
+          offer_status: string
+          offer_type: string
+          pledge_amount: number | null
+          pledge_currency: string
+          pledge_status: string | null
+          processed_at: string | null
+          processed_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          categories?: Json
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          item_description: string
+          offer_status?: string
+          offer_type: string
+          pledge_amount?: number | null
+          pledge_currency?: string
+          pledge_status?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          categories?: Json
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          item_description?: string
+          offer_status?: string
+          offer_type?: string
+          pledge_amount?: number | null
+          pledge_currency?: string
+          pledge_status?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_community_support_offers_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "social_community_campaigns"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      social_audit_reports: {
+        Row: {
+          checksum_sha256: string
+          classification: string
+          created_at: string
+          dataset_snapshot: Json
+          end_date: string | null
+          generated_by: string
+          id: string
+          language: string
+          org_id: string
+          pdf_base64: string | null
+          pdf_storage_path: string | null
+          report_id: string
+          report_scope: string
+          reporting_period: string
+          social_case_id: string | null
+          start_date: string | null
+        }
+        Insert: {
+          checksum_sha256: string
+          classification?: string
+          created_at?: string
+          dataset_snapshot?: Json
+          end_date?: string | null
+          generated_by: string
+          id?: string
+          language?: string
+          org_id: string
+          pdf_base64?: string | null
+          pdf_storage_path?: string | null
+          report_id: string
+          report_scope: string
+          reporting_period?: string
+          social_case_id?: string | null
+          start_date?: string | null
+        }
+        Update: {
+          checksum_sha256?: string
+          classification?: string
+          created_at?: string
+          dataset_snapshot?: Json
+          end_date?: string | null
+          generated_by?: string
+          id?: string
+          language?: string
+          org_id?: string
+          pdf_base64?: string | null
+          pdf_storage_path?: string | null
+          report_id?: string
+          report_scope?: string
+          reporting_period?: string
+          social_case_id?: string | null
+          start_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_audit_reports_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_audit_reports_social_case_id_fkey"
+            columns: ["social_case_id"]
+            isOneToOne: false
+            referencedRelation: "social_cases"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      social_audit_report_emails: {
+        Row: {
+          id: string
+          org_id: string
+          recipient_email: string
+          report_id: string
+          sender_id: string
+          sent_at: string
+          subject: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          recipient_email: string
+          report_id: string
+          sender_id: string
+          sent_at?: string
+          subject: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          recipient_email?: string
+          report_id?: string
+          sender_id?: string
+          sent_at?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_audit_report_emails_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      social_subscriber_donation_identities: {
+        Row: {
+          bank_beneficiary_name: string | null
+          bank_clabe_masked: string | null
+          bank_clabe_encrypted: string | null
+          bank_name: string | null
+          constancia_storage_path: string | null
+          created_at: string
+          direct_bank_enabled: boolean
+          external_fundraising_provider: string | null
+          external_fundraising_url: string | null
+          financial_donations_readiness: string
+          fiscal_postal_code: string
+          government_id_masked: string | null
+          government_id_type: string
+          id: string
+          id_document_storage_path: string | null
+          id_verification_date: string | null
+          id_verification_method: string | null
+          id_verification_status: string
+          legal_name: string
+          org_id: string
+          privacy_notice_accepted_at: string | null
+          privacy_notice_accepted_by: string | null
+          privacy_notice_version: string
+          razon_social: string | null
+          rfc: string
+          rfc_verification_date: string | null
+          rfc_verification_method: string | null
+          rfc_verification_status: string
+          subscriber_type: string
+          subscriber_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          bank_beneficiary_name?: string | null
+          bank_clabe_masked?: string | null
+          bank_clabe_encrypted?: string | null
+          bank_name?: string | null
+          constancia_storage_path?: string | null
+          created_at?: string
+          direct_bank_enabled?: boolean
+          external_fundraising_provider?: string | null
+          external_fundraising_url?: string | null
+          financial_donations_readiness?: string
+          fiscal_postal_code: string
+          government_id_masked?: string | null
+          government_id_type?: string
+          id?: string
+          id_document_storage_path?: string | null
+          id_verification_date?: string | null
+          id_verification_method?: string | null
+          id_verification_status?: string
+          legal_name: string
+          org_id: string
+          privacy_notice_accepted_at?: string | null
+          privacy_notice_accepted_by?: string | null
+          privacy_notice_version?: string
+          razon_social?: string | null
+          rfc: string
+          rfc_verification_date?: string | null
+          rfc_verification_method?: string | null
+          rfc_verification_status?: string
+          subscriber_type?: string
+          subscriber_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          bank_beneficiary_name?: string | null
+          bank_clabe_masked?: string | null
+          bank_clabe_encrypted?: string | null
+          bank_name?: string | null
+          constancia_storage_path?: string | null
+          created_at?: string
+          direct_bank_enabled?: boolean
+          external_fundraising_provider?: string | null
+          external_fundraising_url?: string | null
+          financial_donations_readiness?: string
+          fiscal_postal_code?: string
+          government_id_masked?: string | null
+          government_id_type?: string
+          id?: string
+          id_document_storage_path?: string | null
+          id_verification_date?: string | null
+          id_verification_method?: string | null
+          id_verification_status?: string
+          legal_name?: string
+          org_id?: string
+          privacy_notice_accepted_at?: string | null
+          privacy_notice_accepted_by?: string | null
+          privacy_notice_version?: string
+          razon_social?: string | null
+          rfc?: string
+          rfc_verification_date?: string | null
+          rfc_verification_method?: string | null
+          rfc_verification_status?: string
+          subscriber_type?: string
+          subscriber_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_subscriber_donation_identities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      social_donation_identity_audit_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          event_description: string
+          event_type: string
+          id: string
+          org_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          event_description: string
+          event_type: string
+          id?: string
+          org_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          event_description?: string
+          event_type?: string
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_donation_identity_audit_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
