@@ -11311,7 +11311,6 @@ export type Database = {
         }
         Relationships: []
       }
-    }
       social_case_templates: {
         Row: {
           active: boolean
