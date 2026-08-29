@@ -2806,6 +2806,8 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
         case_analysis_mode: z
           .enum(["ongoing", "concluded_audit", "judgment_audit", "appeal_routes"])
           .optional(),
+        procedural_vehicle: z.string().nullable().optional(),
+        underlying_materia: z.string().nullable().optional(),
       })
       .parse(d),
   )
@@ -2816,6 +2818,8 @@ export const updateCaseSettings = createServerFn({ method: "POST" })
     if (data.analysis_mode !== undefined) patch.analysis_mode = data.analysis_mode;
     if (data.jurisdiction !== undefined) patch.jurisdiction = data.jurisdiction;
     if (data.case_analysis_mode !== undefined) patch.case_analysis_mode = data.case_analysis_mode;
+    if (data.procedural_vehicle !== undefined) patch.procedural_vehicle = data.procedural_vehicle;
+    if (data.underlying_materia !== undefined) patch.underlying_materia = data.underlying_materia;
 
     // Manual case_type override vs. a source-confirmed classification
     // (case-classification.server.ts): the attorney may always override,

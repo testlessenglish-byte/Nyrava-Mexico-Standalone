@@ -143,13 +143,34 @@ export async function runEngine<T>(
     .maybeSingle();
 
   if (activeRunErr) {
-    throw new Error(`runEngine(${args.engine}): duplicate-run guard failed — ${activeRunErr.message}`);
+    console.warn(`[engine-audit] runEngine(${args.engine}) active run query warning: ${activeRunErr.message}`);
   }
+
+  // If a genuinely active run exists for the same execution+engine, gracefully suppress duplicate
   if (activeRun?.id) {
-    throw new Error(
-      `runEngine(${args.engine}): duplicate run prevented — engine already running since ${activeRun.started_at}`,
-    );
+    await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} duplicate run suppressed`, {
+      level: "warn",
+      meta: { engine: args.engine, status: "duplicate_suppressed", active_since: activeRun.started_at },
+    });
+    console.info(`[engine-audit] runEngine(${args.engine}): duplicate run suppressed — active since ${activeRun.started_at}`);
+    return undefined as unknown as T;
   }
+
+  // Clear any old/stale running rows for this case+engine to prevent orphaned locks
+  try {
+    await db
+      .from("pipeline_engine_runs")
+      .update({
+        status: "failed",
+        ended_at: new Date().toISOString(),
+        error: "Superseded by fresh engine run",
+      } as any)
+      .eq("case_id", args.caseId)
+      .eq("engine", args.engine)
+      .eq("status", "running")
+      .lt("started_at", staleCutoff);
+  } catch {}
+
   await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} started`, {
     meta: { engine: args.engine, status: "running" },
   });
@@ -171,13 +192,12 @@ export async function runEngine<T>(
     .maybeSingle();
 
   if (insertErr && isUniqueViolation(insertErr)) {
-    await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} duplicate run blocked`, {
+    await emitEvent(db, args.caseId, args.engine, `${labelEngine(args.engine)} duplicate run suppressed`, {
       level: "warn",
-      meta: { engine: args.engine, status: "duplicate_blocked" },
+      meta: { engine: args.engine, status: "duplicate_suppressed" },
     });
-    throw new Error(
-      `runEngine(${args.engine}): duplicate run prevented — another invocation is already running for this case`,
-    );
+    console.info(`[engine-audit] runEngine(${args.engine}): unique violation duplicate run suppressed`);
+    return undefined as unknown as T;
   }
   if (insertErr || !inserted?.id) {
     const reason = insertErr?.message ?? "insert returned no id";

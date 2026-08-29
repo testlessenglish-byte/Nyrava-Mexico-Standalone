@@ -122,8 +122,9 @@ async function _runPipelineForCase(
     });
   };
 
-  // Execution identity.
-  const isFreshExecution = !reset || !startFrom;
+  // Execution identity:
+  // A fresh execution is created only on an explicit reset or when no execution_id exists and not resuming.
+  const isFreshExecution = Boolean(reset || (!opts.executionId && !startFrom));
   let executionId = opts.executionId;
   if (isFreshExecution) {
     executionId = executionId ?? crypto.randomUUID();
@@ -145,6 +146,16 @@ async function _runPipelineForCase(
       .eq("id", caseId)
       .maybeSingle();
     executionId = (caseRow as { execution_id?: string | null } | null)?.execution_id ?? crypto.randomUUID();
+    if (!caseRow?.execution_id) {
+      await (supabase as any)
+        .from("cases")
+        .update({
+          execution_id: executionId,
+          execution_started_at: new Date().toISOString(),
+          worker_lease_until: new Date(Date.now() + RUNNER_LEASE_EXTENSION_MS).toISOString(),
+        })
+        .eq("id", caseId);
+    }
   }
 
   let isTerminated = false;
