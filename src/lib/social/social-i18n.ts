@@ -7,16 +7,14 @@ export function localizedEnum(value: string | null | undefined, es: boolean): st
   const key = String(value).trim().toLowerCase();
 
   const labels: Record<string, [string, string]> = {
-    // Risk levels
+    // Risk levels & Urgencies
     unknown: ["Desconocido", "Unknown"],
-    low: ["Bajo", "Low"],
-    moderate: ["Moderado", "Moderate"],
-    high: ["Alto", "High"],
-    critical: ["Crítico", "Critical"],
-
-    // Priorities
+    low: ["Baja", "Low"],
     normal: ["Normal", "Normal"],
+    moderate: ["Moderado", "Moderate"],
+    high: ["Alta", "High"],
     urgent: ["Urgente", "Urgent"],
+    critical: ["Crítica", "Critical"],
     emergency: ["Emergencia", "Emergency"],
 
     // Case statuses
@@ -74,6 +72,50 @@ export function localizedEnum(value: string | null | undefined, es: boolean): st
     received: ["Recibido", "Received"],
     superseded: ["Sustituido", "Superseded"],
 
+    // Community Support Categories
+    financial_support: ["Apoyo económico", "Financial support"],
+    food: ["Alimentos y despensa", "Food & groceries"],
+    clothing: ["Ropa y calzado", "Clothing & footwear"],
+    housing: ["Alojamiento y vivienda", "Housing & shelter"],
+    school_supplies: ["Útiles escolares", "School supplies"],
+    medical_health: ["Asistencia médica y salud", "Medical & health assistance"],
+    transportation: ["Transporte", "Transportation"],
+    furniture_household: ["Muebles y artículos del hogar", "Furniture & household items"],
+    baby_supplies: ["Artículos para bebé", "Baby supplies"],
+    employment: ["Asistencia para el empleo", "Employment assistance"],
+    professional_services: ["Servicios profesionales", "Professional services"],
+    other_material: ["Otro apoyo material", "Other material assistance"],
+
+    // Community Support Scopes & Modes
+    individual_case: ["Caso individual / Familia", "Individual case / Family"],
+    organization_wide: ["Institucional / Todos los usuarios", "Organization-wide / All clients"],
+    anonymous: ["Anónimo", "Anonymous"],
+    first_name_only: ["Solo primer nombre", "First name only"],
+    family_description: ["Descripción familiar", "Family description"],
+    full_name: ["Nombre completo", "Full name"],
+
+    // Community Support Lifecycle
+    pending_approval: ["Pendiente de aprobación", "Pending approval"],
+    approved: ["Aprobado", "Approved"],
+    published: ["Publicado", "Published"],
+    paused: ["Pausado", "Paused"],
+    rejected: ["Rechazado", "Rejected"],
+
+    // Delivery methods
+    dropoff_organization: ["Entrega en la sede de la organización", "Drop off at organization"],
+    collection_point: ["Punto de recolección autorizado", "Approved collection point"],
+    arrange_pickup: ["Coordinar recolección a domicilio", "Arrange pickup"],
+    contact_to_coordinate: ["Contactarme para coordinar", "Contact me to coordinate"],
+
+    // Identity & Tax verification
+    unverified: ["Sin verificar", "Unverified"],
+    rfc_submitted: ["RFC registrado", "RFC submitted"],
+    rfc_verified: ["RFC verificado", "RFC verified"],
+    not_verified: ["Sin verificar", "Not verified"],
+    not_tax_deductible: ["No deducible de impuestos", "Not tax deductible"],
+    donataria_autorizada_claimed: ["Donataria Autorizada (en revisión)", "Donataria Autorizada (under review)"],
+    donataria_autorizada_verified: ["Donataria Autorizada Verificada", "Verified Donataria Autorizada"],
+
     // Services
     social_work: ["Trabajo social", "Social work"],
     legal_assistance: ["Asistencia jurídica", "Legal assistance"],
@@ -83,9 +125,7 @@ export function localizedEnum(value: string | null | undefined, es: boolean): st
     child_protection: ["Protección infantil", "Child protection"],
     shelter_housing: ["Albergue y vivienda", "Shelter and housing"],
     food_assistance: ["Asistencia alimentaria", "Food assistance"],
-    employment: ["Empleo", "Employment"],
     education: ["Educación", "Education"],
-    transportation: ["Transporte", "Transportation"],
     documentation: ["Documentación", "Documentation"],
     family_reunification: ["Reunificación familiar", "Family reunification"],
 
@@ -97,7 +137,6 @@ export function localizedEnum(value: string | null | undefined, es: boolean): st
     preview: ["Vista previa", "Preview"],
     download: ["Descarga", "Download"],
     verified: ["Verificado", "Verified"],
-    unverified: ["Sin verificar", "Unverified"],
 
     // Closure reasons
     services_completed: ["Servicios concluidos", "Services completed"],

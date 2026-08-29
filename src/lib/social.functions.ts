@@ -1768,3 +1768,326 @@ export const deleteSocialIntervention = createServerFn({ method: "POST" })
   });
 
 
+
+
+// ==========================================
+// COMMUNITY SUPPORT & FUNDRAISING SYSTEM
+// ==========================================
+
+export const getSocialCommunitySupportWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    caseId: uuid,
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const caseRow = await supabase.from("social_cases").select("id,org_id,case_number,status,priority,assigned_case_manager,supervising_manager,risk_level,case_type,person_id,family_id").eq("id", data.caseId).single();
+    fail(caseRow.error);
+    const sc = caseRow.data;
+
+    // Check membership and role
+    const memberRow = await supabase.from("organization_members").select("role").eq("organization_id", sc.org_id).eq("user_id", userId).maybeSingle();
+    const userRole = memberRow.data?.role || "case_manager";
+    const { isSubscriberOrAdmin, buildPublicSafeDraft } = await import("@/lib/social/community-support.server");
+    const isSubscriber = isSubscriberOrAdmin(userRole);
+
+    const [caseCampaignsRes, orgCampaignsRes, profileRes, personRes] = await Promise.all([
+      supabase.from("social_community_campaigns").select("*").eq("social_case_id", data.caseId).order("created_at", { ascending: false }),
+      supabase.from("social_community_campaigns").select("*").eq("org_id", sc.org_id).eq("campaign_scope", "organization_wide").order("created_at", { ascending: false }),
+      supabase.from("social_community_fundraising_profiles").select("*").eq("org_id", sc.org_id).maybeSingle(),
+      sc.person_id ? supabase.from("social_people").select("id,legal_name,preferred_name,municipality,state").eq("id", sc.person_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    const caseCampaigns = caseCampaignsRes.data ?? [];
+    const orgCampaigns = orgCampaignsRes.data ?? [];
+    const fundraisingProfile = profileRes.data ?? null;
+    const activeCampaign = caseCampaigns[0] || null;
+
+    let offers: any[] = [];
+    if (activeCampaign) {
+      const offersRes = await supabase.from("social_community_support_offers").select("*").eq("campaign_id", activeCampaign.id).order("created_at", { ascending: false });
+      offers = offersRes.data ?? [];
+    }
+
+    const defaultDraft = buildPublicSafeDraft({
+      case: sc,
+      person: personRes.data,
+    });
+
+    return {
+      activeCampaign,
+      caseCampaigns,
+      orgCampaigns,
+      fundraisingProfile,
+      userRole,
+      isSubscriber,
+      offers,
+      defaultDraft,
+    };
+  });
+
+export const createCommunitySupportRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    caseId: uuid.optional(),
+    campaignScope: z.enum(["individual_case", "organization_wide"]).default("individual_case"),
+    title: z.string().trim().min(5).max(300),
+    publicDescription: z.string().trim().min(10).max(4000),
+    internalNeedDetails: z.string().trim().max(4000).optional(),
+    supportCategories: z.array(z.string()).min(1),
+    urgency: z.enum(["low", "normal", "high", "critical"]).default("normal"),
+    publicIdentityMode: z.enum(["anonymous", "first_name_only", "family_description", "full_name"]).default("anonymous"),
+    publicDisplayName: z.string().trim().max(160).optional(),
+    locationDisplay: z.string().trim().max(160).optional(),
+    financialFundraiserUrl: z.string().trim().url().optional().or(z.literal("")),
+    financialTargetAmount: z.number().positive().optional().nullable(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const { isSubscriberOrAdmin, generatePublicSlug } = await import("@/lib/social/community-support.server");
+
+    let orgId: string;
+    if (data.caseId) {
+      const caseRow = await supabase.from("social_cases").select("org_id").eq("id", data.caseId).single();
+      fail(caseRow.error);
+      orgId = caseRow.data.org_id;
+    } else {
+      const memberRow = await supabase.from("organization_members").select("organization_id").eq("user_id", userId).limit(1).single();
+      fail(memberRow.error);
+      orgId = memberRow.data.organization_id;
+    }
+
+    const memberRow = await supabase.from("organization_members").select("role").eq("organization_id", orgId).eq("user_id", userId).maybeSingle();
+    const userRole = memberRow.data?.role || "case_manager";
+    const isSubscriber = isSubscriberOrAdmin(userRole);
+
+    const lifecycleStatus = isSubscriber ? "approved" : "pending_approval";
+    const financialUrl = isSubscriber ? (data.financialFundraiserUrl || null) : null;
+    const publicSlug = generatePublicSlug();
+
+    const insertRes = await supabase.from("social_community_campaigns").insert({
+      org_id: orgId,
+      social_case_id: data.caseId || null,
+      campaign_scope: data.campaignScope,
+      public_slug: publicSlug,
+      title: data.title,
+      public_description: data.publicDescription,
+      internal_need_details: data.internalNeedDetails || null,
+      support_categories: data.supportCategories,
+      urgency: data.urgency,
+      public_identity_mode: data.publicIdentityMode,
+      public_display_name: data.publicDisplayName || null,
+      location_display: data.locationDisplay || null,
+      lifecycle_status: lifecycleStatus,
+      financial_fundraiser_provider: "gofundme",
+      financial_fundraiser_url: financialUrl,
+      financial_target_amount: data.financialTargetAmount || null,
+      requested_by: userId,
+      approved_by: isSubscriber ? userId : null,
+      approved_at: isSubscriber ? new Date().toISOString() : null,
+    }).select("id,public_slug,lifecycle_status").single();
+    fail(insertRes.error);
+
+    if (data.caseId) {
+      await supabase.from("social_activity_events").insert({
+        org_id: orgId,
+        social_case_id: data.caseId,
+        actor_id: userId,
+        event_type: "insert",
+        entity_type: "social_community_campaigns",
+        entity_id: insertRes.data.id,
+        metadata: {
+          title: data.title,
+          categories: data.supportCategories,
+          lifecycle_status: lifecycleStatus,
+          is_subscriber: isSubscriber,
+        },
+      });
+    }
+
+    return { campaignId: insertRes.data.id, publicSlug: insertRes.data.public_slug, status: insertRes.data.lifecycle_status };
+  });
+
+export const approveAndPublishCommunityCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    campaignId: uuid,
+    title: z.string().trim().min(5).max(300),
+    publicDescription: z.string().trim().min(10).max(4000),
+    publicIdentityMode: z.enum(["anonymous", "first_name_only", "family_description", "full_name"]).default("anonymous"),
+    publicDisplayName: z.string().trim().max(160).optional(),
+    locationDisplay: z.string().trim().max(160).optional(),
+    supportCategories: z.array(z.string()).min(1),
+    urgency: z.enum(["low", "normal", "high", "critical"]).default("normal"),
+    financialFundraiserUrl: z.string().trim().url().optional().or(z.literal("")),
+    financialTargetAmount: z.number().positive().optional().nullable(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const { isSubscriberOrAdmin } = await import("@/lib/social/community-support.server");
+
+    const campaignRow = await supabase.from("social_community_campaigns").select("*").eq("id", data.campaignId).single();
+    fail(campaignRow.error);
+    const c = campaignRow.data;
+
+    const memberRow = await supabase.from("organization_members").select("role").eq("organization_id", c.org_id).eq("user_id", userId).maybeSingle();
+    if (!isSubscriberOrAdmin(memberRow.data?.role)) {
+      throw new Error("Solo los administradores o titulares de la cuenta pueden aprobar y publicar campañas / Only account owners or administrators can publish campaigns");
+    }
+
+    const updateRes = await supabase.from("social_community_campaigns").update({
+      title: data.title,
+      public_description: data.publicDescription,
+      public_identity_mode: data.publicIdentityMode,
+      public_display_name: data.publicDisplayName || null,
+      location_display: data.locationDisplay || null,
+      support_categories: data.supportCategories,
+      urgency: data.urgency,
+      financial_fundraiser_url: data.financialFundraiserUrl || null,
+      financial_target_amount: data.financialTargetAmount || null,
+      lifecycle_status: "published",
+      approved_by: userId,
+      approved_at: new Date().toISOString(),
+      published_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", data.campaignId).select("id,public_slug,lifecycle_status").single();
+    fail(updateRes.error);
+
+    if (c.social_case_id) {
+      await supabase.from("social_activity_events").insert({
+        org_id: c.org_id,
+        social_case_id: c.social_case_id,
+        actor_id: userId,
+        event_type: "update",
+        entity_type: "social_community_campaigns",
+        entity_id: c.id,
+        metadata: { action: "PUBLISHED", public_slug: c.public_slug },
+      });
+    }
+
+    return { ok: true, campaign: updateRes.data };
+  });
+
+export const updateCommunityCampaignStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    campaignId: uuid,
+    action: z.enum(["pause", "resume", "close", "reject"]),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const { isSubscriberOrAdmin } = await import("@/lib/social/community-support.server");
+
+    const campaignRow = await supabase.from("social_community_campaigns").select("*").eq("id", data.campaignId).single();
+    fail(campaignRow.error);
+    const c = campaignRow.data;
+
+    const memberRow = await supabase.from("organization_members").select("role").eq("organization_id", c.org_id).eq("user_id", userId).maybeSingle();
+    if (!isSubscriberOrAdmin(memberRow.data?.role)) {
+      throw new Error("Permiso denegado / Permission denied: subscriber/admin only");
+    }
+
+    const nextStatus = data.action === "pause" ? "paused" : data.action === "resume" ? "published" : data.action === "close" ? "closed" : "rejected";
+    const updateRes = await supabase.from("social_community_campaigns").update({
+      lifecycle_status: nextStatus,
+      closed_at: nextStatus === "closed" ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", data.campaignId);
+    fail(updateRes.error);
+
+    return { ok: true, status: nextStatus };
+  });
+
+export const saveSubscriberFundraisingProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    orgId: uuid,
+    legalName: z.string().trim().min(2).max(240),
+    accountType: z.enum(["individual", "organization"]).default("organization"),
+    rfc: z.string().trim().max(20).optional().or(z.literal("")),
+    state: z.string().trim().max(100).optional(),
+    responsibleAdminName: z.string().trim().max(160).optional(),
+    contactEmail: z.string().trim().email().optional().or(z.literal("")),
+    contactPhone: z.string().trim().max(50).optional(),
+    externalCampaignUrl: z.string().trim().url().optional().or(z.literal("")),
+    donatariaClaimed: z.boolean().default(false),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const { isSubscriberOrAdmin } = await import("@/lib/social/community-support.server");
+
+    const memberRow = await supabase.from("organization_members").select("role").eq("organization_id", data.orgId).eq("user_id", userId).maybeSingle();
+    if (!isSubscriberOrAdmin(memberRow.data?.role)) {
+      throw new Error("Solo el titular o administrador puede editar los datos fiscales y de recaudación / Only subscriber or admin can edit fundraising profile");
+    }
+
+    const rfcClean = (data.rfc || "").toUpperCase().trim();
+    const identityStatus = rfcClean.length >= 10 ? "rfc_submitted" : "unverified";
+    const taxStatus = data.donatariaClaimed ? "donataria_autorizada_claimed" : "not_tax_deductible";
+
+    const upsertRes = await supabase.from("social_community_fundraising_profiles").upsert({
+      org_id: data.orgId,
+      legal_name: data.legalName,
+      account_type: data.accountType,
+      rfc: rfcClean || null,
+      state: data.state || null,
+      responsible_admin_name: data.responsibleAdminName || null,
+      contact_email: data.contactEmail || null,
+      contact_phone: data.contactPhone || null,
+      external_fundraising_provider: "gofundme",
+      external_campaign_url: data.externalCampaignUrl || null,
+      identity_verification_status: identityStatus,
+      tax_deductible_status: taxStatus,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "org_id" }).select("*").single();
+    fail(upsertRes.error);
+
+    return { ok: true, profile: upsertRes.data };
+  });
+
+export const recordCommunitySupportReceived = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    offerId: uuid,
+    caseId: uuid.optional(),
+    notes: z.string().trim().max(1000).optional(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = ctx(context);
+    const updateOffer = await supabase.from("social_community_support_offers").update({
+      status: "received",
+      received_at: new Date().toISOString(),
+      notes: data.notes || null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", data.offerId).select("*").single();
+    fail(updateOffer.error);
+
+    if (data.caseId) {
+      const caseRow = await supabase.from("social_cases").select("org_id").eq("id", data.caseId).single();
+      if (!caseRow.error && caseRow.data) {
+        await supabase.from("social_interventions").insert({
+          org_id: caseRow.data.org_id,
+          social_case_id: data.caseId,
+          service_type: "social_work",
+          occurred_at: new Date().toISOString(),
+          reason: `Apoyo comunitario recibido: ${updateOffer.data.item_description}`,
+          actions_taken: `Se registró la recepción de donación (${updateOffer.data.quantity || "1"}) por parte de ${updateOffer.data.donor_name}.`,
+          outcome: "Apoyo entregado / canalizado al cliente o familia.",
+          follow_up_required: false,
+          record_type: "general_case_record",
+          confidentiality_level: "standard",
+        });
+
+        await supabase.from("social_activity_events").insert({
+          org_id: caseRow.data.org_id,
+          social_case_id: data.caseId,
+          actor_id: userId,
+          event_type: "insert",
+          entity_type: "social_interventions",
+          metadata: { type: "COMMUNITY_SUPPORT_FULFILLED", item: updateOffer.data.item_description },
+        });
+      }
+    }
+
+    return { ok: true, offer: updateOffer.data };
+  });
