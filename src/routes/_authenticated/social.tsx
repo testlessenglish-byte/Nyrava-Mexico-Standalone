@@ -22,6 +22,10 @@ import { ResourceKnowledgeNetwork } from "@/components/social/ResourceKnowledgeN
 import { KnowledgeCenter } from "@/components/social/KnowledgeCenter";
 import { EscapedTextNormalizer } from "@/components/social/EscapedTextNormalizer";
 import { SocialIntakeManager } from "@/components/social/SocialIntakeManager";
+import { NyravaPagination } from "@/components/common/NyravaPagination";
+import { formatActivityDescription } from "@/lib/social/activity-label-normalizer";
+import { getTeamActivityEventsPaginated } from "@/lib/social.functions";
+import { CaseActivityDrawerModal } from "@/components/social/CaseActivityDrawerModal";
 
 export const Route=createFileRoute("/_authenticated/social")({
   validateSearch: (search: Record<string, unknown>): {
@@ -396,7 +400,7 @@ function SocialCarePage(){
         </section>}
         {area==="tasks"&&<section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Alertas operativas":"Operational alerts"}</h2><div className="mt-3 space-y-2">{visibleAlerts.map((x:any)=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className={x.severity==="critical"?"font-semibold text-destructive":"font-medium"}>{es?x.title_es:x.title_en}</p><p className="text-xs text-muted-foreground">{x.alert_type} · {x.due_at?new Date(x.due_at).toLocaleString():"—"}</p></div><button disabled={acknowledgeMutation.isPending} onClick={()=>acknowledgeMutation.mutate(x.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs">{es?"Resolver":"Resolve"}</button></div>)}{!visibleAlerts.length&&<p className="text-sm text-muted-foreground">{es?"No hay alertas pendientes.":"No pending alerts."}</p>}</div></section>}
         {area==="indicators"&&<section className="rounded-xl border border-border bg-card p-5"><div className="flex flex-wrap items-end gap-3"><div><h2 className="font-semibold">{es?"Indicadores institucionales":"Institutional indicators"}</h2><p className="text-xs text-muted-foreground">{es?"Solo agregados; grupos pequeños se suprimen automáticamente.":"Aggregates only; small groups are automatically suppressed."}</p></div><Field label={es?"Desde":"From"} type="date" value={indicatorRange.from} onChange={v=>setIndicatorRange({...indicatorRange,from:v})}/><Field label={es?"Hasta":"To"} type="date" value={indicatorRange.to} onChange={v=>setIndicatorRange({...indicatorRange,to:v})}/></div><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(indicators.data??[]).map((x:any,i:number)=><div key={x.id??i} className="rounded-lg border border-border p-4"><p className="text-xs uppercase text-muted-foreground">{x.name_es??x.indicator_code??x.code??(es?"Indicador":"Indicator")}</p><p className="mt-1 text-2xl font-semibold">{x.suppressed?(es?"Suprimido":"Suppressed"):(x.value??x.count??"—")}</p></div>)}{indicators.isLoading&&<Loader2 className="h-5 w-5 animate-spin"/>}{!indicators.isLoading&&!(indicators.data??[]).length&&<p className="text-sm text-muted-foreground">{es?"Sin datos agregados para el periodo.":"No aggregate data for this period."}</p>}</div></section>}
-        {area==="activity"&&<TeamActivity es={es} account={organizationAccount}/>}
+        {area==="activity"&&<TeamActivity es={es} account={organizationAccount} orgId={resolvedOrg} onOpenCase={setSelectedCaseId}/>}
         {area==="documents"&&<SocialDocumentsHub cases={visibleCases} people={visiblePeople} families={visibleFamilies} programs={programs} orgId={resolvedOrg} canCreateCases={canManageOrganization} onOpenCase={setSelectedCaseId} onRegisterPerson={()=>setCaseModalOpen(true)} onOpenNewCase={()=>setCaseModalOpen(true)}/>}
         {effectiveArea==="resources"&&<ResourceKnowledgeNetwork mode="resources" orgId={resolvedOrg}/>}
         {area==="knowledge"&&<KnowledgeCenter orgId={resolvedOrg}/>}
@@ -442,14 +446,259 @@ const memberRoleLabel=(role:string,es:boolean)=>({
   read_only:["Solo lectura","Read only"],owner:["Propietario","Owner"],admin:["Administrador","Administrator"],
 } as Record<string,[string,string]>)[role]?.[es?0:1]??role.replaceAll("_"," ");
 
-function TeamActivity({es,account}:{es:boolean;account:any}){
-  const members=account?.members??[];const activity=account?.recent_activity??[];
-  return <section className="space-y-4"><div className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">{es?"Actividad del equipo":"Team activity"}</h2><p className="mt-1 text-xs text-muted-foreground">{es?"Carga, vencimientos y actividad dentro de la organización seleccionada. Los eventos sensibles muestran metadatos, no contenido protegido.":"Workload, deadlines and activity inside the selected organization. Sensitive events show metadata, not protected content."}</p><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{members.map((m:any)=><div key={m.id} className="rounded-lg border border-border p-3"><p className="font-medium">{m.name}</p><p className="text-xs text-muted-foreground">{memberRoleLabel(m.role,es)}</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><span>{es?"Casos":"Cases"}: <strong>{m.assigned_cases??0}</strong></span><span>{es?"Pendientes":"Open"}: <strong>{m.open_tasks??0}</strong></span><span className={(m.overdue_tasks??0)>0?"text-destructive":""}>{es?"Vencidas":"Overdue"}: <strong>{m.overdue_tasks??0}</strong></span><span>{es?"Completadas":"Done"}: <strong>{m.completed_tasks??0}</strong></span><span>{es?"Canalizaciones":"Referrals"}: <strong>{m.referrals??0}</strong></span></div></div>)}</div></div><div className="rounded-xl border border-border bg-card p-5"><h3 className="font-semibold">{es?"Actividad reciente":"Recent activity"}</h3><div className="mt-3 space-y-2">{activity.map((e:any)=><div key={e.id} className="rounded-lg border border-border p-3 text-sm">{new Date(e.occurred_at).toLocaleString()} · {e.event_type} · {e.entity_type}{e.case_number?` · ${e.case_number}`:""}</div>)}{!activity.length&&<p className="text-sm text-muted-foreground">—</p>}</div></div></section>;
+function TeamActivity({es,account,orgId,onOpenCase}:{es:boolean;account:any;orgId:string;onOpenCase?:(id:string)=>void}){
+  const members=account?.members??[];
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [actionFilter, setActionFilter] = useState("all");
+  const [entityFilter, setEntityFilter] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [selectedDrawerActivityId, setSelectedDrawerActivityId] = useState<string | null>(null);
+  const [selectedDrawerCaseId, setSelectedDrawerCaseId] = useState<string | null>(null);
+
+  const getActivityFn = useServerFn(getTeamActivityEventsPaginated);
+  const activityQuery = useQuery({
+    queryKey: ["team-activity-paginated", orgId, page, pageSize, actionFilter, entityFilter, startDate, endDate],
+    queryFn: () => getActivityFn({
+      data: {
+        orgId,
+        page,
+        pageSize,
+        actionFilter: actionFilter !== "all" ? actionFilter : undefined,
+        entityFilter: entityFilter !== "all" ? entityFilter : undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      },
+    }),
+    enabled: Boolean(orgId),
+  });
+
+  const data = activityQuery.data;
+  const events = data?.events ?? [];
+  const total = data?.totalCount ?? 0;
+
+  const handleFilterChange = (setter: (v: string) => void, val: string) => {
+    setter(val);
+    setPage(1);
+  };
+
+  return <section className="space-y-4">
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h2 className="font-semibold">{es ? "Actividad del equipo" : "Team activity"}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{es ? "Carga, vencimientos y actividad dentro de la organización seleccionada. Los eventos sensibles muestran metadatos, no contenido protegido." : "Workload, deadlines and activity inside the selected organization. Sensitive events show metadata, not protected content."}</p>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {members.map((m:any) => (
+          <div key={m.id} className="rounded-lg border border-border p-3">
+            <p className="font-medium">{m.name}</p>
+            <p className="text-xs text-muted-foreground">{memberRoleLabel(m.role,es)}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <span>{es ? "Casos" : "Cases"}: <strong>{m.assigned_cases ?? 0}</strong></span>
+              <span>{es ? "Pendientes" : "Open"}: <strong>{m.open_tasks ?? 0}</strong></span>
+              <span className={(m.overdue_tasks ?? 0) > 0 ? "text-destructive" : ""}>{es ? "Vencidas" : "Overdue"}: <strong>{m.overdue_tasks ?? 0}</strong></span>
+              <span>{es ? "Completadas" : "Done"}: <strong>{m.completed_tasks ?? 0}</strong></span>
+              <span>{es ? "Canalizaciones" : "Referrals"}: <strong>{m.referrals ?? 0}</strong></span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+        <div>
+          <h3 className="font-semibold text-foreground">{es ? "Historial de Actividad Institucional" : "Institutional Activity History"}</h3>
+          <p className="text-xs text-muted-foreground">{es ? "Registro de auditoría cronológico con paginación en servidor." : "Chronological audit ledger with server-side pagination."}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <select
+            value={actionFilter}
+            onChange={(e) => handleFilterChange(setActionFilter, e.target.value)}
+            className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
+          >
+            <option value="all">{es ? "Todas las acciones" : "All actions"}</option>
+            <option value="insert">{es ? "Creación" : "Create"}</option>
+            <option value="update">{es ? "Modificación" : "Update"}</option>
+            <option value="delete">{es ? "Eliminación" : "Delete"}</option>
+            <option value="member_invited">{es ? "Invitación de usuario" : "Member invited"}</option>
+            <option value="member_activated">{es ? "Activación de usuario" : "Member activated"}</option>
+            <option value="report_generated">{es ? "Informe generado" : "Report generated"}</option>
+          </select>
+
+          <select
+            value={entityFilter}
+            onChange={(e) => handleFilterChange(setEntityFilter, e.target.value)}
+            className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
+          >
+            <option value="all">{es ? "Todas las entidades" : "All entities"}</option>
+            <option value="social_cases">{es ? "Expedientes" : "Cases"}</option>
+            <option value="social_care_plans">{es ? "Planes de atención" : "Care plans"}</option>
+            <option value="social_assessments">{es ? "Evaluaciones" : "Assessments"}</option>
+            <option value="social_interventions">{es ? "Intervenciones" : "Interventions"}</option>
+            <option value="social_referrals">{es ? "Canalizaciones" : "Referrals"}</option>
+            <option value="social_documents">{es ? "Documentos" : "Documents"}</option>
+            <option value="social_tasks">{es ? "Tareas" : "Tasks"}</option>
+            <option value="social_community_campaigns">{es ? "Campañas comunitarias" : "Campaigns"}</option>
+            <option value="organization_members">{es ? "Miembros del equipo" : "Team members"}</option>
+          </select>
+
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => handleFilterChange(setStartDate, e.target.value)}
+            className="rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+          />
+          <span className="text-muted-foreground">-</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => handleFilterChange(setEndDate, e.target.value)}
+            className="rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {activityQuery.isLoading ? (
+          <div className="py-12 text-center text-xs text-muted-foreground">
+            <Loader2 className="mx-auto h-5 w-5 animate-spin text-primary" />
+            <p className="mt-2">{es ? "Cargando registros de actividad..." : "Loading activity records..."}</p>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="py-10 text-center text-xs text-muted-foreground rounded-lg border border-dashed border-border/80">
+            {es ? "No se encontraron registros de actividad con los filtros seleccionados." : "No activity records match the selected filters."}
+          </div>
+        ) : (
+          events.map((e: any) => {
+            const humanDescription = formatActivityDescription(e.event_type, e.entity_type, e.metadata, es);
+            return (
+              <div
+                key={e.id}
+                onClick={() => {
+                  if (e.social_case_id) {
+                    setSelectedDrawerActivityId(e.id);
+                    setSelectedDrawerCaseId(e.social_case_id);
+                  }
+                }}
+                className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-card p-3.5 text-xs transition-colors hover:border-primary/40 hover:bg-muted/30 ${e.social_case_id ? "cursor-pointer" : ""}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-muted-foreground font-mono text-[11px]">
+                    {e.event_type === "delete" ? "✕" : e.event_type === "insert" ? "+" : "✎"}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">{humanDescription}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                      <span>{new Date(e.occurred_at).toLocaleString()}</span>
+                      {e.case_number && (
+                        <span
+                          onClick={(ev) => {
+                            if (onOpenCase) {
+                              ev.stopPropagation();
+                              onOpenCase(e.social_case_id);
+                            }
+                          }}
+                          className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-primary hover:underline"
+                        >
+                          {e.case_number}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {e.social_case_id && (
+                  <span className="text-[11px] font-medium text-primary hover:underline">
+                    {es ? "Ver detalle →" : "View detail →"}
+                  </span>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="mt-5">
+        <NyravaPagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          es={es}
+        />
+      </div>
+    </div>
+
+    {selectedDrawerActivityId && selectedDrawerCaseId && (
+      <CaseActivityDrawerModal
+        activityId={selectedDrawerActivityId}
+        caseId={selectedDrawerCaseId}
+        open={Boolean(selectedDrawerActivityId)}
+        onClose={() => {
+          setSelectedDrawerActivityId(null);
+          setSelectedDrawerCaseId(null);
+        }}
+      />
+    )}
+  </section>;
 }
 
 function Metric({label,value,danger=false}:{label:string;value:number;danger?:boolean}){return <div className="rounded-xl border border-border bg-card p-4"><p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-1 text-3xl font-semibold ${danger&&value>0?"text-destructive":""}`}>{value}</p></div>}
 function Field({label,value,onChange,type="text"}:{label:string;value:string;onChange:(v:string)=>void;type?:string}){return <label className="block text-xs font-medium text-muted-foreground">{label}<input type={type} value={value} onChange={e=>onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"/></label>}
-function CaseTable({cases,members=[],es,onOpen}:{cases:any[];members?:any[];es:boolean;onOpen:(id:string)=>void}){return <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground"><th className="px-4 py-3">{es?"Folio":"Case no."}</th><th className="px-4 py-3">{es?"Tipo":"Type"}</th><th className="px-4 py-3">{es?"Asignado a":"Assigned to"}</th><th className="px-4 py-3">{es?"Estado":"Status"}</th><th className="px-4 py-3">{es?"Riesgo":"Risk"}</th><th className="px-4 py-3">{es?"Última actividad":"Last activity"}</th><th className="px-4 py-3"></th></tr></thead><tbody>{cases.map(c=>{const assignee=members.find((m:any)=>m.user_id===c.assigned_case_manager);return <tr key={c.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{c.case_number}</td><td className="px-4 py-3">{c.case_type}</td><td className="px-4 py-3">{assignee?<><span className="font-medium">{assignee.name}</span>{assignee.title&&<span className="block text-xs text-muted-foreground">{assignee.title}</span>}</>:<span className="text-muted-foreground">{es?"Sin asignar":"Unassigned"}</span>}</td><td className="px-4 py-3">{c.status}</td><td className={`px-4 py-3 ${c.risk_level==="critical"?"font-semibold text-destructive":""}`}>{c.risk_level}</td><td className="px-4 py-3 text-muted-foreground">{new Date(c.last_activity_at).toLocaleDateString()}</td><td className="px-4 py-3 text-right"><button type="button" onClick={()=>onOpen(c.id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{es?"Abrir":"Open"}</button></td></tr>})}{!cases.length&&<tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">{es?"Sin casos autorizados":"No authorized cases"}</td></tr>}</tbody></table></div>}
+function CaseTable({cases,members=[],es,onOpen}:{cases:any[];members?:any[];es:boolean;onOpen:(id:string)=>void}){
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const total = cases.length;
+  const from = (page - 1) * pageSize;
+  const pagedCases = cases.slice(from, from + pageSize);
+
+  return <div className="space-y-3">
+    <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <th className="px-4 py-3">{es?"Folio":"Case no."}</th>
+            <th className="px-4 py-3">{es?"Tipo":"Type"}</th>
+            <th className="px-4 py-3">{es?"Asignado a":"Assigned to"}</th>
+            <th className="px-4 py-3">{es?"Estado":"Status"}</th>
+            <th className="px-4 py-3">{es?"Riesgo":"Risk"}</th>
+            <th className="px-4 py-3">{es?"Última actividad":"Last activity"}</th>
+            <th className="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {pagedCases.map(c => {
+            const assignee=members.find((m:any)=>m.user_id===c.assigned_case_manager);
+            return <tr key={c.id} className="border-t border-border">
+              <td className="px-4 py-3 font-mono">{c.case_number}</td>
+              <td className="px-4 py-3">{c.case_type}</td>
+              <td className="px-4 py-3">{assignee ? <><span className="font-medium">{assignee.name}</span>{assignee.title && <span className="block text-xs text-muted-foreground">{assignee.title}</span>}</> : <span className="text-muted-foreground">{es?"Sin asignar":"Unassigned"}</span>}</td>
+              <td className="px-4 py-3">{c.status}</td>
+              <td className={`px-4 py-3 ${c.risk_level === "critical" ? "font-semibold text-destructive" : ""}`}>{c.risk_level}</td>
+              <td className="px-4 py-3 text-muted-foreground">{new Date(c.last_activity_at).toLocaleDateString()}</td>
+              <td className="px-4 py-3 text-right">
+                <button type="button" onClick={() => onOpen(c.id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{es ? "Abrir" : "Open"}</button>
+              </td>
+            </tr>;
+          })}
+          {!cases.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">{es ? "Sin casos autorizados" : "No authorized cases"}</td></tr>}
+        </tbody>
+      </table>
+    </div>
+    {cases.length > 0 && (
+      <NyravaPagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        es={es}
+      />
+    )}
+  </div>;
+}
 function PeopleTable({people,es}:{people:any[];es:boolean}){return <div className="overflow-x-auto rounded-xl border border-border bg-card"><table className="w-full text-sm"><thead><tr className="bg-muted/50 text-left"><th className="px-4 py-3">{es?"ID":"ID"}</th><th className="px-4 py-3">{es?"Persona":"Person"}</th><th className="px-4 py-3">{es?"Consentimiento":"Consent"}</th></tr></thead><tbody>{people.map(p=><tr key={p.id} className="border-t border-border"><td className="px-4 py-3 font-mono">{p.person_number}</td><td className="px-4 py-3">{p.legal_name}<span className="block text-xs text-muted-foreground">{p.preferred_name}</span></td><td className="px-4 py-3">{p.consent_status}</td></tr>)}{!people.length&&<tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">{es?"Aún no hay personas registradas":"No people registered yet"}</td></tr>}</tbody></table></div>}
 function Empty({title,text}:{title:string;text:string}){return <section className="rounded-xl border border-border bg-card p-6"><h2 className="text-lg font-semibold">{title}</h2><p className="mt-2 max-w-3xl text-sm text-muted-foreground">{text}</p></section>}
 function OperationalArea({area,es,cases,onOpen}:{area:string;es:boolean;cases:any[];onOpen:(id:string)=>void}){const labels:Record<string,[string,string,string,string]>={

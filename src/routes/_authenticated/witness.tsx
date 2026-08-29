@@ -10,6 +10,7 @@ import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
 import { computeModuleStates, selectWitnessSignals } from "@/lib/modules/applicability";
 import { useI18n } from "@/i18n";
 import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
+import { NyravaPagination } from "@/components/common/NyravaPagination";
 
 export const Route = createFileRoute("/_authenticated/witness")({
   head: () => ({ meta: [{ title: "Inteligencia de Testigos — Nyrava" }] }),
@@ -32,9 +33,12 @@ function Bar({ label, value }: { label: string; value: number | null | undefined
 }
 
 function WitnessPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const es = locale === "es";
   const { cases, activeId, isLoading } = useActiveCase();
   const [selected, setSelected] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const caseId = selected ?? activeId;
   const fetchCase = useServerFn(getCase);
   const { data, isLoading: caseLoading } = useQuery({
@@ -63,14 +67,19 @@ function WitnessPage() {
     title: translatedSignalFlat[i * 2] || f.title,
     description: f.description ? translatedSignalFlat[i * 2 + 1] || f.description : f.description,
   }));
+
+  const rawCredibilitySummary = credibilityAgent?.output_summary ?? "";
   const { texts: translatedCredibility } = useTranslatedTexts(
-    [credibilityAgent?.summary ?? ""],
+    [rawCredibilitySummary],
     sourceLocale,
   );
-  const credibilitySummary = credibilityAgent?.summary ? translatedCredibility[0] || credibilityAgent.summary : null;
+  const credibilitySummary = translatedCredibility[0] || rawCredibilitySummary;
+
+  const pagedWitnesses = witnesses.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+  const pagedSignals = signals.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
         icon={<Users className="h-5 w-5" />}
         title={t("mod.witness.title")}
@@ -80,7 +89,7 @@ function WitnessPage() {
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.loadingCases")}</div>
       ) : (
         <div className="space-y-5">
-          <CasePicker cases={cases} activeId={caseId} onChange={setSelected} />
+          <CasePicker cases={cases} activeId={caseId} onChange={(id) => { setSelected(id); setPage(1); }} />
           {caseId ? (
             caseLoading ? (
               <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.witness.loading")}</div>
@@ -88,11 +97,11 @@ function WitnessPage() {
               <div className="space-y-4">
                 {state ? <ModuleStateNotice state={state} /> : null}
                 {signals.length > 0 ? (
-                  <section className="space-y-2">
+                  <section className="space-y-3">
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {t("mod.witness.signals", { count: signals.length })}
                     </h2>
-                    {signals.slice(0, 25).map((f: any) => (
+                    {pagedSignals.map((f: any) => (
                       <article key={f.id} className="rounded-xl border border-border bg-card/60 p-4">
                         <h3 className="text-sm font-semibold">{f.title}</h3>
                         {f.description ? (
@@ -103,11 +112,21 @@ function WitnessPage() {
                         ) : null}
                       </article>
                     ))}
+                    {signals.length > 0 && (
+                      <NyravaPagination
+                        page={page}
+                        pageSize={pageSize}
+                        total={signals.length}
+                        onPageChange={setPage}
+                        onPageSizeChange={setPageSize}
+                        es={es}
+                      />
+                    )}
                   </section>
                 ) : null}
               </div>
             ) : (
-              <>
+              <div className="space-y-4">
                 {credibilitySummary ? (
                   <div className="rounded-xl border border-border bg-card/60 p-4">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">{t("mod.witness.credibility")}</p>
@@ -115,7 +134,7 @@ function WitnessPage() {
                   </div>
                 ) : null}
                 <div className="grid gap-3 md:grid-cols-2">
-                  {witnesses.map((w) => (
+                  {pagedWitnesses.map((w) => (
                     <article key={w.id} className="rounded-xl border border-border bg-card/60 p-4">
                       <div className="flex items-baseline justify-between gap-2">
                         <h3 className="font-semibold">{w.name}</h3>
@@ -152,7 +171,17 @@ function WitnessPage() {
                     </article>
                   ))}
                 </div>
-              </>
+                {witnesses.length > 0 && (
+                  <NyravaPagination
+                    page={page}
+                    pageSize={pageSize}
+                    total={witnesses.length}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
+                    es={es}
+                  />
+                )}
+              </div>
             )
           ) : null}
         </div>

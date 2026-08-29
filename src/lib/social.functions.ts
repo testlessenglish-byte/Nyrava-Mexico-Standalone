@@ -2399,3 +2399,87 @@ export const sendSocialAuditReportEmail = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+
+// ==========================================
+// SERVER-SIDE PAGINATED ACTIVITY QUERY
+// ==========================================
+
+export const getTeamActivityEventsPaginated = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    orgId: uuid,
+    page: z.number().int().min(1).default(1),
+    pageSize: z.number().int().min(5).max(100).default(25),
+    actionFilter: z.string().optional().nullable(),
+    entityFilter: z.string().optional().nullable(),
+    startDate: z.string().optional().nullable(),
+    endDate: z.string().optional().nullable(),
+    search: z.string().trim().max(100).optional().nullable(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = ctx(context);
+
+    const from = (data.page - 1) * data.pageSize;
+    const to = from + data.pageSize - 1;
+
+    let query = supabase
+      .from("social_activity_events")
+      .select("id,org_id,social_case_id,actor_id,event_type,entity_type,entity_id,metadata,occurred_at", { count: "exact" })
+      .eq("org_id", data.orgId);
+
+    if (data.actionFilter && data.actionFilter !== "all") {
+      query = query.eq("event_type", data.actionFilter);
+    }
+    if (data.entityFilter && data.entityFilter !== "all") {
+      query = query.eq("entity_type", data.entityFilter);
+    }
+    if (data.startDate) {
+      query = query.gte("occurred_at", data.startDate);
+    }
+    if (data.endDate) {
+      query = query.lte("occurred_at", data.endDate);
+    }
+
+    // Deterministic stable sorting
+    query = query.order("occurred_at", { ascending: false }).order("id", { ascending: false });
+
+    // Server-side range pagination
+    query = query.range(from, to);
+
+    const res = await query;
+    fail(res.error);
+
+    const rawEvents = res.data || [];
+    const totalCount = res.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / data.pageSize));
+
+    // Fetch case numbers for linked cases in this page's results
+    const caseIds = Array.from(new Set(rawEvents.map((e: any) => e.social_case_id).filter(Boolean)));
+    const caseMap = new Map<string, string>();
+
+    if (caseIds.length > 0) {
+      const casesRes = await supabase
+        .from("social_cases")
+        .select("id,case_number")
+        .in("id", caseIds);
+      if (!casesRes.error && casesRes.data) {
+        for (const c of casesRes.data) {
+          caseMap.set(c.id, c.case_number);
+        }
+      }
+    }
+
+    const events = rawEvents.map((e: any) => ({
+      ...e,
+      case_number: e.social_case_id ? caseMap.get(e.social_case_id) || null : null,
+    }));
+
+    return {
+      events,
+      totalCount,
+      page: data.page,
+      pageSize: data.pageSize,
+      totalPages,
+    };
+  });

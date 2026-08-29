@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { CaseActivityDrawerModal } from "./CaseActivityDrawerModal";
 import { localizedEnum } from "@/lib/social/social-i18n";
+import { NyravaPagination } from "@/components/common/NyravaPagination";
 
 interface Props {
   caseId: string;
@@ -55,6 +56,8 @@ export function CaseActivityFeed({
   const [categoryFilter, setCategoryFilter] = useState<EntityCategoryFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(initialActivityId || null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Sync URL search params if present
   useEffect(() => {
@@ -296,7 +299,10 @@ export function CaseActivityFeed({
             <button
               key={c.id}
               type="button"
-              onClick={() => setCategoryFilter(c.id)}
+              onClick={() => {
+                setCategoryFilter(c.id);
+                setPage(1);
+              }}
               className={`rounded-lg px-3 py-1.5 font-medium transition ${
                 categoryFilter === c.id
                   ? "bg-primary text-primary-foreground shadow-xs"
@@ -314,7 +320,10 @@ export function CaseActivityFeed({
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
             placeholder={es ? "Buscar por acción, fecha, tipo o profesional..." : "Search by action, date, type, or worker..."}
             className="w-full rounded-xl border border-border bg-card py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
@@ -335,7 +344,7 @@ export function CaseActivityFeed({
           </div>
         ) : (
           <div className="grid gap-2">
-            {filteredActivities.map((act) => {
+            {filteredActivities.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize).map((act) => {
               const headline = getFriendlyActivityHeadline(act.entity_type, act.event_type);
               const subtitle = getRecordSubtitle(act);
               const isSelected = selectedActivityId === act.id;
@@ -377,6 +386,18 @@ export function CaseActivityFeed({
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {filteredActivities.length > 0 && (
+        <NyravaPagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredActivities.length}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          es={es}
+        />
+      )}
 
       {/* Focused Record Drawer / Modal */}
       {selectedActivityId && (
