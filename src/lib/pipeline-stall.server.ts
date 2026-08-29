@@ -31,7 +31,7 @@ export async function sweepStalledCases(
   let q: any = (db as any)
     .from("cases")
     .select("id,status,updated_at,worker_lease_until,queued_at,stall_auto_retry_count")
-    .in("status", ["extracting", "analyzing", "agents_running", "intelligence_running", "scoring", "reporting", "queued"])
+    .in("status", ["uploaded", "extracting", "analyzing", "scoring", "reporting", "intelligence_running"])
     .lt("updated_at", cutoff);
   if (opts?.caseId) q = q.eq("id", opts.caseId);
   const { data: rows } = await q;
@@ -145,7 +145,7 @@ export async function sweepStalledCases(
           queued_at: null,
         })
         .in("id", ledgerCaseIds)
-        .in("status", ["extracting", "analyzing", "agents_running", "intelligence_running", "scoring", "reporting", "queued"]);
+        .in("status", ["uploaded", "extracting", "analyzing", "scoring", "reporting", "intelligence_running"]);
       if (caseFromLedgerErr) {
         console.warn("[stall-watchdog] case update from ledger stall failed", caseFromLedgerErr);
       }
