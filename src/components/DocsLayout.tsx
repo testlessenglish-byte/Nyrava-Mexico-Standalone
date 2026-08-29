@@ -378,4 +378,58 @@ export function breadcrumbJsonLd(base: string, crumbs: Crumb[]) {
   });
 }
 
+/**
+ * Build canonical Product JSON-LD for Nyrava software module pages.
+ * Consumed inside `head()` scripts array.
+ */
+export function productJsonLd(
+  base: string,
+  product: {
+    slug: string;
+    title: string;
+    description: string;
+    category?: string;
+    image?: string;
+    sku?: string;
+    offers?: {
+      price: string;
+      priceCurrency: string;
+      availability?: string;
+    };
+  },
+) {
+  const entity: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.title,
+    description: product.description,
+    url: `${base}/product/${product.slug}`,
+    brand: {
+      "@type": "Brand",
+      name: "Nyrava",
+    },
+    category: product.category || "Legal Technology Software",
+  };
+
+  if (product.image) {
+    entity.image = product.image;
+  }
+
+  if (product.sku) {
+    entity.sku = product.sku;
+  }
+
+  if (product.offers) {
+    entity.offers = {
+      "@type": "Offer",
+      url: `${base}/product/${product.slug}`,
+      priceCurrency: product.offers.priceCurrency,
+      price: product.offers.price,
+      availability: product.offers.availability || "https://schema.org/InStock",
+    };
+  }
+
+  return JSON.stringify(entity);
+}
+
 export const CANONICAL_BASE = "https://mexico.nyrava.com";
