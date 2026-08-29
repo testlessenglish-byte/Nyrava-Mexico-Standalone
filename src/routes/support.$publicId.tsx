@@ -13,13 +13,12 @@ import {
   submitPublicCommunitySupportOffer,
 } from "@/lib/social.functions";
 
-export const Route = createFileRoute("/support/$publicId" as any)({
+export const Route = createFileRoute("/support/$publicId")({
   component: PublicSupportPage,
 });
 
 function PublicSupportPage() {
-  const params: any = (Route as any).useParams ? (Route as any).useParams() : {};
-  const publicId: string = params?.publicId || (typeof window !== "undefined" ? window.location.pathname.split("/").pop() : "") || "";
+  const { publicId } = Route.useParams();
   const [es, setEs] = useState(true);
   const [activeForm, setActiveForm] = useState<"goods" | "service" | null>(null);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
