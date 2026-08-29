@@ -2092,32 +2092,6 @@ export const recordCommunitySupportReceived = createServerFn({ method: "POST" })
     return { ok: true, offer: updateOffer.data };
   });
 
-fail(insertRes.error);
-
-    return { ok: true, offerId: insertRes.data.id };
-  });
-
-export const submitPublicCommunitySupportOffer = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({
-fail(insertRes.error);
-
-    return { ok: true, offerId: insertRes.data.id };
-      offer_type: data.offerType,
-      categories: data.categories,
-      item_description: data.itemDescription,
-      quantity: data.quantity || null,
-      donor_name: data.donorName,
-      donor_email: data.donorEmail || null,
-      donor_phone: data.donorPhone || null,
-      delivery_method: data.deliveryMethod,
-      notes: data.notes || null,
-      status: "submitted",
-    }).select("id").single();
-fail(insertRes.error);
-
-    return { ok: true, offerId: insertRes.data.id };
-  });
-
 // Public (unauthenticated) community-support endpoints — data is sanitized
 // through sanitizePublicCampaign so no protected case data is exposed.
 export const getPublicCommunitySupportCampaign = createServerFn({ method: "POST" })
