@@ -246,7 +246,7 @@ export function CaseActivityFeed({
     { id: "social_referrals", label_es: "Canalizaciones", label_en: "Referrals" },
   ];
 
-  const filteredActivities = useMemo(() => {
+  const ledgerActivities = useMemo(() => { const rows=[...activities]; const seen=new Set(rows.map((x:any)=>x.entity_type+":"+x.entity_id)); const add=(items:any[],entity_type:string,dateFields:string[])=>items.forEach((item:any)=>{if(!item?.id||seen.has(entity_type+":"+item.id))return;const occurred_at=dateFields.map((k)=>item[k]).find(Boolean);if(!occurred_at)return;rows.push({id:"record:"+entity_type+":"+item.id,actor_id:item.created_by??item.professional_id??item.assigned_to??null,event_type:"insert",entity_type,entity_id:item.id,metadata:{derived_from_record:true,title:item.title??item.summary??item.goal??null},occurred_at});seen.add(entity_type+":"+item.id)});add(interventions,"social_interventions",["occurred_at","created_at"]);add(plans,"social_care_plans",["created_at","updated_at"]);add(assessments,"social_assessments",["assessment_date","created_at"]);add(documents,"social_documents",["created_at","updated_at"]);add(alerts,"social_alerts",["created_at","due_at"]);add(tasks,"social_tasks",["created_at","due_at"]);add(referrals,"social_referrals",["created_at","updated_at"]);add(consents,"social_consents",["created_at","updated_at"]);if(caseRecord?.id&&!seen.has("social_cases:"+caseRecord.id)){const occurred_at=caseRecord.opened_at??caseRecord.created_at;if(occurred_at)rows.push({id:"record:social_cases:"+caseRecord.id,actor_id:caseRecord.created_by??null,event_type:"insert",entity_type:"social_cases",entity_id:caseRecord.id,metadata:{derived_from_record:true},occurred_at})}return rows.sort((a:any,b:any)=>new Date(b.occurred_at).getTime()-new Date(a.occurred_at).getTime())},[activities,interventions,plans,assessments,documents,alerts,tasks,referrals,consents,caseRecord]); const filteredActivities = useMemo(() => {
     return activities.filter((act) => {
       // Category filter
       if (categoryFilter !== "all") {
@@ -268,7 +268,7 @@ export function CaseActivityFeed({
 
       return true;
     });
-  }, [activities, categoryFilter, searchQuery, es]);
+  }, [ledgerActivities, categoryFilter, searchQuery, es]);
 
   return (
     <div className="space-y-6">
