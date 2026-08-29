@@ -64,7 +64,6 @@ export const CORE_TABS = [
   "work", // notes + work product
   "findings",
   "evidence",
-  "witnesses",
   "analyzers",
   "agents",
   "strategic",

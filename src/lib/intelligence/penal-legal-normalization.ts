@@ -276,3 +276,16 @@ export function normalizePenalFinding<T extends NewFinding>(
     },
   } as T;
 }
+
+export function normalizeSubstantiveLegalDomain(input: {
+  title?: string | null;
+  description?: string | null;
+  legal_significance?: string | null;
+  proposition_type?: PropositionType | null;
+  category?: string | null;
+}): { category?: string; proposition_type?: PropositionType } {
+  return {
+    category: input.category ?? undefined,
+    proposition_type: input.proposition_type ?? undefined,
+  };
+}

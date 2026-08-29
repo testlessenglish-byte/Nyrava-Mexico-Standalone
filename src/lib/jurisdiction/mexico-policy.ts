@@ -150,20 +150,20 @@ export const MX_SECTIONS: Record<MexicanCaseType, readonly string[]> = {
 };
 
 export const MX_TABS: Record<MexicanCaseType, readonly string[]> = {
-  penal: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  civil: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  mercantil: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  familiar: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
-  laboral: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  administrativo: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  fiscal: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  amparo: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  constitucional: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  electoral: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  agrario: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  ambiental: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
-  inmobiliario: ["opportunities", "perspectives", "scorecard", "transaction_center"],
-  migratorio: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial"],
+  penal: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  civil: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  mercantil: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  familiar: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  laboral: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  administrativo: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  fiscal: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  amparo: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
+  constitucional: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
+  electoral: ["opportunities", "perspectives", "scorecard", "strategy", "theories"],
+  agrario: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  ambiental: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
+  inmobiliario: ["opportunities", "scorecard", "transaction_center"],
+  migratorio: ["opportunities", "perspectives", "scorecard", "strategy", "theories", "trial", "witnesses"],
 };
 
 // NOTE (2026-08-04): `trial_prep` was removed entirely from CANONICAL_STAGES

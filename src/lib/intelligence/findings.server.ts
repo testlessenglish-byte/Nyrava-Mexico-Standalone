@@ -66,7 +66,7 @@ import {
 } from "./finding-taxonomy";
 import { clusterBySameIssue } from "./finding-dedupe";
 import { validateFindingClassification, validateFindingCategory } from "./finding-classification-gate";
-import { normalizePenalFinding } from "./penal-legal-normalization";
+import { normalizePenalFinding, normalizeSubstantiveLegalDomain } from "./penal-legal-normalization";
 
 type Db = SupabaseClient<Database>;
 type J = import("@/integrations/supabase/types").Json;
@@ -122,8 +122,29 @@ function normSeverity(s: unknown): Severity {
   return "medium";
 }
 function normParty(s: unknown): AffectedParty | null {
-  const v = String(s ?? "").toLowerCase();
-  if (v === "defense" || v === "prosecution" || v === "both" || v === "neutral") return v;
+  const v = String(s ?? "").toLowerCase().trim();
+  const validParties = new Set([
+    "defense",
+    "prosecution",
+    "both",
+    "neutral",
+    "quejoso",
+    "autoridad_responsable",
+    "tercero_interesado",
+    "ministerio_publico",
+    "defensa",
+    "victima",
+    "ofendido",
+    "actor",
+    "demandado",
+    "trabajador",
+    "patron",
+    "contribuyente",
+    "autoridad_fiscal",
+    "particular",
+    "autoridad",
+  ]);
+  if (validParties.has(v)) return v as AffectedParty;
   return null;
 }
 // Judicial-hierarchy attribution (see judicial-hierarchy.ts). Unlike
@@ -1719,7 +1740,6 @@ export function normalizeLlmFindings(args: {
         ? i.evidence_refs
         : [];
     const source_doc_ids: string[] = Array.isArray(i.source_doc_ids) ? i.source_doc_ids : [];
-    const { normalizeSubstantiveLegalDomain } = require("./penal-legal-normalization");
     const domainNorm = normalizeSubstantiveLegalDomain({
       title,
       description,

@@ -5550,16 +5550,20 @@ async function ensureRequiredEngines(args: {
   userId: string;
   apiKey: string;
   apiKeys?: string[];
+  executionId?: string;
 }): Promise<{ ran: string[]; failed: Array<{ engine: string; error: string }> }> {
   const { db, caseId, userId, apiKey, apiKeys } = args;
   const { REPORT_REQUIRED_ENGINES, missingRequiredEngines, OPTIONAL_ENGINES } =
     await import("@/lib/execution-state");
-  const { data: runs } = await db
+  let runsQuery = db
     .from("pipeline_engine_runs")
     .select("id,engine,status,started_at,ended_at,created_at")
     .eq("case_id", caseId)
-    .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
-    .order("created_at", { ascending: false });
+    .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[]);
+  if (args.executionId) {
+    runsQuery = runsQuery.eq("execution_id", args.executionId);
+  }
+  const { data: runs } = await runsQuery.order("created_at", { ascending: false });
   const missing = missingRequiredEngines((runs ?? []) as never);
   if (!missing.length) return { ran: [], failed: [] };
 
@@ -5999,12 +6003,15 @@ async function _runReportInner(args: {
   // only trips when an engine genuinely cannot complete.
   {
     const { REPORT_REQUIRED_ENGINES, canGenerateReport } = await import("@/lib/execution-state");
-    const { data: runs } = await db
+    let runsQuery = db
       .from("pipeline_engine_runs")
       .select("id,engine,status,started_at,ended_at,created_at")
       .eq("case_id", caseId)
-      .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
-      .order("created_at", { ascending: false });
+      .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[]);
+    if (executionId) {
+      runsQuery = runsQuery.eq("execution_id", executionId);
+    }
+    const { data: runs } = await runsQuery.order("created_at", { ascending: false });
     const rows = (runs ?? []) as never;
     // FIX: this previously called missingRequiredEngines(rows,
     // REPORT_BLOCKING_ENGINES) directly, which has NO optional-tier
@@ -6102,11 +6109,17 @@ async function _runReportInner(args: {
   // Verify analyzers completed (either findings exist, analysis row exists, or pipeline_engine_runs completed)
   const hasAnalysisData = Boolean(analysis) || (rawFindings && rawFindings.length > 0);
   if (!hasAnalysisData) {
-    const { data: analyzerRun } = await db
+    let analyzerRunQuery = db
       .from("pipeline_engine_runs")
       .select("status")
       .eq("case_id", caseId)
-      .eq("engine", "analyzers")
+      .eq("engine", "analyzers");
+    if (executionId) {
+      analyzerRunQuery = analyzerRunQuery.eq("execution_id", executionId);
+    }
+    const { data: analyzerRun } = await analyzerRunQuery
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
     if (!analyzerRun || analyzerRun.status === "failed") {
       throw new Error("Run Analyzers first.");

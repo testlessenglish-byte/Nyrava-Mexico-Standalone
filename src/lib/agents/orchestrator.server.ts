@@ -119,6 +119,7 @@ export interface OrchestratorArgs {
   caseId: string;
   apiKey: string;
   apiKeys: string[];
+  executionId?: string;
   /**
    * When true this run is a PRE-report review pass: it executes every agent
    * and computes a preliminary verdict, but it must NOT write the case's
@@ -897,9 +898,18 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
     .select("case_id")
     .eq("case_id", args.caseId)
     .maybeSingle();
-  if (args.deferRelease || !savedReportForRelease) {
+  if (args.deferRelease) {
     trace("case.status.write_skipped", {
-      source: args.deferRelease ? "multi_agent.preliminary" : "multi_agent.no_saved_report",
+      source: "multi_agent.preliminary",
+      preliminary_released: released,
+      gates: { qa: qaOk, judge: judgeOk, hallucination: halOk },
+    });
+    trace("multi_agent.complete", { released, deferred: true, agents_executed: results.length });
+    return { runId, released, results, releaseDeferred: true };
+  }
+  if (!savedReportForRelease) {
+    trace("case.status.write_skipped", {
+      source: "multi_agent.no_saved_report",
       preliminary_released: released,
       gates: { qa: qaOk, judge: judgeOk, hallucination: halOk },
     });
@@ -1016,12 +1026,15 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
 
   const gatesPassed = Boolean(outcomes.report && outcomes.qa && outcomes.judge && outcomes.hallucination);
 
-  const { data: engineRuns } = await args.db
+  let engineRunsQuery = args.db
     .from("pipeline_engine_runs")
     .select("id,engine,status,started_at,ended_at,created_at")
     .eq("case_id", args.caseId)
-    .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[])
-    .order("created_at", { ascending: false });
+    .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[]);
+  if (args.executionId) {
+    engineRunsQuery = engineRunsQuery.eq("execution_id", args.executionId);
+  }
+  const { data: engineRuns } = await engineRunsQuery.order("created_at", { ascending: false });
   const engineGate = canGenerateReport((engineRuns ?? []) as never);
   if (!engineGate.ok) {
     errors.push(

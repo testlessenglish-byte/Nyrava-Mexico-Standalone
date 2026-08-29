@@ -335,7 +335,45 @@ const CASE_TYPE_DIMENSIONS: Record<string, string[]> = {
 
 const DEFAULT_DIMENSIONS = ["evidence_strength", "witness_reliability", "timeline_integrity", "documentation_reliability", "procedural_integrity"];
 
-export function applicableDimensionsFor(caseType: string | undefined): string[] {
+export function applicableDimensionsFor(
+  caseType: string | undefined,
+  proceduralVehicle?: string | null,
+  underlyingMateria?: string | null,
+): string[] {
+  const vehicle = String(proceduralVehicle ?? "").toLowerCase().trim();
+  if (caseType === "amparo") {
+    if (vehicle === "amparo_indirecto" || vehicle === "indirecto") {
+      return [
+        "evidence_strength",
+        "witness_reliability",
+        "timeline_integrity",
+        "constitutional_compliance",
+        "procedural_integrity",
+        "documentation_reliability",
+      ];
+    }
+    if (vehicle === "amparo_directo_revision" || vehicle === "amparo_en_revision") {
+      return [
+        "evidence_strength",
+        "constitutional_compliance",
+        "procedural_integrity",
+        "documentation_reliability",
+      ];
+    }
+  }
+  if (caseType === "inmobiliario") {
+    if (vehicle === "inmobiliario_litigio") {
+      return [
+        "evidence_strength",
+        "witness_reliability",
+        "liability_strength",
+        "damages_exposure",
+        "documentation_reliability",
+        "procedural_integrity",
+        "litigation_risk",
+      ];
+    }
+  }
   return CASE_TYPE_DIMENSIONS[caseType ?? "general_civil"] ?? DEFAULT_DIMENSIONS;
 }
 
@@ -363,9 +401,14 @@ export function scrubScoringContributors(
   );
 }
 
-export function computeDeterministicScorecard(rawFindings: Finding[], caseType?: string): DeterministicScorecard {
+export function computeDeterministicScorecard(
+  rawFindings: Finding[],
+  caseType?: string,
+  proceduralVehicle?: string | null,
+  underlyingMateria?: string | null,
+): DeterministicScorecard {
   const findings = excludeRejectedFromScoring(rawFindings);
-  const applicable = new Set(applicableDimensionsFor(caseType));
+  const applicable = new Set(applicableDimensionsFor(caseType, proceduralVehicle, underlyingMateria));
   const dims: Record<string, DimensionScore> = {};
 
   for (const [key, def] of Object.entries(DIMENSIONS)) {

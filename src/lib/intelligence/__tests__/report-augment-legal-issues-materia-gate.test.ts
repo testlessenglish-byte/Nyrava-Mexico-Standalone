@@ -65,8 +65,9 @@ describe("buildLegalIssues — materia gate", () => {
   });
 
   it("still fires for an actual penal case with matching indicator text", async () => {
+    const penalText = "El Ministerio Público incurrió en ocultamiento de evidencia relevante durante la etapa de investigación.";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = makeFakeDb({ caseType: "penal", documentText: CORPUS_TEXT }) as any;
+    const db = makeFakeDb({ caseType: "penal", documentText: penalText }) as any;
     const issues = await buildLegalIssues(db, "case-1");
     expect(issues.length).toBeGreaterThan(0);
     expect(issues.some((i) => i.issue === "Omisión en el Deber de Aportación Probatoria")).toBe(true);

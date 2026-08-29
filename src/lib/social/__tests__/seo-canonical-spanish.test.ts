@@ -42,11 +42,12 @@ describe("SEO - Canonical Mexican Spanish (es-MX) Metadata & Content Consistency
   it("ensures /how-it-works metadata and content are in Mexican Spanish", () => {
     expect(howItWorksSource).toContain("Cómo Funciona — Nyrava México");
     expect(howItWorksSource).toContain("Cómo Funciona — Nyrava Inteligencia Jurídica");
-    expect(howItWorksSource).toContain("1. Ingesta y normalización");
-    expect(howItWorksSource).toContain("2. Análisis especializado");
-    expect(howItWorksSource).toContain("3. Fundamentación y compuerta probatoria");
-    expect(howItWorksSource).toContain("4. Proyectos de escritos e informes");
-    expect(howItWorksSource).toContain("5. Control y responsabilidad del abogado");
+    expect(howItWorksSource).toContain("1. Ingesta y Clasificación por Materia");
+    expect(howItWorksSource).toContain("2. Extracción y Compuerta de Evidencia");
+    expect(howItWorksSource).toContain("3. Actualizaciones Incrementales del Expediente");
+    expect(howItWorksSource).toContain("4. Flujo de Atención Integral (Trabajo Social)");
+    expect(howItWorksSource).toContain("5. Privacidad Multinivel y Consentimiento Informado");
+    expect(howItWorksSource).toContain("6. Control Humano y Responsabilidad Profesional");
     expect(howItWorksSource).not.toContain("How It Works — Nyrava");
     expect(howItWorksSource).not.toContain('heading="1. Ingest"');
   });

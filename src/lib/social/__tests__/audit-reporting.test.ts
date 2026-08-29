@@ -21,7 +21,7 @@ describe("Comprehensive Care — Audit & Accountability Reporting System", () =>
 
   it("enforces strict primary subscriber access control", () => {
     expect(reportBuilder).toContain("verifyPrimarySubscriber");
-    expect(migration).toContain("role IN ('owner', 'organization_owner')");
+    expect(migration).toContain("public.is_primary_subscriber(org_id)");
     expect(serverFunctions).toContain("Solo el titular principal de la cuenta puede generar informes");
     expect(workspaceUi).toContain("isPrimarySubscriber");
   });

@@ -100,6 +100,14 @@ function NewCasePage() {
     fd.append("analysis_mode", VERIFIED_ANALYSIS_MODE);
     fd.append("case_type", caseType);
     fd.append("case_analysis_mode", caseAnalysisMode);
+    if (caseType === "amparo") {
+      const vehicleMapping: Record<string, string> = {
+        directo: "amparo_directo",
+        indirecto: "amparo_indirecto",
+        directo_en_revision: "amparo_directo_revision",
+      };
+      fd.append("procedural_vehicle", vehicleMapping[amparoSubtype] ?? amparoSubtype);
+    }
     if (jurisdiction) fd.append("jurisdiction", jurisdiction);
     if (caseType === "migratorio") {
       fd.append(
