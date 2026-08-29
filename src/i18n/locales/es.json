@@ -2237,23 +2237,9 @@
   "footer.link.howItWorks": "Cómo Funciona",
   "footer.link.resources": "Recursos Jurídicos",
   "module.care.name": "Atención Integral (Casos Sociales y Planes de Cuidado)",
-  "modules.care.features": [
-    "Ingesta estructurada con folio único y triaje de urgencia",
-    "Valoración multidimensional de riesgo en 7 ejes (seguridad, salud, vivienda, legal, etc.)",
-    "Planes de cuidado con metas, hitos e intervenciones directas",
-    "Directorio de canalización institucional (DIF, CEAV, INM, COMAR, Fiscalías)",
-    "Privacidad en 6 niveles con resguardo psicosocial, médico e infantil",
-    "Asistente Talk to Care Case para análisis y preparación de actas"
-  ],
+  "modules.care.features": "Ingesta estructurada con folio único y triaje de urgencia | Valoración multidimensional de riesgo en 7 ejes (seguridad, salud, vivienda, legal, etc.) | Planes de cuidado con metas, hitos e intervenciones directas | Directorio de canalización institucional (DIF, CEAV, INM, COMAR, Fiscalías) | Privacidad en 6 niveles con resguardo psicosocial, médico e infantil | Asistente Talk to Care Case para análisis y preparación de actas",
   "module.community.name": "Apoyo Comunitario y Campañas Solidarias",
-  "modules.community.features": [
-    "Campañas asociadas a casos o de alcance institucional",
-    "Donaciones en especie (alimentos, ropa, enseres, útiles escolares, medicamentos)",
-    "Ofertas de servicios profesionales voluntarios con revisión previa",
-    "Vinculación con recaudadores externos verificados sin custodia de fondos",
-    "Privacidad en 4 modalidades (Anónimo, Primer Nombre, Familia, Completo)",
-    "Difusión multicanal con enlaces para WhatsApp, Facebook y códigos QR"
-  ],
+  "modules.community.features": "Campañas asociadas a casos o de alcance institucional | Donaciones en especie (alimentos, ropa, enseres, útiles escolares, medicamentos) | Ofertas de servicios profesionales voluntarios con revisión previa | Vinculación con recaudadores externos verificados sin custodia de fondos | Privacidad en 4 modalidades (Anónimo, Primer Nombre, Familia, Completo) | Difusión multicanal con enlaces para WhatsApp, Facebook y códigos QR",
   "modules.materias.title": "14 Materias Jurídicas del Sistema Legal Mexicano",
   "modules.materias.desc": "El motor de Nyrava cuenta con especialización sustantiva y adjetiva para las 14 materias canónicas del derecho en México:"
 }

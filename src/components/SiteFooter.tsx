@@ -33,9 +33,9 @@ export function SiteFooter() {
             {t("footer.section.care")}
           </h4>
           <ul className="mt-4 space-y-2 text-sm text-foreground/80">
-            <li><Link to="/product/comprehensive-care" className="hover:text-primary">{t("footer.link.care")}</Link></li>
-            <li><Link to="/product/community-support" className="hover:text-primary">{t("footer.link.support")}</Link></li>
-            <li><Link to="/product/talk-to-cases" className="hover:text-primary">{t("footer.link.talk")}</Link></li>
+            <li><Link to="/product/$slug" params={{ slug: "comprehensive-care" }} className="hover:text-primary">{t("footer.link.care")}</Link></li>
+            <li><Link to="/product/$slug" params={{ slug: "community-support" }} className="hover:text-primary">{t("footer.link.support")}</Link></li>
+            <li><Link to="/product/$slug" params={{ slug: "talk-to-cases" }} className="hover:text-primary">{t("footer.link.talk")}</Link></li>
           </ul>
         </div>
         <div>

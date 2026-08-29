@@ -485,7 +485,7 @@ export const PRODUCTS: ProductPageContent[] = [
       { q: "Can I draft complaints and motions from it?", a: "Yes. Draft demandas, requerimientos de pago, and solicitudes de medidas cautelares render into the Work Product section of the canonical report with citations to the underlying commercial record." },
     ],
     related: [RELATED_ALL.evidence, RELATED_ALL.timeline, RELATED_ALL.motion, RELATED_ALL.report, RELATED_ALL.trust, RELATED_ALL.ai],
-  },,
+  },
   {
     slug: "comprehensive-care",
     title: "Atención Integral (Comprehensive Care)",

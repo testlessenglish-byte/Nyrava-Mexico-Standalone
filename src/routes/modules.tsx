@@ -40,8 +40,8 @@ const CANONICAL_MATERIAS_LIST = [
 ];
 
 function ModulesPage() {
-  const { t, tList, language } = useI18n();
-  const isEs = language === "es";
+  const { t, tList, locale } = useI18n();
+  const isEs = locale === "es";
 
   return (
     <div className="min-h-screen">

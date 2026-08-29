@@ -18,8 +18,8 @@ export const Route = createFileRoute("/how-it-works")({
 });
 
 function HowItWorksPage() {
-  const { language } = useI18n();
-  const isEs = language === "es";
+  const { locale } = useI18n();
+  const isEs = locale === "es";
 
   return (
     <LegalPage

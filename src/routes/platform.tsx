@@ -38,8 +38,8 @@ const CARE_STEPS = [
 ];
 
 function PlatformPage() {
-  const { language } = useI18n();
-  const isEs = language === "es";
+  const { locale } = useI18n();
+  const isEs = locale === "es";
 
   return (
     <div className="min-h-screen">

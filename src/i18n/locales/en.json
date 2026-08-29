@@ -2237,23 +2237,9 @@
   "footer.link.howItWorks": "How It Works",
   "footer.link.resources": "Legal Resources",
   "module.care.name": "Comprehensive Care (Social Case Management & Care Plans)",
-  "modules.care.features": [
-    "Structured intake with unique folio and urgency triage",
-    "7-axis multidimensional risk assessment (safety, health, housing, legal, etc.)",
-    "Care plans with goals, milestones, and direct interventions",
-    "Institutional referral directory (DIF, CEAV, INM, COMAR, Public Prosecutors)",
-    "6-tier privacy with psychosocial, medical, and child protection safeguarding",
-    "Talk to Care Case assistant for analysis and administrative form drafting"
-  ],
+  "modules.care.features": "Structured intake with unique folio and urgency triage | 7-axis multidimensional risk assessment (safety, health, housing, legal, etc.) | Care plans with goals, milestones, and direct interventions | Institutional referral directory (DIF, CEAV, INM, COMAR, Public Prosecutors) | 6-tier privacy with psychosocial, medical, and child protection safeguarding | Talk to Care Case assistant for analysis and administrative form drafting",
   "module.community.name": "Community Support & Solidary Campaigns",
-  "modules.community.features": [
-    "Case-specific and organization-wide solidarity campaigns",
-    "In-kind donations (food, clothing, household goods, school supplies, medicine)",
-    "Volunteer professional service offers with staff review gate",
-    "Direct linking to verified external fundraising without custody of funds",
-    "4-tier public identity protection (Anonymous, First Name, Family, Full Name)",
-    "Multi-channel sharing with WhatsApp, Facebook, and QR code integration"
-  ],
+  "modules.community.features": "Case-specific and organization-wide solidarity campaigns | In-kind donations (food, clothing, household goods, school supplies, medicine) | Volunteer professional service offers with staff review gate | Direct linking to verified external fundraising without custody of funds | 4-tier public identity protection (Anonymous, First Name, Family, Full Name) | Multi-channel sharing with WhatsApp, Facebook, and QR code integration",
   "modules.materias.title": "14 Legal Practice Areas of the Mexican Legal System",
   "modules.materias.desc": "The Nyrava engine features substantive and procedural specialization across the 14 canonical practice areas of Mexican law:"
 }
