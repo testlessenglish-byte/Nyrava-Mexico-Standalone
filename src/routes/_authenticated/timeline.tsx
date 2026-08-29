@@ -10,6 +10,7 @@ import { ModuleStateNotice } from "@/components/modules/ModuleStatus";
 import { computeModuleStates, selectTimelineEvents } from "@/lib/modules/applicability";
 import { useI18n } from "@/i18n";
 import { useTranslatedTexts } from "@/hooks/useTranslatedTexts";
+import { NyravaPagination } from "@/components/common/NyravaPagination";
 
 export const Route = createFileRoute("/_authenticated/timeline")({
   head: () => ({ meta: [{ title: "Constructor de Línea de Tiempo — Nyrava" }] }),
@@ -19,9 +20,12 @@ export const Route = createFileRoute("/_authenticated/timeline")({
 type Event = { date: string | null; title: string; description?: string | null; source?: string | null };
 
 function TimelinePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const es = locale === "es";
   const { cases, activeId, isLoading } = useActiveCase();
   const [selected, setSelected] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const caseId = selected ?? activeId;
   const fetchCase = useServerFn(getCase);
   const { data, isLoading: caseLoading } = useQuery({
@@ -49,6 +53,8 @@ function TimelinePage() {
     description: e.description ? translatedFlat[i * 2 + 1] || e.description : e.description,
   }));
 
+  const pagedEvents = events.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(events, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -68,7 +74,7 @@ function TimelinePage() {
         <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.loadingCases")}</div>
       ) : (
         <div className="space-y-5">
-          <CasePicker cases={cases} activeId={caseId} onChange={setSelected} />
+          <CasePicker cases={cases} activeId={caseId} onChange={(id) => { setSelected(id); setPage(1); }} />
           {caseId ? (
             caseLoading ? (
               <div className="rounded-xl border border-border bg-card/60 p-10 text-center text-sm text-muted-foreground">{t("mod.timeline.loading")}</div>
@@ -82,7 +88,7 @@ function TimelinePage() {
                   </button>
                 </div>
                 <ol className="relative space-y-3 border-l border-border pl-5">
-                  {events.map((e, i) => (
+                  {pagedEvents.map((e, i) => (
                     <li key={i} className="relative">
                       <span className="absolute -left-[26px] top-1.5 h-3 w-3 rounded-full bg-primary ring-4 ring-background" />
                       <div className="rounded-xl border border-border bg-card/60 p-4">
@@ -96,6 +102,16 @@ function TimelinePage() {
                     </li>
                   ))}
                 </ol>
+                {events.length > 0 && (
+                  <NyravaPagination
+                    page={page}
+                    pageSize={pageSize}
+                    total={events.length}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
+                    es={es}
+                  />
+                )}
               </>
             )
           ) : null}
