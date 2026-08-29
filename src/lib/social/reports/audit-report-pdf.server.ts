@@ -274,7 +274,7 @@ export function generateAuditReportPdf(data: AuditReportData): Uint8Array {
   }
 
   // 8. RUNNING HEADERS, FOOTERS & VERIFICATION
-  const totalPages = doc.internal.getNumberOfPages();
+  const totalPages = (doc as any).getNumberOfPages ? (doc as any).getNumberOfPages() : 1;
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
 
