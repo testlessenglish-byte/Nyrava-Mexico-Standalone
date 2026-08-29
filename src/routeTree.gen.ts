@@ -38,6 +38,7 @@ import { Route as AcceptableUseRouteImport } from './routes/acceptable-use'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SupportPublicIdRouteImport } from './routes/support.$publicId'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as HelpUploadingRouteImport } from './routes/help.uploading'
 import { Route as HelpReportsRouteImport } from './routes/help.reports'
@@ -236,6 +237,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportPublicIdRoute = SupportPublicIdRouteImport.update({
+  id: '/support/$publicId',
+  path: '/support/$publicId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductSlugRoute = ProductSlugRouteImport.update({
@@ -591,6 +597,7 @@ export interface FileRoutesByFullPath {
   '/help/reports': typeof HelpReportsRoute
   '/help/uploading': typeof HelpUploadingRoute
   '/product/$slug': typeof ProductSlugRoute
+  '/support/$publicId': typeof SupportPublicIdRoute
   '/admin/ai-providers': typeof AuthenticatedAdminAiProvidersRoute
   '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
@@ -675,6 +682,7 @@ export interface FileRoutesByTo {
   '/help/reports': typeof HelpReportsRoute
   '/help/uploading': typeof HelpUploadingRoute
   '/product/$slug': typeof ProductSlugRoute
+  '/support/$publicId': typeof SupportPublicIdRoute
   '/admin/ai-providers': typeof AuthenticatedAdminAiProvidersRoute
   '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
@@ -762,6 +770,7 @@ export interface FileRoutesById {
   '/help/reports': typeof HelpReportsRoute
   '/help/uploading': typeof HelpUploadingRoute
   '/product/$slug': typeof ProductSlugRoute
+  '/support/$publicId': typeof SupportPublicIdRoute
   '/_authenticated/admin/ai-providers': typeof AuthenticatedAdminAiProvidersRoute
   '/_authenticated/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
@@ -849,6 +858,7 @@ export interface FileRouteTypes {
     | '/help/reports'
     | '/help/uploading'
     | '/product/$slug'
+    | '/support/$publicId'
     | '/admin/ai-providers'
     | '/admin/beta'
     | '/admin/billing'
@@ -933,6 +943,7 @@ export interface FileRouteTypes {
     | '/help/reports'
     | '/help/uploading'
     | '/product/$slug'
+    | '/support/$publicId'
     | '/admin/ai-providers'
     | '/admin/beta'
     | '/admin/billing'
@@ -1019,6 +1030,7 @@ export interface FileRouteTypes {
     | '/help/reports'
     | '/help/uploading'
     | '/product/$slug'
+    | '/support/$publicId'
     | '/_authenticated/admin/ai-providers'
     | '/_authenticated/admin/beta'
     | '/_authenticated/admin/billing'
@@ -1079,6 +1091,7 @@ export interface RootRouteChildren {
   TrustRoute: typeof TrustRoute
   DemoSlugRoute: typeof DemoSlugRoute
   ProductSlugRoute: typeof ProductSlugRoute
+  SupportPublicIdRoute: typeof SupportPublicIdRoute
   ApiVoiceSpeakRoute: typeof ApiVoiceSpeakRoute
   ApiVoiceTranscribeRoute: typeof ApiVoiceTranscribeRoute
   ApiPublicHooksLegalIngestWorkerRoute: typeof ApiPublicHooksLegalIngestWorkerRoute
@@ -1295,6 +1308,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support/$publicId': {
+      id: '/support/$publicId'
+      path: '/support/$publicId'
+      fullPath: '/support/$publicId'
+      preLoaderRoute: typeof SupportPublicIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/product/$slug': {
@@ -1836,6 +1856,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrustRoute: TrustRoute,
   DemoSlugRoute: DemoSlugRoute,
   ProductSlugRoute: ProductSlugRoute,
+  SupportPublicIdRoute: SupportPublicIdRoute,
   ApiVoiceSpeakRoute: ApiVoiceSpeakRoute,
   ApiVoiceTranscribeRoute: ApiVoiceTranscribeRoute,
   ApiPublicHooksLegalIngestWorkerRoute: ApiPublicHooksLegalIngestWorkerRoute,
