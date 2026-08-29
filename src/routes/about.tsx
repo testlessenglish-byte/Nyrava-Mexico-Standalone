@@ -7,18 +7,19 @@ import { publicCapabilities } from "@/lib/capabilities";
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "About Nyrava — Legal Intelligence OS" },
+      { title: "Acerca de Nyrava — Sistema de Inteligencia Jurídica" },
       {
         name: "description",
         content:
-          "What Nyrava is, how a case moves through it, how evidence becomes intelligence, and how Continuous Legal Intelligence improves future analysis under human control.",
+          "Qué es Nyrava, cómo fluye un caso a través de la plataforma, cómo la evidencia se convierte en inteligencia y cómo la Inteligencia Jurídica Continua mejora el análisis futuro bajo control humano.",
       },
       { property: "og:url", content: "https://mexico.nyrava.com/about" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/about" },
-      { property: "og:title", content: "About Nyrava — Legal Intelligence OS" },
+      { property: "og:title", content: "Acerca de Nyrava — Sistema de Inteligencia Jurídica" },
       {
         property: "og:description",
-        content: "A legal intelligence and case-analysis infrastructure platform — evidence-grounded, versioned, and human-controlled.",
+        content:
+          "Plataforma de inteligencia jurídica y análisis de casos — anclada en evidencia, versionada y bajo control humano.",
       },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary_large_image" },

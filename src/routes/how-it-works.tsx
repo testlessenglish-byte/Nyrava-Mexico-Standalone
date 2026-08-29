@@ -4,10 +4,18 @@ import { LegalPage, Section } from "@/components/LegalPage";
 export const Route = createFileRoute("/how-it-works")({
   head: () => ({
     meta: [
-      { title: "How It Works — Nyrava" },
-      { name: "description", content: "How the Nyrava legal intelligence pipeline turns documents into analysis." },
-      { property: "og:title", content: "How It Works \u2014 Nyrava" },
-      { property: "og:description", content: "How the Nyrava legal intelligence pipeline turns documents into analysis." },
+      { title: "Cómo Funciona — Nyrava" },
+      {
+        name: "description",
+        content:
+          "Cómo el pipeline de inteligencia jurídica de Nyrava convierte documentos en análisis estructurado, citado y revisable.",
+      },
+      { property: "og:title", content: "Cómo Funciona \u2014 Nyrava" },
+      {
+        property: "og:description",
+        content:
+          "Cómo el pipeline de inteligencia jurídica de Nyrava convierte documentos en análisis estructurado, citado y revisable.",
+      },
       { property: "og:url", content: "https://mexico.nyrava.com/how-it-works" },
       { name: "twitter:url", content: "https://mexico.nyrava.com/how-it-works" },
     ],
