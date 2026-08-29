@@ -454,7 +454,7 @@ const SaveDonationIdentitySchema = z.object({
   bankName: z.string().trim().max(100).optional().nullable(),
   bankClabe: z.string().trim().regex(/^\d{18}$/, "CLABE debe tener 18 dígitos / CLABE must be 18 digits").optional().nullable().or(z.literal("")),
   privacyNoticeAccepted: z.literal(true, {
-    errorMap: () => ({ message: "Debe aceptar el aviso de privacidad de Nyrava / You must accept the Nyrava Privacy Notice" }),
+    message: "Debe aceptar el aviso de privacidad de Nyrava / You must accept the Nyrava Privacy Notice",
   }),
 });
 
