@@ -6,6 +6,7 @@ import { NyravaLogo } from "./NyravaLogo";
 import { SiteFooter } from "./SiteFooter";
 import { DocsSidebar } from "./docs/DocsSidebar";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { useI18n } from "@/i18n";
 
 export type Crumb = { label: string; to?: string };
 export type TocItem = { id: string; label: string };
@@ -36,6 +37,7 @@ export function DocsLayout({
   hideSidebar = false,
   children,
 }: Props) {
+  const { t } = useI18n();
   const [activeId, setActiveId] = useState<string | null>(toc[0]?.id ?? null);
   const [showTop, setShowTop] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -73,29 +75,29 @@ export function DocsLayout({
           <div className="flex items-center gap-2">
             {!hideSidebar && (
               <button
-                aria-label="Toggle docs navigation"
+                aria-label={t("docsSite.toggleNavigation")}
                 onClick={() => setMobileNavOpen((v) => !v)}
                 className="rounded-md border border-border/60 p-2 lg:hidden"
               >
                 {mobileNavOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
               </button>
             )}
-            <Link to="/" className="flex items-center gap-2" aria-label="Nyrava home">
+            <Link to="/" className="flex items-center gap-2" aria-label={t("docsSite.nyravaHome")}>
               <NyravaLogo size={28} withWordmark />
             </Link>
             <span className="ml-3 hidden text-[10.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground md:inline">
-              Docs
+              {t("docsSite.docs")}
             </span>
           </div>
           <nav className="flex items-center gap-2">
-            <Link to="/trust" className="hidden text-[12px] font-medium text-muted-foreground hover:text-foreground md:inline">Trust Center</Link>
-            <Link to="/help" className="hidden text-[12px] font-medium text-muted-foreground hover:text-foreground md:inline">Help</Link>
+            <Link to="/trust" className="hidden text-[12px] font-medium text-muted-foreground hover:text-foreground md:inline">{t("docsSite.trustCenter")}</Link>
+            <Link to="/help" className="hidden text-[12px] font-medium text-muted-foreground hover:text-foreground md:inline">{t("docsSite.help")}</Link>
             <LanguageSwitcher variant="header" />
             <Link
               to="/auth"
               className="rounded-md border border-border bg-card/60 px-4 py-2 text-[11px] font-semibold tracking-[0.16em] text-foreground hover:bg-card"
             >
-              SIGN IN
+              {t("nav.signIn")}
             </Link>
           </nav>
         </div>
@@ -104,8 +106,8 @@ export function DocsLayout({
       {crumbs.length > 0 && (
         <div className="border-b border-border/40">
           <div className="mx-auto max-w-7xl px-4 py-3 md:px-6">
-            <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
-              <Link to="/" className="hover:text-foreground">Home</Link>
+            <nav aria-label={t("docsSite.breadcrumb")} className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
+              <Link to="/" className="hover:text-foreground">{t("docsSite.home")}</Link>
               {crumbs.map((c, i) => (
                 <span key={i} className="flex items-center gap-1.5">
                   <ChevronRight className="h-3 w-3 opacity-50" />
@@ -151,7 +153,7 @@ export function DocsLayout({
                 )}
                 {updated && (
                   <div className="mt-4 text-[11px] uppercase tracking-[0.18em] text-muted-foreground/80">
-                    Last updated {updated}
+                    {t("docsSite.lastUpdated")} {updated}
                   </div>
                 )}
               </div>
@@ -165,7 +167,7 @@ export function DocsLayout({
                     className="group flex items-center justify-between rounded-lg border border-border/60 bg-card/40 px-5 py-4 hover:border-primary/40 hover:bg-card/70"
                   >
                     <div>
-                      <div className="text-[10.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Next</div>
+                      <div className="text-[10.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{t("docsSite.next")}</div>
                       <div className="mt-1 text-[15px] font-semibold text-foreground">{next.label}</div>
                     </div>
                     <ArrowRight className="h-4 w-4 text-primary transition-transform group-hover:translate-x-0.5" />
@@ -176,7 +178,7 @@ export function DocsLayout({
               {related && related.length > 0 && (
                 <div className="mt-12">
                   <div className="mb-4 text-[10.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Related documentation
+                    {t("docsSite.relatedDocumentation")}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {related.map((r) => (
@@ -203,7 +205,7 @@ export function DocsLayout({
             <aside className="hidden lg:block">
               <div className="sticky top-24">
                 <div className="text-[10.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  On this page
+                  {t("docsSite.onThisPage")}
                 </div>
                 <ul className="mt-3 space-y-1.5 border-l border-border/60 text-[12.5px]">
                   {toc.map((t) => (
@@ -231,7 +233,7 @@ export function DocsLayout({
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           className="fixed bottom-6 right-6 z-40 grid h-10 w-10 place-items-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-lg backdrop-blur hover:text-foreground"
-          aria-label="Back to top"
+          aria-label={t("docsSite.backToTop")}
         >
           <ArrowUp className="h-4 w-4" />
         </button>

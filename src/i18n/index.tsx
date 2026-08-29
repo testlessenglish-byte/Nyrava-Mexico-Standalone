@@ -85,14 +85,16 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(NYRAVA_LOCALE_KEY, l);
       // Reflect on the <html lang> attribute for accessibility & SEO.
-      document.documentElement.lang = l;
+      document.documentElement.lang = l === "es" ? "es-MX" : "en-MX";
     }
     // Best-effort sync to profiles.preferred_language (silent on failure).
     void syncPreferredLanguage(l);
   }, []);
 
   useEffect(() => {
-    if (typeof document !== "undefined") document.documentElement.lang = locale;
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = locale === "es" ? "es-MX" : "en-MX";
+    }
   }, [locale]);
 
   const t = useCallback(
