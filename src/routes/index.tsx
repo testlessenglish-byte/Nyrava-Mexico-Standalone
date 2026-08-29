@@ -11,6 +11,10 @@ import {
   ShieldCheck,
   Lock,
   Sparkles,
+  ClipboardList,
+  Activity,
+  HeartHandshake,
+  Network,
 } from "lucide-react";
 import { NyravaLogo } from "@/components/NyravaLogo";
 import { HeroOSDashboard } from "@/components/HeroOSDashboard";
@@ -83,6 +87,7 @@ export const Route = createFileRoute("/")({
 
 const NAV = [
   { key: "home.nav.product", href: "#product" },
+  { key: "home.nav.care", href: "/product/comprehensive-care" },
   { key: "home.nav.about", to: "/about" },
   { key: "home.nav.legalSources", to: "/modules" },
   { key: "home.nav.security", to: "/security" },
@@ -113,7 +118,7 @@ function Landing() {
             <div className="flex flex-col leading-none">
               <span className="font-display text-2xl font-bold tracking-wide">NYRAVA MÉXICO</span>
               <span className="mt-1 text-[11px] font-semibold tracking-[0.24em] text-cream-foreground/60">
-                INTELIGENCIA LEGAL AVANZADA
+                {t("home.brand.subtitle")}
               </span>
             </div>
           </div>
@@ -273,6 +278,46 @@ function Landing() {
             <span className="flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-primary" /> {t("home.disclaimer.dataLaw")}
             </span>
+          </div>
+        </section>
+
+        {/* Comprehensive Care — the platform's second operational core */}
+        <section className="border-b border-border bg-card/30">
+          <div className="mx-auto max-w-[100rem] px-6 py-14 lg:py-18">
+            <div className="grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-center">
+              <div>
+                <div className="text-[11px] font-semibold tracking-[0.28em] text-primary">
+                  {t("home.care.eyebrow")}
+                </div>
+                <h2 className="mt-3 font-display text-3xl font-semibold leading-tight md:text-4xl">
+                  {t("home.care.title")}
+                </h2>
+                <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+                  {t("home.care.description")}
+                </p>
+                <Link
+                  to="/product/$slug"
+                  params={{ slug: "comprehensive-care" }}
+                  className="mt-7 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-[11px] font-bold tracking-[0.14em] text-primary-foreground transition hover:brightness-110"
+                >
+                  {t("home.care.cta")} <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[
+                  { icon: ClipboardList, title: "home.care.intake.title", description: "home.care.intake.description" },
+                  { icon: Activity, title: "home.care.risk.title", description: "home.care.risk.description" },
+                  { icon: HeartHandshake, title: "home.care.plans.title", description: "home.care.plans.description" },
+                  { icon: Network, title: "home.care.referrals.title", description: "home.care.referrals.description" },
+                ].map(({ icon: Icon, title, description }) => (
+                  <div key={title} className="rounded-xl border border-border/60 bg-background/70 p-5">
+                    <Icon className="h-5 w-5 text-primary" strokeWidth={1.6} />
+                    <h3 className="mt-4 text-[14px] font-semibold text-foreground">{t(title)}</h3>
+                    <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{t(description)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 

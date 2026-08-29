@@ -1,7 +1,8 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { DocsLayout, DocsSection, StepList, FAQ, Callout, FeatureGrid, breadcrumbJsonLd, productJsonLd, CANONICAL_BASE } from "@/components/DocsLayout";
-import { getProduct, type ProductPageContent } from "@/lib/docs/product-copy";
+import { getLocalizedProduct, getProduct, type ProductPageContent } from "@/lib/docs/product-copy";
 import { CheckCircle2 } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 export const Route = createFileRoute("/product/$slug")({
   loader: ({ params }) => {
@@ -75,41 +76,72 @@ export const Route = createFileRoute("/product/$slug")({
 });
 
 function ProductPage() {
-  const p = Route.useLoaderData() as ProductPageContent;
+  const baseProduct = Route.useLoaderData() as ProductPageContent;
+  const { locale } = useI18n();
+  const p = getLocalizedProduct(baseProduct, locale);
+  const es = locale === "es";
+  const careProduct = ["comprehensive-care", "community-support", "talk-to-cases"].includes(p.slug);
+  const labels = {
+    product: es ? "Producto" : "Product",
+    what: es ? "Qué hace" : "What it does",
+    how: es ? "Cómo funciona" : "How it works",
+    benefits: es ? "Beneficios" : "Benefits",
+    workflow: es ? "Flujo de trabajo" : "Workflow",
+    typicalWorkflow: es ? "Flujo de trabajo habitual" : "Typical workflow",
+    examples: es ? "Ejemplos" : "Examples",
+    bestPractices: es ? "Buenas prácticas" : "Best practices",
+    responsibilities: careProduct
+      ? (es ? "Responsabilidades del equipo profesional" : "Professional case-team responsibilities")
+      : (es ? "Responsabilidades del abogado" : "Attorney responsibilities"),
+    scenarios: es ? "Escenarios frecuentes" : "Common scenarios",
+    limitations: es ? "Limitaciones" : "Limitations",
+    platformLimitations: es ? "Limitaciones de la plataforma" : "Platform limitations",
+    faq: es ? "Preguntas frecuentes" : "Frequently asked questions",
+    step: es ? "Paso" : "Step",
+  };
   return (
     <DocsLayout
       eyebrow={p.eyebrow}
       title={p.title}
       description={p.description}
-      crumbs={[{ label: "Product" }, { label: p.title }]}
+      crumbs={[{ label: labels.product }, { label: p.title }]}
       toc={[
-        { id: "what", label: "What it does" },
-        { id: "how", label: "How it works" },
-        { id: "benefits", label: "Benefits" },
-        { id: "workflow", label: "Workflow" },
-        { id: "examples", label: "Examples" },
-        { id: "best-practices", label: "Best practices" },
-        { id: "attorney-responsibilities", label: "Attorney responsibilities" },
-        { id: "scenarios", label: "Common scenarios" },
-        { id: "limitations", label: "Limitations" },
-        { id: "faq", label: "FAQ" },
+        { id: "what", label: labels.what },
+        { id: "how", label: labels.how },
+        { id: "benefits", label: labels.benefits },
+        { id: "workflow", label: labels.workflow },
+        { id: "examples", label: labels.examples },
+        { id: "best-practices", label: labels.bestPractices },
+        { id: "professional-responsibilities", label: labels.responsibilities },
+        { id: "scenarios", label: labels.scenarios },
+        { id: "limitations", label: labels.limitations },
+        { id: "faq", label: labels.faq },
       ]}
       next={p.next}
       related={p.related}
     >
-      <DocsSection id="what" heading="What it does">
+      <DocsSection id="what" heading={labels.what}>
         <p>{p.what}</p>
       </DocsSection>
 
-      <DocsSection id="how" heading="How it works">
-        <StepList steps={p.how.map((h, i) => ({ title: `Step ${i + 1}`, description: h }))} />
-        <Callout variant="info" title="Evidence gate">
-          Every intelligence engine writes through an evidence gate that suppresses ungrounded
-          output. Nothing reaches a report unless it can be traced to a passage in your corpus.
-        </Callout>
+      <DocsSection id="how" heading={labels.how}>
+        <StepList steps={p.how.map((h, i) => ({ title: `${labels.step} ${i + 1}`, description: h }))} />
+        {careProduct ? (
+          <Callout variant="info" title={es ? "Salvaguardas de los registros de atención" : "Care-record safeguards"}>
+            {es
+              ? "Las respuestas, resúmenes y formatos se limitan a los registros autorizados para la función y nivel de confidencialidad del usuario. El sistema verifica consentimiento y conserva la revisión profesional antes de una canalización, divulgación o decisión de atención."
+              : "Answers, summaries, and forms are limited to records authorized for the user's role and confidentiality tier. The system checks consent and preserves professional review before a referral, disclosure, or care decision."}
+          </Callout>
+        ) : (
+          <Callout variant="info" title={es ? "Compuerta de evidencia" : "Evidence gate"}>
+            {es
+              ? "Cada motor de inteligencia suprime resultados no fundamentados. Nada llega a un informe si no puede vincularse con un pasaje del expediente."
+              : "Every intelligence engine writes through an evidence gate that suppresses ungrounded output. Nothing reaches a report unless it can be traced to a passage in your corpus."}
+          </Callout>
+        )}
       </DocsSection>
 
-      <DocsSection id="benefits" heading="Benefits">
+      <DocsSection id="benefits" heading={labels.benefits}>
         <FeatureGrid
           items={p.benefits.map((b) => ({
             icon: <CheckCircle2 className="h-4 w-4" />,
@@ -119,11 +151,11 @@ function ProductPage() {
         />
       </DocsSection>
 
-      <DocsSection id="workflow" heading="Typical workflow">
+      <DocsSection id="workflow" heading={labels.typicalWorkflow}>
         <StepList steps={p.workflow} />
       </DocsSection>
 
-      <DocsSection id="examples" heading="Examples">
+      <DocsSection id="examples" heading={labels.examples}>
         <div className="my-4 grid gap-3 sm:grid-cols-2">
           {p.examples.map((ex) => (
             <div key={ex.title} className="rounded-lg border border-border/60 bg-card/30 p-4">
@@ -136,23 +168,33 @@ function ProductPage() {
         </div>
       </DocsSection>
 
-      <DocsSection id="best-practices" heading="Best practices">
+      <DocsSection id="best-practices" heading={labels.bestPractices}>
         <ul className="list-disc space-y-2 pl-5">
           {p.bestPractices.map((b, i) => <li key={i}>{b}</li>)}
         </ul>
       </DocsSection>
 
-      <DocsSection id="attorney-responsibilities" heading="Attorney responsibilities">
-        <Callout variant="warning" title="Attorney in control">
-          Nyrava proposes. Attorneys decide. Every output must be reviewed by qualified counsel
-          before use.
+      <DocsSection id="professional-responsibilities" heading={labels.responsibilities}>
+        <Callout
+          variant="warning"
+          title={careProduct
+            ? (es ? "Supervisión profesional humana" : "Human professional oversight")
+            : (es ? "El abogado conserva el control" : "Attorney in control")}
+        >
+          {careProduct
+            ? (es
+                ? "Nyrava estructura y señala información; el equipo profesional autorizado evalúa, decide, documenta y supervisa cada actuación."
+                : "Nyrava structures and flags information; the authorized professional team assesses, decides, documents, and supervises every action.")
+            : (es
+                ? "Nyrava propone. El abogado decide. Todo resultado debe ser revisado por un profesional jurídico calificado antes de utilizarse."
+                : "Nyrava proposes. Attorneys decide. Every output must be reviewed by qualified counsel before use.")}
         </Callout>
         <ul className="list-disc space-y-2 pl-5">
           {p.attorneyResponsibilities.map((r, i) => <li key={i}>{r}</li>)}
         </ul>
       </DocsSection>
 
-      <DocsSection id="scenarios" heading="Common scenarios">
+      <DocsSection id="scenarios" heading={labels.scenarios}>
         <div className="my-4 grid gap-3 sm:grid-cols-2">
           {p.scenarios.map((s) => (
             <div key={s.title} className="rounded-lg border border-border/60 bg-card/30 p-4">
@@ -165,13 +207,13 @@ function ProductPage() {
         </div>
       </DocsSection>
 
-      <DocsSection id="limitations" heading="Platform limitations">
+      <DocsSection id="limitations" heading={labels.platformLimitations}>
         <ul className="list-disc space-y-2 pl-5">
           {p.limitations.map((l, i) => <li key={i}>{l}</li>)}
         </ul>
       </DocsSection>
 
-      <DocsSection id="faq" heading="Frequently asked questions">
+      <DocsSection id="faq" heading={labels.faq}>
         <FAQ items={p.faqs.map((f) => ({ q: f.q, a: f.a }))} />
       </DocsSection>
     </DocsLayout>

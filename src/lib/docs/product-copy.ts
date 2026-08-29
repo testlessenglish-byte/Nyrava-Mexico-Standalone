@@ -31,9 +31,9 @@ const RELATED_ALL = {
   responsible: { label: "Responsible AI", to: "/responsible-ai", description: "Principles for evidence-grounded analysis." },
   security: { label: "Security Practices", to: "/security", description: "Authentication, authorization, encryption." },
   data: { label: "Data Control", to: "/data-control", description: "Export, delete, and manage workspace data." },
-  care: { label: "Atención Integral", to: "/product/comprehensive-care", description: "Gestión de casos sociales, planes de cuidado y privacidad multinivel." },
+  care: { label: "Atención Integral", to: "/product/comprehensive-care", description: "Gestión de Casos Sociales, Planes de Cuidado y privacidad multinivel." },
   support: { label: "Apoyo Comunitario", to: "/product/community-support", description: "Campañas seguras, aportaciones en especie y donaciones verificadas." },
-  talk: { label: "Talk to Cases", to: "/product/talk-to-cases", description: "Interrogación conversacional fundamentada en el expediente y derecho mexicano." },
+  talk: { label: "Hablar con el Caso de Atención", to: "/product/talk-to-cases", description: "Consulta conversacional fundamentada en el expediente social autorizado." },
 };
 
 export const PRODUCTS: ProductPageContent[] = [
@@ -664,6 +664,280 @@ export const PRODUCTS: ProductPageContent[] = [
 
 export function getProduct(slug: string): ProductPageContent | undefined {
   return PRODUCTS.find((p) => p.slug === slug);
+}
+
+const SPANISH_CANONICAL_NAMES: Record<string, Pick<ProductPageContent, "title"> & Partial<Pick<ProductPageContent, "next">>> = {
+  "comprehensive-care": { title: "Atención Integral" },
+  "community-support": {
+    title: "Apoyo Comunitario",
+    next: { label: "Hablar con el Caso de Atención", to: "/product/talk-to-cases" },
+  },
+  "talk-to-cases": { title: "Hablar con el Caso de Atención" },
+};
+
+const CARE_PRODUCTS_EN: Record<string, ProductPageContent> = {
+  "comprehensive-care": {
+    slug: "comprehensive-care",
+    title: "Comprehensive Care",
+    eyebrow: "Product",
+    description:
+      "A multidisciplinary platform for social case management, care plans, institutional referrals, informed consent, and tiered confidentiality.",
+    what:
+      "Comprehensive Care is the operating environment for social-work teams, human-rights defenders, and community organizations. It manages the complete social-case lifecycle—from intake and seven-axis risk assessment through goal-based care plans, interventions, institutional referrals, informed consent, follow-up, and documented closure—while strictly separating general, social-work, privileged legal, psychosocial, medical, and child-protection records.",
+    how: [
+      "Receive and register cases with automatic sequential folios (INT-YYYY-XXXX) and urgency triage.",
+      "Assess risks and protective factors across seven axes: safety, housing, health, psychosocial, legal, nutrition, and immigration status.",
+      "Build goal-based care plans with milestones, assigned professionals, direct-service records, interventions, and supervisor acknowledgements.",
+      "Coordinate referrals through a managed directory of Mexican institutions, including DIF, CEAV, INM, COMAR, and prosecutor offices, while tracking responses and outcomes.",
+      "Protect records through six confidentiality tiers—General, Social Work, Privileged Legal, Psychosocial, Medical, and Child Protection—with active consent verification.",
+      "Use Talk to Care Case for contextual analysis, care-gap detection, and preparation of Mexican administrative forms and case records.",
+    ],
+    benefits: [
+      "Coordinate multidisciplinary care without mixing sensitive record types.",
+      "Maintain a traceable, versioned history of risk reviews and care plans.",
+      "Create secure institutional referrals with consent controls before disclosure.",
+      "Produce institutional impact and audit reports with SHA-256 verification for authorized stakeholders.",
+    ],
+    workflow: [
+      { title: "Intake & Triage", description: "Record the initial need, assign a folio, and prioritize urgency under supervisor review." },
+      { title: "Multidimensional Assessment", description: "Evaluate risks and protective factors with a versioned review history." },
+      { title: "Care Plan & Interventions", description: "Define goals and milestones, assign professionals, and record direct support." },
+      { title: "Referral & Follow-up", description: "Create consent-controlled referral packets and document institutional responses." },
+      { title: "Health Check & Closure", description: "Resolve overdue work, summarize completed goals, and close the case with supervisor approval." },
+    ],
+    examples: [
+      { title: "Families and Child Protection", description: "Coordinate nutrition support, socioeconomic assessment, and DIF services under restricted child-protection access." },
+      { title: "Refugees and Migrants", description: "Connect social support with COMAR asylum or INM immigration procedures under informed consent." },
+      { title: "Psychosocial and Legal Protection", description: "Coordinate family-violence intervention while protecting clinical notes and documenting legal safeguards." },
+    ],
+    bestPractices: [
+      "Record informed consent before generating an external referral packet or sharing documents.",
+      "Use Medical, Psychosocial, and Child Protection tiers for sensitive professional notes.",
+      "Run Case Health Check regularly to identify overdue tasks and pending assessments.",
+      "Document formal closure with completed goals and approval by the responsible supervisor.",
+    ],
+    attorneyResponsibilities: [
+      "Verify socioeconomic information, risk assessments, and consent records before relying on them.",
+      "Follow professional, ethical, safeguarding, and privacy obligations when handling beneficiary information.",
+      "Confirm that institutional referrals are appropriate, authorized, and compliant with applicable Mexican requirements.",
+      "Escalate clinical, safeguarding, or legal decisions to an appropriately qualified professional.",
+    ],
+    limitations: [
+      "Talk to Care Case supports drafting, synthesis, and gap detection; it does not replace clinical, social-work, safeguarding, or legal judgment.",
+      "Service availability and eligibility depend on each public or private institution and its geographic coverage.",
+      "The platform records and coordinates professional decisions; it does not independently authorize disclosure or determine a person's care needs.",
+    ],
+    scenarios: [
+      { title: "Urgent Institutional Referral", description: "Prepare a consent-controlled referral record with structured background and protected personal information." },
+      { title: "Accountability Audit", description: "Export an institutional impact report summarizing services, completed goals, and SHA-256 verification." },
+    ],
+    faqs: [
+      { q: "How are psychosocial and medical records protected?", a: "They remain in restricted confidentiality tiers so unauthorized staff cannot access them or include them in general records." },
+      { q: "Is informed consent required before sharing information?", a: "Yes. The system checks for an active, applicable consent record before an external referral packet or protected document can be released." },
+      { q: "Who can approve care plans and institutional reports?", a: "Approval is limited by workspace role and organization policy, including supervisor acknowledgement and subscriber-level controls where configured." },
+      { q: "Does Comprehensive Care replace a social worker or clinician?", a: "No. It structures records, coordination, and review. Qualified professionals retain responsibility for assessments, safeguarding, clinical decisions, and services." },
+    ],
+    related: [
+      { label: "Community Support", to: "/product/community-support", description: "Protected campaigns and coordinated contributions." },
+      { label: "Talk to Care Case", to: "/product/talk-to-cases", description: "Role-aware questions grounded in the care record." },
+      RELATED_ALL.report,
+      RELATED_ALL.trust,
+      RELATED_ALL.security,
+    ],
+    next: { label: "Community Support", to: "/product/community-support" },
+  },
+  "community-support": {
+    slug: "community-support",
+    title: "Community Support",
+    eyebrow: "Product",
+    description:
+      "Protected solidarity campaigns, in-kind contributions, professional services, and authorized external fundraising for social-care needs.",
+    what:
+      "Community Support helps organizations coordinate assistance campaigns for an individual social case or an organization-wide community program. Teams can manage in-kind donations, volunteer professional services, and links to authorized external fundraising destinations while protecting beneficiary identity through controlled public-display modes.",
+    how: [
+      "Create a campaign linked to an authorized case or institutional program with a protected public description.",
+      "Choose one of four public identity modes: Anonymous, First Name Only, Family Description, or Authorized Full Name.",
+      "Receive and review offers of in-kind assistance or professional services before connecting a contributor with a beneficiary.",
+      "Link to approved external fundraising destinations without Nyrava taking custody of funds.",
+      "Share through WhatsApp, Facebook, email, direct links, and QR codes.",
+      "Apply organization-level fiscal governance and subscriber approval before public release.",
+    ],
+    benefits: [
+      "Coordinate direct support while protecting the dignity and privacy of people and families.",
+      "Track requested, pledged, received, and outstanding items in real time.",
+      "Require authorized organization approval before publishing a campaign.",
+      "Maintain an immutable audit history of contributions and delivered support.",
+    ],
+    workflow: [
+      { title: "Request & Draft", description: "Describe the support need safely and list requested goods or services." },
+      { title: "Authorized Review", description: "The designated organization owner reviews the public preview and approves publication." },
+      { title: "Sharing & Offers", description: "Share the campaign and receive community offers through protected channels." },
+      { title: "Review & Delivery", description: "Approve offers, record receipt, and follow the campaign through completion." },
+    ],
+    examples: [
+      { title: "Medical Emergency", description: "Request specified medicine and transportation support for specialized treatment." },
+      { title: "Education Support", description: "Coordinate school supplies, books, clothing, and footwear for children while protecting identity." },
+      { title: "Housing Assistance", description: "Coordinate blankets, appliances, and recovery materials after an environmental emergency." },
+    ],
+    bestPractices: [
+      "Use Anonymous or Family Description for violence-related matters and cases involving minors.",
+      "Verify professional-service offers before coordinating direct beneficiary contact.",
+      "Update item status as contributions arrive to prevent unnecessary collection.",
+      "Close the campaign promptly when approved goals have been met.",
+    ],
+    attorneyResponsibilities: [
+      "Confirm that public descriptions respect consent, dignity, safeguarding rules, and personal-data requirements.",
+      "Verify that external fundraising links belong to destinations approved by the organization.",
+      "Document delivery and campaign closure under the organization's accountability controls.",
+    ],
+    limitations: [
+      "Nyrava does not hold funds or operate as a financial intermediary; it coordinates support and links to approved external fundraisers.",
+      "In-kind and professional-service offers depend on voluntary fulfillment by contributors.",
+    ],
+    scenarios: [
+      { title: "Immediate In-kind Support", description: "Publish a protected campaign for family food packages and update inventory as contributions arrive." },
+      { title: "Pro-bono Services", description: "Receive and review offers from volunteer psychologists, physicians, or other professionals." },
+    ],
+    faqs: [
+      { q: "What personal information appears publicly?", a: "Only the authorized public description and requested need. Private case notes, diagnoses, and exact addresses are never published." },
+      { q: "Does Nyrava charge a donation commission?", a: "No. Nyrava does not hold funds or take a percentage of fundraising handled by external destinations." },
+      { q: "How are campaigns approved?", a: "A designated organization owner must review the protected public preview and explicitly approve publication." },
+    ],
+    related: [
+      { label: "Comprehensive Care", to: "/product/comprehensive-care", description: "Social case management, care plans, and tiered confidentiality." },
+      { label: "Talk to Care Case", to: "/product/talk-to-cases", description: "Role-aware questions grounded in the care record." },
+      RELATED_ALL.security,
+      RELATED_ALL.trust,
+    ],
+    next: { label: "Talk to Care Case", to: "/product/talk-to-cases" },
+  },
+  "talk-to-cases": {
+    slug: "talk-to-cases",
+    title: "Talk to Care Case",
+    eyebrow: "Product",
+    description:
+      "A conversational assistant grounded in the authorized social-case record, care assessments, consent, interventions, and referrals.",
+    what:
+      "Talk to Care Case lets authorized care professionals ask natural-language questions about a social case. Responses are grounded in the records the user is permitted to access, including intake, assessments, care plans, interventions, consent, referrals, and follow-up. It identifies missing documentation and pending work without replacing professional judgment.",
+    how: [
+      "Index authorized case records with record type, author, date, and confidentiality metadata.",
+      "Retrieve only information allowed by the user's role and the record's confidentiality tier.",
+      "Return structured answers with links to the relevant case records.",
+      "Flag care gaps, overdue tasks, inconsistent assessments, missing consent, and incomplete referrals.",
+      "Use deterministic care rules when an AI-generated answer is unavailable or inappropriate.",
+    ],
+    benefits: [
+      "Review long-running social cases without manually searching every entry.",
+      "Trace each factual statement to an authorized case record.",
+      "Identify incomplete care steps, pending referrals, and overdue follow-up.",
+      "Prepare administrative summaries and forms for professional review.",
+    ],
+    workflow: [
+      { title: "Open an Authorized Case", description: "Select a Comprehensive Care case available to your role." },
+      { title: "Ask a Focused Question", description: "Ask about risks, goals, interventions, consent, referrals, or follow-up." },
+      { title: "Review Source Records", description: "Open linked records and verify the answer against the case history." },
+      { title: "Take Professional Action", description: "Update the care plan, complete a task, document a referral, or escalate to a qualified professional." },
+    ],
+    examples: [
+      { title: "Care-plan Gaps", description: "Which high-risk needs do not yet have an assigned goal, professional, or intervention?" },
+      { title: "Consent Review", description: "Is there active consent for the proposed referral recipient and information categories?" },
+      { title: "Follow-up", description: "Which referrals have no response and which milestones are overdue?" },
+    ],
+    bestPractices: [
+      "Ask focused questions tied to an assessment, goal, intervention, referral, or period of time.",
+      "Review linked source records before taking action or sharing information.",
+      "Escalate clinical, safeguarding, and legal decisions to the appropriately qualified professional.",
+    ],
+    attorneyResponsibilities: [
+      "Use the assistant only within the permissions and confidentiality tier assigned to your role.",
+      "Verify answers against the underlying records and current professional assessment.",
+      "Do not use generated summaries as a substitute for clinical, social-work, safeguarding, or legal judgment.",
+    ],
+    limitations: [
+      "Talk to Care Case cannot diagnose, determine eligibility, authorize disclosure, or make a safeguarding decision.",
+      "Answer quality depends on the completeness and accuracy of the authorized case record.",
+    ],
+    scenarios: [
+      { title: "Supervisor Review", description: "Summarize unresolved high-risk needs, overdue milestones, and pending acknowledgements before case review." },
+      { title: "Referral Preparation", description: "Identify the authorized facts and consent scope needed for a proposed institutional referral." },
+    ],
+    faqs: [
+      { q: "Can it access every record in the case?", a: "No. Retrieval is limited by the user's role and each record's confidentiality tier." },
+      { q: "Can it make clinical or safeguarding decisions?", a: "No. It can organize information and flag gaps, but a qualified professional must assess and decide." },
+      { q: "Are social cases used to train general models?", a: "No. Nyrava does not use confidential case records to train general-purpose models." },
+    ],
+    related: [
+      { label: "Comprehensive Care", to: "/product/comprehensive-care", description: "Social case management, care plans, and tiered confidentiality." },
+      { label: "Community Support", to: "/product/community-support", description: "Protected campaigns and coordinated contributions." },
+      RELATED_ALL.security,
+      RELATED_ALL.trust,
+    ],
+  },
+};
+
+const TALK_TO_CARE_ES: ProductPageContent = {
+  slug: "talk-to-cases",
+  title: "Hablar con el Caso de Atención",
+  eyebrow: "Producto",
+  description:
+    "Asistente conversacional fundamentado en el expediente social autorizado, las valoraciones, el consentimiento, las intervenciones y las canalizaciones.",
+  what:
+    "Hablar con el Caso de Atención permite que profesionales autorizados consulten un caso social en lenguaje natural. Las respuestas se fundamentan exclusivamente en los registros accesibles para la función del usuario: ingesta, valoraciones, planes de cuidado, intervenciones, consentimiento, canalizaciones y seguimiento. Identifica documentación faltante y trabajo pendiente sin sustituir el criterio profesional.",
+  how: [
+    "Indexa los registros autorizados con tipo de registro, autoría, fecha y nivel de confidencialidad.",
+    "Recupera únicamente información permitida por la función del usuario y el nivel de acceso de cada registro.",
+    "Devuelve respuestas estructuradas con vínculos a los registros correspondientes del caso.",
+    "Señala vacíos de atención, tareas vencidas, valoraciones inconsistentes, consentimiento faltante y canalizaciones incompletas.",
+    "Utiliza reglas deterministas de atención cuando una respuesta generada por IA no está disponible o no resulta apropiada.",
+  ],
+  benefits: [
+    "Revisar casos sociales de larga duración sin buscar manualmente cada registro.",
+    "Rastrear cada afirmación fáctica hasta un registro autorizado.",
+    "Identificar pasos incompletos, canalizaciones pendientes y seguimientos vencidos.",
+    "Preparar resúmenes administrativos y formatos para revisión profesional.",
+  ],
+  workflow: [
+    { title: "Abrir un Caso Autorizado", description: "Seleccionar un caso de Atención Integral disponible para su función." },
+    { title: "Formular una Pregunta Acotada", description: "Consultar riesgos, metas, intervenciones, consentimiento, canalizaciones o seguimiento." },
+    { title: "Revisar Registros de Origen", description: "Abrir los registros vinculados y verificar la respuesta contra el historial del caso." },
+    { title: "Realizar una Actuación Profesional", description: "Actualizar el plan, completar una tarea, documentar una canalización o escalar a la persona profesional competente." },
+  ],
+  examples: [
+    { title: "Vacíos del Plan de Cuidado", description: "¿Qué necesidades de alto riesgo aún no tienen meta, profesional o intervención asignada?" },
+    { title: "Revisión de Consentimiento", description: "¿Existe consentimiento activo para la institución receptora y las categorías de información propuestas?" },
+    { title: "Seguimiento", description: "¿Qué canalizaciones no tienen respuesta y qué hitos están vencidos?" },
+  ],
+  bestPractices: [
+    "Formular preguntas acotadas a una valoración, meta, intervención, canalización o periodo.",
+    "Revisar los registros vinculados antes de actuar o compartir información.",
+    "Escalar decisiones clínicas, de protección o jurídicas a la persona profesional competente.",
+  ],
+  attorneyResponsibilities: [
+    "Utilizar el asistente únicamente dentro de los permisos y el nivel de confidencialidad asignados.",
+    "Verificar las respuestas contra los registros de origen y la valoración profesional vigente.",
+    "No utilizar resúmenes generados como sustituto del criterio clínico, de trabajo social, protección o jurídico.",
+  ],
+  limitations: [
+    "Hablar con el Caso de Atención no diagnostica, determina elegibilidad, autoriza divulgaciones ni toma decisiones de protección.",
+    "La calidad de las respuestas depende de la integridad y exactitud del expediente autorizado.",
+  ],
+  scenarios: [
+    { title: "Revisión de Supervisión", description: "Resumir necesidades de alto riesgo pendientes, hitos vencidos y reconocimientos faltantes antes de revisar el caso." },
+    { title: "Preparación de una Canalización", description: "Identificar los hechos autorizados y el alcance del consentimiento necesario para una canalización institucional." },
+  ],
+  faqs: [
+    { q: "¿Puede consultar todos los registros del caso?", a: "No. La recuperación está limitada por la función del usuario y el nivel de confidencialidad de cada registro." },
+    { q: "¿Puede tomar decisiones clínicas o de protección?", a: "No. Organiza información y señala vacíos, pero una persona profesional calificada debe valorar y decidir." },
+    { q: "¿Los casos sociales se usan para entrenar modelos generales?", a: "No. Nyrava no utiliza expedientes confidenciales para entrenar modelos de propósito general." },
+  ],
+  related: [RELATED_ALL.care, RELATED_ALL.support, RELATED_ALL.security, RELATED_ALL.trust],
+};
+
+export function getLocalizedProduct(product: ProductPageContent, locale: "es" | "en"): ProductPageContent {
+  if (locale === "en" && CARE_PRODUCTS_EN[product.slug]) return CARE_PRODUCTS_EN[product.slug];
+  if (locale === "es" && product.slug === "talk-to-cases") return TALK_TO_CARE_ES;
+  const canonical = SPANISH_CANONICAL_NAMES[product.slug];
+  return canonical ? { ...product, ...canonical } : product;
 }
 
 // Placeholder to keep `ReactNode` import used if callers extend later.
