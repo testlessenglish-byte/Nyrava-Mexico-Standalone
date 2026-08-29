@@ -15,99 +15,108 @@ const SAMPLES: Sample[] = [
     slug: "penal",
     practiceArea: "Derecho Penal",
     title: "Causa penal — robo calificado con violencia",
-    summary: "Analysis of article 16 CPEUM on a detention without timely judicial control, article 20 on a declaración ministerial taken without defense counsel present, and evidentiary reconstruction of the detention.",
+    summary:
+      "Análisis del artículo 16 CPEUM sobre una detención sin control judicial oportuno, el artículo 20 sobre una declaración ministerial rendida sin defensor presente, y la reconstrucción probatoria de la detención.",
     highlights: [
-      "Constitutional issues drafted with citations to the informe policial homologado and the audiencia de control de detención transcript.",
-      "Contradictions between the victim's declaración and the body-worn camera audio surfaced automatically.",
-      "Incidente de exclusión de prueba ilícita skeleton pulled from the constitutional analysis.",
+      "Problemas constitucionales redactados con citas al informe policial homologado y a la transcripción de la audiencia de control de detención.",
+      "Contradicciones entre la declaración de la víctima y el audio de la cámara corporal surgieron automáticamente.",
+      "Bosquejo del incidente de exclusión de prueba ilícita extraído del análisis constitucional.",
     ],
   },
   {
     slug: "responsabilidad-civil",
     practiceArea: "Derecho Civil",
     title: "Accidente de tránsito — vehículo de carga vs. particular",
-    summary: "Reconstruction of the crash sequence from the parte de tránsito, the vehicle's bitácora de viaje, emergency-room admission notes, and the demandado's declaración.",
+    summary:
+      "Reconstrucción de la secuencia del choque a partir del parte de tránsito, la bitácora de viaje del vehículo, las notas de ingreso a urgencias y la declaración del demandado.",
     highlights: [
-      "Minute-by-minute timeline anchored to the bitácora de viaje.",
-      "Rehabilitation plan cross-referenced against the expediente clínico diagnoses.",
-      "Damages framework (cuantificación del daño) outlined with supporting citations.",
+      "Cronología minuto a minuto anclada a la bitácora de viaje.",
+      "Plan de rehabilitación cotejado con los diagnósticos del expediente clínico.",
+      "Marco de daños (cuantificación del daño) esbozado con citas de soporte.",
     ],
   },
   {
     slug: "responsabilidad-medica",
     practiceArea: "Derecho Civil",
     title: "Mala práctica médica — urgencias y diagnóstico tardío",
-    summary: "Assembly of a minute-by-minute emergency-room timeline from the expediente clínico, the internal acta de investigación, and the dictamen pericial.",
+    summary:
+      "Construcción de una cronología de urgencias minuto a minuto a partir del expediente clínico, el acta de investigación interna y el dictamen pericial.",
     highlights: [
-      "Lex artis (standard-of-care) analysis grounded in the dictamen pericial.",
-      "Autopsy findings reconciled with the charting sequence.",
-      "Internal acta de investigación cross-referenced with the clinical timeline.",
+      "Análisis de lex artis (estándar de atención) fundamentado en el dictamen pericial.",
+      "Hallazgos de autopsia conciliados con la secuencia de registros médicos.",
+      "Acta de investigación interna cotejada con la cronología clínica.",
     ],
   },
   {
     slug: "laboral",
     practiceArea: "Derecho Laboral",
     title: "Despido injustificado con reclamo de hostigamiento",
-    summary: "Three years of performance history, an internal queja before Recursos Humanos, and an email thread analyzed for the despido's timing and pretext.",
+    summary:
+      "Tres años de historial de desempeño, una queja interna ante Recursos Humanos y un hilo de correos analizados para determinar la oportunidad del despido y su pretexto.",
     highlights: [
-      "Pretext analysis tied to specific performance-review passages.",
-      "Internal queja reconciled against the incident log.",
-      "Timeline of protected activity vs. adverse action produced automatically.",
+      "Análisis de pretexto vinculado a pasajes específicos de la evaluación de desempeño.",
+      "Queja interna conciliada contra el registro de incidentes.",
+      "Cronología de actividad protegida vs. acto adverso producida automáticamente.",
     ],
   },
   {
     slug: "familiar",
     practiceArea: "Derecho Familiar",
     title: "Divorcio con guarda y custodia y alegaciones de violencia familiar",
-    summary: "Reconciliation of the denuncia de violencia familiar, the informe de trabajo social, and dueling declaraciones patrimoniales.",
+    summary:
+      "Conciliación de la denuncia de violencia familiar, el informe de trabajo social y las declaraciones patrimoniales encontradas.",
     highlights: [
-      "Parent-statement cross-witness comparison across the informe de trabajo social and declaraciones.",
-      "Denuncia timeline overlaid with the declaración patrimonial dates.",
-      "Interés superior del menor factors surfaced with supporting citations.",
+      "Comparación cruzada de declaraciones parentales entre el informe de trabajo social y las declaraciones.",
+      "Cronología de la denuncia superpuesta con las fechas de la declaración patrimonial.",
+      "Factores del interés superior del menor surgieron con citas de soporte.",
     ],
   },
   {
     slug: "amparo",
     practiceArea: "Amparo",
     title: "Amparo directo — cuestiones probatorias y constitucionales",
-    summary: "Reconstruction of procedural history across the demanda de amparo, actas de audiencia, the informe justificado, and the réplica.",
+    summary:
+      "Reconstrucción del historial procesal a partir de la demanda de amparo, actas de audiencia, el informe justificado y la réplica.",
     highlights: [
-      "Procedural chronology extracted for the antecedentes section.",
-      "Definitividad analysis anchored to citations from the expediente.",
-      "Conceptos de violación drafted with record cites and doctrinal framing.",
+      "Cronología procesal extraída para la sección de antecedentes.",
+      "Análisis de definitividad anclado a citas del expediente.",
+      "Conceptos de violación redactados con citas al expediente y marco doctrinal.",
     ],
   },
   {
     slug: "constitucional",
     practiceArea: "Derecho Constitucional / Derechos Humanos",
     title: "Uso excesivo de la fuerza y responsabilidad de la autoridad",
-    summary: "Article 1 CPEUM analysis with officer-statement clustering across the informe policial, the internal bitácora de asuntos internos, and the declaración ministerial.",
+    summary:
+      "Análisis del artículo 1 CPEUM con agrupación de declaraciones oficiales entre el informe policial, la bitácora de asuntos internos y la declaración ministerial.",
     highlights: [
-      "Cross-witness contradictions between the bitácora de asuntos internos and the declaración ministerial.",
-      "Institutional-liability theory outlined with citations to the internal complaint history.",
-      "Reparación del daño framework tied to medical records and witness accounts.",
+      "Contradicciones entre testigos cruzadas entre la bitácora de asuntos internos y la declaración ministerial.",
+      "Teoría de responsabilidad institucional esbozada con citas al historial de quejas internas.",
+      "Marco de reparación del daño vinculado a registros médicos y testimonios.",
     ],
   },
   {
     slug: "fiscal",
     practiceArea: "Derecho Fiscal",
     title: "Resolución determinante y juicio de nulidad ante el TFJA",
-    summary: "Reconciliation of the acta final de visita, bank statements, and correspondence with the contador público for a juicio de nulidad.",
+    summary:
+      "Conciliación del acta final de visita, estados de cuenta y correspondencia con el contador público para un juicio de nulidad.",
     highlights: [
-      "Deposit reconciliation tied to CFDI-level bank records.",
-      "Home-office and vehicle expense substantiation cross-referenced with supporting logs.",
-      "Recurso de revocación determination integrated into the demanda's factual reconstruction.",
+      "Conciliación de depósitos vinculada a registros bancarios a nivel CFDI.",
+      "Sustento de gastos de oficina en casa y vehículo cotejado con bitácoras de soporte.",
+      "Determinación del recurso de revocación integrada a la reconstrucción factual de la demanda.",
     ],
   },
   {
     slug: "mercantil",
     practiceArea: "Derecho Mercantil",
     title: "Disputa contractual con reconvención",
-    summary: "Compraventa mercantil contract, payment ledger, email thread, and an independent inspection reconciled for a breach-and-reconvención analysis.",
+    summary:
+      "Contrato de compraventa mercantil, registro de pagos, hilo de correos e inspección independiente conciliados para un análisis de incumplimiento y reconvención.",
     highlights: [
-      "Payment-ledger analysis grounded in the underlying accounting records.",
-      "Inspection report cross-referenced against the contract's deliverables.",
-      "Reconvención theory outlined with responsive citations.",
+      "Análisis del registro de pagos fundamentado en los registros contables subyacentes.",
+      "Informe de inspección cotejado contra los entregables del contrato.",
+      "Teoría de reconvención esbozada con citas responsivas.",
     ],
   },
 ];
@@ -115,12 +124,13 @@ const SAMPLES: Sample[] = [
 export const Route = createFileRoute("/resources")({
   head: () => {
     const url = `${CANONICAL_BASE}/resources`;
-    const desc = "Redacted sample reports across Mexican practice areas — penal, civil, laboral, familiar, amparo, derechos humanos, fiscal, and mercantil.";
+    const desc =
+      "Reportes de muestra redactados en nueve áreas del derecho mexicano — penal, civil, laboral, familiar, amparo, derechos humanos, fiscal y mercantil.";
     return {
       meta: [
-        { title: "Resources — Sample Reports by Practice Area | Nyrava" },
+        { title: "Recursos — Reportes de muestra por área de práctica | Nyrava" },
         { name: "description", content: desc },
-        { property: "og:title", content: "Resources — Nyrava" },
+        { property: "og:title", content: "Recursos — Nyrava" },
         { property: "og:description", content: desc },
         { property: "og:type", content: "website" },
         { property: "og:url", content: url },
@@ -129,7 +139,7 @@ export const Route = createFileRoute("/resources")({
       links: [{ rel: "canonical", href: url }],
       scripts: [{
         type: "application/ld+json",
-        children: breadcrumbJsonLd(CANONICAL_BASE, [{ label: "Resources", to: "/resources" }]),
+        children: breadcrumbJsonLd(CANONICAL_BASE, [{ label: "Recursos", to: "/resources" }]),
       }],
     };
   },
@@ -139,14 +149,14 @@ export const Route = createFileRoute("/resources")({
 function Resources() {
   return (
     <DocsLayout
-      eyebrow="Resources"
-      title="Sample reports by practice area"
-      description="Short summaries of Nyrava analysis across nine practice areas. Each summary describes the record analyzed and the highlights of the generated report — useful for evaluating fit."
-      crumbs={[{ label: "Resources", to: "/resources" }]}
+      eyebrow="Recursos"
+      title="Reportes de muestra por área de práctica"
+      description="Resúmenes breves del análisis de Nyrava en nueve áreas de práctica. Cada resumen describe el expediente analizado y los puntos destacados del reporte generado — útil para evaluar ajuste."
+      crumbs={[{ label: "Recursos", to: "/resources" }]}
     >
-      <Callout variant="info" title="Redacted synthetic material">
-        Sample corpora are synthetic composites built for evaluation and training. They are not
-        derived from any actual matter and do not represent any real party.
+      <Callout variant="info" title="Material sintético redactado">
+        Los corpus de muestra son compuestos sintéticos construidos para evaluación y entrenamiento.
+        No se derivan de ningún asunto real ni representan a ninguna parte real.
       </Callout>
 
       <DocsSection>
@@ -169,12 +179,13 @@ function Resources() {
         </div>
       </DocsSection>
 
-      <DocsSection heading="Want to see a report in your practice area?">
+      <DocsSection heading="¿Quiere ver un reporte en su área de práctica?">
         <p>
-          Request a walkthrough through the{" "}
-          <Link to="/contact" className="text-primary hover:underline">Contact</Link> page and let us
-          know which practice area you're evaluating. Firms enrolled in the beta can also run any of
-          the sample corpora directly from the admin fixture tool.
+          Solicite una demostración a través de la página de{" "}
+          <Link to="/contact" className="text-primary hover:underline">Contacto</Link> e indíquenos
+          qué área de práctica está evaluando. Los bufetes inscritos en la beta también pueden
+          ejecutar cualquiera de los corpus de muestra directamente desde la herramienta de fixtures
+          del administrador.
         </p>
       </DocsSection>
     </DocsLayout>
