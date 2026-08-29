@@ -1,5 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { DocsLayout, DocsSection, StepList, FAQ, Callout, FeatureGrid, breadcrumbJsonLd, CANONICAL_BASE } from "@/components/DocsLayout";
+import { DocsLayout, DocsSection, StepList, FAQ, Callout, FeatureGrid, breadcrumbJsonLd, productJsonLd, CANONICAL_BASE } from "@/components/DocsLayout";
 import { getProduct, type ProductPageContent } from "@/lib/docs/product-copy";
 import { CheckCircle2 } from "lucide-react";
 
@@ -40,6 +40,15 @@ export const Route = createFileRoute("/product/$slug")({
             { label: "Product" },
             { label: p.title, to: `/product/${params.slug}` },
           ]),
+        },
+        {
+          type: "application/ld+json",
+          children: productJsonLd(CANONICAL_BASE, {
+            slug: params.slug,
+            title: p.title,
+            description: p.description,
+            category: "Legal Technology Software",
+          }),
         },
         {
           type: "application/ld+json",
