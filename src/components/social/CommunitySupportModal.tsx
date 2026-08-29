@@ -95,7 +95,7 @@ export function CommunitySupportModal({
           categories: res.defaultDraft.supportCategories,
           displayName: res.defaultDraft.publicDisplayName,
           location: res.defaultDraft.locationDisplay,
-          urgency: res.defaultDraft.urgency,
+          urgency: res.defaultDraft.urgency as "low" | "normal" | "high" | "critical",
         }));
       }
       return res;

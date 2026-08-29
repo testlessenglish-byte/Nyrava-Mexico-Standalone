@@ -2091,3 +2091,75 @@ export const recordCommunitySupportReceived = createServerFn({ method: "POST" })
 
     return { ok: true, offer: updateOffer.data };
   });
+
+// Public (unauthenticated) community-support endpoints — data is sanitized
+// through sanitizePublicCampaign so no protected case data is exposed.
+export const getPublicCommunitySupportCampaign = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ publicSlug: z.string().trim().min(6).max(64) }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin: adminClient } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = adminClient as any;
+    const { sanitizePublicCampaign } = await import("@/lib/social/community-support.server");
+
+    const campaignRes = await supabaseAdmin
+      .from("social_community_campaigns")
+      .select("*")
+      .eq("public_slug", data.publicSlug)
+      .eq("lifecycle_status", "published")
+      .maybeSingle();
+    const campaign = campaignRes.data;
+    if (!campaign) return null;
+
+    const [profileRes, offersRes] = await Promise.all([
+      supabaseAdmin.from("social_community_fundraising_profiles").select("legal_name,state,tax_deductible_status").eq("org_id", campaign.org_id).maybeSingle(),
+      supabaseAdmin.from("social_community_support_offers").select("id,status").eq("campaign_id", campaign.id),
+    ]);
+
+    return sanitizePublicCampaign(campaign, profileRes.data ?? null, offersRes.data ?? []);
+  });
+
+export const submitPublicCommunitySupportOffer = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    publicSlug: z.string().trim().min(6).max(64),
+    offerType: z.enum(["goods", "service", "financial_pledge", "other"]).default("goods"),
+    categories: z.array(z.string()).default([]),
+    itemDescription: z.string().trim().min(3).max(2000),
+    quantity: z.string().trim().max(120).optional(),
+    donorName: z.string().trim().min(2).max(160),
+    donorEmail: z.string().trim().email().optional(),
+    donorPhone: z.string().trim().max(40).optional(),
+    deliveryMethod: z.enum(["dropoff_organization", "collection_point", "arrange_pickup", "contact_to_coordinate"]).default("dropoff_organization"),
+    notes: z.string().trim().max(2000).optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin: adminClient } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = adminClient as any;
+
+    const campaignRes = await supabaseAdmin
+      .from("social_community_campaigns")
+      .select("id,org_id,social_case_id,lifecycle_status")
+      .eq("public_slug", data.publicSlug)
+      .eq("lifecycle_status", "published")
+      .maybeSingle();
+    const campaign = campaignRes.data;
+    if (!campaign) {
+      throw new Error("Campaña no disponible / Campaign is not available");
+    }
+
+    const insertRes = await supabaseAdmin.from("social_community_support_offers").insert({
+      campaign_id: campaign.id,
+      offer_type: data.offerType,
+      categories: data.categories,
+      item_description: data.itemDescription,
+      quantity: data.quantity || null,
+      donor_name: data.donorName,
+      donor_email: data.donorEmail || null,
+      donor_phone: data.donorPhone || null,
+      delivery_method: data.deliveryMethod,
+      notes: data.notes || null,
+      status: "submitted",
+    }).select("id").single();
+    fail(insertRes.error);
+
+    return { ok: true, offerId: insertRes.data.id };
+  });
