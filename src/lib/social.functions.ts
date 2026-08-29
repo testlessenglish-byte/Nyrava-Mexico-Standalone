@@ -2097,7 +2097,8 @@ export const recordCommunitySupportReceived = createServerFn({ method: "POST" })
 export const getPublicCommunitySupportCampaign = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ publicSlug: z.string().trim().min(6).max(64) }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: adminClient } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = adminClient as any;
     const { sanitizePublicCampaign } = await import("@/lib/social/community-support.server");
 
     const campaignRes = await supabaseAdmin
@@ -2131,7 +2132,8 @@ export const submitPublicCommunitySupportOffer = createServerFn({ method: "POST"
     notes: z.string().trim().max(2000).optional(),
   }).parse(d))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: adminClient } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = adminClient as any;
 
     const campaignRes = await supabaseAdmin
       .from("social_community_campaigns")
