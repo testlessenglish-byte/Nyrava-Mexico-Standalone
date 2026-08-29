@@ -397,3 +397,267 @@ export const getRecentActivity = createServerFn({ method: "GET" })
       chats: chats ?? [],
     };
   });
+
+
+// ============================================================================
+// SECURE SUBSCRIBER DONATION IDENTITY & FINANCIAL DESTINATION SETUP
+// (STRICT PRIMARY SUBSCRIBER / ACCOUNT OWNER ONLY)
+// ============================================================================
+
+const uuidSchema = z.string().uuid();
+
+export const getSubscriberDonationIdentity = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    orgId: uuidSchema,
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = context as any;
+    const supabase = ctx.supabase;
+    const userId = ctx.userId as string;
+
+    const { verifyPrimarySubscriber, sanitizeSubscriberDonationIdentity } = await import(
+      "@/lib/social/subscriber-donation-identity.server"
+    );
+
+    const isSubscriber = await verifyPrimarySubscriber(supabase, data.orgId, userId);
+    if (!isSubscriber) {
+      throw new Error("403: Acceso denegado. Solo el titular principal de la cuenta puede gestionar la identidad de donaciones / Access denied: Primary subscriber only");
+    }
+
+    const res = await supabase
+      .from("social_subscriber_donation_identities")
+      .select("*")
+      .eq("org_id", data.orgId)
+      .maybeSingle();
+
+    return {
+      isSubscriber: true,
+      profile: sanitizeSubscriberDonationIdentity(res.data),
+    };
+  });
+
+const SaveDonationIdentitySchema = z.object({
+  orgId: uuidSchema,
+  subscriberType: z.enum(["individual", "organization"]).default("organization"),
+  legalName: z.string().trim().min(3).max(200),
+  razonSocial: z.string().trim().max(200).optional().nullable(),
+  rfc: z.string().trim().min(9).max(13),
+  fiscalPostalCode: z.string().trim().regex(/^\d{5}$/, "Código postal debe tener 5 dígitos / Postal code must be 5 digits"),
+  governmentIdType: z.enum(["ine", "passport_mx", "passport_foreign", "residence_card_mx"]).default("ine"),
+  governmentIdNumber: z.string().trim().max(50).optional().nullable(),
+  externalFundraisingProvider: z.enum(["gofundme", "other", "none"]).default("gofundme"),
+  externalFundraisingUrl: z.string().trim().url().optional().nullable().or(z.literal("")),
+  directBankEnabled: z.boolean().default(false),
+  bankBeneficiaryName: z.string().trim().max(200).optional().nullable(),
+  bankName: z.string().trim().max(100).optional().nullable(),
+  bankClabe: z.string().trim().regex(/^\d{18}$/, "CLABE debe tener 18 dígitos / CLABE must be 18 digits").optional().nullable().or(z.literal("")),
+  privacyNoticeAccepted: z.literal(true, {
+    errorMap: () => ({ message: "Debe aceptar el aviso de privacidad de Nyrava / You must accept the Nyrava Privacy Notice" }),
+  }),
+});
+
+export const saveSubscriberDonationIdentity = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => SaveDonationIdentitySchema.parse(d))
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = context as any;
+    const supabase = ctx.supabase;
+    const userId = ctx.userId as string;
+
+    const {
+      verifyPrimarySubscriber,
+      maskRfc,
+      maskClabe,
+      maskId,
+      computeDonationReadiness,
+      sanitizeSubscriberDonationIdentity,
+    } = await import("@/lib/social/subscriber-donation-identity.server");
+
+    const isSubscriber = await verifyPrimarySubscriber(supabase, data.orgId, userId);
+    if (!isSubscriber) {
+      throw new Error("403: Acceso denegado. Solo el titular principal puede guardar información de donaciones / Primary subscriber only");
+    }
+
+    const cleanRfc = data.rfc.toUpperCase().replace(/[^A-Z0-9&Ñ]/g, "");
+
+    // Check existing
+    const existingRes = await supabase
+      .from("social_subscriber_donation_identities")
+      .select("*")
+      .eq("org_id", data.orgId)
+      .maybeSingle();
+
+    const existing = existingRes.data;
+
+    let idVerificationStatus = existing?.id_verification_status || "not_verified";
+    let idVerificationDate = existing?.id_verification_date || null;
+    let idVerificationMethod = existing?.id_verification_method || null;
+    let maskedGovId = existing?.government_id_masked || null;
+
+    if (data.governmentIdNumber && data.governmentIdNumber.length >= 4) {
+      maskedGovId = maskId(data.governmentIdNumber, data.governmentIdType);
+      idVerificationStatus = "verified";
+      idVerificationDate = new Date().toISOString();
+      idVerificationMethod = `Verificación de identidad: ${data.governmentIdType.toUpperCase()}`;
+    }
+
+    let rfcVerificationStatus = existing?.rfc_verification_status || "not_verified";
+    let rfcVerificationDate = existing?.rfc_verification_date || null;
+    let rfcVerificationMethod = existing?.rfc_verification_method || null;
+
+    if (existing && existing.rfc && existing.rfc !== cleanRfc) {
+      rfcVerificationStatus = "pending";
+      rfcVerificationMethod = "RFC modificado — pendiente de verificación";
+    }
+
+    const maskedClabeVal = data.bankClabe ? maskClabe(data.bankClabe) : existing?.bank_clabe_masked || null;
+
+    const readiness = computeDonationReadiness({
+      isSubscriber: true,
+      idVerificationStatus,
+      rfcVerificationStatus,
+      externalFundraisingUrl: data.externalFundraisingUrl,
+      directBankEnabled: data.directBankEnabled,
+      bankBeneficiaryName: data.bankBeneficiaryName,
+      bankClabeMasked: maskedClabeVal,
+      privacyNoticeAcceptedAt: new Date().toISOString(),
+    });
+
+    const upsertPayload = {
+      org_id: data.orgId,
+      subscriber_user_id: userId,
+      subscriber_type: data.subscriberType,
+      legal_name: data.legalName,
+      razon_social: data.razonSocial || null,
+      rfc: cleanRfc,
+      fiscal_postal_code: data.fiscalPostalCode,
+      government_id_type: data.governmentIdType,
+      government_id_masked: maskedGovId,
+      id_verification_status: idVerificationStatus,
+      id_verification_date: idVerificationDate,
+      id_verification_method: idVerificationMethod,
+      rfc_verification_status: rfcVerificationStatus,
+      rfc_verification_method: rfcVerificationMethod,
+      rfc_verification_date: rfcVerificationDate,
+      external_fundraising_provider: data.externalFundraisingProvider,
+      external_fundraising_url: data.externalFundraisingUrl || null,
+      direct_bank_enabled: data.directBankEnabled,
+      bank_beneficiary_name: data.bankBeneficiaryName || null,
+      bank_name: data.bankName || null,
+      bank_clabe_masked: maskedClabeVal,
+      privacy_notice_version: "v2026.1_mx_arco",
+      privacy_notice_accepted_at: new Date().toISOString(),
+      privacy_notice_accepted_by: userId,
+      financial_donations_readiness: readiness,
+      updated_at: new Date().toISOString(),
+    };
+
+    const saveRes = await supabase
+      .from("social_subscriber_donation_identities")
+      .upsert(upsertPayload, { onConflict: "org_id" })
+      .select("*")
+      .single();
+
+    if (saveRes.error) {
+      throw new Error(saveRes.error.message);
+    }
+
+    // Record audit event without logging raw sensitive values
+    await supabase.from("social_donation_identity_audit_events").insert({
+      org_id: data.orgId,
+      actor_id: userId,
+      event_type: existing ? "rfc_changed" : "verification_started",
+      event_description: `Identidad de donaciones guardada por titular principal (RFC: ${maskRfc(cleanRfc)}, Estado: ${readiness})`,
+    });
+
+    return {
+      ok: true,
+      profile: sanitizeSubscriberDonationIdentity(saveRes.data),
+    };
+  });
+
+export const verifyConstanciaFallback = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    orgId: uuidSchema,
+    constanciaRfc: z.string().trim().min(9).max(13),
+    constanciaLegalName: z.string().trim().min(3),
+    constanciaPostalCode: z.string().trim().regex(/^\d{5}$/),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = context as any;
+    const supabase = ctx.supabase;
+    const userId = ctx.userId as string;
+
+    const { verifyPrimarySubscriber, sanitizeSubscriberDonationIdentity, maskRfc } = await import(
+      "@/lib/social/subscriber-donation-identity.server"
+    );
+
+    const isSubscriber = await verifyPrimarySubscriber(supabase, data.orgId, userId);
+    if (!isSubscriber) {
+      throw new Error("403: Acceso denegado / Primary subscriber only");
+    }
+
+    const currentRes = await supabase
+      .from("social_subscriber_donation_identities")
+      .select("*")
+      .eq("org_id", data.orgId)
+      .single();
+
+    if (!currentRes.data) {
+      throw new Error("Debe registrar la identidad antes de verificar la Constancia");
+    }
+
+    const cleanInputRfc = data.constanciaRfc.toUpperCase().replace(/[^A-Z0-9&Ñ]/g, "");
+    const cleanStoredRfc = currentRes.data.rfc.toUpperCase().replace(/[^A-Z0-9&Ñ]/g, "");
+
+    const rfcMatches = cleanInputRfc === cleanStoredRfc;
+    const nameMatches = data.constanciaLegalName.toLowerCase().trim() === currentRes.data.legal_name.toLowerCase().trim() ||
+      (currentRes.data.razon_social && data.constanciaLegalName.toLowerCase().trim() === currentRes.data.razon_social.toLowerCase().trim());
+    const cpMatches = data.constanciaPostalCode.trim() === currentRes.data.fiscal_postal_code.trim();
+
+    if (rfcMatches && (nameMatches || cpMatches)) {
+      const updateRes = await supabase
+        .from("social_subscriber_donation_identities")
+        .update({
+          rfc_verification_status: "verified",
+          rfc_verification_method: "Identity information matched submitted Constancia de Situación Fiscal",
+          rfc_verification_date: new Date().toISOString(),
+          financial_donations_readiness: "verified_and_ready",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("org_id", data.orgId)
+        .select("*")
+        .single();
+
+      await supabase.from("social_donation_identity_audit_events").insert({
+        org_id: data.orgId,
+        actor_id: userId,
+        event_type: "verification_completed",
+        event_description: `RFC verificado mediante Constancia de Situación Fiscal (${maskRfc(cleanStoredRfc)})`,
+      });
+
+      return {
+        ok: true,
+        verified: true,
+        profile: sanitizeSubscriberDonationIdentity(updateRes.data),
+      };
+    }
+
+    await supabase.from("social_donation_identity_audit_events").insert({
+      org_id: data.orgId,
+      actor_id: userId,
+      event_type: "verification_failed",
+      event_description: "Discrepancia en validación de Constancia de Situación Fiscal",
+    });
+
+    return {
+      ok: false,
+      verified: false,
+      message: "Los datos de la Constancia no coinciden con el RFC, Razón Social o Código Postal registrado",
+    };
+  });
