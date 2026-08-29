@@ -171,18 +171,12 @@ function SocialCarePage(){
   const workspace=useQuery({
     queryKey:["social-workspace"],
     queryFn:()=>workspaceFn(),
-    refetchInterval:5000,
     refetchOnWindowFocus:true,
   });
   const allOrganizations=workspace.data?.organizations??[];
   const allOrganizationAccounts=workspace.data?.organizationAccounts??[];
   const currentUserId=workspace.data?.userId??"";
-  const employeeOrgIds=allOrganizationAccounts
-    .filter((account:any)=>account.can_manage!==true&&(account.members??[]).some((member:any)=>member.user_id===currentUserId&&member.status==="active"))
-    .map((account:any)=>account.orgId);
-  const availableOrganizations=employeeOrgIds.length
-    ? allOrganizations.filter((organization:any)=>employeeOrgIds.includes(organization.id))
-    : allOrganizations;
+  const availableOrganizations=allOrganizations;
   const requestedOrg=orgId&&availableOrganizations.some((organization:any)=>organization.id===orgId)?orgId:"";
   const resolvedOrg=requestedOrg||availableOrganizations[0]?.id||"";
   const organizationAccount=allOrganizationAccounts.find((x:any)=>x.orgId===resolvedOrg);
@@ -292,6 +286,7 @@ function SocialCarePage(){
   useEffect(()=>setCasePage(1),[caseListQuery,resolvedOrg]);
 
   if(workspace.isLoading)return <div className="p-8 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>{es?"Cargando Atención Integral…":"Loading Comprehensive Care…"}</div>;
+  if(workspace.isError)return <div data-social-care-root className="mx-auto max-w-[1500px] p-4 md:p-6"><div className="rounded-xl border border-destructive/40 bg-destructive/10 p-6"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 text-destructive"/><div><h2 className="font-semibold text-destructive">{es?"Error al cargar Atención Integral":"Error loading Comprehensive Care"}</h2><p className="mt-1 text-sm text-muted-foreground">{errorMessage(workspace.error)}</p><button onClick={()=>workspace.refetch()} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90">{es?"Reintentar":"Retry"}</button></div></div></div></div>;
   if(selectedCaseId)return <div data-social-care-root className="mx-auto max-w-[1600px] p-4 md:p-6"><EscapedTextNormalizer/><SocialCaseWorkspace
     caseId={selectedCaseId}
     initialTab={activeCaseTab as any}
