@@ -1,4 +1,4 @@
-﻿// JSON Pipeline Integrity Gate
+// JSON Pipeline Integrity Gate
 //
 // Hard, deterministic invariants executed before report assembly and before
 // final release. A failure here immediately blocks release and logs actionable
@@ -56,7 +56,7 @@ export function validateJSONPipelineIntegrity(input: {
       violations.push({
         rule_id: "VERIFIED_QUOTE_WITHOUT_SOURCE_DOCUMENT",
         severity: "critical",
-        message: Finding "" is verified against corpus text but lacks a resolvable source document ID.,
+        message: `Finding "${f.title}" is verified against corpus text but lacks a resolvable source document ID.`,
         context: { finding_id: f.id, title: f.title },
       });
     }
@@ -69,7 +69,7 @@ export function validateJSONPipelineIntegrity(input: {
         violations.push({
           rule_id: "CONCLUDED_CASE_UNCITED_FUTURE_DEADLINE",
           severity: "critical",
-          message: Concluded case contains future deadline "" with no cited source.,
+          message: `Concluded case contains future deadline "${d.label}" with no cited source.`,
           context: { deadline: d },
         });
       }
@@ -83,7 +83,7 @@ export function validateJSONPipelineIntegrity(input: {
         violations.push({
           rule_id: "ADOPTED_HOLDING_MISCLASSIFIED_AS_ADVERSE_RISK",
           severity: "critical",
-          message: Adopted holding "" is classified as adverse risk without articulated strategic reasoning.,
+          message: `Adopted holding "${f.title}" is classified as adverse risk without articulated strategic reasoning.`,
           context: { finding_id: f.id, title: f.title },
         });
       }
@@ -99,7 +99,7 @@ export function validateJSONPipelineIntegrity(input: {
         violations.push({
           rule_id: "DUPLICATE_CANONICAL_FINDING_IN_REPORT",
           severity: "critical",
-          message: Canonical finding ID "" appears multiple times in reportable findings.,
+          message: `Canonical finding ID "${cid}" appears multiple times in reportable findings.`,
           context: { canonical_finding_id: cid, duplicate_title: f.title },
         });
       }
@@ -112,8 +112,7 @@ export function validateJSONPipelineIntegrity(input: {
     violations.push({
       rule_id: "UNSUPPORTED_NEXT_STAGE_AFTER_FINAL_RESOLUTION",
       severity: "warning",
-      message: 
-ext_stage "" is populated on a concluded resolution with no remand ordered.,
+      message: `next_stage "${caseRow.next_stage}" is populated on a concluded resolution with no remand ordered.`,
       context: { next_stage: caseRow.next_stage },
     });
   }
@@ -123,7 +122,7 @@ ext_stage "" is populated on a concluded resolution with no remand ordered.,
     violations.push({
       rule_id: "RECOMMENDATION_SURVIVED_IN_LIMITED_MODE",
       severity: "critical",
-      message: Actionable recommendations survived () despite active LIMITED analysis mode.,
+      message: `Actionable recommendations survived (${recommendationsCount}) despite active LIMITED analysis mode.`,
     });
   }
 

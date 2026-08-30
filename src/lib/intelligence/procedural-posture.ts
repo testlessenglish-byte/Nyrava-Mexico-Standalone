@@ -1,4 +1,4 @@
-﻿// Procedural Posture Model & Constraint Engine
+// Procedural Posture Model & Constraint Engine
 //
 // Invariant: Strategy, missing-evidence, deadlines, opportunities, and
 // next-action generators must be strictly bound by the procedural posture of
@@ -143,7 +143,7 @@ export function sanitizeActionsForPosture<T extends { action?: string; title?: s
   ];
 
   return actions.filter((act) => {
-    const text = ${act.action ?? ""}  ;
+    const text = [act.action, act.title, act.description].filter(Boolean).join(" ");
     return !FORBIDDEN_FUTURE_ACTION_PATTERNS.some((pattern) => pattern.test(text));
   });
 }
