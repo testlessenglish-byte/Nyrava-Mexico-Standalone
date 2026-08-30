@@ -83,10 +83,14 @@ export async function autoDetectCaseContext(
 ): Promise<AutoDetectResult> {
   const { data: row } = await supabase
     .from("cases")
-    .select("case_type,jurisdiction")
+    .select("case_type,jurisdiction,matter_metadata")
     .eq("id", caseId)
     .maybeSingle();
-  const current = (row ?? {}) as { case_type?: string | null; jurisdiction?: string | null };
+  const current = (row ?? {}) as {
+    case_type?: string | null;
+    jurisdiction?: string | null;
+    matter_metadata?: Record<string, unknown> | null;
+  };
   const declaredType = (current.case_type ?? "").trim();
   const declaredJur = (current.jurisdiction ?? "").trim();
   const needsType = !declaredType || declaredType.toLowerCase() === "unknown";

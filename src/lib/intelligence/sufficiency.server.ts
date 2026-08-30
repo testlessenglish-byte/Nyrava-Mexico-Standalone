@@ -240,6 +240,23 @@ export function computeESS(inputs: ESSInputs): ESSResult {
     );
   }
 
+  const allowQuantitativeScores =
+    !hasOnlyIncompleteJudicialPublication && (overrideTriggered ? true : bin !== "minimal" && factCount >= 5);
+  const allowMotionGeneration =
+    !hasOnlyIncompleteJudicialPublication && (overrideTriggered ? true : bin !== "minimal" && factCount >= 4);
+  const allowLegalTheories =
+    !hasOnlyIncompleteJudicialPublication && (overrideTriggered ? true : bin !== "minimal");
+  const insufficientEvidenceNotice =
+    hasOnlyIncompleteJudicialPublication
+      ? locale === "es"
+        ? "El documento judicial disponible es un fragmento o proyecto público, no la sentencia completa. El análisis se limita al contenido efectivamente publicado; se suprimen puntuaciones, teorías, promociones y conclusiones sobre puntos resolutivos hasta aportar el engrose o resolución íntegra."
+        : "The available judicial document is a public fragment or draft, not the complete judgment. Analysis is limited to the published content; scores, theories, motions, and dispositive conclusions are suppressed until the complete signed decision is supplied."
+      : !overrideTriggered && bin === "minimal"
+      ? locale === "es"
+        ? "Evidencia insuficiente para un análisis legal completo. Este reporte se limita a hechos verificados y avisos de evidencia faltante. Generar teorías, promociones o puntuaciones cuantitativas a partir de este acervo no cumple con el estándar actual de la plataforma para un análisis completo."
+        : "Insufficient evidence for full legal intelligence. This report is limited to verified facts and missing-evidence notices. Generating theories, motions, or quantitative scores from this corpus does not meet this platform's current bar for full analysis."
+      : null;
+
   const sufficient_to_determine_court_holding =
     !hasOnlyIncompleteJudicialPublication &&
     (highWeightDocTypeCount > 0 || (isJudicialAudit && extractedChars >= 8_000));

@@ -555,7 +555,7 @@ export function computeDecomposedRiskScore(
       continue;
     }
 
-    if (direction === "weakens" || f.impact_direction === "undermining") {
+    if (direction === "weakens" || f.impact_direction === "weakens") {
       if (cat.includes("constitutional") || cat.includes("precedent") || cat.includes("jurisprudencia") || isHolding) {
         legalRisk += delta;
         legalFactors.push(`${f.title} (+${delta})`);

@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import { computeDecomposedRiskScore } from "../scoring.server";
 import type { Finding } from "../types";
 
@@ -33,7 +33,7 @@ describe("computeDecomposedRiskScore", () => {
         severity: "high",
         confidence: 0.9,
         proposition_type: "precedent",
-        impact_direction: "undermining",
+        impact_direction: "weakens",
       } as any,
     ];
 
