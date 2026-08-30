@@ -790,3 +790,152 @@ describe("Canonical Source Document Identity & Corroboration Engine", () => {
     expect(audit.invariants.all_invariants_passed).toBe(true);
   });
 });
+
+describe("Platform-Wide Concluded-Case Report Governance", () => {
+  it("Scenario A: Concluded SCJN ADR prioritizes disposition over underlying allegations and suppresses strategy", async () => {
+    const { detectConcludedCaseGovernance, sortFindingsForConcludedReport, filterConcludedReportSections } =
+      await import("../concluded-case-governance");
+
+    const governance = detectConcludedCaseGovernance({
+      procedural_posture: "concluded",
+      case_analysis_mode: "concluded_audit",
+    });
+
+    expect(governance.is_concluded).toBe(true);
+    expect(governance.governance_mode).toBe("concluded_decision_audit");
+    expect(governance.strategy_output_allowed).toBe(false);
+    expect(governance.decision_core_priority).toBe(true);
+
+    const findings = [
+      {
+        id: "f-torture-allegation",
+        title: "Alegación de tortura durante la detención",
+        severity: "critical",
+        audit_classification: "PARTY_ALLEGATION",
+        proposition_type: "argument",
+      },
+      {
+        id: "f-disposition",
+        title: "Puntos Resolutivos: Se desecha el recurso de revisión",
+        severity: "medium",
+        mandatory_decision_kind: "DISPOSITION",
+        proposition_type: "holding",
+        adoption_status: "adopted",
+      },
+      {
+        id: "f-effect",
+        title: "Efecto: Queda firme la sentencia recurrida",
+        severity: "low",
+        mandatory_decision_kind: "REMEDY",
+      },
+    ];
+
+    const sorted = sortFindingsForConcludedReport(findings, governance);
+    // Disposition must outrank critical allegation
+    expect(sorted[0].id).toBe("f-disposition");
+    expect(sorted[1].id).toBe("f-effect");
+    expect(sorted[2].id).toBe("f-torture-allegation");
+
+    // Report sections filter out active-litigation strategy
+    const fullReport = {
+      ways_out_analysis: ["Presentar amparo indirecto"],
+      settlement_opportunities: ["Negociar con la contraparte"],
+      litigation_strategy: ["Ofrecer testigos"],
+      canonical_recommendations: [
+        { title: "Interponer recurso de queja", action: "Interponer queja" },
+        { title: "Verificar engrose", action: "Revisar engrose y constancias" },
+      ],
+    };
+
+    const filtered = filterConcludedReportSections(fullReport, governance);
+    expect(filtered.ways_out_analysis).toBeUndefined();
+    expect(filtered.settlement_opportunities).toBeUndefined();
+    expect(filtered.litigation_strategy).toBeUndefined();
+    expect(filtered.recommended_actions_title).toBe("PASOS DE VERIFICACIÓN DOCUMENTAL");
+    expect((filtered.canonical_recommendations as any[]).length).toBe(1);
+    expect((filtered.canonical_recommendations as any[])[0].title).toBe("Verificar engrose");
+  });
+
+  it("Scenario B: Ongoing penal case preserves active strategy and severity ranking", async () => {
+    const { detectConcludedCaseGovernance, sortFindingsForConcludedReport } =
+      await import("../concluded-case-governance");
+
+    const governance = detectConcludedCaseGovernance({
+      procedural_posture: "pending",
+      case_analysis_mode: "ongoing",
+    });
+
+    expect(governance.is_concluded).toBe(false);
+    expect(governance.strategy_output_allowed).toBe(true);
+
+    const findings = [
+      { id: "f-low", title: "Cuestión formal", severity: "low" },
+      { id: "f-crit", title: "Violación grave a debido proceso", severity: "critical" },
+    ];
+
+    const sorted = sortFindingsForConcludedReport(findings, governance);
+    expect(sorted[0].id).toBe("f-crit");
+  });
+
+  it("Scenario C: Concluded Laboral judgment leads with disposition, not speculative steps", async () => {
+    const { detectConcludedCaseGovernance, sortFindingsForConcludedReport } =
+      await import("../concluded-case-governance");
+
+    const governance = detectConcludedCaseGovernance({
+      case_analysis_mode: "concluded_audit",
+    });
+
+    const findings = [
+      { id: "f-risk", title: "Riesgo de cuantificación", severity: "critical" },
+      { id: "f-laudo", title: "Laudo definitivo: Se condena a la reinstalación", severity: "high", mandatory_decision_kind: "DISPOSITION" },
+    ];
+
+    const sorted = sortFindingsForConcludedReport(findings, governance);
+    expect(sorted[0].id).toBe("f-laudo");
+  });
+
+  it("Scenario D: LIMITED mode renders verification-only steps and suppresses speculative text", async () => {
+    const { detectConcludedCaseGovernance, sanitizeConcludedReportProse, filterConcludedReportSections } =
+      await import("../concluded-case-governance");
+
+    const governance = detectConcludedCaseGovernance({
+      procedural_posture: "concluded",
+    });
+
+    const rawProse = "El quejoso se queda sin vías de defensa pero podría llevar a la revocación en otra instancia.";
+    const sanitized = sanitizeConcludedReportProse(rawProse, governance);
+    expect(sanitized).not.toContain("el quejoso se queda sin vías de defensa");
+    expect(sanitized).not.toContain("podría llevar a la revocación");
+    expect(sanitized).toContain("el recurso de revisión analizado fue desechado y la sentencia recurrida quedó firme en este procedimiento");
+
+    const report = filterConcludedReportSections({ canonical_recommendations: [] }, governance);
+    expect(report.recommended_actions_title).toBe("PASOS DE VERIFICACIÓN DOCUMENTAL");
+  });
+
+  it("Scenario E: Party allegation displays [ARGUMENTO DEL QUEJOSO]", async () => {
+    const { formatSpeakerRoleBadge } = await import("../concluded-case-governance");
+    const allegationFinding = {
+      title: "Violación a la garantía de audiencia",
+      audit_classification: "PARTY_ALLEGATION",
+      proposition_type: "argument",
+      speaker_role: "quejoso",
+    };
+
+    const badge = formatSpeakerRoleBadge(allegationFinding);
+    expect(badge).toBe("ARGUMENTO DEL QUEJOSO");
+  });
+
+  it("Scenario F: SCJN adopted proposition displays [DETERMINACIÓN ADOPTADA POR SCJN]", async () => {
+    const { formatSpeakerRoleBadge } = await import("../concluded-case-governance");
+    const adoptedHolding = {
+      title: "Inconstitucionalidad del precepto impugnado",
+      audit_classification: "VERIFIED_COURT_HOLDING",
+      proposition_type: "holding",
+      adoption_status: "adopted",
+      speaker_role: "scjn",
+    };
+
+    const badge = formatSpeakerRoleBadge(adoptedHolding, "scjn");
+    expect(badge).toBe("DETERMINACIÓN ADOPTADA POR SCJN");
+  });
+});

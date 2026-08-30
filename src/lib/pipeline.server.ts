@@ -7598,12 +7598,19 @@ ${paginationTail}`;
   const proseLooksEmpty =
     Object.values(prose).filter((v) => typeof v === "string" && v.trim().length > 0).length < 3;
   if (proseLooksEmpty) {
-    const sevRank = { critical: 4, high: 3, medium: 2, low: 1, info: 0 } as Record<string, number>;
-    const top = [...findings]
-      .sort((a, b) => (sevRank[b.severity] ?? 0) - (sevRank[a.severity] ?? 0))
-      .slice(0, 10);
+    const { loadConcludedCaseGovernance } = await import("./intelligence/concluded-case-governance.server");
+    const { sortFindingsForConcludedReport, formatSpeakerRoleBadge, sanitizeConcludedReportProse } = await import("./intelligence/concluded-case-governance");
+    const governance = await loadConcludedCaseGovernance(db, caseId, {
+      resolutivos: resolutivoVerbatim,
+      corpusText: corpus,
+    });
+    const sortedFindings = sortFindingsForConcludedReport(findings as any[], governance);
+    const top = sortedFindings.slice(0, 10);
     const bullets = top
-      .map((f) => `- (${f.severity}) ${f.title} — ${f.legal_significance ?? f.category}`)
+      .map((f: any) => {
+        const badge = governance.speaker_role_labels_required ? `[${formatSpeakerRoleBadge(f)}] ` : "";
+        return `- ${badge}(${f.severity}) ${f.title} — ${f.legal_significance ?? f.category}`;
+      })
       .join("\n");
     const docLines = docIndex
       .map((d) => `- DOC ${d.doc_n}: ${d.filename} (${d.pages} page${d.pages === 1 ? "" : "s"})`)
@@ -9506,6 +9513,16 @@ ${paginationTail}`;
       metrics: canonicalSourceMetrics,
       invariants: canonicalSourceAudit.invariants,
     };
+    const { loadConcludedCaseGovernance } = await import("./intelligence/concluded-case-governance.server");
+    const { filterConcludedReportSections } = await import("./intelligence/concluded-case-governance");
+    const reportGov = await loadConcludedCaseGovernance(db, caseId, {
+      resolutivos: resolutivoVerbatim,
+      corpusText: corpus,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (reportRow.full_report as any).report_governance = reportGov;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    reportRow.full_report = filterConcludedReportSections(reportRow.full_report as Record<string, unknown>, reportGov);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const valBlock = ((reportRow.full_report as any).validation ?? {}) as Record<string, unknown>;
     valBlock.report_quality = qualityAudit;
@@ -9516,6 +9533,7 @@ ${paginationTail}`;
     valBlock.source_audit = canonicalSourceMetrics;
     valBlock.canonical_source_count = canonicalSourceMetrics.unique_source_count;
     valBlock.independent_source_count = canonicalSourceMetrics.independent_source_count;
+    valBlock.report_governance = reportGov;
     valBlock.citation_audit = {
       total: citationAudit.total,
       supported: citationAudit.supported,
