@@ -7598,6 +7598,7 @@ ${paginationTail}`;
   const proseLooksEmpty =
     Object.values(prose).filter((v) => typeof v === "string" && v.trim().length > 0).length < 3;
   if (proseLooksEmpty) {
+    const sevRank = { critical: 4, high: 3, medium: 2, low: 1, info: 0 } as Record<string, number>;
     const { loadConcludedCaseGovernance } = await import("./intelligence/concluded-case-governance.server");
     const { sortFindingsForConcludedReport, formatSpeakerRoleBadge, sanitizeConcludedReportProse } = await import("./intelligence/concluded-case-governance");
     const governance = await loadConcludedCaseGovernance(db, caseId, {
