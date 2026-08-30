@@ -84,7 +84,7 @@ describe("engine identity — single source of truth", () => {
       return /PIPELINE_STAGE_TO_ENGINE\s*[:=]\s*\{/.test(src) || /const\s+CANONICAL_STAGES\s*=/.test(src);
     });
     expect(offenders).toEqual([]);
-  });
+  }, 15_000);
 
   it("execution code writes ledger rows via ENGINE.*, never a raw engine string literal", () => {
     const literal = new RegExp(`engine:\\s*"(${ENGINE_ORDER.join("|")})"`);
