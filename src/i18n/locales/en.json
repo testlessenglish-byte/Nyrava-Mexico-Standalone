@@ -2275,5 +2275,6 @@
   "module.community.name": "Community Support & Solidary Campaigns",
   "modules.community.features": "Case-specific and organization-wide solidarity campaigns | In-kind donations (food, clothing, household goods, school supplies, medicine) | Volunteer professional service offers with staff review gate | Direct linking to verified external fundraising without custody of funds | 4-tier public identity protection (Anonymous, First Name, Family, Full Name) | Multi-channel sharing with WhatsApp, Facebook, and QR code integration",
   "modules.materias.title": "14 Legal Practice Areas of the Mexican Legal System",
-  "modules.materias.desc": "The Nyrava engine features substantive and procedural specialization across the 14 canonical practice areas of Mexican law:"
+  "modules.materias.desc": "The Nyrava engine features substantive and procedural specialization across the 14 canonical practice areas of Mexican law:",
+  "caseControl.stalledNotice": "No recent activity. You can clear the stuck state and resume the pipeline."
 }

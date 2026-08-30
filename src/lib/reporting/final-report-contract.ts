@@ -160,7 +160,14 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   };
   // Last transform includes generated cards, snapshot, memo, legacy prose and
   // every secondary section. No renderer may recover the pre-projection data.
-  return transformReportContent(projected, capability, governance);
+  // The second pass runs against the already-transformed tree, which is exactly
+  // the context the contract validator inspects: the first pass can change a
+  // parent (dropped strategy siblings, rewritten refs) so a nested absence or
+  // strategy string is re-classified afterwards. Re-running to a fixed point
+  // sanitizes those nodes instead of blocking release on them.
+  const once = transformReportContent(projected, capability, governance);
+  return transformReportContent(once, capability, governance);
+
 }
 
 export function validateFinalReportContract(payload: FinalReportPayload, capability = payload.report_presentation.capability, governance = payload.report_presentation.governance) {

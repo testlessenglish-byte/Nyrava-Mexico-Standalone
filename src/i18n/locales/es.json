@@ -2275,5 +2275,6 @@
   "module.community.name": "Apoyo Comunitario y Campañas Solidarias",
   "modules.community.features": "Campañas asociadas a casos o de alcance institucional | Donaciones en especie (alimentos, ropa, enseres, útiles escolares, medicamentos) | Ofertas de servicios profesionales voluntarios con revisión previa | Vinculación con recaudadores externos verificados sin custodia de fondos | Privacidad en 4 modalidades (Anónimo, Primer Nombre, Familia, Completo) | Difusión multicanal con enlaces para WhatsApp, Facebook y códigos QR",
   "modules.materias.title": "14 Materias Jurídicas del Sistema Legal Mexicano",
-  "modules.materias.desc": "El motor de Nyrava cuenta con especialización sustantiva y adjetiva para las 14 materias canónicas del derecho en México:"
+  "modules.materias.desc": "El motor de Nyrava cuenta con especialización sustantiva y adjetiva para las 14 materias canónicas del derecho en México:",
+  "caseControl.stalledNotice": "Sin actividad reciente. Puedes limpiar el estado atascado y reanudar el proceso."
 }

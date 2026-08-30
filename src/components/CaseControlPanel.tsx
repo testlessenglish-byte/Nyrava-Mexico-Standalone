@@ -34,6 +34,8 @@ const RUNNING_STATUSES = new Set([
   "intelligence_running",
 ]);
 
+const STALL_MS = 3 * 60 * 1000;
+
 export function CaseControlPanel({
   caseId,
   caseStatus,
@@ -45,6 +47,7 @@ export function CaseControlPanel({
   caseAnalysisMode,
   matterMetadata,
   documentsCount,
+  caseUpdatedAt,
   invalidate,
 }: {
   caseId: string;
@@ -57,6 +60,7 @@ export function CaseControlPanel({
   caseAnalysisMode: string | null;
   matterMetadata?: Record<string, unknown> | null;
   documentsCount: number;
+  caseUpdatedAt?: string | null;
   invalidate: () => void;
 }) {
   const { t } = useI18n();
@@ -213,7 +217,27 @@ export function CaseControlPanel({
   const disabled = running || runM.isPending || resumeM.isPending || clearStuckM.isPending || addBusy || awaitingCancel || documentsCount === 0;
   const addDisabled = running || runM.isPending || resumeM.isPending || clearStuckM.isPending || addBusy || awaitingCancel;
   const isFailed = caseStatus === "failed";
-  const isStuck = isFailed || caseStatus === "cancelled";
+  // Activity watchdog: a run that stops reporting progress (worker died, lease
+  // expired, contract blocked mid-finalization) never reaches "failed", so the
+  // recovery controls used to stay hidden. Treat a silent run as stuck.
+  const [inactive, setInactive] = useState(false);
+  const lastChangeRef = useRef<number>(Date.now());
+  useEffect(() => {
+    lastChangeRef.current = Date.now();
+    setInactive(false);
+  }, [caseStatus, caseUpdatedAt]);
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => {
+      const serverIdleMs = caseUpdatedAt ? Date.now() - new Date(caseUpdatedAt).getTime() : 0;
+      if (Date.now() - lastChangeRef.current > STALL_MS || serverIdleMs > STALL_MS) setInactive(true);
+    }, 15000);
+    return () => clearInterval(id);
+  }, [running, caseUpdatedAt]);
+  const isStalled = running && inactive;
+  const needsRecovery = isFailed || caseStatus === "cancelled" || caseStatus === "needs_revision" || caseStatus === "stalled" || isStalled;
+  const isStuck = needsRecovery;
+
 
   return (
     <div className="space-y-4">
@@ -234,11 +258,11 @@ export function CaseControlPanel({
           {t("caseControl.run")}
         </button>
 
-        {/* Resume Case — Restored for failed, checkpointed or interrupted runs */}
-        {isFailed && (
+        {/* Resume Case — failed, checkpointed, interrupted or silently stalled runs */}
+        {needsRecovery && (
           <button
             onClick={() => resumeM.mutate()}
-            disabled={resumeM.isPending || running}
+            disabled={resumeM.isPending}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-500/50 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-300 hover:bg-amber-500/25 disabled:opacity-50"
           >
             {resumeM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FastForward className="h-4 w-4" />}
@@ -246,17 +270,24 @@ export function CaseControlPanel({
           </button>
         )}
 
-        {/* Clear Stuck Case — Restored to clear stale worker leases and locks safely */}
+        {/* Clear Stuck Case — clears stale worker leases and locks safely */}
         {isStuck && (
           <button
             onClick={() => clearStuckM.mutate()}
-            disabled={clearStuckM.isPending || running}
+            disabled={clearStuckM.isPending}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-border/70 bg-card/60 px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-card disabled:opacity-50"
           >
             {clearStuckM.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
             Clear Stuck State
           </button>
         )}
+        {isStalled && (
+          <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-amber-300">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {t("caseControl.stalledNotice")}
+          </p>
+        )}
+
 
         {/* Rerun Case */}
         <button

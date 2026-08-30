@@ -11318,6 +11318,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      finalize_report_release: {
+        Args: {
+          p_case_id: string
+          p_errors: Json
+          p_execution_id: string
+          p_expected_full_report: Json
+          p_full_report: Json
+          p_released: boolean
+          p_report_id: string
+          p_status_message: string
+        }
+        Returns: undefined
+      }
       find_possible_social_people: {
         Args: {
           p_date_of_birth?: string
