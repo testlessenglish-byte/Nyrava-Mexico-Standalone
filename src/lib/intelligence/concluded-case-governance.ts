@@ -60,7 +60,7 @@ export const ACTIVE_LITIGATION_SECTION_ORDER: string[] = [
 ];
 
 export interface CaseGovernanceContext {
-  procedural_posture?: string | null;
+  procedural_posture?: string | { case_status?: string; is_final_resolution?: boolean } | null;
   case_analysis_mode?: string | null;
   analysis_mode?: string | null;
   matter_metadata?: Record<string, unknown> | null;
@@ -80,11 +80,14 @@ export interface CaseGovernanceContext {
  *   3. active_litigation (ongoing matters)
  */
 export function resolveReportGovernance(ctx: CaseGovernanceContext): ImmutableReportGovernance {
-  const posture = String(ctx.procedural_posture ?? ctx.matter_metadata?.procedural_posture ?? "").toLowerCase().trim();
+  const rawPosture = ctx.procedural_posture ?? ctx.matter_metadata?.procedural_posture;
+  const posture = String(typeof rawPosture === "object" && rawPosture ? (rawPosture as { case_status?: string }).case_status : rawPosture ?? "").toLowerCase().trim();
   const caseAnalysisMode = String(ctx.case_analysis_mode ?? ctx.matter_metadata?.case_analysis_mode ?? "").toLowerCase().trim();
   const analysisMode = String(ctx.analysis_mode ?? "").toLowerCase().trim();
   const isFinal = Boolean(ctx.is_final_resolution);
-  const allowPostJudgment = Boolean(ctx.post_judgment_options_analysis ?? ctx.matter_metadata?.post_judgment_options_analysis);
+  const allowPostJudgment = ctx.post_judgment_options_analysis === true ||
+    ctx.matter_metadata?.post_judgment_options_analysis === true ||
+    caseAnalysisMode === "post_judgment_options_analysis";
   const remedyExhaustionVerified = Boolean(ctx.remedy_exhaustion_verified ?? ctx.matter_metadata?.remedy_exhaustion_verified);
   const now = new Date().toISOString();
 
@@ -95,7 +98,7 @@ export function resolveReportGovernance(ctx: CaseGovernanceContext): ImmutableRe
     isFinal;
 
   // Precedence 1: Explicit Post-Judgment Options Analysis
-  if (isConcluded && allowPostJudgment) {
+  if (allowPostJudgment) {
     return {
       governance_mode: "post_judgment_options",
       is_concluded: true,
@@ -221,7 +224,7 @@ export function formatSpeakerRoleBadge(
   if (
     auditClass === "VERIFIED_COURT_HOLDING" ||
     (propType === "holding" && adoptStatus === "adopted") ||
-    kind === "COURT_HOLDING"
+    kind === "COURT_HOLDING" || (kind === "REMEDY" && adoptStatus === "adopted")
   ) {
     if (courtLevel === "scjn" || /scjn|primera sala|segunda sala|pleno/i.test(speaker)) {
       return "DETERMINACIÓN ADOPTADA POR SCJN";
@@ -269,51 +272,15 @@ export function formatSpeakerRoleBadge(
  * Calculates priority score for finding representation in concluded matters.
  * Invariant: Disposition > Remedy/Effect > Controlling Issue > Holding > Rejected > Allegations > Severity.
  */
+export const DECISION_CORE_KIND_ORDER = ["DISPOSITION", "RESOLUTIVOS", "CONTROLLING_ISSUE", "COURT_HOLDING", "REMEDY"] as const;
+
 export function getFindingConcludedPriority(f: Record<string, unknown>): number {
-  const kind = String(f.mandatory_decision_kind ?? f.kind ?? "").toUpperCase();
-  const auditClass = String(f.audit_classification ?? "").toUpperCase();
-  const propType = String(f.proposition_type ?? "").toLowerCase();
-  const adoptStatus = String(f.adoption_status ?? "").toLowerCase();
-  const title = String(f.title ?? "");
-  const sev = String(f.severity ?? "low").toLowerCase();
-  const sevScore = sev === "critical" ? 40 : sev === "high" ? 30 : sev === "medium" ? 20 : 10;
-
-  // Tier 1: Disposition / Resolutivo
-  if (kind === "DISPOSITION" || /puntos?\s+resolutivos?|desechado|confirmada|revocada|ampara y protege|niega el amparo/i.test(title)) {
-    return 10000 + sevScore;
-  }
-
-  // Tier 2: Remedy / Legal Effect
-  if (kind === "REMEDY" || /queda firme|efectos del amparo|reposici[oó]n|devu[eé]lvase/i.test(title)) {
-    return 9000 + sevScore;
-  }
-
-  // Tier 3: Controlling Issue
-  if (kind === "CONTROLLING_ISSUE" || propType === "issue" || /cuesti[oó]n\s+(?:constitucional|controlante|jur[ií]dica)/i.test(title)) {
-    return 8000 + sevScore;
-  }
-
-  // Tier 4: Court Holding
-  if (kind === "COURT_HOLDING" || auditClass === "VERIFIED_COURT_HOLDING" || (propType === "holding" && adoptStatus === "adopted")) {
-    return 7000 + sevScore;
-  }
-
-  // Tier 5: Rejected Arguments / Inoperantes
-  if (kind === "REJECTED_HOLDING" || adoptStatus === "rejected" || /inoperante|infundado|desestimado/i.test(title)) {
-    return 5000 + sevScore;
-  }
-
-  // Tier 6: Party Allegations
-  if (propType === "argument" || auditClass === "PARTY_ALLEGATION") {
-    return 3000 + sevScore;
-  }
-
-  // Tier 7: Procedural Facts
-  if (propType === "fact" || auditClass === "PROCEDURAL_FACT") {
-    return 2000 + sevScore;
-  }
-
-  return 1000 + sevScore;
+  const metadata = (f.metadata ?? {}) as Record<string, unknown>;
+  const kind = String(f.mandatory_decision_kind ?? metadata.mandatory_decision_kind ?? f.kind ?? "").toUpperCase();
+  const index = (DECISION_CORE_KIND_ORDER as readonly string[]).indexOf(kind);
+  if (index >= 0) return 10000 - index * 100;
+  const severity = {critical:40, high:30, medium:20, low:10} as Record<string,number>;
+  return severity[String(f.severity)] ?? 0;
 }
 
 /**
@@ -428,6 +395,8 @@ export interface FinalGovernanceValidation {
 }
 
 /**
+ * @deprecated Intermediate compatibility validator. Production release uses
+ * reporting/final-report-contract.ts against the exact renderer payload.
  * Final Governance Validation Gate.
  * Deterministically verifies that a report adheres to all concluded-case governance rules
  * before release.

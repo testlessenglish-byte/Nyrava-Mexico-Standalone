@@ -10,7 +10,7 @@ describe("ADR5829 final root fixes", () => {
   });
   it("blocks forward motions for concluded audits while preserving full analysis", () => {
     const source = fs.readFileSync("src/lib/pipeline.server.ts", "utf8");
-    expect(source).toContain('reportCaseAnalysisMode === "concluded_audit" ? false : ess.allowMotionGeneration');
+    expect(source).toContain('reportGovernance.strategy_output_allowed && ess.allowMotionGeneration');
     expect(source).toContain("concluded_audit_blocked");
     expect(source).toContain("personalNoticeNoDuty");
   });

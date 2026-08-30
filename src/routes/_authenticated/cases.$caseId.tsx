@@ -1,3 +1,5 @@
+import { releaseFinalReportPayload, type FinalReportPayload } from "@/lib/reporting/final-report-contract";
+import { CanonicalReportFindings } from "@/components/reports/CanonicalReportFindings";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -868,6 +870,7 @@ function Workspace() {
             {tab === "chat" && <ChatTab caseId={caseId} />}
             {tab === "report" && (
               <ReportTab
+                exportData={exportData}
                 r={report as unknown as Report | null}
                 documents={docs.map((d) => ({ id: d.id, filename: d.filename }))}
               />
@@ -2820,13 +2823,24 @@ function ReportHistoryPanel({ caseId, currentVersion }: { caseId: string; curren
 }
 
 function ReportTab({
+  exportData,
   r,
   documents,
 }: {
+  exportData: CaseExportData;
   r: Report | null | undefined;
   documents?: Array<{ id: string; filename: string }>;
 }) {
   if (!r) return <Empty msg="No report generated yet. Complete the pipeline then Generate Report." />;
+  let finalPayload: FinalReportPayload;
+  try {
+    finalPayload = releaseFinalReportPayload(exportData);
+    r = finalPayload.report as unknown as Report;
+    documents = finalPayload.documents as Array<{id:string;filename:string}>;
+  } catch (error) {
+    return <Empty msg={error instanceof Error ? error.message : "Report validation failed"} />;
+  }
+
 
   // Honor ESS suppression: if the report flagged scores_suppressed or
   // motions_suppressed, never surface numeric scores or candidate motions.
@@ -2943,6 +2957,7 @@ function ReportTab({
 
   return (
     <div className="space-y-6">
+      <CanonicalReportFindings payload={finalPayload} />
       <ParityBadge report={r} projections={projections} />
       <ObjectivePanel r={r} />
 

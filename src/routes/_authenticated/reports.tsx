@@ -1,3 +1,5 @@
+import { releaseFinalReportPayload, type FinalReportPayload } from "@/lib/reporting/final-report-contract";
+import { CanonicalReportFindings } from "@/components/reports/CanonicalReportFindings";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -49,12 +51,19 @@ function ReportsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const caseId = selected ?? activeId;
   const fetchCase = useServerFn(getCase);
-  const { data, isLoading: caseLoading } = useQuery({
+  const { data: rawData, isLoading: caseLoading } = useQuery({
     queryKey: ["case", caseId],
     queryFn: () => fetchCase({ data: { caseId: caseId! } }),
     enabled: !!caseId,
   });
 
+  let finalPayload: FinalReportPayload | undefined;
+  let contractError = "";
+  if (rawData?.report) {
+    try { finalPayload = releaseFinalReportPayload(rawData as unknown as CaseExportData); }
+    catch (error) { contractError = error instanceof Error ? error.message : "Report validation failed"; }
+  }
+  const data = (finalPayload ?? rawData) as typeof rawData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const report = data?.report as any;
   const name = (data?.case as any)?.name ?? t("reports.export.defaultCaseName");
@@ -99,6 +108,7 @@ function ReportsPage() {
     }
   };
 
+  if (contractError) return <p role="alert">{contractError}</p>;
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-8">
       <ModuleHeader
@@ -411,6 +421,8 @@ function ReportsPage() {
                   );
                 })()}
 
+                {finalPayload && <CanonicalReportFindings payload={finalPayload} />}
+
                 {report.executive_summary ? (
                   <div className="rounded-xl border border-border bg-card/60 p-4">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">
@@ -421,6 +433,7 @@ function ReportsPage() {
                 ) : null}
 
                 <LegalMemorandumPanel
+                  payload={finalPayload}
                   memo={
                     (report?.full_report as { legal_memorandum?: LegalMemorandum } | null)?.legal_memorandum ?? null
                   }

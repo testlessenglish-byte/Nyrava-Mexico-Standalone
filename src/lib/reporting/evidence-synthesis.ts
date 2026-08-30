@@ -35,6 +35,7 @@ import { actAuthorityRefs, actLabel, resolveActLexicon, type ActKey, type ActLex
 type Weight = { stars: number; glyphs: string; label: string };
 
 export type SynthesisDoc = {
+  canonical_source_id?: string;
   name: string;
   weight: Weight;
   quotes: string[];
@@ -106,20 +107,6 @@ export type DocumentGraph = Map<string, { name: string; findings: string[] }>;
 
 // ------------------------------------------------------------------ helpers
 
-const COPY_NOISE =
-  /\b(copia|certificada|certificado|simple|escaneado|escaneada|scan|firmado|firmada|final|rev|revision|version|v|borrador|anexo|parte|pag|pagina|pdf|docx?|jpe?g|png|tiff?)\b/g;
-
-function stemOf(name: string): string {
-  return normalizeText(name)
-    .replace(/\.[a-z0-9]{2,4}$/, "")
-    .replace(/[_\-()[\]]+/g, " ")
-    .replace(COPY_NOISE, " ")
-    .replace(/\d+/g, " ")
-    .replace(/[^a-z0-9 ]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function fmtList(items: string[]): string {
   if (items.length <= 1) return items[0] ?? "";
   return `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
@@ -153,13 +140,12 @@ export function buildDocumentGraph(
   for (const f of findings) {
     const title = String(f?.title ?? "").trim();
     const refs = Array.isArray(f?.evidence_refs) ? f.evidence_refs : [];
-    const names = new Set<string>();
+    const names = new Map<string, string>();
     for (const r of refs) {
       const label = String(r?.filename ?? r?.label ?? r?.document_title ?? "").trim();
-      if (label) names.add(label);
+      if (r?.canonical_source_id) names.set(String(r.canonical_source_id), label);
     }
-    for (const name of names) {
-      const key = stemOf(name) || normalizeText(name);
+    for (const [key, name] of names) {
       const entry = graph.get(key) ?? { name, findings: [] };
       if (title && !entry.findings.includes(title)) entry.findings.push(title);
       graph.set(key, entry);
@@ -174,7 +160,7 @@ function resolveDocs(docs: SynthesisDoc[], caseType?: string | null): ResolvedDo
   const resolved: ResolvedDoc[] = docs.map((d) => ({
     ...d,
     facts: extractFacts(d.quotes, caseType),
-    stem: stemOf(d.name),
+    stem: d.canonical_source_id ?? "",
     family: d.weight.label,
   }));
   const firstByStem = new Map<string, string>();
@@ -350,7 +336,16 @@ export function synthesizeEvidence(
 
   if (!docsIn.length) return null;
   const lexicon = resolveActLexicon(opts.caseType);
-  const docs = resolveDocs(docsIn, opts.caseType);
+  const bySource = new Map<string, SynthesisDoc>();
+  for (const source of docsIn) {
+    // Missing identity is not an independent document.
+    if (!source.canonical_source_id) continue;
+    const prior = bySource.get(source.canonical_source_id);
+    if (prior) prior.quotes = [...new Set([...prior.quotes, ...source.quotes])];
+    else bySource.set(source.canonical_source_id, {...source, quotes:[...source.quotes]});
+  }
+  if (!bySource.size) return null;
+  const docs = resolveDocs([...bySource.values()], opts.caseType);
   const { agreements, conflicts } = compareFacts(docs);
   const lines: string[] = [];
 
@@ -403,7 +398,7 @@ export function synthesizeEvidence(
   // ---- 5. Cross-finding dependency on the same source document.
   if (opts.graph) {
     for (const d of docs.slice(0, 3)) {
-      const entry = opts.graph.get(d.stem || normalizeText(d.name));
+      const entry = opts.graph.get(d.canonical_source_id ?? "");
       const others = (entry?.findings ?? []).filter((t) => t && t !== opts.findingTitle);
       if (others.length >= 1) {
         lines.push(
@@ -481,4 +476,3 @@ function buildLegalContext(
     uncertainty: applicable.uncertainty,
   };
 }
-

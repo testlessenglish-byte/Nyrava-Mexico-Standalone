@@ -135,8 +135,8 @@ describe("synthesis behaves consistently across every matter type", () => {
     it(`${materia}: produces grounded, matter-adapted synthesis`, () => {
       const s = synthesizeEvidence(
         [
-          { name: "Documento A.pdf", weight: weight(5, "Documento Público"), quotes: corpus.a },
-          { name: "Documento B.pdf", weight: weight(3, "Documento Privado"), quotes: corpus.b },
+          { canonical_source_id: "source-1", name: "Documento A.pdf", weight: weight(5, "Documento Público"), quotes: corpus.a },
+          { canonical_source_id: "source-2", name: "Documento B.pdf", weight: weight(3, "Documento Privado"), quotes: corpus.b },
         ],
         { caseType: materia },
       );
@@ -167,8 +167,8 @@ describe("synthesis behaves consistently across every matter type", () => {
 
   it("is deterministic: identical input yields byte-identical output", () => {
     const docs = [
-      { name: "A.pdf", weight: weight(4, "Documento Público"), quotes: CORPORA.fiscal.a },
-      { name: "B.pdf", weight: weight(2, "Documento Privado"), quotes: CORPORA.fiscal.b },
+      { canonical_source_id: "source-3", name: "A.pdf", weight: weight(4, "Documento Público"), quotes: CORPORA.fiscal.a },
+      { canonical_source_id: "source-4", name: "B.pdf", weight: weight(2, "Documento Privado"), quotes: CORPORA.fiscal.b },
     ];
     expect(JSON.stringify(synthesizeEvidence(docs, { caseType: "fiscal" }))).toBe(
       JSON.stringify(synthesizeEvidence(docs, { caseType: "fiscal" })),
@@ -180,17 +180,17 @@ describe("synthesis behaves consistently across every matter type", () => {
       const s = synthesizeEvidence(
         [
           {
-            name: "Escritura pública.pdf",
+            canonical_source_id: "source-5", name: "Escritura pública.pdf",
             weight: weight(5, "Documento Público"),
             quotes: ["El importe pactado asciende a $100,000.00 MXN el 01/01/2026."],
           },
           {
-            name: "Recibo privado.pdf",
+            canonical_source_id: "source-6", name: "Recibo privado.pdf",
             weight: weight(2, "Documento Privado"),
             quotes: ["El importe pactado asciende a $90,000.00 MXN el 01/01/2026."],
           },
           {
-            name: "Escritura pública (copia certificada).pdf",
+            canonical_source_id: "source-5", name: "Escritura pública (copia certificada).pdf",
             weight: weight(5, "Documento Público"),
             quotes: ["El importe pactado asciende a $100,000.00 MXN el 01/01/2026."],
           },
@@ -200,7 +200,8 @@ describe("synthesis behaves consistently across every matter type", () => {
       const text = s!.lines.join(" ");
       expect(text, materia).toMatch(/Discrepancia de cantidad/);
       expect(text, materia).toMatch(/mayor valor probatorio/);
-      expect(text, materia).toMatch(/Evidencia duplicada/);
+      expect(s!.docs, materia).toHaveLength(2);
+      expect(new Set(s!.docs.map(d => d.canonical_source_id)).size).toBe(2);
     }
   });
 });

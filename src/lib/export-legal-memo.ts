@@ -1,3 +1,4 @@
+import { releaseFinalReportPayload, type FinalReportPayload } from "./reporting/final-report-contract";
 // Client-side DOCX + PDF export for `full_report.legal_memorandum`.
 // Matches the pattern already used by src/lib/export.ts: generate in the
 // browser, download via a Blob. No server route, no new endpoint, no
@@ -334,7 +335,11 @@ function buildDocxChildren(memo: LegalMemorandum, caseName: string): (Paragraph 
   return out;
 }
 
-export async function downloadLegalMemoDocx(memo: LegalMemorandum, caseName: string): Promise<void> {
+export async function downloadLegalMemoDocx(payload: FinalReportPayload, caseName: string): Promise<void> {
+  const validated = releaseFinalReportPayload(payload);
+  const memo = (validated.report?.full_report as {legal_memorandum?:LegalMemorandum})?.legal_memorandum;
+  if (!memo) throw new Error("REPORT_MEMO_UNAVAILABLE");
+
   const doc = new Document({
     sections: [{
       properties: {
@@ -348,7 +353,7 @@ export async function downloadLegalMemoDocx(memo: LegalMemorandum, caseName: str
           },
         },
       },
-      children: buildDocxChildren(memo, caseName),
+      children: [...validated.report_presentation.decision_sections.flatMap(section => [h1(section.title), p(section.text), p(section.speaker_label + " · " + section.speaker_role)]), ...buildDocxChildren(memo, caseName)],
     }],
   });
   const blob = await Packer.toBlob(doc);
@@ -371,7 +376,11 @@ function pdfSafe(s: string): string {
     .replace(/[^\x00-\xFF]/g, "");
 }
 
-export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): void {
+export function downloadLegalMemoPdf(payload: FinalReportPayload, caseName: string): void {
+  const validated = releaseFinalReportPayload(payload);
+  const memo = (validated.report?.full_report as {legal_memorandum?:LegalMemorandum})?.legal_memorandum;
+  if (!memo) throw new Error("REPORT_MEMO_UNAVAILABLE");
+
   const doc = new jsPDF({ unit: "in", format: "letter" });
   const margin = 1;
   const pageW = 8.5;
@@ -444,6 +453,11 @@ export function downloadLegalMemoPdf(memo: LegalMemorandum, caseName: string): v
   };
 
   // Caption
+  for (const section of validated.report_presentation.decision_sections) {
+    sectionHeading(section.title);
+    wrap(section.text);
+    wrap(section.speaker_label + " · " + section.speaker_role);
+  }
   center(memo.caption?.title || rt("MEMORANDUM OF LAW"), 16, true);
   doc.setLineWidth(0.02);
   doc.line(margin, y, pageW - margin, y);

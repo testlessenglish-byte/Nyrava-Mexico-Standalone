@@ -1,3 +1,4 @@
+import { releaseFinalReportPayload, type FinalReportPayload } from "@/lib/reporting/final-report-contract";
 import { toast } from "sonner";
 // NOTE: `@/lib/export-legal-memo` statically imports jsPDF (which
 // transitively bundles html2canvas, a browser-only module). This component
@@ -94,12 +95,17 @@ function parseDisputed(entry: DisputedEntry): { claim: string; opposing?: string
 const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
 export function LegalMemorandumPanel({
+  payload,
   memo,
   caseName,
 }: {
+  payload?: FinalReportPayload;
   memo: LegalMemorandum | null | undefined;
   caseName?: string;
 }) {
+  if (!payload) return null;
+  const validated = releaseFinalReportPayload(payload);
+  memo = (validated.report?.full_report as {legal_memorandum?:LegalMemorandum})?.legal_memorandum;
   if (!memo || typeof memo !== "object") return null;
 
   const cap = memo.caption ?? {};
@@ -444,7 +450,7 @@ export function LegalMemorandumPanel({
           onClick={async () => {
             try {
               const { downloadLegalMemoDocx } = await import("@/lib/export-legal-memo");
-              await downloadLegalMemoDocx(memo, caseName ?? "case");
+              await downloadLegalMemoDocx(validated, caseName ?? "case");
             } catch (e) {
               toast.error(`DOCX export failed: ${e instanceof Error ? e.message : "unknown"}`);
             }
@@ -458,7 +464,7 @@ export function LegalMemorandumPanel({
           onClick={async () => {
             try {
               const { downloadLegalMemoPdf } = await import("@/lib/export-legal-memo");
-              downloadLegalMemoPdf(memo, caseName ?? "case");
+              downloadLegalMemoPdf(validated, caseName ?? "case");
             } catch (e) {
               toast.error(`PDF export failed: ${e instanceof Error ? e.message : "unknown"}`);
             }

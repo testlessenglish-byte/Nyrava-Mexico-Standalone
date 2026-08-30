@@ -1077,22 +1077,24 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     warnings.push(...integrity.violations.filter((v) => v.severity === "warning").map((v) => v.message));
   }
 
-  // Pre-release Concluded-Case Governance Validation
-  const { loadResolvedReportGovernance } = await import("@/lib/intelligence/concluded-case-governance.server");
-  const { validateFinalReportGovernance } = await import("@/lib/intelligence/concluded-case-governance");
-  const reportGov = await loadResolvedReportGovernance(args.db, args.caseId);
-  const finalGov = validateFinalReportGovernance({
-    governance: reportGov,
-    fullReport: (reportRow?.full_report ?? {}) as Record<string, unknown>,
-    findings: (findingsData ?? []) as Array<Record<string, unknown>>,
-  });
-
-  if (!finalGov.ok) {
-    errors.push(...finalGov.blocking_errors);
+  // Final renderer contract: the same composer and validator used by
+  // PDF/DOCX/HTML, including per-finding cards. Missing context blocks release.
+  let finalGov = {ok:false, blocking_errors:[] as string[]};
+  try {
+    if (!caseRow) throw new Error("REPORT_GOVERNANCE_CONTEXT_UNAVAILABLE");
+    const {data: documents, error: documentsError} = await args.db.from("documents").select("*").eq("case_id",args.caseId);
+    if (documentsError) throw new Error(documentsError.message);
+    const {composeFinalReportPayload,validateFinalReportContract} = await import("@/lib/reporting/final-report-contract");
+    const payload = composeFinalReportPayload({
+      case:caseRow, documents:documents ?? [], report:reportRow,
+      findings:(findingsData ?? []) as Array<Record<string,unknown>>,
+      analysis:null, agents:[], score:null,
+    });
+    finalGov = validateFinalReportContract(payload);
+  } catch (error) {
+    finalGov = {ok:false,blocking_errors:[error instanceof Error ? error.message : "REPORT_CONTRACT_UNAVAILABLE"]};
   }
-  if (finalGov.warnings.length > 0) {
-    warnings.push(...finalGov.warnings);
-  }
+  if (!finalGov.ok) errors.push(...finalGov.blocking_errors);
 
   // Authoritative Decision
   let decision: ReleaseDecision = "BLOCKED";

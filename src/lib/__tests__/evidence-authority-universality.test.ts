@@ -26,14 +26,14 @@ const weight = (stars: number, label: string) => ({
 /** One neutral corpus reused for every materia: reasoning must not vary. */
 const DOCS = () => [
   {
-    name: "Documento A.pdf",
+    canonical_source_id: "source-1", name: "Documento A.pdf",
     weight: weight(5, "Documento público"),
     quotes: [
       "Se notificó personalmente el 03/04/2026 y se corrió traslado por la cantidad de $250,000.00 MXN.",
     ],
   },
   {
-    name: "Documento B.pdf",
+    canonical_source_id: "source-2", name: "Documento B.pdf",
     weight: weight(3, "Documento privado"),
     quotes: ["Se notificó el 03/04/2026 el requerimiento por $250,000.00 MXN."],
   },
