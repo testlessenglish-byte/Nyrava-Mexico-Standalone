@@ -938,4 +938,128 @@ describe("Platform-Wide Concluded-Case Report Governance", () => {
     const badge = formatSpeakerRoleBadge(adoptedHolding, "scjn");
     expect(badge).toBe("DETERMINACIÓN ADOPTADA POR SCJN");
   });
+
+  it("Scenario G: Hard Contract - Impossible for concluded_audit to resolve to full_strategic or allow strategy", async () => {
+    const { resolveReportGovernance } = await import("../concluded-case-governance");
+
+    const gov1 = resolveReportGovernance({ case_analysis_mode: "concluded_audit", analysis_mode: "exploratory" });
+    expect(gov1.governance_mode).toBe("concluded_decision_audit");
+    expect(gov1.strategy_output_allowed).toBe(false);
+    expect(gov1.recommendation_policy).toBe("verification_only");
+
+    const gov2 = resolveReportGovernance({ procedural_posture: "concluded", analysis_mode: "balanced" });
+    expect(gov2.governance_mode).toBe("concluded_decision_audit");
+    expect(gov2.strategy_output_allowed).toBe(false);
+    expect(gov2.recommendation_policy).toBe("verification_only");
+  });
+
+  it("Scenario H: Explicit Post-Judgment Options Analysis enables post_judgment_options mode", async () => {
+    const { resolveReportGovernance } = await import("../concluded-case-governance");
+
+    const gov = resolveReportGovernance({
+      procedural_posture: "concluded",
+      post_judgment_options_analysis: true,
+    });
+
+    expect(gov.governance_mode).toBe("post_judgment_options");
+    expect(gov.strategy_output_allowed).toBe(true);
+    expect(gov.recommendation_policy).toBe("full_strategic");
+    expect(gov.post_judgment_strategy_allowed).toBe(true);
+  });
+
+  it("Scenario I: Party allegation with speaker_role = party can NEVER be labeled DETERMINACIÓN JUDICIAL", async () => {
+    const { formatSpeakerRoleBadge } = await import("../concluded-case-governance");
+
+    const badge = formatSpeakerRoleBadge({
+      title: "Violación al debido proceso",
+      speaker_role: "quejoso",
+      adoption_status: "unresolved",
+      audit_classification: "PARTY_ALLEGATION",
+    });
+
+    expect(badge).not.toContain("DETERMINACIÓN");
+    expect(badge).toBe("ARGUMENTO DEL QUEJOSO");
+  });
+
+  it("Scenario J: Final governance validation gate blocks reports containing active strategy in concluded audit", async () => {
+    const { resolveReportGovernance, validateFinalReportGovernance } = await import("../concluded-case-governance");
+
+    const gov = resolveReportGovernance({ procedural_posture: "concluded" });
+    const invalidReport = {
+      ways_out_analysis: ["Presentar nuevo amparo"],
+      canonical_recommendations: [],
+    };
+
+    const validation = validateFinalReportGovernance({
+      governance: gov,
+      fullReport: invalidReport,
+      findings: [{ mandatory_decision_kind: "DISPOSITION", title: "Desechamiento" }],
+    });
+
+    expect(validation.ok).toBe(false);
+    expect(validation.blocking_errors.length).toBeGreaterThan(0);
+    expect(validation.checked_rules.strategy_output_present).toBe(false);
+  });
+
+  it("Scenario K: Final governance validation gate blocks party allegations misclassified as VERIFIED_COURT_HOLDING", async () => {
+    const { resolveReportGovernance, validateFinalReportGovernance } = await import("../concluded-case-governance");
+
+    const gov = resolveReportGovernance({ procedural_posture: "concluded" });
+    const cleanReport = {
+      recommended_actions_title: "PASOS DE VERIFICACIÓN DOCUMENTAL",
+      canonical_recommendations: [],
+    };
+    const invalidFindings = [
+      {
+        id: "f-bad",
+        title: "Alegato de parte presentado como holding",
+        speaker_role: "quejoso",
+        adoption_status: "unresolved",
+        audit_classification: "VERIFIED_COURT_HOLDING", // Invalid!
+      },
+    ];
+
+    const validation = validateFinalReportGovernance({
+      governance: gov,
+      fullReport: cleanReport,
+      findings: invalidFindings,
+    });
+
+    expect(validation.ok).toBe(false);
+    expect(validation.checked_rules.party_allegation_misclassified_as_holding).toBe(false);
+  });
+
+  it("Scenario L: Final governance validation gate passes clean concluded reports with disposition", async () => {
+    const { resolveReportGovernance, validateFinalReportGovernance } = await import("../concluded-case-governance");
+
+    const gov = resolveReportGovernance({ procedural_posture: "concluded" });
+    const cleanReport = {
+      recommended_actions_title: "PASOS DE VERIFICACIÓN DOCUMENTAL",
+      canonical_recommendations: [{ title: "Verificar engrose", action: "Revisar engrose" }],
+    };
+    const validFindings = [
+      {
+        id: "f-disp",
+        title: "Puntos Resolutivos: Se desecha el recurso",
+        mandatory_decision_kind: "DISPOSITION",
+        audit_classification: "VERIFIED_COURT_HOLDING",
+        speaker_role: "scjn",
+        adoption_status: "adopted",
+      },
+      {
+        id: "f-effect",
+        title: "Efecto: Sentencia firme",
+        mandatory_decision_kind: "REMEDY",
+      },
+    ];
+
+    const validation = validateFinalReportGovernance({
+      governance: gov,
+      fullReport: cleanReport,
+      findings: validFindings,
+    });
+
+    expect(validation.ok).toBe(true);
+    expect(validation.blocking_errors.length).toBe(0);
+  });
 });
