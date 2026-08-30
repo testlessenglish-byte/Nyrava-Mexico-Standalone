@@ -1,10 +1,11 @@
-// Floating feedback button — sends a note straight to the unified admin
+// Header feedback button — sends a note straight to the unified admin
 // inbox (/admin/messages). Rendered once in the authenticated layout so
 // beta testers can report from wherever the problem happened; the current
 // path travels with the message. Replies from the admin show up in the
 // sender's own "Mensajes" page (see support.functions.ts) — this is a real
 // two-way thread, not a one-way suggestion box.
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState, Link } from "@tanstack/react-router";
@@ -33,7 +34,28 @@ const SEVERITIES = [
 const inputCls =
   "mt-1 w-full rounded-md border border-border/70 bg-background/60 px-3 py-2 text-sm focus:border-primary focus:outline-none";
 
-export function FeedbackButton() {
+export function FeedbackButton({
+  mobileTargetId,
+  desktopTargetId,
+}: {
+  mobileTargetId: string;
+  desktopTargetId: string;
+}) {
+  const [headerTarget, setHeaderTarget] = useState<HTMLElement | null>(null);
+
+  // Keep one feedback instance and the existing dialog outside the blurred
+  // headers; move only its trigger into the currently visible header.
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const updateTarget = () =>
+      setHeaderTarget(
+        document.getElementById(desktop.matches ? desktopTargetId : mobileTargetId),
+      );
+    updateTarget();
+    desktop.addEventListener("change", updateTarget);
+    return () => desktop.removeEventListener("change", updateTarget);
+  }, [mobileTargetId, desktopTargetId]);
+
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const sendFn = useServerFn(submitSupportMessage);
@@ -67,15 +89,22 @@ export function FeedbackButton() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Enviar comentarios"
-        className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full border border-primary/40 bg-card/95 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary shadow-lg backdrop-blur transition hover:bg-primary hover:text-primary-foreground md:bottom-6"
-      >
-        <MessageSquarePlus className="h-4 w-4" />
-        <span className="hidden sm:inline">Comentarios</span>
-      </button>
+      {headerTarget &&
+        createPortal(
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Enviar comentarios"
+            title="Enviar comentarios"
+            className="inline-flex shrink-0 items-center gap-2 rounded-md p-1.5 text-sidebar-foreground/80 transition hover:bg-sidebar-accent md:rounded-lg md:border md:border-border md:bg-card/60 md:p-2 md:text-foreground md:hover:bg-card"
+          >
+            <MessageSquarePlus className="h-5 w-5 md:h-4 md:w-4" />
+            <span className="hidden text-[11px] font-semibold uppercase tracking-[0.14em] 2xl:inline">
+              Comentarios
+            </span>
+          </button>,
+          headerTarget,
+        )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
