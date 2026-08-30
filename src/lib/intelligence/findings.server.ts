@@ -840,7 +840,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
     if (groupRows.length === 0) continue;
     const { data: existing } = await db
       .from("case_findings")
-      .select("id,category,title,description,evidence_refs,confidence,source_doc_ids,metadata,source_module,speaker_role,proposition_type,adoption_status,audit_classification,affected_party,benefited_party,evidence_type,impact_direction,authority_level,score_dimension,reason_for_score_effect")
+      .select("id,canonical_finding_id,category,title,description,evidence_refs,confidence,source_doc_ids,metadata,source_module,speaker_role,proposition_type,adoption_status,audit_classification,affected_party,benefited_party,evidence_type,impact_direction,authority_level,score_dimension,reason_for_score_effect")
       .eq("case_id", caseId)
       .not("source_module", "like", PROJECTION_LIKE);
 
@@ -850,6 +850,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
         ({
           case_id: caseId,
           user_id: groupRows[0].user_id,
+          canonical_finding_id: e.canonical_finding_id ?? e.metadata?.canonical_finding_id ?? null,
           // Real producer identity (not the literal string "existing") is
           // required for detectProducerConflict's cross-producer check below
           // — an already-persisted analyzer finding colliding with a fresh
@@ -880,7 +881,7 @@ export async function addFindings(db: Db, rows: NewFinding[]) {
           audit_classification: e.audit_classification ?? null,
           source_doc_ids: e.source_doc_ids ?? [],
           evidence_refs: e.evidence_refs ?? [],
-          metadata: { ...(e.metadata ?? {}), __existing_id: e.id },
+          metadata: { ...(e.metadata ?? {}), canonical_finding_id: e.canonical_finding_id ?? e.metadata?.canonical_finding_id, __existing_id: e.id },
         }) as unknown as NewFinding,
     );
 
@@ -2124,5 +2125,80 @@ export function normalizeReportWriterFindings(args: {
     strategyRecommendationRows,
     nextActionRows,
     crossExaminationRows,
+  };
+}
+
+/**
+ * Deduplicates all case_findings for a given case by canonical_finding_id in the database.
+ * Merges evidence, citations, and provenance into the surviving row, and deletes the redundant duplicate rows.
+ * Asserts final_reportable_canonical_ids_unique = true.
+ */
+export async function dedupeCaseFindingsInDatabase(
+  db: Db,
+  caseId: string,
+): Promise<{
+  survivingCount: number;
+  duplicatesRemoved: number;
+  duplicateAudit: Array<{
+    canonical_id: string;
+    surviving_id: string;
+    duplicate_finding_ids: string[];
+    originating_agents: string[];
+    titles: string[];
+    categories: string[];
+    citation_ids: string[];
+  }>;
+  final_reportable_canonical_ids_unique: boolean;
+}> {
+  const { data: rawRows } = await db
+    .from("case_findings")
+    .select("*")
+    .eq("case_id", caseId);
+
+  if (!rawRows || rawRows.length === 0) {
+    return {
+      survivingCount: 0,
+      duplicatesRemoved: 0,
+      duplicateAudit: [],
+      final_reportable_canonical_ids_unique: true,
+    };
+  }
+
+  const { dedupeReportableFindingsByCanonicalId } = await import("./finding-dedupe");
+  const result = dedupeReportableFindingsByCanonicalId(rawRows as Array<Record<string, unknown>>);
+
+  if (result.duplicatesFound > 0) {
+    for (const audit of result.duplicateAudit) {
+      const surviving = result.deduped.find((d) => String(d.id) === audit.surviving_id);
+      const duplicateIdsToDelete = audit.duplicate_finding_ids.filter((id) => id !== audit.surviving_id);
+
+      if (surviving) {
+        // Update surviving row with merged evidence & metadata
+        await db
+          .from("case_findings")
+          .update({
+            evidence_refs: surviving.evidence_refs as any,
+            source_doc_ids: surviving.source_doc_ids as any,
+            metadata: surviving.metadata as any,
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq("id", surviving.id as string);
+      }
+
+      if (duplicateIdsToDelete.length > 0) {
+        // Remove redundant duplicate rows
+        await db
+          .from("case_findings")
+          .delete()
+          .in("id", duplicateIdsToDelete);
+      }
+    }
+  }
+
+  return {
+    survivingCount: result.deduped.length,
+    duplicatesRemoved: result.duplicatesFound,
+    duplicateAudit: result.duplicateAudit,
+    final_reportable_canonical_ids_unique: result.final_reportable_canonical_ids_unique,
   };
 }

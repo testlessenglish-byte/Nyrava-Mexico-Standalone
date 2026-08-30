@@ -6105,7 +6105,27 @@ async function _runReportInner(args: {
   }
 
   await setCase(db, caseId, { status_message: "Consolidating findings", progress: 35 });
-  const allFindings = dedupeFindings(rawFindings);
+  const { dedupeCaseFindingsInDatabase } = await import("./intelligence/findings.server");
+  const { dedupeReportableFindingsByCanonicalId } = await import("./intelligence/finding-dedupe");
+  await dedupeCaseFindingsInDatabase(db, caseId);
+
+  const { data: cleanRawFindings } = await db
+    .from("case_findings")
+    .select("*")
+    .eq("case_id", caseId);
+
+  const dedupeResult = dedupeReportableFindingsByCanonicalId(
+    (cleanRawFindings ?? rawFindings) as Array<Record<string, unknown>>,
+  );
+
+  if (!dedupeResult.final_reportable_canonical_ids_unique) {
+    console.error("[pipeline] duplicate_canonical_ids detected before report generation", dedupeResult.duplicateAudit);
+    throw new Error(
+      `[PipelineInvariantError] duplicate canonical_finding_id detected before report generation: ${JSON.stringify(dedupeResult.duplicateAudit)}`,
+    );
+  }
+
+  const allFindings = dedupeResult.deduped as unknown as typeof rawFindings;
   // SINGLE SOURCE OF TRUTH: identical filter as the scoring engine.
   // Analyzer (provisional) rows are excluded entirely; pipeline must be
   // finalized and ordered correctly. If the canonical set is empty or order

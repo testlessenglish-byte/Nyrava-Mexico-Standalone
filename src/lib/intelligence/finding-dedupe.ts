@@ -703,7 +703,7 @@ export function consolidateFindings<T extends DedupableFinding>(
           : ({} as Record<string, unknown>);
       meta.merged_duplicates = master._merged;
       if (aliasCategories.length > 0) {
-        meta.merged_categories = [winnerCategory, ...aliasCategories].filter(Boolean);
+      meta.merged_categories = [winnerCategory, ...aliasCategories].filter(Boolean);
       }
       mutable.metadata = meta;
     }
@@ -711,4 +711,199 @@ export function consolidateFindings<T extends DedupableFinding>(
   }
 
   return out.sort((a, b) => a.index - b.index).map((o) => o.row);
+}
+
+export interface CanonicalDedupeAudit {
+  canonical_id: string;
+  surviving_id: string;
+  duplicate_finding_ids: string[];
+  originating_agents: string[];
+  titles: string[];
+  categories: string[];
+  citation_ids: string[];
+}
+
+export interface CanonicalDedupeResult<T> {
+  deduped: T[];
+  duplicatesFound: number;
+  duplicateAudit: CanonicalDedupeAudit[];
+  final_reportable_canonical_ids_unique: boolean;
+}
+
+function scoreCanonicalSurvivorCandidate(f: Record<string, unknown>): number {
+  let score = 0;
+  const isHolding =
+    f.audit_classification === "VERIFIED_COURT_HOLDING" ||
+    f.proposition_type === "holding" ||
+    (f.metadata as Record<string, unknown> | undefined)?.proposition_type === "holding";
+  if (isHolding) score += 10000;
+
+  const isFact =
+    f.audit_classification === "VERIFIED_FACT" ||
+    f.proposition_type === "fact";
+  if (isFact) score += 5000;
+
+  const hasQuote = Boolean(f.source_quote || (Array.isArray(f.evidence_refs) && f.evidence_refs.length > 0));
+  if (hasQuote) score += 2000;
+
+  const evCount = Array.isArray(f.evidence_refs) ? f.evidence_refs.length : 0;
+  score += Math.min(evCount * 100, 1000);
+
+  const conf = typeof f.confidence === "number" ? f.confidence : 0.5;
+  score += Math.round(conf * 100);
+
+  const descLen = typeof f.description === "string" ? f.description.length : 0;
+  score += Math.min(descLen, 50);
+
+  return score;
+}
+
+/**
+ * Enforces canonical uniqueness on the exact reportable findings collection.
+ * If multiple rows share the same canonical_finding_id, exactly one final reportable
+ * finding is produced, and all evidence, citations, source docs, aliases, quotes,
+ * and originating agents from duplicate rows are unioned/merged into it.
+ */
+export function dedupeReportableFindingsByCanonicalId<T extends Record<string, unknown>>(
+  findings: ReadonlyArray<T>,
+): CanonicalDedupeResult<T> {
+  const byCanonical = new Map<string, T[]>();
+  const nonCanonical: T[] = [];
+
+  for (const f of findings) {
+    const cid = String(f.canonical_finding_id ?? (f.metadata as Record<string, unknown> | undefined)?.canonical_finding_id ?? "").trim();
+    if (cid) {
+      const arr = byCanonical.get(cid) ?? [];
+      arr.push(f);
+      byCanonical.set(cid, arr);
+    } else {
+      nonCanonical.push(f);
+    }
+  }
+
+  const deduped: T[] = [];
+  const duplicateAudit: CanonicalDedupeAudit[] = [];
+  let duplicatesFound = 0;
+
+  for (const [cid, group] of byCanonical) {
+    if (group.length === 1) {
+      deduped.push(group[0]);
+      continue;
+    }
+
+    duplicatesFound += group.length - 1;
+
+    // Pick strongest candidate
+    let winner = group[0];
+    let bestScore = scoreCanonicalSurvivorCandidate(winner);
+    for (let i = 1; i < group.length; i++) {
+      const cand = group[i];
+      const candScore = scoreCanonicalSurvivorCandidate(cand);
+      if (candScore > bestScore) {
+        winner = cand;
+        bestScore = candScore;
+      }
+    }
+
+    const dupes = group.filter((g) => g !== winner);
+
+    // Merge provenance into master survivor
+    const master = { ...winner } as Record<string, unknown>;
+
+    // 1. Evidence refs / citations union
+    const allEvidenceRefs: unknown[] = [];
+    const seenRefs = new Set<string>();
+    for (const g of group) {
+      const refs = Array.isArray(g.evidence_refs) ? g.evidence_refs : [];
+      for (const r of refs) {
+        const key = typeof r === "object" && r !== null
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ? `${(r as any).document_id ?? (r as any).doc_id ?? ""}:${(r as any).page ?? ""}:${String((r as any).quote ?? "").slice(0, 50)}`
+          : String(r);
+        if (!seenRefs.has(key)) {
+          seenRefs.add(key);
+          allEvidenceRefs.push(r);
+        }
+      }
+    }
+    master.evidence_refs = allEvidenceRefs;
+
+    // 2. Source doc IDs union
+    const allDocIds = new Set<string>();
+    for (const g of group) {
+      const docIds = Array.isArray(g.source_doc_ids) ? g.source_doc_ids : [];
+      for (const d of docIds) if (d && typeof d === "string") allDocIds.add(d);
+      if (g.source_document_id && typeof g.source_document_id === "string") allDocIds.add(g.source_document_id);
+    }
+    master.source_doc_ids = Array.from(allDocIds);
+
+    // 3. Aliases
+    const aliasIds = dupes.map((d) => String(d.id ?? "")).filter(Boolean);
+    const aliasTitles = dupes.map((d) => String(d.title ?? "")).filter(Boolean);
+    master._alias_ids = [
+      ...(Array.isArray(master._alias_ids) ? (master._alias_ids as string[]) : []),
+      ...aliasIds,
+    ];
+    master._alias_titles = [
+      ...(Array.isArray(master._alias_titles) ? (master._alias_titles as string[]) : []),
+      ...aliasTitles,
+    ];
+
+    // 4. Originating agents & metadata union
+    const existingMeta = (master.metadata as Record<string, unknown> | undefined) ?? {};
+    const existingMerged = Array.isArray(existingMeta.merged_from) ? (existingMeta.merged_from as unknown[]) : [];
+    const newMerged = dupes.map((d) => ({
+      id: d.id,
+      title: d.title,
+      source_module: d.source_module,
+      confidence: d.confidence,
+      category: d.category,
+      speaker_role: d.speaker_role,
+      proposition_type: d.proposition_type,
+    }));
+
+    master.metadata = {
+      ...existingMeta,
+      canonical_finding_id: cid,
+      merged_from: [...existingMerged, ...newMerged],
+      _canonical_deduped: true,
+    };
+
+    deduped.push(master as T);
+
+    duplicateAudit.push({
+      canonical_id: cid,
+      surviving_id: String(master.id ?? ""),
+      duplicate_finding_ids: group.map((g) => String(g.id ?? "")).filter(Boolean),
+      originating_agents: Array.from(new Set(group.map((g) => String(g.source_module ?? "")).filter(Boolean))),
+      titles: Array.from(new Set(group.map((g) => String(g.title ?? "")).filter(Boolean))),
+      categories: Array.from(new Set(group.map((g) => String(g.category ?? "")).filter(Boolean))),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      citation_ids: Array.from(new Set(allEvidenceRefs.map((r: any) => String(r?.citation_id ?? r?.id ?? "")).filter(Boolean))),
+    });
+  }
+
+  // Add non-canonical findings
+  for (const nc of nonCanonical) {
+    deduped.push(nc);
+  }
+
+  const distinctCanonical = new Set(
+    deduped
+      .map((f) => String(f.canonical_finding_id ?? (f.metadata as Record<string, unknown> | undefined)?.canonical_finding_id ?? "").trim())
+      .filter(Boolean),
+  );
+
+  const canonicalCount = deduped.filter(
+    (f) => Boolean(String(f.canonical_finding_id ?? (f.metadata as Record<string, unknown> | undefined)?.canonical_finding_id ?? "").trim()),
+  ).length;
+
+  const final_reportable_canonical_ids_unique = distinctCanonical.size === canonicalCount;
+
+  return {
+    deduped,
+    duplicatesFound,
+    duplicateAudit,
+    final_reportable_canonical_ids_unique,
+  };
 }
