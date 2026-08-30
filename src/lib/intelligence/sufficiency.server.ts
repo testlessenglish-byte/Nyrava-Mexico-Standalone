@@ -17,9 +17,21 @@ export type ESSInputs = {
   caseAnalysisMode?: string;
 };
 
+export type ESSDimensions = {
+  sufficient_to_determine_court_holding: boolean;
+  sufficient_to_reconstruct_entire_case: boolean;
+  sufficient_for_strategic_recommendations: boolean;
+  sufficient_for_quantitative_scoring: boolean;
+};
+
 export type ESSResult = {
   score: number;
   bin: "minimal" | "low" | "medium" | "high";
+  dimensions: ESSDimensions;
+  sufficient_to_determine_court_holding: boolean;
+  sufficient_to_reconstruct_entire_case: boolean;
+  sufficient_for_strategic_recommendations: boolean;
+  sufficient_for_quantitative_scoring: boolean;
   maxNarrativePages: number;
   maxCharsPerSection: number;
   allowQuantitativeScores: boolean;
@@ -245,9 +257,37 @@ export function computeESS(inputs: ESSInputs): ESSResult {
         : "Insufficient evidence for full legal intelligence. This report is limited to verified facts and missing-evidence notices. Generating theories, motions, or quantitative scores from this corpus does not meet this platform's current bar for full analysis."
       : null;
 
+  const sufficient_to_determine_court_holding =
+    !hasOnlyIncompleteJudicialPublication &&
+    (highWeightDocTypeCount > 0 || (isJudicialAudit && extractedChars >= 8_000));
+
+  const sufficient_to_reconstruct_entire_case =
+    !hasOnlyIncompleteJudicialPublication &&
+    ((documentCount >= 4 && distinctDocTypeCount >= 2) || (substantialCorpus && extractedChars >= 30_000));
+
+  const sufficient_for_strategic_recommendations =
+    !hasOnlyIncompleteJudicialPublication &&
+    !isJudicialAudit &&
+    (caseAnalysisMode === "ongoing" || allowMotionGeneration) &&
+    factCount >= 4;
+
+  const sufficient_for_quantitative_scoring = allowQuantitativeScores;
+
+  const dimensions: ESSDimensions = {
+    sufficient_to_determine_court_holding,
+    sufficient_to_reconstruct_entire_case,
+    sufficient_for_strategic_recommendations,
+    sufficient_for_quantitative_scoring,
+  };
+
   return {
     score,
     bin,
+    dimensions,
+    sufficient_to_determine_court_holding,
+    sufficient_to_reconstruct_entire_case,
+    sufficient_for_strategic_recommendations,
+    sufficient_for_quantitative_scoring,
     maxNarrativePages,
     maxCharsPerSection,
     allowQuantitativeScores,

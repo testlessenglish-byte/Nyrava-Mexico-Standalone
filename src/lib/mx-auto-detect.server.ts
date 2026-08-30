@@ -83,10 +83,14 @@ export async function autoDetectCaseContext(
 ): Promise<AutoDetectResult> {
   const { data: row } = await supabase
     .from("cases")
-    .select("case_type,jurisdiction")
+    .select("case_type,jurisdiction,matter_metadata")
     .eq("id", caseId)
     .maybeSingle();
-  const current = (row ?? {}) as { case_type?: string | null; jurisdiction?: string | null };
+  const current = (row ?? {}) as {
+    case_type?: string | null;
+    jurisdiction?: string | null;
+    matter_metadata?: Record<string, unknown> | null;
+  };
   const declaredType = (current.case_type ?? "").trim();
   const declaredJur = (current.jurisdiction ?? "").trim();
   const needsType = !declaredType || declaredType.toLowerCase() === "unknown";
@@ -133,6 +137,16 @@ export async function autoDetectCaseContext(
       if (needsType) patch.case_type = caseType;
       if (needsJur && jurisdiction) patch.jurisdiction = jurisdiction;
       if (Object.keys(patch).length) {
+        const { getCaseConfiguration, updateCaseConfigurationWithClassification } = await import("@/lib/intelligence/case-configuration");
+        const existingConfig = getCaseConfiguration(current as any);
+        const updatedConfig = updateCaseConfigurationWithClassification(existingConfig, {
+          detected_case_type: caseType,
+          detected_jurisdiction: jurisdiction,
+          allowAutoCorrection: true,
+        });
+        const currentMeta = (current.matter_metadata as Record<string, unknown> | null) ?? {};
+        patch.matter_metadata = { ...currentMeta, case_configuration: updatedConfig };
+
         await supabase.from("cases").update(patch).eq("id", caseId);
       }
 
