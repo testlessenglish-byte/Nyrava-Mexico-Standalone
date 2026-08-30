@@ -929,34 +929,9 @@ async function _runMultiAgentPipeline(args: OrchestratorArgs): Promise<{
     return { runId, released, results, releaseDeferred: true };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: beforeStatus } = await (args.db as any)
-    .from("cases")
-    .select("status,status_message")
-    .eq("id", args.caseId)
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (args.db as any)
-    .from("cases")
-    .update({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      status: (released ? "released" : "needs_revision") as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      status_message: (released
-        ? "Multi-agent run released report."
-        : "Multi-agent release blocked — see QA/Judge/Hallucination logs.") as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any)
-    .eq("id", args.caseId);
-  trace("case.status.write", {
-    source: "multi_agent.release_gate",
-    previous_status: beforeStatus?.status ?? null,
-    new_status: released ? "released" : "needs_revision",
-    gates: { qa: qaOk, judge: judgeOk, hallucination: halOk },
-  });
-  trace("multi_agent.complete", { released, agents_executed: results.length });
-
-  return { runId, released, results, releaseDeferred: false };
+  // Even the legacy direct orchestrator path uses the same final review.
+  const final = await runFinalReleaseReview(args);
+  return { runId, released:final.released, results, releaseDeferred:false };
 }
 
 // ---------------------------------------------------------------------------
@@ -998,9 +973,9 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const analysisMode = (await getAnalysisMode(args.db, args.caseId)) as AnalysisMode;
   const ctx: RunCtx = { ...args, runId, analysisMode };
 
-  const { data: reportRow } = await args.db
+  let { data: reportRow } = await args.db
     .from("reports")
-    .select("case_id, full_report")
+    .select("*")
     .eq("case_id", args.caseId)
     .maybeSingle();
   if (!reportRow) {
@@ -1060,6 +1035,11 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     warnings.push(...engineGate.missingEnriching.map((e) => `Enriching engine ${e} incomplete`));
   }
 
+  // QA/hallucination can update the report. Validate the latest complete row.
+  const latestReport = await args.db.from("reports").select("*").eq("case_id",args.caseId).maybeSingle();
+  if (latestReport.error || !latestReport.data) throw new Error("FINAL_REPORT_REFRESH_FAILED");
+  reportRow = latestReport.data;
+
   // Pre-release JSON Integrity Validation
   const { data: caseRow } = await args.db.from("cases").select("*").eq("id", args.caseId).maybeSingle();
   const { data: findingsData } = await args.db.from("case_findings").select("*").eq("case_id", args.caseId);
@@ -1080,29 +1060,39 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   // Final renderer contract: the same composer and validator used by
   // PDF/DOCX/HTML, including per-finding cards. Missing context blocks release.
   let finalGov = {ok:false, blocking_errors:[] as string[]};
+  let finalPayload: import("@/lib/reporting/final-report-contract").FinalReportPayload | undefined;
   try {
     if (!caseRow) throw new Error("REPORT_GOVERNANCE_CONTEXT_UNAVAILABLE");
-    const {data: documents, error: documentsError} = await args.db.from("documents").select("*").eq("case_id",args.caseId);
+    const {data: documents, error: documentsError} = await args.db.from("documents")
+      .select("id,filename,status,mime_type,size_bytes,error,metadata,entities,created_at,archived_at").eq("case_id",args.caseId);
     if (documentsError) throw new Error(documentsError.message);
     const {composeFinalReportPayload,validateFinalReportContract} = await import("@/lib/reporting/final-report-contract");
+    const {loadFinalReportSections} = await import("@/lib/reporting/final-report-inputs.server");
+    const sections = await loadFinalReportSections(args.db,args.caseId);
     const payload = composeFinalReportPayload({
+      analysis:null, agents:[], score:null, ...sections,
       case:caseRow, documents:documents ?? [], report:reportRow,
       findings:(findingsData ?? []) as Array<Record<string,unknown>>,
-      analysis:null, agents:[], score:null,
     });
-    finalGov = validateFinalReportContract(payload);
+    finalPayload = payload;
+    const {refreshProceduralQa,normalizeQaLayers} = await import("@/lib/reporting/final-release-decision");
+    refreshProceduralQa(payload.report!,payload.findings ?? []);
+    (payload.report!.full_report as any).qa_statuses = normalizeQaLayers((payload.report!.full_report as any).qa_statuses);
+    const {prepareFinalReportForRelease} = await import("@/lib/export");
+    finalPayload = await prepareFinalReportForRelease(payload);
+    finalGov = validateFinalReportContract(finalPayload);
   } catch (error) {
     finalGov = {ok:false,blocking_errors:[error instanceof Error ? error.message : "REPORT_CONTRACT_UNAVAILABLE"]};
   }
   if (!finalGov.ok) errors.push(...finalGov.blocking_errors);
 
-  // Authoritative Decision
-  let decision: ReleaseDecision = "BLOCKED";
-  if (gatesPassed && engineGate.ok && integrity.valid && finalGov.ok) {
-    decision = warnings.length > 0 ? "PASS_WITH_WARNINGS" : "PASS";
-  }
-
-  const released = decision === "PASS" || decision === "PASS_WITH_WARNINGS";
+  const {resolveFinalReleaseDecision} = await import("@/lib/reporting/final-release-decision");
+  const finalReport = (finalPayload?.report ?? reportRow) as Record<string,any>;
+  const release = resolveFinalReleaseDecision({report:finalReport,contract:finalGov,
+    gates:{...outcomes,required_engines:engineGate.ok,json_integrity:integrity.valid},errors,warnings});
+  const {decision,released} = release;
+  errors.splice(0, errors.length, ...release.errors);
+  warnings.splice(0, warnings.length, ...release.warnings);
   const status: FinalReleaseReview["status"] = released ? "released" : "needs_revision";
   const statusMessage = decision === "PASS"
     ? "Final review passed — report released."
@@ -1112,53 +1102,23 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
         ? `Final review blocked — required engine(s) did not complete: ${engineGate.missingBlocking.join(", ")}.`
         : `Final review requires revision: ${errors.join("; ").slice(0, 500)}`;
 
-  // Atomic state update
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: releaseStateError } = await (args.db as any)
-    .from("cases")
-    .update({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      status: status as any,
-      progress: released ? 100 : 99,
-      completed_at: released ? new Date().toISOString() : null,
-      report_at: released ? new Date().toISOString() : null,
-      next_stage: null,
-      worker_lease_until: null,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      status_message: statusMessage as any,
-      error: released ? null : errors.join("; ").slice(0, 2000),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any)
-    .eq("id", args.caseId);
-
-  if (releaseStateError) {
-    throw new Error(`Failed to persist final release state for case ${args.caseId}: ${releaseStateError.message}`);
-  }
-
-  // Update persisted report release_gate metadata so report snapshot agrees with case state
-  try {
-    const fullRep = ((reportRow.full_report as Record<string, unknown>) ?? {});
-    await args.db
-      .from("reports")
-      .update({
-        full_report: {
-          ...fullRep,
-          release_decision: decision,
-          release_warnings: warnings,
-          release_gate: {
-            ok: released,
-            decision,
-            gates: outcomes,
-            missing_required_engines: engineGate.missingBlocking,
-            warnings,
-            errors,
-          },
-        } as any,
-      })
-      .eq("case_id", args.caseId);
-  } catch (e) {
-    console.warn("[final-release] failed to update report release_gate object", e);
-  }
+  // One transaction writes all release mirrors; failure cannot leave a released
+  // case alongside a blocked report. The database repeats the blocking invariant.
+  const fullRep = finalReport.full_report ?? {};
+  const persistedFull = {...fullRep,
+    qa_statuses:release.qa_statuses,
+    final_report_contract_validation:finalGov, final_governance_validation:finalGov,
+    release_decision:decision, release_warnings:warnings,
+    final_review:{released,decision,status},
+    release_gate:{ok:released,released,decision,gates:outcomes,
+      missing_required_engines:engineGate.missingBlocking,warnings,errors},
+  };
+  const {error:releaseStateError} = await (args.db as any).rpc("finalize_report_release", {
+    p_case_id:args.caseId, p_execution_id:args.executionId ?? (caseRow as any)?.execution_id ?? null,
+    p_report_id:(reportRow as any).id, p_expected_full_report:reportRow.full_report,
+    p_full_report:persistedFull, p_released:released, p_errors:errors, p_status_message:statusMessage,
+  });
+  if (releaseStateError) throw new Error("Failed to persist final release state: " + releaseStateError.message);
 
   console.info(
     `[final-release] ${JSON.stringify({

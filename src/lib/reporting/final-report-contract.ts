@@ -7,6 +7,8 @@ import { validateReincidenciaEvidence } from "../intelligence/reincidencia-evide
 import { buildFindingWorkProduct, buildCaseSnapshot, buildExecutiveQuestions } from "./attorney-workproduct";
 import { canonicalSourceCount, resolveReportSourceRefs } from "./report-sources";
 import { isDocumentaryVerification, resolveReportCapability, type ReportCapability } from "./report-permissions";
+import { contentRestriction, transformReportContent, fold, absenceText, verifiedAbsence } from "./report-content-policy";
+import { resolveFinalReleaseDecision } from "./final-release-decision";
 
 type Row = Record<string, any>;
 const obj = (x: any): Row => x && typeof x === "object" && !Array.isArray(x) ? x : {};
@@ -24,6 +26,7 @@ export interface ReportPresentation {
   snapshot: ReturnType<typeof buildCaseSnapshot>;
   executive_questions: ReturnType<typeof buildExecutiveQuestions>;
   render_sections?: Array<{id:string; title:string; strategic:boolean}>;
+  render_output?: { format: string; text: string };
   decision_sections: Array<{ id: string; kind: string; title: string; text: string; speaker_role: string; speaker_label: string }>;
   finding_cards: Array<{ finding: Row; source_count: number; details: ReturnType<typeof buildFindingWorkProduct> }>;
   withheld_findings: Array<{ id: unknown; category: string; attorney_review_required: boolean }>;
@@ -52,7 +55,8 @@ const STRATEGY_FIELDS = new Set(["recommendations", "canonical_recommendations",
   "recommended_motions", "strategy", "strategy_center", "opportunities", "trial_prep", "work_product",
   "cross_examination", "cross_examination_questions", "defense_theory_report", "prosecution_theory_report", "alternative_theory_report",
   "attorney_work_product", "motion_opportunities", "case_strategy", "trial_themes", "jury_themes", "canonical_actions",
-  "dispositive_recommendation", "risk_matrix"]);
+  "dispositive_recommendation", "risk_matrix", "motions", "legal_theories", "legal_theory",
+  "risk_analysis", "settlement_strategy", "theory_of_case_recommendations"]);
 const SCORE_FIELDS = new Set(["case_strength_score", "risk_score", "overall_confidence", "score_breakdown", "deterministic_scorecard", "dimension_breakdowns", "score"]);
 const PROBABILITY_FIELDS = new Set(["probability", "success_probability", "likelihood", "likelihood_percent", "likelihood_of_success", "win_probability"]);
 
@@ -87,7 +91,8 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
       return null;
     }
     const speaker_role = resolveReportSpeaker(checked, core);
-    return { ...checked, speaker_role, speaker_role_label: formatSpeakerRoleBadge({ ...checked, speaker_role }),
+    return { ...checked, content_class: checked.audit_classification === "VERIFIED_COURT_HOLDING" ? "VERIFIED_HOLDING" :
+      checked.proposition_type === "party_argument" || checked.proposition_type === "argument" ? "PARTY_ARGUMENT" : checked.content_class, speaker_role, speaker_role_label: formatSpeakerRoleBadge({ ...checked, speaker_role }),
       evidence_refs: resolveReportSourceRefs(arr(checked.evidence_refs), sources) };
   }).filter((f): f is NonNullable<typeof f> => f !== null);
   findings.sort((a,b) => governance.decision_core_priority
@@ -114,7 +119,7 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
   }));
   const decision_sections = governance.decision_core_priority ? core.filter(i => CORE_ORDER.includes(i.kind))
     .sort((a, b) => CORE_ORDER.indexOf(a.kind) - CORE_ORDER.indexOf(b.kind))
-    .map(i => ({ id: i.id, kind: i.kind, title: CORE_LABELS[i.kind], text: i.text,
+    .map(i => ({ content_class: i.kind === "REMEDY" ? "HISTORICAL_REMEDY" : "VERIFIED_HOLDING", id: i.id, kind: i.kind, title: CORE_LABELS[i.kind], text: i.text,
       speaker_role: i.speaker_role ?? "unresolved", speaker_label: formatSpeakerRoleBadge({ ...i, mandatory_decision_kind: i.kind }) })) : [];
   const context = {
     documentLabels: uniqueSources.map(s => s.display_name || s.original_filename),
@@ -153,23 +158,53 @@ export function composeFinalReportPayload(input: CaseExportData): FinalReportPay
     decision_sections, finding_cards: finding_cards.map((card, i) => ({ ...card, finding: projected.findings![i] })),
     withheld_findings: withheld,
   };
-  return projected;
+  // Last transform includes generated cards, snapshot, memo, legacy prose and
+  // every secondary section. No renderer may recover the pre-projection data.
+  return transformReportContent(projected, capability, governance);
 }
 
 export function validateFinalReportContract(payload: FinalReportPayload, capability = payload.report_presentation.capability, governance = payload.report_presentation.governance) {
   const view = payload.report_presentation;
   const restricted = capability.mode === "LIMITED" || !capability.strategic_recommendations_allowed;
   const violations: string[] = [];
+  const violation_paths: Array<{rule:string; path:string}> = [];
+  let inspected_nodes = 0;
+  // Attribution survives formatting: exempt only the exact sourced/verified
+  // absence proposition, never the entire output string containing it.
+  const verifiedAbsences: string[] = [];
+  const collectAbsences = (value: any) => {
+    if (Array.isArray(value)) { value.forEach(collectAbsences); return; }
+    if (!value || typeof value !== "object") return;
+    for (const [key,text] of Object.entries(value)) {
+      if (key === "render_output") continue;
+      if (typeof text === "string" && absenceText.test(fold(text)) &&
+          (verifiedAbsence(value,text) || key === "quote" && (value.document_id || value.canonical_source_id)))
+        verifiedAbsences.push(fold(text).replace(/[.!?]+$/, ""));
+      else if (text && typeof text === "object") collectAbsences(text);
+    }
+  };
+  collectAbsences(payload);
   const rules = {
     prohibitedStrategicHeadingsPresent: false, strategicRecommendationsPresent: false,
     scoresPresent: false, probabilitiesPresent: false, recommendedMotionsPresent: false,
     verificationStepsOnly: true, decisionCoreFirst: true, canonicalSourceCountsValid: true,
-    speakerRoleLabelsValid: true, concludedGovernanceResolved: true,
+    speakerRoleLabelsValid: true, concludedGovernanceResolved: true, unverifiedAbsencePresent: false,
   };
   // Inspect exactly the object supplied to the renderer, including nested cards,
   // memo, prose, and sections. Audit-only booleans and score suppression flags are
   // not numeric scores or output recommendations.
-  const visit = (v: any, key = "") => {
+  const visit = (v: any, key = "", path = "$", parent: Row = {}) => {
+    inspected_nodes++;
+    let restriction = contentRestriction(v, key, parent, capability, governance);
+    if (restriction === "unverifiedAbsencePresent" && path === "$.report_presentation.render_output.text") {
+      let remaining = fold(v);
+      for (const text of verifiedAbsences) remaining = remaining.split(text).join("");
+      if (!absenceText.test(remaining)) restriction = null;
+    }
+    if (restriction) {
+      (rules as Row)[restriction] = true;
+      violation_paths.push({rule:restriction, path});
+    }
     if (typeof v === "string" && /pr[oó]ximas\s+acciones\s+recomendadas|recommended next actions|importancia estrat[eé]gica/i.test(v)) rules.prohibitedStrategicHeadingsPresent = true;
     const populated = v != null && v !== "" && (!Array.isArray(v) || v.length > 0) &&
       (typeof v !== "object" || Object.keys(v).length > 0);
@@ -177,8 +212,8 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
     if (populated && SCORE_FIELDS.has(key)) rules.scoresPresent = true;
     if (populated && PROBABILITY_FIELDS.has(key)) rules.probabilitiesPresent = true;
     if (populated && key === "recommended_motions") rules.recommendedMotionsPresent = true;
-    if (Array.isArray(v)) v.forEach(x => visit(x));
-    else if (v && typeof v === "object") Object.entries(v).forEach(([k, x]) => visit(x, k));
+    if (Array.isArray(v)) v.forEach((x,i) => visit(x,key,path + "[" + i + "]",parent));
+    else if (v && typeof v === "object") Object.entries(v).forEach(([k, x]) => visit(x,k,path + "." + k,v));
   };
   visit(payload);
   if (restricted && view.render_sections?.some(section => section.strategic)) rules.strategicRecommendationsPresent = true;
@@ -217,10 +252,12 @@ export function validateFinalReportContract(payload: FinalReportPayload, capabil
   if (!capability.scores_allowed && rules.scoresPresent) violations.push("scoresPresent");
   if (!capability.probabilities_allowed && rules.probabilitiesPresent) violations.push("probabilitiesPresent");
   if (!capability.motions_allowed && rules.recommendedMotionsPresent) violations.push("recommendedMotionsPresent");
+  if (rules.unverifiedAbsencePresent) violations.push("unverifiedAbsencePresent");
   for (const key of ["decisionCoreFirst", "canonicalSourceCountsValid", "speakerRoleLabelsValid", "concludedGovernanceResolved"] as const)
     if (!rules[key]) violations.push(key);
   if (restricted && !rules.verificationStepsOnly) violations.push("verificationStepsOnly");
-  return { ok: violations.length === 0, blocking_errors: violations, checked_rules: rules };
+  return { ok: violations.length === 0, blocking_errors: violations, checked_rules: rules,
+    violation_paths, inspected_nodes, validation_stage: view.render_output ? "after_renderer_transforms" : "after_section_transforms" };
 }
 
 function freeze<T>(value: T): T {
@@ -236,5 +273,14 @@ export function releaseFinalReportPayload(input: CaseExportData): FinalReportPay
   const payload = (input as FinalReportPayload).report_presentation ? input as FinalReportPayload : composeFinalReportPayload(input);
   const validation = validateFinalReportContract(payload);
   if (!validation.ok) throw new Error("REPORT_CONTRACT_BLOCKED: " + validation.blocking_errors.join(", "));
+  const decision = resolveFinalReleaseDecision({report:obj(payload.report),contract:validation});
+  if (!decision.released) throw new Error("REPORT_BLOCKED: " + decision.errors.join(", "));
   return freeze(payload);
+}
+
+/** All concrete export backends submit their fully transformed output here.
+ * This calls the existing contract validator; it is not a second policy. */
+export function releaseRenderedReportOutput(payload: FinalReportPayload, format: string, text: string) {
+  const finalPayload = {...payload, report_presentation:{...payload.report_presentation,render_output:{format,text}}};
+  return releaseFinalReportPayload(finalPayload);
 }

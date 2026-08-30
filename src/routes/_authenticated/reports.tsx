@@ -65,7 +65,7 @@ function ReportsPage() {
   }
   const data = (finalPayload ?? rawData) as typeof rawData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const report = data?.report as any;
+  const report = (contractError ? null : data?.report) as any;
   const name = (data?.case as any)?.name ?? t("reports.export.defaultCaseName");
   const scoresSuppressed = report?.scores_suppressed === true;
   const motionsSuppressed = report?.motions_suppressed === true;
@@ -90,7 +90,7 @@ function ReportsPage() {
   const modeLabel =
     reportMode === "FULL" ? t("reports.mode.full") : reportMode === "LIMITED" ? t("reports.mode.limited") : null;
 
-  const run = (fn: () => void | Promise<void>, labelKey: string) => {
+  const run = (fn: () => unknown | Promise<unknown>, labelKey: string) => {
     const onFail = (e: unknown) => {
       console.error("[export] failed", labelKey, e);
       toast.error(

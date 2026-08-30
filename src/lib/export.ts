@@ -1,3 +1,4 @@
+import { releaseDocxOutput } from "./reporting/rendered-output";
 // Client-side download helpers for case exports.
 //
 // `downloadPdf` produces an attorney-grade litigation work product: cover,
@@ -6,7 +7,7 @@
 // trail, and source appendix. Raw JSON is never exposed to the user — every
 // internal structure is rendered as readable prose, tables, or callouts.
 import jsPDF from "jspdf";
-import { composeFinalReportPayload, releaseFinalReportPayload, type FinalReportPayload } from "./reporting/final-report-contract";
+import { composeFinalReportPayload, releaseFinalReportPayload, releaseRenderedReportOutput, type FinalReportPayload } from "./reporting/final-report-contract";
 import { canonicalSourceCount } from "./reporting/report-sources";
 import autoTable from "jspdf-autotable";
 
@@ -620,6 +621,8 @@ const SECTION_KICKERS: Record<string, string> = {
 
 class PdfBuilder {
   doc: Pdf;
+  renderedText: string[] = [];
+  finalPayload?: FinalReportPayload;
   // 0.75 inch margins (54pt) per professional memorandum standard.
   margin = 54;
   pageW: number;
@@ -672,6 +675,7 @@ class PdfBuilder {
           : Array.isArray(text)
             ? text.map((t) => (typeof t === "string" ? prep(t) : t))
             : text;
+      this.renderedText.push(...(typeof safe === "string" ? [safe] : Array.isArray(safe) ? safe.filter((x): x is string => typeof x === "string") : []));
       return (origText as unknown as (...a: unknown[]) => unknown)(safe, ...rest);
     };
     const origSplit = this.doc.splitTextToSize.bind(this.doc);
@@ -2073,10 +2077,13 @@ class PdfBuilder {
     }
   }
 
-  save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null) {
+  save(filename: string, meta: { parity: string; ess: string; generatedAt: string } | null = null, validateOnly = false) {
     this.header();
     this.footer(meta);
-    this.doc.save(filename);
+    if (!this.finalPayload) throw new Error("REPORT_CONTRACT_UNAVAILABLE");
+    const released = releaseRenderedReportOutput(this.finalPayload, "pdf", this.renderedText.join("\n"));
+    if (!validateOnly) this.doc.save(filename);
+    return released;
   }
 }
 
@@ -3916,7 +3923,7 @@ function renderConstitutional(b: PdfBuilder, data: CaseExportData) {
       b.h3("Estándar Legal");
       b.text(asStr(c.legal_standard));
     }
-    if (c.likely_outcome)
+    if ((data as FinalReportPayload).report_presentation.capability.probabilities_allowed && c.likely_outcome)
       b.callout(
         "Estimación de Probabilidad",
         `${asStr(c.likely_outcome)} (confianza: ${asStr(c.confidence_label, "media")})`,
@@ -3924,7 +3931,11 @@ function renderConstitutional(b: PdfBuilder, data: CaseExportData) {
     if (c.jurisdiction) b.label("Jurisdicción", asStr(c.jurisdiction));
     if (c.warrant_standard) b.label("Estándar de Cateo/Orden Judicial", asStr(c.warrant_standard));
     if (c.uncertainty_flag) b.callout("Incertidumbre", asStr(c.uncertainty_flag), DANGER);
-    if (c.remedy_sought) b.label("Remedio Solicitado", asStr(c.remedy_sought));
+    if ((data as FinalReportPayload).report_presentation.capability.strategic_recommendations_allowed &&
+        (data as FinalReportPayload).report_presentation.governance.strategy_output_allowed && c.remedy_sought)
+      b.label("Remedio Solicitado", asStr(c.remedy_sought));
+    if (asObj(c.historical_remedy).content_class === "HISTORICAL_REMEDY")
+      b.label(asStr(asObj(c.historical_remedy).title), asStr(asObj(c.historical_remedy).text));
     const cites = asArr(c.citations);
     if (cites.length) {
       b.text(rt("Evidence:"), { size: 9, bold: true, color: MUTED });
@@ -5555,7 +5566,7 @@ function deriveMatterId(data: CaseExportData): string {
 export async function downloadPdf(
   data: CaseExportData,
   name: string,
-  opts?: { citationMode?: CitationMode },
+  opts?: { citationMode?: CitationMode; validateOnly?: boolean },
 ) {
   data = (data as FinalReportPayload).report_presentation ? structuredClone(releaseFinalReportPayload(data)) : composeFinalReportPayload(data);
   // Explicit, redundant release-gate check at the actual point of export —
@@ -5684,18 +5695,19 @@ export async function downloadPdf(
   // Footer reflects the SINGLE report state.
   const footerEss =
     mode === "LIMITED" ? `${ess.level} · ${mode} · scores suppressed` : `${ess.level} · ${mode}`;
-  b.save(`${slug(name)}.pdf`, {
+  b.finalPayload = data as FinalReportPayload;
+  return b.save(`${slug(name)}.pdf`, {
     parity: parityTag,
     ess: footerEss,
     generatedAt,
-  });
+  }, opts?.validateOnly);
 }
 
 // DOCX uses the SAME section plan, in the SAME order, gated by the SAME mode.
 export async function downloadDocx(
   data: CaseExportData,
   name: string,
-  opts?: { citationMode?: CitationMode },
+  opts?: { citationMode?: CitationMode; validateOnly?: boolean },
 ) {
   data = (data as FinalReportPayload).report_presentation ? structuredClone(releaseFinalReportPayload(data)) : composeFinalReportPayload(data);
   // Same explicit, redundant release-gate check as downloadPdf — see the
@@ -5887,7 +5899,26 @@ export async function downloadDocx(
     ],
   });
   const blob = await Packer.toBlob(doc);
-  saveBlob(blob, `${slug(name)}.docx`);
+  const released = await releaseDocxOutput(data as FinalReportPayload, blob);
+  if (!opts?.validateOnly) saveBlob(blob, `${slug(name)}.docx`);
+  return released;
+}
+
+/** Same real section renderers used by downloads; in-memory only, no publication.
+ * Final backend release waits for all PDF/DOCX transforms, labels and appendices. */
+let preflightTail: Promise<void> = Promise.resolve();
+export async function prepareFinalReportForRelease(data: CaseExportData): Promise<FinalReportPayload> {
+  // Existing renderer locale/citation collectors are module-local. Serialize
+  // server preflights so concurrent cases cannot share those mutable collectors.
+  const previous = preflightTail;
+  let done!: () => void;
+  preflightTail = new Promise<void>(resolve => {done=resolve;});
+  await previous;
+  try {
+    const name = asStr(data.case?.name, "Report");
+    const pdf = await downloadPdf(data, name, {validateOnly:true});
+    return await downloadDocx(pdf, name, {validateOnly:true});
+  } finally { done(); }
 }
 
 function slug(s: string) {

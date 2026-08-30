@@ -9963,7 +9963,7 @@ ${paginationTail}`;
         })),
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (reportRow.full_report as any).release_gate = verdict;
+      (reportRow.full_report as any).manifest_audit = {...verdict, blocking:false, status:verdict.ok ? "PASS" : "WARN_NON_BLOCKING"};
       if (!verdict.ok) {
         // 2026-07-31: reverted to warning-only per explicit direction. This
         // block previously also set quality_blocked=true, report_mode=
@@ -10021,7 +10021,7 @@ ${paginationTail}`;
     const renderedQa = fullReport.rendered_qa as
       | { critical_count?: number }
       | undefined;
-    const releaseQa = fullReport.release_gate as
+    const releaseQa = fullReport.manifest_audit as
       | { issues?: unknown[]; ok?: boolean }
       | undefined;
     fullReport.qa_statuses = buildPenalQaStatuses({
@@ -10034,6 +10034,7 @@ ${paginationTail}`;
       proceduralSemanticIssues: auditPenalProceduralSemantics(
         findings as unknown as Parameters<typeof auditPenalProceduralSemantics>[0],
       ),
+      proceduralSchemaAliases: findings.filter((f:any) => f.proposition_type === "holding" && f.audit_classification === "VERIFIED_COURT_HOLDING").length,
       renderedCriticalIssues:
         typeof renderedQa?.critical_count === "number" ? renderedQa.critical_count : null,
       releaseGateIssues: Array.isArray(releaseQa?.issues)
@@ -10096,6 +10097,17 @@ ${paginationTail}`;
     analysis:null, agents:[], score:null,
   });
   const finalContract = validateFinalReportContract(finalPayload);
+  // Persist precisely the composed section content, never the unfiltered source report.
+  for (const key of Object.keys(reportRow)) {
+    if (!(key in (finalPayload.report ?? {})))
+      (reportRow as any)[key] = Array.isArray((reportRow as any)[key]) ? [] : null;
+  }
+  Object.assign(reportRow, finalPayload.report);
+  const {resolveFinalReleaseDecision} = await import("./reporting/final-release-decision");
+  const release = resolveFinalReleaseDecision({report:reportRow,contract:finalContract});
+  (reportRow as any).quality_blocked = release.quality_blocked;
+  (reportRow as any).quality_block_reasons = release.errors;
+  (reportRow.full_report as any).qa_statuses = release.qa_statuses;
   (reportRow.full_report as any).report_capability = finalPayload.report_presentation.capability;
   (reportRow.full_report as any).report_governance = reportGovernance;
   (reportRow.full_report as any).final_report_contract_validation = finalContract;
@@ -10205,6 +10217,28 @@ ${paginationTail}`;
     error: null,
   });
 
+  // ---- Completed Case Audit / Outcome Assessment -------------------------
+  // Additive final layer, gated to case_analysis_mode !== "ongoing" (a no-op
+  // for every existing case and every ongoing case — see
+  // completed-case-audit.server.ts's own early return). Reads the findings/
+  // score/report this pipeline just finished producing; never reprocesses
+  // documents, never re-runs an analyzer or agent, never touches an existing
+  // stage. Purely additive and non-fatal — a failure here must never undo a
+  // successfully generated report. Its output must precede final validation.
+  try {
+    const { runCompletedCaseAudit } =
+      await import("@/lib/intelligence/completed-case-audit.server");
+    const audit = await runCompletedCaseAudit(db, caseId, userId, apiKey);
+    if (audit) {
+      console.info(
+        `[completed-case-audit] case ${caseId} → ${audit.overall_position} (${audit.favorable_pct}% favorable, confidence=${audit.confidence})`,
+      );
+    }
+  } catch (e) {
+    console.warn("[completed-case-audit] audit failed before final release review", e);
+  }
+
+
   // ---- Final release review — the last step of the pipeline -------------
   // The completed report is now generated, saved and snapshotted. Only now
   // may a release decision be made: the release-gate agents (report, QA,
@@ -10247,26 +10281,6 @@ ${paginationTail}`;
     });
   }
 
-  // ---- Completed Case Audit / Outcome Assessment -------------------------
-  // Additive final layer, gated to case_analysis_mode !== "ongoing" (a no-op
-  // for every existing case and every ongoing case — see
-  // completed-case-audit.server.ts's own early return). Reads the findings/
-  // score/report this pipeline just finished producing; never reprocesses
-  // documents, never re-runs an analyzer or agent, never touches an existing
-  // stage. Purely additive and non-fatal — a failure here must never undo a
-  // successfully generated and released report.
-  try {
-    const { runCompletedCaseAudit } =
-      await import("@/lib/intelligence/completed-case-audit.server");
-    const audit = await runCompletedCaseAudit(db, caseId, userId, apiKey);
-    if (audit) {
-      console.info(
-        `[completed-case-audit] case ${caseId} → ${audit.overall_position} (${audit.favorable_pct}% favorable, confidence=${audit.confidence})`,
-      );
-    }
-  } catch (e) {
-    console.warn("[completed-case-audit] audit failed after final release review", e);
-  }
 
   return {
     value: undefined,

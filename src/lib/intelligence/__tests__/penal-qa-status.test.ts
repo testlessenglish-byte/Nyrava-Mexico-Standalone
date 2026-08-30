@@ -27,7 +27,7 @@ describe("independent Penal QA statuses", () => {
       "PASS",
       "FAIL",
       "PASS",
-      "FAIL",
+      "WARN_NON_BLOCKING",
     ]);
   });
 

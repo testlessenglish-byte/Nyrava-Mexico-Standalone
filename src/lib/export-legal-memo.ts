@@ -1,4 +1,5 @@
-import { releaseFinalReportPayload, type FinalReportPayload } from "./reporting/final-report-contract";
+import { capturePdfText, releaseDocxOutput } from "./reporting/rendered-output";
+import { releaseFinalReportPayload, releaseRenderedReportOutput, type FinalReportPayload } from "./reporting/final-report-contract";
 // Client-side DOCX + PDF export for `full_report.legal_memorandum`.
 // Matches the pattern already used by src/lib/export.ts: generate in the
 // browser, download via a Blob. No server route, no new endpoint, no
@@ -357,6 +358,7 @@ export async function downloadLegalMemoDocx(payload: FinalReportPayload, caseNam
     }],
   });
   const blob = await Packer.toBlob(doc);
+  await releaseDocxOutput(validated, blob);
   saveBlob(blob, `${safeName(caseName)}${rt("-Legal-Memo")}.docx`);
 }
 
@@ -382,6 +384,7 @@ export function downloadLegalMemoPdf(payload: FinalReportPayload, caseName: stri
   if (!memo) throw new Error("REPORT_MEMO_UNAVAILABLE");
 
   const doc = new jsPDF({ unit: "in", format: "letter" });
+  const renderedText = capturePdfText(doc as any);
   const margin = 1;
   const pageW = 8.5;
   const pageH = 11;
@@ -580,5 +583,6 @@ export function downloadLegalMemoPdf(payload: FinalReportPayload, caseName: stri
     runTable([rt("Priority"), rt("Action"), rt("Owner"), rt("Deadline")], rows, { 0: { cellWidth: 0.8 } });
   }
 
+  releaseRenderedReportOutput(validated, "memo-pdf", renderedText.join("\n"));
   doc.save(`${safeName(caseName)}${rt("-Legal-Memo")}.pdf`);
 }
