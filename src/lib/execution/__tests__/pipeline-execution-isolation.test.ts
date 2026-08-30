@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import { canGenerateReport, missingRequiredEngines, REPORT_REQUIRED_ENGINES } from "../canonical";
 
 describe("Pipeline Execution Isolation (Phase 1)", () => {
@@ -77,9 +77,9 @@ describe("Pipeline Execution Isolation (Phase 1)", () => {
 
   it("verifies source code queries in pipeline.server.ts and orchestrator.server.ts enforce execution_id scoping", async () => {
     const fs = await import("node:fs/promises");
-    const pipeSource = await fs.readFile("src/lib/pipeline.server.ts", "utf-8");
-    const orchSource = await fs.readFile("src/lib/agents/orchestrator.server.ts", "utf-8");
-    const runnerSource = await fs.readFile("src/lib/pipeline-runner.server.ts", "utf-8");
+    const pipeSource = (await fs.readFile("src/lib/pipeline.server.ts", "utf-8")).replace(/\r\n/g, "\n");
+    const orchSource = (await fs.readFile("src/lib/agents/orchestrator.server.ts", "utf-8")).replace(/\r\n/g, "\n");
+    const runnerSource = (await fs.readFile("src/lib/pipeline-runner.server.ts", "utf-8")).replace(/\r\n/g, "\n");
 
     expect(pipeSource).toContain('if (args.executionId) {\n    runsQuery = runsQuery.eq("execution_id", args.executionId);\n  }');
     expect(pipeSource).toContain('if (executionId) {\n      runsQuery = runsQuery.eq("execution_id", executionId);\n    }');
