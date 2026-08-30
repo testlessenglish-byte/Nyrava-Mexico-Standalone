@@ -24,7 +24,9 @@ export const FINDING_STATUSES: readonly FindingStatus[] = [
 
 export type SelectableFinding = {
   source_module?: string | null;
+  category?: string | null;
   severity?: string | null;
+  confidence?: number | null;
   finding_status?: string | null;
   supporting_engines?: string[] | null;
   metadata?: Record<string, unknown> | null;

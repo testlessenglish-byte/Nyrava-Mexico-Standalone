@@ -46,11 +46,12 @@ export function validateJSONPipelineIntegrity(input: {
   }
 
   // Rule 2: verified corpus quote + no source document -> FAIL
-  for (const f of findings) {
+  for (const rawFinding of findings) {
+    const f = rawFinding as any;
     const isVerified = f.verification_status === "verified" || f.audit_classification === "VERIFIED_COURT_HOLDING";
-    const hasQuote = Boolean(f.source_quote || f.evidence_refs?.some((e) => e.quote));
-    const hasDoc = Boolean(f.source_document_id || f.source_doc_ids?.length || f.evidence_refs?.some((e) => e.document_id || (e as any).doc_id));
-    const isAuthorityExempt = Boolean((f.metadata as any)?.is_authority_exempt || f.authority_level != null && f.authority_level > 0);
+    const hasQuote = Boolean(f.source_quote || f.evidence_refs?.some((e: any) => e.quote));
+    const hasDoc = Boolean(f.source_document_id || f.source_doc_ids?.length || f.evidence_refs?.some((e: any) => e.document_id || e.doc_id));
+    const isAuthorityExempt = Boolean(f.metadata?.is_authority_exempt || (f.authority_level != null && Number(f.authority_level) > 0));
 
     if (isVerified && hasQuote && !hasDoc && !isAuthorityExempt) {
       violations.push({
@@ -77,9 +78,10 @@ export function validateJSONPipelineIntegrity(input: {
   }
 
   // Rule 4: adopted court holding classified as adverse risk without separate reasoning -> FAIL
-  for (const f of findings) {
+  for (const rawFinding of findings) {
+    const f = rawFinding as any;
     if (f.proposition_type === "holding" && f.adoption_status === "adopted") {
-      if (f.impact_direction === "negative" || (f.severity === "critical" && f.impact_direction !== "neutral" && !f.legal_significance)) {
+      if (f.impact_direction === "undermining" || (f.severity === "critical" && f.impact_direction !== "neutral" && !f.legal_significance)) {
         violations.push({
           rule_id: "ADOPTED_HOLDING_MISCLASSIFIED_AS_ADVERSE_RISK",
           severity: "critical",

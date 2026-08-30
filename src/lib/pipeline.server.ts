@@ -6108,9 +6108,8 @@ async function _runReportInner(args: {
 
   const proceduralPosture = detectProceduralPosture({
     caseRow: caseTsRow,
-    corpusText: corpusSnapshot?.text ?? "",
     resolutivos: (caseTsRow?.shared_brief as any)?.resolutivo_verbatim ?? null,
-    materia: area,
+    materia: (caseTsRow as any)?.case_type ?? null,
   });
 
   let findings: typeof allFindings;
