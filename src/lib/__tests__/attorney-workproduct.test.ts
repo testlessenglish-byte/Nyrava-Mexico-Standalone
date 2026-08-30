@@ -1,3 +1,5 @@
+import { resolveReportGovernance } from "../intelligence/concluded-case-governance";
+import { resolveReportCapability } from "../reporting/report-permissions";
 import { describe, expect, it } from "vitest";
 import {
   ATTORNEY_GROUPS,
@@ -8,7 +10,10 @@ import {
   groupForFinding,
 } from "../reporting/attorney-workproduct";
 
+const governance = resolveReportGovernance({case_analysis_mode:"ongoing"});
 const ctx = {
+  governance,
+  capability: resolveReportCapability({report_mode:"FULL",scores_suppressed:false,motions_suppressed:false},governance),
   documentLabels: [
     "04_Dictamen_Grafoscopico.txt",
     "13_Correos_y_WhatsApp_Supervisor.txt",
@@ -26,8 +31,8 @@ const finding = {
   confidence: 0.9,
   legal_significance: "Incide directamente en la existencia del despido.",
   evidence_refs: [
-    { filename: "04_Dictamen_Grafoscopico.txt", quote: "la firma no corresponde" },
-    { filename: "13_Correos_y_WhatsApp_Supervisor.txt", quote: "ya no vendrá" },
+    { canonical_source_id: "source-1", filename: "04_Dictamen_Grafoscopico.txt", quote: "la firma no corresponde" },
+    { canonical_source_id: "source-2", filename: "13_Correos_y_WhatsApp_Supervisor.txt", quote: "ya no vendrá" },
   ],
 };
 

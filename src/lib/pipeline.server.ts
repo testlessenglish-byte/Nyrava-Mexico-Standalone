@@ -6292,6 +6292,14 @@ async function _runReportInner(args: {
   const { getCaseAnalysisMode: getReportCaseAnalysisMode } =
     await import("./intelligence/case-analysis-mode");
   const reportCaseAnalysisMode = await getReportCaseAnalysisMode(db, caseId);
+  const { loadResolvedReportGovernance } = await import("./intelligence/concluded-case-governance.server");
+  const reportGovernance = await loadResolvedReportGovernance(db, caseId, {
+    case_analysis_mode: reportCaseAnalysisMode,
+    procedural_posture: proceduralPosture,
+    execution_id: executionId ?? undefined,
+  });
+  const { validateReincidenciaEvidence } = await import("./intelligence/reincidencia-evidence");
+  findings = findings.map(f => validateReincidenciaEvidence(f)).filter(f => !(f as any).report_suppressed);
   const { isCompletedCaseMode: isCompletedReportCaseMode } = await import(
     "./intelligence/case-analysis-mode"
   );
@@ -7599,12 +7607,8 @@ ${paginationTail}`;
     Object.values(prose).filter((v) => typeof v === "string" && v.trim().length > 0).length < 3;
   if (proseLooksEmpty) {
     const sevRank = { critical: 4, high: 3, medium: 2, low: 1, info: 0 } as Record<string, number>;
-    const { loadConcludedCaseGovernance } = await import("./intelligence/concluded-case-governance.server");
     const { sortFindingsForConcludedReport, formatSpeakerRoleBadge, sanitizeConcludedReportProse } = await import("./intelligence/concluded-case-governance");
-    const governance = await loadConcludedCaseGovernance(db, caseId, {
-      resolutivos: resolutivoVerbatim,
-      corpusText: corpus,
-    });
+    const governance = reportGovernance;
     const sortedFindings = sortFindingsForConcludedReport(findings as any[], governance);
     const top = sortedFindings.slice(0, 10);
     const bullets = top
@@ -8298,7 +8302,7 @@ ${paginationTail}`;
     locale: reportLocaleForNotice,
   });
 
-  const allowReportMotionGeneration = reportCaseAnalysisMode === "concluded_audit" ? false : ess.allowMotionGeneration;
+  const allowReportMotionGeneration = reportGovernance.strategy_output_allowed && ess.allowMotionGeneration;
 
   // ESS-driven per-finding constraint (report-quality audit, 2026-08-14,
   // ADR-2239-2018-180906): "modo LIMITADO" already suppresses the CASE-LEVEL
@@ -9514,23 +9518,12 @@ ${paginationTail}`;
       metrics: canonicalSourceMetrics,
       invariants: canonicalSourceAudit.invariants,
     };
-    const { loadResolvedReportGovernance } = await import("./intelligence/concluded-case-governance.server");
-    const { filterConcludedReportSections, validateFinalReportGovernance } = await import("./intelligence/concluded-case-governance");
-    const reportGov = await loadResolvedReportGovernance(db, caseId, {
-      resolutivos: resolutivoVerbatim,
-      corpusText: corpus,
-    });
+    const { filterConcludedReportSections } = await import("./intelligence/concluded-case-governance");
+    const reportGov = reportGovernance;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (reportRow.full_report as any).report_governance = reportGov;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     reportRow.full_report = filterConcludedReportSections(reportRow.full_report as Record<string, unknown>, reportGov);
-    const finalGovValidation = validateFinalReportGovernance({
-      governance: reportGov,
-      fullReport: reportRow.full_report as Record<string, unknown>,
-      findings: findings as Array<Record<string, unknown>>,
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (reportRow.full_report as any).final_governance_validation = finalGovValidation;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const valBlock = ((reportRow.full_report as any).validation ?? {}) as Record<string, unknown>;
     valBlock.report_quality = qualityAudit;
@@ -9542,7 +9535,6 @@ ${paginationTail}`;
     valBlock.canonical_source_count = canonicalSourceMetrics.unique_source_count;
     valBlock.independent_source_count = canonicalSourceMetrics.independent_source_count;
     valBlock.report_governance = reportGov;
-    valBlock.final_governance_validation = finalGovValidation;
     valBlock.citation_audit = {
       total: citationAudit.total,
       supported: citationAudit.supported,
@@ -10091,6 +10083,29 @@ ${paginationTail}`;
         execErr instanceof Error ? execErr.message : String(execErr)
       }`,
     );
+  }
+
+  // Last composition checkpoint. Export/HTML repeat this same contract check
+  // on their actual payload (which can include newer live findings).
+  const { composeFinalReportPayload, validateFinalReportContract } = await import("./reporting/final-report-contract");
+  const finalPayload = composeFinalReportPayload({
+    case: { ...caseTsRow, case_analysis_mode: reportCaseAnalysisMode, procedural_posture: proceduralPosture },
+    documents: canonicalSources.map(s => ({ ...s, id:s.document_id, filename:s.display_name })),
+    report: reportRow as unknown as Record<string, unknown>,
+    findings: findings as unknown as Array<Record<string, unknown>>,
+    analysis:null, agents:[], score:null,
+  });
+  const finalContract = validateFinalReportContract(finalPayload);
+  (reportRow.full_report as any).report_capability = finalPayload.report_presentation.capability;
+  (reportRow.full_report as any).report_governance = reportGovernance;
+  (reportRow.full_report as any).final_report_contract_validation = finalContract;
+  (reportRow.full_report as any).final_governance_validation = finalContract;
+  if (!finalContract.ok) {
+    (reportRow as any).quality_blocked = true;
+    (reportRow as any).quality_block_reasons = [
+      ...((reportRow as any).quality_block_reasons ?? []),
+      ...finalContract.blocking_errors.map(reason => "final_report_contract:" + reason),
+    ];
   }
 
   assertDbOk(

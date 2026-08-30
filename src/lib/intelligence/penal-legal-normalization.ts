@@ -186,6 +186,8 @@ function categoryFor(proposition: PropositionType | null, fallback: string): str
   }
 }
 
+import { validateReincidenciaEvidence } from "./reincidencia-evidence";
+
 export type PenalNormalizationRule =
   | "legacy_taxonomy_mapped"
   | "party_holding_downgraded"
@@ -198,6 +200,20 @@ export function normalizePenalFinding<T extends NewFinding>(
   context: PenalMatterContext,
 ): T {
   if (!isPenalMatter(context)) return finding;
+  const antecedent = validateReincidenciaEvidence(finding);
+  if (antecedent.category === "unsupported_reincidencia") {
+    return {
+      ...finding,
+      title: antecedent.title,
+      category: "unsupported_reincidencia",
+      metadata: {
+        ...(finding.metadata ?? {}),
+        attorney_review_required: true,
+        report_suppressed: true,
+        reincidencia_validation: "Qualifying prior conviction and applicable rule not established",
+      },
+    } as T;
+  }
 
   const original = {
     category: finding.category,

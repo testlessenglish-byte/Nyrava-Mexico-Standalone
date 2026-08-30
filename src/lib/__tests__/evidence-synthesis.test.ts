@@ -38,8 +38,8 @@ describe("extractFacts", () => {
 describe("synthesizeEvidence", () => {
   it("reports independent corroboration when different document families agree", () => {
     const s = synthesizeEvidence([
-      { name: "Contrato de compraventa.pdf", weight: w(3, "Documento Privado"), quotes: ["se obliga a pagar $350,000.00 MXN"] },
-      { name: "CFDI A-1456.xml", weight: w(3, "Registro Contable"), quotes: ["importe total $350,000.00 MXN pago recibido"] },
+      { canonical_source_id: "source-1", name: "Contrato de compraventa.pdf", weight: w(3, "Documento Privado"), quotes: ["se obliga a pagar $350,000.00 MXN"] },
+      { canonical_source_id: "source-2", name: "CFDI A-1456.xml", weight: w(3, "Registro Contable"), quotes: ["importe total $350,000.00 MXN pago recibido"] },
     ])!;
     const agreed = s.agreements.find((a) => a.kind === "amount");
     expect(agreed?.display).toContain("350,000");
@@ -49,8 +49,8 @@ describe("synthesizeEvidence", () => {
 
   it("detects a monetary discrepancy and names the prevailing source by weight", () => {
     const s = synthesizeEvidence([
-      { name: "Estado de cuenta.pdf", weight: w(3, "Registro Contable"), quotes: ["pago por $350,000.00 MXN"] },
-      { name: "Resolución administrativa.pdf", weight: w(5, "Documento Público"), quotes: ["saldo insoluto de $120,000.00 MXN"] },
+      { canonical_source_id: "source-3", name: "Estado de cuenta.pdf", weight: w(3, "Registro Contable"), quotes: ["pago por $350,000.00 MXN"] },
+      { canonical_source_id: "source-4", name: "Resolución administrativa.pdf", weight: w(5, "Documento Público"), quotes: ["saldo insoluto de $120,000.00 MXN"] },
     ])!;
     expect(s.conflicts).toHaveLength(1);
     const line = s.lines[0];
@@ -62,8 +62,8 @@ describe("synthesizeEvidence", () => {
 
   it("says a same-tier conflict cannot be resolved by hierarchy", () => {
     const s = synthesizeEvidence([
-      { name: "Contrato A.pdf", weight: w(3, "Documento Privado"), quotes: ["la cantidad de $100,000 MXN"] },
-      { name: "Contrato B.pdf", weight: w(3, "Documento Privado"), quotes: ["la cantidad de $80,000 MXN"] },
+      { canonical_source_id: "source-5", name: "Contrato A.pdf", weight: w(3, "Documento Privado"), quotes: ["la cantidad de $100,000 MXN"] },
+      { canonical_source_id: "source-6", name: "Contrato B.pdf", weight: w(3, "Documento Privado"), quotes: ["la cantidad de $80,000 MXN"] },
     ])!;
     expect(s.conflicts[0].tie).toBe(true);
     expect(s.lines[0]).toContain("no se resuelve por jerarquía documental");
@@ -71,34 +71,34 @@ describe("synthesizeEvidence", () => {
 
   it("treats copies of the same source as duplicates, not corroboration", () => {
     const s = synthesizeEvidence([
-      { name: "Contrato arrendamiento.pdf", weight: w(3, "Documento Privado"), quotes: ["$50,000 MXN"] },
-      { name: "Contrato arrendamiento (copia).pdf", weight: w(3, "Documento Privado"), quotes: ["$50,000 MXN"] },
+      { canonical_source_id: "lease", name: "Contrato arrendamiento.pdf", weight: w(3, "Documento Privado"), quotes: ["$50,000 MXN"] },
+      { canonical_source_id: "lease", name: "Contrato arrendamiento (copia).pdf", weight: w(3, "Documento Privado"), quotes: ["$50,000 MXN"] },
     ])!;
-    expect(s.docs.some((d) => d.duplicateOf)).toBe(true);
-    expect(s.agreements[0].independent).toBe(false);
-    expect(s.lines.join(" ")).toContain("no incrementan la fuerza probatoria");
+    expect(s.docs).toHaveLength(1);
+    expect(s.agreements).toHaveLength(0);
+    expect(s.narrative).toContain("una sola fuente");
   });
 
   it("describes complementary legal acts across documents", () => {
     const s = synthesizeEvidence([
-      { name: "Contrato.pdf", weight: w(3, "Documento Privado"), quotes: ["se obliga a pagar la renta mensual"] },
-      { name: "Recibo de pago.pdf", weight: w(3, "Registro Contable"), quotes: ["comprobante de pago recibido de conformidad"] },
+      { canonical_source_id: "source-7", name: "Contrato.pdf", weight: w(3, "Documento Privado"), quotes: ["se obliga a pagar la renta mensual"] },
+      { canonical_source_id: "source-8", name: "Recibo de pago.pdf", weight: w(3, "Registro Contable"), quotes: ["comprobante de pago recibido de conformidad"] },
     ], { caseType: "civil" })!;
     expect(s.lines.join(" ")).toContain("Documentos complementarios");
   });
 
   it("flags an obligation with no evidence of fulfilment", () => {
     const s = synthesizeEvidence([
-      { name: "Convenio.pdf", weight: w(3, "Documento Privado"), quotes: ["el deudor se obliga a pagar $10,000.00 MXN"] },
-      { name: "Demanda.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["el deudor se obliga a pagar $10,000 MXN"] },
+      { canonical_source_id: "source-9", name: "Convenio.pdf", weight: w(3, "Documento Privado"), quotes: ["el deudor se obliga a pagar $10,000.00 MXN"] },
+      { canonical_source_id: "source-10", name: "Demanda.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["el deudor se obliga a pagar $10,000 MXN"] },
     ], { caseType: "civil" })!;
     expect(s.lines.join(" ")).toContain("Ninguno de los documentos citados acredita el cumplimiento");
   });
 
   it("never claims corroboration when the quotes yield no comparable facts", () => {
     const s = synthesizeEvidence([
-      { name: "Nota A.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["texto sin datos"] },
-      { name: "Nota B.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["otro texto distinto"] },
+      { canonical_source_id: "source-11", name: "Nota A.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["texto sin datos"] },
+      { canonical_source_id: "source-12", name: "Nota B.pdf", weight: w(2, "Documento Sin Clasificar"), quotes: ["otro texto distinto"] },
     ])!;
     expect(s.grounded).toBe(false);
     expect(s.narrative).toContain("no puede afirmarse");
@@ -106,8 +106,8 @@ describe("synthesizeEvidence", () => {
 
   it("is reproducible across runs", () => {
     const docs = [
-      { name: "Escritura pública.pdf", weight: w(5, "Documento Público"), quotes: ["inscrito bajo folio real 12345 el 10/01/2026"] },
-      { name: "Avalúo.pdf", weight: w(4, "Dictamen Pericial"), quotes: ["valor de $2,500,000 MXN al 10/01/2026"] },
+      { canonical_source_id: "source-13", name: "Escritura pública.pdf", weight: w(5, "Documento Público"), quotes: ["inscrito bajo folio real 12345 el 10/01/2026"] },
+      { canonical_source_id: "source-14", name: "Avalúo.pdf", weight: w(4, "Dictamen Pericial"), quotes: ["valor de $2,500,000 MXN al 10/01/2026"] },
     ];
     expect(JSON.stringify(synthesizeEvidence(docs)!.lines)).toBe(
       JSON.stringify(synthesizeEvidence(docs)!.lines),
@@ -120,11 +120,11 @@ describe("document graph", () => {
     const findings = [
       {
         title: "Pago acreditado",
-        evidence_refs: [{ filename: "Contrato.pdf", quote: "se obliga a pagar $1,000 MXN" }],
+        evidence_refs: [{ canonical_source_id: "source-7", filename: "Contrato.pdf", quote: "se obliga a pagar $1,000 MXN" }],
       },
       {
         title: "Cláusula penal aplicable",
-        evidence_refs: [{ filename: "Contrato.pdf", quote: "pena convencional del 10%" }],
+        evidence_refs: [{ canonical_source_id: "source-7", filename: "Contrato.pdf", quote: "pena convencional del 10%" }],
       },
     ];
     const graph = buildDocumentGraph(findings);

@@ -3,6 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   resolveReportGovernance,
   type ImmutableReportGovernance,
+  type CaseGovernanceContext,
 } from "./concluded-case-governance";
 
 type Db = SupabaseClient<Database>;
@@ -13,15 +14,16 @@ type Db = SupabaseClient<Database>;
 export async function loadResolvedReportGovernance(
   db: Db,
   caseId: string,
-  extra?: { is_final_resolution?: boolean; resolutivos?: string | null; corpusText?: string | null; execution_id?: string },
+  extra?: CaseGovernanceContext,
 ): Promise<ImmutableReportGovernance> {
-  const { data: caseRow } = await db
+  const { data: caseRow, error } = await db
     .from("cases")
-    .select("procedural_posture,case_analysis_mode,analysis_mode,matter_metadata")
+    .select("case_analysis_mode,analysis_mode,matter_metadata")
     .eq("id", caseId)
     .maybeSingle();
 
-  const row = (caseRow as Record<string, unknown> | null) ?? {};
+  if (error || !caseRow) throw new Error("REPORT_GOVERNANCE_CONTEXT_UNAVAILABLE: " + (error?.message ?? "case missing"));
+  const row = caseRow as Record<string, unknown>;
   const meta = (row.matter_metadata as Record<string, unknown> | null) ?? {};
 
   const governance = resolveReportGovernance({
@@ -35,6 +37,7 @@ export async function loadResolvedReportGovernance(
     resolutivos: extra?.resolutivos,
     corpusText: extra?.corpusText,
     execution_id: extra?.execution_id,
+    ...extra,
   });
 
   return governance;
