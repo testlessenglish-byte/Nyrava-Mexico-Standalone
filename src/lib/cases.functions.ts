@@ -5310,7 +5310,7 @@ export const logReportExport = createServerFn({ method: "POST" })
     z
       .object({
         caseId: z.string().uuid(),
-        format: z.enum(["pdf", "docx", "json"]),
+        format: z.enum(["pdf", "json"]),
         caseName: z.string().max(300).optional(),
       })
       .parse(d),

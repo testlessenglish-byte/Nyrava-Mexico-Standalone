@@ -4,7 +4,7 @@ import { toast } from "sonner";
 // transitively bundles html2canvas, a browser-only module). This component
 // is rendered from `reports.tsx`, an SSR route, so a static import here
 // would pull jsPDF into the server bundle and crash the SSR build.
-// `downloadLegalMemoDocx`/`downloadLegalMemoPdf` are loaded dynamically
+// `downloadLegalMemoPdf` are loaded dynamically
 // inside each button's onClick below instead.
 // Renders `report.full_report.legal_memorandum` as a court-ready
 // memorandum: Times New Roman, letter-sized page, IRAC blocks, hierarchical
@@ -444,20 +444,7 @@ export function LegalMemorandumPanel({
       </p>
 
       <div className="memo-export-bar">
-        <button
-          type="button"
-          className="memo-export-btn"
-          onClick={async () => {
-            try {
-              const { downloadLegalMemoDocx } = await import("@/lib/export-legal-memo");
-              await downloadLegalMemoDocx(validated, caseName ?? "case");
-            } catch (e) {
-              toast.error(`DOCX export failed: ${e instanceof Error ? e.message : "unknown"}`);
-            }
-          }}
-        >
-          Download Word (.docx)
-        </button>
+
         <button
           type="button"
           className="memo-export-btn"

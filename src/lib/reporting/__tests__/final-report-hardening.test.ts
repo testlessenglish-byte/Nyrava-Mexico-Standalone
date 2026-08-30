@@ -103,12 +103,6 @@ describe("targeted hardening A–G",()=>{
       expect(captured.saves).toBe(before);
     } finally { spy.mockRestore(); }
   });
-  it("E validates packed DOCX text, not only its section headings",async()=>{
-    const {Document,Packer,Paragraph}=await import("docx");
-    const {releaseDocxOutput}=await import("../rendered-output");
-    const blob=await Packer.toBlob(new Document({sections:[{children:[new Paragraph("SUCCESS PROBABILITY: 90%")]}]}));
-    await expect(releaseDocxOutput(releaseFinalReportPayload(input()),blob)).rejects.toThrow("REPORT_CONTRACT_BLOCKED");
-  });
   it("F blocks every blocking FAIL, including unknown future QA layers and quality flags",()=>{
     for(const layer of ["procedural_semantics","classification_fidelity","custom_future_qa"]) {
       const report={full_report:{qa_statuses:[{layer,status:"FAIL",blocking:true,reason:"corruption"}]}};
@@ -150,7 +144,7 @@ describe("ADR 3265/2023 saved-artifact replay",()=>{
     const contract=validateFinalReportContract(payload);
     expect(contract,JSON.stringify(contract)).toMatchObject({ok:true});
     expect(contract.validation_stage).toBe("after_renderer_transforms");
-    expect(payload.report_presentation.render_output?.format).toBe("pdf+docx");
+    expect(payload.report_presentation.render_output?.format).toBe("pdf");
     const release=resolveFinalReleaseDecision({report:payload.report!,contract});
     expect(release.released,JSON.stringify(release)).toBe(true);
     (payload.report!.full_report as any).qa_statuses=release.qa_statuses;

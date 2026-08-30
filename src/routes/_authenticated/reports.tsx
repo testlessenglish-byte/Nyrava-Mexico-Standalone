@@ -4,7 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { FileText, FileDown, FileJson, FileType, ExternalLink } from "lucide-react";
+import { FileText, FileDown, FileJson, ExternalLink } from "lucide-react";
 import { getCase } from "@/lib/cases.functions";
 import { CasePicker, useActiveCase } from "@/components/modules/CasePicker";
 import { ModuleHeader, ModuleEmpty, SuppressedNotice } from "@/components/modules/SuppressedNotice";
@@ -12,7 +12,7 @@ import { isDeterministicFallback } from "@/lib/intelligence/canonical";
 // NOTE: intentionally a type-only import. `@/lib/export` statically imports
 // jsPDF (which transitively bundles html2canvas, a browser-only module) —
 // importing it at the top of this file pulls that into the SSR module graph
-// and crashes the server build. `downloadPdf`/`downloadDocx`/`downloadJson`
+// and crashes the server build. `downloadPdf`/`downloadJson`
 // are loaded dynamically inside each button's onClick below instead, so
 // Vite code-splits them into a client-only chunk that SSR never touches.
 import type { CaseExportData } from "@/lib/export";
@@ -200,7 +200,7 @@ function ReportsPage() {
                 {scoresSuppressed ? <SuppressedNotice title={t("reports.notice.scoresSuppressed")} /> : null}
                 {motionsSuppressed ? <SuppressedNotice title={t("reports.notice.motionsSuppressed")} /> : null}
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     onClick={() =>
                       run(async () => {
@@ -213,18 +213,7 @@ function ReportsPage() {
                     <FileDown className="h-5 w-5 text-primary" />
                     <span className="text-sm font-medium">{t("reports.export.pdf")}</span>
                   </button>
-                  <button
-                    onClick={() =>
-                      run(async () => {
-                        const { downloadDocx } = await import("@/lib/export");
-                        return downloadDocx(data as CaseExportData, name);
-                      }, "reports.export.docx")
-                    }
-                    className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card p-4 hover:bg-card/80"
-                  >
-                    <FileType className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">{t("reports.export.docx")}</span>
-                  </button>
+
                   <button
                     onClick={() =>
                       run(async () => {

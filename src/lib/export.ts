@@ -1,4 +1,5 @@
-import { releaseDocxOutput } from "./reporting/rendered-output";
+import { prepareCaseJsonExport } from "./reporting/case-json-export";
+
 // Client-side download helpers for case exports.
 //
 // `downloadPdf` produces an attorney-grade litigation work product: cover,
@@ -19,18 +20,6 @@ import autoTable from "jspdf-autotable";
 function getLogoBase64(): Promise<string | null> {
   return Promise.resolve(null);
 }
-
-import {
-  Document,
-  Packer,
-  Paragraph,
-  HeadingLevel,
-  TextRun as DocxTextRun,
-  AlignmentType,
-  BorderStyle,
-  ShadingType,
-  PageBreak,
-} from "docx";
 import {
   rt,
   setReportTemplateLocale,
@@ -41,25 +30,6 @@ import { MX_DOMAINS } from "./intelligence/mx-coverage";
 import {
   METHODOLOGY_STATEMENT,
 } from "./reporting/attorney-workproduct";
-
-/**
- * Locale-aware TextRun. Every DOCX run of template text passes through the
- * report template translator, so headers/labels render in the same language
- * as the AI narrative (see src/lib/report-i18n.ts). Strings that are not
- * template phrases (case names, quotes, AI prose) pass through untouched.
- */
-class TextRun extends DocxTextRun {
-  constructor(options: ConstructorParameters<typeof DocxTextRun>[0]) {
-    if (typeof options === "string") {
-      super(rt(options));
-    } else if (options && typeof (options as { text?: unknown }).text === "string") {
-      const o = options as { text: string };
-      super({ ...options, text: rt(o.text) } as ConstructorParameters<typeof DocxTextRun>[0]);
-    } else {
-      super(options);
-    }
-  }
-}
 
 import { classifyClaim, CLAIM_LABEL } from "@/lib/intelligence/claim-class";
 import {
@@ -77,7 +47,7 @@ import {
 import { getApplicableSections, normalizePracticeArea } from "@/lib/intelligence/practice-areas";
 // Same derivation module the in-app Report tab uses
 // (src/components/LitigationImpactDashboard.tsx) — single source of truth
-// so the PDF/DOCX export and the live report can never disagree about
+// so the PDF export and the live report can never disagree about
 // what a card says or which cards exist for a given case.
 import {
   buildLitigationImpactDashboard,
@@ -194,7 +164,7 @@ export type CitationMode = "attorney" | "audit";
 type CitationFootnote = { n: number; label: string };
 
 // Ambient per-export state. Export functions are synchronous, single-user,
-// and never re-entrant/interleaved (downloadPdf/downloadDocx each run start
+// and never re-entrant/interleaved (downloadPdf each run start
 // to finish before another export can begin), so a module-level context —
 // the same ambient pattern already used for AI user scope elsewhere in this
 // codebase — is safe here and avoids threading a context object through
@@ -377,6 +347,7 @@ export interface CaseExportData {
   strategy?: Array<Record<string, unknown>>;
   strategy_center?: Record<string, unknown> | null;
   agent_logs?: Array<Record<string, unknown>>;
+  pipeline_runs?: Array<Record<string, unknown>>;
   // Completed Case Audit / Outcome Assessment (completed-case-audit.server.ts,
   // public.case_outcome_assessments) — a source-verified "second pair of
   // eyes" review that runs after the main pipeline for every
@@ -397,9 +368,10 @@ function saveBlob(blob: Blob, filename: string) {
 }
 
 export function downloadJson(data: CaseExportData, name: string) {
-  data = releaseFinalReportPayload(data);
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  saveBlob(blob, `${slug(name)}.json`);
+  const { payload, diagnostic } = prepareCaseJsonExport(data, releaseFinalReportPayload);
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const caseName = typeof data.case?.name === "string" ? data.case.name : name;
+  saveBlob(blob, `${slug(caseName)}${diagnostic ? "-diagnostics" : ""}.json`);
 }
 
 // ===== PDF builder helpers ============================================
@@ -491,14 +463,6 @@ function renderDecisionCore(b: PdfBuilder, data: CaseExportData) {
     b.text(section.text, { size: 12, bold: true, gap: 5 });
     b.text(section.speaker_label + " · " + section.speaker_role, { size: 9, color: MUTED, gap: 5 });
   }
-}
-
-function decisionCoreDocxParas(data: CaseExportData): Paragraph[] {
-  return presentation(data).decision_sections.flatMap(section => [
-    new Paragraph({heading: HeadingLevel.HEADING_2, children:[new TextRun(section.title)]}),
-    new Paragraph({children:[new TextRun(section.text)]}),
-    new Paragraph({children:[new TextRun(section.speaker_label + " · " + section.speaker_role)]}),
-  ]);
 }
 
 const NAVY_TINT: [number, number, number] = [46, 20, 90]; // deep violet band (#2E1059), matches --primary-deep
@@ -2373,24 +2337,6 @@ function renderJurisdictionIntelligence(b: PdfBuilder, data: CaseExportData) {
   b.table([[rt("Category"), rt("Description")]], jurisdictionIntelRows(data));
 }
 
-function jurisdictionIntelDocxParas(data: CaseExportData): Paragraph[] {
-  const rows = jurisdictionIntelRows(data);
-  const out: Paragraph[] = [
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun("Jurisdiction Intelligence")],
-    }),
-  ];
-  for (const [label, value] of rows) {
-    out.push(
-      new Paragraph({
-        children: [new TextRun({ text: `${label}: `, bold: true }), new TextRun(value)],
-      }),
-    );
-  }
-  return out;
-}
-
 // Attorney Case Snapshot — the panel an attorney reads before the detailed
 // analysis. Strengths, weaknesses, critical and missing evidence,
 // procedural concerns and the suggested review order, all derived from
@@ -2447,27 +2393,6 @@ function renderCaseSnapshot(b: PdfBuilder, data: CaseExportData) {
     if (block.items.length) b.bullets(block.items);
     else b.text(block.empty, { size: 9.5, color: MUTED, gap: 4 });
   }
-}
-
-function caseSnapshotDocxParas(data: CaseExportData): Paragraph[] {
-  const out: Paragraph[] = [
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun("Instantánea del Expediente")],
-    }),
-  ];
-  for (const block of snapshotBlocks(data)) {
-    out.push(
-      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(block.title)] }),
-    );
-    if (block.items.length) {
-      for (const item of block.items)
-        out.push(new Paragraph({ children: [new TextRun(`• ${item}`)] }));
-    } else {
-      out.push(new Paragraph({ children: [new TextRun(block.empty)] }));
-    }
-  }
-  return out;
 }
 
 function renderExecutive(b: PdfBuilder, data: CaseExportData, mode: ReportMode) {
@@ -3058,35 +2983,6 @@ function renderLitigationImpactDashboard(b: PdfBuilder, data: CaseExportData) {
   b.text(IMPACT_DASHBOARD_NOTE, { size: 8, color: MUTED, gap: 4 });
 }
 
-function impactDashboardDocxParas(data: CaseExportData): Paragraph[] {
-  const reportRow = (data.report ?? {}) as Record<string, unknown>;
-  const dashboard = buildLitigationImpactDashboard(reportRow);
-  if (asStr(asObj(data.case).case_analysis_mode) === "concluded_audit") dashboard.cards = dashboard.cards.filter((card) => card.id !== "top_motion");
-  if (dashboard.suppressed || dashboard.cards.length === 0) return [];
-
-  const out: Paragraph[] = [
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun("Litigation Impact Dashboard")],
-    }),
-  ];
-  for (const c of dashboard.cards) {
-    out.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: `${c.title}: `, bold: true }),
-          new TextRun(`${c.badge} (${c.value})`),
-        ],
-      }),
-    );
-    if (c.detail) out.push(new Paragraph({ children: [new TextRun(c.detail)] }));
-  }
-  out.push(
-    new Paragraph({ children: [new TextRun({ italics: true, text: IMPACT_DASHBOARD_NOTE })] }),
-  );
-  return out;
-}
-
 function exportHasNoPersonalNoticeDuty(data: CaseExportData): boolean {
   return (data.findings ?? []).some((f) => {
     const evidence = [asStr(f.source_quote), JSON.stringify(f.evidence_refs ?? []), JSON.stringify(f.metadata ?? {})].join(" ");
@@ -3281,7 +3177,7 @@ function renderDiscoveryAnalysis(b: PdfBuilder, data: CaseExportData) {
   const r = asObj(data.report);
   const missing = asArr(r.missing_evidence_struct);
   // FIX (2026-07-29): this heading rendered literally as "Discovery
-  // Analysis" in the exported PDF/DOCX — the one U.S. artifact confirmed
+  // Analysis" in the exported PDF — the one U.S. artifact confirmed
   // to reach the actual downloadable document, not just an internal UI
   // label. Matches the Spanish heading already used for this exact
   // concept in the main branded report template.
@@ -3561,22 +3457,6 @@ function renderKeyFindings(b: PdfBuilder, data: CaseExportData) {
       b.bullets(wp.actions);
     }
   }
-}
-
-function keyFindingsDocxParas(data: CaseExportData): Paragraph[] {
-  return presentation(data).finding_cards.flatMap(({finding:f, source_count, details:wp}) => [
-    new Paragraph({heading:HeadingLevel.HEADING_2, children:[new TextRun(asStr(f.title))]}),
-    new Paragraph({children:[new TextRun(asStr(f.speaker_role_label) + " · " + asStr(f.speaker_role))]}),
-    new Paragraph({children:[new TextRun(asStr(f.description))]}),
-    new Paragraph({children:[new TextRun("Fuentes: " + source_count)]}),
-    ...asArr(f.evidence_refs).map(ref => new Paragraph({children:[new TextRun(asStr(ref.quote) + " — " + asStr(ref.filename))]})),
-    ...wp.importance.map(text => new Paragraph({children:[new TextRun(text)]})),
-    ...(wp.synthesis ? [new Paragraph({children:[new TextRun(wp.synthesis.narrative)]})] : []),
-    ...(wp.actions.length ? [
-      new Paragraph({heading:HeadingLevel.HEADING_3,children:[new TextRun(wp.actions_title)]}),
-      ...wp.actions.map(text => new Paragraph({children:[new TextRun(text)]})),
-    ] : []),
-  ]);
 }
 
 function renderEvidenceMap(b: PdfBuilder, data: CaseExportData) {
@@ -4480,26 +4360,6 @@ function renderAgentStatistics(b: PdfBuilder, data: CaseExportData) {
   }
 }
 
-function agentStatisticsDocxParas(data: CaseExportData): Paragraph[] {
-  const summary = getAgentSummary(getReportRow(data));
-  const rows = getAgentRows(data);
-  if (summary.loaded === 0 && !rows.length) return [];
-  const out = [
-    `Agents loaded: ${summary.loaded}`,
-    `Agents executed: ${summary.executed}`,
-    `Agents producing output: ${summary.producingOutput}`,
-    `Agents producing findings: ${summary.producingFindings}`,
-    `Suppressed findings: ${summary.suppressedFindings}`,
-    `Visible findings: ${summary.visibleFindings}`,
-    "",
-    ...rows.map(
-      (r) =>
-        `${asStr(r.agent_name || r.agent_key)} — ${asStr(r.status)} — findings produced: ${asStr(r.visible_findings ?? r.findings_produced, "0")} — generated: ${asStr(r.findings_generated, "0")} — suppressed: ${asStr(r.findings_suppressed, "0")} — ${asStr(r.no_output_reason) || `${asStr(r.output_items, "0")} output item(s)`}`,
-    ),
-  ].join("\n");
-  return proseDocxParas("Estadísticas de Agentes", out);
-}
-
 function humanizeEngine(e: string): string {
   return e
     .split(/[_:]/)
@@ -4651,42 +4511,6 @@ function renderCitationAudit(b: PdfBuilder, data: CaseExportData) {
   );
 }
 
-function citationAuditDocxParas(data: CaseExportData): Paragraph[] {
-  const full = asObj(asObj(data.report).full_report);
-  const audit = asObj(full.citation_audit);
-  const quarantined = asArr(audit.quarantined_findings);
-  if (!quarantined.length) return [];
-  return [
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun("Auditoría de Citas — Contenido No Verificado")],
-    }),
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `${quarantined.length} de ${asStr(audit.total, "0")} hallazgo(s) generado(s) para este caso carecen de una cita de respaldo completa y fueron excluidos de las recomendaciones, el memorando legal y el resto del contenido del reporte. Se listan aquí únicamente para fines de auditoría y seguimiento.`,
-          italics: true,
-        }),
-      ],
-    }),
-    ...quarantined.map(
-      (q) =>
-        new Paragraph({
-          children: [
-            new TextRun({ text: `• ${asStr(q.title)} — `, bold: true }),
-            new TextRun(
-              `${CITATION_AUDIT_REASON_LABELS[asStr(q.reason)] ?? asStr(q.reason, "sin respaldo")}${
-                resolveDocTitleByUuid(q.source_document_id)
-                  ? ` (${resolveDocTitleByUuid(q.source_document_id)})`
-                  : ""
-              }`,
-            ),
-          ],
-        }),
-    ),
-  ];
-}
-
 // FIX (2026-08-18, ADR-5829/2025 audit — item 8, "silently-failed
 // engines/detected defects never surfaced"): pipeline.server.ts already
 // runs validateRenderedReport (prerender-validate.server.ts) against the
@@ -4747,37 +4571,6 @@ function renderRenderedReportQa(b: PdfBuilder, data: CaseExportData) {
   );
 }
 
-function renderedReportQaDocxParas(data: CaseExportData): Paragraph[] {
-  const issues = renderedQaCriticalIssues(data);
-  if (!issues.length) return [];
-  return [
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun("Auditoría de Calidad del Reporte")],
-    }),
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `El sistema detectó ${issues.length} problema(s) crítico(s) de calidad en el contenido generado de este reporte. Estas secciones deben revisarse con especial cuidado antes de confiar en su contenido.`,
-          italics: true,
-        }),
-      ],
-    }),
-    ...issues.map(
-      (q) =>
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: `• ${RENDERED_QA_CODE_LABELS[asStr(q.code)] ?? asStr(q.code, "—")} — `,
-              bold: true,
-            }),
-            new TextRun(asStr(q.message).slice(0, 200)),
-          ],
-        }),
-    ),
-  ];
-}
-
 function renderEvidenceSources(b: PdfBuilder) {
   if (!_footnotes.length) return;
   b.h1("Fuentes de Evidencia");
@@ -4799,7 +4592,7 @@ function renderEvidenceSources(b: PdfBuilder) {
 //
 // Each section declares whether it's gated in LIMITED mode and a predicate
 // that returns true when it has content to render. The plan is computed
-// once; the TOC, the PDF body, and the DOCX body all walk the SAME filtered
+// once; the TOC, the PDF body, and the report preview all walk the SAME filtered
 // list. This guarantees TOC ↔ rendered ↔ exports parity.
 
 type SectionPlan = {
@@ -4808,104 +4601,7 @@ type SectionPlan = {
   gatedInLimited: boolean;
   available: (data: CaseExportData) => boolean;
   renderPdf: (b: PdfBuilder, data: CaseExportData) => void;
-  renderDocx: (data: CaseExportData) => Paragraph[];
 };
-
-function suppressedDocxParas(title: string): Paragraph[] {
-  return [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] }),
-    new Paragraph({
-      children: [
-        new TextRun({ text: "Suprimido por evidencia verificada insuficiente.", italics: true }),
-      ],
-    }),
-  ];
-}
-
-function recommendedMotionsDocxParas(data: CaseExportData): Paragraph[] {
-  const r = asObj(data.report);
-  if (r.motions_suppressed) return [];
-  const motions = asArr(r.motion_opportunities);
-  if (!motions.length) return [];
-  const generatedWP = eligibleWorkProduct(data);
-  const rank = (m: Record<string, unknown>) => {
-    const p = Number(m.priority);
-    return Number.isFinite(p) ? p : 99;
-  };
-  const ranked = [...motions].sort((ma, mb) => rank(ma) - rank(mb));
-
-  const out: Paragraph[] = [
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun("Recommended Motions")],
-    }),
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: "Las promociones con mayor probabilidad de fortalecer este caso, ordenadas por prioridad. La redacción y edición continúan en el módulo de Inteligencia de Promociones.",
-          italics: true,
-        }),
-      ],
-    }),
-  ];
-
-  for (const [idx, m] of ranked.entries()) {
-    const bucket = motionPriorityBucket(m).label;
-    const { pct } = likelihoodPercent(m);
-    const status = motionIntelligenceStatus(m, generatedWP);
-    const reason = asStr(m.basis) || asStr(m.legal_rationale);
-    const evidence = motionEvidenceBullets(m);
-    const legalBasis = asArr(m.elements)
-      .map((e) => asStr(e))
-      .filter(Boolean);
-
-    out.push(
-      new Paragraph({
-        heading: HeadingLevel.HEADING_2,
-        children: [new TextRun(`${idx + 1}. ${asStr(m.motion)}  —  Priority: ${bucket}`)],
-      }),
-      new Paragraph({ children: [new TextRun(`Likelihood of Success: ~${pct}%`)] }),
-    );
-    if (reason)
-      out.push(
-        new Paragraph({
-          children: [new TextRun({ text: "Reason: ", bold: true }), new TextRun(reason)],
-        }),
-      );
-    if (evidence.length) {
-      out.push(
-        new Paragraph({ children: [new TextRun({ text: "Primary Evidence:", bold: true })] }),
-      );
-      for (const ev of evidence) out.push(new Paragraph({ children: [new TextRun(`•  ${ev}`)] }));
-    }
-    if (legalBasis.length)
-      out.push(
-        new Paragraph({
-          children: [
-            new TextRun({ text: "Legal Basis: ", bold: true }),
-            new TextRun(legalBasis.join("  •  ")),
-          ],
-        }),
-      );
-    out.push(
-      new Paragraph({
-        children: [new TextRun({ text: "Status: ", bold: true }), new TextRun(status.label)],
-      }),
-    );
-  }
-  return out;
-}
-
-function proseDocxParas(title: string, body: string): Paragraph[] {
-  if (!body || !body.trim()) return [];
-  const out: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] }),
-  ];
-  for (const para of body.split(/\n\n+/)) {
-    out.push(new Paragraph({ children: [new TextRun(para.replace(/\n/g, " "))] }));
-  }
-  return out;
-}
 
 function hasProseSection(data: CaseExportData, key: string): boolean {
   return !!reportText(data, key).trim();
@@ -4922,7 +4618,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       b.h1(title);
       b.text(reportText(d, key), { size: 10.5, gap: 8 });
     },
-    renderDocx: (d) => proseDocxParas(title, reportText(d, key)),
   });
 
   const sections: SectionPlan[] = [
@@ -4932,7 +4627,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: () => true,
       renderPdf: (b, d) => renderJurisdictionIntelligence(b, d),
-      renderDocx: (d) => jurisdictionIntelDocxParas(d),
     },
     {
       id: "exec",
@@ -4940,13 +4634,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: () => true,
       renderPdf: (b, d) => renderExecutive(b, d, mode),
-      renderDocx: (d) =>
-        proseDocxParas(
-          "Executive Summary",
-          processProseCitations(
-            asStr(asObj(d.report).executive_summary) || asStr(asObj(d.report).attorney_summary),
-          ),
-        ),
     },
     {
       id: "case_snapshot",
@@ -4954,7 +4641,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => (d.findings ?? []).length > 0 || d.documents.length > 0,
       renderPdf: (b, d) => renderCaseSnapshot(b, d),
-      renderDocx: (d) => caseSnapshotDocxParas(d),
     },
 
     {
@@ -4970,7 +4656,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         return asArr(rr.motion_opportunities).length > 0;
       },
       renderPdf: (b, d) => renderRecommendedMotions(b, d),
-      renderDocx: (d) => recommendedMotionsDocxParas(d),
     },
     {
       id: "action_center",
@@ -4995,7 +4680,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         );
       },
       renderPdf: (b, d) => renderActionCenter(b, d),
-      renderDocx: () => [],
     },
     {
       id: "impact_dashboard",
@@ -5011,7 +4695,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         return !dashboard.suppressed && dashboard.cards.length > 0;
       },
       renderPdf: (b, d) => renderLitigationImpactDashboard(b, d),
-      renderDocx: (d) => impactDashboardDocxParas(d),
     },
     {
       id: "overview",
@@ -5019,11 +4702,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: () => true, // always renders (fallbackOverview)
       renderPdf: (b, d) => renderCaseOverview(b, d),
-      renderDocx: (d) =>
-        proseDocxParas(
-          "Panorama General del Expediente",
-          reportText(d, "case_overview") || fallbackOverview(d),
-        ),
     },
     {
       id: "facts",
@@ -5031,7 +4709,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => !!reportText(d, "facts").trim() || (d.findings ?? []).length > 0,
       renderPdf: (b, d) => renderFacts(b, d),
-      renderDocx: (d) => proseDocxParas("Hechos", reportText(d, "facts")),
     },
     {
       id: "timeline",
@@ -5039,7 +4716,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: () => false, // Suppressed from final report display per directive
       renderPdf: (b, d) => renderTimelineSummary(b, d),
-      renderDocx: (d) => proseDocxParas("Resumen Cronológico", reportText(d, "timeline_summary")),
     },
     {
       id: "scorecard",
@@ -5051,11 +4727,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         return Object.keys(dims).length > 0 || Object.keys(score).length > 0;
       },
       renderPdf: (b, d) => renderScorecard(b, d),
-      renderDocx: (d) =>
-        proseDocxParas(
-          "Razonamiento de la Puntuación",
-          processProseCitations(asStr(asObj(d.report).score_breakdown)),
-        ),
     },
     {
       id: "risk",
@@ -5064,11 +4735,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       available: (d) =>
         !!reportText(d, "risk_analysis").trim() || typeof asObj(d.report).risk_score === "number",
       renderPdf: (b, d) => renderRiskAnalysis(b, d),
-      renderDocx: (d) =>
-        proseDocxParas(
-          "Análisis de Riesgo",
-          processProseCitations(asStr(asObj(d.report).risk_analysis)),
-        ),
     },
     {
       id: "coverage",
@@ -5080,7 +4746,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         _citationMode === "audit" &&
         Object.keys(asObj(asObj(asObj(d.report).full_report).coverage_report)).length > 0,
       renderPdf: (b, d) => renderCoverage(b, d),
-      renderDocx: () => [],
     },
     {
       id: "agent_stats",
@@ -5093,7 +4758,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         _citationMode === "audit" &&
         (getAgentRows(d).length > 0 || getAgentSummary(getReportRow(d)).loaded > 0),
       renderPdf: (b, d) => renderAgentStatistics(b, d),
-      renderDocx: (d) => (_citationMode === "audit" ? agentStatisticsDocxParas(d) : []),
     },
     {
       id: "findings",
@@ -5101,7 +4765,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => (d.findings ?? []).length > 0,
       renderPdf: (b, d) => renderKeyFindings(b, d),
-      renderDocx: (d) => keyFindingsDocxParas(d),
     },
     {
       id: "evidence_map",
@@ -5113,7 +4776,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       available: (d) =>
         _citationMode === "audit" && asArr(asObj(d.report).evidence_index).length > 0,
       renderPdf: (b, d) => renderEvidenceMap(b, d),
-      renderDocx: () => [],
     },
     {
       id: "discovery",
@@ -5123,11 +4785,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         !!reportText(d, "discovery_analysis").trim() ||
         asArr(asObj(d.report).missing_evidence_struct).length > 0,
       renderPdf: (b, d) => renderDiscoveryAnalysis(b, d),
-      renderDocx: (d) =>
-        proseDocxParas(
-          "Análisis de Vacíos Probatorios",
-          processProseCitations(asStr(asObj(d.report).discovery_analysis)),
-        ),
     },
     {
       id: "evidence_intel",
@@ -5135,7 +4792,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => (d.evidence_intel ?? []).length > 0,
       renderPdf: (b, d) => renderEvidenceIntel(b, d),
-      renderDocx: () => [],
     },
     {
       id: "contradictions",
@@ -5143,11 +4799,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => asArr(asObj(d.report).contradictions_struct).length > 0,
       renderPdf: (b, d) => renderContradictions(b, d),
-      renderDocx: (d) =>
-        proseDocxParas(
-          "Reporte de Contradicciones",
-          processProseCitations(asStr(asObj(d.report).contradiction_report)),
-        ),
     },
     {
       id: "constitutional",
@@ -5166,11 +4817,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         );
       },
       renderPdf: (b, d) => renderConstitutional(b, d),
-      renderDocx: (d) =>
-        proseDocxParas(
-          "Cuestiones Constitucionales",
-          processProseCitations(asStr(asObj(d.report).constitutional_issues)),
-        ),
     },
     {
       id: "legal_issues",
@@ -5178,7 +4824,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => asArr(asObj(asObj(d.report).full_report).legal_issues).length > 0,
       renderPdf: (b, d) => renderLegalIssues(b, d),
-      renderDocx: () => [],
     },
     {
       id: "witnesses",
@@ -5186,11 +4831,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => (d.witnesses ?? []).length > 0,
       renderPdf: (b, d) => renderWitnesses(b, d),
-      renderDocx: (d) =>
-        proseDocxParas(
-          "Análisis de Testigos",
-          processProseCitations(asStr(asObj(d.report).witness_analysis)),
-        ),
     },
     {
       id: "cross_exam",
@@ -5198,7 +4838,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: true,
       available: (d) => asArr(asObj(d.report).cross_examination).length > 0,
       renderPdf: (b, d) => renderCrossExamination(b, d),
-      renderDocx: () => [],
     },
     {
       id: "perspectives",
@@ -5206,7 +4845,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: true,
       available: (d) => (d.perspectives ?? []).length > 0,
       renderPdf: (b, d) => renderPerspectives(b, d),
-      renderDocx: () => [],
     },
     {
       id: "theories",
@@ -5214,39 +4852,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: true,
       available: (d) => (d.theories ?? []).length > 0,
       renderPdf: (b, d) => renderTheories(b, d),
-      renderDocx: (d) => {
-        const out: Paragraph[] = [];
-        const r = asObj(d.report);
-        // FIX: previously hardcoded "Teoría de la Defensa" / "Teoría del
-        // Ministerio Público / Actor" for every materia — a reasonable
-        // generic label for penal/civil but wrong terminology for laboral
-        // (trabajador/patrón), amparo (quejoso/autoridad responsable),
-        // fiscal (contribuyente/autoridad fiscal), administrativo
-        // (particular/autoridad), etc. Same MX_PARTY_ROLES vocabulary the
-        // in-app Report tab and runTheoryEngine/runOpportunityEngine
-        // already use, so the exported DOCX matches what's on screen.
-        const ct = asStr(asObj(asObj(d.report).full_report).case_type) || "general_civil";
-        // "general_civil" (and any other unrecognized materia) is not a real
-        // MX_PARTY_ROLES key — resolveMxProfile/requireMxProfile would throw
-        // and abort the whole DOCX export. mxProfileOrNull degrades to the
-        // generic title instead when the materia can't be resolved.
-        const profile = mxProfileOrNull(ct);
-        const roles = profile ? MX_PARTY_ROLES[profile] : null;
-        const titleFor = (key: "defense_theory_report" | "prosecution_theory_report") =>
-          ct === "penal" || !roles
-            ? key === "defense_theory_report"
-              ? "Teoría de la Defensa"
-              : "Teoría del Ministerio Público"
-            : `Teoría de la ${mxRoleLabel(key === "defense_theory_report" ? roles.b : roles.a)}`;
-        for (const [t, key] of [
-          [titleFor("defense_theory_report"), "defense_theory_report"],
-          [titleFor("prosecution_theory_report"), "prosecution_theory_report"],
-          ["Teorías Alternativas", "alternative_theory_report"],
-        ] as const) {
-          out.push(...proseDocxParas(t, processProseCitations(asStr(r[key]))));
-        }
-        return out;
-      },
     },
     {
       id: "litigation_strategy_center",
@@ -5258,7 +4863,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         return !!asStr(theme.theme) || asArr(sc.winning_the_case_dashboard).length > 0;
       },
       renderPdf: (b, d) => renderLitigationStrategyCenter(b, d),
-      renderDocx: () => [],
     },
     {
       id: "opportunities",
@@ -5274,7 +4878,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         );
       },
       renderPdf: (b, d) => renderStrategy(b, d),
-      renderDocx: () => [],
     },
     {
       id: "strategy_synthesis",
@@ -5282,7 +4885,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: true,
       available: (d) => (d.strategy ?? []).length > 0,
       renderPdf: (b, d) => renderStrategySynthesis(b, d),
-      renderDocx: () => [],
     },
     proseSec("recommendations", "Recommendations", "recommendations", true),
     {
@@ -5291,7 +4893,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => (d.work_product ?? []).length > 0,
       renderPdf: (b, d) => renderWorkProduct(b, d),
-      renderDocx: () => [],
     },
     {
       id: "audit",
@@ -5304,7 +4905,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       available: (d) =>
         _citationMode === "audit" && (d.documents.length > 0 || d.agents.length > 0),
       renderPdf: (b, d) => renderAudit(b, d),
-      renderDocx: () => [],
     },
     {
       id: "methodology",
@@ -5315,7 +4915,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
         b.h1("Metodología NYRAVA");
         b.text(METHODOLOGY_STATEMENT, { size: 10, gap: 8 });
       },
-      renderDocx: () => proseDocxParas("Metodología NYRAVA", METHODOLOGY_STATEMENT),
     },
     {
       id: "appendix",
@@ -5323,7 +4922,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => asArr(asObj(d.report).citations).length > 0,
       renderPdf: (b, d) => renderAppendix(b, d),
-      renderDocx: () => [],
     },
     {
       id: "citation_audit",
@@ -5335,7 +4933,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       available: (d) =>
         asArr(asObj(asObj(asObj(d.report).full_report).citation_audit).quarantined_findings).length > 0,
       renderPdf: (b, d) => renderCitationAudit(b, d),
-      renderDocx: (d) => citationAuditDocxParas(d),
     },
     {
       id: "rendered_report_qa",
@@ -5346,7 +4943,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: false,
       available: (d) => renderedQaCriticalIssues(d).length > 0,
       renderPdf: (b, d) => renderRenderedReportQa(b, d),
-      renderDocx: (d) => renderedReportQaDocxParas(d),
     },
     {
       id: "priority_action_center",
@@ -5354,7 +4950,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       gatedInLimited: true,
       available: (d) => priorityActionRows(d).length > 0,
       renderPdf: (b, d) => renderPriorityActionCenter(b, d),
-      renderDocx: (d) => priorityActionCenterDocxParas(d),
     },
     {
       id: "evidence_sources",
@@ -5369,18 +4964,6 @@ function buildSectionPlan(mode: ReportMode): SectionPlan[] {
       // never populates the footnote list.
       available: () => _footnotes.length > 0,
       renderPdf: (b) => renderEvidenceSources(b),
-      renderDocx: () =>
-        _footnotes.length
-          ? [
-              new Paragraph({
-                heading: HeadingLevel.HEADING_1,
-                children: [new TextRun("Evidence Sources")],
-              }),
-              ..._footnotes.map(
-                (f) => new Paragraph({ children: [new TextRun(`[${f.n}] ${f.label}`)] }),
-              ),
-            ]
-          : [],
     },
   ];
   return sections;
@@ -5446,29 +5029,6 @@ function renderPriorityActionCenter(b: PdfBuilder, data: CaseExportData) {
   );
 }
 
-function priorityActionCenterDocxParas(data: CaseExportData): Paragraph[] {
-  const rows = priorityActionRows(data);
-  if (!rows.length) return [];
-  const out: Paragraph[] = [
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun("Action Center — Priority Recommendations")],
-    }),
-  ];
-  for (const row of rows) {
-    out.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: `${row[1]} — `, bold: true }),
-          new TextRun(row[2]),
-          new TextRun(` (${row[3]})`),
-        ],
-      }),
-    );
-  }
-  return out;
-}
-
 function renderSuppressedSection(b: PdfBuilder, title: string) {
   b.h1(title);
   b.text("Suprimido por evidencia verificada insuficiente.", { size: 10.5, color: MUTED, gap: 8 });
@@ -5511,7 +5071,6 @@ function validateParity(opts: {
   documentCount: number;
   tocIds: string[];
   renderedIds: string[];
-  docxIds: string[];
   renderedFindingsLength?: number;
 }): void {
   const errors: string[] = [];
@@ -5540,12 +5099,6 @@ function validateParity(opts: {
   ) {
     errors.push("TOC and rendered section list disagree");
   }
-  // DOCX section order must be a subset-in-order of the TOC.
-  let j = 0;
-  for (const id of opts.tocIds) {
-    if (opts.docxIds[j] === id) j += 1;
-  }
-  if (j !== opts.docxIds.length) errors.push("DOCX section order diverges from TOC");
   if (opts.documentCount < 0) errors.push("invalid document count");
   if (errors.length) {
     throw new Error(`Report parity validation failed: ${errors.join("; ")}`);
@@ -5669,19 +5222,12 @@ export async function downloadPdf(
     s.renderPdf(b, data);
   }
 
-  // Build DOCX from the same plan to verify parity before saving the PDF.
-  const docxIds: string[] = [];
-  for (const s of queue) {
-    if (s.renderDocx(data).length > 0) docxIds.push(s.id);
-  }
-
   validateParity({
     mode,
     counters,
     documentCount: data.documents.length,
     tocIds: queue.map((s) => s.id),
     renderedIds: queue.map((s) => s.id),
-    docxIds: queue.filter((s) => s.renderDocx(data).length > 0).map((s) => s.id),
     renderedFindingsLength: (data.findings ?? []).length,
   });
 
@@ -5703,209 +5249,8 @@ export async function downloadPdf(
   }, opts?.validateOnly);
 }
 
-// DOCX uses the SAME section plan, in the SAME order, gated by the SAME mode.
-export async function downloadDocx(
-  data: CaseExportData,
-  name: string,
-  opts?: { citationMode?: CitationMode; validateOnly?: boolean },
-) {
-  data = (data as FinalReportPayload).report_presentation ? structuredClone(releaseFinalReportPayload(data)) : composeFinalReportPayload(data);
-  // Same explicit, redundant release-gate check as downloadPdf — see the
-  // comment there for why this isn't relying solely on the upstream fix.
-  if (asObj(data.report).quality_blocked === true) {
-    throw new Error(
-      "REPORT_BLOCKED: This report failed its release/quality gate and cannot be exported.",
-    );
-  }
-  // Same single-language rule as downloadPdf.
-  setReportTemplateLocale(resolveReportLocale(data.report, data.case));
-  initCitationContext(data, opts?.citationMode ?? "attorney");
-  primeCitationFootnotes(data);
-
-  const c = asObj(data.case);
-  const reportRow = (data.report ?? {}) as Record<string, unknown>;
-  const mode = getReportMode(reportRow);
-  // Same fix as downloadPdf: "rendered" must reflect data.findings, the
-  // array actually rendered into this document, not the report's cached
-  // full_report count, which can drift out of sync with it.
-  const counters = { ...getFindingCounters(reportRow), rendered: (data.findings ?? []).length };
-  const children: Paragraph[] = [];
-
-  // --- Premium branded cover page (mirrors the PDF cover) ---
-  const NAVY = "2E1059";
-  const CYAN = "C4B5FD";
-  const GOLD = "7C3AED";
-  const goldBorder = { style: BorderStyle.SINGLE, size: 8, color: GOLD, space: 4 };
-
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 2400, after: 60 },
-      children: [new TextRun({ text: "NYRAVA", bold: true, size: 44, color: NAVY })],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 480 },
-      children: [new TextRun({ text: "LEGAL INTELLIGENCE OS", bold: true, size: 16, color: CYAN })],
-    }),
-    // Trust badge — bordered navy tile with an illuminated N
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 120 },
-      border: {
-        top: { style: BorderStyle.SINGLE, size: 24, color: GOLD, space: 4 },
-        bottom: { style: BorderStyle.SINGLE, size: 24, color: GOLD, space: 4 },
-        left: { style: BorderStyle.SINGLE, size: 24, color: GOLD, space: 4 },
-        right: { style: BorderStyle.SINGLE, size: 24, color: GOLD, space: 4 },
-      },
-      shading: { type: ShadingType.CLEAR, fill: NAVY, color: "auto" },
-      children: [new TextRun({ text: "  N  ", bold: true, size: 96, color: "FFFFFF" })],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 360, after: 120 },
-      children: [
-        new TextRun({ text: "CASE INTELLIGENCE REPORT", bold: true, size: 16, color: GOLD }),
-      ],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 120, after: 120 },
-      children: [
-        new TextRun({
-          text: asStr(c.name, "Untitled Case"),
-          bold: true,
-          size: 56,
-          font: "Times New Roman",
-          color: NAVY,
-        }),
-      ],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 240 },
-      border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: GOLD, space: 1 } },
-      children: [new TextRun({ text: "", size: 2 })],
-    }),
-  );
-
-  const desc = asStr(c.description);
-  if (desc) {
-    children.push(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 360 },
-        children: [new TextRun({ text: desc, italics: true, size: 22, color: "374151" })],
-      }),
-    );
-  }
-
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 360, after: 240 },
-      border: { top: goldBorder, bottom: goldBorder, left: goldBorder, right: goldBorder },
-      children: [
-        new TextRun({
-          text: "  ATTORNEY WORK PRODUCT  ·  PRIVILEGED & CONFIDENTIAL  ",
-          bold: true,
-          size: 18,
-          color: GOLD,
-        }),
-      ],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 480, after: 60 },
-      children: [
-        new TextRun({
-          text: [
-            `${rt("Generated")} ${new Date().toLocaleString()}`,
-            asStr(reportRow.intelligence_version)
-              ? `${rt("Engine")} ${asStr(reportRow.intelligence_version)}`
-              : null,
-            `${rt("Status")}: ${rt(mode === "LIMITED" ? "Limited Analysis" : "Complete")}`,
-          ]
-            .filter(Boolean)
-            .join("   ·   "),
-          size: 18,
-          color: "475569",
-        }),
-      ],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 60 },
-      children: [
-        new TextRun({
-          text: CERTIFICATION_TAGLINE[deriveCertificationState(data)],
-          italics: true,
-          size: 16,
-          color: CYAN,
-        }),
-      ],
-    }),
-    new Paragraph({ children: [new PageBreak()] }),
-  );
-
-  // --- Executive header on page 2 ---
-  children.push(...decisionCoreDocxParas(data));
-  children.push(
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      children: [new TextRun(asStr(c.name, "Case Report"))],
-    }),
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `${rt("Status")}: ${rt(mode === "LIMITED" ? "Limited Analysis · Scores Suppressed · Recommendations Suppressed" : "Complete · Scores Enabled · Recommendations Enabled")}`,
-          bold: true,
-        }),
-      ],
-    }),
-    new Paragraph({
-      children: [
-        new TextRun(
-          `Generated Findings: ${counters.generated} · Verified Findings: ${counters.verified} · Rendered Findings: ${counters.rendered} · Documents: ${data.documents.length}`,
-        ),
-      ],
-    }),
-  );
-
-  const plan = buildSectionPlan(mode);
-  const queue = computeRenderQueue(plan, data, mode);
-  (data as FinalReportPayload).report_presentation.render_sections = queue.map(section => ({
-    id: section.id, title: section.title, strategic: section.gatedInLimited,
-  }));
-  data = releaseFinalReportPayload(data);
-
-  for (const s of queue) {
-    const paras = s.renderDocx(data);
-    if (paras.length === 0) continue;
-    children.push(...paras);
-  }
-
-  const doc = new Document({
-    sections: [
-      {
-        properties: {
-          page: {
-            size: { width: 12240, height: 15840 },
-            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-          },
-        },
-        children,
-      },
-    ],
-  });
-  const blob = await Packer.toBlob(doc);
-  const released = await releaseDocxOutput(data as FinalReportPayload, blob);
-  if (!opts?.validateOnly) saveBlob(blob, `${slug(name)}.docx`);
-  return released;
-}
-
 /** Same real section renderers used by downloads; in-memory only, no publication.
- * Final backend release waits for all PDF/DOCX transforms, labels and appendices. */
+ * Final backend release waits for all PDF transforms, labels and appendices. */
 let preflightTail: Promise<void> = Promise.resolve();
 export async function prepareFinalReportForRelease(data: CaseExportData): Promise<FinalReportPayload> {
   // Existing renderer locale/citation collectors are module-local. Serialize
@@ -5917,7 +5262,7 @@ export async function prepareFinalReportForRelease(data: CaseExportData): Promis
   try {
     const name = asStr(data.case?.name, "Report");
     const pdf = await downloadPdf(data, name, {validateOnly:true});
-    return await downloadDocx(pdf, name, {validateOnly:true});
+    return pdf;
   } finally { done(); }
 }
 
