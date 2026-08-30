@@ -64,7 +64,9 @@ export const generateMexicoTestCase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => Input.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { supabase: typedSupabase, userId } = context;
+    // Generated database types do not yet include the matter tables used below.
+    const supabase = typedSupabase as any;
 
     // Authorization: caller must be owner/admin of the org.
     const { data: membership, error: mErr } = await supabase
