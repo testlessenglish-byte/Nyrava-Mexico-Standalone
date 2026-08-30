@@ -207,9 +207,6 @@ export async function runPerspectivesEngine(args: {
     progress: 25,
   });
 
-  // Clear stale rows so re-runs replace
-  await db.from("case_perspectives").delete().eq("case_id", caseId);
-
   // Evidence-first: only run perspectives that actually apply to this case
   // type (e.g. don't run "prosecution" or "jury" for a medical-malpractice).
   const { determineApplicablePerspectives } = await import("./evidence-gate.server");
@@ -221,7 +218,18 @@ export async function runPerspectivesEngine(args: {
   const { caseType } = await resolveReportCaseType(db, caseId, briefText.slice(0, 6000));
   const PERSPECTIVES = determineApplicablePerspectives(caseType) as readonly Perspective[];
 
-  let done = 0;
+  // Resume awareness: load already generated perspectives for this case rather
+  // than discarding progress on checkpoint recovery.
+  const { data: existingRows } = await db
+    .from("case_perspectives")
+    .select("perspective")
+    .eq("case_id", caseId);
+  const existingPerspectives = new Set(
+    (existingRows ?? []).map((r: { perspective?: string | null }) => r.perspective).filter(Boolean),
+  );
+  const pendingPerspectives = PERSPECTIVES.filter((p) => !existingPerspectives.has(p));
+
+  let done = PERSPECTIVES.length - pendingPerspectives.length;
   const failures: string[] = [];
 
   // Wall-clock checkpoint — same pattern as extraction/analyzers/agents.
@@ -231,22 +239,11 @@ export async function runPerspectivesEngine(args: {
   const stageBudgetMs = budgetFor("perspectives");
   const stageStartedAt = Date.now();
 
-  // ROLLBACK APPLIED (2026-08-07): this ran 3 perspectives at a time for
-  // wall-clock speed. withAiSlot's process-wide cap bounds TOTAL concurrent
-  // provider calls, but it does nothing about 3 calls from the SAME stage
-  // landing on the SAME one or two configured Groq keys in the same instant
-  // — that's a correlated burst against a single key's per-key rate limit,
-  // not 3 independent coin flips. Because this stage only succeeds as a
-  // whole when every individual perspective call succeeds (a total failure
-  // throws — see below), that correlated-burst risk showed up in practice
-  // as "Multi-Perspective Analysis" repeatedly reporting zero output across
-  // many cases where every other (single-call) engine succeeded fine.
-  // Serializing trades some wall-clock time for actually finishing.
   const { withAiSlot } = await import("../ai/concurrency.server");
   const PERSPECTIVE_CONCURRENCY = 1;
   const batches: Perspective[][] = [];
-  for (let i = 0; i < PERSPECTIVES.length; i += PERSPECTIVE_CONCURRENCY) {
-    batches.push(PERSPECTIVES.slice(i, i + PERSPECTIVE_CONCURRENCY));
+  for (let i = 0; i < pendingPerspectives.length; i += PERSPECTIVE_CONCURRENCY) {
+    batches.push(pendingPerspectives.slice(i, i + PERSPECTIVE_CONCURRENCY));
   }
 
   // FIX (2026-08-17, pipeline-wide sweep): key_evidence explicitly claims to

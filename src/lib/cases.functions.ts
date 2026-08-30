@@ -2396,6 +2396,7 @@ export const listActivePipelineCases = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase } = await getAuthedContext(context, "ActivePipelines");
     const ACTIVE = [
+      "queued",
       "uploaded",
       "extracting",
       "analyzing",
