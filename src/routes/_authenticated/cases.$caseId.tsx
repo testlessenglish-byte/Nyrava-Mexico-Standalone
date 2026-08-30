@@ -771,6 +771,7 @@ function Workspace() {
                   caseName={c.name}
                   status={c.status}
                   progress={c.progress}
+                  isProcessing={running}
                   documentsCount={docs.length}
                   report={report as unknown as Parameters<typeof getCanonicalCounts>[0]}
                   caseRow={c as unknown as Record<string, unknown>}

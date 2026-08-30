@@ -64,6 +64,8 @@ type Props = {
   caseName: string;
   status: string | null | undefined;
   progress: number | null | undefined;
+  /** Same processing signal used by the live engine launcher. */
+  isProcessing: boolean;
   documentsCount: number;
   report: ReportLike | null | undefined;
   caseRow?: Record<string, unknown> | null;
@@ -140,6 +142,7 @@ export function CommandCenterDashboard({
   caseName,
   status,
   progress,
+  isProcessing,
   documentsCount,
   report,
   caseRow,
@@ -221,18 +224,14 @@ export function CommandCenterDashboard({
   const scoreColor = rawCaseScore != null ? caseBand.hex : "#B0A8CC";
 
   const progressPct = engineRows.length > 0 ? execProgress.percent : Math.max(0, Math.min(100, progress ?? 0));
-  const running =
-    isRunning ||
-    (!!status && ["extracting", "ocr", "analyzing", "running", "reporting", "queued"].includes(status));
+  const running = isProcessing || isRunning;
 
-  // A worker holds a time-boxed lease while actively processing a stage; if
-  // the lease expired while the case is still incomplete, the run died
-  // without finishing (crashed worker, deploy, etc.) rather than just being
-  // slow. That's the "stuck" case Resume/Clear-stuck exist for — surfaced
-  // directly here instead of buried behind the pipeline detail toggle.
+  // A released lease can be a normal checkpoint handoff, not a stalled case.
+  // Never offer recovery while the live launcher, engine ledger, or worker
+  // lease still indicates activity.
   const leaseUntil = caseRow?.worker_lease_until as string | null | undefined;
   const leaseActive = !!leaseUntil && new Date(leaseUntil).getTime() > Date.now();
-  const activelyRunning = running && leaseActive;
+  const activelyRunning = running || leaseActive;
   const incomplete = engineRows.length > 0 && execProgress.completedStages < execProgress.totalStages;
 
   const [resuming, setResuming] = useState(false);
@@ -337,46 +336,36 @@ export function CommandCenterDashboard({
       </div>
 
       {/* ============ RESUME / CLEAR STUCK ============ */}
-      {incomplete && (
-        <div
-          className={`flex flex-wrap items-center gap-3 rounded-2xl border p-4 ${
-            activelyRunning ? "border-primary/30 bg-primary/5" : "border-warning/40 bg-warning/10"
-          }`}
-        >
-          {activelyRunning ? (
-            <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" />
-          ) : (
-            <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
-          )}
+      {incomplete && !activelyRunning && status !== "released" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-warning/40 bg-warning/10 p-4">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
           <div className="min-w-0 flex-1">
-            <div className={`text-sm font-semibold ${activelyRunning ? "text-primary" : "text-warning"}`}>
-              {activelyRunning ? t("cc.stuck.runningTitle") : t("cc.stuck.title")}
+            <div className="text-sm font-semibold text-warning">
+              {t("cc.stuck.title")}
             </div>
             <p className="text-xs text-muted-foreground">
-              {activelyRunning ? t("cc.stuck.runningSubtitle") : t("cc.stuck.subtitle")}
+              {t("cc.stuck.subtitle")}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
             <button
               type="button"
-              disabled={resuming || activelyRunning}
+              disabled={resuming}
               onClick={handleResume}
               className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
             >
               {resuming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
               {t("pipeline.panel.resume")}
             </button>
-            {!activelyRunning && (
-              <button
-                type="button"
-                disabled={clearing}
-                onClick={handleClearStuck}
-                className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-1.5 text-xs font-medium text-warning hover:bg-warning/20 disabled:opacity-50"
-              >
-                {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                {t("pipeline.panel.clearStuck")}
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={clearing}
+              onClick={handleClearStuck}
+              className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-1.5 text-xs font-medium text-warning hover:bg-warning/20 disabled:opacity-50"
+            >
+              {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+              {t("pipeline.panel.clearStuck")}
+            </button>
           </div>
         </div>
       )}
