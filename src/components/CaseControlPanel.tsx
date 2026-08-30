@@ -213,7 +213,27 @@ export function CaseControlPanel({
   const disabled = running || runM.isPending || resumeM.isPending || clearStuckM.isPending || addBusy || awaitingCancel || documentsCount === 0;
   const addDisabled = running || runM.isPending || resumeM.isPending || clearStuckM.isPending || addBusy || awaitingCancel;
   const isFailed = caseStatus === "failed";
-  const isStuck = isFailed || caseStatus === "cancelled";
+  // Activity watchdog: a run that stops reporting progress (worker died, lease
+  // expired, contract blocked mid-finalization) never reaches "failed", so the
+  // recovery controls used to stay hidden. Treat a silent run as stuck.
+  const [inactive, setInactive] = useState(false);
+  const lastChangeRef = useRef<number>(Date.now());
+  useEffect(() => {
+    lastChangeRef.current = Date.now();
+    setInactive(false);
+  }, [caseStatus, caseUpdatedAt]);
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => {
+      const serverIdleMs = caseUpdatedAt ? Date.now() - new Date(caseUpdatedAt).getTime() : 0;
+      if (Date.now() - lastChangeRef.current > STALL_MS || serverIdleMs > STALL_MS) setInactive(true);
+    }, 15000);
+    return () => clearInterval(id);
+  }, [running, caseUpdatedAt]);
+  const isStalled = running && inactive;
+  const needsRecovery = isFailed || caseStatus === "cancelled" || caseStatus === "needs_revision" || caseStatus === "stalled" || isStalled;
+  const isStuck = needsRecovery;
+
 
   return (
     <div className="space-y-4">
