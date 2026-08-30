@@ -705,6 +705,16 @@ export async function runCaseClassification(
   // See invalidateCaseIdentity's doc comment for the exact bug this closes.
   invalidateCaseIdentity(db, caseId);
 
+  try {
+    const { applyAutomaticCaseIdentity } = await import("./case-identity-generator.server");
+    const { detectProceduralPosture } = await import("./procedural-posture");
+    const corpusText = docs.map((d) => d.extracted_text ?? "").join("\n");
+    const posture = detectProceduralPosture({ corpusText, caseRow: current as Record<string, unknown> });
+    await applyAutomaticCaseIdentity(db, caseId, docs, result, posture);
+  } catch (e) {
+    console.warn("[case-classification] automatic case identity naming failed", e);
+  }
+
   return result;
 }
 
