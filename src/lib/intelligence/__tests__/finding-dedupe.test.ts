@@ -458,7 +458,7 @@ describe("Final Reportable Finding Deduplication by canonical_finding_id", () =>
         title: "Defecto en la notificación personal",
         category: "procedural_integrity",
         severity: "high",
-        confidence: 0.8,
+        confidence: 0.95,
         source_module: "engine:procedural_compliance",
         source_quote: "No se realizó la notificación en términos del artículo 27 de la Ley de Amparo.",
         evidence_refs: [
@@ -472,7 +472,7 @@ describe("Final Reportable Finding Deduplication by canonical_finding_id", () =>
         title: "Falta de notificación al quejoso",
         category: "constitutional_issue",
         severity: "critical",
-        confidence: 0.9,
+        confidence: 0.8,
         source_module: "report_writer:constitutional_issue",
         evidence_refs: [
           { doc_id: "doc-2", page: 12, quote: "Se omitió correr traslado con copia de la demanda." },
