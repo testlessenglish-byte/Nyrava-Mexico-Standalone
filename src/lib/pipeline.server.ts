@@ -5557,7 +5557,7 @@ async function ensureRequiredEngines(args: {
     await import("@/lib/execution-state");
   let runsQuery = db
     .from("pipeline_engine_runs")
-    .select("id,engine,status,started_at,ended_at,created_at")
+    .select("id,engine,status,started_at,ended_at,created_at,execution_id")
     .eq("case_id", caseId)
     .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[]);
   if (args.executionId) {
@@ -5567,7 +5567,7 @@ async function ensureRequiredEngines(args: {
   const missing = missingRequiredEngines((runs ?? []) as never);
   if (!missing.length) return { ran: [], failed: [] };
 
-  const baseArgs = { db, caseId, userId, apiKey, apiKeys };
+  const baseArgs = { db, caseId, userId, apiKey, apiKeys, executionId: args.executionId };
   const derived = await import("./intelligence/derived-engines.server");
   // contradictions / discovery_gaps / evidence_intelligence / witness_intelligence
   // are derived from Analyzers + Agents output; do NOT re-run the standalone
@@ -5578,32 +5578,32 @@ async function ensureRequiredEngines(args: {
     analyzers: () => runAnalyzers(baseArgs),
     agents: () => runAgents(baseArgs),
     timeline: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.timeline }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.timeline, executionId: args.executionId }, async () => {
         const { buildCanonicalTimeline } = await import("./intelligence/canonical-timeline.server");
         const ct = await buildCanonicalTimeline(db, caseId);
         return { value: ct, stats: { generated: ct.totals.total, accepted: ct.totals.dated } };
       }),
 
     evidence_intelligence: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.evidence_intel }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.evidence_intel, executionId: args.executionId }, async () => {
         const result = await derived.deriveEvidenceIntel(db, caseId);
         await setCase(db, caseId, { evidence_intel_at: new Date().toISOString() });
         return result;
       }),
     contradictions: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.contradictions }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.contradictions, executionId: args.executionId }, async () => {
         const result = await derived.deriveContradictions(db, caseId);
         await setCase(db, caseId, { contradiction_at: new Date().toISOString() });
         return result;
       }),
     discovery_gaps: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.discovery }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.discovery, executionId: args.executionId }, async () => {
         const result = await derived.deriveDiscoveryGaps(db, caseId);
         await setCase(db, caseId, { discovery_at: new Date().toISOString() });
         return result;
       }),
     witness_intelligence: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.witness }, async () =>
+      runEngine(db, { caseId, userId, engine: ENGINE.witness, executionId: args.executionId }, async () =>
         derived.deriveWitnessIntel(db, caseId),
       ),
     // Both of these are requirement:"blocking" canonical stages, so the
@@ -5612,14 +5612,14 @@ async function ensureRequiredEngines(args: {
     // (or lost their rows) failed backfill with "no runner registered" and
     // then hard-failed with "core engines failed to complete".
     jurisdiction_intel: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.jurisdiction_intel }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.jurisdiction_intel, executionId: args.executionId }, async () => {
         const { runJurisdictionIntelligence } =
           await import("./intelligence/jurisdiction-intel.server");
         const value = await runJurisdictionIntelligence({ db, caseId });
         return { value, stats: { generated: 1, accepted: 1 } };
       }),
     procedural_compliance: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.procedural_compliance }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.procedural_compliance, executionId: args.executionId }, async () => {
         const { runProceduralCompliance } =
           await import("./intelligence/procedural-compliance.server");
         const value = await runProceduralCompliance({ db, caseId, userId });
@@ -5629,11 +5629,11 @@ async function ensureRequiredEngines(args: {
         };
       }),
     constitutional_compliance: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.constitutional }, async () => ({
+      runEngine(db, { caseId, userId, engine: ENGINE.constitutional, executionId: args.executionId }, async () => ({
         value: { derived_from: "analyzers+agents" },
       })),
     evidence_map: () =>
-      runEngine(db, { caseId, userId, engine: ENGINE.evidence_map }, async () => {
+      runEngine(db, { caseId, userId, engine: ENGINE.evidence_map, executionId: args.executionId }, async () => {
         const m = await import("./intelligence/evidence-map.server");
         const em = await m.buildEvidenceMap(db, caseId);
         return {
@@ -5709,13 +5709,6 @@ async function ensureRequiredEngines(args: {
 
   // Emit the Case-Type Manifest — what the engine INTENDS to run, before any
   // engine actually executes. Persisted to pipeline_events for the audit trail.
-  // buildCaseTypeManifest calls the STRICT normalizePracticeArea internally
-  // (it throws for any unrecognized materia, including the fail-closed
-  // "unverified" sentinel `area` deliberately carries above) — feed it a
-  // real materia ("civil") purely so the manifest label can render; the
-  // actual engine-gating decisions below keep using `area` unchanged, so an
-  // unknown/unverified identity still fails closed via isAnalyzerAllowed's
-  // tolerant resolution, exactly as designed.
   const manifest = buildCaseTypeManifest(ensureIdentity.caseType ?? "civil", activeDomains);
   await emitEvent(db, caseId, "manifest", `Case-Type Manifest: ${manifest.case_type_label}`, {
     meta: {
@@ -5767,79 +5760,26 @@ async function ensureRequiredEngines(args: {
           userId,
           engine: engine as never,
           reason: `skipped_not_applicable:${decision.reason ?? "prerequisites_not_met"}`,
+          executionId: args.executionId,
         });
         ran.push(`${engine}:skipped_not_applicable`);
         continue;
       }
     }
 
-    // isAnalyzerAllowed()/MX_ENGINES is a small, deliberate per-materia
-    // allow-list for the handful of engines that are actually practice-area
-    // gated (constitutional_compliance, chain_of_custody, procedural_
-    // violations, trial_prep, cross_examination, property_verification,
-    // closing_readiness_scoring — see PRACTICE_GATED_ENGINES). It was never
-    // populated with the optional-tier intelligence engines (perspectives,
-    // opportunity, strategy, theory, litigation_strategy_center,
-    // work_product, hallucination, multi_agent) because those aren't
-    // materia-restricted — mx-pipeline.ts's EXCLUDED_STAGES is the
-    // authoritative source for that and already ran earlier in the
-    // pipeline. Applying isAnalyzerAllowed() to EVERY engine in
-    // REPORT_REQUIRED_ENGINES (which since 2026-07-31 is "every stage")
-    // meant any of those un-listed engines still mid-checkpoint at
-    // report-time got permanently marked "skipped" here — a DONE status
-    // that can never be retried — even though they were legitimately
-    // relevant and simply hadn't finished yet. Confirmed on a real case
-    // (Amparo Indirecto 412/2026): perspectives/opportunity/strategy were
-    // still checkpointing on an AI call when this ran, and all three were
-    // wrongly force-skipped in the same instant, moments before the report
-    // generated without their input. Scope the gate to the engines it was
-    // actually built for.
     if (PRACTICE_GATED_ENGINES.has(engine) && !isAnalyzerAllowed(area, engine, activeDomains)) {
       await recordSkipped(db, {
         caseId,
         userId,
         engine: engine as never,
         reason: SKIP_REASON_NOT_APPLICABLE,
+        executionId: args.executionId,
       });
       ran.push(`${engine}:skipped`);
       continue;
     }
     const fn = runners[engine];
     if (!fn) {
-      // Expected for the optional-tier intelligence engines (perspectives,
-      // opportunity, strategy, theory, litigation_strategy_center,
-      // work_product, hallucination, multi_agent) — this backfill helper
-      // deliberately has no runner for them: their real implementations
-      // (runPerspectivesEngine, runStrategyEngine, etc.) throw
-      // CheckpointRequired mid-run when they hit a time/budget limit, which
-      // only the checkpoint/batch-aware main pipeline loop in
-      // pipeline-runner.server.ts knows how to catch, persist, and resume —
-      // calling them synchronously here would let that exception escape
-      // uncaught (rethrowIfCheckpoint below re-throws it) and abort report
-      // generation entirely instead of failing this one stage cleanly.
-      //
-      // But since 2026-07-31 REPORT_BLOCKING_ENGINES lists EVERY stage, not
-      // just requirement:"blocking" ones, and canGenerateReport()'s
-      // optional-tier exemption only accepts status "failed"/"blocked" (or
-      // unconditionally "skipped") — never "no row at all". A case whose
-      // main loop finished (or got stuck) without ever giving one of these
-      // engines a terminal row was left permanently unable to generate a
-      // report: this branch could not run it, and nothing else was writing
-      // any row for it either. Confirmed on a real case (robo calificado
-      // con violencia, Jalisco): perspectives and strategy both had no
-      // terminal `pipeline_engine_runs` row, and "Generate Legal Report"
-      // failed identically on every retry with no path to recovery.
-      //
-      // Record it explicitly "skipped" instead — the same terminal state
-      // already used a few lines up for case-type-gated engines, and the
-      // one status canGenerateReport() exempts unconditionally regardless
-      // of requirement tier. This is exactly what "optional: a failure
-      // here must not permanently block the report" already means for
-      // every other optional engine; it was only unreachable for these
-      // because nothing was writing a terminal row for them here. The gap
-      // is surfaced honestly rather than silently: pipelineWarnings (see
-      // caller) still records `${engine}_failed` for it below, so the
-      // report notes the analysis is missing instead of pretending it ran.
       if (OPTIONAL_ENGINES.has(engine)) {
         try {
           const { recordSkipped } = await import("./intelligence/engine-audit.server");
@@ -5848,12 +5788,16 @@ async function ensureRequiredEngines(args: {
             userId,
             engine: engine as never,
             reason: "not_backfillable_at_report_time",
+            executionId: args.executionId,
           });
+          ran.push(`${engine}:skipped`);
         } catch (e) {
           console.warn(`[report] failed to record ${engine} as skipped during backfill`, e);
+          failed.push({ engine, error: "not backfillable here — owned by the main pipeline loop" });
         }
+      } else {
+        failed.push({ engine, error: "not backfillable here — owned by the main pipeline loop" });
       }
-      failed.push({ engine, error: "not backfillable here — owned by the main pipeline loop" });
       continue;
     }
     try {
@@ -6005,7 +5949,7 @@ async function _runReportInner(args: {
     const { REPORT_REQUIRED_ENGINES, canGenerateReport } = await import("@/lib/execution-state");
     let runsQuery = db
       .from("pipeline_engine_runs")
-      .select("id,engine,status,started_at,ended_at,created_at")
+      .select("id,engine,status,started_at,ended_at,created_at,execution_id")
       .eq("case_id", caseId)
       .in("engine", REPORT_REQUIRED_ENGINES as unknown as string[]);
     if (executionId) {
