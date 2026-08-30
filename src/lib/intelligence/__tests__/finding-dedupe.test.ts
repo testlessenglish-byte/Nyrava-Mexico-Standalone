@@ -451,7 +451,7 @@ describe("finding dedupe — contained quote boundaries", () => {
 describe("Final Reportable Finding Deduplication by canonical_finding_id", () => {
   it("Test 1: collapses multiple findings sharing the same canonical_finding_id into exactly 1 surviving finding", async () => {
     const { dedupeReportableFindingsByCanonicalId } = await import("../finding-dedupe");
-    const rawFindings = [
+    const rawFindings: Array<Record<string, unknown>> = [
       {
         id: "f-001",
         canonical_finding_id: "AM_NOTIF_DEF_01",
@@ -501,7 +501,7 @@ describe("Final Reportable Finding Deduplication by canonical_finding_id", () =>
 
   it("Test 2: judicial holding candidate wins over speculative candidate regardless of numerical severity", async () => {
     const { dedupeReportableFindingsByCanonicalId } = await import("../finding-dedupe");
-    const rawFindings = [
+    const rawFindings: Array<Record<string, unknown>> = [
       {
         id: "f-speculative",
         canonical_finding_id: "PEN_INCONST_ART470",
@@ -542,7 +542,7 @@ describe("Final Reportable Finding Deduplication by canonical_finding_id", () =>
 
   it("Test 3: distinct canonical IDs are never merged", async () => {
     const { dedupeReportableFindingsByCanonicalId } = await import("../finding-dedupe");
-    const rawFindings = [
+    const rawFindings: Array<Record<string, unknown>> = [
       {
         id: "f-1",
         canonical_finding_id: "CANONICAL_AAA",
@@ -566,7 +566,7 @@ describe("Final Reportable Finding Deduplication by canonical_finding_id", () =>
 
   it("Test 4: generates complete duplicate audit logging provenance", async () => {
     const { dedupeReportableFindingsByCanonicalId } = await import("../finding-dedupe");
-    const rawFindings = [
+    const rawFindings: Array<Record<string, unknown>> = [
       {
         id: "f-alpha",
         canonical_finding_id: "NOTIF_01",
