@@ -660,11 +660,22 @@ export function computeJudgeVerdict(
 async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
   const { data: allFindings } = await ctx.db
     .from("case_findings")
-    .select("id,title,description,legal_significance,potential_impact,source_document_id,source_doc_ids,source_quote,evidence_refs,audit_classification,source_module")
+    .select("id,canonical_finding_id,metadata,title,description,legal_significance,potential_impact,source_document_id,source_doc_ids,source_quote,evidence_refs,audit_classification,source_module")
     .eq("case_id", ctx.caseId)
     .not("source_module", "like", PROJECTION_LIKE);
+
+  const { dedupeReportableFindingsByCanonicalId } = await import("@/lib/intelligence/finding-dedupe");
+  const dedupeResult = dedupeReportableFindingsByCanonicalId(
+    (allFindings ?? []) as Array<Record<string, unknown>>,
+  );
+
+  const judge_input_canonical_ids = dedupeResult.deduped
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((f: any) => String(f.canonical_finding_id ?? f.metadata?.canonical_finding_id ?? "").trim())
+    .filter(Boolean);
+
   const { verdict, notes, totals } = computeJudgeVerdict(
-    (allFindings ?? []) as JudgeFinding[],
+    dedupeResult.deduped as unknown as JudgeFinding[],
     ctx.analysisMode,
   );
   const pass = verdict === "approve";
@@ -681,6 +692,7 @@ async function agentJudge(ctx: RunCtx): Promise<AgentResult> {
       mode: ctx.analysisMode,
       thresholds: JUDGE_THRESHOLDS[ctx.analysisMode],
       totals,
+      judge_input_canonical_ids,
     },
   };
 }
@@ -980,6 +992,9 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
   const runId = crypto.randomUUID();
   const { getAnalysisMode } = await import("@/lib/intelligence/evidence-gate.server");
   const { validateJSONPipelineIntegrity } = await import("@/lib/intelligence/json-integrity-gate");
+  const { dedupeCaseFindingsInDatabase } = await import("@/lib/intelligence/findings.server");
+  await dedupeCaseFindingsInDatabase(args.db, args.caseId);
+
   const analysisMode = (await getAnalysisMode(args.db, args.caseId)) as AnalysisMode;
   const ctx: RunCtx = { ...args, runId, analysisMode };
 
