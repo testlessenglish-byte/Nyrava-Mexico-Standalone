@@ -112,17 +112,17 @@ function Landing() {
     <div className="min-h-screen text-foreground">
       {/* Top nav — soft white bar, matches the reference design */}
       <header className="border-b border-border bg-cream text-cream-foreground">
-        <div className="mx-auto flex max-w-[100rem] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <NyravaLogo size={64} glow={false} />
+        <div className="mx-auto flex max-w-[100rem] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div className="flex shrink-0 items-center gap-3">
+            <NyravaLogo size={56} glow={false} />
             <div className="flex flex-col leading-none">
-              <span className="font-display text-2xl font-bold tracking-wide">NYRAVA MÉXICO</span>
-              <span className="mt-1 text-[11px] font-semibold tracking-[0.24em] text-cream-foreground/60">
+              <span className="font-display text-xl sm:text-2xl font-bold tracking-wide">NYRAVA MÉXICO</span>
+              <span className="mt-1 text-[10px] sm:text-[11px] font-semibold tracking-[0.24em] text-cream-foreground/60">
                 {t("home.brand.subtitle")}
               </span>
             </div>
           </div>
-          <nav className="hidden items-center gap-7 lg:flex">
+          <nav className="hidden items-center gap-5 xl:flex 2xl:gap-7">
             {NAV.map((n) =>
               "to" in n ? (
                 <Link
@@ -143,11 +143,11 @@ function Landing() {
               ),
             )}
           </nav>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
             <LanguageSwitcher className="border-border text-cream-foreground" />
             <Link
               to="/auth"
-              className="hidden rounded-md border border-border px-3 py-2 text-[11px] font-semibold tracking-[0.14em] text-cream-foreground hover:bg-primary/5 sm:inline-flex"
+              className="rounded-md border border-border px-3 py-2 text-[11px] font-semibold tracking-[0.14em] text-cream-foreground hover:bg-primary/5 inline-flex items-center"
             >
               {t("nav.signIn")}
             </Link>
@@ -164,7 +164,7 @@ function Landing() {
                   ? { label: t(n.key).toUpperCase(), to: n.to }
                   : { label: t(n.key).toUpperCase(), href: n.href },
               )}
-              triggerClassName="border-border text-cream-foreground"
+              triggerClassName="border-border text-cream-foreground xl:hidden"
             >
               <Link
                 to="/auth"
