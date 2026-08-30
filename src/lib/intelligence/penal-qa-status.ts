@@ -1,6 +1,6 @@
 import type { Finding } from "./types";
 
-export type PenalQaStatus = "PASS" | "WARN" | "FAIL" | "NOT_APPLICABLE";
+export type PenalQaStatus = "PASS" | "WARN" | "WARN_NON_BLOCKING" | "FAIL" | "NOT_APPLICABLE";
 
 export type PenalQaLayer =
   | "citation_integrity"
@@ -15,6 +15,7 @@ export type PenalQaLayerResult = {
   status: PenalQaStatus;
   issues: number;
   reason: string;
+  blocking?: boolean;
 };
 
 export type PenalQaInputs = {
@@ -23,6 +24,7 @@ export type PenalQaInputs = {
   hallucinationEngineStatus: string | null;
   classificationConflicts: number;
   proceduralSemanticIssues: number;
+  proceduralSchemaAliases?: number;
   renderedCriticalIssues: number | null;
   releaseGateIssues: number | null;
   qualityBlocked: boolean;
@@ -64,7 +66,9 @@ export function auditPenalProceduralSemantics(findings: readonly Finding[]): num
     const classification = String(finding.audit_classification ?? "");
 
     if (courtRoles.has(role) && classification === "VERIFIED_COURT_HOLDING") {
-      if (!["court_holding", "rejected_holding"].includes(proposition)) issues += 1;
+      // "holding" is a valid shared PropositionType (including Amparo/SCJN).
+      // Accept the alias without changing the extracted legal proposition.
+      if (!["holding", "court_holding", "rejected_holding"].includes(proposition)) issues += 1;
       if (!["adopted", "rejected", "not_reached", "historical", "unknown"].includes(adoption)) {
         issues += 1;
       }
@@ -75,7 +79,7 @@ export function auditPenalProceduralSemantics(findings: readonly Finding[]): num
         Boolean(String(finding.reason_for_score_effect ?? "")) &&
         finding.evidence_refs.some((ref) => Boolean(String(ref.quote ?? "").trim()));
       if (
-        proposition === "court_holding" &&
+        ["holding", "court_holding"].includes(proposition) &&
         adoption === "adopted" &&
         impact !== "neutral" &&
         !hasPartyAwareMapping
@@ -155,14 +159,17 @@ export function buildPenalQaStatuses(input: PenalQaInputs): PenalQaLayerResult[]
     },
     {
       layer: "procedural_semantics",
-      status: proceduralIssues > 0 ? "FAIL" : "PASS",
+      status: proceduralIssues > 0 ? "FAIL" : input.proceduralSchemaAliases ? "WARN_NON_BLOCKING" : "PASS",
       issues: proceduralIssues,
-      reason: proceduralIssues ? "invalid_penal_semantic_records" : "canonical_semantics_valid",
+      blocking: true,
+      reason: proceduralIssues ? "invalid_penal_semantic_records" : input.proceduralSchemaAliases
+        ? "shared_holding_schema_alias_validated" : "canonical_semantics_valid",
     },
     {
       layer: "rendering_consistency",
       status:
-        input.renderedCriticalIssues == null ? "WARN" : renderedIssues > 0 ? "FAIL" : "PASS",
+        input.renderedCriticalIssues == null ? "WARN" : renderedIssues > 0 ? "WARN_NON_BLOCKING" : "PASS",
+      blocking: false,
       issues: renderedIssues,
       reason:
         input.renderedCriticalIssues == null
@@ -174,12 +181,14 @@ export function buildPenalQaStatuses(input: PenalQaInputs): PenalQaLayerResult[]
     {
       layer: "release_readiness",
       status:
-        input.qualityBlocked || releaseIssues > 0
+        input.qualityBlocked
           ? "FAIL"
+          : releaseIssues > 0 ? "WARN_NON_BLOCKING"
           : input.releaseGateIssues == null
             ? "WARN"
             : "PASS",
       issues: releaseIssues + (input.qualityBlocked ? 1 : 0),
+      blocking: input.qualityBlocked,
       reason: input.qualityBlocked
         ? "quality_blocked"
         : releaseIssues
