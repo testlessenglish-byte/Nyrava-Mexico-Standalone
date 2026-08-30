@@ -577,6 +577,8 @@ function Workspace() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             matterMetadata={(c as any).matter_metadata ?? null}
             documentsCount={docs.length}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            caseUpdatedAt={(c as any).updated_at ?? null}
             invalidate={invalidate}
           />
 

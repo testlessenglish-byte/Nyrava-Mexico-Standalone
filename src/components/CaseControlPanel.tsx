@@ -34,6 +34,8 @@ const RUNNING_STATUSES = new Set([
   "intelligence_running",
 ]);
 
+const STALL_MS = 3 * 60 * 1000;
+
 export function CaseControlPanel({
   caseId,
   caseStatus,
@@ -45,6 +47,7 @@ export function CaseControlPanel({
   caseAnalysisMode,
   matterMetadata,
   documentsCount,
+  caseUpdatedAt,
   invalidate,
 }: {
   caseId: string;
@@ -57,6 +60,7 @@ export function CaseControlPanel({
   caseAnalysisMode: string | null;
   matterMetadata?: Record<string, unknown> | null;
   documentsCount: number;
+  caseUpdatedAt?: string | null;
   invalidate: () => void;
 }) {
   const { t } = useI18n();
