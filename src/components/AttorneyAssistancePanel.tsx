@@ -8,7 +8,6 @@ import {
   FileOutput,
   ShieldCheck,
   FileDown,
-  FileType,
   Gavel,
   Target,
   MessageSquare,
@@ -50,7 +49,6 @@ export type AttorneyAssistancePanelProps = {
   hasReport: boolean;
   reportBlocked: boolean;
   onDownloadPdf: () => void;
-  onDownloadDocx: () => void;
   onOpenTab: (tab: string) => void;
 };
 
@@ -139,7 +137,6 @@ function AssistanceBody({
   hasReport,
   reportBlocked,
   onDownloadPdf,
-  onDownloadDocx,
   onOpenTab,
   openSection,
   setOpenSection,
@@ -228,12 +225,7 @@ function AssistanceBody({
               disabled={reportBlocked || !hasReport}
               onClick={onDownloadPdf}
             />
-            <QuickLink
-              icon={FileType}
-              label={t("assist.link.docx")}
-              disabled={reportBlocked || !hasReport}
-              onClick={onDownloadDocx}
-            />
+
             <QuickLink icon={Gavel} label={t("nav.motionIntelligence")} onClick={() => onOpenTab("opportunities")} />
             <QuickLink icon={Target} label={t("nav.strategyCenter")} onClick={() => onOpenTab("strategy")} />
             <QuickLink icon={MessageSquare} label={t("assist.link.talk")} onClick={() => onOpenTab("chat")} />

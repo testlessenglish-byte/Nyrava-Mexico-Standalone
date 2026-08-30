@@ -25,7 +25,7 @@ const LEGAL_STEPS = [
   { key: "extract", num: "03", icon: Database, titleEs: "Extracción y Compuerta de Evidencia", titleEn: "Extraction & Evidence Gate", descEs: "Anclaje de hechos a fojas exactas y supresión automática de afirmaciones no verificables.", descEn: "Fact anchoring to exact pages and automatic suppression of ungrounded assertions." },
   { key: "intel", num: "04", icon: GitBranch, titleEs: "Motores Jurídicos Especializados", titleEn: "Specialized Legal Engines", descEs: "Cronologías con contradicciones, análisis testimonial y detección de cuestiones constitucionales.", descEn: "Timelines with contradiction flags, testimony analysis, and constitutional issue-spotting." },
   { key: "promociones", num: "05", icon: FileText, titleEs: "Borradores de Promociones", titleEn: "Motion & Pleadings Drafts", descEs: "Generación de proyectos de escritos fundamentados en jurisprudencia de la SCJN.", descEn: "Drafting of pleadings grounded in evidence and SCJN binding jurisprudence." },
-  { key: "reports", num: "06", icon: ShieldCheck, titleEs: "Informe Canónico de 17 Secciones", titleEn: "17-Section Canonical Report", descEs: "Dossier estructurado y versionado exportable a PDF, DOCX y JSON con verificación SHA-256.", descEn: "Version-locked structured dossier exportable to PDF, DOCX, and JSON with SHA-256 verification." },
+  { key: "reports", num: "06", icon: ShieldCheck, titleEs: "Informe Canónico de 17 Secciones", titleEn: "17-Section Canonical Report", descEs: "Dossier estructurado y versionado exportable a PDF y JSON con verificación SHA-256.", descEn: "Version-locked structured dossier exportable to PDF and JSON with SHA-256 verification." },
 ];
 
 const CARE_STEPS = [

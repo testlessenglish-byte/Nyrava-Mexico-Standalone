@@ -91,8 +91,8 @@ export const Route = createFileRoute("/help/first-case")({
 
       <DocsSection id="export" heading="5. Export the report">
         <p>
-          Open the Report panel and export as PDF, DOCX, or JSON. The PDF is paginated for court binders;
-          DOCX is for further editing; JSON is for downstream tooling.
+          Open the Report panel and export as PDF or JSON. The PDF is paginated for court binders;
+          JSON is for downstream tooling.
         </p>
       </DocsSection>
     </DocsLayout>

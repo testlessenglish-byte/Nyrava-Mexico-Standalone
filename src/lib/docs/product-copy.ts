@@ -278,7 +278,7 @@ export const PRODUCTS: ProductPageContent[] = [
     workflow: [
       { title: "Pick a filing type", description: "Choose from the supported promoción library." },
       { title: "Review the draft", description: "The Motion Editor opens with the generated draft." },
-      { title: "Revise and export", description: "Export to DOCX for filing prep." },
+      { title: "Revise and export", description: "Export to PDF for filing prep." },
     ],
     examples: [
       { title: "Incidente de Exclusión de Prueba Ilícita", description: "Draft grounded in the acta de cateo/detención, video de audiencia, and dictamen pericial." },
@@ -319,7 +319,7 @@ export const PRODUCTS: ProductPageContent[] = [
     how: [
       "Every engine writes into a canonical analysis object rather than into free-form prose.",
       "A validation gate confirms that all 17 sections are populated with grounded content before the report can be finalized.",
-      "The report is exported to PDF, DOCX, or JSON.",
+      "The report is exported to PDF or JSON.",
     ],
     benefits: [
       "One consistent format across every matter.",
@@ -329,7 +329,7 @@ export const PRODUCTS: ProductPageContent[] = [
     workflow: [
       { title: "Run the full pipeline", description: "All upstream engines populate the canonical analysis." },
       { title: "Open the Report panel", description: "The 17 sections render with citations." },
-      { title: "Export", description: "PDF, DOCX, or JSON, with pagination optimized for court binders." },
+      { title: "Export", description: "PDF or JSON, with pagination optimized for court binders." },
     ],
     examples: [
       { title: "Juicio de Nulidad ante el TFJA", description: "Report includes analysis of the resolución determinante, factual reconstruction, and legal issues with cited authorities." },

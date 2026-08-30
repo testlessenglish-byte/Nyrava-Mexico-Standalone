@@ -1,3 +1,4 @@
+import { assertExportCaseIdentity } from "@/lib/reporting/case-json-export";
 import { releaseFinalReportPayload, type FinalReportPayload } from "@/lib/reporting/final-report-contract";
 import { CanonicalReportFindings } from "@/components/reports/CanonicalReportFindings";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -83,7 +84,7 @@ import {
 // NOTE: intentionally a type-only import. `@/lib/export` statically imports
 // jsPDF (which transitively bundles html2canvas, a browser-only module) —
 // importing it at the top of this route pulls that into the SSR module
-// graph and crashes the server build. downloadPdf/downloadDocx/downloadJson
+// graph and crashes the server build. downloadPdf/downloadJson
 // are loaded dynamically at each call site below instead.
 import type { CaseExportData } from "@/lib/export";
 
@@ -96,6 +97,7 @@ import type { CaseExportData } from "@/lib/export";
 function buildExportData(raw: any): CaseExportData {
   return {
     case: raw.case as unknown as Record<string, unknown>,
+    pipeline_runs: raw.pipeline_runs ?? [],
     documents: raw.documents as unknown as Record<string, unknown>[],
     analysis: raw.analysis as unknown as Record<string, unknown> | null,
     agents: raw.agents as unknown as Record<string, unknown>[],
@@ -125,7 +127,6 @@ import {
   Play,
   FileDown,
   File as FileJson,
-  FileType,
   CircleCheck as CheckCircle2,
   Circle,
   Loader as Loader2,
@@ -237,6 +238,8 @@ const VALID_TABS = new Set<Tab>([
 function Workspace() {
   const { t } = useI18n();
   const { caseId } = Route.useParams();
+  const exportCaseId = useRef(caseId);
+  useEffect(() => { exportCaseId.current = caseId; }, [caseId]);
   const qc = useQueryClient();
 
   const [showPipelineDetail, setShowPipelineDetail] = useState(false);
@@ -364,33 +367,16 @@ function Workspace() {
 
   const exportData: CaseExportData = buildExportData(data);
 
-  // FIX (2026-08-02): downloads previously used this same `exportData`
-  // object, which is only as fresh as the page's last React Query poll.
-  // Polling stops entirely once case.status leaves the "running" set
-  // (see refetchInterval above), so a download triggered right as a run
-  // finishes — or from a tab that's been sitting open — could bake a
-  // stale pre-completion snapshot into the PDF/DOCX/JSON: e.g. a report
-  // the backend had already finalized as report_mode "FULL" with real
-  // scores could still export showing "LIMITADO" with scores suppressed,
-  // because the browser simply hadn't re-fetched since an earlier,
-  // genuinely-Limited intermediate state. Confirmed against a real case
-  // where the reports row (report_mode, scores_suppressed, ESS override)
-  // was unambiguously FULL/unsuppressed at the DB level, yet the
-  // downloaded PDF still rendered Limited. Forcing one fresh fetch
-  // immediately before building the export payload closes that gap
-  // regardless of polling timing, without needing to change polling
-  // behavior itself. Falls back to the already-rendered exportData if the
-  // refetch fails, so a transient network hiccup can't block a download
-  // that would otherwise have worked.
+  // Never silently export an old snapshot when the fresh request fails.
   const buildFreshExportData = async (): Promise<CaseExportData> => {
-    try {
-      const fresh = await fetchCase({ data: { caseId } });
-      qc.setQueryData(["case", caseId], fresh);
-      return buildExportData(fresh);
-    } catch (e) {
-      console.warn("[export] fresh refetch before download failed — using last-rendered data", e);
-      return exportData;
+    const fresh = await fetchCase({ data: { caseId } });
+    if (exportCaseId.current !== caseId) {
+      throw new Error("Export cancelled because the selected case changed. Download again from the current case.");
     }
+    const result = buildExportData(fresh);
+    assertExportCaseIdentity(result, caseId);
+    qc.setQueryData(["case", caseId], fresh);
+    return result;
   };
 
   // Badge counts for tabs whose underlying data isn't a flat array — mirrors
@@ -608,24 +594,13 @@ function Workspace() {
                 disabled={reportBlocked || !hasReport}
                 onClick={async () => {
                   const { downloadPdf } = await import("@/lib/export");
-                  downloadPdf(await buildFreshExportData(), c.name);
+                  await downloadPdf(await buildFreshExportData(), c.name);
                   void logReportExport({
                     data: { caseId: c.id, format: "pdf", caseName: c.name },
                   }).catch(() => {});
                 }}
               />
-              <DownloadBtn
-                icon={FileType}
-                label={t("caseWorkspace.downloadDocx")}
-                disabled={reportBlocked || !hasReport}
-                onClick={async () => {
-                  const { downloadDocx } = await import("@/lib/export");
-                  downloadDocx(await buildFreshExportData(), c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
-                  void logReportExport({
-                    data: { caseId: c.id, format: "docx", caseName: c.name },
-                  }).catch(() => {});
-                }}
-              />
+
               <DownloadBtn
                 icon={FileJson}
                 label={t("caseWorkspace.downloadJson")}
@@ -719,13 +694,6 @@ function Workspace() {
               downloadPdf(await buildFreshExportData(), c.name);
               void logReportExport({
                 data: { caseId: c.id, format: "pdf", caseName: c.name },
-              }).catch(() => {});
-            }}
-            onDownloadDocx={async () => {
-              const { downloadDocx } = await import("@/lib/export");
-              downloadDocx(await buildFreshExportData(), c.name).catch((e) => toast.error(e?.message ?? "DOCX failed"));
-              void logReportExport({
-                data: { caseId: c.id, format: "docx", caseName: c.name },
               }).catch(() => {});
             }}
             onOpenTab={(t) => setTab(t as Tab)}
@@ -1101,12 +1069,18 @@ function DownloadBtn({
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   disabled: boolean;
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
 }) {
+  const [downloading, setDownloading] = useState(false);
   return (
     <button
-      onClick={onClick}
-      disabled={disabled}
+      onClick={async () => {
+        setDownloading(true);
+        try { await onClick(); }
+        catch (error) { toast.error(error instanceof Error ? error.message : "Download failed. Please retry."); }
+        finally { setDownloading(false); }
+      }}
+      disabled={disabled || downloading}
       className="flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
     >
       <Icon className="h-4 w-4" /> {label}

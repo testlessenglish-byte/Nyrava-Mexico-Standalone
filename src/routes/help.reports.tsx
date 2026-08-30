@@ -91,7 +91,6 @@ export const Route = createFileRoute("/help/reports")({
       <DocsSection id="export" heading="Export formats">
         <ul className="list-disc space-y-1 pl-5">
           <li><strong>PDF</strong> — paginated for court binders, with orphan prevention and a compact scorecard.</li>
-          <li><strong>DOCX</strong> — for further editing before filing.</li>
           <li><strong>JSON</strong> — canonical schema for downstream tooling.</li>
         </ul>
       </DocsSection>
