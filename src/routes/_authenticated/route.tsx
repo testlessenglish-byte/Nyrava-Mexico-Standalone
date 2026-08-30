@@ -330,6 +330,7 @@ function AppLayout() {
         </button>
         <NyravaLogo size={28} withWordmark />
         <div className="flex items-center gap-2">
+          <div id="mobile-header-feedback" className="flex shrink-0 items-center" />
           <Link
             to={messagesLink}
             className="relative rounded-md p-1.5 text-sidebar-foreground/80 hover:bg-sidebar-accent"
@@ -599,6 +600,7 @@ function AppLayout() {
                 </div>
               )}
             </div>
+            <div id="desktop-header-feedback" className="flex shrink-0 items-center" />
             <Link
               to={messagesLink}
               className="relative rounded-lg border border-border bg-card/60 p-2 hover:bg-card"
@@ -662,7 +664,10 @@ function AppLayout() {
         </nav>
       </div>
       <ScrollToTop />
-      <FeedbackButton />
+      <FeedbackButton
+        mobileTargetId="mobile-header-feedback"
+        desktopTargetId="desktop-header-feedback"
+      />
     </div>
   );
 }
