@@ -98,8 +98,6 @@ export const createCaseAndUpload = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = await getAuthedContext(context, "Upload");
-    const name = String(data.get("name") ?? "Untitled Case").slice(0, 200);
-    const description = String(data.get("description") ?? "").slice(0, 2000) || null;
     // "Balanced" was removed as a new-case option — only "strict" and
     // "exploratory" remain selectable, so an invalid/missing value is
     // rejected outright rather than silently coerced into the retired mode.

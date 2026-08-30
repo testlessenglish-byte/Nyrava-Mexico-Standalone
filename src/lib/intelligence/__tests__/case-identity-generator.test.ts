@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   extractCaseNumbers,
   extractPrincipalParty,
@@ -41,8 +41,13 @@ describe("Automatic Case Identity, Name & Description Generation", () => {
       is_final_resolution: true,
       case_status: "concluded",
       decision_type: "sentencia definitiva",
+      court_level: "scjn",
+      current_stage: "sentencia",
+      next_stage: null,
+      is_historical_record: true,
       remand_ordered: false,
-      pretrial_remedies_permitted: false,
+      remand_target: null,
+      open_deadlines_supported: false,
     };
 
     const descResult = generateAutomaticCaseDescription(
@@ -113,7 +118,18 @@ describe("Automatic Case Identity, Name & Description Generation", () => {
         court_name: "Juzgado de Control",
         primary_party_name: "Carlos Ramírez",
       },
-      { is_final_resolution: false, case_status: "ongoing", current_stage: "etapa_intermedia" },
+      {
+        is_final_resolution: false,
+        case_status: "pending",
+        current_stage: "etapa_intermedia",
+        decision_type: null,
+        court_level: "primera_instancia",
+        next_stage: "juicio_oral",
+        is_historical_record: false,
+        remand_ordered: false,
+        remand_target: null,
+        open_deadlines_supported: true,
+      },
     );
 
     expect(descResult.description).toContain("etapa intermedia");
