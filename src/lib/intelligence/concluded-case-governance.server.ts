@@ -1,20 +1,20 @@
 ﻿import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import {
-  detectConcludedCaseGovernance,
-  type ConcludedCaseGovernance,
+  resolveReportGovernance,
+  type ImmutableReportGovernance,
 } from "./concluded-case-governance";
 
 type Db = SupabaseClient<Database>;
 
 /**
- * Centrally loads and resolves Concluded Case Governance for a case from Supabase.
+ * Centrally loads and resolves the immutable Concluded Case Governance contract from Supabase.
  */
-export async function loadConcludedCaseGovernance(
+export async function loadResolvedReportGovernance(
   db: Db,
   caseId: string,
-  extra?: { is_final_resolution?: boolean; resolutivos?: string | null; corpusText?: string | null },
-): Promise<ConcludedCaseGovernance> {
+  extra?: { is_final_resolution?: boolean; resolutivos?: string | null; corpusText?: string | null; execution_id?: string },
+): Promise<ImmutableReportGovernance> {
   const { data: caseRow } = await db
     .from("cases")
     .select("procedural_posture,case_analysis_mode,analysis_mode,matter_metadata")
@@ -24,15 +24,21 @@ export async function loadConcludedCaseGovernance(
   const row = (caseRow as Record<string, unknown> | null) ?? {};
   const meta = (row.matter_metadata as Record<string, unknown> | null) ?? {};
 
-  const governance = detectConcludedCaseGovernance({
+  const governance = resolveReportGovernance({
     procedural_posture: (row.procedural_posture as string | null) ?? (meta.procedural_posture as string | null) ?? null,
     case_analysis_mode: (row.case_analysis_mode as string | null) ?? (meta.case_analysis_mode as string | null) ?? null,
     analysis_mode: (row.analysis_mode as string | null) ?? null,
+    matter_metadata: meta,
     post_judgment_options_analysis: Boolean(meta.post_judgment_options_analysis),
+    remedy_exhaustion_verified: Boolean(meta.remedy_exhaustion_verified),
     is_final_resolution: extra?.is_final_resolution,
     resolutivos: extra?.resolutivos,
     corpusText: extra?.corpusText,
+    execution_id: extra?.execution_id,
   });
 
   return governance;
 }
+
+// Backward-compatible alias
+export const loadConcludedCaseGovernance = loadResolvedReportGovernance;

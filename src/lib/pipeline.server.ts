@@ -9514,9 +9514,9 @@ ${paginationTail}`;
       metrics: canonicalSourceMetrics,
       invariants: canonicalSourceAudit.invariants,
     };
-    const { loadConcludedCaseGovernance } = await import("./intelligence/concluded-case-governance.server");
-    const { filterConcludedReportSections } = await import("./intelligence/concluded-case-governance");
-    const reportGov = await loadConcludedCaseGovernance(db, caseId, {
+    const { loadResolvedReportGovernance } = await import("./intelligence/concluded-case-governance.server");
+    const { filterConcludedReportSections, validateFinalReportGovernance } = await import("./intelligence/concluded-case-governance");
+    const reportGov = await loadResolvedReportGovernance(db, caseId, {
       resolutivos: resolutivoVerbatim,
       corpusText: corpus,
     });
@@ -9524,6 +9524,13 @@ ${paginationTail}`;
     (reportRow.full_report as any).report_governance = reportGov;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     reportRow.full_report = filterConcludedReportSections(reportRow.full_report as Record<string, unknown>, reportGov);
+    const finalGovValidation = validateFinalReportGovernance({
+      governance: reportGov,
+      fullReport: reportRow.full_report as Record<string, unknown>,
+      findings: findings as Array<Record<string, unknown>>,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (reportRow.full_report as any).final_governance_validation = finalGovValidation;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const valBlock = ((reportRow.full_report as any).validation ?? {}) as Record<string, unknown>;
     valBlock.report_quality = qualityAudit;
@@ -9535,6 +9542,7 @@ ${paginationTail}`;
     valBlock.canonical_source_count = canonicalSourceMetrics.unique_source_count;
     valBlock.independent_source_count = canonicalSourceMetrics.independent_source_count;
     valBlock.report_governance = reportGov;
+    valBlock.final_governance_validation = finalGovValidation;
     valBlock.citation_audit = {
       total: citationAudit.total,
       supported: citationAudit.supported,

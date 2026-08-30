@@ -1077,9 +1077,26 @@ async function _runFinalReleaseReview(args: OrchestratorArgs): Promise<FinalRele
     warnings.push(...integrity.violations.filter((v) => v.severity === "warning").map((v) => v.message));
   }
 
+  // Pre-release Concluded-Case Governance Validation
+  const { loadResolvedReportGovernance } = await import("@/lib/intelligence/concluded-case-governance.server");
+  const { validateFinalReportGovernance } = await import("@/lib/intelligence/concluded-case-governance");
+  const reportGov = await loadResolvedReportGovernance(args.db, args.caseId);
+  const finalGov = validateFinalReportGovernance({
+    governance: reportGov,
+    fullReport: (reportRow?.full_report ?? {}) as Record<string, unknown>,
+    findings: (findingsData ?? []) as Array<Record<string, unknown>>,
+  });
+
+  if (!finalGov.ok) {
+    errors.push(...finalGov.blocking_errors);
+  }
+  if (finalGov.warnings.length > 0) {
+    warnings.push(...finalGov.warnings);
+  }
+
   // Authoritative Decision
   let decision: ReleaseDecision = "BLOCKED";
-  if (gatesPassed && engineGate.ok && integrity.valid) {
+  if (gatesPassed && engineGate.ok && integrity.valid && finalGov.ok) {
     decision = warnings.length > 0 ? "PASS_WITH_WARNINGS" : "PASS";
   }
 
