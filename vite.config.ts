@@ -23,6 +23,9 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    server: {
+      allowedHosts: true,
+    },
     resolve: {
       alias: {
         "entities/lib/decode.js": path.resolve(import.meta.dirname, "node_modules/entities/lib/decode.js"),
