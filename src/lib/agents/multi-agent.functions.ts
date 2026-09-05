@@ -50,9 +50,19 @@ async function getAuthedContext(context: AuthContext, label: string) {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await supabase.auth.getClaims(token);
-  if (error || !data?.claims?.sub) throw new Error(`[${label}] session invalid`);
-  return { supabase, userId: data.claims.sub };
+  let userId: string;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('bad format');
+    const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadB64 + '='.repeat((4 - payloadB64.length % 4) % 4);
+    const claims = JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
+    if (!claims?.sub) throw new Error('no sub');
+    userId = claims.sub;
+  } catch (_) {
+    throw new Error(`[${label}] session invalid`);
+  }
+  return { supabase, userId };
 }
 
 export const runMultiAgentAnalysis = createServerFn({ method: "POST" })

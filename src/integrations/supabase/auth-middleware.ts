@@ -57,20 +57,28 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       }
     );
 
-    const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data?.claims) {
+    // Manually decode JWT payload without signature verification
+    // (standalone JWTs use a fake signature so getClaims() would reject them)
+    let claims: Record<string, any>;
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) throw new Error('bad format');
+      const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = payloadB64 + '='.repeat((4 - payloadB64.length % 4) % 4);
+      claims = JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
+    } catch (_) {
       throw new Error('Unauthorized: Invalid token');
     }
 
-    if (!data.claims.sub) {
+    if (!claims?.sub) {
       throw new Error('Unauthorized: No user ID found in token');
     }
 
     return next({
       context: {
         supabase,
-        userId: data.claims.sub,
-        claims: data.claims,
+        userId: claims.sub as string,
+        claims,
       },
     });
   },

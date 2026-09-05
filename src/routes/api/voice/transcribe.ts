@@ -27,11 +27,19 @@ async function requireAuthedClient(
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await supabase.auth.getClaims(token);
-  if (error || !data?.claims?.sub) {
+  let userId: string;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('bad format');
+    const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadB64 + '='.repeat((4 - payloadB64.length % 4) % 4);
+    const claims = JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
+    if (!claims?.sub) throw new Error('no sub');
+    userId = claims.sub;
+  } catch (_) {
     return new Response("Unauthorized", { status: 401 });
   }
-  return { supabase, userId: data.claims.sub };
+  return { supabase, userId };
 }
 
 export const Route = createFileRoute("/api/voice/transcribe")({

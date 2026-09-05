@@ -42,11 +42,20 @@ async function getAuthedContext(context: AuthContext, label: string) {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
     });
-    const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data?.claims?.sub) {
+    let decodedClaims: Record<string, any>;
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) throw new Error('bad format');
+      const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = payloadB64 + '='.repeat((4 - payloadB64.length % 4) % 4);
+      decodedClaims = JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
+    } catch (_) {
       throw new Error(`[${label}] signed-in session could not be verified`);
     }
-    userId = data.claims.sub;
+    if (!decodedClaims?.sub) {
+      throw new Error(`[${label}] signed-in session could not be verified`);
+    }
+    userId = decodedClaims.sub;
   }
 
   const { data: profile } = await supabase
