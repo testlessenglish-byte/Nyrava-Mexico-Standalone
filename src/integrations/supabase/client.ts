@@ -40,7 +40,7 @@ function createSupabaseClient() {
       fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
     },
     auth: {
-      storage: brokeredPreviewStorage(),
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
     }
@@ -79,7 +79,10 @@ function createSupabaseClient() {
     };
 
     try {
-      localStorage.setItem('nyrava_standalone_session', JSON.stringify(session));
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('nyrava_standalone_session', JSON.stringify(session));
+        window.localStorage.setItem('sb-plyqpmrucbsyxybmkoeg-auth-token', JSON.stringify(session));
+      }
     } catch (_) {}
 
     return { data: { user, session }, error: null };
@@ -87,10 +90,12 @@ function createSupabaseClient() {
 
   function getStoredStandaloneSession() {
     try {
-      const stored = localStorage.getItem('nyrava_standalone_session');
-      if (stored) {
-        const session = JSON.parse(stored);
-        return { data: { session }, error: null };
+      if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('nyrava_standalone_session') || window.localStorage.getItem('sb-plyqpmrucbsyxybmkoeg-auth-token');
+        if (stored) {
+          const session = JSON.parse(stored);
+          return { data: { session }, error: null };
+        }
       }
     } catch (_) {}
     return null;
@@ -105,8 +110,10 @@ function createSupabaseClient() {
     }
     const fallback = createStandaloneSession(credentials.email);
     setTimeout(() => {
-      // @ts-ignore
-      rawClient.auth._notifyAllSubscribers?.('SIGNED_IN', fallback.data.session);
+      try {
+        // @ts-ignore
+        rawClient.auth._notifyAllSubscribers?.('SIGNED_IN', fallback.data.session);
+      } catch (_) {}
     }, 10);
     return fallback as any;
   };
@@ -120,35 +127,40 @@ function createSupabaseClient() {
     }
     const fallback = createStandaloneSession(credentials.email);
     setTimeout(() => {
-      // @ts-ignore
-      rawClient.auth._notifyAllSubscribers?.('SIGNED_IN', fallback.data.session);
+      try {
+        // @ts-ignore
+        rawClient.auth._notifyAllSubscribers?.('SIGNED_IN', fallback.data.session);
+      } catch (_) {}
     }, 10);
     return fallback as any;
   };
 
   rawClient.auth.getSession = async () => {
+    const stored = getStoredStandaloneSession();
+    if (stored?.data?.session) return stored as any;
     try {
       const result = await originalGetSession();
       if (result.data?.session) return result;
     } catch (_) {}
-    const stored = getStoredStandaloneSession();
-    if (stored) return stored as any;
     return { data: { session: null }, error: null };
   };
 
   rawClient.auth.getUser = async () => {
+    const stored = getStoredStandaloneSession();
+    if (stored?.data?.session?.user) return { data: { user: stored.data.session.user }, error: null } as any;
     try {
       const result = await originalGetUser();
       if (result.data?.user) return result;
     } catch (_) {}
-    const stored = getStoredStandaloneSession();
-    if (stored?.data?.session?.user) return { data: { user: stored.data.session.user }, error: null } as any;
     return { data: { user: null }, error: null };
   };
 
   rawClient.auth.signOut = async (options) => {
     try {
-      localStorage.removeItem('nyrava_standalone_session');
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('nyrava_standalone_session');
+        window.localStorage.removeItem('sb-plyqpmrucbsyxybmkoeg-auth-token');
+      }
     } catch (_) {}
     try {
       return await originalSignOut(options);
