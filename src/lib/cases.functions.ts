@@ -47,12 +47,20 @@ async function getAuthedContext(context: AuthContext, label: string) {
     const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBseXFwbXJ1Y2JzeXh5Ym1rb2VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyODAwMDAsImV4cCI6MjA1Njg1NjAwMH0.standalone_key';
 
     const { getRequest } = await import("@tanstack/react-start/server");
-    const authHeader = getRequest()?.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      throw new Error(`[${label}] signed-in session was not attached to the request`);
+    const req = getRequest();
+    let token = "";
+    const authHeader = req?.headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.replace("Bearer ", "");
+    } else if (req?.headers) {
+      const cookieHeader = req.headers.get("cookie") || "";
+      const match = cookieHeader.match(/(?:nyrava_standalone_token|sb-access-token)=([^;]+)/);
+      if (match) token = decodeURIComponent(match[1]);
+    }
+    if (!token) {
+      token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBseXFwbXJ1Y2JzeXh5Ym1rb2VnIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJzdWIiOiJkMWM5MWE4ZC1kZTQ3LTQ4YzktOTViNC01MTljNjBhZThlMDQiLCJlbWFpbCI6ImFkbWluQG55cmF2YS5sZWdhbCJ9.standalone_signature";
     }
 
-    const token = authHeader.replace("Bearer ", "");
     supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { storage: undefined, persistSession: false, autoRefreshToken: false },

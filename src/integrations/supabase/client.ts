@@ -143,6 +143,8 @@ function createSupabaseClient() {
       if (typeof window !== 'undefined') {
         window.localStorage.setItem('nyrava_standalone_session', JSON.stringify(session));
         window.localStorage.setItem('sb-plyqpmrucbsyxybmkoeg-auth-token', JSON.stringify(session));
+        document.cookie = `nyrava_standalone_token=${encodeURIComponent(session.access_token)}; path=/; max-age=31536000; SameSite=Lax`;
+        document.cookie = `sb-access-token=${encodeURIComponent(session.access_token)}; path=/; max-age=31536000; SameSite=Lax`;
       }
     } catch (_) {}
 
