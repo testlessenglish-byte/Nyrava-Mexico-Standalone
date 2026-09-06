@@ -104,11 +104,8 @@ function AuthPage() {
     const { data, error: userError } = await supabase.auth.getUser();
     if (userError || !data.user) throw userError ?? new Error(t("common.error.auth"));
     await router.invalidate();
-    if (destination.startsWith("/")) {
-      window.location.replace(destination);
-    } else {
-      await navigate({ to: "/dashboard", replace: true });
-    }
+    const targetPath = destination && destination.startsWith("/") && destination !== "/auth" ? destination : "/dashboard";
+    await navigate({ to: targetPath as any, replace: true });
   }
 
   async function handleEmail(e: React.FormEvent) {

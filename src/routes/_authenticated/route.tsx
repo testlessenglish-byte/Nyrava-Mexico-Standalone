@@ -108,6 +108,7 @@ export const Route = createFileRoute("/_authenticated")({
   }),
   beforeLoad: async ({ location }) => {
     if (location.pathname.startsWith("/lovable/")) return;
+    if (typeof window === "undefined") return;
     const user = await getAuthenticatedUser();
     if (!user) {
       const target = `${location.pathname}${location.searchStr ? `?${location.searchStr}` : ""}`;
@@ -202,6 +203,10 @@ function AppLayout() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       const user = data.session?.user;
+      if (!user) {
+        nav({ to: "/auth", replace: true });
+        return;
+      }
       setEmail(user?.email ?? "");
       const metaName =
         (user?.user_metadata?.full_name as string | undefined) ||
