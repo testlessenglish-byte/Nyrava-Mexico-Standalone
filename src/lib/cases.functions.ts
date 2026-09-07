@@ -1705,7 +1705,30 @@ export const listGroqKeys = createServerFn({ method: "GET" })
       last_error_at: string | null;
       created_at: string;
     }>;
-    const platformConfigured = Boolean(process.env.GROQ_API_KEY);
+    // Also check BYO-AI keys in user_ai_keys (Groq, OpenAI, Gemini, Anthropic, OpenRouter)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: userAiKeysData } = await (supabase as any)
+      .from("user_ai_keys")
+      .select("id,provider,label,key_fingerprint,is_active,created_at")
+      .eq("user_id", userId)
+      .eq("is_active", true);
+    const aiKeys = (userAiKeysData ?? []) as Array<{
+      id: string;
+      provider: string;
+      label: string | null;
+      key_fingerprint: string | null;
+      is_active: boolean;
+      created_at: string;
+    }>;
+
+    const hasEnvKeys = Boolean(
+      process.env.GROQ_API_KEY ||
+      process.env.OPENAI_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      process.env.ANTHROPIC_API_KEY ||
+      process.env.OPENROUTER_API_KEY
+    );
+    const platformConfigured = Boolean(process.env.GROQ_API_KEY) || hasEnvKeys || aiKeys.length > 0;
 
     // Per-key usage rollup (last 30 days) — now attributed via groq_key_id.
     // Falls back to the created-at slicing heuristic for historical rows
@@ -1730,50 +1753,66 @@ export const listGroqKeys = createServerFn({ method: "GET" })
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
     ).toISOString();
 
-    return {
-      provider: "Groq",
-      model: "Llama 4 Scout (17B 16E Instruct)",
-      platformConfigured,
-      keys: rows.map((r, i) => {
-        const nextAt = rows[i + 1]?.created_at ?? null;
-        // Prefer attributed rows (groq_key_id === r.id). Fall back to
-        // created-at slicing only for legacy rows with null groq_key_id.
-        const attributed = usage.filter((u) => u.groq_key_id === r.id);
-        const legacy = usage.filter(
-          (u) =>
-            u.groq_key_id == null &&
-            u.created_at >= r.created_at &&
-            (!nextAt || u.created_at < nextAt),
+    const groqKeysMapped = rows.map((r, i) => {
+      const nextAt = rows[i + 1]?.created_at ?? null;
+      const attributed = usage.filter((u) => u.groq_key_id === r.id);
+      const legacy = usage.filter(
+        (u) =>
+          u.groq_key_id == null &&
+          u.created_at >= r.created_at &&
+          (!nextAt || u.created_at < nextAt),
+      );
+      const slice = [...attributed, ...legacy];
+      const tokensOf = (arr: typeof slice) =>
+        arr.reduce(
+          (a, b) => a + (b.total_tokens ?? (b.input_tokens ?? 0) + (b.output_tokens ?? 0)),
+          0,
         );
-        const slice = [...attributed, ...legacy];
-        const tokensOf = (arr: typeof slice) =>
-          arr.reduce(
-            (a, b) => a + (b.total_tokens ?? (b.input_tokens ?? 0) + (b.output_tokens ?? 0)),
-            0,
-          );
-        const tokens30d = tokensOf(slice);
-        const today = slice.filter((u) => u.created_at >= dayStart);
-        return {
-          id: r.id,
-          label: r.label,
-          masked:
-            r.key_value.length > 10 ? `${r.key_value.slice(0, 4)}…${r.key_value.slice(-4)}` : "•••",
-          priority: r.priority ?? i + 1,
-          is_active: r.is_active,
-          last_used_at: r.last_used_at,
-          last_error: r.last_error,
-          last_error_at: r.last_error_at,
-          created_at: r.created_at,
-          usage30d: {
-            tokens: tokens30d,
-            calls: slice.length,
-            failures: slice.filter((s) => !s.success).length,
-          },
-          usageToday: { tokens: tokensOf(today), calls: today.length },
-          attributed: attributed.length,
-          legacy: legacy.length,
-        };
-      }),
+      const tokens30d = tokensOf(slice);
+      const today = slice.filter((u) => u.created_at >= dayStart);
+      return {
+        id: r.id,
+        label: r.label,
+        masked:
+          r.key_value.length > 10 ? `${r.key_value.slice(0, 4)}…${r.key_value.slice(-4)}` : "•••",
+        priority: r.priority ?? i + 1,
+        is_active: r.is_active,
+        last_used_at: r.last_used_at,
+        last_error: r.last_error,
+        last_error_at: r.last_error_at,
+        created_at: r.created_at,
+        usage30d: {
+          tokens: tokens30d,
+          calls: slice.length,
+          failures: slice.filter((s) => !s.success).length,
+        },
+        usageToday: { tokens: tokensOf(today), calls: today.length },
+        attributed: attributed.length,
+        legacy: legacy.length,
+      };
+    });
+
+    const aiKeysMapped = aiKeys.map((k, i) => ({
+      id: k.id,
+      label: k.label || `${k.provider} key`,
+      masked: k.key_fingerprint ? `key-${k.key_fingerprint.slice(0, 8)}` : "••••••••",
+      priority: i + 1,
+      is_active: k.is_active,
+      last_used_at: null,
+      last_error: null,
+      last_error_at: null,
+      created_at: k.created_at || new Date().toISOString(),
+      usage30d: { tokens: 0, calls: 0, failures: 0 },
+      usageToday: { tokens: 0, calls: 0 },
+      attributed: 0,
+      legacy: 0,
+    }));
+
+    return {
+      provider: "AI Intelligence Router",
+      model: "Nyrava Multi-Provider AI Engine",
+      platformConfigured,
+      keys: [...groqKeysMapped, ...aiKeysMapped],
     };
   });
 
