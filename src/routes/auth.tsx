@@ -103,9 +103,8 @@ function AuthPage() {
   async function enterWorkspace() {
     const { data, error: userError } = await supabase.auth.getUser();
     if (userError || !data.user) throw userError ?? new Error(t("common.error.auth"));
-    await router.invalidate();
     const targetPath = destination && destination.startsWith("/") && destination !== "/auth" ? destination : "/dashboard";
-    await navigate({ to: targetPath as any, replace: true });
+    window.location.assign(targetPath);
   }
 
   async function handleEmail(e: React.FormEvent) {
