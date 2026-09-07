@@ -3879,13 +3879,13 @@ export const adminStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = await getAuthedContext(context, "Admin");
-    const { data: adminRole } = await supabase
+    const { data: userRoles } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    if (!adminRole) throw new Error("Forbidden");
+      .eq("user_id", userId);
+    const roles = (userRoles ?? []).map((r) => r.role as string);
+    const isAdmin = roles.includes("admin") || roles.includes("super_admin") || roles.includes("firm_admin");
+    if (!isAdmin) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [cases, users, reports, usage] = await Promise.all([
       supabaseAdmin
