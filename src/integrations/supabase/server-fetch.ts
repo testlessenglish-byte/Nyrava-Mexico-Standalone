@@ -13,11 +13,21 @@ const dbConfig = {
 let pgClient: Client | null = null;
 function getPgClient() {
   if (!pgClient) {
-    pgClient = new Client(dbConfig);
-    pgClient.connect().catch((err) => {
-      console.error('[Postgres Fallback Connection Error]:', err);
+    try {
+      const client = new Client(dbConfig);
+      client.on('error', (err) => {
+        console.error('[Postgres Client Error]:', err?.message);
+        pgClient = null;
+      });
+      client.connect().catch((err) => {
+        console.error('[Postgres Fallback Connection Error]:', err?.message);
+        pgClient = null;
+      });
+      pgClient = client;
+    } catch (err) {
+      console.error('[Postgres Client Creation Error]:', err);
       pgClient = null;
-    });
+    }
   }
   return pgClient;
 }
@@ -29,7 +39,13 @@ function isNewSupabaseApiKey(value: string): boolean {
 function parsePostgrestQuery(method: string, urlStr: string, bodyStr?: string) {
   const url = new URL(urlStr);
   const pathParts = url.pathname.split('/');
-  const table = pathParts[pathParts.length - 1];
+  const targetName = pathParts[pathParts.length - 1];
+
+  if (urlStr.includes('/rpc/')) {
+    return { sql: `SELECT public."${targetName}"() AS result;`, params: [] };
+  }
+
+  const table = targetName;
 
   let selectClause = '*';
   let limitClause = '';
