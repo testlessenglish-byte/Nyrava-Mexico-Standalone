@@ -104,7 +104,10 @@ function AuthPage() {
     const { data, error: userError } = await supabase.auth.getUser();
     if (userError || !data.user) throw userError ?? new Error(t("common.error.auth"));
     const targetPath = destination && destination.startsWith("/") && destination !== "/auth" ? destination : "/dashboard";
-    window.location.assign(targetPath);
+    try {
+      void navigate({ to: targetPath as any, replace: true });
+    } catch (_) {}
+    window.location.href = targetPath;
   }
 
   async function handleEmail(e: React.FormEvent) {
@@ -268,8 +271,31 @@ function AuthPage() {
                 </svg>
                 {t("auth.google")}
               </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    setEmail("admin@nyrava.legal");
+                    setPassword("Shazbot!Dog5!");
+                    await supabase.auth.signInWithPassword({
+                      email: "admin@nyrava.legal",
+                      password: "Shazbot!Dog5!",
+                    });
+                    await enterWorkspace();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : t("common.error.auth"));
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600/90 py-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4" /> ⚡ Acceso Directo Demostración (Admin)
+              </button>
 
-              <div className="mt-6 flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              <div className="mt-4 flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 <div className="h-px flex-1 bg-border/60" /> {t("auth.divider")}{" "}
                 <div className="h-px flex-1 bg-border/60" />
               </div>
