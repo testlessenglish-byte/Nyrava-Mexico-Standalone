@@ -243,13 +243,63 @@ function AuthPage() {
             </p>
           </div>
 
+          <div className="mt-6 space-y-2.5">
+            <button
+              type="button"
+              onClick={async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                  setEmail("admin@nyrava.legal");
+                  setPassword("Shazbot!Dog5!");
+                  await supabase.auth.signInWithPassword({
+                    email: "admin@nyrava.legal",
+                    password: "Shazbot!Dog5!",
+                  });
+                  await enterWorkspace();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : t("common.error.auth"));
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white shadow-md transition hover:bg-emerald-500 disabled:opacity-50"
+            >
+              <Sparkles className="h-4 w-4" /> ⚡ ACCESO DIRECTO ADMIN (admin@nyrava.legal)
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                  setEmail("user@nyrava.legal");
+                  setPassword("Shazbot!Dog5!");
+                  await supabase.auth.signInWithPassword({
+                    email: "user@nyrava.legal",
+                    password: "Shazbot!Dog5!",
+                  });
+                  await enterWorkspace();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : t("common.error.auth"));
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-sky-600 px-4 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white shadow-md transition hover:bg-sky-500 disabled:opacity-50"
+            >
+              <Sparkles className="h-4 w-4" /> ⚡ ACCESO DIRECTO USUARIO (user@nyrava.legal)
+            </button>
+          </div>
+
           {(mode === "signin" || mode === "signup") && (
             <>
               <button
                 type="button"
                 onClick={handleGoogle}
                 disabled={loading}
-                className="mt-6 flex w-full items-center justify-center gap-3 rounded-md border border-border/70 bg-background/60 py-2.5 text-sm font-medium text-foreground transition hover:bg-background disabled:opacity-50"
+                className="mt-4 flex w-full items-center justify-center gap-3 rounded-md border border-border/70 bg-background/60 py-2.5 text-sm font-medium text-foreground transition hover:bg-background disabled:opacity-50"
               >
                 <svg width="16" height="16" viewBox="0 0 48 48">
                   <path
@@ -270,29 +320,6 @@ function AuthPage() {
                   />
                 </svg>
                 {t("auth.google")}
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setLoading(true);
-                  setError(null);
-                  try {
-                    setEmail("admin@nyrava.legal");
-                    setPassword("Shazbot!Dog5!");
-                    await supabase.auth.signInWithPassword({
-                      email: "admin@nyrava.legal",
-                      password: "Shazbot!Dog5!",
-                    });
-                    await enterWorkspace();
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : t("common.error.auth"));
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600/90 py-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-50"
-              >
-                <Sparkles className="h-4 w-4" /> ⚡ Acceso Directo Demostración (Admin)
               </button>
 
               <div className="mt-4 flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
