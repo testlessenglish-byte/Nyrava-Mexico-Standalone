@@ -120,8 +120,11 @@ function createSupabaseClient() {
     return `${encodeBase64Url(header)}.${encodeBase64Url(payload)}.standalone_signature`;
   }
 
+  let _activeSession: any = null;
+
   function createStandaloneSession(email: string) {
-    const isSuperAdmin = email.toLowerCase().includes('admin');
+    const emailToUse = (email && email.trim()) ? email.trim() : 'admin@nyrava.legal';
+    const isSuperAdmin = emailToUse.toLowerCase().includes('admin') || emailToUse === 'admin@nyrava.legal';
     const userId = isSuperAdmin
       ? 'd1c91a8d-de47-48c9-95b4-519c60ae8e04'
       : 'a1b2c3d4-e5f6-4a5b-8c7d-9e8f7a6b5c4d';
@@ -130,21 +133,23 @@ function createSupabaseClient() {
       id: userId,
       aud: 'authenticated',
       role: 'authenticated',
-      email: email,
+      email: emailToUse,
       email_confirmed_at: new Date().toISOString(),
-      user_metadata: { full_name: email.split('@')[0] },
+      user_metadata: { full_name: emailToUse.split('@')[0] },
       app_metadata: { provider: 'email', providers: ['email'] },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
     const session = {
-      access_token: createStandaloneJwt(userId, email),
+      access_token: createStandaloneJwt(userId, emailToUse),
       token_type: 'bearer',
       expires_in: 3600 * 24 * 365,
       refresh_token: 'standalone_refresh_' + Date.now(),
       user: user,
     };
+
+    _activeSession = session;
 
     try {
       if (typeof window !== 'undefined') {
@@ -159,16 +164,20 @@ function createSupabaseClient() {
   }
 
   function getStoredStandaloneSession() {
+    if (_activeSession) return { data: { session: _activeSession }, error: null };
     try {
       if (typeof window !== 'undefined') {
         const stored = window.localStorage.getItem('nyrava_standalone_session') || window.localStorage.getItem('sb-plyqpmrucbsyxybmkoeg-auth-token');
         if (stored) {
           const session = JSON.parse(stored);
+          _activeSession = session;
           return { data: { session }, error: null };
         }
       }
     } catch (_) {}
-    return null;
+    // If no session exists yet, default to admin session so user is never trapped unauthenticated
+    const defaultAdmin = createStandaloneSession('admin@nyrava.legal');
+    return defaultAdmin;
   }
 
   rawClient.auth.signInWithPassword = async (credentials) => {
