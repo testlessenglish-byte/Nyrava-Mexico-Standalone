@@ -72,8 +72,15 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 function createSupabaseClient() {
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || STANDALONE_SUPABASE_URL;
-  const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || STANDALONE_ANON_KEY;
+  const SUPABASE_URL =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
+    (typeof process !== 'undefined' && process.env?.SUPABASE_URL) ||
+    STANDALONE_SUPABASE_URL;
+
+  const SUPABASE_PUBLISHABLE_KEY =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY) ||
+    (typeof process !== 'undefined' && process.env?.SUPABASE_PUBLISHABLE_KEY) ||
+    STANDALONE_ANON_KEY;
 
   const rawClient = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {

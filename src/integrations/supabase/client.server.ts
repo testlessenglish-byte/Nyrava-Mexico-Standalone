@@ -8,25 +8,26 @@ import type { Database } from './types';
 import { createSupabaseFetch } from './server-fetch';
 
 function createSupabaseAdminClient() {
+  const pEnv = typeof process !== 'undefined' ? process.env : {} as any;
   const SUPABASE_URL =
-    process.env.SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL ||
+    pEnv.SUPABASE_URL ||
+    pEnv.VITE_SUPABASE_URL ||
     (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_URL : undefined);
   const SUPABASE_SERVICE_ROLE_KEY =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+    pEnv.SUPABASE_SERVICE_ROLE_KEY ||
+    pEnv.SUPABASE_SERVICE_KEY ||
+    pEnv.VITE_SUPABASE_SERVICE_ROLE_KEY;
   const SUPABASE_ANON_KEY =
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
+    pEnv.SUPABASE_ANON_KEY ||
+    pEnv.SUPABASE_PUBLISHABLE_KEY ||
+    pEnv.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    pEnv.VITE_SUPABASE_ANON_KEY ||
     (typeof import.meta !== 'undefined'
       ? (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY
       : undefined);
 
   const keyToUse = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY 
-    || process.env.SUPABASE_PUBLISHABLE_KEY
+    || pEnv.SUPABASE_PUBLISHABLE_KEY
     || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBseXFwbXJ1Y2JzeXh5Ym1rb2VnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyODAwMDAsImV4cCI6MjA1Njg1NjAwMH0.standalone_key';
 
   const urlToUse = SUPABASE_URL || 'https://plyqpmrucbsyxybmkoeg.supabase.co';
