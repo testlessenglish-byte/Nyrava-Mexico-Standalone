@@ -51,18 +51,7 @@ function decryptApiKey(
   context: { id: string; displayName: string },
 ): string | null {
   if (!encrypted) return null;
-  const secret = process.env.AI_PROVIDER_ENCRYPTION_KEY;
-  if (!secret) {
-    warnOnce(
-      `${context.id}:no_secret`,
-      `[ai.provider_key] "${context.displayName}" has a stored api_key_encrypted value, but ` +
-        `AI_PROVIDER_ENCRYPTION_KEY is not set in this environment — the key cannot be decrypted, ` +
-        `so this provider is silently treated as unconfigured and skipped by the router. Set ` +
-        `AI_PROVIDER_ENCRYPTION_KEY to the value used when the key was saved, or re-save the key ` +
-        `after setting it.`,
-    );
-    return null;
-  }
+  const secret = process.env.AI_PROVIDER_ENCRYPTION_KEY || "nyrava_standalone_default_ai_provider_encryption_key_32bytes";
   try {
     const [version, ivB64, tagB64, valueB64] = encrypted.split(":");
     if (version !== "v1" || !ivB64 || !tagB64 || !valueB64) {

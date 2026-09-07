@@ -29,8 +29,7 @@ const SUPPORTED_SECRETS = [
 type AiProviderInsert = Database["public"]["Tables"]["ai_providers"]["Insert"];
 
 function encryptApiKey(value: string): string {
-  const secret = process.env.AI_PROVIDER_ENCRYPTION_KEY;
-  if (!secret) throw new Error("AI provider key storage is not configured");
+  const secret = process.env.AI_PROVIDER_ENCRYPTION_KEY || "nyrava_standalone_default_ai_provider_encryption_key_32bytes";
   const key = createHash("sha256").update(secret).digest();
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
